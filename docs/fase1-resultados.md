@@ -80,9 +80,26 @@ truncada e segmento que atravessa a meia-noite.
 A qualidade dos testes foi conferida por mutação: desativar o teste de
 `sample_is_non_sync_sample` faz `TestParseMoofDetectaKeyframe` falhar.
 
+## Áudio FLAC
+
+Exercitado ponta a ponta na `cam_jardim` — ver [audio-flac.md](audio-flac.md).
+Resumo: **+0,65% de um core, zero processos ffmpeg, mas +34% de armazenamento**,
+porque o FLAC é sem perdas e o A-law precisa ser expandido para 16 bits antes de
+ser comprimido.
+
+O recorder detectou sozinho que o init mudou (duas trilhas em vez de uma) e
+abriu uma nova geração, `e38cb0530c62` contra `4edbc50d8e70`, com o init
+crescendo de 737 para 1192 bytes — exatamente o comportamento que o hash de
+conteúdo deveria produzir, sem nenhum código específico para isso.
+
+## Reconexão, verificada por acidente
+
+Reiniciar o go2rtc para o teste de áudio derrubou as 9 conexões ao mesmo tempo.
+O dwnvr registrou `connection refused` em todas, esperou o backoff de 2s e
+reconectou as 9 sem intervenção e sem um único ERROR no log.
+
 ## Pendente
 
 - Teste de longa duração (24h+) para o risco #2, estabilidade do `stream.mp4`
   em conexão contínua. O processo ficou rodando no Pi para isso.
-- O modo de áudio `flac` ainda não foi exercitado ponta a ponta: as câmeras
-  estão com `#media=video` no `go2rtc.yaml`, que descarta o áudio na origem.
+- Confirmação de FLAC-em-MP4 no Safari.
