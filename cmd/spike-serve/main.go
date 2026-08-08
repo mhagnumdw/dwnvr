@@ -116,23 +116,36 @@ func scan(dir string) ([]segment, error) {
 		}
 		if vt, ok := info.Movie.VideoTrack(); ok {
 			s.Codec = vt.Codec
-			s.MimeCodec = mimeFor(vt.Codec)
 		}
+		s.MimeCodec = mimeFor(info.Movie)
 		segs = append(segs, s)
 	}
 	sort.Slice(segs, func(i, j int) bool { return segs[i].Name < segs[j].Name })
 	return segs, nil
 }
 
-func mimeFor(codec string) string {
-	switch codec {
-	case "hev1":
-		return `video/mp4; codecs="hev1.1.6.L153.B0"`
-	case "hvc1":
-		return `video/mp4; codecs="hvc1.1.6.L153.B0"`
-	default:
-		return `video/mp4; codecs="avc1.640029"`
+// mimeFor monta a string de codec do MSE a partir das trilhas do init. Precisa
+// listar TODAS as trilhas: um segmento com áudio anunciado só como vídeo é
+// recusado pelo addSourceBuffer.
+func mimeFor(mv *fmp4.Movie) string {
+	var codecs []string
+	for _, t := range mv.Tracks {
+		switch t.Codec {
+		case "hev1":
+			codecs = append(codecs, "hev1.1.6.L153.B0")
+		case "hvc1":
+			codecs = append(codecs, "hvc1.1.6.L153.B0")
+		case "avc1":
+			codecs = append(codecs, "avc1.640029")
+		case "fLaC":
+			codecs = append(codecs, "flac")
+		case "Opus":
+			codecs = append(codecs, "opus")
+		case "mp4a":
+			codecs = append(codecs, "mp4a.40.2")
+		}
 	}
+	return `video/mp4; codecs="` + strings.Join(codecs, ",") + `"`
 }
 
 const page = `<!doctype html><meta charset=utf-8>

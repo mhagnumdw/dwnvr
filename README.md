@@ -133,11 +133,20 @@ Tudo que é política de gravação é **por câmera**: qual stream do go2rtc us
 
 O modo de áudio é escolhido por câmera e vira um filtro de codec na URL:
 
-| Modo | Custo | Mexe no go2rtc? |
-|---|---|---|
-| `none` | zero — o áudio nem trafega | não |
-| `flac` | ~1-2% de core (go2rtc converte pcm_alaw→FLAC em Go puro) | não |
-| `aac` | ~10% de core | sim, exige `ffmpeg:cam#audio=aac` |
+| Modo | CPU | Disco | Mexe no go2rtc? |
+|---|---|---|---|
+| `none` | zero | zero | não |
+| `flac` | **+0,65% de 1 core** | **+260 kbps** (~2,8 GB/dia) | não |
+| `aac` | ~10% de 1 core | ~64 kbps (~0,7 GB/dia) | sim, exige `ffmpeg:cam#audio=aac` |
+
+Medido no Pi com câmeras Yoosee (pcm_alaw 16 kHz mono). **A escolha é entre
+CPU e disco**: o FLAC é praticamente de graça em processamento e não dispara
+nenhum processo ffmpeg — a conversão acontece em Go puro dentro do go2rtc —, mas
+por ser sem perdas ele fica em ~260 kbps, o que numa câmera de 770 kbps de vídeo
+significa **+34% de armazenamento**. O AAC inverte a conta.
+
+Requisito comum aos dois: a fonte no `go2rtc.yaml` não pode ter `#media=video`,
+que descarta o áudio já na origem.
 
 ## Estado atual
 
