@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
 
@@ -20,12 +21,18 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 	cfg := &config.Config{}
 	cfg.Defaults = config.Defaults{SegmentSeconds: 30, QuotaMB: 100, Audio: config.AudioNone}
 
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// Manager sem Start: registra a câmera sem subir gravação de verdade, que
+	// é o que estes testes precisam.
+	mgr := recorder.NewManager(cfg, nil, st, log)
+	mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true})
+
 	s := &Server{
 		cfg:    cfg,
 		store:  st,
+		mgr:    mgr,
 		secret: []byte("segredo-de-teste-com-32-bytes!!!"),
-		log:    slog.New(slog.NewTextHandler(io.Discard, nil)),
-		cams:   []config.Camera{{ID: "cam_teste", Name: "Teste", Enabled: true}},
+		log:    log,
 	}
 	return s, st.Camera("cam_teste")
 }
