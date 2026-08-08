@@ -91,25 +91,44 @@ type Stream struct {
 }
 
 type Producer struct {
-	URL    string  `json:"url"`
-	Medias []Media `json:"medias"`
-}
+	URL string `json:"url"`
 
-type Media struct {
-	Kind      string  `json:"kind"`
-	Direction string  `json:"direction"`
-	Codecs    []Codec `json:"codecs"`
-}
-
-type Codec struct {
-	Name     string `json:"name"`
-	Channels int    `json:"channels"`
+	// Medias vem como texto livre, uma linha por trilha, no formato
+	// "<tipo>, <direção>, <codec>" — por exemplo "audio, recvonly, PCMA/16000".
+	// Não é JSON estruturado: é a representação SDP que o go2rtc expõe.
+	Medias []string `json:"medias"`
 }
 
 // Transcoding indica que a fonte é um ffmpeg, ou seja, que há transcodificação
 // acontecendo — informação que vale a pena mostrar no diagnóstico, já que o
 // objetivo declarado é não transcodificar vídeo.
 func (p Producer) Transcoding() bool { return strings.HasPrefix(p.URL, "ffmpeg:") }
+
+// HasAudio diz se o produtor entrega alguma trilha de áudio. É o que permite à
+// tela de cadastro só oferecer áudio nas câmeras que de fato o têm.
+func (p Producer) HasAudio() bool {
+	for _, m := range p.Medias {
+		if strings.HasPrefix(m, "audio") {
+			return true
+		}
+	}
+	return false
+}
+
+// AudioCodecs devolve os codecs de áudio anunciados, por exemplo "PCMA/16000".
+func (p Producer) AudioCodecs() []string {
+	var out []string
+	for _, m := range p.Medias {
+		if !strings.HasPrefix(m, "audio") {
+			continue
+		}
+		// "audio, recvonly, PCMA/16000" -> "PCMA/16000"
+		if i := strings.LastIndex(m, ", "); i >= 0 {
+			out = append(out, strings.TrimSpace(m[i+2:]))
+		}
+	}
+	return out
+}
 
 // Streams lista os streams configurados no go2rtc. É a fonte da tela de
 // cadastro: o usuário escolhe entre o que já existe, em vez de digitar nomes.

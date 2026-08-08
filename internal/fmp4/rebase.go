@@ -15,6 +15,19 @@ import (
 // A caixa mantém tamanho e versão originais — só o valor muda —, então nenhum
 // tamanho de caixa acima precisa ser recalculado.
 func RebaseMoof(moof []byte, bases map[uint32]uint64) error {
+	deltas := make(map[uint32]int64, len(bases))
+	for id, base := range bases {
+		deltas[id] = -int64(base)
+	}
+	return ShiftMoof(moof, deltas)
+}
+
+// ShiftMoof soma um deslocamento com sinal ao tfdt de cada traf, no lugar.
+//
+// É o mesmo mecanismo da gravação visto do outro lado: gravar subtrai para
+// zerar o segmento, exportar soma para emendar segmentos em uma linha do tempo
+// contínua. Cada trilha tem seu próprio delta porque as timescales diferem.
+func ShiftMoof(moof []byte, deltas map[uint32]int64) error {
 	hdrLen, size, ok := boxHeaderLen(moof)
 	if !ok || boxType(moof) != "moof" {
 		return errors.New("fmp4: esperava uma caixa moof")
@@ -48,15 +61,15 @@ func RebaseMoof(moof []byte, bases map[uint32]uint64) error {
 		if tfdt == nil {
 			return nil
 		}
-		base, ok := bases[trackID]
+		delta, ok := deltas[trackID]
 		if !ok {
 			return nil
 		}
-		return rebaseTfdt(tfdt, base)
+		return shiftTfdt(tfdt, delta)
 	})
 }
 
-func rebaseTfdt(body []byte, base uint64) error {
+func shiftTfdt(body []byte, delta int64) error {
 	if len(body) < 4 {
 		return errors.New("fmp4: tfdt truncado")
 	}
@@ -65,25 +78,29 @@ func rebaseTfdt(body []byte, base uint64) error {
 		if !ok {
 			return errors.New("fmp4: tfdt v1 truncado")
 		}
-		binary.BigEndian.PutUint64(body[4:12], subClamp(v, base))
+		binary.BigEndian.PutUint64(body[4:12], addClamp(v, delta))
 		return nil
 	}
 	v, ok := be32(body, 4)
 	if !ok {
 		return errors.New("fmp4: tfdt v0 truncado")
 	}
-	binary.BigEndian.PutUint32(body[4:8], uint32(subClamp(uint64(v), base)))
+	binary.BigEndian.PutUint32(body[4:8], uint32(addClamp(uint64(v), delta)))
 	return nil
 }
 
-// subClamp evita underflow: a trilha de áudio pode estar alguns milissegundos
+// addClamp evita underflow: a trilha de áudio pode estar alguns milissegundos
 // atrás do keyframe de vídeo que abriu o segmento, e um uint64 negativo viraria
 // um timestamp astronômico.
-func subClamp(v, base uint64) uint64 {
-	if v < base {
-		return 0
+func addClamp(v uint64, delta int64) uint64 {
+	if delta < 0 {
+		d := uint64(-delta)
+		if v < d {
+			return 0
+		}
+		return v - d
 	}
-	return v - base
+	return v + uint64(delta)
 }
 
 // ScaleTime converte um instante de uma timescale para outra. Serve para

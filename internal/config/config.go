@@ -11,6 +11,7 @@
 package config
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,7 +41,22 @@ type Config struct {
 
 type Server struct {
 	Listen string `yaml:"listen"`
+
+	// Deixar usuário e senha vazios desliga a autenticação. Isso é aceitável
+	// numa rede confiável, e é o padrão para não travar o primeiro uso — mas o
+	// dwnvr avisa no log, porque quem acessa a interface enxerga as gravações
+	// de todas as câmeras.
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
+
+// AuthEnabled diz se alguma credencial foi configurada.
+func (s Server) AuthEnabled() bool { return s.Username != "" || s.Password != "" }
+
+// SecretPath é onde fica o segredo que assina os cookies de sessão. Ele é
+// gerado no primeiro uso; guardá-lo em arquivo evita derrubar todas as sessões
+// a cada reinício do processo.
+func (c *Config) SecretPath() string { return filepath.Join(c.dir, ".session-secret") }
 
 type Go2RTC struct {
 	URL      string `yaml:"url"`
@@ -234,6 +250,29 @@ func (c *Config) SaveCameras(cams []Camera) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
+}
+
+// SessionSecret devolve o segredo de assinatura dos cookies, gerando-o na
+// primeira chamada.
+func (c *Config) SessionSecret() ([]byte, error) {
+	path := c.SecretPath()
+	b, err := os.ReadFile(path)
+	if err == nil && len(b) >= 32 {
+		return b, nil
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return nil, err
+	}
+	// 0600: quem lê este arquivo consegue forjar sessões.
+	if err := os.WriteFile(path, secret, 0o600); err != nil {
+		return nil, err
+	}
+	return secret, nil
 }
 
 // ValidateCameraID recusa nomes que virariam caminho perigoso: o ID da câmera

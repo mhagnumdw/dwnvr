@@ -45,7 +45,18 @@ type Fragment struct {
 	Keyframe bool
 	// SampleCount é quantos samples o fragmento carrega (go2rtc emite 1).
 	SampleCount uint32
+
+	// Duration é a soma das durações dos samples, na timescale da trilha.
+	//
+	// Sem ela só se sabe QUANDO o último frame começa, não quando ele termina.
+	// A diferença é um frame — irrelevante para exibir, decisiva para emendar
+	// segmentos: sem somá-la, o segmento seguinte começa em cima do último
+	// frame do anterior em vez de depois dele, e o DTS regride na emenda.
+	Duration uint64
 }
+
+// EndTime é o instante em que o fragmento termina, na timescale da trilha.
+func (f Fragment) EndTime() uint64 { return f.BaseDecodeTime + f.Duration }
 
 var errNoTraf = errors.New("fmp4: moof sem traf")
 
@@ -83,6 +94,7 @@ func parseTraf(traf []byte, videoTrackID uint32, f *Fragment) error {
 		haveDefaultFlags   bool
 		trunFlags          uint32
 		haveTrunFlags      bool
+		defaultSampleDur   uint32
 	)
 
 	err := walk(traf, func(typ string, body []byte) error {
@@ -106,6 +118,9 @@ func parseTraf(traf []byte, videoTrackID uint32, f *Fragment) error {
 				off += 4
 			}
 			if flags&0x000008 != 0 { // default_sample_duration
+				if v, ok := be32(body, off); ok {
+					defaultSampleDur = v
+				}
 				off += 4
 			}
 			if flags&0x000010 != 0 { // default_sample_size
@@ -150,19 +165,32 @@ func parseTraf(traf []byte, videoTrackID uint32, f *Fragment) error {
 				}
 				off += 4
 			}
-			// Sem first_sample_flags, os flags do primeiro sample (se
-			// presentes) valem como classificação do fragmento — que é o que
-			// importa, já que o corte acontece no começo dele.
-			if !haveTrunFlags && flags&0x000400 != 0 && count > 0 {
-				p := off
+			// Percorre a tabela de samples uma vez, somando durações e — se
+			// ainda não vieram em first_sample_flags — pegando os flags do
+			// primeiro sample, que é quem classifica o fragmento.
+			entrySize := 0
+			for _, f := range []uint32{0x000100, 0x000200, 0x000400, 0x000800} {
+				if flags&f != 0 {
+					entrySize += 4
+				}
+			}
+			for i := uint32(0); i < count; i++ {
+				p := off + int(i)*entrySize
 				if flags&0x000100 != 0 { // sample_duration
+					if v, ok := be32(body, p); ok {
+						f.Duration += uint64(v)
+					}
 					p += 4
+				} else {
+					f.Duration += uint64(defaultSampleDur)
 				}
 				if flags&0x000200 != 0 { // sample_size
 					p += 4
 				}
-				if v, ok := be32(body, p); ok {
-					trunFlags, haveTrunFlags = v, true
+				if i == 0 && !haveTrunFlags && flags&0x000400 != 0 {
+					if v, ok := be32(body, p); ok {
+						trunFlags, haveTrunFlags = v, true
+					}
 				}
 			}
 		}

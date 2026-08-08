@@ -58,7 +58,7 @@ func probeSegment(r io.Reader) (*SegmentInfo, error) {
 		videoTrack   Track
 		haveVideo    bool
 		offset       int64
-		lastVideoDTS uint64
+		lastVideoEnd uint64
 		fragStart    int64 = -1
 		init         []byte
 	)
@@ -103,7 +103,7 @@ func probeSegment(r io.Reader) (*SegmentInfo, error) {
 				if frag.Keyframe {
 					info.Keyframes++
 				}
-				lastVideoDTS = frag.BaseDecodeTime
+				lastVideoEnd = frag.EndTime()
 			}
 		case "mdat":
 			// O primeiro moof+mdat completo define o tamanho da thumbnail.
@@ -115,7 +115,7 @@ func probeSegment(r io.Reader) (*SegmentInfo, error) {
 	}
 
 	if haveVideo && videoTrack.Timescale > 0 {
-		info.DurationMs = int64(float64(lastVideoDTS) / float64(videoTrack.Timescale) * 1000)
+		info.DurationMs = int64(float64(lastVideoEnd) / float64(videoTrack.Timescale) * 1000)
 	}
 	return info, nil
 }

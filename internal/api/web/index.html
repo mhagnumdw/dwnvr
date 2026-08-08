@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dwnvr</title>
+<link rel="stylesheet" href="app.css">
+
+<body>
+<header>
+  <strong>dwnvr</strong>
+  <select id="cam"></select>
+  <input type="date" id="day">
+  <span class="spacer"></span>
+  <span id="info"></span>
+</header>
+
+<main>
+  <div id="stage">
+    <video id="video" playsinline></video>
+    <div id="overlay"></div>
+  </div>
+
+  <div id="controls">
+    <button id="play">▶</button>
+    <span id="clock">--:--:--</span>
+    <span class="spacer"></span>
+    <button id="export">⤓ exportar 5 min</button>
+  </div>
+
+  <canvas id="timeline" height="56"></canvas>
+  <div id="legend">
+    <span><i class="has"></i> com gravação</span>
+    <span><i class="gap"></i> sem gravação</span>
+    <span>clique para pular · role para dar zoom</span>
+  </div>
+
+  <pre id="log"></pre>
+</main>
+
+<dialog id="login">
+  <form method="dialog">
+    <h3>Entrar</h3>
+    <input id="user" placeholder="usuário" autocomplete="username">
+    <input id="pass" type="password" placeholder="senha" autocomplete="current-password">
+    <button id="dologin" value="ok">Entrar</button>
+    <p id="loginerr"></p>
+  </form>
+</dialog>
+
+<script src="player.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
