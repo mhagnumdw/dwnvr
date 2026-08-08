@@ -174,9 +174,24 @@ não conseguiria carregar a própria tela de login.
 - [x] **Fase 0** — spikes validando gravação e playback ([resultados](docs/fase0-resultados.md))
 - [x] **Fase 1** — recorder, índice e retenção ([resultados](docs/fase1-resultados.md))
 - [x] **Fase 2** — API HTTP, autenticação, exportação ([resultados](docs/fase2-resultados.md))
-- [ ] **Fase 3** — SPA Svelte (live, gravações, cadastro, diagnóstico)
-- [ ] **Fase 4** — grade de live, thumbnails na timeline, tela de diagnóstico
-- [ ] **Fase 5** — Docker multi-arch
+- [x] **Fase 3** — SPA Svelte com as quatro telas ([resultados](docs/fase3-resultados.md))
+- [ ] **Fase 4** — Docker multi-arch e empacotamento
+
+## Interface
+
+Quatro telas, em Svelte 5 + Vite, embutidas no binário: **ao vivo**,
+**gravações**, **câmeras** e **diagnóstico**. O aplicativo inteiro pesa
+**32,6 kB gzipped**, incluindo o player de live do go2rtc.
+
+Mobile-first: navegação inferior no celular e superior no desktop, grade ao vivo
+travada em uma coluna abaixo de 640 px, e timeline com Pointer Events — arrastar
+navega, pinçar dá zoom.
+
+Escrever o player MSE em vez de usar hls.js é o que segura o tamanho: só a
+biblioteca custaria ~110 kB gzip. Em troca, ganhamos controle exato sobre a
+janela de buffer e sobre os buracos de gravação, que o índice já conhece.
+
+Ver [`web/README.md`](web/README.md) para desenvolver a interface.
 
 ## Desenvolvimento
 

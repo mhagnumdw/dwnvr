@@ -83,11 +83,13 @@ func run(log *slog.Logger, cfgPath string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	ret := retention.New(cfg, st, cams, log)
-	go ret.Run(ctx)
-
 	mgr := recorder.NewManager(cfg, client, st, log)
 	mgr.Start(ctx, cams)
+
+	// A retenção lê a lista viva do gerenciador: uma cota alterada pela tela de
+	// cadastro precisa valer na passada seguinte, não só após reiniciar.
+	ret := retention.New(cfg, st, mgr.Cameras, log)
+	go ret.Run(ctx)
 
 	secret, err := cfg.SessionSecret()
 	if err != nil {
@@ -100,7 +102,7 @@ func run(log *slog.Logger, cfgPath string) error {
 
 	srv := &http.Server{
 		Addr:    cfg.Server.Listen,
-		Handler: api.New(cfg, st, client, mgr, cams, secret, log).Handler(),
+		Handler: api.New(cfg, st, client, mgr, secret, log).Handler(),
 		// Sem WriteTimeout: exportação e proxy de live são respostas longas por
 		// natureza, e um teto aqui as cortaria no meio.
 		ReadHeaderTimeout: 10 * time.Second,

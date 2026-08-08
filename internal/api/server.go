@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"sync"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
@@ -21,25 +20,20 @@ type Server struct {
 	mgr    *recorder.Manager
 	log    *slog.Logger
 	secret []byte
-
-	mu   sync.RWMutex
-	cams []config.Camera
 }
 
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
-	mgr *recorder.Manager, cams []config.Camera, secret []byte, log *slog.Logger) *Server {
+	mgr *recorder.Manager, secret []byte, log *slog.Logger) *Server {
 
 	return &Server{cfg: cfg, store: st, client: client, mgr: mgr,
-		cams: cams, secret: secret, log: log}
+		secret: secret, log: log}
 }
 
 // knownCamera evita que um ID arbitrário vindo da URL vire caminho no disco.
 // Só câmeras cadastradas são aceitas, o que fecha travessia de diretório na
 // origem em vez de tentar higienizar o caminho depois.
 func (s *Server) knownCamera(id string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, c := range s.cams {
+	for _, c := range s.mgr.Cameras() {
 		if c.ID == id {
 			return true
 		}
@@ -57,6 +51,8 @@ func (s *Server) Handler() http.Handler {
 
 	// Gravações
 	mux.HandleFunc("GET /api/cameras", s.requireAuth(s.handleCameras))
+	mux.HandleFunc("POST /api/cameras", s.requireAuth(s.handleSaveCamera))
+	mux.HandleFunc("DELETE /api/cameras", s.requireAuth(s.handleDeleteCamera))
 	mux.HandleFunc("GET /api/health", s.requireAuth(s.handleHealth))
 	mux.HandleFunc("GET /api/rec/days", s.requireAuth(s.handleDays))
 	mux.HandleFunc("GET /api/rec/timeline", s.requireAuth(s.handleTimeline))
@@ -87,12 +83,11 @@ func (s *Server) requireAuthHandler(h http.Handler) http.Handler {
 // mostrar apenas streams que existem de verdade, em vez de pedir que o usuário
 // digite um nome e descubra o erro depois.
 func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
-	s.mu.RLock()
-	cams := make([]config.Camera, len(s.cams))
-	for i, c := range s.cams {
+	raw := s.mgr.Cameras()
+	cams := make([]config.Camera, len(raw))
+	for i, c := range raw {
 		cams[i] = s.cfg.Resolve(c)
 	}
-	s.mu.RUnlock()
 
 	type streamInfo struct {
 		Name        string   `json:"name"`

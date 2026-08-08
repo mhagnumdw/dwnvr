@@ -29,16 +29,26 @@ const Interval = time.Minute
 type Manager struct {
 	cfg   *config.Config
 	store *store.Store
-	cams  []config.Camera
 	log   *slog.Logger
+
+	// cameras é consultado a cada passada, e não copiado na subida: câmeras
+	// podem ser cadastradas, alteradas e removidas com o dwnvr no ar, e uma
+	// cota nova que só valesse após reiniciar seria uma armadilha.
+	cameras func() []config.Camera
 }
 
-func New(cfg *config.Config, st *store.Store, cams []config.Camera, log *slog.Logger) *Manager {
-	resolved := make([]config.Camera, 0, len(cams))
+func New(cfg *config.Config, st *store.Store, cameras func() []config.Camera, log *slog.Logger) *Manager {
+	return &Manager{cfg: cfg, store: st, cameras: cameras, log: log}
+}
+
+// resolved devolve a configuração corrente com os padrões já aplicados.
+func (m *Manager) resolved() []config.Camera {
+	cams := m.cameras()
+	out := make([]config.Camera, 0, len(cams))
 	for _, c := range cams {
-		resolved = append(resolved, cfg.Resolve(c))
+		out = append(out, m.cfg.Resolve(c))
 	}
-	return &Manager{cfg: cfg, store: st, cams: resolved, log: log}
+	return out
 }
 
 // Run aplica a retenção periodicamente até o contexto ser cancelado.
@@ -65,7 +75,7 @@ func (m *Manager) Run(ctx context.Context) {
 
 // Enforce roda uma passada completa dos três limites.
 func (m *Manager) Enforce() error {
-	for _, cam := range m.cams {
+	for _, cam := range m.resolved() {
 		if err := m.enforceQuota(cam); err != nil {
 			return err
 		}
@@ -158,7 +168,7 @@ func (m *Manager) enforceFreeSpace() error {
 
 // oldestDay encontra o dia mais antigo entre todas as câmeras.
 func (m *Manager) oldestDay() (cam, day string, ok bool) {
-	for _, c := range m.cams {
+	for _, c := range m.resolved() {
 		days := m.store.Camera(c.ID).Days()
 		if len(days) == 0 {
 			continue

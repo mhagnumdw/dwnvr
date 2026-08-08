@@ -1,0 +1,127 @@
+/* Tema e primitivas do dwnvr. Mobile-first: as regras base valem para o
+   celular e as media queries acrescentam o que a tela grande permite. */
+
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #1c2129;
+  --line: #30363d;
+  --fg: #e6edf3;
+  --dim: #8b949e;
+  --accent: #2f81f7;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --radius: 10px;
+
+  /* Altura da navegação inferior, respeitando a área segura do iPhone. */
+  --nav-h: calc(56px + env(safe-area-inset-bottom));
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  overscroll-behavior-y: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+
+button {
+  cursor: pointer;
+  /* Alvo de toque confortável: abaixo de 44px erra-se muito no celular. */
+  min-height: 44px;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+button.danger { color: var(--bad); border-color: #5c2b2b; }
+button.ghost { background: transparent; }
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+a { color: var(--accent); }
+
+.muted { color: var(--dim); }
+.small { font-size: 13px; }
+.mono { font-variant-numeric: tabular-nums; }
+.spacer { flex: 1; }
+.row { display: flex; align-items: center; gap: 10px; }
+.wrap { flex-wrap: wrap; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+  flex: none;
+}
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--warn); }
+.dot.bad { background: var(--bad); }
+
+.empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--dim);
+}
+
+/* Barras de rolagem discretas, que no Pi via Wi-Fi já são detalhe suficiente. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 6px;
+}
