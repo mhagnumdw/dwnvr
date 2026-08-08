@@ -50,9 +50,14 @@ video {
      o vídeo se ajustar sozinho evita distorção quando ele se corrige pelo
      bitstream. */
   aspect-ratio: 16 / 9;
+  /* A timeline é o ponto desta tela e precisa caber junto com o vídeo sem
+     rolagem: sem este teto, um vídeo 16:9 numa janela larga sozinho já passa
+     da dobra e empurra a barra para fora da vista. */
+  max-height: 58vh;
   object-fit: contain;
   display: block;
   background: #000;
+  margin: 0 auto;
 }
 
 #controls {
