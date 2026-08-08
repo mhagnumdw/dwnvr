@@ -14,8 +14,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
+
+	// A base de fusos horários vai embutida no binário. O dwnvr usa hora local
+	// para decidir a que dia um segmento pertence, e numa imagem FROM scratch
+	// não existe /usr/share/zoneinfo — sem isto, TZ seria silenciosamente
+	// ignorado e todos os dias virariam UTC.
+	_ "time/tzdata"
 
 	"github.com/mhagnumdw/dwnvr/internal/api"
 	"github.com/mhagnumdw/dwnvr/internal/config"
@@ -30,8 +37,15 @@ func main() {
 	var (
 		cfgPath = flag.String("config", "/etc/dwnvr/dwnvr.yaml", "caminho do dwnvr.yaml")
 		debug   = flag.Bool("debug", false, "log em nível debug")
+		health  = flag.Bool("healthcheck", false, "consulta o dwnvr local e sai com 0 se estiver saudável")
 	)
 	flag.Parse()
+
+	// O healthcheck é o próprio binário porque a imagem é FROM scratch: não há
+	// shell nem curl lá dentro para o HEALTHCHECK do Docker chamar.
+	if *health {
+		os.Exit(healthcheck(*cfgPath))
+	}
 
 	level := slog.LevelInfo
 	if *debug {
@@ -187,4 +201,34 @@ func probeSegment(path string) (store.Entry, error) {
 		InitSize:  info.InitSize,
 		FirstFrag: info.FirstFragSize,
 	}, nil
+}
+
+// healthcheck consulta a instância local e devolve o código de saída para o
+// HEALTHCHECK do Docker.
+func healthcheck(cfgPath string) int {
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck: configuração ilegível:", err)
+		return 1
+	}
+
+	// listen costuma ser ":8080"; o healthcheck fala com o loopback.
+	addr := cfg.Server.Listen
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://" + addr + "/api/session")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
+		return 1
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintf(os.Stderr, "healthcheck: HTTP %d\n", resp.StatusCode)
+		return 1
+	}
+	return 0
 }

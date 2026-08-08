@@ -175,7 +175,37 @@ não conseguiria carregar a própria tela de login.
 - [x] **Fase 1** — recorder, índice e retenção ([resultados](docs/fase1-resultados.md))
 - [x] **Fase 2** — API HTTP, autenticação, exportação ([resultados](docs/fase2-resultados.md))
 - [x] **Fase 3** — SPA Svelte com as quatro telas ([resultados](docs/fase3-resultados.md))
-- [ ] **Fase 4** — Docker multi-arch e empacotamento
+- [x] **Fase 4** — Docker multi-arch e empacotamento ([resultados](docs/fase4-resultados.md))
+
+## Instalação
+
+```yaml
+services:
+  dwnvr:
+    image: ghcr.io/mhagnumdw/cameras/dwnvr:latest
+    restart: unless-stopped
+    # Sem isto o container grava como root, e os arquivos nascem de root no
+    # disco. Descubra o seu com: id -u; id -g
+    user: "1000:1000"
+    ports: ["8080:8080"]
+    environment:
+      # Sem TZ, todos os dias são calculados em UTC e a virada de dia da
+      # timeline cai no horário errado.
+      - TZ=America/Fortaleza
+    volumes:
+      - ./config:/etc/dwnvr          # dwnvr.yaml e cameras.json
+      - /mnt/storage/dwnvr:/storage  # as gravações
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
+
+Ver [`docker-compose.yml`](docker-compose.yml) completo. Imagem `FROM scratch`
+de ~3 MB comprimidos, para **linux/arm64** e **linux/amd64**.
+
+O go2rtc **não** faz parte do compose de propósito: configurá-lo é
+responsabilidade de quem instala.
+
+Para binários soltos, sem Docker: `make arm64` ou `make amd64`.
 
 ## Interface
 
@@ -196,12 +226,18 @@ Ver [`web/README.md`](web/README.md) para desenvolver a interface.
 ## Desenvolvimento
 
 ```sh
-go test ./...
-go build ./cmd/dwnvr
-
-# Alvo real: Orange Pi Zero 3 (ARM64), binário estático de ~6 MB
-GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dwnvr ./cmd/dwnvr
+make help        # lista os alvos
+make all         # interface + binário local
+make check       # testes, vet e gofmt (o que a CI roda)
+make arm64       # binário estático para o Orange Pi
+make image       # imagem multi-arch
+make run-pi      # constrói e instala no Pi via ssh
 ```
+
+**A interface precisa ser construída antes do binário**, porque o Go a embute.
+Esquecer isso produz um binário que compila e sobe normalmente, mas serve a tela
+antiga. O `Makefile` encadeia as duas coisas e a CI reprova se o `dist`
+versionado divergir de `web/`.
 
 `cmd/spike` e `cmd/spike-serve` são os experimentos da Fase 0, mantidos porque
 documentam como as premissas foram verificadas.

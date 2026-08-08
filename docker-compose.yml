@@ -1,0 +1,46 @@
+# Exemplo de instalação do dwnvr.
+#
+# O go2rtc NÃO faz parte deste compose de propósito: configurá-lo é
+# responsabilidade de quem instala, e acoplar os dois recriaria exatamente a
+# dificuldade que motivou este projeto.
+
+services:
+  dwnvr:
+    image: ghcr.io/mhagnumdw/cameras/dwnvr:latest
+    # Para construir localmente em vez de baixar:
+    # build: .
+    container_name: dwnvr
+    restart: unless-stopped
+
+    # O container grava com este UID. Deixar como root faria os arquivos
+    # nascerem de root no disco — que é justamente o que impede você de
+    # inspecioná-los ou apagá-los depois sem sudo.
+    # Descubra o seu com: id -u; id -g
+    user: "1000:1000"
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      # Sem isto todos os dias são calculados em UTC, e a virada de dia da
+      # timeline cai no horário errado.
+      - TZ=America/Fortaleza
+
+    volumes:
+      # dwnvr.yaml, cameras.json e o segredo de sessão.
+      - ./config:/etc/dwnvr
+      # As gravações. Aponte para o disco de verdade, não para o cartão SD.
+      - /mnt/storage/dwnvr:/storage
+
+    # O dwnvr fala com o go2rtc pela rede do host. Se o go2rtc estiver em outro
+    # compose, ou use network_mode: host, ou coloque os dois na mesma rede e
+    # aponte go2rtc.url para o nome do serviço.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Teto de memória como rede de segurança. O consumo medido com 9 câmeras é
+    # de ~20 MB; 128M é folga larga e ainda protege o resto do sistema.
+    deploy:
+      resources:
+        limits:
+          memory: 128M
