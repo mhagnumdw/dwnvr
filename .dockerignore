@@ -1,0 +1,16 @@
+# O build da interface acontece dentro da imagem
+web/node_modules/
+
+# Configuração e dados locais nunca entram na imagem
+dwnvr.yaml
+cameras.json
+.session-secret
+
+# Binários locais
+/dwnvr
+/dwnvr-*
+
+# Coisas que não afetam o build
+.git/
+docs/
+*.md
