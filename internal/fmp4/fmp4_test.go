@@ -66,6 +66,11 @@ func makeMoov(trackID, timescale uint32, codec string, audio bool) []byte {
 
 // makeMoof monta um moof com um único sample, como o go2rtc faz.
 func makeMoof(trackID uint32, dts uint64, sampleFlags uint32, v1 bool) []byte {
+	return makeMoofDur(trackID, dts, sampleFlags, v1, 6000)
+}
+
+// makeMoofDur inclui a duração do sample no trun, que é como o go2rtc escreve.
+func makeMoofDur(trackID uint32, dts uint64, sampleFlags uint32, v1 bool, dur uint32) []byte {
 	tfhd := box("tfhd", u32(0), u32(trackID))
 
 	var tfdt []byte
@@ -75,8 +80,8 @@ func makeMoof(trackID uint32, dts uint64, sampleFlags uint32, v1 bool) []byte {
 		tfdt = box("tfdt", u32(0), u32(uint32(dts)))
 	}
 
-	// flags 0x000005 = data-offset-present | first-sample-flags-present
-	trun := box("trun", u32(0x000005), u32(1), u32(0), u32(sampleFlags))
+	// flags 0x000105 = data-offset | first-sample-flags | sample-duration
+	trun := box("trun", u32(0x000105), u32(1), u32(0), u32(sampleFlags), u32(dur))
 	return box("moof", box("mfhd", u32(0), u32(1)), box("traf", tfhd, tfdt, trun))
 }
 
@@ -163,6 +168,96 @@ func TestParseMoofOutraTrilhaNuncaEhKeyframe(t *testing.T) {
 	}
 	if frag.TrackID != 2 {
 		t.Errorf("TrackID=%d, esperava 2", frag.TrackID)
+	}
+}
+
+// A duração do fragmento é o que separa "onde o último frame começa" de "onde
+// o segmento termina". Ignorá-la fazia cada emenda da exportação colocar o
+// segmento seguinte em cima do último frame do anterior, e o DTS regredia.
+func TestFragmentEndTime(t *testing.T) {
+	frag, err := ParseMoof(makeMoofDur(1, 90000, flagsIFrame, true, 6000), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frag.Duration != 6000 {
+		t.Errorf("Duration=%d, esperava 6000", frag.Duration)
+	}
+	if frag.EndTime() != 96000 {
+		t.Errorf("EndTime=%d, esperava 96000 (90000 + 6000)", frag.EndTime())
+	}
+}
+
+// Com vários samples num fragmento, a duração é a soma de todos.
+func TestFragmentDuracaoMultiplosSamples(t *testing.T) {
+	tfhd := box("tfhd", u32(0), u32(1))
+	tfdt := box("tfdt", []byte{1, 0, 0, 0}, u64(0))
+	// flags 0x000301 = data-offset | sample-duration | sample-size
+	trun := box("trun", u32(0x000301), u32(3), u32(0),
+		u32(1000), u32(10), u32(2000), u32(20), u32(3000), u32(30))
+	moof := box("moof", box("mfhd", u32(0), u32(1)), box("traf", tfhd, tfdt, trun))
+
+	frag, err := ParseMoof(moof, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frag.SampleCount != 3 {
+		t.Errorf("SampleCount=%d", frag.SampleCount)
+	}
+	if frag.Duration != 6000 {
+		t.Errorf("Duration=%d, esperava 6000 (1000+2000+3000)", frag.Duration)
+	}
+}
+
+// Quando o trun não traz durações, vale o default_sample_duration do tfhd.
+func TestFragmentDuracaoPeloDefaultDoTfhd(t *testing.T) {
+	// tfhd flags 0x8 = default-sample-duration-present
+	tfhd := box("tfhd", u32(0x000008), u32(1), u32(1500))
+	tfdt := box("tfdt", []byte{1, 0, 0, 0}, u64(0))
+	trun := box("trun", u32(0x000001), u32(4), u32(0)) // só data_offset
+	moof := box("moof", box("mfhd", u32(0), u32(1)), box("traf", tfhd, tfdt, trun))
+
+	frag, err := ParseMoof(moof, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frag.Duration != 6000 {
+		t.Errorf("Duration=%d, esperava 6000 (4 × 1500)", frag.Duration)
+	}
+}
+
+// Emendar dois segmentos usando o FIM do primeiro tem que produzir DTS
+// estritamente crescente — é a invariante que a exportação depende.
+func TestEmendaDeSegmentosNaoRegrideDTS(t *testing.T) {
+	const dur = 6000
+	// Segmento A: frames em 0, 6000, 12000; termina em 18000.
+	var aEnd uint64
+	for _, dts := range []uint64{0, 6000, 12000} {
+		frag, err := ParseMoof(makeMoofDur(1, dts, flagsIFrame, true, dur), 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		aEnd = frag.EndTime()
+	}
+	if aEnd != 18000 {
+		t.Fatalf("fim do segmento A = %d, esperava 18000", aEnd)
+	}
+
+	// Segmento B começa em zero e é deslocado pelo fim de A.
+	moof := makeMoofDur(1, 0, flagsIFrame, true, dur)
+	if err := ShiftMoof(moof, map[uint32]int64{1: int64(aEnd)}); err != nil {
+		t.Fatal(err)
+	}
+	frag, err := ParseMoof(moof, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frag.BaseDecodeTime <= 12000 {
+		t.Errorf("primeiro frame de B em %d, deveria vir DEPOIS do último de A (12000)",
+			frag.BaseDecodeTime)
+	}
+	if frag.BaseDecodeTime != 18000 {
+		t.Errorf("primeiro frame de B em %d, esperava 18000 (sem buraco nem sobreposição)",
+			frag.BaseDecodeTime)
 	}
 }
 
@@ -283,8 +378,12 @@ func TestProbeSegment(t *testing.T) {
 	if info.Keyframes != 2 {
 		t.Errorf("Keyframes=%d, esperava 2", info.Keyframes)
 	}
-	if info.DurationMs != 1000 {
-		t.Errorf("DurationMs=%d, esperava 1000", info.DurationMs)
+	// O último frame começa em 90000 (1s) e dura 6000, então o segmento cobre
+	// 96000/90000 = 1,0667s. Reportar 1000 aqui seria omitir o último frame —
+	// exatamente o erro que fazia a emenda da exportação regredir o DTS.
+	if info.DurationMs != 1066 {
+		t.Errorf("DurationMs=%d, esperava 1066 (fim do último frame, não o início dele)",
+			info.DurationMs)
 	}
 	if info.Gen == "" {
 		t.Error("Gen vazio; um segmento órfão recuperado no boot não acharia o init")

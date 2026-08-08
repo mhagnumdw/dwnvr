@@ -78,9 +78,9 @@ type Recorder struct {
 	gen         string
 	bitrateKbps float64
 
-	// lastStart é o início do último segmento aberto, usado para garantir
-	// nomes e ordenação monotônicos mesmo se o relógio andar para trás.
-	lastStart int64
+	// lastEnd é o fim (em relógio de parede) do último segmento fechado. É o
+	// piso do início do próximo, o que impede sobreposição entre segmentos.
+	lastEnd int64
 
 	sampleAt    time.Time
 	sampleBytes int64
@@ -247,7 +247,7 @@ func (r *Recorder) session(ctx context.Context) error {
 				if err := seg.maybeRotate(frag); err != nil {
 					return err
 				}
-				seg.lastDTS = frag.BaseDecodeTime
+				seg.lastEnd = frag.EndTime()
 			}
 			pending = append(pending[:0], box...)
 			if seg.open() {
@@ -291,8 +291,11 @@ type segmenter struct {
 	entry store.Entry
 	bases map[uint32]uint64
 
-	baseDTS   uint64
-	lastDTS   uint64
+	baseDTS uint64
+	// lastEnd é o FIM do último fragmento, não o início dele: é essa
+	// diferença de um frame que faz a emenda de segmentos na exportação
+	// resultar em DTS estritamente crescente.
+	lastEnd   uint64
 	bytes     int64
 	frags     int
 	firstFrag int64
@@ -337,17 +340,24 @@ func (s *segmenter) start(frag fmp4.Fragment) error {
 	now := time.Now()
 	startMs := now.UnixMilli()
 
-	// Protege contra salto de relógio para trás (NTP corrigindo o boot sem
-	// RTC): sem isto dois segmentos poderiam disputar o mesmo nome de arquivo
-	// e a ordem do índice ficaria inconsistente.
-	if last := s.rec.lastStartMs(); startMs <= last {
-		if last-startMs > int64(clockJumpThreshold/time.Millisecond) {
-			s.rec.log.Warn("relógio andou para trás; mantendo a ordem do índice",
-				"agora", now, "ultimo_segmento_ms", last)
+	// O início vem do relógio de parede, mas a duração vem do relógio de mídia
+	// (os timestamps da câmera). Os dois derivam entre si com o jitter da rede
+	// — medido em ±1,1s num segmento de 30s —, e quando a mídia adianta o
+	// segmento novo começaria ANTES de o anterior terminar. No MSE isso faz o
+	// trecho sobreposto ser sobrescrito, ou seja, perde-se gravação.
+	//
+	// Ancorar no fim do segmento anterior elimina a sobreposição sem abandonar
+	// o relógio de parede como referência: a correção só age quando há
+	// sobreposição de fato, e o segmento seguinte volta a seguir o relógio
+	// assim que ele alcança. Isso também cobre o salto de relógio para trás do
+	// Orange Pi Zero 3, que não tem RTC.
+	if lastEnd := s.rec.lastEndMs(); startMs < lastEnd {
+		if lastEnd-startMs > int64(clockJumpThreshold/time.Millisecond) {
+			s.rec.log.Warn("início do segmento muito antes do fim do anterior",
+				"agora", now, "fim_anterior_ms", lastEnd, "diferenca_ms", lastEnd-startMs)
 		}
-		startMs = last + 1
+		startMs = lastEnd
 	}
-	s.rec.setLastStartMs(startMs)
 
 	s.day = time.UnixMilli(startMs).Format(store.DayLayout)
 	if err := s.rec.idx.EnsureDirs(s.day); err != nil {
@@ -360,7 +370,7 @@ func (s *segmenter) start(frag fmp4.Fragment) error {
 		return err
 	}
 	s.f, s.w = f, bufio.NewWriterSize(f, writeBufSize)
-	s.baseDTS, s.lastDTS = frag.BaseDecodeTime, frag.BaseDecodeTime
+	s.baseDTS, s.lastEnd = frag.BaseDecodeTime, frag.EndTime()
 	s.bytes, s.frags, s.firstFrag = 0, 0, 0
 	s.entry = store.Entry{StartMs: startMs, Gen: s.gen, InitSize: int64(len(s.init))}
 
@@ -404,13 +414,14 @@ func (s *segmenter) finish() error {
 		return err
 	}
 
-	s.entry.DurMs = s.elapsed(s.lastDTS).Milliseconds()
+	s.entry.DurMs = s.elapsed(s.lastEnd).Milliseconds()
 	s.entry.Size = s.bytes
 	s.entry.FirstFrag = s.firstFrag
 
 	if err := s.rec.idx.Append(s.entry); err != nil {
 		return err
 	}
+	s.rec.setLastEndMs(s.entry.StartMs + s.entry.DurMs)
 	s.rec.segments.Add(1)
 	s.rec.log.Debug("segmento fechado", "inicio", s.entry.StartMs,
 		"dur_s", float64(s.entry.DurMs)/1000, "mb", float64(s.entry.Size)/(1<<20))
@@ -423,14 +434,14 @@ func (s *segmenter) close() {
 	}
 }
 
-func (r *Recorder) lastStartMs() int64 {
+func (r *Recorder) lastEndMs() int64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.lastStart
+	return r.lastEnd
 }
 
-func (r *Recorder) setLastStartMs(ms int64) {
+func (r *Recorder) setLastEndMs(ms int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.lastStart = ms
+	r.lastEnd = ms
 }

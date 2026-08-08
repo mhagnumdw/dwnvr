@@ -7,14 +7,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/api"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/fmp4"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
@@ -85,10 +88,39 @@ func run(log *slog.Logger, cfgPath string) error {
 
 	mgr := recorder.NewManager(cfg, client, st, log)
 	mgr.Start(ctx, cams)
-	log.Info("dwnvr no ar", "storage", cfg.Storage.Root, "go2rtc", cfg.Go2RTC.URL)
+
+	secret, err := cfg.SessionSecret()
+	if err != nil {
+		return fmt.Errorf("preparando o segredo de sessão: %w", err)
+	}
+	if !cfg.Server.AuthEnabled() {
+		log.Warn("autenticação desligada: qualquer um na rede vê as gravações de todas as câmeras",
+			"como_ligar", "defina server.username e server.password em "+cfgPath)
+	}
+
+	srv := &http.Server{
+		Addr:    cfg.Server.Listen,
+		Handler: api.New(cfg, st, client, mgr, cams, secret, log).Handler(),
+		// Sem WriteTimeout: exportação e proxy de live são respostas longas por
+		// natureza, e um teto aqui as cortaria no meio.
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	go func() {
+		log.Info("dwnvr no ar", "http", cfg.Server.Listen,
+			"storage", cfg.Storage.Root, "go2rtc", cfg.Go2RTC.URL)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("servidor HTTP caiu", "erro", err)
+			stop()
+		}
+	}()
 
 	<-ctx.Done()
 	log.Info("encerrando; fechando segmentos em aberto")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(shutdownCtx)
 
 	// Stop espera cada segmento em aberto ser fechado e indexado. Sem isso,
 	// todo reinício perderia o último minuto de cada câmera.

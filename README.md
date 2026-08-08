@@ -148,13 +148,34 @@ significa **+34% de armazenamento**. O AAC inverte a conta.
 Requisito comum aos dois: a fonte no `go2rtc.yaml` não pode ter `#media=video`,
 que descarta o áudio já na origem.
 
+## API
+
+```
+POST /api/login  /api/logout       sessão por cookie assinado (HMAC, sem estado no servidor)
+GET  /api/session                  público: diz se precisa de login
+GET  /api/cameras                  câmeras cadastradas + streams disponíveis no go2rtc
+GET  /api/health                   bitrate medido, dias estimados, estado do disco
+GET  /api/rec/days                 dias com gravação
+GET  /api/rec/timeline             faixas contíguas (desenhar) + segmentos (tocar)
+GET  /api/rec/init                 init segment, immutable
+GET  /api/rec/seg                  fragmentos do segmento, sem o init, immutable
+GET  /api/rec/thumb                MP4 de 1 frame — o Pi não decodifica nada
+GET  /api/rec/playlist.m3u8        HLS VOD, para VLC/ffplay/Safari
+GET  /api/rec/export               MP4 único emendado, sem transcodificação
+GET  /api/live/*                   proxy do go2rtc, com a credencial ficando no servidor
+```
+
+A interface é servida **sem** autenticação — é só o app shell, sem dado nenhum
+de câmera — enquanto todo endpoint de dados exige sessão. Sem isso, o navegador
+não conseguiria carregar a própria tela de login.
+
 ## Estado atual
 
 - [x] **Fase 0** — spikes validando gravação e playback ([resultados](docs/fase0-resultados.md))
 - [x] **Fase 1** — recorder, índice e retenção ([resultados](docs/fase1-resultados.md))
-- [ ] **Fase 2** — API HTTP de playback
+- [x] **Fase 2** — API HTTP, autenticação, exportação ([resultados](docs/fase2-resultados.md))
 - [ ] **Fase 3** — SPA Svelte (live, gravações, cadastro, diagnóstico)
-- [ ] **Fase 4** — thumbnails, exportação, diagnóstico
+- [ ] **Fase 4** — grade de live, thumbnails na timeline, tela de diagnóstico
 - [ ] **Fase 5** — Docker multi-arch
 
 ## Desenvolvimento
