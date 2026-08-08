@@ -1,0 +1,436 @@
+// Package recorder grava, por câmera, o fMP4 contínuo do go2rtc em segmentos
+// alinhados a keyframe — sem decodificar nem reescrever mídia.
+package recorder
+
+import (
+	"bufio"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/fmp4"
+	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
+	"github.com/mhagnumdw/dwnvr/internal/store"
+)
+
+const (
+	// writeBufSize agrupa as escritas. O destino típico é um disco USB num Pi,
+	// e mandar 15 fragmentos por segundo direto ao disco geraria I/O miúdo
+	// demais para nada.
+	writeBufSize = 256 << 10
+
+	minBackoff = time.Second
+	maxBackoff = 30 * time.Second
+
+	// clockJumpThreshold é o salto de relógio a partir do qual avisamos. O
+	// Orange Pi Zero 3 não tem RTC: sem rede no boot ele começa com uma data
+	// errada e o NTP corrige depois, o que embaralharia o índice em silêncio.
+	clockJumpThreshold = 5 * time.Second
+)
+
+// Status é a visão de saúde de uma câmera, consumida pela tela de diagnóstico.
+type Status struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Enabled     bool      `json:"enabled"`
+	Connected   bool      `json:"connected"`
+	ConnectedAt time.Time `json:"connectedAt,omitzero"`
+	BitrateKbps float64   `json:"bitrateKbps"`
+	Bytes       int64     `json:"bytes"`
+	Segments    int64     `json:"segments"`
+	Reconnects  int64     `json:"reconnects"`
+	LastError   string    `json:"lastError,omitempty"`
+	VideoCodec  string    `json:"videoCodec,omitempty"`
+	HasAudio    bool      `json:"hasAudio"`
+	Gen         string    `json:"gen,omitempty"`
+
+	// QuotaMB e Bytes em disco alimentam a estimativa de retenção mostrada na
+	// tela de cadastro ("com esta cota, cabem ~N dias").
+	QuotaMB    int64   `json:"quotaMB"`
+	DiskBytes  int64   `json:"diskBytes"`
+	RetainDays float64 `json:"retainDays"`
+}
+
+// Recorder grava uma câmera.
+type Recorder struct {
+	cam    config.Camera
+	client *go2rtc.Client
+	idx    *store.Camera
+	log    *slog.Logger
+
+	bytes      atomic.Int64
+	segments   atomic.Int64
+	reconnects atomic.Int64
+
+	mu          sync.RWMutex
+	connected   bool
+	connectedAt time.Time
+	lastErr     string
+	videoCodec  string
+	hasAudio    bool
+	gen         string
+	bitrateKbps float64
+
+	// lastStart é o início do último segmento aberto, usado para garantir
+	// nomes e ordenação monotônicos mesmo se o relógio andar para trás.
+	lastStart int64
+
+	sampleAt    time.Time
+	sampleBytes int64
+}
+
+func newRecorder(cam config.Camera, client *go2rtc.Client, idx *store.Camera, log *slog.Logger) *Recorder {
+	return &Recorder{cam: cam, client: client, idx: idx, log: log.With("cam", cam.ID)}
+}
+
+func (r *Recorder) Status() Status {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	disk := r.idx.TotalBytes()
+	st := Status{
+		ID: r.cam.ID, Name: r.cam.Name, Enabled: r.cam.Enabled,
+		Connected: r.connected, ConnectedAt: r.connectedAt,
+		BitrateKbps: r.bitrateKbps,
+		Bytes:       r.bytes.Load(), Segments: r.segments.Load(),
+		Reconnects: r.reconnects.Load(), LastError: r.lastErr,
+		VideoCodec: r.videoCodec, HasAudio: r.hasAudio, Gen: r.gen,
+		QuotaMB: r.cam.QuotaMB, DiskBytes: disk,
+	}
+	// Quantos dias a cota comporta na taxa observada. É o número que torna a
+	// cota compreensível: "20 GB" não diz nada, "≈ 2,4 dias" diz tudo.
+	if r.bitrateKbps > 0 {
+		bytesPerDay := r.bitrateKbps * 1000 / 8 * 86400
+		st.RetainDays = float64(r.cam.QuotaMB) * (1 << 20) / bytesPerDay
+	}
+	return st
+}
+
+// sampleBitrate calcula a taxa observada desde a última amostra.
+func (r *Recorder) sampleBitrate(now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	total := r.bytes.Load()
+	if !r.sampleAt.IsZero() {
+		dt := now.Sub(r.sampleAt).Seconds()
+		if dt > 0 {
+			inst := float64(total-r.sampleBytes) * 8 / dt / 1000
+			// Média exponencial: suaviza o vaivém do VBR sem esconder uma
+			// câmera que parou de mandar dados.
+			if r.bitrateKbps == 0 {
+				r.bitrateKbps = inst
+			} else {
+				r.bitrateKbps = 0.7*r.bitrateKbps + 0.3*inst
+			}
+		}
+	}
+	r.sampleAt, r.sampleBytes = now, total
+}
+
+func (r *Recorder) setConnected(v bool, err string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.connected = v
+	if v {
+		r.connectedAt = time.Now()
+	}
+	if err != "" {
+		r.lastErr = err
+	}
+}
+
+// run mantém a câmera gravando, reconectando com backoff exponencial. Uma
+// câmera com problema não pode derrubar as outras nem entrar em laço apertado.
+func (r *Recorder) run(ctx context.Context) {
+	backoff := minBackoff
+	for ctx.Err() == nil {
+		err := r.session(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+
+		r.setConnected(false, errText(err))
+		r.reconnects.Add(1)
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			r.log.Warn("conexão caiu", "erro", err, "reconectando_em", backoff)
+		} else {
+			r.log.Info("stream encerrado pelo go2rtc", "reconectando_em", backoff)
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+		if backoff *= 2; backoff > maxBackoff {
+			backoff = maxBackoff
+		}
+	}
+}
+
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+// session é uma conexão inteira ao go2rtc, do moov ao fim do stream.
+func (r *Recorder) session(ctx context.Context) error {
+	body, err := r.client.OpenStream(ctx, r.cam.ID, r.cam.Audio)
+	if err != nil {
+		return err
+	}
+	defer body.Close()
+
+	seg := &segmenter{rec: r, segDur: time.Duration(r.cam.SegmentSeconds) * time.Second}
+	defer seg.close()
+
+	rd := fmp4.NewReader(body)
+	var pending []byte
+
+	for {
+		typ, box, err := rd.NextBox()
+		if err != nil {
+			return err
+		}
+
+		switch typ {
+		case "ftyp", "moov":
+			seg.init = append(seg.init, box...)
+			if typ != "moov" {
+				continue
+			}
+			mv, err := fmp4.ParseMoov(box)
+			if err != nil {
+				return fmt.Errorf("moov ilegível: %w", err)
+			}
+			vt, ok := mv.VideoTrack()
+			if !ok {
+				return errors.New("stream sem trilha de vídeo")
+			}
+			seg.movie, seg.videoTrack = mv, vt
+
+			// A geração é o hash do init. Se o SPS mudar depois de uma
+			// reconexão, o hash muda e os segmentos novos passam a apontar
+			// para outro init — sem quebrar a reprodução dos antigos.
+			gen := fmp4.InitGen(seg.init)
+			if err := r.idx.WriteInit(gen, seg.init); err != nil {
+				return fmt.Errorf("gravando init: %w", err)
+			}
+			seg.gen = gen
+
+			r.mu.Lock()
+			r.videoCodec, r.hasAudio, r.gen = vt.Codec, mv.HasAudio(), gen
+			r.mu.Unlock()
+			r.setConnected(true, "")
+			r.log.Info("conectado", "codec", vt.Codec, "audio", mv.HasAudio(),
+				"gen", gen, "init_bytes", len(seg.init))
+
+		case "moof":
+			if seg.movie == nil {
+				return errors.New("moof antes do moov")
+			}
+			frag, err := fmp4.ParseMoof(box, seg.videoTrack.ID)
+			if err != nil {
+				return fmt.Errorf("moof ilegível: %w", err)
+			}
+			if frag.TrackID == seg.videoTrack.ID {
+				if err := seg.maybeRotate(frag); err != nil {
+					return err
+				}
+				seg.lastDTS = frag.BaseDecodeTime
+			}
+			pending = append(pending[:0], box...)
+			if seg.open() {
+				if err := fmp4.RebaseMoof(pending, seg.bases); err != nil {
+					return fmt.Errorf("rebase do moof: %w", err)
+				}
+			}
+
+		case "mdat":
+			if len(pending) == 0 {
+				continue // sobra de fragmento parcial após reconexão
+			}
+			if err := seg.write(pending); err != nil {
+				return err
+			}
+			if err := seg.write(box); err != nil {
+				return err
+			}
+			pending = pending[:0]
+			seg.frags++
+			if seg.frags == 1 {
+				seg.firstFrag = seg.bytes - int64(len(seg.init))
+			}
+		}
+	}
+}
+
+// --- segmentação ------------------------------------------------------------
+
+type segmenter struct {
+	rec    *Recorder
+	segDur time.Duration
+
+	init       []byte
+	gen        string
+	movie      *fmp4.Movie
+	videoTrack fmp4.Track
+
+	f     *os.File
+	w     *bufio.Writer
+	entry store.Entry
+	bases map[uint32]uint64
+
+	baseDTS   uint64
+	lastDTS   uint64
+	bytes     int64
+	frags     int
+	firstFrag int64
+	day       string
+}
+
+func (s *segmenter) open() bool { return s.f != nil }
+
+// elapsed usa o relógio de mídia (tfdt), não o de parede: assim o corte fica
+// estável mesmo quando a rede entrega frames em rajada.
+func (s *segmenter) elapsed(dts uint64) time.Duration {
+	if dts < s.baseDTS || s.videoTrack.Timescale == 0 {
+		return 0
+	}
+	return time.Duration(float64(dts-s.baseDTS) / float64(s.videoTrack.Timescale) * float64(time.Second))
+}
+
+func (s *segmenter) maybeRotate(frag fmp4.Fragment) error {
+	if !frag.Keyframe {
+		// Um segmento que não começa em keyframe não abre sozinho, então
+		// keyframe é condição necessária para qualquer corte.
+		return nil
+	}
+	if !s.open() {
+		return s.start(frag)
+	}
+
+	// Além da duração alvo, corta na virada do dia: assim nenhum segmento
+	// atravessa a meia-noite e cada um pertence a um único índice diário.
+	rotate := s.elapsed(frag.BaseDecodeTime) >= s.segDur ||
+		time.Now().Format(store.DayLayout) != s.day
+	if !rotate {
+		return nil
+	}
+	if err := s.finish(); err != nil {
+		return err
+	}
+	return s.start(frag)
+}
+
+func (s *segmenter) start(frag fmp4.Fragment) error {
+	now := time.Now()
+	startMs := now.UnixMilli()
+
+	// Protege contra salto de relógio para trás (NTP corrigindo o boot sem
+	// RTC): sem isto dois segmentos poderiam disputar o mesmo nome de arquivo
+	// e a ordem do índice ficaria inconsistente.
+	if last := s.rec.lastStartMs(); startMs <= last {
+		if last-startMs > int64(clockJumpThreshold/time.Millisecond) {
+			s.rec.log.Warn("relógio andou para trás; mantendo a ordem do índice",
+				"agora", now, "ultimo_segmento_ms", last)
+		}
+		startMs = last + 1
+	}
+	s.rec.setLastStartMs(startMs)
+
+	s.day = time.UnixMilli(startMs).Format(store.DayLayout)
+	if err := s.rec.idx.EnsureDirs(s.day); err != nil {
+		return err
+	}
+
+	path := s.rec.idx.SegmentPath(startMs)
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	s.f, s.w = f, bufio.NewWriterSize(f, writeBufSize)
+	s.baseDTS, s.lastDTS = frag.BaseDecodeTime, frag.BaseDecodeTime
+	s.bytes, s.frags, s.firstFrag = 0, 0, 0
+	s.entry = store.Entry{StartMs: startMs, Gen: s.gen, InitSize: int64(len(s.init))}
+
+	// A base de cada trilha é o mesmo instante do keyframe, convertido para a
+	// timescale dela: zerar as trilhas isoladamente perderia o desalinhamento
+	// real entre áudio e vídeo.
+	s.bases = make(map[uint32]uint64, len(s.movie.Tracks))
+	for _, t := range s.movie.Tracks {
+		s.bases[t.ID] = fmp4.ScaleTime(frag.BaseDecodeTime, s.videoTrack.Timescale, t.Timescale)
+	}
+
+	// Cada segmento carrega o próprio init: abre no VLC, no ffprobe e num
+	// <video> sem nenhum pré-processamento.
+	return s.write(s.init)
+}
+
+func (s *segmenter) write(b []byte) error {
+	if s.w == nil {
+		return nil
+	}
+	n, err := s.w.Write(b)
+	s.bytes += int64(n)
+	s.rec.bytes.Add(int64(n))
+	return err
+}
+
+// finish fecha o segmento e só então registra no índice. Essa ordem importa:
+// uma queda entre as duas coisas deixa um arquivo órfão, que a reconciliação do
+// boot reincorpora — enquanto a ordem inversa deixaria o índice apontando para
+// um arquivo que nunca existiu.
+func (s *segmenter) finish() error {
+	if s.f == nil {
+		return nil
+	}
+	err := s.w.Flush()
+	if cerr := s.f.Close(); err == nil {
+		err = cerr
+	}
+	s.f, s.w = nil, nil
+	if err != nil {
+		return err
+	}
+
+	s.entry.DurMs = s.elapsed(s.lastDTS).Milliseconds()
+	s.entry.Size = s.bytes
+	s.entry.FirstFrag = s.firstFrag
+
+	if err := s.rec.idx.Append(s.entry); err != nil {
+		return err
+	}
+	s.rec.segments.Add(1)
+	s.rec.log.Debug("segmento fechado", "inicio", s.entry.StartMs,
+		"dur_s", float64(s.entry.DurMs)/1000, "mb", float64(s.entry.Size)/(1<<20))
+	return nil
+}
+
+func (s *segmenter) close() {
+	if err := s.finish(); err != nil {
+		s.rec.log.Error("falha ao fechar segmento", "erro", err)
+	}
+}
+
+func (r *Recorder) lastStartMs() int64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.lastStart
+}
+
+func (r *Recorder) setLastStartMs(ms int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lastStart = ms
+}
