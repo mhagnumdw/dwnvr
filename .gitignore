@@ -1,0 +1,6 @@
+# Configuração local da instalação (contém credenciais do go2rtc)
+dwnvr.yaml
+cameras.json
+# Binários
+/dwnvr
+/dwnvr-*
