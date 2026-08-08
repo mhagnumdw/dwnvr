@@ -170,10 +170,19 @@ GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o dwnvr ./cmd/d
 `cmd/spike` e `cmd/spike-serve` são os experimentos da Fase 0, mantidos porque
 documentam como as premissas foram verificadas.
 
-## Limitação conhecida
+## Limitação conhecida: parameter sets H265
 
-O `h265.DecodeSPS` do go2rtc lê mal o SPS das câmeras Yoosee e grava
-**2560x1440** no container quando o vídeo real é **1920x1080**. Como a proporção
-é 16:9 nos dois casos não há distorção, e todo decoder se corrige pelo
-bitstream — o Chrome reporta 1920x1080 corretamente. O efeito prático é que o
-`ffprobe` mostra a resolução errada nas gravações.
+Nas câmeras Yoosee o go2rtc não consegue extrair VPS/SPS/PPS do `FmtpLine` e
+grava no `hvcC` um **SPS hardcoded no próprio código**, que descreve 2560x1440.
+Os parameter sets verdadeiros chegam in-band, dentro dos samples — por isso a
+decodificação sai certa mesmo com o container mentindo a resolução.
+
+Duas consequências que valem lembrar:
+
+- **O 4CC `hev1` é obrigatório**, não cosmético. Converter para `hvc1` (que o
+  Safari prefere) quebraria a reprodução, porque `hvc1` afirma que os parameter
+  sets estão só na sample entry — e ali só há dummies.
+- **O hash do init não detecta troca de codec em H265**, já que o init é sempre
+  o mesmo dummy. Em H264 funciona normalmente. A reprodução não é afetada.
+
+Detalhes e evidências em [docs/go2rtc-h265-parameter-sets.md](docs/go2rtc-h265-parameter-sets.md).

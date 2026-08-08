@@ -67,14 +67,15 @@ resolução é o número que dimensiona a retenção.
 | `stsd/hev1` gravado pelo go2rtc | 2560x1440 |
 | Decodificação real (ffmpeg→PNG e WebCodecs) | **1920x1080** |
 
-O `h265.DecodeSPS` do go2rtc lê mal o SPS dessas câmeras Yoosee e escreve
-2560x1440 no container. Como a proporção é 16:9 nos dois casos **não há
-distorção**, e todo decoder se corrige pelo bitstream. Fica registrado como
-limitação conhecida; corrigir exigiria um parser de SPS HEVC próprio, o que não
-se paga agora.
+A resolução verdadeira é 1080p, como já dizia o comentário no `go2rtc.yaml`;
+é o `ffprobe` que relata errado, lendo o container.
 
-Atenção: por causa disso, `ffprobe` relata 2560x1440 para as gravações. A
-resolução verdadeira é 1080p, como já dizia o comentário no `go2rtc.yaml`.
+> **Corrigido depois.** Aqui eu atribuí isso a um erro de leitura do SPS. A
+> causa real é outra e tem consequências de projeto: o go2rtc grava um SPS
+> **hardcoded** quando não consegue extraí-lo do `FmtpLine`, e os parameter sets
+> verdadeiros vêm in-band. Isso torna o 4CC `hev1` obrigatório e cega a detecção
+> de troca de codec por hash em H265. Ver
+> [go2rtc-h265-parameter-sets.md](go2rtc-h265-parameter-sets.md).
 
 ## Playback no navegador
 
