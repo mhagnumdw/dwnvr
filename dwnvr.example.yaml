@@ -48,3 +48,15 @@ defaults:
   # flac  go2rtc converte pcm_alaw→FLAC em Go puro, sem disparar ffmpeg (~1-2% de core)
   # aac   exige uma fonte "ffmpeg:cam#audio=aac" no go2rtc.yaml (~10% de core)
   audio: none
+
+  # Segundos sem receber um único byte antes de considerar o stream morto,
+  # derrubar a conexão e reconectar.
+  #
+  # Não é firula: quando um produtor RTSP do go2rtc morre, ele para de escrever
+  # SEM fechar a resposta HTTP. Sem este limiar a câmera para de gravar em
+  # silêncio, sem erro e sem log, até alguém reparar. Fechar a conexão também é
+  # o que recupera — o go2rtc derruba o produtor morto quando o último
+  # consumidor sai e abre uma sessão RTSP nova na reconexão.
+  #
+  # Aumente num enlace ruim; não pode ser 0, que seria desligar a proteção.
+  stallSeconds: 15

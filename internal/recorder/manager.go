@@ -104,7 +104,8 @@ func (m *Manager) Set(raw config.Camera) {
 // não exigem: a cota é aplicada pela retenção, que lê a configuração a cada
 // passada.
 func recordingParamsChanged(a, b config.Camera) bool {
-	return a.Audio != b.Audio || a.SegmentSeconds != b.SegmentSeconds
+	return a.Audio != b.Audio || a.SegmentSeconds != b.SegmentSeconds ||
+		a.StallSeconds != b.StallSeconds
 }
 
 func (m *Manager) start(cam config.Camera) {

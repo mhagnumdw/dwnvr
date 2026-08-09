@@ -3,10 +3,12 @@ package go2rtc
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
 )
@@ -134,5 +136,119 @@ func TestStreamIgnoraCamposDesconhecidos(t *testing.T) {
 	}
 	if len(s.Producers) != 1 || s.Producers[0].URL != "x" {
 		t.Errorf("produtor não decodificado: %+v", s.Producers)
+	}
+}
+
+// streamMudo devolve um servidor que entrega `prefixo` e depois emudece sem
+// fechar a conexão — exatamente o que o go2rtc faz quando o produtor RTSP morre
+// e que custou 3h38 de gravação em 09/08/2026.
+func streamMudo(t *testing.T, prefixo string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(prefixo))
+		w.(http.Flusher).Flush()
+		// Sem fechar, sem escrever: só o cancelamento do guarda tira daqui.
+		<-r.Context().Done()
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestOpenStreamDerrubaStreamQueEmudece(t *testing.T) {
+	srv := streamMudo(t, "primeiros bytes")
+
+	c := New(config.Go2RTC{URL: srv.URL})
+	body, err := c.OpenStream(context.Background(), "cam_x", config.AudioNone, 150*time.Millisecond)
+	if err != nil {
+		t.Fatalf("OpenStream: %v", err)
+	}
+	defer body.Close()
+
+	inicio := time.Now()
+	n, err := io.Copy(io.Discard, body)
+	se := time.Since(inicio)
+
+	if err == nil {
+		t.Fatal("a leitura deveria falhar quando o go2rtc emudece")
+	}
+	// A mensagem precisa dizer o que houve: sem isto o log mostra
+	// "context canceled" e ninguém entende por que a câmera reconectou.
+	if !strings.Contains(err.Error(), "não enviou nada") {
+		t.Errorf("erro %q não explica a estagnação", err)
+	}
+	if n != int64(len("primeiros bytes")) {
+		t.Errorf("leu %d bytes antes de desistir, esperava %d", n, len("primeiros bytes"))
+	}
+	if se > 5*time.Second {
+		t.Errorf("demorou %s para detectar a estagnação", se)
+	}
+}
+
+// O guarda não pode derrubar quem está entregando: uma reconexão a cada 15s
+// abriria buracos na gravação em vez de fechá-los.
+func TestOpenStreamNaoDerrubaStreamAtivo(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for i := 0; i < 20; i++ {
+			if _, err := w.Write([]byte("x")); err != nil {
+				return
+			}
+			w.(http.Flusher).Flush()
+			time.Sleep(15 * time.Millisecond)
+		}
+	}))
+	defer srv.Close()
+
+	c := New(config.Go2RTC{URL: srv.URL})
+	body, err := c.OpenStream(context.Background(), "cam_x", config.AudioNone, 100*time.Millisecond)
+	if err != nil {
+		t.Fatalf("OpenStream: %v", err)
+	}
+	defer body.Close()
+
+	// 20 escritas espaçadas de 15ms passam de 300ms no total, bem além do
+	// limiar de 100ms: só um limiar por INATIVIDADE deixa isso passar.
+	n, err := io.Copy(io.Discard, body)
+	if err != nil {
+		t.Fatalf("stream ativo foi derrubado: %v", err)
+	}
+	if n != 20 {
+		t.Errorf("leu %d bytes, esperava 20", n)
+	}
+}
+
+// Fechar cedo não pode deixar o timer nem o context vazando.
+func TestOpenStreamCloseAntesDaEstagnacao(t *testing.T) {
+	srv := streamMudo(t, "abc")
+
+	c := New(config.Go2RTC{URL: srv.URL})
+	body, err := c.OpenStream(context.Background(), "cam_x", config.AudioNone, time.Hour)
+	if err != nil {
+		t.Fatalf("OpenStream: %v", err)
+	}
+	if err := body.Close(); err != nil {
+		t.Errorf("Close: %v", err)
+	}
+}
+
+// Um go2rtc travado ainda aceita a conexão TCP e nunca responde. Sem
+// ResponseHeaderTimeout isso trava o Do() para sempre, antes de o stallGuard
+// sequer existir — a mesma perda silenciosa, num ponto que o guarda não cobre.
+func TestOpenStreamDesisteDeQuemNaoResponde(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done() // aceita e emudece, sem nunca mandar cabeçalho
+	}))
+	defer srv.Close()
+
+	c := New(config.Go2RTC{URL: srv.URL})
+	c.HTTP.Transport.(*http.Transport).ResponseHeaderTimeout = 150 * time.Millisecond
+
+	inicio := time.Now()
+	body, err := c.OpenStream(context.Background(), "cam_x", config.AudioNone, time.Hour)
+	if err == nil {
+		body.Close()
+		t.Fatal("OpenStream deveria desistir de um go2rtc que não responde")
+	}
+	if se := time.Since(inicio); se > 5*time.Second {
+		t.Errorf("demorou %s para desistir", se)
 	}
 }

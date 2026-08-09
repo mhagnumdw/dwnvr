@@ -29,6 +29,14 @@ const (
 	AudioAAC  = "aac"
 )
 
+// DefaultStallSeconds é quanto tempo sem receber um único byte basta para
+// considerar o stream morto.
+//
+// Quinze segundos é folgado: mesmo uma câmera de 1 fps manda bytes todo
+// segundo. O número não precisa ser justo — precisa ser MUITO menor que as 3h38
+// que uma câmera passou parada em silêncio antes disto existir.
+const DefaultStallSeconds = 15
+
 type Config struct {
 	Server   Server   `yaml:"server"`
 	Go2RTC   Go2RTC   `yaml:"go2rtc"`
@@ -89,6 +97,7 @@ type Defaults struct {
 	QuotaMB        int64  `yaml:"quotaMB"`
 	MaxDays        int    `yaml:"maxDays"`
 	Audio          string `yaml:"audio"`
+	StallSeconds   int    `yaml:"stallSeconds"`
 }
 
 // Camera é uma câmera registrada. O ID é o nome do stream no go2rtc: o dwnvr
@@ -104,6 +113,11 @@ type Camera struct {
 	QuotaMB        int64  `json:"quotaMB,omitempty"`
 	MaxDays        int    `json:"maxDays,omitempty"`
 	Audio          string `json:"audio,omitempty"`
+
+	// StallSeconds é por câmera porque a tolerância depende do enlace: uma
+	// câmera num Wi-Fi ruim pode precisar de mais folga que uma no cabo, e
+	// baixar o limiar demais troca perda silenciosa por reconexão em excesso.
+	StallSeconds int `json:"stallSeconds,omitempty"`
 }
 
 func defaults() Config {
@@ -118,6 +132,7 @@ func defaults() Config {
 			SegmentSeconds: 60,
 			QuotaMB:        10240,
 			Audio:          AudioNone,
+			StallSeconds:   DefaultStallSeconds,
 		},
 	}
 }
@@ -148,6 +163,11 @@ func (c *Config) validate() error {
 	}
 	if c.Defaults.SegmentSeconds <= 0 {
 		return errors.New("defaults.segmentSeconds precisa ser positivo")
+	}
+	// Zero não desliga a vigilância: desligá-la é reintroduzir a perda
+	// silenciosa de gravação. Quem precisa de mais folga aumenta o número.
+	if c.Defaults.StallSeconds <= 0 {
+		return errors.New("defaults.stallSeconds precisa ser positivo")
 	}
 	if err := ValidAudio(c.Defaults.Audio); err != nil {
 		return fmt.Errorf("defaults.audio: %w", err)
@@ -181,6 +201,9 @@ func (c *Config) Resolve(cam Camera) Camera {
 	}
 	if cam.Audio == "" {
 		cam.Audio = c.Defaults.Audio
+	}
+	if cam.StallSeconds <= 0 {
+		cam.StallSeconds = c.Defaults.StallSeconds
 	}
 	if cam.Name == "" {
 		cam.Name = cam.ID
