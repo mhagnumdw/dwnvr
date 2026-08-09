@@ -36,6 +36,10 @@ export class Player {
   #pumping = false;
   #generation = 0; // invalida trabalho em voo depois de um seek
 
+  #mime = null; // com que codecs o SourceBuffer atual foi criado
+  #mimes = new Map(); // geração -> mime, para não rebuscar o mesmo init
+  #boundary = null; // início do segmento onde as trilhas mudam e é preciso recomeçar
+
   attach(video) {
     this.video = video;
     video.addEventListener('timeupdate', this.#onTime);
@@ -78,6 +82,8 @@ export class Player {
     this.#cam = cam;
     this.#gens = gens;
     this.#segments = segments;
+    this.#mimes.clear();
+    this.#boundary = null;
     this.#generation++;
     this.base = 0;
     this.currentMs = 0;
@@ -104,8 +110,26 @@ export class Player {
 
   #onWaiting = () => {
     this.buffering = true;
+    if (this.#crossBoundary()) return;
     this.#skipGap();
   };
+
+  // Chegou ao fim do que dava para bufferizar antes de uma troca de trilhas: a
+  // reprodução continua recomeçando o MediaSource a partir dali. Custa um
+  // rebuffer curto, num ponto que só existe quando alguém liga ou desliga o
+  // áudio de uma câmera — em troca, a gravação inteira fica navegável.
+  #crossBoundary() {
+    if (this.#boundary === null) return false;
+    // Só cruza quando não há mesmo mais nada à frente: um `waiting` no meio do
+    // buffer é rede ruim, não fronteira.
+    const b = this.#sb?.buffered;
+    if (b?.length && b.end(b.length - 1) - this.video.currentTime > 0.5) return false;
+
+    const ms = this.#boundary;
+    this.#boundary = null;
+    this.seek(ms);
+    return true;
+  }
 
   #onPlaying = () => {
     this.buffering = false;
@@ -149,9 +173,14 @@ export class Player {
     const gen = ++this.#generation;
     this.error = '';
     this.buffering = true;
+    // Um seek novo manda em qualquer fronteira que estivesse agendada.
+    this.#boundary = null;
 
     try {
-      await this.#reset(this.#segments[i][0]);
+      // A geração é a DO SEGMENTO ALVO, não a primeira do dia: ligar o áudio no
+      // meio do dia abre uma geração nova, e criar o SourceBuffer com os codecs
+      // da antiga fazia todo appendBuffer falhar.
+      await this.#reset(this.#segments[i][0], this.#gens[this.#segments[i][2]]);
       if (gen !== this.#generation) return; // outro seek chegou primeiro
       this.#next = i;
       await this.#pump();
@@ -173,28 +202,38 @@ export class Player {
     }
   }
 
-  async #reset(baseMs) {
+  async #reset(baseMs, gen) {
     this.base = baseMs;
     this.#next = 0;
     this.#initAppended = null;
 
-    const mime = await this.#mimeFor(this.#gens[0]);
+    const mime = await this.#mimeFor(gen);
     if (!MediaSource.isTypeSupported(mime)) {
       throw new Error(`este navegador não reproduz ${mime}`);
     }
+
+    // Trocar o src zera o playbackRate. Antes isso só acontecia num seek, onde
+    // ninguém repara; agora a travessia de uma fronteira de trilhas recomeça o
+    // MediaSource sozinha, e perder o 8× no meio de uma revisão seria um susto.
+    const rate = this.video.playbackRate;
 
     if (this.video.src.startsWith('blob:')) URL.revokeObjectURL(this.video.src);
     this.#ms = new MediaSource();
     this.video.src = URL.createObjectURL(this.#ms);
     await new Promise((r) => this.#ms.addEventListener('sourceopen', r, { once: true }));
+    this.video.playbackRate = rate;
 
     this.#sb = this.#ms.addSourceBuffer(mime);
     this.#sb.mode = 'segments';
+    this.#mime = mime;
   }
 
   // Os codecs saem do init de verdade, não de um palpite pelo nome da câmera:
   // a mesma instalação mistura H265 com áudio, H265 sem áudio e H264.
   async #mimeFor(gen) {
+    const cached = this.#mimes.get(gen);
+    if (cached) return cached;
+
     const buf = new Uint8Array(
       await fetch(mediaURL.init(this.#cam, gen)).then((r) => r.arrayBuffer()),
     );
@@ -212,7 +251,9 @@ export class Player {
       const c = map[at(i + 4)];
       if (c) codecs.add(c);
     }
-    return `video/mp4; codecs="${[...codecs].join(',')}"`;
+    const mime = `video/mp4; codecs="${[...codecs].join(',')}"`;
+    this.#mimes.set(gen, mime);
+    return mime;
   }
 
   #bufferedEnd() {
@@ -238,6 +279,19 @@ export class Player {
 
         // O init só precisa ser reanexado quando a geração muda.
         if (this.#initAppended !== g) {
+          // Mas a geração nova pode mudar as TRILHAS, não só o SPS: ligar o
+          // áudio de uma câmera no meio do dia acrescenta uma trilha de áudio.
+          // Um SourceBuffer não aceita isso nem com changeType — o Chrome
+          // recusa o append inteiro com "Got unexpected audio track". A única
+          // saída é recomeçar o MediaSource, e é o que #boundary agenda.
+          //
+          // Quando só o SPS mudou (resolução, por exemplo) o mime continua o
+          // mesmo e reanexar o init basta: é o caso comum e segue sem emenda.
+          const mime = await this.#mimeFor(g);
+          if (mime !== this.#mime) {
+            this.#boundary = start;
+            break;
+          }
           await this.#append(mediaURL.init(this.#cam, g), null);
           this.#initAppended = g;
         }
