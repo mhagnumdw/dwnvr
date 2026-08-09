@@ -1,6 +1,6 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { health, pollHealth, cameras } from '../lib/state.svelte.js';
+  import { health, pollHealth, cameras, build } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
   import { bytes, bytesDeMB, kbps, dias, duracao, hhmmss } from '../lib/format.js';
 
@@ -45,6 +45,14 @@
       // Empate cai no nome para a tabela não dançar a cada leitura de 3s.
       return d ? d * dir : colator.compare(a.name || '', b.name || '');
     });
+  });
+
+  // A data vem em ISO/UTC do servidor; aqui interessa a hora local de quem lê.
+  // Builds antigos podem não trazê-la, e um "Invalid Date" na tela seria pior
+  // que não mostrar nada.
+  const compiladoEm = $derived.by(() => {
+    const d = new Date(build.date);
+    return build.date && !isNaN(d) ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
   });
 
   const totalKbps = $derived(health.cameras.reduce((a, c) => a + (c.bitrateKbps || 0), 0));
@@ -181,9 +189,19 @@
     {/if}
   </div>
 
+  <!-- O separador vai como expressão porque o Svelte apara o espaço no início
+       de um bloco {#if}, e sem isso sai "3s· última leitura". -->
   <p class="muted small">
-    Atualizado a cada 3s{#if health.updatedAt} · última leitura há {duracao(Date.now() - health.updatedAt)}{/if}
+    Atualizado a cada 3s{#if health.updatedAt}{' · '}última leitura há {duracao(Date.now() - health.updatedAt)}{/if}
   </p>
+
+  <!-- Único lugar onde a versão aparece no celular: o header com a marca só
+       existe a partir de 720px. -->
+  {#if build.version}
+    <p class="muted small">
+      dwnvr <span class="mono">{build.version}</span>{#if compiladoEm}{' · '}compilado em {compiladoEm}{/if}
+    </p>
+  {/if}
 </div>
 
 <style>

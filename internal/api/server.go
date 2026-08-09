@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
@@ -48,6 +49,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("POST /api/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/session", s.handleSession)
+
+	// Versão fica fora da autenticação pelo mesmo motivo da tela de login:
+	// precisa ser visível antes de entrar. Além disso é a sonda de deploy —
+	// um curl responde se o dwnvr subiu com o código novo, sem cookie.
+	mux.HandleFunc("GET /api/version", s.handleVersion)
 
 	// Gravações
 	mux.HandleFunc("GET /api/cameras", s.requireAuth(s.handleCameras))
@@ -129,6 +135,11 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	}
 	resp["streams"] = available
 	writeJSON(w, resp)
+}
+
+// handleVersion diz qual código está rodando.
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, buildinfo.Get())
 }
 
 // handleHealth alimenta a tela de diagnóstico.

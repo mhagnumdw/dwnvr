@@ -27,10 +27,20 @@ COPY . .
 # a imagem sempre corresponde ao código-fonte que a gerou.
 COPY --from=web /src/internal/api/dist ./internal/api/dist
 
+# Identificação do build. Vem de fora porque o .dockerignore exclui o .git/ —
+# aqui dentro nenhum comando git funcionaria. Declarados só agora, depois dos
+# COPY, para que trocar de versão não invalide as camadas de dependência.
+ARG VERSION=dev
+ARG COMMIT=desconhecido
+ARG DATE=
+ARG BUILDPKG=github.com/mhagnumdw/dwnvr/internal/buildinfo
+
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o /dwnvr ./cmd/dwnvr
+    go build -trimpath -o /dwnvr \
+      -ldflags="-s -w -X $BUILDPKG.Version=$VERSION -X $BUILDPKG.Commit=$COMMIT -X $BUILDPKG.Date=$DATE" \
+      ./cmd/dwnvr
 
 # Imagem final: só o binário.
 #
