@@ -5,7 +5,7 @@
 # compila e sobe normalmente, mas serve a tela antiga — um erro silencioso que
 # este arquivo existe para evitar.
 
-IMAGE    ?= ghcr.io/mhagnumdw/cameras/dwnvr
+IMAGE    ?= ghcr.io/mhagnumdw/dwnvr
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 PLATFORMS = linux/amd64,linux/arm64
 LDFLAGS   = -s -w

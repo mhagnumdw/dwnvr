@@ -6,7 +6,7 @@
 
 services:
   dwnvr:
-    image: ghcr.io/mhagnumdw/cameras/dwnvr:latest
+    image: ghcr.io/mhagnumdw/dwnvr:latest
     # Para construir localmente em vez de baixar:
     # build: .
     container_name: dwnvr

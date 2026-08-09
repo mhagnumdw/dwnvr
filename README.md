@@ -222,7 +222,7 @@ passa a valer sozinho quando a pasta virar um repositório próprio.
 ```yaml
 services:
   dwnvr:
-    image: ghcr.io/mhagnumdw/cameras/dwnvr:latest
+    image: ghcr.io/mhagnumdw/dwnvr:latest
     restart: unless-stopped
     # Sem isto o container grava como root, e os arquivos nascem de root no
     # disco. Descubra o seu com: id -u; id -g
