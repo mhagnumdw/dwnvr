@@ -33,6 +33,10 @@ const (
 	// Orange Pi Zero 3 não tem RTC: sem rede no boot ele começa com uma data
 	// errada e o NTP corrige depois, o que embaralharia o índice em silêncio.
 	clockJumpThreshold = 5 * time.Second
+
+	// minBitrateForEstimate é a taxa abaixo da qual a estimativa de retenção
+	// não é publicada. Nenhum stream de câmera real fica abaixo disso.
+	minBitrateForEstimate = 1.0 // kbps
 )
 
 // Status é a visão de saúde de uma câmera, consumida pela tela de diagnóstico.
@@ -106,7 +110,12 @@ func (r *Recorder) Status() Status {
 	}
 	// Quantos dias a cota comporta na taxa observada. É o número que torna a
 	// cota compreensível: "20 GB" não diz nada, "≈ 2,4 dias" diz tudo.
-	if r.bitrateKbps > 0 {
+	//
+	// O piso não é `> 0`: dividir a cota por uma taxa quase nula produz um
+	// número gigante e sem sentido, e nenhum stream de câmera vive abaixo de
+	// 1 kbps. Sem taxa confiável, a estimativa fica zerada — a tela mostra "—"
+	// em vez de mentir.
+	if r.bitrateKbps >= minBitrateForEstimate {
 		bytesPerDay := r.bitrateKbps * 1000 / 8 * 86400
 		st.RetainDays = float64(r.cam.QuotaMB) * (1 << 20) / bytesPerDay
 	}
@@ -121,7 +130,15 @@ func (r *Recorder) sampleBitrate(now time.Time) {
 	total := r.bytes.Load()
 	if !r.sampleAt.IsZero() {
 		dt := now.Sub(r.sampleAt).Seconds()
-		if dt > 0 {
+		switch {
+		case total == r.sampleBytes:
+			// Nenhum byte na janela inteira: a câmera parou, e a taxa tem que
+			// dizer isso de uma vez. A média exponencial sozinha só se
+			// APROXIMA de zero — depois de 3h38 parada ela marcava 3,7e-126,
+			// um número que passa por "maior que zero" e fazia a estimativa de
+			// retenção virar 5,4e+128 dias na tela de diagnóstico.
+			r.bitrateKbps = 0
+		case dt > 0:
 			inst := float64(total-r.sampleBytes) * 8 / dt / 1000
 			// Média exponencial: suaviza o vaivém do VBR sem esconder uma
 			// câmera que parou de mandar dados.
