@@ -45,6 +45,26 @@ export async function checkSession() {
   session.checked = true;
 }
 
+export async function logout() {
+  try {
+    await api.logout();
+  } catch {
+    // Sair é, antes de tudo, local: se a requisição falhar, derrubar a sessão
+    // aqui ainda é o que o usuário pediu — e o cookie assinado expira sozinho.
+  }
+  session.authenticated = false;
+  // Zera o que já foi carregado: sem isto, quem entrar em seguida vê por um
+  // instante as câmeras e o diagnóstico da sessão anterior.
+  cameras.list = [];
+  cameras.streams = [];
+  cameras.go2rtcError = null;
+  cameras.loading = true;
+  cameras.error = null;
+  health.cameras = [];
+  health.disk = null;
+  health.updatedAt = 0;
+}
+
 export async function loadBuild() {
   try {
     const b = await api.version();
