@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { session, checkSession, loadCameras } from './lib/state.svelte.js';
+  import { session, checkSession, loadCameras, loadBuild } from './lib/state.svelte.js';
   import { setUnauthorizedHandler } from './lib/api.js';
   import Login from './routes/Login.svelte';
   import Live from './routes/Live.svelte';
@@ -28,6 +28,9 @@
     setUnauthorizedHandler(() => {
       session.authenticated = false;
     });
+    // Fora do await da sessão: a tela de login também mostra a versão, e não
+    // há motivo para uma busca esperar a outra.
+    loadBuild();
     await checkSession();
     if (session.authenticated) loadCameras();
   });

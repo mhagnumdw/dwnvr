@@ -91,9 +91,25 @@ jobs:
             type=semver,pattern={{version}}
             type=sha,format=short
 
+      # A mesma versão que o Makefile carimba: a tag quando houver, senão o
+      # hash curto — que é o que `git describe --tags --always` devolveria.
+      # Precisa ser calculada aqui porque o build da imagem não vê o .git.
+      - id: versao
+        run: |
+          if [ "${{ github.ref_type }}" = tag ]; then
+            echo "version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - uses: docker/build-push-action@v6
         with:
           context: .
+          build-args: |
+            VERSION=${{ steps.versao.outputs.version }}
+            COMMIT=${{ github.sha }}
+            DATE=${{ steps.versao.outputs.date }}
           # Duas arquiteturas por enquanto: aarch64 (Orange Pi, Raspberry Pi) e
           # x86_64. Outras entram quando houver quem as use.
           platforms: linux/amd64,linux/arm64

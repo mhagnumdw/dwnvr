@@ -6,9 +6,26 @@
 # este arquivo existe para evitar.
 
 IMAGE    ?= ghcr.io/mhagnumdw/dwnvr
+# git describe dá o hash curto enquanto não houver tag e passa a dar a tag
+# sozinho quando houver — nada aqui muda no dia do primeiro release.
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT   ?= $(shell git rev-parse HEAD 2>/dev/null || echo desconhecido)
+DATE     ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 PLATFORMS = linux/amd64,linux/arm64
-LDFLAGS   = -s -w
+
+# Sem isto o binário não sabe dizer que código ele é. Vale para build, arm64 e
+# amd64 de uma vez, já que os três compartilham LDFLAGS.
+BUILDPKG  = github.com/mhagnumdw/dwnvr/internal/buildinfo
+LDFLAGS   = -s -w \
+	-X $(BUILDPKG).Version=$(VERSION) \
+	-X $(BUILDPKG).Commit=$(COMMIT) \
+	-X $(BUILDPKG).Date=$(DATE)
+
+# O build da imagem não enxerga o .git (o .dockerignore o exclui), então os
+# mesmos valores precisam atravessar a fronteira como argumentos.
+BUILDARGS = --build-arg VERSION=$(VERSION) \
+	--build-arg COMMIT=$(COMMIT) \
+	--build-arg DATE=$(DATE)
 
 .PHONY: all web build test check clean image image-push run-pi help
 
@@ -43,11 +60,11 @@ check: test
 
 ## image: imagem multi-arch, carregada localmente só para a arquitetura atual
 image:
-	docker buildx build --platform $(PLATFORMS) -t $(IMAGE):$(VERSION) .
+	docker buildx build --platform $(PLATFORMS) $(BUILDARGS) -t $(IMAGE):$(VERSION) .
 
 ## image-push: constrói e publica a imagem multi-arch
 image-push:
-	docker buildx build --platform $(PLATFORMS) \
+	docker buildx build --platform $(PLATFORMS) $(BUILDARGS) \
 		-t $(IMAGE):$(VERSION) -t $(IMAGE):latest --push .
 
 ## run-pi: constrói a imagem arm64 e recria o container no Orange Pi
@@ -67,11 +84,16 @@ run-pi:
 	# --provenance/--sbom desligados de propósito: com eles o buildx exporta uma
 	# manifest list, e o `docker load` do outro lado não engole manifest list.
 	docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
-		-t dwnvr:arm64 --load .
+		$(BUILDARGS) -t dwnvr:arm64 --load .
 	docker save dwnvr:arm64 | gzip | ssh $(PI) 'gunzip | docker load'
 	ssh $(PI) 'cd $(PI_DIR) && docker compose up -d'
 	@sleep 20
 	@ssh $(PI) 'docker ps --filter name=dwnvr --format "{{.Status}}"'
+	# A prova de que o deploy pegou: se o Pi responder outra versão, o
+	# container subiu com a imagem antiga — que é o modo como este alvo já
+	# falhou em silêncio uma vez.
+	@echo "esperado: $(VERSION)"
+	@ssh $(PI) 'curl -sf localhost:8080/api/version' || echo "não respondeu"
 
 clean:
 	rm -f dwnvr dwnvr-linux-*

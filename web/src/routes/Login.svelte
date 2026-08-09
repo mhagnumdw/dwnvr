@@ -1,5 +1,6 @@
 <script>
   import { api } from '../lib/api.js';
+  import { build } from '../lib/state.svelte.js';
 
   let { onSuccess } = $props();
 
@@ -57,14 +58,29 @@
          aparece, e o botão foge do dedo no meio do toque. -->
     <p class="error small">{error}</p>
   </form>
+
+  <!-- Antes de entrar já dá para saber qual dwnvr é este — útil quando há um
+       de teste e um de verdade na mesma rede. -->
+  {#if build.version}
+    <p class="muted small ver">{build.version}</p>
+  {/if}
 </div>
 
 <style>
   .screen {
     display: grid;
     place-items: center;
+    /* align-content, e não só place-items: com duas linhas, place-items
+       centraliza cada uma DENTRO da sua faixa, e as faixas esticam para
+       preencher a tela — o que jogaria a versão para o meio do vazio. */
+    align-content: center;
+    gap: 16px;
     min-height: 100dvh;
     padding: 20px;
+  }
+
+  .ver {
+    color: var(--dim);
   }
 
   form {

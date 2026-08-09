@@ -34,6 +34,10 @@ export class ApiError extends Error {
 export const api = {
   session: () => fetch('api/session').then((r) => r.json()),
 
+  // Como session, não passa pelo request(): é público e precisa funcionar na
+  // tela de login, onde ainda não há sessão para expirar.
+  version: () => fetch('api/version').then((r) => r.json()),
+
   login: async (username, password) => {
     const res = await fetch('api/login', {
       method: 'POST',

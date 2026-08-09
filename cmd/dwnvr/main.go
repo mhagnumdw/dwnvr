@@ -25,6 +25,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/mhagnumdw/dwnvr/internal/api"
+	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/fmp4"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
@@ -60,6 +61,11 @@ func main() {
 }
 
 func run(log *slog.Logger, cfgPath string) error {
+	// Primeira linha do log de propósito: `docker logs dwnvr | head -1` é a
+	// forma mais barata de conferir que o deploy realmente trocou a versão.
+	b := buildinfo.Get()
+	log.Info("dwnvr iniciando", "versao", b.Version, "commit", b.Commit, "build", b.Date)
+
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return err

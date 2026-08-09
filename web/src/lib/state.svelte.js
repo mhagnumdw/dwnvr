@@ -26,6 +26,14 @@ export const health = $state({
   updatedAt: 0,
 });
 
+// Qual código o servidor está rodando. Não muda enquanto a página está aberta,
+// então é buscado uma vez só, no boot.
+export const build = $state({
+  version: '',
+  commit: '',
+  date: '',
+});
+
 export async function checkSession() {
   try {
     const s = await api.session();
@@ -35,6 +43,18 @@ export async function checkSession() {
     session.authenticated = false;
   }
   session.checked = true;
+}
+
+export async function loadBuild() {
+  try {
+    const b = await api.version();
+    build.version = b.version ?? '';
+    build.commit = b.commit ?? '';
+    build.date = b.date ?? '';
+  } catch {
+    // Versão é informativa: um servidor antigo, sem o endpoint, continua
+    // usável — a interface apenas não mostra nada.
+  }
 }
 
 export async function loadCameras() {
