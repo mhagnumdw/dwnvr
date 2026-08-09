@@ -10,6 +10,5 @@ import "errors"
 
 var errUnsupported = errors.New("retention: consulta de disco só é suportada em sistemas unix")
 
-func FreeBytes(string) (int64, error)             { return 0, errUnsupported }
-func TotalBytes(string) (int64, error)            { return 0, errUnsupported }
-func IsOnSeparateFilesystem(string) (bool, error) { return false, errUnsupported }
+func FreeBytes(string) (int64, error)  { return 0, errUnsupported }
+func TotalBytes(string) (int64, error) { return 0, errUnsupported }
