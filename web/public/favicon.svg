@@ -1,10 +1,15 @@
 <!-- Ícone do dwnvr: uma lente com o ponto de gravação aceso.
 
-     Fonte única — o Vite copia este arquivo de public/ para dist/, de onde o
+     Fonte única: o Vite copia este arquivo de public/ para dist/, de onde o
      Go o embute junto com o resto da interface, e o README aponta para cá.
-     As cores são as mesmas variáveis do tema (src/app.css): --bg, --accent
-     e --bad. A placa escura é o que faz o ícone se sustentar tanto na aba do
-     navegador quanto no README em tema claro. -->
+     As cores são as do tema em src/app.css (fundo, acento e o vermelho de
+     alerta). A placa escura é o que faz o ícone se sustentar tanto na aba do
+     navegador quanto no README em tema claro.
+
+     Cuidado ao editar este comentário: XML proíbe hífen duplo dentro de
+     comentário, então citar aqui o nome de uma variável CSS torna o arquivo
+     malformado. Ele continua sendo servido com HTTP 200 e o navegador
+     simplesmente não desenha nada. Foi o que aconteceu na primeira versão. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <rect width="64" height="64" rx="14" fill="#0d1117"/>
   <circle cx="32" cy="32" r="18" fill="none" stroke="#2f81f7" stroke-width="5"/>
