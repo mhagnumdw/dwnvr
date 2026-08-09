@@ -26,7 +26,11 @@
 
 <div class="screen">
   <form class="card" onsubmit={submit}>
-    <h1>dwnvr</h1>
+    <h1>
+      <!-- Mesma marca do header e do favicon, servida de public/. -->
+      <img class="mark" src="/favicon.svg" alt="" width="32" height="32" />
+      dwnvr
+    </h1>
     <p class="muted small">Entre para ver as câmeras</p>
 
     <input
@@ -71,8 +75,17 @@
   }
 
   h1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     margin: 0;
     font-size: 22px;
+  }
+
+  /* O SVG já traz o próprio arredondamento; nada de border-radius aqui. */
+  .mark {
+    display: block;
+    flex: none;
   }
 
   p {

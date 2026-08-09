@@ -46,7 +46,12 @@
   <Login onSuccess={afterLogin} />
 {:else}
   <header>
-    <span class="brand">dwnvr</span>
+    <span class="brand">
+      <!-- O mesmo arquivo do favicon, servido de public/: uma marca só, um
+           lugar só para mudar. -->
+      <img class="mark" src="/favicon.svg" alt="" width="24" height="24" />
+      dwnvr
+    </span>
     <nav class="top">
       {#each ROUTES as r (r.id)}
         <a href="#{r.id}" class:active={r.id === route.id}>{r.label}</a>
@@ -137,8 +142,18 @@
     }
 
     .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-weight: 700;
       letter-spacing: 0.3px;
+    }
+
+    /* O SVG já traz o próprio arredondamento, então nada de border-radius
+       aqui — dobrar o raio deformaria os cantos. */
+    .mark {
+      display: block;
+      flex: none;
     }
 
     nav.top {
