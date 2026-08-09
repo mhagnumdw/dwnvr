@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { cameras, loadCameras, health, pollHealth } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
-  import { dias, kbps, bytes, resolucao } from '../lib/format.js';
+  import { dias, kbps, bytes, bytesDeMB, resolucao } from '../lib/format.js';
 
   let editing = $state(null); // cópia da câmera em edição, ou null
   let saving = $state(false);
@@ -108,7 +108,7 @@
           <span class="chip">{resolucao(st?.width, st?.height)}</span>
           <span class="chip">áudio: {cam.audio}</span>
           <span class="chip">{kbps(st?.bitrateKbps)}</span>
-          <span class="chip">{bytes(st?.diskBytes ?? 0)} de {cam.quotaMB} MB</span>
+          <span class="chip">{bytes(st?.diskBytes ?? 0)} de {bytesDeMB(cam.quotaMB)}</span>
           {#if d}<span class="chip retain">≈ {dias(d)} de retenção</span>{/if}
         </div>
 
@@ -181,11 +181,16 @@
       <label>
         Cota em disco (MB)
         <input type="number" bind:value={editing.quotaMB} min="100" step="100" required />
-        {#if estimaDias(editing)}
-          <small class="muted">≈ {dias(estimaDias(editing))} na taxa medida agora</small>
-        {:else}
-          <small class="muted">a estimativa aparece após a primeira medição de taxa</small>
-        {/if}
+        <!-- O campo é em MB porque é assim que a cota é guardada, mas quem digita
+             20480 quer saber que isso são 20 GB. -->
+        <small class="muted">
+          = {bytesDeMB(editing.quotaMB)} ·
+          {#if estimaDias(editing)}
+            ≈ {dias(estimaDias(editing))} na taxa medida agora
+          {:else}
+            a estimativa aparece após a primeira medição de taxa
+          {/if}
+        </small>
       </label>
 
       <label>
