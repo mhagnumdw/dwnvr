@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { session, checkSession, loadCameras, loadBuild } from './lib/state.svelte.js';
+  import { session, checkSession, loadCameras, loadBuild, logout } from './lib/state.svelte.js';
   import { setUnauthorizedHandler } from './lib/api.js';
   import Login from './routes/Login.svelte';
   import Live from './routes/Live.svelte';
@@ -39,6 +39,14 @@
     session.authenticated = true;
     await loadCameras();
   }
+
+  let saindo = $state(false);
+
+  async function sair() {
+    saindo = true;
+    await logout();
+    saindo = false;
+  }
 </script>
 
 <svelte:window onhashchange={onHashChange} />
@@ -48,7 +56,7 @@
 {:else if session.authRequired && !session.authenticated}
   <Login onSuccess={afterLogin} />
 {:else}
-  <header>
+  <header class:autenticado={session.authRequired}>
     <span class="brand">
       <!-- O mesmo arquivo do favicon, servido de public/: uma marca só, um
            lugar só para mudar. -->
@@ -60,6 +68,13 @@
         <a href="#{r.id}" class:active={r.id === route.id}>{r.label}</a>
       {/each}
     </nav>
+    <!-- Sem autenticação configurada não há sessão para encerrar, e um botão
+         que não faz nada é pior que botão nenhum. -->
+    {#if session.authRequired}
+      <button class="ghost sair" onclick={sair} disabled={saindo}>
+        {saindo ? 'saindo…' : 'Sair'}
+      </button>
+    {/if}
   </header>
 
   <main>
@@ -89,8 +104,56 @@
     color: var(--dim);
   }
 
+  /* No celular a barra existe só para hospedar o Sair: a navegação mora
+     embaixo, e cada pixel de altura faz falta na grade ao vivo. Por isso as
+     propriedades ficam todas aqui e só o `display` muda entre os estados. */
   header {
     display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  header.autenticado {
+    display: flex;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  /* O SVG já traz o próprio arredondamento, então nada de border-radius
+     aqui — dobrar o raio deformaria os cantos. */
+  .mark {
+    display: block;
+    flex: none;
+  }
+
+  nav.top {
+    display: none;
+  }
+
+  /* Empurrado para a ponta oposta da marca, longe do polegar que navega pelo
+     rodapé: sair por engano custa digitar a senha de novo. */
+  .sair {
+    margin-left: auto;
+    min-height: 34px;
+    padding: 5px 12px;
+    font-size: 13px;
+    color: var(--dim);
+  }
+
+  .sair:hover:not(:disabled) {
+    color: var(--fg);
   }
 
   main {
@@ -132,31 +195,12 @@
   /* No desktop a navegação sobe: o polegar deixa de ser a restrição e a
      altura da tela passa a ser o recurso escasso. */
   @media (min-width: 720px) {
+    /* Aqui a barra vale para todo mundo: ela também carrega a navegação, que
+       no desktop não tem onde mais ficar. */
     header {
       display: flex;
-      align-items: center;
       gap: 20px;
       padding: 10px 18px;
-      background: var(--panel);
-      border-bottom: 1px solid var(--line);
-      position: sticky;
-      top: 0;
-      z-index: 20;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-    }
-
-    /* O SVG já traz o próprio arredondamento, então nada de border-radius
-       aqui — dobrar o raio deformaria os cantos. */
-    .mark {
-      display: block;
-      flex: none;
     }
 
     nav.top {
