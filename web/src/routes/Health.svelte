@@ -13,6 +13,40 @@
     disk ? (disk.totalBytes - disk.freeBytes - disk.dwnvrBytes) / disk.totalBytes : 0,
   );
 
+  // Cada coluna sabe extrair o valor que a ordena; assim o cabeçalho e a
+  // ordenação não podem discordar sobre o que "disco" significa.
+  const colunas = [
+    { id: 'name', rotulo: 'câmera', valor: (c) => c.name || '', texto: true },
+    { id: 'bitrate', rotulo: 'taxa', valor: (c) => c.bitrateKbps || 0 },
+    { id: 'disco', rotulo: 'disco', valor: (c) => c.diskBytes || 0 },
+    { id: 'retencao', rotulo: 'retenção', valor: (c) => c.retainDays || 0 },
+    { id: 'reconex', rotulo: 'reconex.', valor: (c) => c.reconnects || 0 },
+  ];
+
+  // numeric para "cam2" vir antes de "cam10", que é como as câmeras costumam
+  // ser nomeadas aqui.
+  const colator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
+
+  let ordem = $state({ col: 'name', asc: true });
+
+  function ordenar(id) {
+    if (ordem.col === id) ordem.asc = !ordem.asc;
+    else ordem = { col: id, asc: true };
+  }
+
+  const linhas = $derived.by(() => {
+    const col = colunas.find((c) => c.id === ordem.col) ?? colunas[0];
+    const dir = ordem.asc ? 1 : -1;
+    // Cópia: health.cameras é estado global e a tela só quer uma visão dele.
+    return [...health.cameras].sort((a, b) => {
+      const va = col.valor(a);
+      const vb = col.valor(b);
+      const d = col.texto ? colator.compare(va, vb) : va - vb;
+      // Empate cai no nome para a tabela não dançar a cada leitura de 3s.
+      return d ? d * dir : colator.compare(a.name || '', b.name || '');
+    });
+  });
+
   const totalKbps = $derived(health.cameras.reduce((a, c) => a + (c.bitrateKbps || 0), 0));
   const bytesPorDia = $derived(((totalKbps * 1000) / 8) * 86400);
   const desconectadas = $derived(health.cameras.filter((c) => c.enabled && !c.connected));
@@ -112,13 +146,20 @@
 
   <div class="table card">
     <div class="thead row small muted">
-      <span class="c-nome">câmera</span>
-      <span>taxa</span>
-      <span>disco</span>
-      <span>retenção</span>
-      <span>reconex.</span>
+      {#each colunas as col (col.id)}
+        <button
+          class="th"
+          class:ativa={ordem.col === col.id}
+          aria-label="ordenar por {col.rotulo}"
+          onclick={() => ordenar(col.id)}
+        >
+          <span class="rotulo">{col.rotulo}</span>
+          <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
+          <span class="seta">{ordem.col === col.id ? (ordem.asc ? '▲' : '▼') : ''}</span>
+        </button>
+      {/each}
     </div>
-    {#each health.cameras as c (c.id)}
+    {#each linhas as c (c.id)}
       <div class="trow row">
         <span class="c-nome row">
           <span class="dot" class:ok={c.connected && !c.silent} class:bad={c.enabled && (c.silent || !c.connected)}></span>
@@ -190,6 +231,26 @@
     align-items: center;
   }
   .thead { border-bottom: 1px solid var(--line); }
+  /* O cabeçalho é botão para funcionar com teclado, mas continua parecendo
+     cabeçalho: o estilo global de button não serve aqui. */
+  .th {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+  .th:hover:not(:disabled) { border-color: transparent; color: var(--fg); }
+  .th.ativa { color: var(--fg); }
+  .th .rotulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .th .seta { width: 9px; flex: none; font-size: 9px; color: var(--accent); }
   .trow + .trow { border-top: 1px solid #21262d; }
   .c-nome { gap: 7px; min-width: 0; }
   .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
