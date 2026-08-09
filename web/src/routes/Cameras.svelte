@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { cameras, loadCameras, health, pollHealth } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
-  import { dias, kbps, bytes } from '../lib/format.js';
+  import { dias, kbps, bytes, resolucao } from '../lib/format.js';
 
   let editing = $state(null); // cópia da câmera em edição, ou null
   let saving = $state(false);
@@ -105,6 +105,7 @@
         <div class="row wrap chips">
           {#if !cam.enabled}<span class="chip">desabilitada</span>{/if}
           <span class="chip">{st?.videoCodec ?? '—'}</span>
+          <span class="chip">{resolucao(st?.width, st?.height)}</span>
           <span class="chip">áudio: {cam.audio}</span>
           <span class="chip">{kbps(st?.bitrateKbps)}</span>
           <span class="chip">{bytes(st?.diskBytes ?? 0)} de {cam.quotaMB} MB</span>

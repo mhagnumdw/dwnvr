@@ -100,6 +100,17 @@ func boxType(b []byte) string {
 	return string(b[4:8])
 }
 
+// BoxPayload devolve o conteúdo de uma caixa sem o cabeçalho, respeitando o
+// cabeçalho estendido de 16 bytes. Um mdat grande usa essa forma, e assumir 8
+// bytes cegamente faria a leitura começar no meio de um campo.
+func BoxPayload(b []byte) []byte {
+	hdrLen, size, ok := boxHeaderLen(b)
+	if !ok {
+		return nil
+	}
+	return b[hdrLen:size]
+}
+
 // walk percorre as caixas filhas contidas em payload, chamando fn para cada uma
 // com o corpo (sem o cabeçalho). Parar cedo é possível devolvendo errStopWalk.
 func walk(payload []byte, fn func(typ string, body []byte) error) error {
@@ -117,8 +128,15 @@ func walk(payload []byte, fn func(typ string, body []byte) error) error {
 	return nil
 }
 
-// be32 e be64 leem inteiros big-endian conferindo os limites, para que um
+// be16, be32 e be64 leem inteiros big-endian conferindo os limites, para que um
 // stream truncado vire erro em vez de panic.
+func be16(b []byte, off int) (uint16, bool) {
+	if off < 0 || off+2 > len(b) {
+		return 0, false
+	}
+	return binary.BigEndian.Uint16(b[off : off+2]), true
+}
+
 func be32(b []byte, off int) (uint32, bool) {
 	if off < 0 || off+4 > len(b) {
 		return 0, false

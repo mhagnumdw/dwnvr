@@ -3,6 +3,8 @@ package fmp4
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"strings"
 	"testing"
 )
 
@@ -37,11 +39,69 @@ const (
 	flagsNonIFrame = 0x01010000
 )
 
+func u16(v uint16) []byte {
+	b := make([]byte, 2)
+	binary.BigEndian.PutUint16(b, v)
+	return b
+}
+
+// SPS reais, capturados das câmeras do primeiro deployment. Valem mais que
+// qualquer SPS sintético porque foi exatamente aqui que a suposição furou: a
+// mesma câmera anuncia 1440p no init e transmite 1080p.
+var (
+	spsH264720p  = mustHex("6742001f95a814016e40")
+	spsH2651440p = mustHex("42010101400000030000030000030000030099a001402005a1fe5aee46c1ae5504")
+	spsH2651080p = mustHex("420101014000000300900000030000030096a003c08010e59e96e44a5780a7010202e10000030001000003000f5087fde100040160000c042d7c201040")
+)
+
+func mustHex(s string) []byte {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+// avcC e hvcC montam o registro de configuração que carrega o SPS, no formato
+// que o go2rtc escreve.
+func avcC(sps []byte) []byte {
+	b := []byte{1, sps[1], sps[2], sps[3], 0xff, 0xe1}
+	b = append(b, u16(uint16(len(sps)))...)
+	b = append(b, sps...)
+	return box("avcC", b, []byte{0}) // nenhum PPS
+}
+
+func hvcC(sps []byte) []byte {
+	b := make([]byte, 22)
+	b[0] = 1
+	b[21] = 0xf3 // lengthSizeMinusOne = 3, ou seja, prefixo de 4 bytes
+	b = append(b, 1, 33)
+	b = append(b, u16(1)...)
+	b = append(b, u16(uint16(len(sps)))...)
+	b = append(b, sps...)
+	return box("hvcC", b)
+}
+
+func configFor(codec string) []byte {
+	if strings.HasPrefix(codec, "hev") || strings.HasPrefix(codec, "hvc") {
+		return hvcC(spsH2651440p)
+	}
+	return avcC(spsH264720p)
+}
+
+// visualSampleEntry monta a sample entry de vídeo: 78 bytes de campos fixos
+// depois do cabeçalho da caixa (reserved, data_reference_index, dimensões,
+// resoluções, compressorname, depth) e então as caixas filhas.
+func visualSampleEntry(codec string, children ...[]byte) []byte {
+	parts := append([][]byte{make([]byte, 78)}, children...)
+	return box(codec, parts...)
+}
+
 func makeMoov(trackID, timescale uint32, codec string, audio bool) []byte {
 	tkhd := box("tkhd", u32(0), u32(0), u32(0), u32(trackID))
 	mdhd := box("mdhd", u32(0), u32(0), u32(0), u32(timescale), u32(0))
 	hdlr := box("hdlr", u32(0), u32(0), []byte("vide"))
-	stsd := box("stsd", u32(0), u32(1), box(codec))
+	stsd := box("stsd", u32(0), u32(1), visualSampleEntry(codec, configFor(codec)))
 	stbl := box("stbl", stsd)
 	minf := box("minf", stbl)
 	mdia := box("mdia", mdhd, hdlr, minf)
@@ -108,6 +168,156 @@ func TestParseMoovExtraiTrilhas(t *testing.T) {
 	}
 	if !mv.HasAudio() {
 		t.Error("HasAudio() devia ser true")
+	}
+}
+
+// A resolução sai do SPS, não dos campos width/height da sample entry. Estes
+// SPS vieram das câmeras de verdade, e o resultado esperado é o que o ffmpeg
+// decodifica dos mesmos bytes.
+func TestSPSSize(t *testing.T) {
+	tests := []struct {
+		nome  string
+		codec string
+		sps   []byte
+		w, h  uint16
+	}{
+		{"h264 da porta", "avc1", spsH264720p, 1280, 720},
+		{"h265 anunciado no init da cozinha", "hev1", spsH2651440p, 2560, 1440},
+		{"h265 in-band que a cozinha realmente transmite", "hev1", spsH2651080p, 1920, 1080},
+	}
+	for _, tt := range tests {
+		t.Run(tt.nome, func(t *testing.T) {
+			w, h, ok := SPSSize(tt.codec, tt.sps)
+			if !ok {
+				t.Fatal("não conseguiu ler o SPS")
+			}
+			if w != tt.w || h != tt.h {
+				t.Errorf("resolução = %dx%d, esperava %dx%d", w, h, tt.w, tt.h)
+			}
+		})
+	}
+}
+
+// Um SPS truncado tem que virar "não sei", nunca um número inventado: a tela
+// mostra "—" e ninguém é enganado.
+func TestSPSSizeTruncadoNaoInventa(t *testing.T) {
+	for n := 1; n < len(spsH2651080p); n++ {
+		if _, _, ok := SPSSize("hev1", spsH2651080p[:n]); ok {
+			// Um prefixo pode até ser legível, mas nunca pode passar por
+			// resolução plausível se os campos não chegaram inteiros.
+			w, h, _ := SPSSize("hev1", spsH2651080p[:n])
+			if w == 1920 && h == 1080 {
+				continue // o SPS acabou de ficar completo o bastante
+			}
+			t.Fatalf("SPS cortado em %d bytes devolveu %dx%d como se fosse válido", n, w, h)
+		}
+	}
+	if _, _, ok := SPSSize("mp4a", spsH264720p); ok {
+		t.Error("codec de áudio não devia produzir resolução")
+	}
+}
+
+// A resolução do init vem do SPS que o hvcC/avcC carrega. A trilha de áudio,
+// cuja sample entry tem outro layout, não pode inventar dimensão nenhuma.
+func TestParseMoovExtraiResolucaoDoSPS(t *testing.T) {
+	mv, err := ParseMoov(makeMoov(1, 90000, "hev1", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	vt, _ := mv.VideoTrack()
+	if vt.Width != 2560 || vt.Height != 1440 {
+		t.Errorf("resolução = %dx%d, esperava 2560x1440", vt.Width, vt.Height)
+	}
+	if vt.NALLengthSize != 4 {
+		t.Errorf("NALLengthSize = %d, esperava 4", vt.NALLengthSize)
+	}
+	for _, tr := range mv.Tracks {
+		if tr.Handler == HandlerAudio && (tr.Width != 0 || tr.Height != 0) {
+			t.Errorf("trilha de áudio veio com dimensão %dx%d", tr.Width, tr.Height)
+		}
+	}
+}
+
+// Uma sample entry sem configuração de codec não pode derrubar a leitura do
+// init: sem resolução ainda dá para gravar, e falhar aqui custaria a gravação.
+func TestParseMoovSemConfigDeCodec(t *testing.T) {
+	tkhd := box("tkhd", u32(0), u32(0), u32(0), u32(1))
+	mdhd := box("mdhd", u32(0), u32(0), u32(0), u32(90000), u32(0))
+	hdlr := box("hdlr", u32(0), u32(0), []byte("vide"))
+	stsd := box("stsd", u32(0), u32(1), box("avc1")) // sem sequer os campos fixos
+	trak := box("trak", tkhd, box("mdia", mdhd, hdlr, box("minf", box("stbl", stsd))))
+
+	mv, err := ParseMoov(box("moov", box("mvhd", u32(0)), trak))
+	if err != nil {
+		t.Fatalf("ParseMoov: %v", err)
+	}
+	vt, ok := mv.VideoTrack()
+	if !ok {
+		t.Fatal("não achou a trilha de vídeo")
+	}
+	if vt.Codec != "avc1" {
+		t.Errorf("codec = %q", vt.Codec)
+	}
+	if vt.Width != 0 || vt.Height != 0 {
+		t.Errorf("esperava dimensão zerada, veio %dx%d", vt.Width, vt.Height)
+	}
+}
+
+// FindSPS acha o parameter set no meio dos NALs do fragmento — o caminho que
+// corrige um init mentiroso.
+func TestFindSPSInband(t *testing.T) {
+	nal := func(b []byte) []byte {
+		return append(u32(uint32(len(b))), b...)
+	}
+	vps := append([]byte{32 << 1, 1}, 0xaa, 0xbb)
+	idr := append([]byte{19 << 1, 1}, bytes.Repeat([]byte{0x42}, 64)...)
+	mdat := box("mdat", nal(vps), nal(spsH2651080p), nal(idr))
+
+	sps, ok := FindSPS("hev1", BoxPayload(mdat), 4)
+	if !ok {
+		t.Fatal("não achou o SPS in-band")
+	}
+	w, h, ok := SPSSize("hev1", sps)
+	if !ok || w != 1920 || h != 1080 {
+		t.Errorf("SPS in-band deu %dx%d (ok=%v), esperava 1920x1080", w, h, ok)
+	}
+
+	// Um fragmento só de dados não pode devolver lixo como se fosse SPS.
+	semSPS := box("mdat", nal(idr))
+	if _, ok := FindSPS("hev1", BoxPayload(semSPS), 4); ok {
+		t.Error("achou SPS onde não há")
+	}
+	// Nem um comprimento maior que o próprio buffer pode virar leitura fora.
+	if _, ok := FindSPS("hev1", []byte{0xff, 0xff, 0xff, 0xff, 1, 2}, 4); ok {
+		t.Error("aceitou um NAL que não cabe no fragmento")
+	}
+}
+
+// O custo precisa caber num Pi: o parse roda uma vez por conexão, mas se ele
+// fosse caro isso apareceria aqui.
+func BenchmarkSPSSize(b *testing.B) {
+	for b.Loop() {
+		if _, _, ok := SPSSize("hev1", spsH2651080p); !ok {
+			b.Fatal("SPS ilegível")
+		}
+	}
+}
+
+// O pior caso é o SPS chegar depois de todos os outros NALs do fragmento,
+// obrigando a varredura a percorrer o keyframe inteiro.
+func BenchmarkFindSPSPiorCaso(b *testing.B) {
+	nal := func(x []byte) []byte { return append(u32(uint32(len(x))), x...) }
+	parts := [][]byte{}
+	for range 32 {
+		parts = append(parts, nal(append([]byte{1 << 1, 1}, bytes.Repeat([]byte{0x42}, 8<<10)...)))
+	}
+	parts = append(parts, nal(spsH2651080p))
+	mdat := BoxPayload(box("mdat", parts...))
+	b.SetBytes(int64(len(mdat)))
+	for b.Loop() {
+		if _, ok := FindSPS("hev1", mdat, 4); !ok {
+			b.Fatal("não achou")
+		}
 	}
 }
 

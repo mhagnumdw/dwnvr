@@ -34,6 +34,13 @@ export function kbps(v) {
   return v >= 1000 ? `${(v / 1000).toFixed(2)} Mbps` : `${Math.round(v)} kbps`;
 }
 
+// resolucao mostra o que está sendo gravado de fato, lido do init do stream.
+// Só existe depois da primeira conexão — antes disso não há o que afirmar.
+export function resolucao(w, h) {
+  if (!w || !h) return '—';
+  return `${w}×${h}`;
+}
+
 // duracao formata um intervalo pensando em quem lê: dias e horas importam mais
 // que precisão de segundos quando se fala de retenção.
 export function duracao(ms) {

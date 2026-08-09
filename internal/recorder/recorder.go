@@ -55,6 +55,12 @@ type Status struct {
 	HasAudio    bool      `json:"hasAudio"`
 	Gen         string    `json:"gen,omitempty"`
 
+	// Width e Height são a resolução que está sendo gravada, lida do init da
+	// própria conexão — não do que a câmera diz que faz. Ficam zeradas enquanto
+	// a câmera nunca conectou.
+	Width  uint16 `json:"width,omitempty"`
+	Height uint16 `json:"height,omitempty"`
+
 	// LastSegmentAt e Silent respondem à pergunta que mais importa num NVR:
 	// "esta câmera está gravando AGORA?". Connected não responde — uma conexão
 	// pode estar de pé sem produzir um segmento sequer.
@@ -84,6 +90,8 @@ type Recorder struct {
 	connectedAt time.Time
 	lastErr     string
 	videoCodec  string
+	width       uint16
+	height      uint16
 	hasAudio    bool
 	gen         string
 	bitrateKbps float64
@@ -168,6 +176,7 @@ func (r *Recorder) Status() Status {
 		Bytes:       r.bytes.Load(), Segments: r.segments.Load(),
 		Reconnects: r.reconnects.Load(), LastError: r.lastErr,
 		VideoCodec: r.videoCodec, HasAudio: r.hasAudio, Gen: r.gen,
+		Width: r.width, Height: r.height,
 		QuotaMB: r.cam.QuotaMB, DiskBytes: disk,
 		Silent: time.Since(r.lastActivityLocked()) > r.silenceLimitLocked(),
 	}
@@ -281,6 +290,12 @@ func (r *Recorder) session(ctx context.Context) error {
 	rd := fmp4.NewReader(body)
 	var pending []byte
 
+	// O SPS in-band é procurado UMA vez por conexão, no fragmento do primeiro
+	// keyframe — que é onde os parameter sets aparecem, sempre antes do IDR.
+	// Varrer todo mdat custaria 15 varreduras por segundo por câmera para
+	// reencontrar eternamente o mesmo dado.
+	var wantInbandSPS, keyframePending bool
+
 	for {
 		typ, box, err := rd.NextBox()
 		if err != nil {
@@ -312,11 +327,18 @@ func (r *Recorder) session(ctx context.Context) error {
 			}
 			seg.gen = gen
 
+			// A resolução do init é só a primeira aproximação: se a câmera
+			// mandar parameter sets in-band, é o SPS deles que vale. Ver
+			// wantInbandSPS logo abaixo.
+			r.setResolution(vt.Width, vt.Height)
+			wantInbandSPS = true
+
 			r.mu.Lock()
 			r.videoCodec, r.hasAudio, r.gen = vt.Codec, mv.HasAudio(), gen
 			r.mu.Unlock()
 			r.setConnected(true, "")
 			r.log.Info("conectado", "codec", vt.Codec, "audio", mv.HasAudio(),
+				"resolucao_no_init", fmt.Sprintf("%dx%d", vt.Width, vt.Height),
 				"gen", gen, "init_bytes", len(seg.init))
 
 		case "moof":
@@ -332,6 +354,7 @@ func (r *Recorder) session(ctx context.Context) error {
 					return err
 				}
 				seg.lastEnd = frag.EndTime()
+				keyframePending = frag.Keyframe
 			}
 			pending = append(pending[:0], box...)
 			if seg.open() {
@@ -341,6 +364,10 @@ func (r *Recorder) session(ctx context.Context) error {
 			}
 
 		case "mdat":
+			if wantInbandSPS && keyframePending {
+				wantInbandSPS = false
+				r.readInbandSPS(seg.videoTrack, box)
+			}
 			if len(pending) == 0 {
 				continue // sobra de fragmento parcial após reconexão
 			}
@@ -357,6 +384,33 @@ func (r *Recorder) session(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func (r *Recorder) setResolution(w, h uint16) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.width, r.height = w, h
+}
+
+// readInbandSPS corrige a resolução com o SPS que veio junto do keyframe.
+//
+// Vale mais que o SPS do init porque é o que o decodificador obedece. A câmera
+// da cozinha do primeiro deployment anunciava 2560x1440 no init e transmitia
+// 1920x1080 — sem isto, a tela mostraria com confiança um número que nenhum
+// frame gravado tem.
+func (r *Recorder) readInbandSPS(vt fmp4.Track, mdat []byte) {
+	sps, ok := fmp4.FindSPS(vt.Codec, fmp4.BoxPayload(mdat), vt.NALLengthSize)
+	if !ok {
+		return
+	}
+	w, h, ok := fmp4.SPSSize(vt.Codec, sps)
+	if !ok || (w == vt.Width && h == vt.Height) {
+		return
+	}
+	r.setResolution(w, h)
+	r.log.Warn("o init anuncia uma resolução que o stream não usa",
+		"init", fmt.Sprintf("%dx%d", vt.Width, vt.Height),
+		"gravando", fmt.Sprintf("%dx%d", w, h))
 }
 
 // --- segmentação ------------------------------------------------------------
