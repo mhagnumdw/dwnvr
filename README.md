@@ -85,8 +85,41 @@ Três detalhes que o formato compra barato:
 - **`f0`** permite servir init + primeiro fragmento como um **MP4 de um frame**:
   é a thumbnail da timeline, decodificada pelo navegador, **sem o Pi decodificar
   nada**
-- **hash como geração** detecta troca de codec sozinho e deduplica: as 6 câmeras
-  H265 compartilham o mesmo arquivo de init
+- **`g` (geração)** identifica o init segment pelo **hash do seu conteúdo**, e
+  não por um contador — ver abaixo
+
+### Geração: o init identificado por hash
+
+O init segment (`ftyp`+`moov`) descreve as trilhas, e todo segmento precisa do
+init certo para tocar. O campo `g` do índice é o SHA-256 desse init, truncado.
+
+Usar o conteúdo como identidade, em vez de um contador, compra três coisas de
+graça:
+
+- **deduplicação**: 9 câmeras produzem apenas 4 arquivos de init distintos, porque
+  todas as H265 sem áudio geram exatamente os mesmos bytes
+- **detecção de mudança sem estado**: ligar áudio numa câmera acrescenta uma
+  trilha ao `moov`, o hash muda e os segmentos novos passam a apontar para outro
+  init — sem quebrar a reprodução dos antigos, e sem uma linha de código
+  dedicada a "detectar mudança"
+- **recuperação**: um contador exigiria persistir em que número se está; com
+  hash, basta ler um segmento órfão para saber a que init ele pertence
+
+Exemplo real, de uma instalação com 9 câmeras:
+
+```
+cam_cozinha   4edbc50d8e70   737 B   H265, só vídeo
+cam_cozinha   e38cb0530c62  1192 B   H265 + FLAC (depois de ligar o áudio)
+cam_jardim    e38cb0530c62  1192 B   idêntico ao acima → mesmo arquivo
+cam_porta     ead03cc7ac5a   660 B   H264 onvif1
+cam_lateral1  27dcb8115adf   660 B   H264 onvif2 (resolução diferente)
+```
+
+**Limitação conhecida:** em H265, quando a câmera não entrega os parameter sets
+no `FmtpLine`, o go2rtc grava um SPS fixo — então trocar apenas a resolução
+**não** muda o hash. Não afeta a reprodução, porque o decoder usa os parameter
+sets in-band. Ver
+[docs/go2rtc-h265-parameter-sets.md](docs/go2rtc-h265-parameter-sets.md).
 
 ### Recuperação
 
