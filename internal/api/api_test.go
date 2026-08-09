@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"io"
 	"log/slog"
 	"net/http"
@@ -252,5 +254,41 @@ func TestRequireAuth(t *testing.T) {
 	h(rec, req)
 	if !chamou {
 		t.Error("cookie válido deveria ter passado")
+	}
+}
+
+// O favicon é um SVG com um comentário em cima, e comentário XML não admite
+// hífen duplo. Citar ali dentro o nome de uma variável CSS torna o arquivo
+// malformado — e o sintoma é cruel: o servidor devolve 200, com content-type e
+// tamanho certos, e o navegador simplesmente não desenha nada. Foi assim que
+// uma versão quebrada chegou a rodar em produção sem que nenhuma verificação
+// de deploy reclamasse. Este teste é a porta que faltava.
+func TestFaviconEmbutidoEhXMLBemFormado(t *testing.T) {
+	b, err := dist.ReadFile("dist/favicon.svg")
+	if err != nil {
+		t.Fatalf("favicon não está embutido: %v", err)
+	}
+
+	dec := xml.NewDecoder(bytes.NewReader(b))
+	for {
+		_, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("favicon.svg malformado, o navegador não vai desenhá-lo: %v", err)
+		}
+	}
+}
+
+// De nada adianta o arquivo estar íntegro se a página parar de apontar para
+// ele: o resultado visível é o mesmo, aba sem ícone.
+func TestIndexApontaParaOFavicon(t *testing.T) {
+	b, err := dist.ReadFile("dist/index.html")
+	if err != nil {
+		t.Fatalf("index.html não está embutido: %v", err)
+	}
+	if !strings.Contains(string(b), `href="/favicon.svg"`) {
+		t.Error("index.html não referencia /favicon.svg")
 	}
 }
