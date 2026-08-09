@@ -109,5 +109,10 @@ func validateCamera(cam config.Camera) error {
 	if cam.MaxDays < 0 {
 		return fmt.Errorf("idade máxima não pode ser negativa")
 	}
+	// Zero é "usar o default"; negativo ou absurdo desligaria na prática a
+	// vigilância que impede a câmera de parar de gravar em silêncio.
+	if cam.StallSeconds < 0 || cam.StallSeconds > 3600 {
+		return fmt.Errorf("limiar de inatividade fora do intervalo aceito")
+	}
 	return nil
 }

@@ -185,7 +185,8 @@ func errText(err error) string {
 
 // session é uma conexão inteira ao go2rtc, do moov ao fim do stream.
 func (r *Recorder) session(ctx context.Context) error {
-	body, err := r.client.OpenStream(ctx, r.cam.ID, r.cam.Audio)
+	body, err := r.client.OpenStream(ctx, r.cam.ID, r.cam.Audio,
+		time.Duration(r.cam.StallSeconds)*time.Second)
 	if err != nil {
 		return err
 	}

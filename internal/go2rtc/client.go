@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
@@ -30,9 +31,20 @@ func New(cfg config.Go2RTC) *Client {
 		BaseURL:  strings.TrimRight(cfg.URL, "/"),
 		Username: cfg.Username,
 		Password: cfg.Password,
-		// Sem timeout global: a resposta de stream.mp4 é infinita por natureza.
-		// O controle de vida da conexão fica com o context de quem chama.
-		HTTP: &http.Client{},
+		// Sem timeout global: a resposta de stream.mp4 é infinita por natureza,
+		// e um Timeout de http.Client vale para o corpo inteiro. Quem cuida do
+		// corpo é o stallGuard; aqui só se protege o que vem ANTES dele.
+		//
+		// ResponseHeaderTimeout cobre um buraco real: um go2rtc travado ainda
+		// aceita a conexão TCP (o kernel aceita por ele) e nunca responde. Sem
+		// isto, Do() bloqueia para sempre — a mesma falha silenciosa que o
+		// guarda evita depois, só que num ponto onde ele ainda não existe.
+		HTTP: &http.Client{
+			Transport: &http.Transport{
+				Proxy:                 http.ProxyFromEnvironment,
+				ResponseHeaderTimeout: 2 * config.DefaultStallSeconds * time.Second,
+			},
+		},
 	}
 }
 
@@ -60,22 +72,87 @@ func (c *Client) StreamURL(cam, audio string) string {
 }
 
 // OpenStream abre o fMP4 contínuo de uma câmera. Quem chama fecha o corpo.
-func (c *Client) OpenStream(ctx context.Context, cam, audio string) (io.ReadCloser, error) {
+//
+// O corpo devolvido se fecha sozinho se o go2rtc passar `idle` sem entregar um
+// único byte — ver stallGuard para o porquê.
+func (c *Client) OpenStream(ctx context.Context, cam, audio string, idle time.Duration) (io.ReadCloser, error) {
+	if idle <= 0 {
+		idle = config.DefaultStallSeconds * time.Second
+	}
+
+	// O context próprio é o que permite ao guarda derrubar ESTA requisição sem
+	// afetar quem chamou.
+	ctx, cancel := context.WithCancel(ctx)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.StreamURL(cam, audio), nil)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	c.auth(req)
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
+		cancel()
 		return nil, fmt.Errorf("go2rtc devolveu HTTP %d para %q", resp.StatusCode, cam)
 	}
-	return resp.Body, nil
+
+	g := &stallGuard{body: resp.Body, idle: idle, cancel: cancel}
+	// A primeira leitura ganha o dobro do prazo: abrir o stream faz o go2rtc
+	// estabelecer a sessão RTSP com a câmera, o que é legitimamente mais lento
+	// que entregar o próximo fragmento de um stream que já está correndo.
+	g.timer = time.AfterFunc(2*idle, g.trip)
+	return g, nil
+}
+
+// stallGuard derruba a conexão quando o go2rtc para de mandar bytes sem fechá-la.
+//
+// Existe por causa de uma falha real: os produtores RTSP do go2rtc rodam sobre
+// UDP, e quando o fluxo da câmera para não há erro de socket nenhum — o go2rtc
+// simplesmente deixa de escrever, com a resposta HTTP aberta. Do lado de cá o
+// Read bloqueia para sempre, sem erro, sem EOF e sem log: em 09/08/2026 cinco
+// câmeras ficaram 3h38 sem gravar reportando `connected: true`.
+//
+// Fechar a conexão é também o que RECUPERA a câmera. Como o dwnvr é o único
+// consumidor do stream, sair faz o go2rtc derrubar o produtor morto, e a
+// reconexão de run() abre uma sessão RTSP nova.
+type stallGuard struct {
+	body   io.ReadCloser
+	idle   time.Duration
+	timer  *time.Timer
+	cancel context.CancelFunc
+
+	stalled atomic.Bool
+}
+
+func (g *stallGuard) trip() {
+	// A ordem importa: quem observar o erro da leitura precisa já enxergar o
+	// motivo, senão o cancelamento vira um "context canceled" sem explicação.
+	g.stalled.Store(true)
+	g.cancel()
+}
+
+func (g *stallGuard) Read(p []byte) (int, error) {
+	n, err := g.body.Read(p)
+	if n > 0 {
+		g.timer.Reset(g.idle)
+	}
+	if err != nil && g.stalled.Load() {
+		return n, fmt.Errorf("go2rtc não enviou nada por %s", g.idle)
+	}
+	return n, err
+}
+
+func (g *stallGuard) Close() error {
+	g.timer.Stop()
+	err := g.body.Close()
+	g.cancel()
+	return err
 }
 
 func (c *Client) auth(req *http.Request) {
