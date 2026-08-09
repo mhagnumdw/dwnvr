@@ -55,6 +55,12 @@ type Status struct {
 	HasAudio    bool      `json:"hasAudio"`
 	Gen         string    `json:"gen,omitempty"`
 
+	// LastSegmentAt e Silent respondem à pergunta que mais importa num NVR:
+	// "esta câmera está gravando AGORA?". Connected não responde — uma conexão
+	// pode estar de pé sem produzir um segmento sequer.
+	LastSegmentAt time.Time `json:"lastSegmentAt,omitzero"`
+	Silent        bool      `json:"silent"`
+
 	// QuotaMB e Bytes em disco alimentam a estimativa de retenção mostrada na
 	// tela de cadastro ("com esta cota, cabem ~N dias").
 	QuotaMB    int64   `json:"quotaMB"`
@@ -86,12 +92,68 @@ type Recorder struct {
 	// piso do início do próximo, o que impede sobreposição entre segmentos.
 	lastEnd int64
 
+	startedAt    time.Time
+	silentLogged bool
+
 	sampleAt    time.Time
 	sampleBytes int64
 }
 
 func newRecorder(cam config.Camera, client *go2rtc.Client, idx *store.Camera, log *slog.Logger) *Recorder {
-	return &Recorder{cam: cam, client: client, idx: idx, log: log.With("cam", cam.ID)}
+	return &Recorder{
+		cam: cam, client: client, idx: idx, log: log.With("cam", cam.ID),
+		startedAt: time.Now(),
+	}
+}
+
+// silenceLimitLocked é quanto tempo sem fechar um segmento basta para dizer que
+// a câmera parou. Três segmentos de folga absorvem o corte por keyframe, que
+// nunca cai exatamente na duração alvo; o piso de um minuto evita alarme falso
+// em quem configurou segmentos muito curtos.
+func (r *Recorder) silenceLimitLocked() time.Duration {
+	d := 3 * time.Duration(r.cam.SegmentSeconds) * time.Second
+	return max(d, time.Minute)
+}
+
+// lastActivityLocked é o instante mais recente entre subir, conectar e fechar um
+// segmento — a referência para saber há quanto tempo nada acontece.
+func (r *Recorder) lastActivityLocked() time.Time {
+	ref := r.startedAt
+	if r.connectedAt.After(ref) {
+		ref = r.connectedAt
+	}
+	if r.lastEnd > 0 {
+		if t := time.UnixMilli(r.lastEnd); t.After(ref) {
+			ref = t
+		}
+	}
+	return ref
+}
+
+// checkSilence avisa UMA vez quando a câmera para de gravar, e outra quando
+// volta.
+//
+// É a lacuna que o watchdog sozinho deixa: ele reconecta em silêncio, e em
+// 09/08/2026 nove câmeras pararam às 08:18 sem que nada avisasse — o problema
+// só foi descoberto porque alguém foi olhar. Num NVR, perceber que parou de
+// gravar é a segunda função mais importante depois de gravar.
+func (r *Recorder) checkSilence(now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	silent := now.Sub(r.lastActivityLocked()) > r.silenceLimitLocked()
+	if silent == r.silentLogged {
+		return
+	}
+	r.silentLogged = silent
+
+	if silent {
+		r.log.Error("câmera parou de gravar",
+			"parada_desde", r.lastActivityLocked().Format(time.TimeOnly),
+			"conectada", r.connected, "ultimo_erro", r.lastErr)
+		return
+	}
+	r.log.Info("câmera voltou a gravar")
 }
 
 func (r *Recorder) Status() Status {
@@ -107,6 +169,10 @@ func (r *Recorder) Status() Status {
 		Reconnects: r.reconnects.Load(), LastError: r.lastErr,
 		VideoCodec: r.videoCodec, HasAudio: r.hasAudio, Gen: r.gen,
 		QuotaMB: r.cam.QuotaMB, DiskBytes: disk,
+		Silent: time.Since(r.lastActivityLocked()) > r.silenceLimitLocked(),
+	}
+	if r.lastEnd > 0 {
+		st.LastSegmentAt = time.UnixMilli(r.lastEnd)
 	}
 	// Quantos dias a cota comporta na taxa observada. É o número que torna a
 	// cota compreensível: "20 GB" não diz nada, "≈ 2,4 dias" diz tudo.

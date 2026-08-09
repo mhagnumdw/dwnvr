@@ -1,9 +1,15 @@
 package recorder
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 )
+
+// mudo evita que o teste precise de um logger de verdade só para exercitar o
+// alarme, que loga por definição.
+func mudo() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
 // Uma câmera parada tem que reportar taxa ZERO, não uma taxa quase nula.
 //
@@ -66,5 +72,51 @@ func TestRetencaoNaoEstimaComTaxaDesprezivel(t *testing.T) {
 				t.Errorf("taxa %v não deveria produzir estimativa, veio %v", tt.taxa, dias)
 			}
 		})
+	}
+}
+
+// Um recorder que acabou de subir não pode ser dado como parado: o primeiro
+// segmento só fecha depois de segmentSeconds, e alarmar nesse intervalo faria a
+// tela gritar a cada reinício.
+func TestSilencioToleraSubidaEAlarmaDepois(t *testing.T) {
+	r := &Recorder{startedAt: time.Now(), log: mudo()}
+	r.cam.SegmentSeconds = 30
+
+	r.mu.RLock()
+	limite := r.silenceLimitLocked()
+	r.mu.RUnlock()
+	if limite != 90*time.Second {
+		t.Fatalf("limite = %v, esperava 90s (3 segmentos)", limite)
+	}
+
+	// Recém-subido: nada de alarme, e nada logado.
+	r.checkSilence(r.startedAt.Add(60 * time.Second))
+	if r.silentLogged {
+		t.Error("alarmou antes de o primeiro segmento poder existir")
+	}
+
+	// Passou do limite sem fechar segmento nenhum: alarma.
+	r.checkSilence(r.startedAt.Add(2 * time.Minute))
+	if !r.silentLogged {
+		t.Fatal("deveria ter alarmado depois de 2min sem gravar")
+	}
+
+	// Fechou um segmento: volta ao normal.
+	r.setLastEndMs(r.startedAt.Add(2 * time.Minute).UnixMilli())
+	r.checkSilence(r.startedAt.Add(2*time.Minute + time.Second))
+	if r.silentLogged {
+		t.Error("deveria ter voltado ao normal depois de gravar")
+	}
+}
+
+// O piso de um minuto protege quem usa segmentos curtos: 3×5s alarmaria a cada
+// hesitação de rede.
+func TestLimiteDeSilencioTemPiso(t *testing.T) {
+	r := &Recorder{}
+	r.cam.SegmentSeconds = 5
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if got := r.silenceLimitLocked(); got != time.Minute {
+		t.Errorf("limite = %v, esperava o piso de 1min", got)
 	}
 }
