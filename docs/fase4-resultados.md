@@ -71,8 +71,14 @@ acoplar os dois recriaria a dificuldade que motivou o projeto.
 
 ## CI
 
-O workflow roda apenas quando algo em `dwnvr/` muda — o repositório também
-guarda configurações de outros NVRs.
+O workflow vive em `.github/workflows/ci.yml` **dentro** da pasta do dwnvr e
+hoje não é executado: o GitHub só lê workflows na raiz do repositório, e o dwnvr
+ainda é uma subpasta de `cameras`.
+
+A posição é deliberada. Ela desativa o workflow por **localização**, não por um
+flag que alguém pode esquecer de reverter, e o deixa exatamente no lugar certo
+para quando a pasta virar um repositório independente — momento em que ele passa
+a valer sem nenhuma edição, porque já está escrito assumindo o dwnvr como raiz.
 
 Além de testes, `go vet` e `gofmt`, ele confere que **`internal/api/dist`
 corresponde ao código em `web/`**. Essa checagem existe porque esquecer o

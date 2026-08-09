@@ -177,6 +177,13 @@ não conseguiria carregar a própria tela de login.
 - [x] **Fase 3** — SPA Svelte com as quatro telas ([resultados](docs/fase3-resultados.md))
 - [x] **Fase 4** — Docker multi-arch e empacotamento ([resultados](docs/fase4-resultados.md))
 
+Operação do dia a dia em [`docs/operacao.md`](docs/operacao.md).
+
+O workflow de CI está em `.github/workflows/ci.yml` e hoje **não roda**: o
+GitHub só executa workflows na raiz do repositório, e o dwnvr ainda é uma
+subpasta de `cameras`. Ele já está escrito assumindo o dwnvr como raiz, então
+passa a valer sozinho quando a pasta virar um repositório próprio.
+
 ## Instalação
 
 ```yaml
@@ -206,6 +213,11 @@ O go2rtc **não** faz parte do compose de propósito: configurá-lo é
 responsabilidade de quem instala.
 
 Para binários soltos, sem Docker: `make arm64` ou `make amd64`.
+
+A imagem não tem shell — nem `sh`, nem `ls`, nem `cat`. Isso não atrapalha a
+operação, porque **configuração e gravações vivem nos volumes, no host**, e
+porque `docker logs`, `docker cp` e um sidecar de namespaces cobrem o resto.
+Ver [`docs/operacao.md`](docs/operacao.md).
 
 ## Interface
 
