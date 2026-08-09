@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { health, pollHealth, cameras } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
-  import { bytes, kbps, dias, duracao } from '../lib/format.js';
+  import { bytes, kbps, dias, duracao, hhmmss } from '../lib/format.js';
 
   const stop = pollHealth(3000);
   onDestroy(stop);
@@ -16,6 +16,7 @@
   const totalKbps = $derived(health.cameras.reduce((a, c) => a + (c.bitrateKbps || 0), 0));
   const gbPorDia = $derived(((totalKbps * 1000) / 8) * 86400 / 1024 ** 3);
   const desconectadas = $derived(health.cameras.filter((c) => c.enabled && !c.connected));
+  const paradas = $derived(health.cameras.filter((c) => c.enabled && c.silent));
 
   // Avisos que explicam problemas antes de eles virarem mistério — que foi
   // exatamente o que faltou nos NVRs anteriores.
@@ -27,7 +28,20 @@
         texto: `Disco abaixo do mínimo livre (${bytes(disk.freeBytes)}). A retenção está apagando gravações antigas de todas as câmeras.`,
       });
     }
+    // "Parada" vem antes de "desconectada" porque é a pergunta que importa: uma
+    // conexão de pé que não produz segmento nenhum continua sendo gravação
+    // perdida, e foi assim que 9 câmeras passaram horas fora sem ninguém notar.
+    for (const c of paradas) {
+      const desde = c.lastSegmentAt
+        ? `desde ${hhmmss(new Date(c.lastSegmentAt).getTime())} (${duracao(Date.now() - new Date(c.lastSegmentAt).getTime())})`
+        : 'e não gravou nada desde que o dwnvr subiu';
+      out.push({
+        nivel: 'bad',
+        texto: `${c.name} NÃO ESTÁ GRAVANDO ${desde}${c.lastError ? `: ${c.lastError}` : ''}`,
+      });
+    }
     for (const c of desconectadas) {
+      if (c.silent) continue; // já avisado acima, e com mais informação
       out.push({ nivel: 'bad', texto: `${c.name} desconectada: ${c.lastError || 'motivo desconhecido'}` });
     }
     for (const s of cameras.streams) {
@@ -107,8 +121,12 @@
     {#each health.cameras as c (c.id)}
       <div class="trow row">
         <span class="c-nome row">
-          <span class="dot" class:ok={c.connected} class:bad={c.enabled && !c.connected}></span>
+          <span class="dot" class:ok={c.connected && !c.silent} class:bad={c.enabled && (c.silent || !c.connected)}></span>
           <span class="nome">{c.name}</span>
+          <!-- Conectada mas sem gravar é o estado traiçoeiro: o ponto verde
+               dizia "tudo bem" enquanto a câmera não produzia nada. -->
+          {#if c.silent}<span class="chip parada">não grava</span>
+          {:else if c.lastSegmentAt}<span class="chip">{hhmmss(new Date(c.lastSegmentAt).getTime())}</span>{/if}
           {#if c.hasAudio}<span class="chip">áudio</span>{/if}
         </span>
         <span class="mono">{kbps(c.bitrateKbps)}</span>
@@ -158,6 +176,7 @@
 
   .avisos p { margin: 0; gap: 8px; align-items: flex-start; font-size: 13px; }
   .avisos p.bad { color: var(--bad); }
+  .chip.parada { color: var(--bad); border-color: #5c2b2b; }
   .avisos p.warn { color: var(--warn); }
   .avisos .dot { margin-top: 6px; }
   .card.ok { color: var(--ok); font-size: 13px; gap: 8px; }

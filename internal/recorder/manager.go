@@ -178,6 +178,7 @@ func (m *Manager) sampleLoop(ctx context.Context) {
 		case now := <-t.C:
 			for _, r := range m.recorders() {
 				r.sampleBitrate(now)
+				r.checkSilence(now)
 			}
 		}
 	}
