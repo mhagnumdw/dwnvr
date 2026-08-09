@@ -50,13 +50,28 @@ image-push:
 	docker buildx build --platform $(PLATFORMS) \
 		-t $(IMAGE):$(VERSION) -t $(IMAGE):latest --push .
 
-## run-pi: constrói o arm64 e instala no Orange Pi via ssh
-PI ?= usuario@servidor.local
-run-pi: web arm64
-	scp -q dwnvr-linux-arm64 $(PI):/tmp/dwnvr.new
-	ssh $(PI) 'cd ~/dwnvr-test && kill -TERM $$(pgrep -x dwnvr-arm64) 2>/dev/null; sleep 4; \
-		mv /tmp/dwnvr.new dwnvr-arm64 && chmod +x dwnvr-arm64 && \
-		nohup ./dwnvr-arm64 -config ./dwnvr.yaml > dwnvr.log 2>&1 & sleep 6; tail -3 ~/dwnvr-test/dwnvr.log'
+## run-pi: constrói a imagem arm64 e recria o container no Orange Pi
+#
+# O dwnvr do Pi roda como container a partir de ~/dwnvr-docker, e não como
+# binário solto — uma versão anterior deste alvo instalava em ~/dwnvr-test, que
+# há muito não é a instalação de verdade. O efeito era pior que não fazer nada:
+# o deploy terminava com sucesso e o container seguia com a versão antiga.
+#
+# A imagem vai pelo ssh em vez de passar por um registry porque isso mantém o
+# ciclo de teste independente de rede externa e de publicar versão intermediária.
+# Note que recriar o container abre um buraco de alguns segundos na gravação de
+# todas as câmeras.
+PI     ?= usuario@servidor.local
+PI_DIR ?= ~/dwnvr-docker
+run-pi:
+	# --provenance/--sbom desligados de propósito: com eles o buildx exporta uma
+	# manifest list, e o `docker load` do outro lado não engole manifest list.
+	docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
+		-t dwnvr:arm64 --load .
+	docker save dwnvr:arm64 | gzip | ssh $(PI) 'gunzip | docker load'
+	ssh $(PI) 'cd $(PI_DIR) && docker compose up -d'
+	@sleep 20
+	@ssh $(PI) 'docker ps --filter name=dwnvr --format "{{.Status}}"'
 
 clean:
 	rm -f dwnvr dwnvr-linux-*
