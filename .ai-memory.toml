@@ -1,0 +1,13 @@
+# Roteamento do ai-memory para este repositório.
+# Doc oficial: https://github.com/akitaonrails/ai-memory/blob/main/docs/marker-file.md
+#
+# Sem este arquivo o projeto é resolvido pelo BASENAME do diretório, o que
+# significa que mover ou renomear a pasta pode fatiar a memória em dois
+# projetos distintos — e foi por isso que ele existe aqui: o dwnvr saiu de
+# ~/cameras/dwnvr para ~/projetos/dwnvr.
+#
+# project_strategy = "repo-root" faz todos os worktrees deste repo convergirem
+# para o mesmo project, em vez de cada worktree virar um project separado.
+workspace = "default"
+project = "dwnvr"
+project_strategy = "repo-root"
