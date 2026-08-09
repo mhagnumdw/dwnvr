@@ -24,12 +24,6 @@ storage:
   # uma taxa diferente — e encher o disco é pior que perder gravação antiga.
   minFreeMB: 2048
 
-  # Recusa subir se root estiver no mesmo sistema de arquivos da raiz. Ligue
-  # quando as gravações forem para um disco externo: se ele desmontar, sem isto
-  # o dwnvr passaria a encher o cartão SD do sistema sem ninguém perceber.
-  # Deixe desligado em instalações de disco único.
-  requireSeparateDisk: false
-
 # Aplicados a qualquer câmera que não defina o campo.
 defaults:
   # Duração alvo do segmento. O corte real acontece no primeiro keyframe depois

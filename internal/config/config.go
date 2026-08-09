@@ -81,14 +81,6 @@ type Storage struct {
 	// independentemente das cotas individuais. Existe porque a soma das cotas
 	// erra fácil, e encher o disco é pior que perder gravação antiga.
 	MinFreeMB int64 `yaml:"minFreeMB"`
-
-	// RequireSeparateDisk recusa gravar se Root estiver no mesmo sistema de
-	// arquivos da raiz. Protege o caso real de o disco externo desmontar e a
-	// gravação passar a encher o cartão SD do sistema sem ninguém perceber.
-	//
-	// Deixe desligado em instalações de disco único, onde gravar no rootfs é
-	// justamente a intenção.
-	RequireSeparateDisk bool `yaml:"requireSeparateDisk"`
 }
 
 // Defaults são aplicados a qualquer câmera que não sobrescreva o campo.

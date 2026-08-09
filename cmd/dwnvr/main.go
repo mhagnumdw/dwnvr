@@ -151,19 +151,6 @@ func prepareStorage(log *slog.Logger, cfg *config.Config) error {
 		return fmt.Errorf("criando %s: %w", cfg.Storage.Root, err)
 	}
 
-	if cfg.Storage.RequireSeparateDisk {
-		ok, err := retention.IsOnSeparateFilesystem(cfg.Storage.Root)
-		if err != nil {
-			return fmt.Errorf("verificando o sistema de arquivos do storage: %w", err)
-		}
-		if !ok {
-			return fmt.Errorf("storage.root %q está no mesmo sistema de arquivos da raiz "+
-				"(o disco externo está desmontado?); gravar aqui encheria o rootfs. "+
-				"Se a intenção é gravar no disco do sistema, desligue storage.requireSeparateDisk",
-				cfg.Storage.Root)
-		}
-	}
-
 	free, err := retention.FreeBytes(cfg.Storage.Root)
 	if err != nil {
 		return err
