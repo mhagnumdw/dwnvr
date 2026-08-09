@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { health, pollHealth, cameras } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
-  import { bytes, kbps, dias, duracao, hhmmss } from '../lib/format.js';
+  import { bytes, bytesDeMB, kbps, dias, duracao, hhmmss } from '../lib/format.js';
 
   const stop = pollHealth(3000);
   onDestroy(stop);
@@ -14,7 +14,7 @@
   );
 
   const totalKbps = $derived(health.cameras.reduce((a, c) => a + (c.bitrateKbps || 0), 0));
-  const gbPorDia = $derived(((totalKbps * 1000) / 8) * 86400 / 1024 ** 3);
+  const bytesPorDia = $derived(((totalKbps * 1000) / 8) * 86400);
   const desconectadas = $derived(health.cameras.filter((c) => c.enabled && !c.connected));
   const paradas = $derived(health.cameras.filter((c) => c.enabled && c.silent));
 
@@ -89,7 +89,7 @@
         <span><i class="dwnvr"></i> dwnvr: {bytes(disk.dwnvrBytes)}</span>
         <span><i class="outros"></i> outros: {bytes(disk.totalBytes - disk.freeBytes - disk.dwnvrBytes)}</span>
         <span class="spacer"></span>
-        <span>mínimo livre: {disk.minFreeMB} MB</span>
+        <span>mínimo livre: {bytesDeMB(disk.minFreeMB)}</span>
       </div>
     </div>
   {/if}
@@ -97,7 +97,7 @@
   <div class="card row wrap totais">
     <div><span class="big mono">{health.cameras.filter((c) => c.connected).length}</span><br /><span class="muted small">conectadas</span></div>
     <div><span class="big mono">{kbps(totalKbps)}</span><br /><span class="muted small">taxa somada</span></div>
-    <div><span class="big mono">{gbPorDia.toFixed(1)} GB</span><br /><span class="muted small">por dia</span></div>
+    <div><span class="big mono">{bytes(bytesPorDia)}</span><br /><span class="muted small">por dia</span></div>
   </div>
 
   {#if avisos.length}

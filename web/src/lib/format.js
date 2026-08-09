@@ -3,6 +3,16 @@
 
 const pad = (n) => String(n).padStart(2, '0');
 
+// num escreve número no padrão daqui: vírgula decimal e sem zero à direita
+// ("20 GB", não "20,00 GB"). Instanciar Intl a cada chamada é caro e estes
+// formatadores aparecem em tela que atualiza de 3 em 3 segundos, então cacheia.
+const nfs = new Map();
+function num(v, casas) {
+  let f = nfs.get(casas);
+  if (!f) nfs.set(casas, (f = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: casas })));
+  return f.format(v);
+}
+
 export function hhmmss(ms) {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
@@ -26,12 +36,21 @@ export function bytes(n) {
   if (!n) return '0 B';
   const u = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), u.length - 1);
-  return `${(n / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+  const v = n / 1024 ** i;
+  // Passando de 100 na unidade a casa decimal só polui: "761 MB" basta.
+  return `${num(v, i === 0 || v >= 100 ? 0 : 2)} ${u[i]}`;
+}
+
+// bytesDeMB existe porque cota e mínimo livre são configurados em MB. Mostrar o
+// número cru deixava "20480 MB" na tela ao lado de um "3,62 GB" — mesma
+// grandeza, duas unidades, que é justamente o que este arquivo evita.
+export function bytesDeMB(mb) {
+  return bytes((mb || 0) * 1024 ** 2);
 }
 
 export function kbps(v) {
   if (!v) return '—';
-  return v >= 1000 ? `${(v / 1000).toFixed(2)} Mbps` : `${Math.round(v)} kbps`;
+  return v >= 1000 ? `${num(v / 1000, 2)} Mbps` : `${num(Math.round(v), 0)} kbps`;
 }
 
 // resolucao mostra o que está sendo gravado de fato, lido do init do stream.
@@ -48,8 +67,8 @@ export function duracao(ms) {
   const s = ms / 1000;
   if (s < 60) return `${Math.round(s)}s`;
   if (s < 3600) return `${Math.round(s / 60)}min`;
-  if (s < 86400) return `${(s / 3600).toFixed(1)}h`;
-  return `${(s / 86400).toFixed(1)} dias`;
+  if (s < 86400) return `${num(s / 3600, 1)}h`;
+  return `${num(s / 86400, 1)} dias`;
 }
 
 // dias converte a estimativa de retenção em algo compreensível. "20 GB" não
@@ -59,7 +78,7 @@ export function dias(n) {
   // Cotas pequenas (ou taxas altas) dão frações de hora; arredondar tudo para
   // horas transformaria isso em "0h", que não informa nada.
   if (n < 1 / 24) return `${Math.max(1, Math.round(n * 1440))}min`;
-  if (n < 1) return `${(n * 24).toFixed(1)}h`;
-  if (n < 10) return `${n.toFixed(1)} dias`;
+  if (n < 1) return `${num(n * 24, 1)}h`;
+  if (n < 10) return `${num(n, 1)} dias`;
   return `${Math.round(n)} dias`;
 }
