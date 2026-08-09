@@ -1,3 +1,5 @@
+<img src="web/public/favicon.svg" alt="" width="72" />
+
 # dwnvr
 
 NVR de gravação contínua para hardware modesto. Feito para rodar num Orange Pi
