@@ -25,9 +25,29 @@
     let start = Math.max(0, anchor - half);
     return segments.slice(start, start + MAX_TILES);
   });
+
+  // A roda do mouse é vertical; a tira rola na horizontal. Sem esta tradução o
+  // navegador rola a página e a tira fica inalcançável para quem não tem trackpad.
+  function onWheel(ev) {
+    const el = ev.currentTarget;
+    if (el.scrollWidth <= el.clientWidth) return;          // nada a rolar
+    if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return; // gesto horizontal: o nativo já resolve
+
+    // deltaMode: 0 px (Chrome), 1 linhas (Firefox), 2 páginas.
+    const step = ev.deltaY * (ev.deltaMode === 1 ? 32 : ev.deltaMode === 2 ? el.clientWidth : 1);
+
+    // Quem limita é o navegador: scrollLeft é fracionário e scrollWidth vem
+    // arredondado, então um limite calculado aqui erra a ponta por uma fração de
+    // pixel — e a tira prenderia a rolagem da página para sempre no fim.
+    const before = el.scrollLeft;
+    el.scrollLeft = before + step;
+    if (el.scrollLeft === before) return; // já na ponta: devolve a rolagem à página
+
+    ev.preventDefault();
+  }
 </script>
 
-<div class="strip">
+<div class="strip" onwheel={onWheel}>
   {#each tiles as [t, dur] (t)}
     {@const active = currentMs >= t && currentMs < t + dur}
     <button class="tile" class:active onclick={() => onseek(t)} title={hhmmss(t)}>
