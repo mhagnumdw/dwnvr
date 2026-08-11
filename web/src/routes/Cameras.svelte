@@ -174,10 +174,14 @@
 
         <!-- Onde os arquivos estão de verdade. Toda vez que a pergunta sai do
              navegador — fazer backup, olhar o disco por ssh, entender de onde
-             vieram os bytes do chip acima — é este caminho que se procura, e
-             ele não estava escrito em lugar nenhum da interface. -->
+             vieram os bytes do chip de uso — é este caminho que se procura, e
+             ele não estava escrito em lugar nenhum da interface. Linha própria
+             porque é o único chip que pode ficar comprido: junto dos outros ele
+             empurraria a retenção para fora do alinhamento a cada nome de pasta. -->
         {#if cam.dir}
-          <code class="caminho muted small" title="pasta das gravações desta câmera">{cam.dir}</code>
+          <div class="row wrap chips">
+            <span class="chip storage" title="pasta das gravações desta câmera">storage: {cam.dir}</span>
+          </div>
         {/if}
 
         {#if st?.lastError && !st.connected}
@@ -392,9 +396,9 @@
   .head { gap: 8px; }
   .acoes { gap: 8px; margin-left: auto; }
   .chips { gap: 6px; }
-  /* Caminho longo não tem espaço para quebrar: sem isto ele estoura a largura
-     do card no celular. */
-  .caminho { overflow-wrap: anywhere; }
+  /* O chip nasce nowrap, e um caminho longo não tem espaço para quebrar: sem
+     estas duas linhas ele estoura a largura do card no celular. */
+  .chip.storage { white-space: normal; overflow-wrap: anywhere; }
   .chip.retain { border-color: #1f6feb66; color: var(--accent); }
   .chip.warn { color: var(--warn); }
   .err { color: var(--bad); margin: 0; }
