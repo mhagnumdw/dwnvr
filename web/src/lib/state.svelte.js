@@ -15,6 +15,9 @@ export const session = $state({
 export const cameras = $state({
   list: [],
   streams: [],
+  // Gravações que sobraram de câmeras já removidas. Vêm junto com a listagem
+  // porque nenhum outro endpoint enxerga câmera sem cadastro.
+  orphans: [],
   go2rtcError: null,
   loading: true,
   error: null,
@@ -57,6 +60,7 @@ export async function logout() {
   // instante as câmeras e o diagnóstico da sessão anterior.
   cameras.list = [];
   cameras.streams = [];
+  cameras.orphans = [];
   cameras.go2rtcError = null;
   cameras.loading = true;
   cameras.error = null;
@@ -84,6 +88,7 @@ export async function loadCameras() {
     const data = await api.cameras();
     cameras.list = data.cameras ?? [];
     cameras.streams = data.streams ?? [];
+    cameras.orphans = data.orphans ?? [];
     cameras.go2rtcError = data.go2rtcError ?? null;
   } catch (e) {
     cameras.error = e.message;

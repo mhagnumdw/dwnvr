@@ -52,8 +52,17 @@ export const api = {
   cameras: () => request('cameras'),
   saveCamera: (cam) =>
     request('cameras', { method: 'POST', body: JSON.stringify(cam) }),
-  deleteCamera: (id) =>
-    request('cameras?id=' + encodeURIComponent(id), { method: 'DELETE' }),
+  // As gravações só vão junto se forem pedidas: o padrão é preservá-las.
+  deleteCamera: (id, { recordings = false } = {}) =>
+    request(
+      `cameras?id=${encodeURIComponent(id)}${recordings ? '&recordings=1' : ''}`,
+      { method: 'DELETE' },
+    ),
+
+  // Serve tanto câmera cadastrada quanto câmera já removida — no segundo caso é
+  // o único jeito de alcançar o material, que some do resto da API.
+  deleteRecordings: (cam) =>
+    request('rec?cam=' + encodeURIComponent(cam), { method: 'DELETE' }),
 
   health: () => request('health'),
 

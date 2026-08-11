@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +22,15 @@ import (
 func testServer(t *testing.T) (*Server, *store.Camera) {
 	t.Helper()
 	st := store.New(t.TempDir())
-	cfg := &config.Config{}
+
+	// Config carregada a partir de um dwnvr.yaml inexistente num diretório
+	// temporário. O caminho importa: é dele que sai o CamerasPath, e um Config
+	// zerado faria o SaveCameras despejar um cameras.json no diretório do pacote.
+	cfg, err := config.Load(filepath.Join(t.TempDir(), "dwnvr.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Storage.Root = st.Root()
 	cfg.Defaults = config.Defaults{SegmentSeconds: 30, QuotaMB: 100, Audio: config.AudioNone}
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -137,6 +147,111 @@ func TestTimelineSemGravacaoDevolveListasVazias(t *testing.T) {
 	if got.Ranges == nil || got.Segments == nil || got.Gens == nil {
 		t.Errorf("esperava listas vazias, veio ranges=%v segments=%v gens=%v",
 			got.Ranges, got.Segments, got.Gens)
+	}
+}
+
+// --- apagar gravações -------------------------------------------------------
+
+func deleteReq(t *testing.T, h http.HandlerFunc, url string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodDelete, url, nil))
+	return rec
+}
+
+func freedBytes(t *testing.T, rec *httptest.ResponseRecorder) int64 {
+	t.Helper()
+	var out struct {
+		FreedBytes int64 `json:"freedBytes"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("resposta ilegível: %v", err)
+	}
+	return out.FreedBytes
+}
+
+// O padrão é preservar. Apagar horas de vídeo como efeito colateral de um clique
+// em "remover" seria destrutivo demais para ser implícito, e este teste é o que
+// impede que a opção nova vire o comportamento padrão por descuido.
+func TestDeleteCameraMantemGravacoesPorPadrao(t *testing.T) {
+	s, cam := testServer(t)
+	seed(t, cam, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
+
+	rec := deleteReq(t, s.handleDeleteCamera, "/api/cameras?id=cam_teste")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(cam.Dir()); err != nil {
+		t.Errorf("as gravações sumiram sem ninguém pedir: %v", err)
+	}
+}
+
+func TestDeleteCameraApagaGravacoesQuandoPedido(t *testing.T) {
+	s, cam := testServer(t)
+	seed(t, cam, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
+
+	rec := deleteReq(t, s.handleDeleteCamera, "/api/cameras?id=cam_teste&recordings=1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(cam.Dir()); !os.IsNotExist(err) {
+		t.Errorf("o diretório da câmera continua lá: err=%v", err)
+	}
+	if got := freedBytes(t, rec); got != 1000 {
+		t.Errorf("freedBytes=%d, esperava 1000", got)
+	}
+}
+
+// Apagar as gravações não pode descadastrar a câmera: ela precisa continuar
+// gravando, do zero.
+func TestDeleteRecordingsMantemOCadastro(t *testing.T) {
+	s, cam := testServer(t)
+	seed(t, cam, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
+
+	rec := deleteReq(t, s.handleDeleteRecordings, "/api/rec?cam=cam_teste")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(cam.Dir()); !os.IsNotExist(err) {
+		t.Errorf("o diretório da câmera continua lá: err=%v", err)
+	}
+	if !s.knownCamera("cam_teste") {
+		t.Error("a câmera foi descadastrada, e só as gravações deviam sumir")
+	}
+	if got := freedBytes(t, rec); got != 1000 {
+		t.Errorf("freedBytes=%d, esperava 1000", got)
+	}
+}
+
+// O material de uma câmera já removida só é alcançável por aqui — e o ID, que
+// não passa mais pelo knownCamera, é conferido contra os diretórios que existem
+// de fato.
+func TestDeleteRecordingsDeCameraRemovida(t *testing.T) {
+	s, _ := testServer(t)
+	orfa := s.store.Camera("cam_antiga")
+	seed(t, orfa, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
+
+	rec := deleteReq(t, s.handleDeleteRecordings, "/api/rec?cam=cam_antiga")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(orfa.Dir()); !os.IsNotExist(err) {
+		t.Errorf("o diretório da órfã continua lá: err=%v", err)
+	}
+	// O índice em memória de uma órfã está vazio, então o total só pode vir da
+	// varredura. Zero aqui significaria que voltamos a lê-lo do lugar errado.
+	if got := freedBytes(t, rec); got != 1000 {
+		t.Errorf("freedBytes=%d, esperava 1000", got)
+	}
+}
+
+func TestDeleteRecordingsExigeDiretorioExistente(t *testing.T) {
+	s, _ := testServer(t)
+	for _, cam := range []string{"", "outra", "../../etc", "cam_teste/../x"} {
+		rec := deleteReq(t, s.handleDeleteRecordings, "/api/rec?cam="+cam)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("cam=%q devolveu HTTP %d, esperava 404", cam, rec.Code)
+		}
 	}
 }
 

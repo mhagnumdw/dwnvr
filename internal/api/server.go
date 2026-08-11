@@ -42,6 +42,17 @@ func (s *Server) knownCamera(id string) bool {
 	return false
 }
 
+// registeredIDs é o conjunto de câmeras cadastradas, na forma que a varredura de
+// órfãos precisa: tudo que está no storage e não está aqui é material de câmera
+// que já foi removida.
+func (s *Server) registeredIDs() map[string]bool {
+	ids := map[string]bool{}
+	for _, c := range s.mgr.Cameras() {
+		ids[c.ID] = true
+	}
+	return ids
+}
+
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
@@ -60,6 +71,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/cameras", s.requireAuth(s.handleSaveCamera))
 	mux.HandleFunc("DELETE /api/cameras", s.requireAuth(s.handleDeleteCamera))
 	mux.HandleFunc("GET /api/health", s.requireAuth(s.handleHealth))
+	mux.HandleFunc("DELETE /api/rec", s.requireAuth(s.handleDeleteRecordings))
 	mux.HandleFunc("GET /api/rec/days", s.requireAuth(s.handleDays))
 	mux.HandleFunc("GET /api/rec/timeline", s.requireAuth(s.handleTimeline))
 	mux.HandleFunc("GET /api/rec/init", s.requireAuth(s.handleInit))
@@ -83,16 +95,20 @@ func (s *Server) requireAuthHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(s.requireAuth(h.ServeHTTP))
 }
 
-// handleCameras lista as câmeras cadastradas e o que o go2rtc oferece.
+// handleCameras lista as câmeras cadastradas, o que o go2rtc oferece e o que
+// sobrou em disco de câmeras já removidas.
 //
-// Juntar as duas coisas numa resposta só é o que permite à tela de cadastro
+// Juntar as três coisas numa resposta só é o que permite à tela de cadastro
 // mostrar apenas streams que existem de verdade, em vez de pedir que o usuário
-// digite um nome e descubra o erro depois.
+// digite um nome e descubra o erro depois — e é onde as gravações órfãs voltam a
+// ser visíveis, já que nenhum outro endpoint enxerga câmera sem cadastro.
 func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	raw := s.mgr.Cameras()
 	cams := make([]config.Camera, len(raw))
+	registered := map[string]bool{}
 	for i, c := range raw {
 		cams[i] = s.cfg.Resolve(c)
+		registered[c.ID] = true
 	}
 
 	type streamInfo struct {
@@ -105,6 +121,14 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 
 	resp := map[string]any{"cameras": cams}
 
+	if orphans, err := s.store.Orphans(registered); err != nil {
+		// Não impede a listagem: no caso comum não há órfão nenhum, e uma falha
+		// ao varrer o storage não deve derrubar a tela de câmeras inteira.
+		s.log.Error("listando gravações órfãs", "erro", err)
+	} else {
+		resp["orphans"] = orphans
+	}
+
 	streams, err := s.client.Streams(r.Context())
 	if err != nil {
 		// O go2rtc estar fora do ar não pode impedir a listagem das câmeras já
@@ -112,11 +136,6 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		resp["go2rtcError"] = err.Error()
 		writeJSON(w, resp)
 		return
-	}
-
-	registered := map[string]bool{}
-	for _, c := range cams {
-		registered[c.ID] = true
 	}
 
 	available := make([]streamInfo, 0, len(streams))

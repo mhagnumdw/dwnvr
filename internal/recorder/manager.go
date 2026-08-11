@@ -143,9 +143,43 @@ func (m *Manager) stop(id string) {
 	<-r.done
 }
 
-// Remove tira a câmera do gerenciador. As gravações no disco não são tocadas:
-// apagar horas de vídeo como efeito colateral de um clique em "remover" seria
-// destrutivo demais para ser implícito.
+// Pause para o recorder da câmera, executa fn e o sobe de volta.
+//
+// É o que permite apagar as gravações de uma câmera que está gravando. Um
+// RemoveAll com o segmento aberto deixaria o writer despejando bytes num inode
+// já desvinculado, e o finish() gravaria no índice uma entrada apontando para
+// arquivo que não existe mais — estrago que só a reconciliação do próximo boot
+// desfaria. O stop() daqui espera o segmento em aberto ser fechado e indexado
+// antes de fn começar.
+//
+// Ao contrário de Remove, a câmera continua cadastrada o tempo todo: quem
+// consultar /api/health no meio da operação vê uma câmera parada, não uma
+// câmera que sumiu. ID sem cadastro — o caso de uma câmera já removida — só
+// executa fn, porque não há recorder algum para parar.
+func (m *Manager) Pause(id string, fn func() error) error {
+	m.mu.RLock()
+	raw, cadastrada := m.cams[id]
+	m.mu.RUnlock()
+
+	if !cadastrada {
+		return fn()
+	}
+
+	m.stop(id)
+	// O recorder volta mesmo se fn falhar: deixar a câmera parada por causa de
+	// um erro em outra coisa transformaria uma operação falha em perda de
+	// gravação até alguém perceber.
+	cam := m.cfg.Resolve(raw)
+	if cam.Enabled {
+		defer m.start(cam)
+	}
+	return fn()
+}
+
+// Remove tira a câmera do gerenciador. As gravações no disco não são tocadas
+// aqui: quem quiser apagá-las junto pede isso explicitamente na API, que chama
+// o Purge depois deste stop. Apagar horas de vídeo como efeito colateral de um
+// clique em "remover" seria destrutivo demais para ser implícito.
 func (m *Manager) Remove(id string) {
 	m.stop(id)
 	m.mu.Lock()

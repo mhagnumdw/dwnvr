@@ -62,9 +62,10 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 
 // handleDeleteCamera tira a câmera do dwnvr.
 //
-// As gravações já feitas NÃO são apagadas: apagar horas de vídeo como efeito
-// colateral de um clique seria destrutivo demais para ser implícito. Quem
-// quiser o espaço de volta apaga o diretório da câmera.
+// As gravações já feitas só são apagadas com `recordings=1` na URL. O padrão
+// continua sendo preservá-las: apagar horas de vídeo como efeito colateral de um
+// clique em "remover" seria destrutivo demais para ser implícito. Sem o
+// parâmetro, o material fica em disco e passa a aparecer na listagem de órfãos.
 func (s *Server) handleDeleteCamera(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	if !s.knownCamera(id) {
@@ -86,9 +87,25 @@ func (s *Server) handleDeleteCamera(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mgr.Remove(id)
 
-	dir := s.store.Camera(id).Dir()
-	s.log.Info("câmera removida", "cam", id, "gravacoes_mantidas_em", dir)
-	writeJSON(w, map[string]any{"ok": true, "recordingsKeptAt": dir})
+	if r.URL.Query().Get("recordings") != "1" {
+		dir := s.store.Camera(id).Dir()
+		s.log.Info("câmera removida", "cam", id, "gravacoes_mantidas_em", dir)
+		writeJSON(w, map[string]any{"ok": true, "recordingsKeptAt": dir})
+		return
+	}
+
+	// Só agora, com o Remove acima já tendo esperado o segmento em aberto ser
+	// fechado e indexado. Purgar antes de parar o recorder faria o EnsureDirs do
+	// segmento seguinte recriar o diretório recém-apagado.
+	freed, err := s.store.Camera(id).Purge()
+	if err != nil {
+		s.fail(w, "apagando as gravações", err)
+		return
+	}
+	s.store.Forget(id)
+
+	s.log.Info("câmera removida com as gravações", "cam", id, "liberado_mb", freed>>20)
+	writeJSON(w, map[string]any{"ok": true, "recordingsDeleted": true, "freedBytes": freed})
 }
 
 func validateCamera(cam config.Camera) error {
