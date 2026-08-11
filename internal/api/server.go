@@ -95,6 +95,17 @@ func (s *Server) requireAuthHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(s.requireAuth(h.ServeHTTP))
 }
 
+// cameraInfo é a câmera como a tela a vê: o cadastro já com os defaults
+// aplicados, mais o diretório onde as gravações dela ficam.
+//
+// O caminho não entra em config.Camera porque não é cadastro — é consequência
+// do storage.root do servidor, e um campo lá acabaria gravado no cameras.json
+// como se fosse configurável.
+type cameraInfo struct {
+	config.Camera
+	Dir string `json:"dir"`
+}
+
 // handleCameras lista as câmeras cadastradas, o que o go2rtc oferece e o que
 // sobrou em disco de câmeras já removidas.
 //
@@ -104,10 +115,10 @@ func (s *Server) requireAuthHandler(h http.Handler) http.Handler {
 // ser visíveis, já que nenhum outro endpoint enxerga câmera sem cadastro.
 func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	raw := s.mgr.Cameras()
-	cams := make([]config.Camera, len(raw))
+	cams := make([]cameraInfo, len(raw))
 	registered := map[string]bool{}
 	for i, c := range raw {
-		cams[i] = s.cfg.Resolve(c)
+		cams[i] = cameraInfo{Camera: s.cfg.Resolve(c), Dir: s.store.Camera(c.ID).Dir()}
 		registered[c.ID] = true
 	}
 
