@@ -147,7 +147,10 @@
   <p class="legend muted small row wrap">
     <span><i class="has"></i> com gravação</span>
     <span><i class="gap"></i> sem gravação</span>
-    <span>toque para pular · arraste para navegar · pince ou role para dar zoom</span>
+    <span>
+      toque para pular · arraste para navegar · duplo toque aproxima, dois dedos
+      afastam · pince ou role para dar zoom
+    </span>
   </p>
 </div>
 
