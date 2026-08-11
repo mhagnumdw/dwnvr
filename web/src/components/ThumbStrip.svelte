@@ -13,8 +13,11 @@
   // ninguém consegue distinguir, e cada uma custa um decode.
   const MAX_TILES = 40;
 
-  // Escolhe segmentos em torno do instante atual, espaçados de forma uniforme
-  // — assim a tira cobre um intervalo útil mesmo quando há 1440 segmentos.
+  // Uma janela contígua de 40 segmentos em torno do instante atual — e não uma
+  // amostragem espaçada do dia. Um dia real tem ~2300 segmentos de ~33s, então
+  // este é o caminho que roda sempre; a lista inteira só aparece numa câmera
+  // recém-instalada. A janela desliza junto com currentMs, o que deixa o
+  // segmento ativo parado no índice 20 enquanto as miniaturas passam por baixo.
   const tiles = $derived.by(() => {
     if (!segments.length) return [];
     if (segments.length <= MAX_TILES) return segments;
@@ -24,6 +27,37 @@
     const half = Math.floor(MAX_TILES / 2);
     let start = Math.max(0, anchor - half);
     return segments.slice(start, start + MAX_TILES);
+  });
+
+  let strip = $state(null);
+
+  // Só o início do segmento ativo, e não currentMs: currentMs muda várias vezes
+  // por segundo durante a reprodução, e o que interessa aqui muda uma vez a cada
+  // segmento. Sem esse filtro o efeito abaixo rodaria à toa o tempo todo.
+  const activeStart = $derived.by(() => {
+    const seg = tiles.find(([t, dur]) => currentMs >= t && currentMs < t + dur);
+    return seg ? seg[0] : -1;
+  });
+
+  // Depois de um seek pela timeline, a janela é refatiada em torno do novo
+  // instante e o tile ativo cai no índice 20 — a uns 2280px do início, muito
+  // além da parte visível. A tira ficava então sem nenhum destaque à vista, sem
+  // dar nem indício de para que lado rolar.
+  $effect(() => {
+    if (activeStart < 0 || !strip) return;
+
+    const tile = strip.querySelector('.tile.active');
+    if (!tile) return;
+
+    const t = tile.getBoundingClientRect();
+    const s = strip.getBoundingClientRect();
+    // Já visível: não mexer. É o que mantém a tira quieta durante a reprodução,
+    // já que o ativo fica parado no mesmo ponto enquanto a janela desliza.
+    if (t.left >= s.left && t.right <= s.right) return;
+
+    // Mexer só no scrollLeft da tira. scrollIntoView() rolaria também a página,
+    // que não tem nada a ver com isto.
+    strip.scrollLeft += t.left - s.left - (s.width - t.width) / 2;
   });
 
   // A roda do mouse é vertical; a tira rola na horizontal. Sem esta tradução o
@@ -47,7 +81,7 @@
   }
 </script>
 
-<div class="strip" onwheel={onWheel}>
+<div class="strip" bind:this={strip} onwheel={onWheel}>
   {#each tiles as [t, dur] (t)}
     {@const active = currentMs >= t && currentMs < t + dur}
     <button class="tile" class:active onclick={() => onseek(t)} title={hhmmss(t)}>
