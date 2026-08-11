@@ -15,12 +15,45 @@
 
   // Cada coluna sabe extrair o valor que a ordena; assim o cabeçalho e a
   // ordenação não podem discordar sobre o que "disco" significa.
+  //
+  // A ajuda fica aqui junto, e não solta no template, porque é a mesma coisa: o
+  // rótulo cabe em uma palavra e nenhuma delas ("retenção", "reconex.") diz
+  // sozinha o que está sendo medido.
   const colunas = [
-    { id: 'name', rotulo: 'câmera', valor: (c) => c.name || '', texto: true },
-    { id: 'bitrate', rotulo: 'taxa', valor: (c) => c.bitrateKbps || 0 },
-    { id: 'disco', rotulo: 'disco', valor: (c) => c.diskBytes || 0 },
-    { id: 'retencao', rotulo: 'retenção', valor: (c) => c.retainDays || 0 },
-    { id: 'reconex', rotulo: 'reconex.', valor: (c) => c.reconnects || 0 },
+    {
+      id: 'name',
+      rotulo: 'câmera',
+      valor: (c) => c.name || '',
+      texto: true,
+      ajuda:
+        'Nome da câmera. O ponto mostra o estado: verde gravando, vermelho parada ou desconectada. O horário ao lado é o do último segmento gravado.',
+    },
+    {
+      id: 'bitrate',
+      rotulo: 'taxa',
+      valor: (c) => c.bitrateKbps || 0,
+      ajuda: 'Taxa de bits que está chegando da câmera agora, medida no fluxo gravado.',
+    },
+    {
+      id: 'disco',
+      rotulo: 'disco',
+      valor: (c) => c.diskBytes || 0,
+      ajuda: 'Espaço que as gravações desta câmera ocupam hoje, somando todos os dias em disco.',
+    },
+    {
+      id: 'retencao',
+      rotulo: 'retenção',
+      valor: (c) => c.retainDays || 0,
+      ajuda:
+        'Quantos dias de gravação cabem na cota da câmera na taxa medida agora. É estimativa: se a taxa subir, o passado encolhe.',
+    },
+    {
+      id: 'reconex',
+      rotulo: 'reconex.',
+      valor: (c) => c.reconnects || 0,
+      ajuda:
+        'Quantas vezes o dwnvr precisou reabrir a conexão desde que subiu. Número alto indica enlace instável com a câmera.',
+    },
   ];
 
   // numeric para "cam2" vir antes de "cam10", que é como as câmeras costumam
@@ -155,10 +188,14 @@
   <div class="table card">
     <div class="thead row small muted">
       {#each colunas as col (col.id)}
+        <!-- O title fica no botão inteiro, e não só no rótulo: a área de
+             passagem do mouse é a célula do cabeçalho, que é onde a pessoa
+             para para decidir se clica. -->
         <button
           class="th"
           class:ativa={ordem.col === col.id}
           aria-label="ordenar por {col.rotulo}"
+          title={col.ajuda}
           onclick={() => ordenar(col.id)}
         >
           <span class="rotulo">{col.rotulo}</span>
@@ -267,7 +304,17 @@
   }
   .th:hover:not(:disabled) { border-color: transparent; color: var(--fg); }
   .th.ativa { color: var(--fg); }
-  .th .rotulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* O sublinhado pontilhado é a marca de que há explicação ali: sem ele o
+     title existe e ninguém descobre que basta parar o mouse. Fica na cor da
+     linha para insinuar, não para competir com o rótulo. */
+  .th .rotulo {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-decoration: underline dotted var(--line);
+    text-underline-offset: 3px;
+  }
+  .th:hover .rotulo, .th.ativa .rotulo { text-decoration-color: var(--dim); }
   .th .seta { width: 9px; flex: none; font-size: 9px; color: var(--accent); }
   .trow + .trow { border-top: 1px solid #21262d; }
   .c-nome { gap: 7px; min-width: 0; }
