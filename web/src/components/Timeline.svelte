@@ -100,9 +100,17 @@
   //
   // Ponteiros ativos: um arrasta a janela, dois pinçam para dar zoom. Usar
   // Pointer Events cobre mouse, dedo e caneta com o mesmo código.
+  // Cada ponteiro guarda também o x inicial: o limiar de arraste precisa do
+  // deslocamento acumulado, não do passo do último evento.
   const pointers = new Map();
   let dragged = false;
   let pinchStart = null;
+  let lastTap = null;     // { t, x } do último toque limpo, para o duplo toque
+  let swallowUp = false;  // o up do 2º dedo não pode virar seek
+
+  const DOUBLE_TAP_MS = 300;
+  const DOUBLE_TAP_PX = 32;
+  const ZOOM_STEP = 3; // um gesto deliberado merece um salto maior que o da roda
 
   function localX(ev) {
     return ev.clientX - canvas.getBoundingClientRect().left;
@@ -110,43 +118,97 @@
 
   function onPointerDown(ev) {
     canvas.setPointerCapture(ev.pointerId);
-    pointers.set(ev.pointerId, localX(ev));
+    const x = localX(ev);
+    pointers.set(ev.pointerId, { x, x0: x });
     dragged = false;
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
-      pinchStart = { dist: Math.abs(a - b), from: viewFrom, to: viewTo };
+      const mid = (a.x + b.x) / 2;
+      pinchStart = {
+        dist: Math.abs(a.x - b.x),
+        from: viewFrom,
+        to: viewTo,
+        mid,
+        anchorMs: toMs(mid), // o instante sob os dedos é o que fica parado
+        t: ev.timeStamp,
+        moved: false,
+      };
+      lastTap = null; // dois dedos nunca continuam um duplo toque
     }
   }
 
   function onPointerMove(ev) {
-    if (!pointers.has(ev.pointerId)) {
+    const p = pointers.get(ev.pointerId);
+    if (!p) {
       if (ev.pointerType === 'mouse') hoverMs = toMs(localX(ev));
       return;
     }
     const x = localX(ev);
-    const prev = pointers.get(ev.pointerId);
-    pointers.set(ev.pointerId, x);
+    const prev = p.x;
+    p.x = x;
 
     if (pointers.size === 2 && pinchStart) {
       const [a, b] = [...pointers.values()];
-      const dist = Math.max(1, Math.abs(a - b));
+      const dist = Math.max(1, Math.abs(a.x - b.x));
+      const mid = (a.x + b.x) / 2;
+      if (Math.abs(dist - pinchStart.dist) > 8 || Math.abs(mid - pinchStart.mid) > 8) {
+        pinchStart.moved = true;
+      }
       const factor = pinchStart.dist / dist;
-      const anchor = (pinchStart.from + pinchStart.to) / 2;
-      zoomTo(anchor, (pinchStart.to - pinchStart.from) * factor);
+      // Ancorar entre os dedos, como a roda ancora no cursor. Usar o mid vivo
+      // como fração dá o arrastar-enquanto-pinça de brinde.
+      zoomTo(pinchStart.anchorMs, (pinchStart.to - pinchStart.from) * factor, mid / width);
       dragged = true;
       return;
     }
 
     const dx = x - prev;
-    if (Math.abs(dx) > 1) dragged = true;
+    // Dedo treme: 1px marcaria arraste e cancelaria o seek. Mouse é preciso.
+    const slop = ev.pointerType === 'mouse' ? 2 : 8;
+    if (Math.abs(x - p.x0) > slop) dragged = true;
     pan((-dx / Math.max(1, width)) * span);
   }
 
   function onPointerUp(ev) {
+    const p = pointers.get(ev.pointerId);
+    const x = p ? p.x : localX(ev);
     pointers.delete(ev.pointerId);
-    pinchStart = null;
+
+    // Toque rápido com dois dedos, sem pinçar nem arrastar: afasta um passo.
+    if (pinchStart) {
+      const { mid, moved, t } = pinchStart;
+      pinchStart = null;
+      lastTap = null;
+      swallowUp = true;
+      if (!moved && ev.timeStamp - t < DOUBLE_TAP_MS) {
+        zoomTo(toMs(mid), span * ZOOM_STEP, mid / width);
+      }
+      return;
+    }
+    if (swallowUp) {
+      swallowUp = pointers.size > 0;
+      return;
+    }
+
     // Um arraste não deve virar um salto: só o toque limpo navega.
-    if (!dragged) onseek(Math.round(toMs(localX(ev))));
+    if (dragged) {
+      lastTap = null;
+      return;
+    }
+
+    // Duplo toque: o 1º já pulou para o ponto, o 2º aproxima ancorado ali —
+    // por isso nenhum gesto precisa esperar para saber se vem um segundo toque.
+    if (lastTap && ev.timeStamp - lastTap.t < DOUBLE_TAP_MS
+        && Math.abs(x - lastTap.x) < DOUBLE_TAP_PX) {
+      lastTap = null;
+      zoomTo(toMs(x), span / ZOOM_STEP, x / width);
+      return;
+    }
+
+    // No desktop a roda já resolve o zoom, e clicar repetido para ajustar a
+    // posição não pode virar zoom surpresa.
+    if (ev.pointerType !== 'mouse') lastTap = { t: ev.timeStamp, x };
+    onseek(Math.round(toMs(x)));
   }
 
   function onWheel(ev) {
