@@ -426,3 +426,110 @@ func TestSegmentPath(t *testing.T) {
 		t.Errorf("ida e volta do nome falhou: %d != %d", ms, base.UnixMilli())
 	}
 }
+
+// Purge é a única remoção que leva o init junto. A retenção nunca o toca, então
+// sem isto sobraria um diretório init/ de uma câmera que não existe mais.
+func TestPurgeApagaSegmentosIndicesEInits(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+
+	hoje := entryAt(base, 60_000, 1_000_000)
+	ontem := entryAt(base.AddDate(0, 0, -1), 60_000, 500_000)
+	for _, e := range []Entry{hoje, ontem} {
+		writeSegmentFile(t, c, e)
+		if err := c.Append(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := c.WriteInit("abc123", []byte("ftyp+moov")); err != nil {
+		t.Fatal(err)
+	}
+
+	freed, err := c.Purge()
+	if err != nil {
+		t.Fatalf("Purge: %v", err)
+	}
+	if freed != 1_500_000 {
+		t.Errorf("freed=%d, esperava 1500000", freed)
+	}
+	if _, err := os.Stat(c.Dir()); !os.IsNotExist(err) {
+		t.Errorf("o diretório da câmera continua lá: err=%v", err)
+	}
+	if c.TotalBytes() != 0 || len(c.Days()) != 0 {
+		t.Errorf("o resumo em memória sobreviveu: %d bytes, %d dias",
+			c.TotalBytes(), len(c.Days()))
+	}
+}
+
+// Purgar uma câmera que nunca gravou não é erro: é o que acontece ao remover uma
+// câmera cadastrada minutos antes, com o disco ainda vazio.
+func TestPurgeSemNadaGravadoNaoFalha(t *testing.T) {
+	c := newTestCamera(t)
+	freed, err := c.Purge()
+	if err != nil {
+		t.Fatalf("Purge: %v", err)
+	}
+	if freed != 0 {
+		t.Errorf("freed=%d, esperava 0", freed)
+	}
+}
+
+func TestOrphansIgnoraCamerasCadastradas(t *testing.T) {
+	s := New(t.TempDir())
+	base := baseTime()
+
+	for _, id := range []string{"cam_a", "cam_b", "cam_viva"} {
+		c := s.Camera(id)
+		e := entryAt(base, 60_000, 1_000_000)
+		writeSegmentFile(t, c, e)
+		if err := c.Append(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := s.Orphans(map[string]bool{"cam_viva": true})
+	if err != nil {
+		t.Fatalf("Orphans: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("esperava 2 órfãs, veio %d: %+v", len(got), got)
+	}
+	// Vem ordenado, para que a lista não dance a cada recarga da tela.
+	if got[0].ID != "cam_a" || got[1].ID != "cam_b" {
+		t.Errorf("IDs = %s, %s", got[0].ID, got[1].ID)
+	}
+	if got[0].Bytes != 1_000_000 || got[0].Days != 1 {
+		t.Errorf("cam_a = %d bytes, %d dias", got[0].Bytes, got[0].Days)
+	}
+	if got[0].FirstMs != base.UnixMilli() || got[0].LastMs != base.UnixMilli()+60_000 {
+		t.Errorf("intervalo de cam_a = %d a %d", got[0].FirstMs, got[0].LastMs)
+	}
+}
+
+// Diretório sem índice é sobra de evicção ou de cópia à mão. Não dá para dizer o
+// tamanho, mas escondê-lo seria pior: é justamente o lixo que só sai do disco se
+// alguém o enxergar.
+func TestOrphansAceitaDiretorioSemIndice(t *testing.T) {
+	root := t.TempDir()
+	s := New(root)
+
+	if err := os.MkdirAll(filepath.Join(root, "cam_lixo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Arquivo solto na raiz não é câmera nenhuma e não pode virar uma linha na
+	// tela.
+	if err := os.WriteFile(filepath.Join(root, "anotacao.txt"), []byte("oi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.Orphans(nil)
+	if err != nil {
+		t.Fatalf("Orphans: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("esperava só cam_lixo, veio %+v", got)
+	}
+	if got[0].ID != "cam_lixo" || got[0].Bytes != 0 || got[0].Days != 0 {
+		t.Errorf("cam_lixo = %+v", got[0])
+	}
+}

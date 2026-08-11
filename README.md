@@ -217,7 +217,10 @@ que descarta o áudio já na origem.
 ```
 POST /api/login  /api/logout       sessão por cookie assinado (HMAC, sem estado no servidor)
 GET  /api/session                  público: diz se precisa de login
-GET  /api/cameras                  câmeras cadastradas + streams disponíveis no go2rtc
+GET  /api/cameras                  cadastradas + streams do go2rtc + gravações órfãs
+POST /api/cameras                  cadastra ou altera (upsert por id)
+DEL  /api/cameras?id=              descadastra; &recordings=1 apaga as gravações junto
+DEL  /api/rec?cam=                 apaga as gravações; serve também câmera já removida
 GET  /api/health                   bitrate medido, dias estimados, estado do disco
 GET  /api/rec/days                 dias com gravação
 GET  /api/rec/timeline             faixas contíguas (desenhar) + segmentos (tocar)

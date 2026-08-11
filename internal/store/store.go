@@ -92,6 +92,10 @@ func New(root string) *Store {
 
 func (s *Store) Root() string { return s.root }
 
+func newCamera(root, id string) *Camera {
+	return &Camera{ID: id, root: filepath.Join(root, id), days: map[string]*DaySummary{}}
+}
+
 // Camera devolve (criando se preciso) o índice de uma câmera.
 func (s *Store) Camera(id string) *Camera {
 	s.mu.Lock()
@@ -99,9 +103,20 @@ func (s *Store) Camera(id string) *Camera {
 	if c, ok := s.cams[id]; ok {
 		return c
 	}
-	c := &Camera{ID: id, root: filepath.Join(s.root, id), days: map[string]*DaySummary{}}
+	c := newCamera(s.root, id)
 	s.cams[id] = c
 	return c
+}
+
+// Forget tira a câmera do mapa em memória.
+//
+// Sem isto, todo ID já consultado ficaria no Store para sempre — inclusive o de
+// uma câmera que acabou de ser removida e ter as gravações apagadas, que
+// continuaria respondendo como um índice vazio.
+func (s *Store) Forget(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.cams, id)
 }
 
 // --- caminhos ---------------------------------------------------------------
@@ -478,6 +493,29 @@ func (c *Camera) DropDay(day string) (freed int64, err error) {
 	return freed, nil
 }
 
+// Purge apaga tudo o que a câmera tem em disco: segmentos, índices e inits.
+//
+// É a única remoção que leva o diretório `init/` junto. A retenção nunca o
+// toca, porque um init é minúsculo e serve a vários dias de segmentos ao mesmo
+// tempo — mas quando não sobra segmento nenhum, ele também não tem mais razão de
+// existir.
+//
+// O total devolvido sai do índice, não de um walk pelo filesystem: é a mesma
+// medida que a cota usa, então o número bate com o que a tela mostrava antes de
+// apagar. Arquivo em disco sem linha de índice não entra na conta.
+func (c *Camera) Purge() (freed int64, err error) {
+	freed = c.TotalBytes()
+
+	if err := os.RemoveAll(c.root); err != nil {
+		return 0, err
+	}
+
+	c.mu.Lock()
+	c.days = map[string]*DaySummary{}
+	c.mu.Unlock()
+	return freed, nil
+}
+
 // EvictOldest apaga os segmentos mais antigos até liberar pelo menos `want`
 // bytes, ou até acabarem os segmentos. Devolve quanto liberou.
 //
@@ -588,6 +626,71 @@ func (c *Camera) recount(day string, entries []Entry) {
 	for _, e := range entries {
 		c.mergeLocked(day, e)
 	}
+}
+
+// --- órfãos -----------------------------------------------------------------
+
+// OrphanInfo descreve um diretório de gravação que não pertence a nenhuma
+// câmera cadastrada.
+type OrphanInfo struct {
+	ID      string `json:"id"`
+	Bytes   int64  `json:"bytes"`
+	Days    int    `json:"days"`
+	FirstMs int64  `json:"firstMs"`
+	LastMs  int64  `json:"lastMs"`
+}
+
+// Orphans lista o que ficou em disco de câmeras que já foram removidas.
+//
+// Remover uma câmera não apaga as gravações dela, e a partir daí esse material
+// some de toda a aplicação: os endpoints de gravação só aceitam câmera
+// cadastrada, e a retenção só percorre as cadastradas. Sem esta varredura ele
+// ocuparia disco sem aparecer em lugar nenhum.
+//
+// O tamanho sai dos arquivos de índice — algumas dezenas por câmera — e não de
+// um walk sobre os segmentos, que seriam dezenas de milhares. É também a mesma
+// fonte que a cota usa, então os números não divergem entre as telas.
+func (s *Store) Orphans(registered map[string]bool) ([]OrphanInfo, error) {
+	entries, err := os.ReadDir(s.root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]OrphanInfo, 0)
+	for _, e := range entries {
+		// Nomes vindos do ReadDir são sempre um único componente de caminho,
+		// então não há travessia de diretório a fechar aqui.
+		id := e.Name()
+		if !e.IsDir() || registered[id] {
+			continue
+		}
+
+		// Câmera descartável: memorizá-la no Store faria um ID sem cadastro
+		// virar entrada permanente em memória a cada listagem.
+		c := newCamera(s.root, id)
+		if err := c.Scan(false, nil); err != nil {
+			return nil, err
+		}
+
+		info := OrphanInfo{ID: id}
+		for _, d := range c.Days() {
+			info.Days++
+			info.Bytes += d.Bytes
+			if info.FirstMs == 0 || d.FirstMs < info.FirstMs {
+				info.FirstMs = d.FirstMs
+			}
+			if d.LastMs > info.LastMs {
+				info.LastMs = d.LastMs
+			}
+		}
+		out = append(out, info)
+	}
+
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
 }
 
 // ParseSegmentName extrai o início em ms do nome de um arquivo de segmento.

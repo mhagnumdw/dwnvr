@@ -1,13 +1,15 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { cameras, loadCameras, health, pollHealth } from '../lib/state.svelte.js';
+  import { cameras, loadCameras, loadHealth, health, pollHealth } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
-  import { dias, kbps, bytes, bytesDeMB, resolucao } from '../lib/format.js';
+  import { dias, kbps, bytes, bytesDeMB, resolucao, ddmm } from '../lib/format.js';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
 
   let editing = $state(null); // cópia da câmera em edição, ou null
   let removendo = $state(null); // câmera aguardando confirmação de remoção
+  let apagando = $state(null); // gravações aguardando confirmação de apagamento
+  let apagarGravacoes = $state(false); // checkbox do diálogo de remoção
   let saving = $state(false);
   let error = $state('');
 
@@ -67,13 +69,56 @@
     }
   }
 
+  // O tamanho vem da medição do diagnóstico, que é a mesma fonte do chip de
+  // disco do card: dizer "apagar 3,2 GB" só ajuda se o número for o que a
+  // pessoa já estava vendo.
+  function tamanhoDe(cam) {
+    return statusOf(cam.id)?.diskBytes ?? 0;
+  }
+
+  // Um alvo normalizado para que um único diálogo sirva os dois casos: a câmera
+  // cadastrada, que tem nome e status, e a órfã, que só tem o que a varredura do
+  // disco descobriu.
+  const alvoDaCamera = (cam) => ({
+    id: cam.id,
+    nome: cam.name,
+    bytes: tamanhoDe(cam),
+    orfa: false,
+  });
+
+  const alvoDaOrfa = (o) => ({ id: o.id, nome: o.id, bytes: o.bytes, orfa: true });
+
+  function abrirRemocao(cam) {
+    // Sempre desmarcado ao abrir: preservar as gravações é o padrão, e herdar a
+    // marcação de uma remoção anterior apagaria vídeo sem ninguém pedir.
+    apagarGravacoes = false;
+    removendo = cam;
+  }
+
   async function confirmarRemocao() {
     const cam = removendo;
+    const comGravacoes = apagarGravacoes;
     removendo = null;
     error = '';
     try {
-      await api.deleteCamera(cam.id);
+      await api.deleteCamera(cam.id, { recordings: comGravacoes });
       await loadCameras();
+      await loadHealth();
+    } catch (e) {
+      error = e.message;
+    }
+  }
+
+  async function confirmarApagamento() {
+    const alvo = apagando;
+    apagando = null;
+    error = '';
+    try {
+      await api.deleteRecordings(alvo.id);
+      // As duas: loadCameras refaz a lista de órfãs, loadHealth refaz o chip de
+      // disco. Sem a segunda, o card seguiria mostrando os bytes que já foram.
+      await loadCameras();
+      await loadHealth();
     } catch (e) {
       error = e.message;
     }
@@ -104,8 +149,17 @@
           <strong>{cam.name}</strong>
           <code class="muted small">{cam.id}</code>
           <span class="spacer"></span>
-          <button class="ghost small" onclick={() => editar(cam)}>editar</button>
-          <button class="ghost small danger" onclick={() => (removendo = cam)}>remover</button>
+          <!-- Os três num grupo próprio para quebrarem juntos: soltos na linha,
+               em tela de celular o "remover" descia sozinho para a esquerda,
+               longe dos outros dois e do canto onde o polegar espera achá-lo. -->
+          <div class="row acoes">
+            <button class="ghost small" onclick={() => editar(cam)}>editar</button>
+            <!-- Rótulo por extenso: só "gravações" se leria como "ver as gravações". -->
+            <button class="ghost small danger" onclick={() => (apagando = alvoDaCamera(cam))}>
+              apagar gravações
+            </button>
+            <button class="ghost small danger" onclick={() => abrirRemocao(cam)}>remover</button>
+          </div>
         </div>
 
         <div class="row wrap chips">
@@ -159,6 +213,42 @@
       nesta lista — um clique escolhe cota, áudio e retenção, e a gravação começa.
     </p>
   </div>
+
+  <!-- Só aparece quando há algo: uma seção vazia permanente sugeriria que sobrar
+       gravação órfã é o estado normal, e não é. -->
+  {#if cameras.orphans.length}
+    <div class="card orfas">
+      <h3>Gravações sem câmera</h3>
+      <p class="muted small">
+        Material de câmeras que já foram removidas. Ele não conta na cota de ninguém, não abre
+        na tela de Gravações e a retenção não o alcança — só sai do disco por aqui.
+      </p>
+
+      {#each cameras.orphans as o (o.id)}
+        <!-- A linha não quebra; quem quebra é o bloco de dados. Assim o botão
+             fica sempre no mesmo canto, em vez de descer para a esquerda quando
+             os chips não cabem. -->
+        <div class="row orfa">
+          <div class="row wrap dados">
+            <code>{o.id}</code>
+            {#if o.days}
+              <span class="chip">{bytes(o.bytes)}</span>
+              <span class="chip">
+                {ddmm(o.firstMs)} a {ddmm(o.lastMs)} · {o.days} {o.days > 1 ? 'dias' : 'dia'}
+              </span>
+            {:else}
+              <!-- Diretório sem índice: sobra de uma evicção ou de uma cópia à
+                   mão. Não dá para dizer o tamanho, mas esconder seria pior. -->
+              <span class="chip warn">sem índice</span>
+            {/if}
+          </div>
+          <button class="ghost small danger" onclick={() => (apagando = alvoDaOrfa(o))}>
+            apagar
+          </button>
+        </div>
+      {/each}
+    </div>
+  {/if}
 </div>
 
 {#if editing}
@@ -222,7 +312,7 @@
             type="button"
             class="danger"
             onclick={() => {
-              removendo = editing;
+              abrirRemocao(editing);
               editing = null;
             }}>remover</button
           >
@@ -238,16 +328,45 @@
 {/if}
 
 {#if removendo}
+  {@const tam = tamanhoDe(removendo)}
   <ConfirmDialog
     title="Remover {removendo.name}?"
-    confirmLabel="remover"
+    confirmLabel={apagarGravacoes ? `remover e apagar ${bytes(tam)}` : 'remover'}
     danger
     onconfirm={confirmarRemocao}
     oncancel={() => (removendo = null)}
   >
-    A câmera sai do dwnvr e para de gravar agora. As gravações já feitas
-    <strong>não</strong> são apagadas — elas continuam em disco até você apagar o diretório
-    <code>{removendo.id}</code> na mão.
+    A câmera sai do dwnvr e para de gravar agora.
+
+    <!-- Desmarcado por padrão: apagar horas de vídeo não pode ser efeito
+         colateral de um clique em "remover". O rótulo do botão acompanha a
+         marcação para que a consequência esteja escrita no que se clica. -->
+    <label class="check apagar">
+      <input type="checkbox" bind:checked={apagarGravacoes} />
+      apagar também as gravações ({bytes(tam)})
+    </label>
+
+    {#if !apagarGravacoes}
+      Sem marcar, os arquivos ficam em disco e passam a aparecer aqui em
+      <strong>Gravações sem câmera</strong>, de onde dá para apagá-los depois.
+    {/if}
+  </ConfirmDialog>
+{/if}
+
+{#if apagando}
+  <ConfirmDialog
+    title="Apagar as gravações de {apagando.nome}?"
+    confirmLabel={apagando.bytes ? `apagar ${bytes(apagando.bytes)}` : 'apagar'}
+    danger
+    onconfirm={confirmarApagamento}
+    oncancel={() => (apagando = null)}
+  >
+    {#if apagando.orfa}
+      Tudo o que sobrou de <code>{apagando.id}</code> sai do disco, e não há como desfazer.
+    {:else}
+      Tudo o que essa câmera gravou sai do disco, e não há como desfazer. A câmera continua
+      cadastrada e volta a gravar em seguida — a gravação fica interrompida por alguns segundos.
+    {/if}
   </ConfirmDialog>
 {/if}
 
@@ -263,6 +382,7 @@
   .list { display: grid; gap: 8px; }
   .cam { display: grid; gap: 8px; }
   .head { gap: 8px; }
+  .acoes { gap: 8px; margin-left: auto; }
   .chips { gap: 6px; }
   .chip.retain { border-color: #1f6feb66; color: var(--accent); }
   .chip.warn { color: var(--warn); }
@@ -277,6 +397,17 @@
   .ajuda .vazio { margin: 0; }
   .ajuda .explica { margin: 12px 0 0; }
   .ajuda code { color: var(--fg); }
+
+  .orfas { display: grid; gap: 8px; }
+  .orfas p { margin: -4px 0 2px; }
+  .orfa { gap: 10px; align-items: start; }
+  .orfa .dados { gap: 6px; flex: 1; min-width: 0; }
+  .orfa code { color: var(--fg); }
+  .orfa button { flex: none; }
+
+  /* O checkbox dentro do ConfirmDialog: sem a margem ele encosta no parágrafo
+     acima e deixa de parecer uma escolha à parte. */
+  label.check.apagar { margin: 10px 0 6px; font-size: 14px; }
 
   /* O Modal só entrega a moldura; o espaçamento entre os campos é do formulário. */
   .fields { display: grid; gap: 14px; }

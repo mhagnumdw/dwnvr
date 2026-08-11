@@ -23,6 +23,14 @@ export function hhmm(ms) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// ddmm é a data curta dos intervalos ("14/07 a 11/08"). O ano fica de fora
+// porque os intervalos que aparecem na interface são de dias ou semanas, e
+// repeti-lo em toda ponta só ocuparia espaço.
+export function ddmm(ms) {
+  const d = new Date(ms);
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+}
+
 export function dayKey(date = new Date()) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }

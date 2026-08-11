@@ -33,6 +33,63 @@ func (s *Server) handleDays(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"cam": cam.ID, "days": cam.Days()})
 }
 
+// handleDeleteRecordings apaga tudo o que uma câmera gravou, sem mexer no
+// cadastro dela.
+//
+// Atende os dois lados: a câmera cadastrada, que volta a gravar em seguida do
+// zero, e a câmera já removida, cujo material só é alcançável por aqui — os
+// demais endpoints de gravação passam por knownCamera e não enxergam ID sem
+// cadastro.
+func (s *Server) handleDeleteRecordings(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("cam")
+
+	if s.knownCamera(id) {
+		// Pause é obrigatório: purgar com o recorder no ar deixaria o segmento
+		// aberto escrevendo num inode já desvinculado e indexaria um arquivo que
+		// não existe mais.
+		var freed int64
+		err := s.mgr.Pause(id, func() (err error) {
+			freed, err = s.store.Camera(id).Purge()
+			return err
+		})
+		if err != nil {
+			s.fail(w, "apagando as gravações", err)
+			return
+		}
+		s.log.Info("gravações apagadas", "cam", id, "liberado_mb", freed>>20)
+		writeJSON(w, map[string]any{"ok": true, "freedBytes": freed})
+		return
+	}
+
+	// Câmera já removida. Aqui o knownCamera não pode servir de guarda, então o
+	// ID é conferido contra a lista de diretórios que existem de fato: os nomes
+	// vêm de um ReadDir e são sempre um único componente de caminho, o que fecha
+	// travessia de diretório pelo mesmo princípio — existência, não higienização.
+	orphans, err := s.store.Orphans(s.registeredIDs())
+	if err != nil {
+		s.fail(w, "listando gravações órfãs", err)
+		return
+	}
+	for _, o := range orphans {
+		if o.ID != id {
+			continue
+		}
+		// O total vem da varredura, não do Purge: o índice em memória de uma
+		// câmera sem cadastro está vazio (ninguém a carregou no boot), então o
+		// Purge não teria como saber o tamanho do que acabou de apagar.
+		if _, err := s.store.Camera(id).Purge(); err != nil {
+			s.fail(w, "apagando as gravações", err)
+			return
+		}
+		s.store.Forget(id)
+		s.log.Info("gravações órfãs apagadas", "cam", id, "liberado_mb", o.Bytes>>20)
+		writeJSON(w, map[string]any{"ok": true, "freedBytes": o.Bytes})
+		return
+	}
+
+	writeError(w, http.StatusNotFound, "não há gravações para essa câmera")
+}
+
 // timelineResponse é deliberadamente compacto: um dia com segmentos de 1 minuto
 // tem 1440 entradas, e a forma verbosa (um objeto com chaves por segmento)
 // triplicaria o tamanho da resposta que a timeline busca a cada troca de dia.
