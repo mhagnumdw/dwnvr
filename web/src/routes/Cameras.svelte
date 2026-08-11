@@ -172,6 +172,14 @@
           {#if d}<span class="chip retain">≈ {dias(d)} de retenção</span>{/if}
         </div>
 
+        <!-- Onde os arquivos estão de verdade. Toda vez que a pergunta sai do
+             navegador — fazer backup, olhar o disco por ssh, entender de onde
+             vieram os bytes do chip acima — é este caminho que se procura, e
+             ele não estava escrito em lugar nenhum da interface. -->
+        {#if cam.dir}
+          <code class="caminho muted small" title="pasta das gravações desta câmera">{cam.dir}</code>
+        {/if}
+
         {#if st?.lastError && !st.connected}
           <p class="small err">{st.lastError}</p>
         {/if}
@@ -384,6 +392,9 @@
   .head { gap: 8px; }
   .acoes { gap: 8px; margin-left: auto; }
   .chips { gap: 6px; }
+  /* Caminho longo não tem espaço para quebrar: sem isto ele estoura a largura
+     do card no celular. */
+  .caminho { overflow-wrap: anywhere; }
   .chip.retain { border-color: #1f6feb66; color: var(--accent); }
   .chip.warn { color: var(--warn); }
   .err { color: var(--bad); margin: 0; }
