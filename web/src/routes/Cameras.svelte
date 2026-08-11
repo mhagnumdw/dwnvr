@@ -3,8 +3,11 @@
   import { cameras, loadCameras, health, pollHealth } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
   import { dias, kbps, bytes, bytesDeMB, resolucao } from '../lib/format.js';
+  import Modal from '../components/Modal.svelte';
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
 
   let editing = $state(null); // cópia da câmera em edição, ou null
+  let removendo = $state(null); // câmera aguardando confirmação de remoção
   let saving = $state(false);
   let error = $state('');
 
@@ -64,8 +67,10 @@
     }
   }
 
-  async function remover(cam) {
-    if (!confirm(`Remover ${cam.name} do dwnvr?\n\nAs gravações já feitas NÃO são apagadas.`)) return;
+  async function confirmarRemocao() {
+    const cam = removendo;
+    removendo = null;
+    error = '';
     try {
       await api.deleteCamera(cam.id);
       await loadCameras();
@@ -100,6 +105,7 @@
           <code class="muted small">{cam.id}</code>
           <span class="spacer"></span>
           <button class="ghost small" onclick={() => editar(cam)}>editar</button>
+          <button class="ghost small danger" onclick={() => (removendo = cam)}>remover</button>
         </div>
 
         <div class="row wrap chips">
@@ -123,30 +129,41 @@
     {/if}
   </div>
 
-  {#if novos.length}
-    <div class="card">
-      <h3>Disponíveis no go2rtc</h3>
-      <p class="muted small">Streams que o go2rtc já serve e que o dwnvr ainda não grava.</p>
+  <!-- Sempre visível, mesmo vazio: enquanto este bloco só aparecia quando havia
+       stream novo, quem chegava na tela com tudo já cadastrado não encontrava o
+       botão de adicionar e concluía que ele não existia. -->
+  <div class="card ajuda">
+    <h3>Disponíveis no go2rtc</h3>
+
+    {#if novos.length}
       <div class="row wrap">
         {#each novos as s (s.name)}
-          <button onclick={() => novo(s.name)}>
+          <button title="Clique para adicionar" onclick={() => novo(s.name)}>
             + {s.name}
             {#if s.hasAudio}<span class="chip">áudio</span>{/if}
             {#if s.transcoding}<span class="chip warn">ffmpeg</span>{/if}
           </button>
         {/each}
       </div>
-    </div>
-  {/if}
+    {:else if cameras.go2rtcError}
+      <p class="muted small vazio">Não dá para listar os streams enquanto o go2rtc não responder.</p>
+    {:else}
+      <p class="muted small vazio">Nenhum stream novo — o dwnvr já grava todos os que o go2rtc serve.</p>
+    {/if}
+
+    <!-- Depois da lista: quem já entendeu como funciona quer o botão primeiro, e
+         quem não entendeu lê a explicação ao lado do que ela explica. -->
+    <p class="muted small explica">
+      Câmera não se cadastra aqui do zero: o dwnvr grava o que o go2rtc entrega e não guarda
+      endereço nem senha de câmera. Declare o stream no <code>go2rtc.yaml</code> e ele aparece
+      nesta lista — um clique escolhe cota, áudio e retenção, e a gravação começa.
+    </p>
+  </div>
 </div>
 
 {#if editing}
-  <div
-    class="overlay"
-    role="presentation"
-    onclick={(e) => e.target === e.currentTarget && (editing = null)}
-  >
-    <form class="card sheet" onsubmit={(e) => (e.preventDefault(), salvar())}>
+  <Modal onclose={() => (editing = null)}>
+    <form class="fields" onsubmit={(e) => (e.preventDefault(), salvar())}>
       <h3>{editing._novo ? 'Cadastrar' : 'Editar'} {editing.id}</h3>
 
       <label>
@@ -205,9 +222,8 @@
             type="button"
             class="danger"
             onclick={() => {
-              const c = editing;
+              removendo = editing;
               editing = null;
-              remover(c);
             }}>remover</button
           >
         {/if}
@@ -218,7 +234,21 @@
         </button>
       </div>
     </form>
-  </div>
+  </Modal>
+{/if}
+
+{#if removendo}
+  <ConfirmDialog
+    title="Remover {removendo.name}?"
+    confirmLabel="remover"
+    danger
+    onconfirm={confirmarRemocao}
+    oncancel={() => (removendo = null)}
+  >
+    A câmera sai do dwnvr e para de gravar agora. As gravações já feitas
+    <strong>não</strong> são apagadas — elas continuam em disco até você apagar o diretório
+    <code>{removendo.id}</code> na mão.
+  </ConfirmDialog>
 {/if}
 
 <style>
@@ -243,30 +273,13 @@
 
   h3 { margin: 0 0 4px; font-size: 15px; }
 
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    display: grid;
-    /* No celular a folha sobe de baixo, onde o polegar alcança. */
-    align-items: end;
-    z-index: 30;
-  }
+  .ajuda h3 { margin: 0 0 10px; }
+  .ajuda .vazio { margin: 0; }
+  .ajuda .explica { margin: 12px 0 0; }
+  .ajuda code { color: var(--fg); }
 
-  .sheet {
-    display: grid;
-    gap: 14px;
-    width: 100%;
-    max-height: 92dvh;
-    overflow-y: auto;
-    border-radius: var(--radius) var(--radius) 0 0;
-    padding-bottom: calc(14px + env(safe-area-inset-bottom));
-  }
-
-  @media (min-width: 640px) {
-    .overlay { place-items: center; padding: 20px; }
-    .sheet { max-width: 460px; border-radius: var(--radius); }
-  }
+  /* O Modal só entrega a moldura; o espaçamento entre os campos é do formulário. */
+  .fields { display: grid; gap: 14px; }
 
   label { display: grid; gap: 5px; font-size: 13px; color: var(--dim); }
   label input:not([type='checkbox']),
