@@ -36,6 +36,15 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* Coluna de altura da janela: sem isto o `main` sozinho pede 100dvh, o cabeçalho
+   entra acima dele e o documento fica sempre mais alto que a tela — no celular
+   sobravam 47px de rolagem em todas as telas, sem conteúdo nenhum embaixo. */
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
 button,
 input,
 select {
