@@ -284,6 +284,24 @@ func TestValidGen(t *testing.T) {
 	}
 }
 
+func TestValidateCameraCota(t *testing.T) {
+	// O zero é o caso que separa "não informei" de "informei um valor ruim":
+	// ele tem que continuar passando para o Resolve aplicar o default.
+	validas := []int64{0, minQuotaMB, minQuotaMB + 1, 20480}
+	invalidas := []int64{-1, 1, minQuotaMB - 1}
+
+	for _, q := range validas {
+		if err := validateCamera(config.Camera{ID: "cam_teste", QuotaMB: q}); err != nil {
+			t.Errorf("quotaMB=%d recusada: %v", q, err)
+		}
+	}
+	for _, q := range invalidas {
+		if err := validateCamera(config.Camera{ID: "cam_teste", QuotaMB: q}); err == nil {
+			t.Errorf("quotaMB=%d aceita, deveria recusar", q)
+		}
+	}
+}
+
 func TestRangeParams(t *testing.T) {
 	s, _ := testServer(t)
 

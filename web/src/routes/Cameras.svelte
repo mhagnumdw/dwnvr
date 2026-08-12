@@ -299,7 +299,10 @@
 
       <label>
         Cota em disco (MB)
-        <input type="number" bind:value={editing.quotaMB} min="100" step="100" required />
+        <!-- step=1 porque no input nativo o step também é a régua de validação:
+             com step=100 o browser recusava 20480 (20 GiB), que é exatamente o
+             tipo de número que se digita numa cota. -->
+        <input type="number" bind:value={editing.quotaMB} min="100" step="1" required />
         <!-- O campo é em MB porque é assim que a cota é guardada, mas quem digita
              20480 quer saber que isso são 20 GB. -->
         <small class="muted">

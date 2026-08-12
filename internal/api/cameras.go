@@ -8,6 +8,9 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/config"
 )
 
+// minQuotaMB é o mesmo piso que o formulário da web cobra no campo de cota.
+const minQuotaMB = 100
+
 // handleSaveCamera cadastra ou altera uma câmera.
 //
 // A ordem importa: primeiro o cameras.json é gravado (de forma atômica), só
@@ -117,8 +120,14 @@ func validateCamera(cam config.Camera) error {
 			return err
 		}
 	}
+	// Zero é "usar o default". Acima disso vale o mesmo piso que a tela cobra:
+	// uma cota de poucos MB não guarda nem um segmento, e a câmera passaria a
+	// vida apagando o que acabou de gravar.
 	if cam.QuotaMB < 0 {
 		return fmt.Errorf("cota não pode ser negativa")
+	}
+	if cam.QuotaMB > 0 && cam.QuotaMB < minQuotaMB {
+		return fmt.Errorf("cota mínima é de %d MB", minQuotaMB)
 	}
 	if cam.SegmentSeconds < 0 || cam.SegmentSeconds > 3600 {
 		return fmt.Errorf("duração de segmento fora do intervalo aceito")
