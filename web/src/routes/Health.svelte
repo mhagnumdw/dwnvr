@@ -2,7 +2,8 @@
   import { onDestroy } from 'svelte';
   import { health, pollHealth, cameras, build } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
-  import { bytes, bytesDeMB, kbps, dias, duracao, hhmmss } from '../lib/format.js';
+  import { bytes, bytesDeMB, kbps, dias, duracao, hhmmss, ddmm } from '../lib/format.js';
+  import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
 
   const stop = pollHealth(3000);
   onDestroy(stop);
@@ -12,6 +13,24 @@
   const usadoPorOutros = $derived(
     disk ? (disk.totalBytes - disk.freeBytes - disk.dwnvrBytes) / disk.totalBytes : 0,
   );
+
+  // retidoMs é a retenção real: do segmento mais antigo em disco até agora.
+  //
+  // O servidor manda o instante, e não os dias já contados, porque com ele a
+  // mesma resposta serve à tabela ("12 dias 4h") e ao card de câmeras ("desde
+  // 31/07"). Câmera que nunca gravou não traz o campo, e o zero vira "—" no
+  // duracao() em vez de "0s".
+  function retidoMs(c) {
+    return c.oldestSegmentAt ? Date.now() - new Date(c.oldestSegmentAt).getTime() : 0;
+  }
+
+  // O cabeçalho explica O QUE a coluna mede, uma vez só; a célula responde
+  // DESDE QUANDO, que é por câmera. undefined e não '' porque o Svelte omite o
+  // atributo inteiro assim, e um title vazio deixaria a célula com sublinhado
+  // de dica sem dica nenhuma.
+  function desdeTitulo(c) {
+    return c.oldestSegmentAt ? `Desde ${ddmm(new Date(c.oldestSegmentAt).getTime())}` : undefined;
+  }
 
   // Cada coluna sabe extrair o valor que a ordena; assim o cabeçalho e a
   // ordenação não podem discordar sobre o que "disco" significa.
@@ -41,11 +60,16 @@
       ajuda: 'Espaço que as gravações desta câmera ocupam hoje, somando todos os dias em disco.',
     },
     {
-      id: 'retencao',
-      rotulo: 'retenção',
+      id: 'retido',
+      rotulo: 'retido',
+      valor: (c) => retidoMs(c),
+      ajuda: AJUDA_RETIDO,
+    },
+    {
+      id: 'cabem',
+      rotulo: 'cabem',
       valor: (c) => c.retainDays || 0,
-      ajuda:
-        'Quantos dias de gravação cabem na cota da câmera na taxa medida agora. É estimativa: se a taxa subir, o passado encolhe.',
+      ajuda: AJUDA_CABEM,
     },
     {
       id: 'reconex',
@@ -237,6 +261,7 @@
         </span>
         <span class="mono">{kbps(c.bitrateKbps)}</span>
         <span class="mono">{bytes(c.diskBytes)}</span>
+        <span class="mono" title={desdeTitulo(c)}>{duracao(retidoMs(c))}</span>
         <span class="mono">{dias(c.retainDays)}</span>
         <span class="mono">{c.reconnects}</span>
       </div>
@@ -308,7 +333,7 @@
   .table { padding: 0; overflow-x: auto; }
   .thead, .trow {
     display: grid;
-    grid-template-columns: minmax(130px, 2fr) repeat(4, minmax(70px, 1fr));
+    grid-template-columns: minmax(130px, 2fr) repeat(5, minmax(70px, 1fr));
     gap: 8px;
     padding: 9px 12px;
     align-items: center;

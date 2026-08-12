@@ -249,10 +249,18 @@ func (m *Manager) Status() []Status {
 			out = append(out, r.Status())
 			continue
 		}
-		out = append(out, Status{
+		// Câmera sem recorder (desabilitada) continua com o que já gravou em
+		// disco: o passado dela precisa aparecer na tela igual ao das outras,
+		// senão desabilitar uma câmera dá a impressão de ter apagado tudo.
+		idx := m.store.Camera(cam.ID)
+		st := Status{
 			ID: cam.ID, Name: cam.Name, Enabled: cam.Enabled,
-			QuotaMB: cam.QuotaMB, DiskBytes: m.store.Camera(cam.ID).TotalBytes(),
-		})
+			QuotaMB: cam.QuotaMB, DiskBytes: idx.TotalBytes(),
+		}
+		if oldest := idx.OldestMs(); oldest > 0 {
+			st.OldestSegmentAt = time.UnixMilli(oldest)
+		}
+		out = append(out, st)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out

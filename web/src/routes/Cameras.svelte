@@ -2,7 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { cameras, loadCameras, loadHealth, health, pollHealth } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
-  import { dias, kbps, bytes, bytesDeMB, resolucao, ddmm } from '../lib/format.js';
+  import { dias, kbps, bytes, bytesDeMB, resolucao, ddmm, duracao } from '../lib/format.js';
+  import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
 
@@ -169,7 +170,20 @@
           <span class="chip">áudio: {cam.audio}</span>
           <span class="chip">{kbps(st?.bitrateKbps)}</span>
           <span class="chip">{bytes(st?.diskBytes ?? 0)} de {bytesDeMB(cam.quotaMB)}</span>
-          {#if d}<span class="chip retain">≈ {dias(d)} de retenção</span>{/if}
+          <!-- O par "retido / cabem" é o que torna a cota compreensível: o
+               primeiro é o passado que existe, o segundo é o que ela ainda
+               comporta. Sozinho, cada um deles engana.
+               A explicação é a mesma da coluna equivalente no Diagnóstico, e
+               vem de ajudas.js justamente para não divergir dela. O "Desde"
+               entra só aqui e na célula de lá: é por câmera, ao contrário do
+               resto do texto, e não caberia no chip sem empurrar os outros. -->
+          {#if st?.oldestSegmentAt}
+            {@const desde = new Date(st.oldestSegmentAt)}
+            <span class="chip retido" title="{AJUDA_RETIDO} Desde {ddmm(desde.getTime())}">
+              retido: {duracao(Date.now() - desde.getTime())}
+            </span>
+          {/if}
+          {#if d}<span class="chip retain" title={AJUDA_CABEM}>cabem ≈ {dias(d)}</span>{/if}
         </div>
 
         <!-- Onde os arquivos estão de verdade. Toda vez que a pergunta sai do
@@ -402,7 +416,11 @@
   /* O chip nasce nowrap, e um caminho longo não tem espaço para quebrar: sem
      estas duas linhas ele estoura a largura do card no celular. */
   .chip.storage { white-space: normal; overflow-wrap: anywhere; }
-  .chip.retain { border-color: #1f6feb66; color: var(--accent); }
+  /* Os dois falam da mesma cota e por isso compartilham a borda; a cor separa
+     o que é fato do que é conta: "retido" já aconteceu e fica no texto normal,
+     "cabem" é projeção e vai no tom do acento, como toda estimativa da tela. */
+  .chip.retido, .chip.retain { border-color: #1f6feb66; }
+  .chip.retain { color: var(--accent); }
   .chip.warn { color: var(--warn); }
   .err { color: var(--bad); margin: 0; }
 
