@@ -37,7 +37,7 @@ A imagem é `FROM scratch` e contém literalmente isto:
 ```
 
 O resto (`/dev`, `/proc`, `/etc/hosts`, `/etc/resolv.conf`) é injetado pelo
-Docker. Não há `sh`, `ls` nem `cat` — o que é o ponto: menos superfície, menos
+Docker. Não há `sh`, `ls` nem `cat` - o que é o ponto: menos superfície, menos
 peso e nada para um invasor usar.
 
 Isso não impede inspecionar. Quatro caminhos, do mais simples ao mais invasivo:
@@ -53,7 +53,7 @@ docker inspect dwnvr --format '{{.State.Health.Status}}'
 
 ### 2. O próprio binário como ferramenta
 
-`docker exec` não precisa de shell — precisa de um executável, e há um:
+`docker exec` não precisa de shell - precisa de um executável, e há um:
 
 ```sh
 docker exec dwnvr /dwnvr -healthcheck -config /etc/dwnvr/dwnvr.yaml; echo $?
@@ -89,7 +89,7 @@ wget -qO- http://127.0.0.1:8080/api/session
 ```
 
 Para inspecionar também o *sistema de arquivos* do dwnvr, acrescente
-`--volumes-from dwnvr` — os volumes aparecem nos mesmos caminhos.
+`--volumes-from dwnvr` - os volumes aparecem nos mesmos caminhos.
 
 Nada disso muda a imagem: o sidecar é descartado ao sair.
 
@@ -102,7 +102,7 @@ docker compose pull && docker compose up -d
 O encerramento é gracioso: o dwnvr fecha e indexa o segmento em aberto de cada
 câmera antes de sair. Sem isso, todo reinício perderia o último minuto gravado.
 
-Se algo der errado, os dados sobrevivem à imagem — eles estão nos volumes. Voltar
+Se algo der errado, os dados sobrevivem à imagem - eles estão nos volumes. Voltar
 para a versão anterior é trocar a tag e subir de novo.
 
 ## Problemas comuns
@@ -112,7 +112,7 @@ Descubra o seu com `id -u; id -g`. Para consertar o que já foi gravado:
 `sudo chown -R 1000:1000 /mnt/storage/dwnvr`.
 
 **A timeline vira o dia no horário errado.** Falta `TZ` no compose. A imagem não
-tem `/usr/share/zoneinfo` — a base de fusos vai embutida no binário, mas alguém
+tem `/usr/share/zoneinfo` - a base de fusos vai embutida no binário, mas alguém
 precisa dizer qual fuso usar.
 
 **O container não enxerga o go2rtc.** Dentro do container, `localhost` é o
@@ -121,6 +121,6 @@ host-gateway`), o nome do serviço se os dois estiverem na mesma rede, ou
 `network_mode: host`.
 
 **A tela está velha depois de atualizar.** A interface é embutida no binário, e o
-navegador cacheia os assets — que têm hash no nome justamente para isso não
+navegador cacheia os assets - que têm hash no nome justamente para isso não
 acontecer. Se persistir, é sinal de que o binário foi construído sem rodar
 `npm run build` antes.

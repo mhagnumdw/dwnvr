@@ -1,6 +1,6 @@
 <!--
   Folha modal: o fundo escurecido, a caixa e as três formas de fechar (clique
-  fora, Esc, botão de quem usa). Só a moldura mora aqui — o conteúdo vem por
+  fora, Esc, botão de quem usa). Só a moldura mora aqui - o conteúdo vem por
   snippet, então o mesmo componente serve para o formulário de câmera e para o
   diálogo de confirmação.
 -->

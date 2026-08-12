@@ -1,5 +1,5 @@
 <!--
-  Confirmação de uma ação, no lugar do confirm() do navegador — que trava a
+  Confirmação de uma ação, no lugar do confirm() do navegador - que trava a
   aba inteira, ignora o tema e no celular aparece grudado no topo, longe do
   polegar. O texto do corpo vem por snippet porque explicar a consequência
   costuma pedir mais que uma frase seca.

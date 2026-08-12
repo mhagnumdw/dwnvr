@@ -1,6 +1,6 @@
 // Decodificação das miniaturas da timeline.
 //
-// Cada miniatura é um MP4 de UM frame — o init mais o primeiro fragmento do
+// Cada miniatura é um MP4 de UM frame - o init mais o primeiro fragmento do
 // segmento, recortados do que já está gravado. O Pi não decodifica nada: quem
 // transforma isso em imagem é o navegador, com aceleração de hardware.
 //

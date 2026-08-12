@@ -165,7 +165,7 @@
 
         <div class="row wrap chips">
           {#if !cam.enabled}<span class="chip">desabilitada</span>{/if}
-          <span class="chip">{st?.videoCodec ?? '—'}</span>
+          <span class="chip">{st?.videoCodec ?? '-'}</span>
           <span class="chip">{resolucao(st?.width, st?.height)}</span>
           <span class="chip">áudio: {cam.audio}</span>
           <span class="chip">{kbps(st?.bitrateKbps)}</span>
@@ -187,8 +187,8 @@
         </div>
 
         <!-- Onde os arquivos estão de verdade. Toda vez que a pergunta sai do
-             navegador — fazer backup, olhar o disco por ssh, entender de onde
-             vieram os bytes do chip de uso — é este caminho que se procura, e
+             navegador - fazer backup, olhar o disco por ssh, entender de onde
+             vieram os bytes do chip de uso - é este caminho que se procura, e
              ele não estava escrito em lugar nenhum da interface. Linha própria
              porque é o único chip que pode ficar comprido: junto dos outros ele
              empurraria a retenção para fora do alinhamento a cada nome de pasta. -->
@@ -228,7 +228,7 @@
     {:else if cameras.go2rtcError}
       <p class="muted small vazio">Não dá para listar os streams enquanto o go2rtc não responder.</p>
     {:else}
-      <p class="muted small vazio">Nenhum stream novo — o dwnvr já grava todos os que o go2rtc serve.</p>
+      <p class="muted small vazio">Nenhum stream novo - o dwnvr já grava todos os que o go2rtc serve.</p>
     {/if}
 
     <!-- Depois da lista: quem já entendeu como funciona quer o botão primeiro, e
@@ -236,7 +236,7 @@
     <p class="muted small explica">
       Câmera não se cadastra aqui do zero: o dwnvr grava o que o go2rtc entrega e não guarda
       endereço nem senha de câmera. Declare o stream no <code>go2rtc.yaml</code> e ele aparece
-      nesta lista — um clique escolhe cota, áudio e retenção, e a gravação começa.
+      nesta lista - um clique escolhe cota, áudio e retenção, e a gravação começa.
     </p>
   </div>
 
@@ -247,7 +247,7 @@
       <h3>Gravações sem câmera</h3>
       <p class="muted small">
         Material de câmeras que já foram removidas. Ele não conta na cota de ninguém, não abre
-        na tela de Gravações e a retenção não o alcança — só sai do disco por aqui.
+        na tela de Gravações e a retenção não o alcança - só sai do disco por aqui.
       </p>
 
       {#each cameras.orphans as o (o.id)}
@@ -295,12 +295,12 @@
       <label>
         Áudio
         <select bind:value={editing.audio}>
-          <option value="none">nenhum — custo zero</option>
+          <option value="none">nenhum - custo zero</option>
           <option value="flac" disabled={!editing._hasAudio}>
-            FLAC — ~0,6% de CPU, +260 kbps de disco
+            FLAC - ~0,6% de CPU, +260 kbps de disco
           </option>
           <option value="aac" disabled={!editing._hasAudio}>
-            AAC — ~10% de CPU, +64 kbps (exige fonte ffmpeg no go2rtc)
+            AAC - ~10% de CPU, +64 kbps (exige fonte ffmpeg no go2rtc)
           </option>
         </select>
         {#if !editing._hasAudio}
@@ -394,7 +394,7 @@
       Tudo o que sobrou de <code>{apagando.id}</code> sai do disco, e não há como desfazer.
     {:else}
       Tudo o que essa câmera gravou sai do disco, e não há como desfazer. A câmera continua
-      cadastrada e volta a gravar em seguida — a gravação fica interrompida por alguns segundos.
+      cadastrada e volta a gravar em seguida - a gravação fica interrompida por alguns segundos.
     {/if}
   </ConfirmDialog>
 {/if}

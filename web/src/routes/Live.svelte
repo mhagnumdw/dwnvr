@@ -54,8 +54,8 @@
   });
 
   // O componente do go2rtc cria o <video> com controls=true. Numa grade ao
-  // vivo isso mostra uma barra de progresso que não significa nada — não há
-  // linha do tempo para percorrer — e ainda aparece em umas câmeras e não em
+  // vivo isso mostra uma barra de progresso que não significa nada - não há
+  // linha do tempo para percorrer - e ainda aparece em umas câmeras e não em
   // outras, conforme o modo negociado.
   function hideNativeControls(node) {
     const apply = () => {
@@ -121,7 +121,7 @@
     // O palco vai do seu topo até o fim da janela, menos o que já está
     // reservado abaixo dele: o respiro da página e o espaço que o `main` guarda
     // para a navegação inferior não cobrir o conteúdo. Esse padding do `main` é
-    // zero no desktop, onde a navegação sobe — lê-lo evita repetir aqui, em JS,
+    // zero no desktop, onde a navegação sobe - lê-lo evita repetir aqui, em JS,
     // o breakpoint que já está no CSS.
     const abaixo = (el) => (el ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0);
     const topo = palco.getBoundingClientRect().top;
@@ -225,7 +225,7 @@
               node.src = mediaURL.liveWS(c.id);
               hideNativeControls(node);
               // Ao desmontar, o custom element fecha a conexão sozinho no
-              // disconnectedCallback — nada a limpar aqui.
+              // disconnectedCallback - nada a limpar aqui.
             }}
           ></video-stream>
           <span class="name">{c.name}</span>

@@ -1,10 +1,10 @@
 # CI do dwnvr.
 #
-# ATENÇÃO — este arquivo está INATIVO hoje, de propósito.
+# ATENÇÃO - este arquivo está INATIVO hoje, de propósito.
 #
 # O GitHub só executa workflows que estejam em `<raiz-do-repositório>/.github/
 # workflows/`. Enquanto o dwnvr for uma subpasta do repositório `cameras`, este
-# arquivo mora em `dwnvr/.github/workflows/` e portanto é ignorado — o que é
+# arquivo mora em `dwnvr/.github/workflows/` e portanto é ignorado - o que é
 # exatamente o desejado por enquanto.
 #
 # Ele já está escrito assumindo o dwnvr como RAIZ do repositório. Quando a pasta
@@ -53,7 +53,7 @@ jobs:
 
       # A interface versionada em internal/api/dist precisa corresponder ao
       # código em web/. Esquecer o build produz um binário que compila e sobe
-      # normalmente, mas serve a tela antiga — falha silenciosa que só
+      # normalmente, mas serve a tela antiga - falha silenciosa que só
       # apareceria em produção.
       - name: interface está atualizada?
         run: |
@@ -92,7 +92,7 @@ jobs:
             type=sha,format=short
 
       # A mesma versão que o Makefile carimba: a tag quando houver, senão o
-      # hash curto — que é o que `git describe --tags --always` devolveria.
+      # hash curto - que é o que `git describe --tags --always` devolveria.
       # Precisa ser calculada aqui porque o build da imagem não vê o .git.
       - id: versao
         run: |

@@ -132,7 +132,7 @@
   }
 
   /* O SVG já traz o próprio arredondamento, então nada de border-radius
-     aqui — dobrar o raio deformaria os cantos. */
+     aqui - dobrar o raio deformaria os cantos. */
   .mark {
     display: block;
     flex: none;

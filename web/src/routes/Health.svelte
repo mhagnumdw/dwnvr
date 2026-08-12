@@ -18,7 +18,7 @@
   //
   // O servidor manda o instante, e não os dias já contados, porque com ele a
   // mesma resposta serve à tabela ("12 dias 4h") e ao card de câmeras ("desde
-  // 31/07"). Câmera que nunca gravou não traz o campo, e o zero vira "—" no
+  // 31/07"). Câmera que nunca gravou não traz o campo, e o zero vira "-" no
   // duracao() em vez de "0s".
   function retidoMs(c) {
     return c.oldestSegmentAt ? Date.now() - new Date(c.oldestSegmentAt).getTime() : 0;
@@ -117,7 +117,7 @@
   const desconectadas = $derived(health.cameras.filter((c) => c.enabled && !c.connected));
   const paradas = $derived(health.cameras.filter((c) => c.enabled && c.silent));
 
-  // Avisos que explicam problemas antes de eles virarem mistério — que foi
+  // Avisos que explicam problemas antes de eles virarem mistério - que foi
   // exatamente o que faltou nos NVRs anteriores.
   const avisos = $derived.by(() => {
     const out = [];
@@ -173,7 +173,7 @@
 <div class="page">
   <!-- Os dois uptimes ficam lado a lado de propósito: é a comparação entre
        eles que diagnostica. Iguais, nada reiniciou; só o do dwnvr curto, foi
-       deploy ou queda do processo; os dois curtos, a máquina reiniciou — e aí
+       deploy ou queda do processo; os dois curtos, a máquina reiniciou - e aí
        "reconex. 0" e "não gravou nada desde que o dwnvr subiu", logo abaixo,
        deixam de ser mistério.
 
@@ -296,7 +296,7 @@
   }
 
   /* O :not(.row) importa: esta regra é escopada, e escopo no Svelte acrescenta
-     uma classe ao seletor — ou seja, ela ganha do .row global por
+     uma classe ao seletor - ou seja, ela ganha do .row global por
      especificidade. Sem a ressalva, todo card que se declara linha (os totais,
      o "nenhum problema", a faixa de estado) virava coluna calado. */
   .card:not(.row) { display: grid; gap: 10px; }

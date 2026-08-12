@@ -196,7 +196,7 @@
       return;
     }
 
-    // Duplo toque: o 1º já pulou para o ponto, o 2º aproxima ancorado ali —
+    // Duplo toque: o 1º já pulou para o ponto, o 2º aproxima ancorado ali -
     // por isso nenhum gesto precisa esperar para saber se vem um segundo toque.
     if (lastTap && ev.timeStamp - lastTap.t < DOUBLE_TAP_MS
         && Math.abs(x - lastTap.x) < DOUBLE_TAP_PX) {

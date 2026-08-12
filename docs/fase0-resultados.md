@@ -1,9 +1,9 @@
-# Fase 0 — resultados dos spikes
+# Fase 0 - resultados dos spikes
 
 Medições feitas em 08/08/2026 contra o Orange Pi Zero 3 (`servidor.local`,
 Armbian 6.12.58 sunxi64, 4 cores Cortex-A53, 1471 MB RAM) com as 9 câmeras reais.
 
-## Consumo de recursos — o requisito central
+## Consumo de recursos - o requisito central
 
 5 minutos gravando as **9 câmeras simultaneamente**, segmentos de 60s:
 
@@ -44,7 +44,7 @@ resolução é o número que dimensiona a retenção.
 - init segment (`ftyp`+`moov`) de **737 bytes**, com VPS/SPS/PPS no `hvcC`
 - **um `moof`+`mdat` por frame**, keyframe marcado em `trun` via
   `sample_is_non_sync_sample` (constante `0x10000` em `pkg/iso/atoms.go`)
-- `tfdt` **versão 1 (64 bits)** — sem risco de wraparound
+- `tfdt` **versão 1 (64 bits)** - sem risco de wraparound
 - 4CC da sample entry: **`hev1`** (o `Content-Type` anuncia `hvc1`, mas a caixa
   é `hev1`; `hev1` funciona no Chrome, **Safari só aceita `hvc1`**)
 - keyframe a cada ~3,9s (GOP 60 @ 15 fps), stream sempre começa em keyframe
@@ -86,14 +86,14 @@ Chrome 151 / Fedora 43 / GPU Intel:
 - **decodificação real de um keyframe gravado via WebCodecs: OK**, devolveu um
   `VideoFrame` 1920x1080 BGRX
 
-### MSE ponta a ponta — confirmado
+### MSE ponta a ponta - confirmado
 
 Os 4 segmentos gravados costurados num único `<video>` via `SourceBuffer`:
 
 | Medida | Resultado |
 |---|---|
 | Anexar 4 segmentos (79s, ~9 MB) | **109 ms** |
-| `buffered` | **uma faixa única `[0, 79.06]`** — sem emenda entre segmentos |
+| `buffered` | **uma faixa única `[0, 79.06]`** - sem emenda entre segmentos |
 | Frames decodificados | **1199, com 1 descartado** |
 | `videoWidth` x `videoHeight` | **1920x1080** (corrigido pelo bitstream) |
 | Seek para t=50s atravessando fronteira de segmento | OK |
@@ -113,7 +113,7 @@ borda.
 ## Pendências de ambiente
 
 - `/mnt/storage` (disco USB, 220 GB) pertence ao root e o usuário não tem sudo
-  sem senha — as medições foram feitas no cartão SD. Precisa de
+  sem senha - as medições foram feitas no cartão SD. Precisa de
   `sudo chown mhagnumdw /mnt/storage` (ou um subdiretório) antes da Fase 1.
 - O disco está com **186 GB ocupados por gravações antigas do lightNVR**,
   restando 23 GB. A 55,6 GB/dia isso são ~10 horas de gravação.

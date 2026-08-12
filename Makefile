@@ -2,12 +2,12 @@
 #
 # A regra que importa: a interface precisa ser construída ANTES do binário,
 # porque o Go a embute com embed.FS. Esquecer disso produz um binário que
-# compila e sobe normalmente, mas serve a tela antiga — um erro silencioso que
+# compila e sobe normalmente, mas serve a tela antiga - um erro silencioso que
 # este arquivo existe para evitar.
 
 IMAGE    ?= ghcr.io/mhagnumdw/dwnvr
 # git describe dá o hash curto enquanto não houver tag e passa a dar a tag
-# sozinho quando houver — nada aqui muda no dia do primeiro release.
+# sozinho quando houver - nada aqui muda no dia do primeiro release.
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT   ?= $(shell git rev-parse HEAD 2>/dev/null || echo desconhecido)
 DATE     ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -70,7 +70,7 @@ image-push:
 ## run-pi: constrói a imagem arm64 e recria o container no Orange Pi
 #
 # O dwnvr do Pi roda como container a partir de ~/dwnvr-docker, e não como
-# binário solto — uma versão anterior deste alvo instalava em ~/dwnvr-test, que
+# binário solto - uma versão anterior deste alvo instalava em ~/dwnvr-test, que
 # há muito não é a instalação de verdade. O efeito era pior que não fazer nada:
 # o deploy terminava com sucesso e o container seguia com a versão antiga.
 #
@@ -90,7 +90,7 @@ run-pi:
 	@sleep 20
 	@ssh $(PI) 'docker ps --filter name=dwnvr --format "{{.Status}}"'
 	# A prova de que o deploy pegou: se o Pi responder outra versão, o
-	# container subiu com a imagem antiga — que é o modo como este alvo já
+	# container subiu com a imagem antiga - que é o modo como este alvo já
 	# falhou em silêncio uma vez.
 	@echo "esperado: $(VERSION)"
 	@ssh $(PI) 'curl -sf localhost:8080/api/version' || echo "não respondeu"

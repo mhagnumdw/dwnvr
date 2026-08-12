@@ -1,6 +1,6 @@
 # Configuração de infraestrutura do dwnvr.
 #
-# Este arquivo é editado à mão e NUNCA é reescrito pela aplicação — seus
+# Este arquivo é editado à mão e NUNCA é reescrito pela aplicação - seus
 # comentários estão seguros. A lista de câmeras fica em cameras.json, ao lado
 # deste arquivo, porque é ela que a tela de cadastro precisa gravar.
 
@@ -20,8 +20,8 @@ storage:
 
   # Rede de segurança global. Quando o disco livre cai abaixo disto, o dwnvr
   # evicta as gravações mais antigas de TODAS as câmeras, ignorando as cotas
-  # individuais. Existe porque a soma das cotas erra fácil — cada câmera tem
-  # uma taxa diferente — e encher o disco é pior que perder gravação antiga.
+  # individuais. Existe porque a soma das cotas erra fácil - cada câmera tem
+  # uma taxa diferente - e encher o disco é pior que perder gravação antiga.
   minFreeMB: 2048
 
 # Aplicados a qualquer câmera que não defina o campo.
@@ -54,7 +54,7 @@ defaults:
   # Não é firula: quando um produtor RTSP do go2rtc morre, ele para de escrever
   # SEM fechar a resposta HTTP. Sem este limiar a câmera para de gravar em
   # silêncio, sem erro e sem log, até alguém reparar. Fechar a conexão também é
-  # o que recupera — o go2rtc derruba o produtor morto quando o último
+  # o que recupera - o go2rtc derruba o produtor morto quando o último
   # consumidor sai e abre uma sessão RTSP nova na reconexão.
   #
   # Aumente num enlace ruim; não pode ser 0, que seria desligar a proteção.

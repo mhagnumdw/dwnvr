@@ -13,7 +13,7 @@
   // ninguém consegue distinguir, e cada uma custa um decode.
   const MAX_TILES = 40;
 
-  // Uma janela contígua de 40 segmentos em torno do instante atual — e não uma
+  // Uma janela contígua de 40 segmentos em torno do instante atual - e não uma
   // amostragem espaçada do dia. Um dia real tem ~2300 segmentos de ~33s, então
   // este é o caminho que roda sempre; a lista inteira só aparece numa câmera
   // recém-instalada. A janela desliza junto com currentMs, o que deixa o
@@ -40,7 +40,7 @@
   });
 
   // Depois de um seek pela timeline, a janela é refatiada em torno do novo
-  // instante e o tile ativo cai no índice 20 — a uns 2280px do início, muito
+  // instante e o tile ativo cai no índice 20 - a uns 2280px do início, muito
   // além da parte visível. A tira ficava então sem nenhum destaque à vista, sem
   // dar nem indício de para que lado rolar.
   $effect(() => {
@@ -72,7 +72,7 @@
 
     // Quem limita é o navegador: scrollLeft é fracionário e scrollWidth vem
     // arredondado, então um limite calculado aqui erra a ponta por uma fração de
-    // pixel — e a tira prenderia a rolagem da página para sempre no fim.
+    // pixel - e a tira prenderia a rolagem da página para sempre no fim.
     const before = el.scrollLeft;
     el.scrollLeft = before + step;
     if (el.scrollLeft === before) return; // já na ponta: devolve a rolagem à página
@@ -100,7 +100,7 @@
             }}
           ></canvas>
         {:else}
-          <span class="fail">—</span>
+          <span class="fail">-</span>
         {/if}
       {/await}
       <span class="time mono">{hhmm(t)}</span>
