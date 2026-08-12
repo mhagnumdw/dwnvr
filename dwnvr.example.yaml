@@ -27,8 +27,13 @@ storage:
 # Aplicados a qualquer câmera que não defina o campo.
 defaults:
   # Duração alvo do segmento. O corte real acontece no primeiro keyframe depois
-  # deste tempo, então com GOP de 4s um alvo de 60s vira ~60-64s na prática.
-  segmentSeconds: 60
+  # deste tempo, então com GOP de 4s um alvo de 30s vira ~30-34s na prática.
+  #
+  # Segmento aberto ainda não está no índice: este número é o teto do que se
+  # perde numa queda de energia. Também é o tamanho do arquivo que o player
+  # baixa inteiro a cada seek. Aumentar troca essas duas coisas por menos
+  # arquivos em disco.
+  segmentSeconds: 30
 
   # Cota em disco por câmera. Ao estourar, os segmentos mais antigos daquela
   # câmera são apagados (ring buffer). A tela de cadastro traduz este número

@@ -42,7 +42,7 @@
       enabled: true,
       audio: 'none',
       quotaMB: 10240,
-      segmentSeconds: 60,
+      segmentSeconds: 30,
       maxDays: 0,
       _novo: true,
       _hasAudio: s?.hasAudio ?? false,
