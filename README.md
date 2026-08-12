@@ -1,6 +1,6 @@
-<img src="web/public/favicon.svg" alt="" width="72" />
-
 # dwnvr
+
+![Logo](web/public/favicon.svg)
 
 NVR de gravação contínua para hardware modesto. Feito para rodar num Orange Pi
 Zero 3 (4 cores Cortex-A53, 1,5 GB RAM) gravando 9 câmeras 24/7.
