@@ -121,7 +121,7 @@ func defaults() Config {
 			MinFreeMB: 2048,
 		},
 		Defaults: Defaults{
-			SegmentSeconds: 60,
+			SegmentSeconds: 30,
 			QuotaMB:        10240,
 			Audio:          AudioNone,
 			StallSeconds:   DefaultStallSeconds,
