@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
 	"github.com/mhagnumdw/dwnvr/internal/config"
@@ -21,13 +22,17 @@ type Server struct {
 	mgr    *recorder.Manager
 	log    *slog.Logger
 	secret []byte
+	// Quando este processo subiu. É a referência do uptime da aplicação, que a
+	// tela de diagnóstico compara com o da máquina para distinguir "só o dwnvr
+	// reiniciou" de "o Pi reiniciou".
+	startedAt time.Time
 }
 
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 	mgr *recorder.Manager, secret []byte, log *slog.Logger) *Server {
 
 	return &Server{cfg: cfg, store: st, client: client, mgr: mgr,
-		secret: secret, log: log}
+		secret: secret, log: log, startedAt: time.Now()}
 }
 
 // knownCamera evita que um ID arbitrário vindo da URL vire caminho no disco.
@@ -190,6 +195,16 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 			"belowMin":   free < s.cfg.Storage.MinFreeMB<<20,
 		}
 	}
+
+	// Segundos, e não um instante ISO: o relógio do navegador e o do Pi não são
+	// o mesmo, e uma diferença de fuso ou de NTP viraria um "no ar há 3 horas"
+	// falso. Duração já calculada aqui não tem como ser mal interpretada lá.
+	up := map[string]any{"appSeconds": int64(time.Since(s.startedAt).Seconds())}
+	if d, ok := machineUptime(); ok {
+		up["machineSeconds"] = int64(d.Seconds())
+	}
+	resp["uptime"] = up
+
 	writeJSON(w, resp)
 }
 

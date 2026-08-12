@@ -26,6 +26,9 @@ export const cameras = $state({
 export const health = $state({
   cameras: [],
   disk: null,
+  // { appSeconds, machineSeconds }. Fica nulo contra servidor antigo, que não
+  // responde o campo — a faixa de estado simplesmente não aparece.
+  uptime: null,
   updatedAt: 0,
 });
 
@@ -66,6 +69,7 @@ export async function logout() {
   cameras.error = null;
   health.cameras = [];
   health.disk = null;
+  health.uptime = null;
   health.updatedAt = 0;
 }
 
@@ -102,6 +106,7 @@ export async function loadHealth() {
     const data = await api.health();
     health.cameras = data.cameras ?? [];
     health.disk = data.disk ?? null;
+    health.uptime = data.uptime ?? null;
     health.updatedAt = Date.now();
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.
