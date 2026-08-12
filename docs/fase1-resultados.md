@@ -1,4 +1,4 @@
-# Fase 1 — resultados
+# Fase 1 - resultados
 
 Recorder, índice e retenção validados no Orange Pi Zero 3 (`servidor.local`) com
 as 9 câmeras reais gravando em `/mnt/storage/dwnvr` (disco USB), 08/08/2026.
@@ -34,7 +34,7 @@ O binário ARM64 estático tem 6,0 MB.
 
 ### Recuperação de queda, em detalhe
 
-Depois do `kill -9`: 17 arquivos contra 16 linhas de índice — um órfão de
+Depois do `kill -9`: 17 arquivos contra 16 linhas de índice - um órfão de
 **786.432 bytes**, exatamente 3× o buffer de escrita de 256 KB. A cauda ainda
 bufferizada se perdeu, como esperado.
 
@@ -55,13 +55,13 @@ Nenhum dos dois apareceria em teste local.
 
 **1. A trava de montagem estava semanticamente errada.** Eu verificava se
 `storage.root` era um ponto de montagem, mas a configuração natural é
-`/mnt/storage/dwnvr` — um subdiretório do mount `/mnt/storage`. A checagem
+`/mnt/storage/dwnvr` - um subdiretório do mount `/mnt/storage`. A checagem
 reprovava justamente o caso mais comum. Passou a comparar o sistema de arquivos
 do destino com o da raiz, que é o que a trava realmente quer dizer: "não grave
 no disco do sistema". Renomeada para `requireSeparateDisk`.
 
 **2. Permissões inconsistentes.** `os.CreateTemp` cria com `0600`, então o init
-saía `600` enquanto os segmentos saíam `644` — e, pior, o índice **nascia**
+saía `600` enquanto os segmentos saíam `644` - e, pior, o índice **nascia**
 `0644` no append e **caía** para `0600` na primeira evicção, uma mudança
 silenciosa no meio da vida do arquivo. Isso morderia em Docker com UID
 diferente. Corrigido com `Chmod` explícito antes do rename, e travado por teste
@@ -82,14 +82,14 @@ A qualidade dos testes foi conferida por mutação: desativar o teste de
 
 ## Áudio FLAC
 
-Exercitado ponta a ponta na `cam_jardim` — ver [audio-flac.md](audio-flac.md).
+Exercitado ponta a ponta na `cam_jardim` - ver [audio-flac.md](audio-flac.md).
 Resumo: **+0,65% de um core, zero processos ffmpeg, mas +34% de armazenamento**,
 porque o FLAC é sem perdas e o A-law precisa ser expandido para 16 bits antes de
 ser comprimido.
 
 O recorder detectou sozinho que o init mudou (duas trilhas em vez de uma) e
 abriu uma nova geração, `e38cb0530c62` contra `4edbc50d8e70`, com o init
-crescendo de 737 para 1192 bytes — exatamente o comportamento que o hash de
+crescendo de 737 para 1192 bytes - exatamente o comportamento que o hash de
 conteúdo deveria produzir, sem nenhum código específico para isso.
 
 ## Reconexão, verificada por acidente

@@ -17,7 +17,7 @@ if len(sps) == 0 {
 
 Nas câmeras Yoosee o `FmtpLine` **não** traz os parameter sets, então
 `GetParameterSet` devolve vazio e o go2rtc escreve o **SPS embutido no próprio
-código** dentro do `hvcC`. Esse SPS descreve 2560x1440 — daí a resolução errada
+código** dentro do `hvcC`. Esse SPS descreve 2560x1440 - daí a resolução errada
 que aparece no `ffprobe`.
 
 Confirmado byte a byte: a sequência hardcoded do go2rtc está presente,
@@ -38,20 +38,20 @@ que a decodificação sai certa apesar do container mentir.
 | Framerate | 10 fps (o `onvif1` é 15 fps) |
 
 E o teste que fecha o caso: mudar a resolução da câmera **não mudou o hash do
-init** — porque o init nunca conteve o SPS real, só o dummy, que é o mesmo
+init** - porque o init nunca conteve o SPS real, só o dummy, que é o mesmo
 sempre.
 
-## Consequência 1 — `hev1` é obrigatório, não cosmético
+## Consequência 1 - `hev1` é obrigatório, não cosmético
 
 O 4CC da sample entry é `hev1`, que permite parameter sets in-band. `hvc1`
 afirma o oposto: que eles estão **apenas** na sample entry.
 
 Como aqui a sample entry contém dummies, **converter `hev1` para `hvc1`
-quebraria a reprodução**. A ideia de trocar esse 4CC para agradar o Safari — que
-aceita `hvc1` e não `hev1` — está descartada para estas câmeras. Quem precisar
+quebraria a reprodução**. A ideia de trocar esse 4CC para agradar o Safari - que
+aceita `hvc1` e não `hev1` - está descartada para estas câmeras. Quem precisar
 de Safari terá que resolver por outro caminho.
 
-## Consequência 2 — o hash do init não detecta troca de codec em H265
+## Consequência 2 - o hash do init não detecta troca de codec em H265
 
 O `Gen` do índice é o hash do init. Para H264 isso funciona: a `cam_lateral1`
 trocou de `onvif1` para `onvif2` e abriu uma geração nova (`ead03cc7ac5a` →
@@ -62,7 +62,7 @@ Para H265 o mecanismo é cego: como o init é sempre o mesmo dummy, a
 `cam_portao` manteve `4edbc50d8e70` ao mudar de 1080p para 640x360.
 
 **Isso não quebra a reprodução**, porque o decoder usa os parameter sets
-in-band — verificado decodificando de verdade um segmento de 640x360 gravado
+in-band - verificado decodificando de verdade um segmento de 640x360 gravado
 com o init dummy. O efeito é que, para H265, `Gen` não significa "mesma
 configuração de codec"; significa apenas "mesmo conjunto de trilhas".
 
@@ -72,7 +72,7 @@ Players seguem o in-band e costumam lidar bem, mas é um caso a testar quando a
 exportação for implementada.
 
 Detectar a troca de verdade exigiria comparar os parameter sets in-band, ou
-seja, percorrer NAL units dentro dos samples — trabalho real que não se paga
+seja, percorrer NAL units dentro dos samples - trabalho real que não se paga
 agora, já que a reprodução não é afetada.
 
 ## Não confundir com perda de dados

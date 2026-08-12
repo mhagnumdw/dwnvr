@@ -59,7 +59,7 @@
     <p class="error small">{error}</p>
   </form>
 
-  <!-- Antes de entrar já dá para saber qual dwnvr é este — útil quando há um
+  <!-- Antes de entrar já dá para saber qual dwnvr é este - útil quando há um
        de teste e um de verdade na mesma rede. -->
   {#if build.version}
     <p class="muted small ver">{build.version}</p>
@@ -72,7 +72,7 @@
     place-items: center;
     /* align-content, e não só place-items: com duas linhas, place-items
        centraliza cada uma DENTRO da sua faixa, e as faixas esticam para
-       preencher a tela — o que jogaria a versão para o meio do vazio. */
+       preencher a tela - o que jogaria a versão para o meio do vazio. */
     align-content: center;
     gap: 16px;
     min-height: 100dvh;

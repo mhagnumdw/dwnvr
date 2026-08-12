@@ -1,4 +1,4 @@
-# Fase 2 — API HTTP
+# Fase 2 - API HTTP
 
 Validada no Orange Pi Zero 3 com as 9 câmeras gravando, 08/08/2026.
 
@@ -40,7 +40,7 @@ GET  /api/live/*                   proxy para o go2rtc
 ### 1. `medias` do go2rtc é lista de strings, não de objetos
 
 Eu havia modelado `medias` como `[]struct{Kind, Direction string}`. O go2rtc
-devolve `["video, recvonly, H265", "audio, recvonly, PCMA/16000"]` — texto no
+devolve `["video, recvonly, H265", "audio, recvonly, PCMA/16000"]` - texto no
 formato SDP. O decode falhava inteiro e a descoberta de streams ficava vazia.
 
 A degradação graciosa salvou a tela: a lista de câmeras cadastradas continuou
@@ -49,7 +49,7 @@ que usa uma resposta real do go2rtc como fixture.
 
 ### 2. A duração indexada omitia o último frame
 
-`DurMs` guardava o DTS do último frame, não o fim do segmento — faltava somar a
+`DurMs` guardava o DTS do último frame, não o fim do segmento - faltava somar a
 duração desse frame. Consequência na exportação: cada segmento era posicionado
 exatamente **em cima** do último frame do anterior.
 
@@ -66,8 +66,8 @@ mas rende 0-2 avisos por segmento, não centenas.
 ### 3. Segmentos se sobrepunham no tempo de parede
 
 O início do segmento vem do relógio de parede e a duração vem do relógio de
-mídia. Os dois derivam com o jitter da rede — medido em **±1,1s num segmento de
-30s** —, e quando a mídia adiantava, o segmento novo começava *antes* de o
+mídia. Os dois derivam com o jitter da rede - medido em **±1,1s num segmento de
+30s** -, e quando a mídia adiantava, o segmento novo começava *antes* de o
 anterior terminar. No MSE o trecho sobreposto é sobrescrito, ou seja, perde-se
 gravação.
 
@@ -95,7 +95,7 @@ buracos de até 39s. Investigando o log: o go2rtc devolveu **HTTP 500** por ~40s
 para essa câmera e para a `cam_frente`. O backoff subiu 1s→2s→4s→8s e reconectou
 sozinho.
 
-Ou seja, os buracos eram **reais** e a timeline estava certa ao mostrá-los — que
+Ou seja, os buracos eram **reais** e a timeline estava certa ao mostrá-los - que
 é exatamente para isso que ela existe. No mesmo período, `cam_frente` e
 `cam_quintal` estabilizadas mostraram uma única faixa contínua.
 

@@ -1,4 +1,4 @@
-# TODO — mostrar o tempo EFETIVO gravado por câmera
+# TODO - mostrar o tempo EFETIVO gravado por câmera
 
 Levantado em 12/08/2026, ao acrescentar a coluna "retido" no Diagnóstico e o chip
 correspondente na tela de Câmeras.
@@ -23,15 +23,15 @@ dia.
 ## Por que não foi feito agora
 
 `DaySummary` (`internal/store/store.go:65`) guarda `Day`, `Count`, `Bytes`,
-`FirstMs` e `LastMs` — nenhuma soma de duração. Obtê-la hoje custa `LoadDay()` em
+`FirstMs` e `LastMs` - nenhuma soma de duração. Obtê-la hoje custa `LoadDay()` em
 cada dia: ~30 arquivos de índice lidos do disco **por câmera**, vezes 9 câmeras,
-a cada leitura do `/api/health` — que a tela de Diagnóstico faz **de 3 em 3
+a cada leitura do `/api/health` - que a tela de Diagnóstico faz **de 3 em 3
 segundos** e a de Câmeras de 5 em 5. Num Pi isso é I/O contínuo para um número
 que muda uma vez por segmento.
 
 ## Opções, da melhor para a pior
 
-### A. Acumular `DurMs` no `DaySummary` — recomendada
+### A. Acumular `DurMs` no `DaySummary` - recomendada
 
 Acrescentar `DurMs int64` ao `DaySummary` e somá-lo em `mergeLocked`
 (`store.go:225`). A leitura passa a ser O(1), igual ao `TotalBytes`.
@@ -39,22 +39,22 @@ Acrescentar `DurMs int64` ao `DaySummary` e somá-lo em `mergeLocked`
 **O ponto que torna esta opção barata:** `mergeLocked` é o funil único por onde
 todo resumo se forma. Os três caminhos que alteram o índice já passam por ele:
 
-- `Append` (`store.go:191`) — segmento novo;
-- `Scan` (`store.go:404`) — reconstrução no boot, que já lê os índices inteiros,
+- `Append` (`store.go:191`) - segmento novo;
+- `Scan` (`store.go:404`) - reconstrução no boot, que já lê os índices inteiros,
   então a soma sai de graça e sem I/O adicional nenhum;
-- `recount` (`store.go:645`) — pós-evicção; apaga o resumo do dia e remerge tudo,
+- `recount` (`store.go:645`) - pós-evicção; apaga o resumo do dia e remerge tudo,
   ou seja, se corrige sozinho.
 
 `DropDay` remove o resumo inteiro e não precisa de nada.
 
 Isso significa **um campo e uma linha** (`s.DurMs += e.DurMs`), sem um único
-ponto de atualização novo a esquecer — que era o risco que faria esta opção cara.
+ponto de atualização novo a esquecer - que era o risco que faria esta opção cara.
 
 Custo de memória: 8 bytes por dia-câmera, ~270 resumos na instalação de 9
 câmeras com 30 dias. Irrelevante.
 
 Depois disso, expor como `RecordedMs` no `recorder.Status` ao lado do
-`OldestSegmentAt`, e na tela ou como coluna própria ou — melhor — como o `title`
+`OldestSegmentAt`, e na tela ou como coluna própria ou - melhor - como o `title`
 do "retido", no formato "9 dias 4h gravados de 12 dias 6h".
 
 Vale um teste que compare o acumulado contra a soma obtida por `LoadDay`, para
@@ -62,14 +62,14 @@ que uma alteração futura no índice não faça os dois divergirem em silêncio
 
 Estimativa: ~30 linhas somando store, recorder e web, mais o teste.
 
-### B. Aproximar por `Count × segmentSeconds` — zero estado novo
+### B. Aproximar por `Count × segmentSeconds` - zero estado novo
 
 `Count` já está no resumo e `segmentSeconds` é configuração da câmera. Sai de
 graça, hoje, sem tocar no store.
 
 O problema é que erra justamente onde a medida importa: o corte real é por
 keyframe e nunca bate a duração alvo, e todo segmento interrompido por
-reconexão é mais curto. Numa câmera instável — a que mais interessa medir — a
+reconexão é mais curto. Numa câmera instável - a que mais interessa medir - a
 aproximação infla o número e esconde o buraco que se queria enxergar.
 
 Serve como paliativo se em algum momento se quiser a informação **hoje**, com um
@@ -86,7 +86,7 @@ como alternativa considerada e descartada.
 
 ## Vale a pena?
 
-**Provavelmente sim, e mais do que parecia** — a descoberta do funil único em
+**Provavelmente sim, e mais do que parecia** - a descoberta do funil único em
 `mergeLocked` derruba o custo da opção A para perto de nada. O que segura é só a
 prioridade: a profundidade já responde a pergunta que se fazia no dia a dia
 ("até quando consigo voltar?").

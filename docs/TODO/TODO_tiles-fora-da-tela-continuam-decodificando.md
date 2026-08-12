@@ -1,10 +1,10 @@
-# TODO — tiles fora da tela continuam decodificando
+# TODO - tiles fora da tela continuam decodificando
 
 Levantado em 11/08/2026, enquanto se implementava o modo "encaixar" da tela ao
 vivo. Não quebra nada: gasta bateria e CPU do aparelho de quem está olhando.
 
 **Status: não implementado, por decisão.** A entrega do dia deu o modo encaixar,
-em que todos os tiles cabem na janela e portanto estão todos visíveis — ali o
+em que todos os tiles cabem na janela e portanto estão todos visíveis - ali o
 problema não existe. Ele sobra nos modos de coluna fixa, que é onde a grade pode
 ficar mais alta que a tela.
 
@@ -19,7 +19,7 @@ this.visibilityThreshold = 0;
 ```
 
 `visibilityCheck` trata a **aba** em segundo plano e funciona (é o que explica o
-player parado que já nos confundiu antes — ver a nota sobre `document.hidden`).
+player parado que já nos confundiu antes - ver a nota sobre `document.hidden`).
 Já `visibilityThreshold = 0` **desliga** o IntersectionObserver: com zero, nenhum
 grau de invisibilidade dentro da página faz o componente desconectar. O efeito é
 que uma câmera rolada para fora da tela segue com a conexão aberta e o quadro
@@ -29,7 +29,7 @@ sendo decodificado.
 
 Com 9 câmeras selecionadas em `1×` num celular, as 9 decodificam enquanto só uma
 aparece. O aviso `⚠ N streams simultâneos` na barra existe justamente porque a
-decodificação é do aparelho, não do Pi — e nesse caso o custo é pago sem nenhum
+decodificação é do aparelho, não do Pi - e nesse caso o custo é pago sem nenhum
 benefício.
 
 ## O que seria preciso

@@ -59,7 +59,7 @@ export const api = {
       { method: 'DELETE' },
     ),
 
-  // Serve tanto câmera cadastrada quanto câmera já removida — no segundo caso é
+  // Serve tanto câmera cadastrada quanto câmera já removida - no segundo caso é
   // o único jeito de alcançar o material, que some do resto da API.
   deleteRecordings: (cam) =>
     request('rec?cam=' + encodeURIComponent(cam), { method: 'DELETE' }),

@@ -1,8 +1,8 @@
 // Estado global, com runes do Svelte 5.
 //
 // É pouca coisa de propósito: quase tudo nesta aplicação é estado local de
-// tela. O que vive aqui é o que várias telas precisam enxergar — sessão, lista
-// de câmeras e saúde — e que seria desperdício buscar de novo a cada navegação.
+// tela. O que vive aqui é o que várias telas precisam enxergar - sessão, lista
+// de câmeras e saúde - e que seria desperdício buscar de novo a cada navegação.
 
 import { api } from './api.js';
 
@@ -27,7 +27,7 @@ export const health = $state({
   cameras: [],
   disk: null,
   // { appSeconds, machineSeconds }. Fica nulo contra servidor antigo, que não
-  // responde o campo — a faixa de estado simplesmente não aparece.
+  // responde o campo - a faixa de estado simplesmente não aparece.
   uptime: null,
   updatedAt: 0,
 });
@@ -56,7 +56,7 @@ export async function logout() {
     await api.logout();
   } catch {
     // Sair é, antes de tudo, local: se a requisição falhar, derrubar a sessão
-    // aqui ainda é o que o usuário pediu — e o cookie assinado expira sozinho.
+    // aqui ainda é o que o usuário pediu - e o cookie assinado expira sozinho.
   }
   session.authenticated = false;
   // Zera o que já foi carregado: sem isto, quem entrar em seguida vê por um
@@ -81,7 +81,7 @@ export async function loadBuild() {
     build.date = b.date ?? '';
   } catch {
     // Versão é informativa: um servidor antigo, sem o endpoint, continua
-    // usável — a interface apenas não mostra nada.
+    // usável - a interface apenas não mostra nada.
   }
 }
 
@@ -114,7 +114,7 @@ export async function loadHealth() {
 }
 
 // pollHealth mantém o diagnóstico vivo enquanto a tela estiver aberta, e para
-// quando ela sai — não faz sentido consultar o Pi de fundo para sempre.
+// quando ela sai - não faz sentido consultar o Pi de fundo para sempre.
 export function pollHealth(intervalMs = 5000) {
   loadHealth();
   const id = setInterval(loadHealth, intervalMs);

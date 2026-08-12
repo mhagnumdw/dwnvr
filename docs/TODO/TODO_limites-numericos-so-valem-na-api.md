@@ -1,11 +1,11 @@
-# TODO — os limites numéricos de câmera só valem no caminho da API
+# TODO - os limites numéricos de câmera só valem no caminho da API
 
 Levantado em 12/08/2026, ao dar piso de 100 MB à cota em disco. Não quebra nada
 hoje: é uma **cobertura desigual** entre as duas portas por onde uma câmera entra
 no dwnvr.
 
 **Status: não implementado, por decisão.** O piso da cota entrou onde ele resolve
-o caso real — a tela e a API. O que segue é o buraco que sobrou.
+o caso real - a tela e a API. O que segue é o buraco que sobrou.
 
 ## As duas portas
 
@@ -20,7 +20,7 @@ só **ID e áudio**. Nenhum dos limites numéricos é checado.
 
 E o `dwnvr.yaml` tem um terceiro conjunto (`config.go:152`, `validate`):
 `storage.root`, `defaults.segmentSeconds`, `defaults.stallSeconds` e
-`defaults.audio` — mas **não** `defaults.quotaMB` nem `defaults.maxDays`.
+`defaults.audio` - mas **não** `defaults.quotaMB` nem `defaults.maxDays`.
 
 ## O que isso causa
 
@@ -33,7 +33,7 @@ parar.
 Um `defaults.quotaMB: 5` no `dwnvr.yaml` faz o mesmo com **todas** as câmeras que
 não têm cota própria, sem passar por validação nenhuma.
 
-Vale reforçar que o `cameras.json` é um arquivo **gerenciado pela API** — o
+Vale reforçar que o `cameras.json` é um arquivo **gerenciado pela API** - o
 cabeçalho do `config.go:6` já diz isso. Editar à mão não é o fluxo previsto, e é
 por isso que isso é um TODO e não um defeito.
 
@@ -45,7 +45,7 @@ da faixa derrubaria as nove câmeras de uma vez. Para um NVR que roda esquecido
 num armário, recusar-se a subir é pior que gravar com uma cota estranha.
 
 Isso empurra a solução para "corrigir e avisar" em vez de "recusar", que é uma
-decisão de comportamento — não uma linha de validação. Não cabia na tarefa do
+decisão de comportamento - não uma linha de validação. Não cabia na tarefa do
 dia.
 
 ## Como implementar, se um dia valer
@@ -56,7 +56,7 @@ dia.
 2. `LoadCameras` chama o clamp e devolve os avisos; o `main.go:73` os loga com
    `log.Warn`, no mesmo lugar onde já avisa "nenhuma câmera cadastrada". Sobe
    sempre.
-3. A API continua **recusando** em vez de corrigir — lá existe alguém na frente
+3. A API continua **recusando** em vez de corrigir - lá existe alguém na frente
    da tela para ler a mensagem, que é justamente o que falta no boot.
 4. Estender o `config.validate()` para `defaults.quotaMB` e `defaults.maxDays`.
    Esse pode recusar mesmo: o `dwnvr.yaml` é escrito por gente, e o arquivo já
@@ -72,5 +72,5 @@ cobre o caminho por onde os valores realmente entram.
 
 O critério para reabrir é um só: **alguém além da tela passou a escrever
 câmera?** Um script de provisionamento, um segundo dwnvr copiando config, um
-backup restaurado à mão — em qualquer um desses o boot vira porta de entrada de
+backup restaurado à mão - em qualquer um desses o boot vira porta de entrada de
 número ruim, e aí o clamp com aviso passa a valer as 40 linhas.

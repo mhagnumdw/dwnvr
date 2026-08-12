@@ -1,4 +1,4 @@
-# Fase 3 — interface
+# Fase 3 - interface
 
 SPA em Svelte 5 + Vite, embutida no binário. Validada contra o Orange Pi Zero 3
 com as 9 câmeras gravando, 08/08/2026.
@@ -18,27 +18,27 @@ biblioteca já custaria ~110 kB gzip, mais que triplicando o aplicativo inteiro.
 
 ## As quatro telas
 
-**Ao vivo** — grade de 1 a 3 colunas (sempre 1 no celular), seleção persistida
+**Ao vivo** - grade de 1 a 3 colunas (sempre 1 no celular), seleção persistida
 em localStorage. Usa o `<video-stream>` do próprio go2rtc, que negocia
 WebRTC/MSE sozinho. Confirmado no Pi: os dois tiles conectaram em modo MSE
 através do proxy do dwnvr, decodificando 1920x1080.
 
-**Gravações** — timeline de 24h em canvas, tira de miniaturas e player MSE.
+**Gravações** - timeline de 24h em canvas, tira de miniaturas e player MSE.
 Verificado: o relógio da interface mostrou 19:58:52 no mesmo instante em que o
 OSD gravado pela câmera mostrava 19:58:52, o que valida o mapeamento de relógio
 de parede ponta a ponta.
 
-**Câmeras** — cadastro a partir dos streams que o go2rtc já serve, com o modo de
+**Câmeras** - cadastro a partir dos streams que o go2rtc já serve, com o modo de
 áudio desabilitado nas câmeras que não entregam trilha de áudio. A cota aparece
 sempre acompanhada da retenção estimada na taxa medida.
 
-**Diagnóstico** — medidor de disco separando o que é do dwnvr do que é de
+**Diagnóstico** - medidor de disco separando o que é do dwnvr do que é de
 terceiros, totais (9 conectadas, 4,52 Mbps, 45,5 GB/dia) e uma lista de avisos
 que explica problemas antes de virarem mistério.
 
 ## Miniaturas sem custo no Pi
 
-Cada miniatura é o init mais o primeiro fragmento do segmento — um MP4 de um
+Cada miniatura é o init mais o primeiro fragmento do segmento - um MP4 de um
 frame recortado do que já está gravado. Quem decodifica é o navegador, via
 WebCodecs, com `<video>` oculto como alternativa.
 
@@ -69,7 +69,7 @@ o que a tela grande permite.
 
 - navegação inferior no celular (alcance do polegar), superior no desktop
 - alvos de toque de no mínimo 44 px
-- grade ao vivo travada em uma coluna abaixo de 640 px — dois vídeos lado a lado
+- grade ao vivo travada em uma coluna abaixo de 640 px - dois vídeos lado a lado
   num telefone não mostram nada útil de nenhum dos dois
 - formulário de cadastro sobe como folha a partir da base, respeitando
   `env(safe-area-inset-bottom)`
@@ -91,14 +91,14 @@ uma hora.
 
 **O live mostrava barra de progresso.** O componente do go2rtc cria o `<video>`
 com `controls=true`, o que numa grade ao vivo exibe uma linha do tempo que não
-existe — e ainda aparecia em umas câmeras e não em outras, conforme o modo
+existe - e ainda aparecia em umas câmeras e não em outras, conforme o modo
 negociado. Desligado, com duplo clique para tela cheia no lugar.
 
 ## Nota sobre o build versionado
 
 `go:embed` exige que os arquivos existam em tempo de compilação, então
 `internal/api/dist` é versionado. Isso faz `go build ./...` funcionar num clone
-limpo sem Node instalado — o que importa quando o alvo é um dispositivo onde
+limpo sem Node instalado - o que importa quando o alvo é um dispositivo onde
 ninguém quer instalar toolchain de frontend.
 
 Ao alterar `web/`, é preciso rodar `npm run build` antes de commitar.

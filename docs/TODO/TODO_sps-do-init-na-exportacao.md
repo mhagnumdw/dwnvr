@@ -1,4 +1,4 @@
-# TODO — corrigir o SPS falso do init na exportação
+# TODO - corrigir o SPS falso do init na exportação
 
 Investigado em 09/08/2026 no servidor, com as 9 câmeras em produção.
 
@@ -41,7 +41,7 @@ gravado. Uma primeira passada com `ffprobe` deu a `cam_lateral1` como correta.
 
 Dentro de cada init, o `stsd` e o SPS do `hvcC`/`avcC` **concordam entre si**. A
 mentira é coerente, não um campo solto. E os gens são compartilhados entre
-câmeras — `4edbc50d8e70` é byte a byte idêntico em cozinha/frente/fundo/portao/
+câmeras - `4edbc50d8e70` é byte a byte idêntico em cozinha/frente/fundo/portao/
 quintal, `e38cb0530c62` em cozinha/jardim (as duas com flac), `ead03cc7ac5a` em
 lateral1/lateral2/porta. O init é função de (codec, áudio) e de mais nada.
 
@@ -63,7 +63,7 @@ e ainda deixa o init se contradizendo. **É cirurgia de caixa ou nada.**
 - Todo MP4 exportado das 6 câmeras afetadas declara uma resolução falsa. Se a
   exportação existe para entregar clipe a terceiro, o arquivo entregue mente
   sobre si mesmo.
-- **`-c copy` propaga a mentira** — recortar um trecho, que é a coisa mais comum
+- **`-c copy` propaga a mentira** - recortar um trecho, que é a coisa mais comum
   de se fazer com um arquivo exportado. Só no HEVC: no AVC o ffmpeg reconstrói o
   `avcC` a partir do in-band e se autocorrige.
 - Editor que monta a timeline pelas dimensões do container abre projeto 1440p
@@ -90,7 +90,7 @@ e ainda deixa o init se contradizendo. **É cirurgia de caixa ou nada.**
 
 ## Como implementar, se um dia valer
 
-Corrigir **na gravação**, não na saída — supondo que as gravações antigas sejam
+Corrigir **na gravação**, não na saída - supondo que as gravações antigas sejam
 descartáveis, o que foi confirmado em 09/08/2026.
 
 1. Mover o `WriteInit` do caso `moov` (`internal/recorder/recorder.go:325`) para

@@ -2,7 +2,7 @@
 //
 // Os segmentos gravados são fMP4 autônomos que começam sempre em t=0, então
 // costurá-los numa linha do tempo contínua é só posicionar cada um com
-// `timestampOffset`. Nada é remuxado nem decodificado fora do navegador — o Pi
+// `timestampOffset`. Nada é remuxado nem decodificado fora do navegador - o Pi
 // só entrega bytes.
 //
 // A referência de tempo é o relógio de parede: `base` é o instante real que
@@ -117,7 +117,7 @@ export class Player {
   // Chegou ao fim do que dava para bufferizar antes de uma troca de trilhas: a
   // reprodução continua recomeçando o MediaSource a partir dali. Custa um
   // rebuffer curto, num ponto que só existe quando alguém liga ou desliga o
-  // áudio de uma câmera — em troca, a gravação inteira fica navegável.
+  // áudio de uma câmera - em troca, a gravação inteira fica navegável.
   #crossBoundary() {
     if (this.#boundary === null) return false;
     // Só cruza quando não há mesmo mais nada à frente: um `waiting` no meio do
@@ -281,7 +281,7 @@ export class Player {
         if (this.#initAppended !== g) {
           // Mas a geração nova pode mudar as TRILHAS, não só o SPS: ligar o
           // áudio de uma câmera no meio do dia acrescenta uma trilha de áudio.
-          // Um SourceBuffer não aceita isso nem com changeType — o Chrome
+          // Um SourceBuffer não aceita isso nem com changeType - o Chrome
           // recusa o append inteiro com "Got unexpected audio track". A única
           // saída é recomeçar o MediaSource, e é o que #boundary agenda.
           //

@@ -14,7 +14,7 @@ export default defineConfig({
     target: 'es2022',
   },
   server: {
-    // No desenvolvimento a API vem do Pi de verdade — assim a tela é
+    // No desenvolvimento a API vem do Pi de verdade - assim a tela é
     // construída contra dados reais desde o primeiro minuto.
     proxy: {
       '/api': {

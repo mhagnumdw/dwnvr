@@ -1,4 +1,4 @@
-# Fase 4 — empacotamento
+# Fase 4 - empacotamento
 
 Imagem Docker multi-arch para `linux/arm64` e `linux/amd64`, validada rodando no
 Orange Pi Zero 3 em 08/08/2026.
@@ -28,7 +28,7 @@ Três coisas precisaram existir antes para que `scratch` fosse viável:
 
 Os dois estágios de build rodam em `$BUILDPLATFORM` e o Go compila cruzado por
 `$TARGETARCH`. Emular ARM para compilar seria ordens de grandeza mais lento, e a
-interface nem depende de arquitetura — é HTML, CSS e JS.
+interface nem depende de arquitetura - é HTML, CSS e JS.
 
 A interface é construída **dentro** da imagem, e não copiada da versão
 versionada, para que a imagem sempre corresponda ao código-fonte que a gerou.
@@ -40,7 +40,7 @@ versionada, para que a imagem sempre corresponda ao código-fonte que a gerou.
 | dwnvr (9 câmeras, container) | **2,82% de 1 core** | **14,1 MB** de 128 MB |
 
 Ligeiramente abaixo do binário nativo (4,0% / 17,1 MB), principalmente porque os
-segmentos passaram de 30 s para 60 s — menos rotações por minuto.
+segmentos passaram de 30 s para 60 s - menos rotações por minuto.
 
 Verificado também: interface servida em 118 ms, 9 câmeras conectadas, índice
 existente carregado sem migração, e exportação com DTS estritamente crescente.
@@ -48,7 +48,7 @@ existente carregado sem migração, e exportação com DTS estritamente crescent
 ## A armadilha do lightNVR, evitada
 
 O compose define `user: "1000:1000"`. Sem isso, o container gravaria como root e
-os arquivos nasceriam de root no disco — que é **exatamente** o que aconteceu
+os arquivos nasceriam de root no disco - que é **exatamente** o que aconteceu
 com o lightNVR neste mesmo Pi e que impediu, no início deste projeto, até criar
 um diretório em `/mnt/storage`.
 
@@ -62,7 +62,7 @@ arquivos de root: 0
 ## Rede
 
 O `firewalld` do Pi bloqueava a porta do binário nativo; o Docker publica portas
-inserindo as próprias regras e passa por fora dele — o mesmo caminho do go2rtc.
+inserindo as próprias regras e passa por fora dele - o mesmo caminho do go2rtc.
 A porta aberta manualmente durante o desenvolvimento deixa de ser necessária.
 
 O container alcança o go2rtc por `host.docker.internal`, mapeado via
@@ -77,17 +77,17 @@ ainda é uma subpasta de `cameras`.
 
 A posição é deliberada. Ela desativa o workflow por **localização**, não por um
 flag que alguém pode esquecer de reverter, e o deixa exatamente no lugar certo
-para quando a pasta virar um repositório independente — momento em que ele passa
+para quando a pasta virar um repositório independente - momento em que ele passa
 a valer sem nenhuma edição, porque já está escrito assumindo o dwnvr como raiz.
 
 Além de testes, `go vet` e `gofmt`, ele confere que **`internal/api/dist`
 corresponde ao código em `web/`**. Essa checagem existe porque esquecer o
 `npm run build` produz um binário que compila e sobe normalmente, mas serve a
-tela antiga — uma falha silenciosa que só apareceria em produção.
+tela antiga - uma falha silenciosa que só apareceria em produção.
 
 A checagem foi verificada por mutação: alterar uma cor no CSS e reconstruir faz
 o `dist` divergir, e a CI reprovaria. (Um primeiro teste com um comentário CSS
-não acusou nada — corretamente, já que o minificador o remove e a saída não
+não acusou nada - corretamente, já que o minificador o remove e a saída não
 muda de fato.)
 
 ## Arquiteturas

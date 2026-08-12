@@ -1,4 +1,4 @@
-# TODO — a retenção não enxerga as gravações de câmeras removidas
+# TODO - a retenção não enxerga as gravações de câmeras removidas
 
 Levantado em 11/08/2026, enquanto se planejava o botão de apagar gravações.
 Não é um defeito que quebra alguma coisa: é uma **inversão de prioridade** que só
@@ -37,7 +37,7 @@ removida no mês passado com 20 GB preservados.
 2. `enforceFreeSpace` acorda, chama `oldestDay()`, que varre as 8 vivas.
 3. Apaga o dia mais antigo de uma câmera **que está no ar**.
 
-A rede de segurança funciona — libera espaço —, mas cobra da fonte errada.
+A rede de segurança funciona - libera espaço -, mas cobra da fonte errada.
 **Perde-se gravação viva enquanto 20 GB de vídeo morto ficam intocados.**
 
 No extremo, com as vivas já drenadas e o disco ainda apertado, cai em
@@ -53,7 +53,7 @@ que é literalmente falso, com 20 GB ali do lado.
 
 `internal/api/server.go:150-161` soma `DiskBytes` só das cadastradas para montar
 `disk.dwnvrBytes`. O espaço órfão não entra nessa conta mas ocupa o disco, então
-na tela de Diagnóstico ele aparece como **consumo de fora do dwnvr** — quem
+na tela de Diagnóstico ele aparece como **consumo de fora do dwnvr** - quem
 investigar vai procurar no Pi um log gigante que não existe.
 
 ## O que **não** é defeito
@@ -61,7 +61,7 @@ investigar vai procurar no Pi um log gigante que não existe.
 Cota por câmera (`enforceQuota`) e `maxDays` (`enforceMaxDays`) ignorarem órfãs
 está certo, e não deve mudar: esses limites são configuração *da* câmera. Câmera
 removida não tem cota. O buraco é só no terceiro limite, que não é sobre
-configuração de câmera — é sobre o disco, e o disco não sabe que a câmera foi
+configuração de câmera - é sobre o disco, e o disco não sabe que a câmera foi
 removida.
 
 ## Três saídas, discutidas na hora
@@ -83,7 +83,7 @@ implícita que o resto do projeto evita de propósito
 (`internal/api/cameras.go`, doc de `handleDeleteCamera`).
 
 A defesa da saída 1 é que ela só age quando a alternativa é apagar gravação viva
-— ou seja, não cria uma destruição nova, só escolhe melhor entre duas que já
+- ou seja, não cria uma destruição nova, só escolhe melhor entre duas que já
 iam acontecer.
 
 ## Como implementar, se um dia valer
@@ -92,18 +92,18 @@ A peça cara já existe: **`store.Orphans(registered)`**
 (`internal/store/store.go`), escrita em 11/08/2026 para a listagem da tela, lê o
 tamanho dos arquivos de índice em vez de fazer walk pelos segmentos.
 
-1. Dar ao `retention.Manager` acesso ao conjunto de IDs cadastrados — ele já
+1. Dar ao `retention.Manager` acesso ao conjunto de IDs cadastrados - ele já
    recebe `cameras func() []config.Camera`, então é só derivar o mapa.
 2. Em `enforceFreeSpace`, antes de `oldestDay()`, tentar
    `s.store.Orphans(...)` e evictar o dia mais antigo entre elas (`DropDay` já
    serve; `Purge` seria grosso demais numa passada de minuto em minuto).
-3. Logar com verbo diferente do caso normal — apagar órfã e apagar câmera viva
+3. Logar com verbo diferente do caso normal - apagar órfã e apagar câmera viva
    não podem sair iguais no journal.
 4. Aproveitar para somar as órfãs em `disk.dwnvrBytes`, ou expor um campo à
    parte, para que a tela de Diagnóstico pare de creditar esse espaço a
    "outros".
 
-Estimativa: ~30 linhas mais um `retention_test.go`, que hoje não existe — o
+Estimativa: ~30 linhas mais um `retention_test.go`, que hoje não existe - o
 pacote não tem teste nenhum, então esse é o custo real escondido.
 
 ## Vale a pena?
@@ -114,6 +114,6 @@ tamanho e apaga quando quiser.
 
 O critério para reabrir é um só: **o dwnvr precisa se defender de um disco cheio
 sem ninguém olhando?** Se a instalação é vigiada por alguém que abre a tela de
-vez em quando, a listagem basta. Se ela roda esquecida num armário por meses —
-que é o caso de uso de um NVR —, aí a rede de segurança precisa ser de verdade, e
+vez em quando, a listagem basta. Se ela roda esquecida num armário por meses -
+que é o caso de uso de um NVR -, aí a rede de segurança precisa ser de verdade, e
 a saída 1 passa a valer o custo.

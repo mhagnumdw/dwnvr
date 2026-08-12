@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Interface. Roda na arquitetura de quem constrói (BUILDPLATFORM) porque o
-# resultado é HTML, CSS e JS — não depende da arquitetura de destino, e emular
+# resultado é HTML, CSS e JS - não depende da arquitetura de destino, e emular
 # Node em ARM só desperdiçaria minutos.
 FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 WORKDIR /src/web
@@ -27,7 +27,7 @@ COPY . .
 # a imagem sempre corresponde ao código-fonte que a gerou.
 COPY --from=web /src/internal/api/dist ./internal/api/dist
 
-# Identificação do build. Vem de fora porque o .dockerignore exclui o .git/ —
+# Identificação do build. Vem de fora porque o .dockerignore exclui o .git/ -
 # aqui dentro nenhum comando git funcionaria. Declarados só agora, depois dos
 # COPY, para que trocar de versão não invalide as camadas de dependência.
 ARG VERSION=dev
@@ -45,7 +45,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Imagem final: só o binário.
 #
 # FROM scratch é possível porque o binário é estático, a base de fusos horários
-# vai embutida (time/tzdata) e o healthcheck é o próprio binário — não há shell
+# vai embutida (time/tzdata) e o healthcheck é o próprio binário - não há shell
 # nem curl aqui dentro para o Docker chamar.
 FROM scratch
 

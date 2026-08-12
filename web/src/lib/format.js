@@ -50,21 +50,21 @@ export function bytes(n) {
 }
 
 // bytesDeMB existe porque cota e mínimo livre são configurados em MB. Mostrar o
-// número cru deixava "20480 MB" na tela ao lado de um "3,62 GB" — mesma
+// número cru deixava "20480 MB" na tela ao lado de um "3,62 GB" - mesma
 // grandeza, duas unidades, que é justamente o que este arquivo evita.
 export function bytesDeMB(mb) {
   return bytes((mb || 0) * 1024 ** 2);
 }
 
 export function kbps(v) {
-  if (!v) return '—';
+  if (!v) return '-';
   return v >= 1000 ? `${num(v / 1000, 2)} Mbps` : `${num(Math.round(v), 0)} kbps`;
 }
 
 // resolucao mostra o que está sendo gravado de fato, lido do init do stream.
-// Só existe depois da primeira conexão — antes disso não há o que afirmar.
+// Só existe depois da primeira conexão - antes disso não há o que afirmar.
 export function resolucao(w, h) {
-  if (!w || !h) return '—';
+  if (!w || !h) return '-';
   return `${w}×${h}`;
 }
 
@@ -72,11 +72,11 @@ export function resolucao(w, h) {
 // grandeza, a maior e a seguinte.
 //
 // "7h 17min" e não "7,3h" porque a fração decimal de hora obriga quem lê a
-// converter de cabeça — e essas durações são lidas no meio de um diagnóstico,
+// converter de cabeça - e essas durações são lidas no meio de um diagnóstico,
 // onde ninguém quer fazer conta. A unidade menor some quando é zero, para não
 // deixar "7h 0min" na tela.
 export function duracao(ms) {
-  if (!ms || ms < 0) return '—';
+  if (!ms || ms < 0) return '-';
   const s = Math.round(ms / 1000);
   if (s < 60) return `${s}s`;
 
@@ -97,7 +97,7 @@ export function duracao(ms) {
 // dias converte a estimativa de retenção em algo compreensível. "20 GB" não
 // diz nada a ninguém; "≈ 2,4 dias" diz tudo.
 export function dias(n) {
-  if (!n || n <= 0) return '—';
+  if (!n || n <= 0) return '-';
   // Cotas pequenas (ou taxas altas) dão frações de hora; arredondar tudo para
   // horas transformaria isso em "0h", que não informa nada.
   if (n < 1 / 24) return `${Math.max(1, Math.round(n * 1440))}min`;

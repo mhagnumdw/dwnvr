@@ -1,7 +1,7 @@
 # Áudio: medição do modo FLAC
 
 Medido no Orange Pi Zero 3 em 08/08/2026, com a `cam_jardim` (H265, Yoosee).
-Para o teste, o `#media=video` foi removido da fonte no `go2rtc.yaml` — sem
+Para o teste, o `#media=video` foi removido da fonte no `go2rtc.yaml` - sem
 isso o áudio é descartado na origem e nada chega ao dwnvr.
 
 ## Resultado
@@ -29,7 +29,7 @@ processo do próprio go2rtc. A conversão A-law→PCM→FLAC acontece em Go puro
 FLAC é compressão **sem perdas**, e o caminho é
 `A-law (8 bits) → PCM linear (16 bits) → FLAC`. Como o A-law já é uma compressão
 com perdas de 8 bits por amostra, expandi-lo para 16 bits dobra os dados antes
-de o FLAC ter chance de comprimir — e o resultado ficou em ~260 kbps, ou seja,
+de o FLAC ter chance de comprimir - e o resultado ficou em ~260 kbps, ou seja,
 **mais que os 128 kbps do A-law original**.
 
 Ou seja, gravar em FLAC ocupa o dobro do que ocuparia guardar o A-law cru. Só
@@ -48,7 +48,7 @@ A decisão é entre CPU e disco, e depende de qual dos dois é escasso:
 - **`none`** para a maioria das câmeras. Áudio raramente é útil em todas.
 
 Por isso o modo é **por câmera**, e não global: o padrão sensato é `none` em
-tudo e o áudio ligado só onde ele importa — porta e portão, tipicamente.
+tudo e o áudio ligado só onde ele importa - porta e portão, tipicamente.
 
 ## Compatibilidade no navegador
 
@@ -65,6 +65,6 @@ precisar de compatibilidade ampla nos arquivos exportados deve preferir `aac`.
 
 Remover o `#media=video` faz o go2rtc puxar a trilha de áudio da câmera 24/7,
 mesmo que ninguém peça áudio: são ~129 kbps a mais no enlace com a câmera, por
-câmera. Nas instalações em 2,4 GHz — como a que motivou este projeto — isso
+câmera. Nas instalações em 2,4 GHz - como a que motivou este projeto - isso
 disputa airtime com as próprias câmeras e não é desprezível quando multiplicado
 por várias.

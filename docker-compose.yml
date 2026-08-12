@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
 
     # O container grava com este UID. Deixar como root faria os arquivos
-    # nascerem de root no disco — que é justamente o que impede você de
+    # nascerem de root no disco - que é justamente o que impede você de
     # inspecioná-los ou apagá-los depois sem sudo.
     # Descubra o seu com: id -u; id -g
     user: "1000:1000"
