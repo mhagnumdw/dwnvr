@@ -147,6 +147,26 @@
 </script>
 
 <div class="page">
+  <!-- Os dois uptimes ficam lado a lado de propósito: é a comparação entre
+       eles que diagnostica. Iguais, nada reiniciou; só o do dwnvr curto, foi
+       deploy ou queda do processo; os dois curtos, a máquina reiniciou — e aí
+       "reconex. 0" e "não gravou nada desde que o dwnvr subiu", logo abaixo,
+       deixam de ser mistério.
+
+       Some inteira contra servidor antigo, que não responde o campo. -->
+  {#if health.uptime}
+    <div class="card row wrap statusbar small">
+      <span class="dot ok"></span>
+      <span class="muted">dwnvr no ar há</span>
+      <span class="mono">{duracao(health.uptime.appSeconds * 1000)}</span>
+      {#if health.uptime.machineSeconds}
+        <span class="muted">·</span>
+        <span class="muted">máquina há</span>
+        <span class="mono">{duracao(health.uptime.machineSeconds * 1000)}</span>
+      {/if}
+    </div>
+  {/if}
+
   {#if disk}
     <div class="card">
       <div class="row wrap">
@@ -250,7 +270,15 @@
     margin: 0 auto;
   }
 
-  .card { display: grid; gap: 10px; }
+  /* O :not(.row) importa: esta regra é escopada, e escopo no Svelte acrescenta
+     uma classe ao seletor — ou seja, ela ganha do .row global por
+     especificidade. Sem a ressalva, todo card que se declara linha (os totais,
+     o "nenhum problema", a faixa de estado) virava coluna calado. */
+  .card:not(.row) { display: grid; gap: 10px; }
+
+  /* Mais baixa que os outros cards: é contexto de leitura rápida, não deve
+     disputar espaço com o disco logo abaixo. */
+  .statusbar { padding: 8px 12px; }
 
   .meter {
     display: flex;

@@ -68,15 +68,30 @@ export function resolucao(w, h) {
   return `${w}×${h}`;
 }
 
-// duracao formata um intervalo pensando em quem lê: dias e horas importam mais
-// que precisão de segundos quando se fala de retenção.
+// duracao formata um intervalo pensando em quem lê: sempre duas casas de
+// grandeza, a maior e a seguinte.
+//
+// "7h 17min" e não "7,3h" porque a fração decimal de hora obriga quem lê a
+// converter de cabeça — e essas durações são lidas no meio de um diagnóstico,
+// onde ninguém quer fazer conta. A unidade menor some quando é zero, para não
+// deixar "7h 0min" na tela.
 export function duracao(ms) {
   if (!ms || ms < 0) return '—';
-  const s = ms / 1000;
-  if (s < 60) return `${Math.round(s)}s`;
-  if (s < 3600) return `${Math.round(s / 60)}min`;
-  if (s < 86400) return `${num(s / 3600, 1)}h`;
-  return `${num(s / 86400, 1)} dias`;
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+
+  // O arredondamento acontece uma vez só, no minuto, e o resto é montado a
+  // partir dele: arredondar hora e minuto em separado é o que produz "7h 60min".
+  const totalMin = Math.round(s / 60);
+  if (totalMin < 60) return `${totalMin}min`;
+
+  const totalH = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  if (totalH < 24) return min ? `${totalH}h ${min}min` : `${totalH}h`;
+
+  const d = Math.floor(totalH / 24);
+  const h = totalH % 24;
+  return `${d} ${d === 1 ? 'dia' : 'dias'}${h ? ` ${h}h` : ''}`;
 }
 
 // dias converte a estimativa de retenção em algo compreensível. "20 GB" não
