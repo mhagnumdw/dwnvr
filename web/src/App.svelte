@@ -159,7 +159,9 @@
   main {
     /* Espaço para a navegação inferior não cobrir o conteúdo. */
     padding-bottom: var(--nav-h);
-    min-height: 100dvh;
+    /* Ocupa o que sobra da coluna de 100dvh do #app, em vez de pedir a altura
+       cheia da janela e empurrar o documento para além dela. */
+    flex: 1;
   }
 
   nav.bottom {
@@ -219,6 +221,6 @@
     nav.top a.active { color: var(--fg); background: var(--panel-2); }
 
     nav.bottom { display: none; }
-    main { padding-bottom: 0; min-height: 0; }
+    main { padding-bottom: 0; }
   }
 </style>
