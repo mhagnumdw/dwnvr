@@ -67,6 +67,17 @@ type Status struct {
 	LastSegmentAt time.Time `json:"lastSegmentAt,omitzero"`
 	Silent        bool      `json:"silent"`
 
+	// OldestSegmentAt é o começo da gravação mais antiga que a câmera ainda
+	// tem em disco — a retenção REAL, que é outra coisa do que RetainDays logo
+	// abaixo: uma diz o passado que existe, a outra estima o que caberia.
+	//
+	// Vai como instante, e não como dias já calculados, para que a tela possa
+	// escrever tanto "12 dias 4h" quanto "desde 31/07" a partir do mesmo campo.
+	// A divergência de relógio entre o Pi e o navegador, que fez o uptime ser
+	// enviado em segundos, não incomoda aqui: são segundos de erro contra dias
+	// de medida.
+	OldestSegmentAt time.Time `json:"oldestSegmentAt,omitzero"`
+
 	// QuotaMB e Bytes em disco alimentam a estimativa de retenção mostrada na
 	// tela de cadastro ("com esta cota, cabem ~N dias").
 	QuotaMB    int64   `json:"quotaMB"`
@@ -182,6 +193,9 @@ func (r *Recorder) Status() Status {
 	}
 	if r.lastEnd > 0 {
 		st.LastSegmentAt = time.UnixMilli(r.lastEnd)
+	}
+	if oldest := r.idx.OldestMs(); oldest > 0 {
+		st.OldestSegmentAt = time.UnixMilli(oldest)
 	}
 	// Quantos dias a cota comporta na taxa observada. É o número que torna a
 	// cota compreensível: "20 GB" não diz nada, "≈ 2,4 dias" diz tudo.

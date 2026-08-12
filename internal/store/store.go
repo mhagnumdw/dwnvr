@@ -253,6 +253,29 @@ func (c *Camera) Days() []DaySummary {
 	return out
 }
 
+// OldestMs é o início do segmento mais antigo em disco, ou 0 se não há nenhum.
+//
+// É o que a interface usa para dizer há quanto tempo a câmera tem gravação —
+// a retenção real, em oposição à estimativa "cabem N dias na cota".
+//
+// Não é Days()[0].FirstMs porque isto roda a cada leitura do /api/health, de
+// 3 em 3 segundos e para cada câmera: Days() aloca a lista inteira de resumos
+// e a ordena só para que se leia o primeiro item.
+func (c *Camera) OldestMs() int64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var oldest int64
+	for _, s := range c.days {
+		// FirstMs zerado seria um resumo sem segmento algum, que não deve
+		// existir — mas se existisse, puxaria o mínimo para zero e apagaria a
+		// informação de todas as outras.
+		if s.FirstMs > 0 && (oldest == 0 || s.FirstMs < oldest) {
+			oldest = s.FirstMs
+		}
+	}
+	return oldest
+}
+
 // TotalBytes é quanto a câmera ocupa em disco, segundo o índice.
 func (c *Camera) TotalBytes() int64 {
 	c.mu.RLock()

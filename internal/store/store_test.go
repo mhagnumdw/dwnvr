@@ -100,6 +100,37 @@ func TestScanReconstroiResumos(t *testing.T) {
 	}
 }
 
+func TestOldestMs(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+
+	if got := c.OldestMs(); got != 0 {
+		t.Errorf("câmera sem gravação devia dar 0, veio %d", got)
+	}
+
+	// Dias fora de ordem: o mapa de resumos não tem ordem nenhuma, e o mais
+	// antigo tem que sair do menor FirstMs, não do primeiro que a iteração vir.
+	for _, d := range []int{2, 0, 1} {
+		e := entryAt(base.AddDate(0, 0, d), 60_000, 1_000_000)
+		if err := c.Append(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, want := c.OldestMs(), base.UnixMilli(); got != want {
+		t.Errorf("OldestMs=%d, esperava %d", got, want)
+	}
+
+	// Um segmento anterior dentro do dia que já é o mais antigo: o mínimo é
+	// por segmento, não por dia.
+	antes := base.Add(-2 * time.Hour)
+	if err := c.Append(entryAt(antes, 60_000, 1_000_000)); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := c.OldestMs(), antes.UnixMilli(); got != want {
+		t.Errorf("OldestMs=%d após segmento mais cedo, esperava %d", got, want)
+	}
+}
+
 func TestEvictOldest(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
