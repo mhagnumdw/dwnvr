@@ -14,11 +14,16 @@ npm run dev         # desenvolvimento com recarga instantânea
 ```
 
 No modo `dev` o Vite faz proxy de `/api` para um dwnvr de verdade, então a tela
-é construída contra dados reais desde o primeiro minuto:
+é construída contra dados reais desde o primeiro minuto. O default é
+`http://localhost:8080`; para apontar a tela para outra instalação:
 
 ```sh
-DWNVR_API=http://servidor.local:8080 npm run dev
+DWNVR_API=http://servidor:8080 npm run dev
 ```
+
+O endereço em uso aparece no arranque do Vite - vale conferir antes de concluir
+que algo está quebrado, porque a tela apontada para o servidor errado tem a
+mesma aparência de uma tela funcionando.
 
 ## Por que `internal/api/dist` é versionado
 
