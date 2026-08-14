@@ -17,11 +17,14 @@
 
   // Roteamento por hash: são quatro telas, e um roteador de verdade custaria
   // mais bytes que o resto do aplicativo junto.
-  let hash = $state(location.hash.slice(1) || 'rec');
-  const route = $derived(ROUTES.find((r) => r.id === hash) ?? ROUTES[1]);
+  const ROTA_PADRAO = 'live';
+  let hash = $state(location.hash.slice(1) || ROTA_PADRAO);
+  const route = $derived(
+    ROUTES.find((r) => r.id === hash) ?? ROUTES.find((r) => r.id === ROTA_PADRAO),
+  );
 
   function onHashChange() {
-    hash = location.hash.slice(1) || 'rec';
+    hash = location.hash.slice(1) || ROTA_PADRAO;
   }
 
   onMount(async () => {
