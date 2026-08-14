@@ -113,9 +113,14 @@ export async function loadHealth() {
   }
 }
 
+// HEALTH_POLL_MS é o único lugar que decide de quanto em quanto tempo a saúde
+// é relida. Todas as telas que mostram status usam o mesmo ritmo, e o texto que
+// anuncia isso ao usuário é derivado daqui - mudar o número aqui basta.
+export const HEALTH_POLL_MS = 5000;
+
 // pollHealth mantém o diagnóstico vivo enquanto a tela estiver aberta, e para
 // quando ela sai - não faz sentido consultar o servidor de fundo para sempre.
-export function pollHealth(intervalMs = 5000) {
+export function pollHealth(intervalMs = HEALTH_POLL_MS) {
   loadHealth();
   const id = setInterval(loadHealth, intervalMs);
   return () => clearInterval(id);
