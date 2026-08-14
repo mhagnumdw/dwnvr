@@ -3,6 +3,13 @@ dwnvr.yaml
 cameras.json
 .session-secret
 
+# Configuração local do go2rtc. Versionado só o .example: o arquivo real leva
+# as URLs RTSP das câmeras, com usuário e senha embutidos.
+go2rtc.yaml
+
+# Gravações geradas pelo teste local (ver "Subir para um teste rápido")
+/storage/
+
 # Binários
 /dwnvr
 /dwnvr-*

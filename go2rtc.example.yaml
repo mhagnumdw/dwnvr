@@ -1,0 +1,34 @@
+# Configuração do go2rtc - a fonte dos streams que o dwnvr grava.
+#
+# Este arquivo é SEU. O dwnvr nunca o escreve: ele só lê a lista de streams
+# pela API do go2rtc e grava o que você tiver publicado aqui.
+#
+# Copie para go2rtc.yaml, que é o nome que o docker-compose.yml monta.
+
+streams:
+  # Fonte sintética, para experimentar o dwnvr sem ter câmera nenhuma.
+  # O ffmpeg desenha uma carta de teste com relógio, e o go2rtc a entrega como
+  # H264 - do ponto de vista do dwnvr é indistinguível de uma câmera de verdade.
+  # Verificado: 1280x720, ~25 fps, keyframe a cada 2s.
+  # O ffmpeg já vem na imagem alexxit/go2rtc; não é preciso instalar nada.
+  cam_teste: ffmpeg:virtual?video=testsrc&size=720#video=h264
+
+  # Uma câmera real. Duas linhas porque quase toda câmera publica dois streams,
+  # e é isso que permite escolher a resolução POR CÂMERA na tela de cadastro do
+  # dwnvr: alta para gravar o portão, baixa para gravar o corredor.
+  #
+  # cam_portao: rtsp://usuario:senha@192.168.0.50:554/onvif1
+  # cam_portao_baixa: rtsp://usuario:senha@192.168.0.50:554/onvif2
+
+  # ATENÇÃO ao áudio: NÃO acrescente "#media=video" à fonte se quiser gravar
+  # som. Esse filtro descarta o áudio já na origem, e nenhuma configuração do
+  # dwnvr o traz de volta. Ver docs/configuracao.md.
+
+api:
+  listen: ":1984"
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  listen: ":8555"

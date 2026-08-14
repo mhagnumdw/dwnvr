@@ -1,8 +1,10 @@
-# Exemplo de instalação do dwnvr.
+# Exemplo de instalação do dwnvr, com o go2rtc junto para você subir tudo de
+# uma vez.
 #
-# O go2rtc NÃO faz parte deste compose de propósito: configurá-lo é
-# responsabilidade de quem instala, e acoplar os dois recriaria exatamente a
-# dificuldade que motivou este projeto.
+# O go2rtc está aqui por conveniência, mas continua fora do escopo do dwnvr: o
+# conteúdo do go2rtc.yaml - câmeras, URLs RTSP, codecs - é responsabilidade de
+# quem instala. Se você já tem um go2rtc rodando em outro lugar, apague o
+# serviço lá embaixo e veja a nota em extra_hosts.
 
 services:
   dwnvr:
@@ -11,6 +13,7 @@ services:
     # build: .
     container_name: dwnvr
     restart: unless-stopped
+    depends_on: [go2rtc]
 
     # O container grava com este UID. Deixar como root faria os arquivos
     # nascerem de root no disco - que é justamente o que impede você de
@@ -32,11 +35,14 @@ services:
       # As gravações. Aponte para o disco de verdade, não para o cartão SD.
       - /mnt/storage/dwnvr:/storage
 
-    # O dwnvr fala com o go2rtc pela rede do host. Se o go2rtc estiver em outro
-    # compose, ou use network_mode: host, ou coloque os dois na mesma rede e
-    # aponte go2rtc.url para o nome do serviço.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # Com o go2rtc neste mesmo compose, o dwnvr o alcança pelo nome do serviço:
+    # basta que o dwnvr.yaml tenha go2rtc.url: http://go2rtc:1984
+    #
+    # Se o go2rtc estiver fora daqui - outro compose, ou direto no host -,
+    # apague o serviço abaixo, descomente estas linhas e aponte a url para
+    # http://host.docker.internal:1984
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
 
     # Teto de memória como rede de segurança. O consumo medido com 9 câmeras é
     # de ~20 MB; 128M é folga larga e ainda protege o resto do sistema.
@@ -44,3 +50,20 @@ services:
       resources:
         limits:
           memory: 128M
+
+  # Fonte dos streams. O dwnvr só consome o que este serviço já produz.
+  go2rtc:
+    image: alexxit/go2rtc
+    container_name: go2rtc
+    restart: unless-stopped
+    shm_size: 128mb
+
+    # As suas câmeras moram aqui. Este arquivo é seu; o dwnvr não o escreve.
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml
+
+    ports:
+      - "1984:1984"      # API e interface web do go2rtc
+      - "8554:8554"      # servidor RTSP
+      - "8555:8555/tcp"  # WebRTC, usado pelo player ao vivo
+      - "8555:8555/udp"
