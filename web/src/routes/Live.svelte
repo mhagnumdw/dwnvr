@@ -178,7 +178,7 @@
 
     <span class="spacer"></span>
     {#if selected.size > 4}
-      <span class="chip" title="cada stream é decodificado pelo seu aparelho, não pelo Pi">
+      <span class="chip" title="cada stream é decodificado pelo seu aparelho, não pelo servidor">
         ⚠ {selected.size} streams simultâneos
       </span>
     {/if}

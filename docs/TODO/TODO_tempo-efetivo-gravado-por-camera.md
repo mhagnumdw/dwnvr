@@ -26,8 +26,8 @@ dia.
 `FirstMs` e `LastMs` - nenhuma soma de duração. Obtê-la hoje custa `LoadDay()` em
 cada dia: ~30 arquivos de índice lidos do disco **por câmera**, vezes 9 câmeras,
 a cada leitura do `/api/health` - que a tela de Diagnóstico faz **de 3 em 3
-segundos** e a de Câmeras de 5 em 5. Num Pi isso é I/O contínuo para um número
-que muda uma vez por segmento.
+segundos** e a de Câmeras de 5 em 5. Num hardware modesto isso é I/O contínuo
+para um número que muda uma vez por segmento.
 
 ## Opções, da melhor para a pior
 

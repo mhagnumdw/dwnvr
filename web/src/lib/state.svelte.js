@@ -114,7 +114,7 @@ export async function loadHealth() {
 }
 
 // pollHealth mantém o diagnóstico vivo enquanto a tela estiver aberta, e para
-// quando ela sai - não faz sentido consultar o Pi de fundo para sempre.
+// quando ela sai - não faz sentido consultar o servidor de fundo para sempre.
 export function pollHealth(intervalMs = 5000) {
   loadHealth();
   const id = setInterval(loadHealth, intervalMs);

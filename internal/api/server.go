@@ -24,7 +24,7 @@ type Server struct {
 	secret []byte
 	// Quando este processo subiu. É a referência do uptime da aplicação, que a
 	// tela de diagnóstico compara com o da máquina para distinguir "só o dwnvr
-	// reiniciou" de "o Pi reiniciou".
+	// reiniciou" de "a máquina reiniciou".
 	startedAt time.Time
 }
 
@@ -196,9 +196,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Segundos, e não um instante ISO: o relógio do navegador e o do Pi não são
-	// o mesmo, e uma diferença de fuso ou de NTP viraria um "no ar há 3 horas"
-	// falso. Duração já calculada aqui não tem como ser mal interpretada lá.
+	// Segundos, e não um instante ISO: o relógio do navegador e o do servidor
+	// não são o mesmo, e uma diferença de fuso ou de NTP viraria um "no ar há 3
+	// horas" falso. Duração já calculada aqui não tem como ser mal interpretada
+	// lá.
 	up := map[string]any{"appSeconds": int64(time.Since(s.startedAt).Seconds())}
 	if d, ok := machineUptime(); ok {
 		up["machineSeconds"] = int64(d.Seconds())
@@ -249,7 +250,7 @@ func logRequests(log *slog.Logger, next http.Handler) http.Handler {
 		sw := &statusWriter{ResponseWriter: w, code: http.StatusOK}
 		next.ServeHTTP(sw, r)
 		// Só o que deu errado vira log: com uma timeline pedindo centenas de
-		// segmentos, registrar tudo afogaria o journal do Pi.
+		// segmentos, registrar tudo afogaria o journal do servidor.
 		if sw.code >= 400 {
 			log.Warn("requisição recusada", "status", sw.code,
 				"metodo", r.Method, "caminho", r.URL.Path, "de", r.RemoteAddr)

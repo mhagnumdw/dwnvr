@@ -28,9 +28,9 @@ caixas de ~150 linhas, sem ffmpeg e sem cgo. Concretamente, o go2rtc entrega:
 Cortar segmento vira, literalmente, ler um bit de flag.
 
 > **cgo** é o mecanismo que permite a um programa Go chamar bibliotecas
-> escritas em C. Evitá-lo é o que mantém o binário estático de ~3 MB, sem
+> escritas em C. Evitá-lo é o que mantém o binário estático de ~7,6 MB, sem
 > depender de nenhuma biblioteca do sistema, e o que faz a compilação cruzada
-> para o ARM do Orange Pi ser um `GOARCH=arm64 go build` e nada mais.
+> para ARM ser um `GOARCH=arm64 go build` e nada mais.
 
 > Um MP4 é feito de **caixas** (*boxes*), cada uma com um tamanho e um nome de
 > 4 letras. As que importam aqui:

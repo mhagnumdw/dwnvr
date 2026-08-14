@@ -1,8 +1,8 @@
 // Decodificação das miniaturas da timeline.
 //
 // Cada miniatura é um MP4 de UM frame - o init mais o primeiro fragmento do
-// segmento, recortados do que já está gravado. O Pi não decodifica nada: quem
-// transforma isso em imagem é o navegador, com aceleração de hardware.
+// segmento, recortados do que já está gravado. O servidor não decodifica nada:
+// quem transforma isso em imagem é o navegador, com aceleração de hardware.
 //
 // O caminho preferido é WebCodecs, que decodifica o keyframe direto. Onde ele
 // não existir, um <video> escondido faz o mesmo trabalho.

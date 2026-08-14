@@ -128,7 +128,8 @@ a { color: var(--accent); }
   color: var(--dim);
 }
 
-/* Barras de rolagem discretas, que no Pi via Wi-Fi já são detalhe suficiente. */
+/* Barras de rolagem discretas: numa interface servida por Wi-Fi já são
+   detalhe suficiente. */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb {
   background: var(--line);

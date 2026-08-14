@@ -29,8 +29,8 @@ sendo decodificado.
 
 Com 9 câmeras selecionadas em `1×` num celular, as 9 decodificam enquanto só uma
 aparece. O aviso `⚠ N streams simultâneos` na barra existe justamente porque a
-decodificação é do aparelho, não do Pi - e nesse caso o custo é pago sem nenhum
-benefício.
+decodificação é do aparelho, não do servidor - e nesse caso o custo é pago sem
+nenhum benefício.
 
 ## O que seria preciso
 

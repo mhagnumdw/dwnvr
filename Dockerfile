@@ -57,8 +57,9 @@ COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 VOLUME ["/etc/dwnvr", "/storage"]
 EXPOSE 8080
 
-# Sem RTC no Orange Pi Zero 3 e sem /usr/share/zoneinfo aqui, TZ é a única
-# forma de o dwnvr saber a que dia local um segmento pertence.
+# Numa imagem scratch não há /usr/share/zoneinfo; a base de fusos vai embutida
+# no binário (time/tzdata) e TZ é a única forma de o dwnvr saber a que dia
+# local um segmento pertence.
 ENV TZ=UTC
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
