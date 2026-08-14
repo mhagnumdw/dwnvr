@@ -1,6 +1,6 @@
 # TODO - corrigir o SPS falso do init na exportação
 
-Investigado em 09/08/2026 no servidor, com as 9 câmeras em produção.
+Investigado em 09/08/2026 na instalação real, com as 9 câmeras em produção.
 
 Fecha a pergunta que `docs/go2rtc-h265-parameter-sets.md` deixou em aberto na
 linha "é um caso a testar quando a exportação for implementada". A causa raiz

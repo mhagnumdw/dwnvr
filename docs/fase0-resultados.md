@@ -1,7 +1,7 @@
 # Fase 0 - resultados dos testes de viabilidade
 
-Medições feitas em 08/08/2026 contra o Orange Pi Zero 3 (`servidor.local`,
-Armbian 6.12.58 sunxi64, 4 cores Cortex-A53, 1471 MB RAM) com as 9 câmeras reais.
+Medições feitas em 08/08/2026 contra o Orange Pi Zero 3 (Armbian 6.12.58
+sunxi64, 4 cores Cortex-A53, 1471 MB RAM) com as 9 câmeras reais.
 
 Antes de existir projeto, dois programas descartáveis responderam às duas
 perguntas que decidiam o desenho: gravar o fMP4 do go2rtc sem decodificar cabia
