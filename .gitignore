@@ -7,6 +7,9 @@ cameras.json
 # as URLs RTSP das câmeras, com usuário e senha embutidos.
 go2rtc.yaml
 
+# Configuração de build da máquina de quem desenvolve (ver local.mk.example)
+local.mk
+
 # Gravações geradas pelo teste local (ver "Subir para um teste rápido")
 /storage/
 

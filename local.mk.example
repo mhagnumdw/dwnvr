@@ -1,0 +1,15 @@
+# Configuração da máquina de quem desenvolve. Copie para local.mk, que não é
+# versionado:
+#
+#     cp local.mk.example local.mk
+#
+# O Makefile o inclui sozinho quando existe, então `make deploy` funciona sem
+# argumentos. Passar a variável na linha de comando continua valendo e tem
+# precedência sobre o que estiver aqui.
+
+# Servidor onde o dwnvr roda como container. Sem isto, `make deploy` para com
+# uma mensagem em vez de tentar um ssh para lugar nenhum.
+DEPLOY_HOST ?= usuario@servidor.local
+
+# Diretório do docker-compose.yml no servidor. O default do Makefile já é este.
+DEPLOY_DIR  ?= ~/dwnvr-docker

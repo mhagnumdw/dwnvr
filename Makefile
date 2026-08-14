@@ -5,6 +5,13 @@
 # compila e sobe normalmente, mas serve a tela antiga - um erro silencioso que
 # este arquivo existe para evitar.
 
+# Configuração da máquina de quem desenvolve (DEPLOY_HOST, DEPLOY_DIR, ...).
+# O hífen do -include faz o make seguir em silêncio quando o arquivo não
+# existe, que é o caso de um clone recém-feito. Como as variáveis abaixo usam
+# ?=, o que vier daqui vence o default, e o que for passado na linha de comando
+# vence os dois. Veja local.mk.example.
+-include local.mk
+
 IMAGE    ?= ghcr.io/mhagnumdw/dwnvr
 # git describe dá o hash curto enquanto não houver tag e passa a dar a tag
 # sozinho quando houver - nada aqui muda no dia do primeiro release.
@@ -81,9 +88,14 @@ image-push:
 #
 # A tag dwnvr:arm64 é acordo com o docker-compose.yml que vive em $(DEPLOY_DIR),
 # no servidor: mudá-la aqui faz o compose subir a imagem antiga em silêncio.
-DEPLOY_HOST ?= usuario@servidor.local
+#
+# DEPLOY_HOST não tem default de propósito: qualquer valor aqui seria o servidor
+# de outra pessoa, e um ssh para um host que não existe é justo o tipo de falha
+# silenciosa que o resto deste alvo tenta evitar. Defina no local.mk.
+DEPLOY_HOST ?=
 DEPLOY_DIR  ?= ~/dwnvr-docker
 deploy:
+	@test -n "$(DEPLOY_HOST)" || { echo "defina DEPLOY_HOST no local.mk (veja local.mk.example) ou passe na linha de comando: make deploy DEPLOY_HOST=usuario@servidor"; exit 1; }
 	# --provenance/--sbom desligados de propósito: com eles o buildx exporta uma
 	# manifest list, e o `docker load` do outro lado não engole manifest list.
 	docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
