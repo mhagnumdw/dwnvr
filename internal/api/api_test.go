@@ -223,7 +223,7 @@ func TestDeleteRecordingsMantemOCadastro(t *testing.T) {
 	}
 }
 
-// O material de uma câmera já removida só é alcançável por aqui — e o ID, que
+// O material de uma câmera já removida só é alcançável por aqui - e o ID, que
 // não passa mais pelo knownCamera, é conferido contra os diretórios que existem
 // de fato.
 func TestDeleteRecordingsDeCameraRemovida(t *testing.T) {
@@ -392,7 +392,7 @@ func TestRequireAuth(t *testing.T) {
 
 // O favicon é um SVG com um comentário em cima, e comentário XML não admite
 // hífen duplo. Citar ali dentro o nome de uma variável CSS torna o arquivo
-// malformado — e o sintoma é cruel: o servidor devolve 200, com content-type e
+// malformado - e o sintoma é cruel: o servidor devolve 200, com content-type e
 // tamanho certos, e o navegador simplesmente não desenha nada. Foi assim que
 // uma versão quebrada chegou a rodar em produção sem que nenhuma verificação
 // de deploy reclamasse. Este teste é a porta que faltava.

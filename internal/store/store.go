@@ -59,8 +59,8 @@ func (e Entry) EndMs() int64 { return e.StartMs + e.DurMs }
 // Day devolve o dia (hora local) ao qual o segmento pertence.
 func (e Entry) Day() string { return time.UnixMilli(e.StartMs).Format(DayLayout) }
 
-// DaySummary é o que fica em memória por dia. Manter só isto — em vez da lista
-// completa de segmentos — é o que segura o uso de RAM: são ~270 resumos para 9
+// DaySummary é o que fica em memória por dia. Manter só isto - em vez da lista
+// completa de segmentos - é o que segura o uso de RAM: são ~270 resumos para 9
 // câmeras com 30 dias, contra ~390 mil entradas se tudo ficasse carregado.
 type DaySummary struct {
 	Day     string `json:"day"`
@@ -111,7 +111,7 @@ func (s *Store) Camera(id string) *Camera {
 
 // Forget tira a câmera do mapa em memória.
 //
-// Sem isto, todo ID já consultado ficaria no Store para sempre — inclusive o de
+// Sem isto, todo ID já consultado ficaria no Store para sempre - inclusive o de
 // uma câmera que acabou de ser removida e ter as gravações apagadas, que
 // continuaria respondendo como um índice vazio.
 func (s *Store) Forget(id string) {
@@ -256,7 +256,7 @@ func (c *Camera) Days() []DaySummary {
 
 // OldestMs é o início do segmento mais antigo em disco, ou 0 se não há nenhum.
 //
-// É o que a interface usa para dizer há quanto tempo a câmera tem gravação —
+// É o que a interface usa para dizer há quanto tempo a câmera tem gravação -
 // a retenção real, em oposição à estimativa "cabem N dias na cota".
 //
 // Não é Days()[0].FirstMs porque isto roda a cada leitura do /api/health, de
@@ -268,7 +268,7 @@ func (c *Camera) OldestMs() int64 {
 	var oldest int64
 	for _, s := range c.days {
 		// FirstMs zerado seria um resumo sem segmento algum, que não deve
-		// existir — mas se existisse, puxaria o mínimo para zero e apagaria a
+		// existir - mas se existisse, puxaria o mínimo para zero e apagaria a
 		// informação de todas as outras.
 		if s.FirstMs > 0 && (oldest == 0 || s.FirstMs < oldest) {
 			oldest = s.FirstMs
@@ -521,7 +521,7 @@ func (c *Camera) DropDay(day string) (freed int64, err error) {
 //
 // É a única remoção que leva o diretório `init/` junto. A retenção nunca o
 // toca, porque um init é minúsculo e serve a vários dias de segmentos ao mesmo
-// tempo — mas quando não sobra segmento nenhum, ele também não tem mais razão de
+// tempo - mas quando não sobra segmento nenhum, ele também não tem mais razão de
 // existir.
 //
 // O total devolvido sai do índice, não de um walk pelo filesystem: é a mesma
@@ -592,8 +592,8 @@ func (c *Camera) EvictOldest(want int64) (freed int64, err error) {
 }
 
 // rewrite regrava o índice de um dia de forma atômica. Os arquivos de índice
-// são pequenos (~100 KB por dia), então reescrever sai mais barato — e é mais
-// simples de acertar — que manter marcas de remoção.
+// são pequenos (~100 KB por dia), então reescrever sai mais barato - e é mais
+// simples de acertar - que manter marcas de remoção.
 func (c *Camera) rewrite(day string, entries []Entry) error {
 	if len(entries) == 0 {
 		err := os.Remove(c.IndexPath(day))
@@ -631,7 +631,7 @@ func (c *Camera) rewrite(day string, entries []Entry) error {
 		return err
 	}
 	// Sem isto o índice, criado com 0644 pelo Append, cairia para 0600 na
-	// primeira evicção — uma mudança silenciosa de permissão no meio da vida
+	// primeira evicção - uma mudança silenciosa de permissão no meio da vida
 	// do arquivo.
 	if err := tmp.Chmod(0o644); err != nil {
 		tmp.Close()
@@ -671,7 +671,7 @@ type OrphanInfo struct {
 // cadastrada, e a retenção só percorre as cadastradas. Sem esta varredura ele
 // ocuparia disco sem aparecer em lugar nenhum.
 //
-// O tamanho sai dos arquivos de índice — algumas dezenas por câmera — e não de
+// O tamanho sai dos arquivos de índice - algumas dezenas por câmera - e não de
 // um walk sobre os segmentos, que seriam dezenas de milhares. É também a mesma
 // fonte que a cota usa, então os números não divergem entre as telas.
 func (s *Store) Orphans(registered map[string]bool) ([]OrphanInfo, error) {

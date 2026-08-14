@@ -49,7 +49,7 @@ type Fragment struct {
 	// Duration é a soma das durações dos samples, na timescale da trilha.
 	//
 	// Sem ela só se sabe QUANDO o último frame começa, não quando ele termina.
-	// A diferença é um frame — irrelevante para exibir, decisiva para emendar
+	// A diferença é um frame - irrelevante para exibir, decisiva para emendar
 	// segmentos: sem somá-la, o segmento seguinte começa em cima do último
 	// frame do anterior em vez de depois dele, e o DTS regride na emenda.
 	Duration uint64
@@ -165,8 +165,8 @@ func parseTraf(traf []byte, videoTrackID uint32, f *Fragment) error {
 				}
 				off += 4
 			}
-			// Percorre a tabela de samples uma vez, somando durações e — se
-			// ainda não vieram em first_sample_flags — pegando os flags do
+			// Percorre a tabela de samples uma vez, somando durações e - se
+			// ainda não vieram em first_sample_flags - pegando os flags do
 			// primeiro sample, que é quem classifica o fragmento.
 			entrySize := 0
 			for _, f := range []uint32{0x000100, 0x000200, 0x000400, 0x000800} {

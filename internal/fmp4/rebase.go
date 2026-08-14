@@ -12,7 +12,7 @@ import (
 // começaria em t=24s, o terceiro em t=48s e assim por diante: o arquivo abriria,
 // mas anunciaria uma duração que cresce para sempre e um buraco no começo.
 //
-// A caixa mantém tamanho e versão originais — só o valor muda —, então nenhum
+// A caixa mantém tamanho e versão originais - só o valor muda -, então nenhum
 // tamanho de caixa acima precisa ser recalculado.
 func RebaseMoof(moof []byte, bases map[uint32]uint64) error {
 	deltas := make(map[uint32]int64, len(bases))

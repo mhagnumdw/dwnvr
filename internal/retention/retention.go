@@ -3,9 +3,9 @@
 //
 // São três limites, aplicados nesta ordem:
 //
-//  1. cota em MB por câmera — o principal, é o que o usuário configura
-//  2. idade máxima por câmera — opcional, para quem pensa em dias e não em GB
-//  3. disco livre mínimo, global — a rede de segurança
+//  1. cota em MB por câmera - o principal, é o que o usuário configura
+//  2. idade máxima por câmera - opcional, para quem pensa em dias e não em GB
+//  3. disco livre mínimo, global - a rede de segurança
 //
 // O terceiro existe porque a soma das cotas erra fácil: com 9 câmeras cada uma
 // tem uma taxa diferente, e basta o usuário superestimar para o disco encher.

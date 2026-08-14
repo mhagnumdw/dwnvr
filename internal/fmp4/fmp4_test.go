@@ -199,7 +199,7 @@ func TestSPSSize(t *testing.T) {
 }
 
 // Um SPS truncado tem que virar "não sei", nunca um número inventado: a tela
-// mostra "—" e ninguém é enganado.
+// mostra "-" e ninguém é enganado.
 func TestSPSSizeTruncadoNaoInventa(t *testing.T) {
 	for n := 1; n < len(spsH2651080p); n++ {
 		if _, _, ok := SPSSize("hev1", spsH2651080p[:n]); ok {
@@ -263,7 +263,7 @@ func TestParseMoovSemConfigDeCodec(t *testing.T) {
 	}
 }
 
-// FindSPS acha o parameter set no meio dos NALs do fragmento — o caminho que
+// FindSPS acha o parameter set no meio dos NALs do fragmento - o caminho que
 // corrige um init mentiroso.
 func TestFindSPSInband(t *testing.T) {
 	nal := func(b []byte) []byte {
@@ -436,7 +436,7 @@ func TestFragmentDuracaoPeloDefaultDoTfhd(t *testing.T) {
 }
 
 // Emendar dois segmentos usando o FIM do primeiro tem que produzir DTS
-// estritamente crescente — é a invariante que a exportação depende.
+// estritamente crescente - é a invariante que a exportação depende.
 func TestEmendaDeSegmentosNaoRegrideDTS(t *testing.T) {
 	const dur = 6000
 	// Segmento A: frames em 0, 6000, 12000; termina em 18000.
@@ -589,7 +589,7 @@ func TestProbeSegment(t *testing.T) {
 		t.Errorf("Keyframes=%d, esperava 2", info.Keyframes)
 	}
 	// O último frame começa em 90000 (1s) e dura 6000, então o segmento cobre
-	// 96000/90000 = 1,0667s. Reportar 1000 aqui seria omitir o último frame —
+	// 96000/90000 = 1,0667s. Reportar 1000 aqui seria omitir o último frame -
 	// exatamente o erro que fazia a emenda da exportação regredir o DTS.
 	if info.DurationMs != 1066 {
 		t.Errorf("DurationMs=%d, esperava 1066 (fim do último frame, não o início dele)",
@@ -601,7 +601,7 @@ func TestProbeSegment(t *testing.T) {
 }
 
 // O mesmo init tem que produzir sempre a mesma geração, e inits diferentes têm
-// que produzir gerações diferentes — é isso que detecta troca de codec.
+// que produzir gerações diferentes - é isso que detecta troca de codec.
 func TestInitGen(t *testing.T) {
 	a := makeMoov(1, 90000, "hev1", false)
 	b := makeMoov(1, 90000, "avc1", false)

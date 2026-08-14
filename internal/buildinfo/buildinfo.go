@@ -10,7 +10,7 @@ import (
 )
 
 // Preenchidos na ligação, via -ldflags -X, pelo Makefile e pelo Dockerfile.
-// Ficam vazios em qualquer outro caminho de compilação — daí o fallback de Get.
+// Ficam vazios em qualquer outro caminho de compilação - daí o fallback de Get.
 var (
 	Version = ""
 	Commit  = ""

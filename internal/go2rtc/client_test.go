@@ -140,7 +140,7 @@ func TestStreamIgnoraCamposDesconhecidos(t *testing.T) {
 }
 
 // streamMudo devolve um servidor que entrega `prefixo` e depois emudece sem
-// fechar a conexão — exatamente o que o go2rtc faz quando o produtor RTSP morre
+// fechar a conexão - exatamente o que o go2rtc faz quando o produtor RTSP morre
 // e que custou 3h38 de gravação em 09/08/2026.
 func streamMudo(t *testing.T, prefixo string) *httptest.Server {
 	t.Helper()
@@ -232,7 +232,7 @@ func TestOpenStreamCloseAntesDaEstagnacao(t *testing.T) {
 
 // Um go2rtc travado ainda aceita a conexão TCP e nunca responde. Sem
 // ResponseHeaderTimeout isso trava o Do() para sempre, antes de o stallGuard
-// sequer existir — a mesma perda silenciosa, num ponto que o guarda não cobre.
+// sequer existir - a mesma perda silenciosa, num ponto que o guarda não cobre.
 func TestOpenStreamDesisteDeQuemNaoResponde(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done() // aceita e emudece, sem nunca mandar cabeçalho

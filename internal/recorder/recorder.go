@@ -1,5 +1,5 @@
 // Package recorder grava, por câmera, o fMP4 contínuo do go2rtc em segmentos
-// alinhados a keyframe — sem decodificar nem reescrever mídia.
+// alinhados a keyframe - sem decodificar nem reescrever mídia.
 package recorder
 
 import (
@@ -57,19 +57,19 @@ type Status struct {
 	Gen         string    `json:"gen,omitempty"`
 
 	// Width e Height são a resolução que está sendo gravada, lida do init da
-	// própria conexão — não do que a câmera diz que faz. Ficam zeradas enquanto
+	// própria conexão - não do que a câmera diz que faz. Ficam zeradas enquanto
 	// a câmera nunca conectou.
 	Width  uint16 `json:"width,omitempty"`
 	Height uint16 `json:"height,omitempty"`
 
 	// LastSegmentAt e Silent respondem à pergunta que mais importa num NVR:
-	// "esta câmera está gravando AGORA?". Connected não responde — uma conexão
+	// "esta câmera está gravando AGORA?". Connected não responde - uma conexão
 	// pode estar de pé sem produzir um segmento sequer.
 	LastSegmentAt time.Time `json:"lastSegmentAt,omitzero"`
 	Silent        bool      `json:"silent"`
 
 	// OldestSegmentAt é o começo da gravação mais antiga que a câmera ainda
-	// tem em disco — a retenção REAL, que é outra coisa do que RetainDays logo
+	// tem em disco - a retenção REAL, que é outra coisa do que RetainDays logo
 	// abaixo: uma diz o passado que existe, a outra estima o que caberia.
 	//
 	// Vai como instante, e não como dias já calculados, para que a tela possa
@@ -136,7 +136,7 @@ func (r *Recorder) silenceLimitLocked() time.Duration {
 }
 
 // lastActivityLocked é o instante mais recente entre subir, conectar e fechar um
-// segmento — a referência para saber há quanto tempo nada acontece.
+// segmento - a referência para saber há quanto tempo nada acontece.
 func (r *Recorder) lastActivityLocked() time.Time {
 	ref := r.startedAt
 	if r.connectedAt.After(ref) {
@@ -154,7 +154,7 @@ func (r *Recorder) lastActivityLocked() time.Time {
 // volta.
 //
 // É a lacuna que o watchdog sozinho deixa: ele reconecta em silêncio, e em
-// 09/08/2026 nove câmeras pararam às 08:18 sem que nada avisasse — o problema
+// 09/08/2026 nove câmeras pararam às 08:18 sem que nada avisasse - o problema
 // só foi descoberto porque alguém foi olhar. Num NVR, perceber que parou de
 // gravar é a segunda função mais importante depois de gravar.
 func (r *Recorder) checkSilence(now time.Time) {
@@ -203,7 +203,7 @@ func (r *Recorder) Status() Status {
 	//
 	// O piso não é `> 0`: dividir a cota por uma taxa quase nula produz um
 	// número gigante e sem sentido, e nenhum stream de câmera vive abaixo de
-	// 1 kbps. Sem taxa confiável, a estimativa fica zerada — a tela mostra "—"
+	// 1 kbps. Sem taxa confiável, a estimativa fica zerada - a tela mostra "-"
 	// em vez de mentir.
 	if r.bitrateKbps >= minBitrateForEstimate {
 		bytesPerDay := r.bitrateKbps * 1000 / 8 * 86400
@@ -224,7 +224,7 @@ func (r *Recorder) sampleBitrate(now time.Time) {
 		case total == r.sampleBytes:
 			// Nenhum byte na janela inteira: a câmera parou, e a taxa tem que
 			// dizer isso de uma vez. A média exponencial sozinha só se
-			// APROXIMA de zero — depois de 3h38 parada ela marcava 3,7e-126,
+			// APROXIMA de zero - depois de 3h38 parada ela marcava 3,7e-126,
 			// um número que passa por "maior que zero" e fazia a estimativa de
 			// retenção virar 5,4e+128 dias na tela de diagnóstico.
 			r.bitrateKbps = 0
@@ -306,7 +306,7 @@ func (r *Recorder) session(ctx context.Context) error {
 	var pending []byte
 
 	// O SPS in-band é procurado UMA vez por conexão, no fragmento do primeiro
-	// keyframe — que é onde os parameter sets aparecem, sempre antes do IDR.
+	// keyframe - que é onde os parameter sets aparecem, sempre antes do IDR.
 	// Varrer todo mdat custaria 15 varreduras por segundo por câmera para
 	// reencontrar eternamente o mesmo dado.
 	var wantInbandSPS, keyframePending bool
@@ -335,7 +335,7 @@ func (r *Recorder) session(ctx context.Context) error {
 
 			// A geração é o hash do init. Se o SPS mudar depois de uma
 			// reconexão, o hash muda e os segmentos novos passam a apontar
-			// para outro init — sem quebrar a reprodução dos antigos.
+			// para outro init - sem quebrar a reprodução dos antigos.
 			gen := fmp4.InitGen(seg.init)
 			if err := r.idx.WriteInit(gen, seg.init); err != nil {
 				return fmt.Errorf("gravando init: %w", err)
@@ -411,7 +411,7 @@ func (r *Recorder) setResolution(w, h uint16) {
 //
 // Vale mais que o SPS do init porque é o que o decodificador obedece. A câmera
 // da cozinha do primeiro deployment anunciava 2560x1440 no init e transmitia
-// 1920x1080 — sem isto, a tela mostraria com confiança um número que nenhum
+// 1920x1080 - sem isto, a tela mostraria com confiança um número que nenhum
 // frame gravado tem.
 func (r *Recorder) readInbandSPS(vt fmp4.Track, mdat []byte) {
 	sps, ok := fmp4.FindSPS(vt.Codec, fmp4.BoxPayload(mdat), vt.NALLengthSize)
@@ -495,7 +495,7 @@ func (s *segmenter) start(frag fmp4.Fragment) error {
 
 	// O início vem do relógio de parede, mas a duração vem do relógio de mídia
 	// (os timestamps da câmera). Os dois derivam entre si com o jitter da rede
-	// — medido em ±1,1s num segmento de 30s —, e quando a mídia adianta o
+	// - medido em ±1,1s num segmento de 30s -, e quando a mídia adianta o
 	// segmento novo começaria ANTES de o anterior terminar. No MSE isso faz o
 	// trecho sobreposto ser sobrescrito, ou seja, perde-se gravação.
 	//
@@ -552,7 +552,7 @@ func (s *segmenter) write(b []byte) error {
 
 // finish fecha o segmento e só então registra no índice. Essa ordem importa:
 // uma queda entre as duas coisas deixa um arquivo órfão, que a reconciliação do
-// boot reincorpora — enquanto a ordem inversa deixaria o índice apontando para
+// boot reincorpora - enquanto a ordem inversa deixaria o índice apontando para
 // um arquivo que nunca existiu.
 func (s *segmenter) finish() error {
 	if s.f == nil {

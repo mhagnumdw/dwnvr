@@ -15,7 +15,7 @@ const minQuotaMB = 100
 //
 // A ordem importa: primeiro o cameras.json é gravado (de forma atômica), só
 // depois o gerenciador é avisado. Assim uma queda entre as duas coisas deixa a
-// configuração salva e o recorder sobe no próximo boot — enquanto a ordem
+// configuração salva e o recorder sobe no próximo boot - enquanto a ordem
 // inversa faria a gravação começar e sumir sem deixar rastro.
 func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 	var cam config.Camera

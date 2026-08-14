@@ -16,7 +16,7 @@ func mudo() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil))
 // A média exponencial sozinha só se aproxima de zero: em 09/08/2026, depois de
 // 3h38 sem gravar, o /api/health devolvia bitrateKbps=3,7e-126. Como isso ainda
 // é "maior que zero", a estimativa de retenção dividia a cota por ele e
-// publicava 5,4e+128 dias — o diagnóstico mostrava uma câmera morta como se
+// publicava 5,4e+128 dias - o diagnóstico mostrava uma câmera morta como se
 // estivesse saudável.
 func TestBitrateZeraQuandoNaoChegaByte(t *testing.T) {
 	r := &Recorder{}
