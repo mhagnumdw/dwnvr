@@ -45,12 +45,12 @@ segmentos passaram de 30 s para 60 s - menos rotações por minuto.
 Verificado também: interface servida em 118 ms, 9 câmeras conectadas, índice
 existente carregado sem migração, e exportação com DTS estritamente crescente.
 
-## A armadilha do lightNVR, evitada
+## A armadilha dos arquivos de root, evitada
 
 O compose define `user: "1000:1000"`. Sem isso, o container gravaria como root e
-os arquivos nasceriam de root no disco - que é **exatamente** o que aconteceu
-com o lightNVR neste mesmo Pi e que impediu, no início deste projeto, até criar
-um diretório em `/mnt/storage`.
+os arquivos nasceriam de root no disco - que é **exatamente** o que já havia
+acontecido neste mesmo Pi e que impediu, no início deste projeto, até criar um
+diretório em `/mnt/storage`.
 
 Confirmado depois de um minuto gravando em container:
 
