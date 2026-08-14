@@ -122,5 +122,5 @@ borda.
 - `/mnt/storage` (disco USB, 220 GB) pertence ao root e o usuário não tem sudo
   sem senha - as medições foram feitas no cartão SD. Precisa de
   `sudo chown $USER /mnt/storage` (ou um subdiretório) antes da Fase 1.
-- O disco está com **186 GB ocupados por gravações antigas do lightNVR**,
+- O disco está com **186 GB ocupados por gravações antigas de outro NVR**,
   restando 23 GB. A 55,6 GB/dia isso são ~10 horas de gravação.
