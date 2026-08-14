@@ -1,11 +1,11 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { health, pollHealth, cameras, build } from '../lib/state.svelte.js';
+  import { health, pollHealth, HEALTH_POLL_MS, cameras, build } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
   import { bytes, bytesDeMB, kbps, dias, duracao, hhmmss, ddmm } from '../lib/format.js';
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
 
-  const stop = pollHealth(3000);
+  const stop = pollHealth();
   onDestroy(stop);
 
   const disk = $derived(health.disk);
@@ -272,9 +272,9 @@
   </div>
 
   <!-- O separador vai como expressão porque o Svelte apara o espaço no início
-       de um bloco {#if}, e sem isso sai "3s· última leitura". -->
+       de um bloco {#if}, e sem isso sai "5s· última leitura". -->
   <p class="muted small">
-    Atualizado a cada 3s{#if health.updatedAt}{' · '}última leitura há {duracao(Date.now() - health.updatedAt)}{/if}
+    Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(Date.now() - health.updatedAt)}{/if}
   </p>
 
   <!-- Único lugar onde a versão aparece no celular: o header com a marca só

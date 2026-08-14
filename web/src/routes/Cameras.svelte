@@ -1,6 +1,13 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { cameras, loadCameras, loadHealth, health, pollHealth } from '../lib/state.svelte.js';
+  import {
+    cameras,
+    loadCameras,
+    loadHealth,
+    health,
+    pollHealth,
+    HEALTH_POLL_MS,
+  } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
   import { dias, kbps, bytes, bytesDeMB, resolucao, ddmm, duracao } from '../lib/format.js';
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
@@ -20,7 +27,7 @@
     if (!cameras.list.length) loadCameras();
   });
 
-  const stop = pollHealth(5000);
+  const stop = pollHealth();
   onDestroy(stop);
 
   function statusOf(id) {
@@ -275,6 +282,12 @@
       {/each}
     </div>
   {/if}
+
+  <!-- O separador vai como expressão porque o Svelte apara o espaço no início
+       de um bloco {#if}, e sem isso sai "5s· última leitura". -->
+  <p class="muted small">
+    Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(Date.now() - health.updatedAt)}{/if}
+  </p>
 </div>
 
 {#if editing}
