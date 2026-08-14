@@ -20,7 +20,7 @@ import (
 
 	// A base de fusos horários vai embutida no binário. O dwnvr usa hora local
 	// para decidir a que dia um segmento pertence, e numa imagem FROM scratch
-	// não existe /usr/share/zoneinfo — sem isto, TZ seria silenciosamente
+	// não existe /usr/share/zoneinfo - sem isto, TZ seria silenciosamente
 	// ignorado e todos os dias virariam UTC.
 	_ "time/tzdata"
 
@@ -175,7 +175,7 @@ func prepareStorage(log *slog.Logger, cfg *config.Config) error {
 	return nil
 }
 
-// probeSegment reconstrói a entrada de índice de um segmento órfão — gravado
+// probeSegment reconstrói a entrada de índice de um segmento órfão - gravado
 // por completo, mas cuja linha de índice não chegou a ser escrita antes de uma
 // queda.
 func probeSegment(path string) (store.Entry, error) {

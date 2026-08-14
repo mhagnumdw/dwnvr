@@ -55,7 +55,7 @@ func (r *bitReader) ue() uint32 {
 	zeros := 0
 	for !r.err && r.u(1) == 0 {
 		zeros++
-		// Um prefixo maior que isto não é um SPS válido, é lixo — e sem o teto
+		// Um prefixo maior que isto não é um SPS válido, é lixo - e sem o teto
 		// um stream corrompido prenderia o laço até o fim do buffer.
 		if zeros > 32 {
 			r.err = true

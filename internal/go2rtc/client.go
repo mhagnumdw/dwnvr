@@ -2,7 +2,7 @@
 //
 // O dwnvr nunca configura o go2rtc: ele descobre os streams existentes e
 // consome o fMP4 que o go2rtc já sabe produzir. Toda a conversa com as câmeras
-// — RTSP, transporte, credenciais — continua sendo responsabilidade do go2rtc.
+// - RTSP, transporte, credenciais - continua sendo responsabilidade do go2rtc.
 package go2rtc
 
 import (
@@ -37,7 +37,7 @@ func New(cfg config.Go2RTC) *Client {
 		//
 		// ResponseHeaderTimeout cobre um buraco real: um go2rtc travado ainda
 		// aceita a conexão TCP (o kernel aceita por ele) e nunca responde. Sem
-		// isto, Do() bloqueia para sempre — a mesma falha silenciosa que o
+		// isto, Do() bloqueia para sempre - a mesma falha silenciosa que o
 		// guarda evita depois, só que num ponto onde ele ainda não existe.
 		HTTP: &http.Client{
 			Transport: &http.Transport{
@@ -53,7 +53,7 @@ func New(cfg config.Go2RTC) *Client {
 // O modo de áudio vira um filtro de codec, e é por isso que ele pode ser
 // escolhido por câmera sem nenhuma outra mudança no sistema:
 //
-//	none  descarta o áudio na origem — não trafega e não custa nada
+//	none  descarta o áudio na origem - não trafega e não custa nada
 //	flac  o go2rtc converte pcm_alaw→FLAC em Go puro, sem disparar ffmpeg
 //	aac   exige que o go2rtc.yaml tenha uma fonte ffmpeg:cam#audio=aac
 func (c *Client) StreamURL(cam, audio string) string {
@@ -74,7 +74,7 @@ func (c *Client) StreamURL(cam, audio string) string {
 // OpenStream abre o fMP4 contínuo de uma câmera. Quem chama fecha o corpo.
 //
 // O corpo devolvido se fecha sozinho se o go2rtc passar `idle` sem entregar um
-// único byte — ver stallGuard para o porquê.
+// único byte - ver stallGuard para o porquê.
 func (c *Client) OpenStream(ctx context.Context, cam, audio string, idle time.Duration) (io.ReadCloser, error) {
 	if idle <= 0 {
 		idle = config.DefaultStallSeconds * time.Second
@@ -113,7 +113,7 @@ func (c *Client) OpenStream(ctx context.Context, cam, audio string, idle time.Du
 // stallGuard derruba a conexão quando o go2rtc para de mandar bytes sem fechá-la.
 //
 // Existe por causa de uma falha real: os produtores RTSP do go2rtc rodam sobre
-// UDP, e quando o fluxo da câmera para não há erro de socket nenhum — o go2rtc
+// UDP, e quando o fluxo da câmera para não há erro de socket nenhum - o go2rtc
 // simplesmente deixa de escrever, com a resposta HTTP aberta. Do lado de cá o
 // Read bloqueia para sempre, sem erro, sem EOF e sem log: em 09/08/2026 cinco
 // câmeras ficaram 3h38 sem gravar reportando `connected: true`.
@@ -171,13 +171,13 @@ type Producer struct {
 	URL string `json:"url"`
 
 	// Medias vem como texto livre, uma linha por trilha, no formato
-	// "<tipo>, <direção>, <codec>" — por exemplo "audio, recvonly, PCMA/16000".
+	// "<tipo>, <direção>, <codec>" - por exemplo "audio, recvonly, PCMA/16000".
 	// Não é JSON estruturado: é a representação SDP que o go2rtc expõe.
 	Medias []string `json:"medias"`
 }
 
 // Transcoding indica que a fonte é um ffmpeg, ou seja, que há transcodificação
-// acontecendo — informação que vale a pena mostrar no diagnóstico, já que o
+// acontecendo - informação que vale a pena mostrar no diagnóstico, já que o
 // objetivo declarado é não transcodificar vídeo.
 func (p Producer) Transcoding() bool { return strings.HasPrefix(p.URL, "ffmpeg:") }
 

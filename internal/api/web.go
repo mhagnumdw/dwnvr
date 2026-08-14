@@ -12,7 +12,7 @@ import (
 // Embutir mantém a promessa de um binário único: nada de copiar uma pasta de
 // assets na instalação, nada de caminho para configurar. Como o embed exige que
 // os arquivos existam em tempo de compilação, o build da interface é
-// versionado — veja web/README.md.
+// versionado - veja web/README.md.
 //
 //go:embed all:dist
 var dist embed.FS

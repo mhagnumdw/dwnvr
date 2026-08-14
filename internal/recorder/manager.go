@@ -25,7 +25,7 @@ type running struct {
 }
 
 // Manager mantém um recorder por câmera habilitada e permite cadastrar,
-// alterar e remover câmeras sem reiniciar o processo — cadastrar uma câmera e
+// alterar e remover câmeras sem reiniciar o processo - cadastrar uma câmera e
 // ter de reiniciar o serviço para ela começar a gravar seria um jeito ruim de
 // perder gravação.
 type Manager struct {
@@ -148,13 +148,13 @@ func (m *Manager) stop(id string) {
 // É o que permite apagar as gravações de uma câmera que está gravando. Um
 // RemoveAll com o segmento aberto deixaria o writer despejando bytes num inode
 // já desvinculado, e o finish() gravaria no índice uma entrada apontando para
-// arquivo que não existe mais — estrago que só a reconciliação do próximo boot
+// arquivo que não existe mais - estrago que só a reconciliação do próximo boot
 // desfaria. O stop() daqui espera o segmento em aberto ser fechado e indexado
 // antes de fn começar.
 //
 // Ao contrário de Remove, a câmera continua cadastrada o tempo todo: quem
 // consultar /api/health no meio da operação vê uma câmera parada, não uma
-// câmera que sumiu. ID sem cadastro — o caso de uma câmera já removida — só
+// câmera que sumiu. ID sem cadastro - o caso de uma câmera já removida - só
 // executa fn, porque não há recorder algum para parar.
 func (m *Manager) Pause(id string, fn func() error) error {
 	m.mu.RLock()
@@ -229,7 +229,7 @@ func (m *Manager) recorders() []*Recorder {
 }
 
 // Status devolve a saúde de todas as câmeras cadastradas, inclusive as
-// desabilitadas — sumir da tela de diagnóstico é a pior forma de sinalizar que
+// desabilitadas - sumir da tela de diagnóstico é a pior forma de sinalizar que
 // uma câmera parou.
 func (m *Manager) Status() []Status {
 	m.mu.RLock()

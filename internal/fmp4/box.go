@@ -1,6 +1,6 @@
 // Package fmp4 lê a estrutura de caixas de um MP4 fragmentado sem decodificar
 // mídia. O dwnvr nunca toca nos bytes de vídeo: ele só precisa saber onde cada
-// fragmento começa, se carrega um keyframe e qual o tempo de decodificação —
+// fragmento começa, se carrega um keyframe e qual o tempo de decodificação -
 // o suficiente para cortar segmentos e montar um índice.
 package fmp4
 
@@ -30,7 +30,7 @@ func NewReader(r io.Reader) *Reader {
 // cabeçalho incluído.
 //
 // O slice devolvido é reaproveitado entre chamadas: quem chama deve gravá-lo ou
-// copiá-lo antes de chamar NextBox de novo. Isso evita uma alocação por frame —
+// copiá-lo antes de chamar NextBox de novo. Isso evita uma alocação por frame -
 // com 9 câmeras a 15 fps seriam 135 alocações por segundo sem necessidade.
 func (r *Reader) NextBox() (string, []byte, error) {
 	var hdr [16]byte

@@ -33,7 +33,7 @@ const (
 // considerar o stream morto.
 //
 // Quinze segundos é folgado: mesmo uma câmera de 1 fps manda bytes todo
-// segundo. O número não precisa ser justo — precisa ser MUITO menor que as 3h38
+// segundo. O número não precisa ser justo - precisa ser MUITO menor que as 3h38
 // que uma câmera passou parada em silêncio antes disto existir.
 const DefaultStallSeconds = 15
 
@@ -51,7 +51,7 @@ type Server struct {
 	Listen string `yaml:"listen"`
 
 	// Deixar usuário e senha vazios desliga a autenticação. Isso é aceitável
-	// numa rede confiável, e é o padrão para não travar o primeiro uso — mas o
+	// numa rede confiável, e é o padrão para não travar o primeiro uso - mas o
 	// dwnvr avisa no log, porque quem acessa a interface enxerga as gravações
 	// de todas as câmeras.
 	Username string `yaml:"username"`

@@ -67,7 +67,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/session", s.handleSession)
 
 	// Versão fica fora da autenticação pelo mesmo motivo da tela de login:
-	// precisa ser visível antes de entrar. Além disso é a sonda de deploy —
+	// precisa ser visível antes de entrar. Além disso é a sonda de deploy -
 	// um curl responde se o dwnvr subiu com o código novo, sem cookie.
 	mux.HandleFunc("GET /api/version", s.handleVersion)
 
@@ -103,7 +103,7 @@ func (s *Server) requireAuthHandler(h http.Handler) http.Handler {
 // cameraInfo é a câmera como a tela a vê: o cadastro já com os defaults
 // aplicados, mais o diretório onde as gravações dela ficam.
 //
-// O caminho não entra em config.Camera porque não é cadastro — é consequência
+// O caminho não entra em config.Camera porque não é cadastro - é consequência
 // do storage.root do servidor, e um campo lá acabaria gravado no cameras.json
 // como se fosse configurável.
 type cameraInfo struct {
@@ -116,7 +116,7 @@ type cameraInfo struct {
 //
 // Juntar as três coisas numa resposta só é o que permite à tela de cadastro
 // mostrar apenas streams que existem de verdade, em vez de pedir que o usuário
-// digite um nome e descubra o erro depois — e é onde as gravações órfãs voltam a
+// digite um nome e descubra o erro depois - e é onde as gravações órfãs voltam a
 // ser visíveis, já que nenhum outro endpoint enxerga câmera sem cadastro.
 func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	raw := s.mgr.Cameras()
@@ -148,7 +148,7 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	streams, err := s.client.Streams(r.Context())
 	if err != nil {
 		// O go2rtc estar fora do ar não pode impedir a listagem das câmeras já
-		// cadastradas — só a descoberta de novas.
+		// cadastradas - só a descoberta de novas.
 		resp["go2rtcError"] = err.Error()
 		writeJSON(w, resp)
 		return

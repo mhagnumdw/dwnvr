@@ -23,7 +23,7 @@ const gapTolerance = 2000 * time.Millisecond
 // tentaria emendar dezenas de milhares de segmentos numa única resposta.
 const maxExportSpan = 6 * time.Hour
 
-// handleDays lista os dias com gravação — as bolinhas do calendário.
+// handleDays lista os dias com gravação - as bolinhas do calendário.
 func (s *Server) handleDays(w http.ResponseWriter, r *http.Request) {
 	cam, err := s.camParam(r)
 	if err != nil {
@@ -37,7 +37,7 @@ func (s *Server) handleDays(w http.ResponseWriter, r *http.Request) {
 // cadastro dela.
 //
 // Atende os dois lados: a câmera cadastrada, que volta a gravar em seguida do
-// zero, e a câmera já removida, cujo material só é alcançável por aqui — os
+// zero, e a câmera já removida, cujo material só é alcançável por aqui - os
 // demais endpoints de gravação passam por knownCamera e não enxergam ID sem
 // cadastro.
 func (s *Server) handleDeleteRecordings(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +64,7 @@ func (s *Server) handleDeleteRecordings(w http.ResponseWriter, r *http.Request) 
 	// Câmera já removida. Aqui o knownCamera não pode servir de guarda, então o
 	// ID é conferido contra a lista de diretórios que existem de fato: os nomes
 	// vêm de um ReadDir e são sempre um único componente de caminho, o que fecha
-	// travessia de diretório pelo mesmo princípio — existência, não higienização.
+	// travessia de diretório pelo mesmo princípio - existência, não higienização.
 	orphans, err := s.store.Orphans(s.registeredIDs())
 	if err != nil {
 		s.fail(w, "listando gravações órfãs", err)
@@ -175,7 +175,7 @@ func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
 // handleSegment serve os fragmentos de um segmento, PULANDO o init.
 //
 // O init é servido à parte e uma vez só (via EXT-X-MAP ou pelo player), então
-// reenviá-lo a cada segmento seria desperdício — e, no MSE, reanexar o init a
+// reenviá-lo a cada segmento seria desperdício - e, no MSE, reanexar o init a
 // cada append é desnecessário.
 func (s *Server) handleSegment(w http.ResponseWriter, r *http.Request) {
 	cam, entry, err := s.segmentParam(r)
@@ -201,7 +201,7 @@ func (s *Server) handleSegment(w http.ResponseWriter, r *http.Request) {
 // handleThumb devolve init + primeiro fragmento: um MP4 de um frame só.
 //
 // É a miniatura da timeline, e o ponto todo é que o servidor não decodifica
-// nada — ele só recorta bytes que já estão no disco. Quem decodifica é o
+// nada - ele só recorta bytes que já estão no disco. Quem decodifica é o
 // navegador.
 func (s *Server) handleThumb(w http.ResponseWriter, r *http.Request) {
 	cam, entry, err := s.segmentParam(r)
@@ -230,7 +230,7 @@ func (s *Server) handleThumb(w http.ResponseWriter, r *http.Request) {
 // handlePlaylist gera uma playlist HLS VOD do intervalo pedido.
 //
 // O player da interface usa MSE direto, mas a playlist dá compatibilidade
-// imediata com VLC, ffplay e Safari — o que também a torna a ferramenta mais
+// imediata com VLC, ffplay e Safari - o que também a torna a ferramenta mais
 // prática para depurar uma gravação sem abrir o navegador.
 func (s *Server) handlePlaylist(w http.ResponseWriter, r *http.Request) {
 	cam, err := s.camParam(r)
