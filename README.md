@@ -82,9 +82,7 @@ projeto, não uma etapa que faltou.
 
 ```
 ├── cmd/
-│   ├── dwnvr/              o binário: lê a config, sobe um recorder por câmera, serve HTTP
-│   ├── spike/              Fase 0: provou que dá para gravar sem decodificar
-│   └── spike-serve/        Fase 0: provou que dá para tocar no navegador via MSE
+│   └── dwnvr/              o binário: lê a config, sobe um recorder por câmera, serve HTTP
 ├── internal/
 │   ├── api/                servidor HTTP
 │   │   ├── server.go       rotas e o que exige sessão
@@ -140,9 +138,8 @@ próprio go2rtc.
 
 A regra é simples: **cada subdiretório de `cmd/` vira um binário**, e é o único
 lugar onde mora `package main`. O nome do subdiretório é o nome do executável -
-`cmd/dwnvr` produz `dwnvr`. É por isso que aqui existem três pastas mesmo que
-só uma vire produto: `spike` e `spike-serve` são binários próprios, então não
-teriam onde mais ficar.
+`cmd/dwnvr` produz `dwnvr`. Aqui só existe uma pasta porque só existe um
+binário; um segundo executável seria uma pasta irmã, sem reorganizar mais nada.
 
 O que a convenção compra: `main` fica magro - lê configuração, monta as peças e
 sai da frente, com toda a lógica em pacotes testáveis sob `internal/`;
@@ -395,19 +392,19 @@ em [`docs/configuracao.md`](docs/configuracao.md).
 
 ## Estado atual
 
-- [x] **Fase 0** - spikes validando gravação e playback ([resultados](docs/fase0-resultados.md))
+- [x] **Fase 0** - testes de viabilidade de gravação e playback ([resultados](docs/fase0-resultados.md))
 - [x] **Fase 1** - recorder, índice e retenção ([resultados](docs/fase1-resultados.md))
 - [x] **Fase 2** - API HTTP, autenticação, exportação ([resultados](docs/fase2-resultados.md))
 - [x] **Fase 3** - SPA Svelte com as quatro telas ([resultados](docs/fase3-resultados.md))
 - [x] **Fase 4** - Docker multi-arch e empacotamento ([resultados](docs/fase4-resultados.md))
 
-> **Spike** é um programa descartável escrito só para responder uma pergunta
-> antes de comprometer o projeto com ela - aqui, "dá mesmo para gravar o fMP4
-> do go2rtc sem decodificar, dentro do orçamento de CPU e RAM?". Ele não vira
-> produto; serve para transformar uma aposta em fato medido.
-
-`cmd/spike` e `cmd/spike-serve` continuam no repositório porque documentam como
-as premissas foram verificadas.
+> A Fase 0 foi feita com programas descartáveis, escritos só para responder duas
+> perguntas antes de comprometer o projeto com elas: "dá mesmo para gravar o
+> fMP4 do go2rtc sem decodificar, dentro do orçamento de CPU e RAM?" e "dá para
+> tocar esses segmentos no navegador via MSE?". As duas respostas foram sim, e a
+> medição que as sustenta está em
+> [`docs/fase0-resultados.md`](docs/fase0-resultados.md). Os programas não
+> viraram produto e já foram removidos do repositório.
 
 ## Documentação
 

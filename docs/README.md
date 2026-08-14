@@ -23,8 +23,8 @@ Aqui ficam as respostas longas.
 Documentos datados, que registram como cada premissa foi verificada. Não são
 mantidos atualizados: valem como evidência do que foi medido, quando.
 
-- [fase0-resultados.md](fase0-resultados.md) - os spikes que validaram gravação
-  e playback antes de existir projeto
+- [fase0-resultados.md](fase0-resultados.md) - os testes de viabilidade que
+  validaram gravação e playback antes de existir projeto
 - [fase1-resultados.md](fase1-resultados.md) - recorder, índice e retenção
 - [fase2-resultados.md](fase2-resultados.md) - API HTTP
 - [fase3-resultados.md](fase3-resultados.md) - a interface

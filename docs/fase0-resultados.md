@@ -1,7 +1,14 @@
-# Fase 0 - resultados dos spikes
+# Fase 0 - resultados dos testes de viabilidade
 
 Medições feitas em 08/08/2026 contra o Orange Pi Zero 3 (`servidor.local`,
 Armbian 6.12.58 sunxi64, 4 cores Cortex-A53, 1471 MB RAM) com as 9 câmeras reais.
+
+Antes de existir projeto, dois programas descartáveis responderam às duas
+perguntas que decidiam o desenho: gravar o fMP4 do go2rtc sem decodificar cabia
+no orçamento de CPU e RAM, e o navegador tocava os segmentos gravados via MSE.
+As duas respostas foram sim; os programas não viraram produto e não estão mais
+no repositório. O que ficou é a medição abaixo e o código de produção que ela
+justificou.
 
 ## Consumo de recursos - o requisito central
 
@@ -9,7 +16,7 @@ Armbian 6.12.58 sunxi64, 4 cores Cortex-A53, 1471 MB RAM) com as 9 câmeras reai
 
 | Processo | CPU | RSS |
 |---|---|---|
-| dwnvr (spike) | **4,98% de 1 core** (1,2% dos 4) | **16,4 MB** |
+| dwnvr (gravador) | **4,98% de 1 core** (1,2% dos 4) | **16,4 MB** |
 | go2rtc | 16,9% de 1 core | 15,9 MB |
 | **soma** | **~22% de 1 core (5,5% do sistema)** | **~32 MB** |
 
@@ -49,7 +56,7 @@ resolução é o número que dimensiona a retenção.
   é `hev1`; `hev1` funciona no Chrome, **Safari só aceita `hvc1`**)
 - keyframe a cada ~3,9s (GOP 60 @ 15 fps), stream sempre começa em keyframe
 
-### Duas correções que o spike obrigou
+### Duas correções que a medição obrigou
 
 1. **`tfdt` precisa ser reescrito por segmento.** O go2rtc entrega tempo contínuo
    desde o início da conexão, então sem reescrita o 2º segmento começava em
@@ -57,7 +64,7 @@ resolução é o número que dimensiona a retenção.
    um buraco no começo. Resolvido em `internal/fmp4/rebase.go`, que subtrai a
    base no lugar mantendo tamanho e versão da caixa.
 
-2. **Segmento só pode abrir em keyframe.** Já era o desenho, e o spike confirmou:
+2. **Segmento só pode abrir em keyframe.** Já era o desenho, e o teste confirmou:
    depois da correção, todo segmento tem o 1º frame com `key_frame=1` em `pts=0`.
 
 ## Dimensões erradas no container (limitação do go2rtc)
