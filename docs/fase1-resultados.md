@@ -1,7 +1,7 @@
 # Fase 1 - resultados
 
-Recorder, índice e retenção validados no Orange Pi Zero 3 (`servidor.local`) com
-as 9 câmeras reais gravando em `/mnt/storage/dwnvr` (disco USB), 08/08/2026.
+Recorder, índice e retenção validados no Orange Pi Zero 3 com as 9 câmeras
+reais gravando em `/mnt/storage/dwnvr` (disco USB), 08/08/2026.
 
 Configuração do teste: segmentos de 30s e **cota de apenas 30 MB por câmera**,
 deliberadamente pequena para que a retenção agisse em minutos em vez de dias.
