@@ -21,17 +21,18 @@ import (
 )
 
 const (
-	// writeBufSize agrupa as escritas. O destino típico é um disco USB num Pi,
-	// e mandar 15 fragmentos por segundo direto ao disco geraria I/O miúdo
-	// demais para nada.
+	// writeBufSize agrupa as escritas. O destino típico é um disco USB num
+	// servidor modesto, e mandar 15 fragmentos por segundo direto ao disco
+	// geraria I/O miúdo demais para nada.
 	writeBufSize = 256 << 10
 
 	minBackoff = time.Second
 	maxBackoff = 30 * time.Second
 
-	// clockJumpThreshold é o salto de relógio a partir do qual avisamos. O
-	// Orange Pi Zero 3 não tem RTC: sem rede no boot ele começa com uma data
-	// errada e o NTP corrige depois, o que embaralharia o índice em silêncio.
+	// clockJumpThreshold é o salto de relógio a partir do qual avisamos.
+	// Placas SBC baratas costumam não ter RTC: sem rede no boot elas começam
+	// com uma data errada e o NTP corrige depois, o que embaralharia o índice
+	// em silêncio.
 	clockJumpThreshold = 5 * time.Second
 
 	// minBitrateForEstimate é a taxa abaixo da qual a estimativa de retenção
@@ -73,9 +74,9 @@ type Status struct {
 	//
 	// Vai como instante, e não como dias já calculados, para que a tela possa
 	// escrever tanto "12 dias 4h" quanto "desde 31/07" a partir do mesmo campo.
-	// A divergência de relógio entre o Pi e o navegador, que fez o uptime ser
-	// enviado em segundos, não incomoda aqui: são segundos de erro contra dias
-	// de medida.
+	// A divergência de relógio entre o servidor e o navegador, que fez o uptime
+	// ser enviado em segundos, não incomoda aqui: são segundos de erro contra
+	// dias de medida.
 	OldestSegmentAt time.Time `json:"oldestSegmentAt,omitzero"`
 
 	// QuotaMB e Bytes em disco alimentam a estimativa de retenção mostrada na
@@ -501,8 +502,8 @@ func (s *segmenter) start(frag fmp4.Fragment) error {
 	// Ancorar no fim do segmento anterior elimina a sobreposição sem abandonar
 	// o relógio de parede como referência: a correção só age quando há
 	// sobreposição de fato, e o segmento seguinte volta a seguir o relógio
-	// assim que ele alcança. Isso também cobre o salto de relógio para trás do
-	// Orange Pi Zero 3, que não tem RTC.
+	// assim que ele alcança. Isso também cobre o salto de relógio para trás de
+	// servidores sem RTC.
 	if lastEnd := s.rec.lastEndMs(); startMs < lastEnd {
 		if lastEnd-startMs > int64(clockJumpThreshold/time.Millisecond) {
 			s.rec.log.Warn("início do segmento muito antes do fim do anterior",

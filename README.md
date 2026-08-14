@@ -278,10 +278,10 @@ divergir de `web/`.
 |---|---|
 | `make web` | constrói a interface para `internal/api/dist` (precisa de Node) |
 | `make build` | binário para a máquina local |
-| `make arm64` | binário estático para o Orange Pi e qualquer aarch64 Linux |
+| `make arm64` | binário estático para aarch64 Linux (Orange Pi, Raspberry Pi, ...) |
 | `make amd64` | binário estático para x86_64 Linux |
 | `make image` | imagem Docker multi-arch |
-| `make run-pi` | constrói a imagem arm64 e recria o container no Orange Pi via ssh |
+| `make deploy` | constrói a imagem arm64 e recria o container no servidor remoto via ssh |
 
 Como o `internal/api/dist` é versionado, **`go build ./cmd/dwnvr` funciona num
 clone limpo sem Node instalado**. Isso é deliberado: o alvo é um dispositivo

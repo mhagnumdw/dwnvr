@@ -2,9 +2,9 @@
 //
 // Não há banco de dados. O índice é um arquivo NDJSON por câmera por dia,
 // escrito em modo append: cada segmento fechado vira uma linha. Isso dá três
-// coisas que um banco custaria caro num Orange Pi: escrita sequencial barata,
-// recuperação trivial depois de uma queda (basta descartar uma linha parcial)
-// e um formato que dá para inspecionar com `tail`.
+// coisas que um banco custaria caro num hardware modesto: escrita sequencial
+// barata, recuperação trivial depois de uma queda (basta descartar uma linha
+// parcial) e um formato que dá para inspecionar com `tail`.
 //
 // Layout:
 //
@@ -49,7 +49,8 @@ type Entry struct {
 	// e serve o init separado, uma vez só.
 	InitSize int64 `json:"io"`
 	// FirstFrag é o tamanho do primeiro moof+mdat. Init + primeiro fragmento
-	// formam um MP4 de um frame: é a thumbnail, sem decodificar nada no Pi.
+	// formam um MP4 de um frame: é a thumbnail, sem decodificar nada no
+	// servidor.
 	FirstFrag int64 `json:"f0"`
 }
 

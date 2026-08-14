@@ -25,7 +25,7 @@ type SegmentInfo struct {
 	InitSize int64
 	// FirstFragSize é o tamanho do primeiro par moof+mdat. Init +
 	// primeiro fragmento formam um MP4 de um frame só: é assim que o dwnvr
-	// serve thumbnail sem decodificar nada no Pi.
+	// serve thumbnail sem decodificar nada no servidor.
 	FirstFragSize int64
 	// DurationMs é o tempo coberto pelo segmento.
 	DurationMs int64

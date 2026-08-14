@@ -54,7 +54,7 @@ que é literalmente falso, com 20 GB ali do lado.
 `internal/api/server.go:150-161` soma `DiskBytes` só das cadastradas para montar
 `disk.dwnvrBytes`. O espaço órfão não entra nessa conta mas ocupa o disco, então
 na tela de Diagnóstico ele aparece como **consumo de fora do dwnvr** - quem
-investigar vai procurar no Pi um log gigante que não existe.
+investigar vai procurar no servidor um log gigante que não existe.
 
 ## O que **não** é defeito
 

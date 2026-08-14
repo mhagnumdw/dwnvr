@@ -2,8 +2,8 @@
 //
 // Os segmentos gravados são fMP4 autônomos que começam sempre em t=0, então
 // costurá-los numa linha do tempo contínua é só posicionar cada um com
-// `timestampOffset`. Nada é remuxado nem decodificado fora do navegador - o Pi
-// só entrega bytes.
+// `timestampOffset`. Nada é remuxado nem decodificado fora do navegador - o
+// servidor só entrega bytes.
 //
 // A referência de tempo é o relógio de parede: `base` é o instante real que
 // corresponde a currentTime=0. Assim "pular para 14:32" vira uma conta.
@@ -262,7 +262,8 @@ export class Player {
   }
 
   // Mantém uma janela deslizante à frente da reprodução. Anexar um dia inteiro
-  // seriam gigabytes; é a janela que torna a timeline navegável num Pi.
+  // seriam gigabytes; é a janela que torna a timeline navegável num hardware
+  // modesto.
   async #pump() {
     if (this.#pumping || !this.#sb || this.#ms?.readyState !== 'open') return;
     this.#pumping = true;

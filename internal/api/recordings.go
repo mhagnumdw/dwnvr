@@ -200,8 +200,9 @@ func (s *Server) handleSegment(w http.ResponseWriter, r *http.Request) {
 
 // handleThumb devolve init + primeiro fragmento: um MP4 de um frame só.
 //
-// É a miniatura da timeline, e o ponto todo é que o Pi não decodifica nada —
-// ele só recorta bytes que já estão no disco. Quem decodifica é o navegador.
+// É a miniatura da timeline, e o ponto todo é que o servidor não decodifica
+// nada — ele só recorta bytes que já estão no disco. Quem decodifica é o
+// navegador.
 func (s *Server) handleThumb(w http.ResponseWriter, r *http.Request) {
 	cam, entry, err := s.segmentParam(r)
 	if err != nil {

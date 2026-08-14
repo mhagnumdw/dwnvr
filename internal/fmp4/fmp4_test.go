@@ -293,8 +293,8 @@ func TestFindSPSInband(t *testing.T) {
 	}
 }
 
-// O custo precisa caber num Pi: o parse roda uma vez por conexão, mas se ele
-// fosse caro isso apareceria aqui.
+// O custo precisa caber num hardware modesto: o parse roda uma vez por
+// conexão, mas se ele fosse caro isso apareceria aqui.
 func BenchmarkSPSSize(b *testing.B) {
 	for b.Loop() {
 		if _, _, ok := SPSSize("hev1", spsH2651080p); !ok {

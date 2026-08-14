@@ -95,7 +95,7 @@ func TestStreamsDecodificaRespostaReal(t *testing.T) {
 // A URL de captura é o único lugar onde o modo de áudio vira comportamento, e
 // é isso que torna a escolha por câmera possível sem mais nenhuma mudança.
 func TestStreamURLPorModoDeAudio(t *testing.T) {
-	c := New(config.Go2RTC{URL: "http://pi:1984/"})
+	c := New(config.Go2RTC{URL: "http://go2rtc:1984/"})
 
 	tests := []struct {
 		modo    string

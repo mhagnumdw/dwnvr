@@ -9,12 +9,13 @@ export default defineConfig({
   build: {
     outDir: '../internal/api/dist',
     emptyOutDir: true,
-    // Sem sourcemap e com nomes curtos: o alvo é um Pi servindo por Wi-Fi.
+    // Sem sourcemap e com nomes curtos: o alvo é um hardware modesto servindo
+    // por Wi-Fi.
     sourcemap: false,
     target: 'es2022',
   },
   server: {
-    // No desenvolvimento a API vem do Pi de verdade - assim a tela é
+    // No desenvolvimento a API vem do servidor de verdade - assim a tela é
     // construída contra dados reais desde o primeiro minuto.
     proxy: {
       '/api': {

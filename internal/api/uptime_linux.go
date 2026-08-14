@@ -13,9 +13,9 @@ import (
 //
 // Dentro do container isto continua sendo o uptime do HOST, e não do
 // container: /proc/uptime vem do kernel, que é compartilhado. É justamente o
-// que a tela quer dizer — "o Pi reiniciou" é informação de outra ordem que "o
-// dwnvr reiniciou", e é a comparação entre os dois que explica o resto do
-// diagnóstico.
+// que a tela quer dizer — "a máquina reiniciou" é informação de outra ordem
+// que "o dwnvr reiniciou", e é a comparação entre os dois que explica o resto
+// do diagnóstico.
 func machineUptime() (time.Duration, bool) {
 	b, err := os.ReadFile("/proc/uptime")
 	if err != nil {
