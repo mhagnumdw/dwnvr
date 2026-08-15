@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -137,6 +138,34 @@ func TestTimelineNaoEncurtaComSobreposicao(t *testing.T) {
 	}
 	if want := base.UnixMilli() + 59000; got.Ranges[0][1] != want {
 		t.Errorf("fim da faixa = %d, esperava %d", got.Ranges[0][1], want)
+	}
+}
+
+// A tela de Gravações relê o dia de hoje em ciclo pedindo só a cauda, a partir
+// de 1ms depois do início do último segmento que ela já tem. Ela conta com esse
+// segmento voltar na resposta: é a sobreposição que diz se a primeira faixa nova
+// continua a última faixa antiga, e sem ela a tela precisaria repetir do lado
+// dela a tolerância de emenda que mora aqui.
+func TestTimelineParcialDevolveOSegmentoAncora(t *testing.T) {
+	s, cam := testServer(t)
+	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
+	seed(t, cam, base, [2]int64{0, 30000}, [2]int64{30000, 30000}, [2]int64{60000, 30000})
+
+	// Do último segmento que a tela conhecia (o do meio) em diante.
+	ancora := base.UnixMilli() + 30000
+	fim := base.AddDate(0, 0, 1).UnixMilli()
+	got := getTimeline(t, s, fmt.Sprintf("cam=cam_teste&from=%d&to=%d", ancora+1, fim))
+
+	if len(got.Segments) != 2 {
+		t.Fatalf("esperava a âncora mais o segmento novo, veio %v", got.Segments)
+	}
+	if got.Segments[0][0] != ancora {
+		t.Errorf("primeiro segmento = %d, esperava a âncora em %d", got.Segments[0][0], ancora)
+	}
+	// E a faixa da cauda tem que começar na âncora, não no segmento novo: é isso
+	// que faz a tela reconhecer que as duas faixas são a mesma.
+	if len(got.Ranges) != 1 || got.Ranges[0][0] != ancora {
+		t.Errorf("faixas = %v, esperava uma só começando em %d", got.Ranges, ancora)
 	}
 }
 

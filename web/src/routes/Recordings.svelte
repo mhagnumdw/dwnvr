@@ -103,10 +103,40 @@
     }
   }
 
-  // Assinatura barata do que a tela mostra: só muda quando entra segmento novo
-  // ou a retenção apaga algum. Comparar antes de trocar o objeto evita que a
-  // tira de miniaturas e a barra refaçam suas contas a cada consulta.
-  const assinatura = (t) => `${t.segments.length}:${t.segments.at(-1) ?? ''}`;
+  // Costura a cauda recém-buscada no que a tela já tinha.
+  //
+  // A consulta parcial começa 1ms depois do início do último segmento
+  // conhecido, e o servidor devolve tudo que TERMINA depois disso - ou seja,
+  // esse último segmento vem de volta junto. A sobreposição de um segmento é
+  // de propósito: é ela que revela se a primeira faixa da cauda continua a
+  // última faixa antiga, sem precisar repetir aqui a tolerância de emenda que
+  // o servidor usa. A decisão já vem tomada dentro da resposta.
+  function costurar(atual, cauda, desdeMs) {
+    const novos = cauda.segments.filter(([start]) => start > desdeMs);
+    if (!novos.length) return null;
+
+    // A tabela de gerações da cauda tem índices próprios, começando do zero:
+    // usá-los direto apontaria para a geração errada da lista antiga.
+    const gens = [...atual.gens];
+    const segments = [
+      ...atual.segments,
+      ...novos.map(([start, dur, gi]) => {
+        const g = cauda.gens[gi];
+        let j = gens.indexOf(g);
+        if (j < 0) j = gens.push(g) - 1;
+        return [start, dur, j];
+      }),
+    ];
+
+    const ranges = atual.ranges.map((r) => [...r]);
+    for (const [ini, fim] of cauda.ranges) {
+      const ultima = ranges.at(-1);
+      if (ultima && ini <= ultima[1]) ultima[1] = Math.max(ultima[1], fim);
+      else ranges.push([ini, fim]);
+    }
+
+    return { ...atual, ranges, segments, gens };
+  }
 
   let refreshing = false;
 
@@ -117,21 +147,37 @@
     refreshing = true;
     const c = cam;
     const d = day;
+    const base = timeline;
+    const ultimo = base.segments.at(-1);
     try {
-      const t = await api.timeline(c, d);
-      // Câmera ou dia mudaram durante a busca: quem manda é o load() novo.
-      if (c !== cam || d !== day) return;
-      if (assinatura(t) === assinatura(timeline)) return;
+      // Sem nada em mãos - dia que amanheceu vazio, ou primeira carga que
+      // falhou - não há cauda a pedir e vale o dia inteiro.
+      const t = ultimo
+        ? await api.timelineRange(c, ultimo[0] + 1, dayEnd)
+        : await api.timeline(c, d);
 
-      timeline = t;
-      if (player.hasSegments) {
-        player.updateSegments(t.gens, t.segments);
-      } else if (t.segments.length) {
+      // Câmera, dia ou a própria timeline mudaram durante a busca: quem manda
+      // é o load() novo, e costurar por cima misturaria duas câmeras.
+      if (c !== cam || d !== day || timeline !== base) return;
+
+      if (!ultimo) {
+        if (!t.segments.length) return;
         // Primeira gravação do dia chegando com a tela já aberta: é o mesmo
         // caso do load() inicial, inclusive em ir para o instante mais recente.
+        timeline = t;
         player.setSource(c, t.gens, t.segments);
         player.seek(t.segments.at(-1)[0]);
+        return;
       }
+
+      // Nada novo fechou desde a última rodada: a tela fica como está, sem
+      // trocar objeto nenhum - a tira de miniaturas e a barra não refazem as
+      // contas à toa.
+      const emendada = costurar(base, t, ultimo[0]);
+      if (!emendada) return;
+
+      timeline = emendada;
+      player.updateSegments(emendada.gens, emendada.segments);
     } catch {
       // Atualização de fundo: uma falha passageira não pode apagar da tela a
       // timeline que já estava boa nem interromper a reprodução.
