@@ -10,6 +10,15 @@
 
   const player = new Player();
 
+  // Piso e teto do ritmo com que o dia de hoje é relido. Consultar mais rápido
+  // que o segmento da câmera é rebaixar a mesma resposta várias vezes; mais
+  // devagar que um minuto é deixar a tela velha à toa.
+  const POLL_MIN_MS = 10_000;
+  const POLL_MAX_MS = 60_000;
+  // Segundos de segmento assumidos quando a câmera não informa - é o default do
+  // dwnvr.example.yaml. Servidor atual já resolve o campo antes de responder.
+  const SEG_PADRAO = 30;
+
   let video = $state(null);
   let cam = $state('');
   let day = $state(dayKey());
@@ -22,6 +31,16 @@
   const dayEnd = $derived(dayStart + 86400_000);
   const gravado = $derived(timeline.ranges.reduce((a, [s, e]) => a + (e - s), 0));
   const isToday = $derived(day === dayKey());
+
+  // O ritmo vem da câmera selecionada: `segmentSeconds` é configurado por
+  // câmera (10s a 600s no cadastro), e um segmento só entra na timeline depois
+  // de fechar. Perguntar uma vez por segmento é o passo natural - quem gravou
+  // em pedaços de 10s vê gravação nova em ~20s, e quem gravou em pedaços de
+  // 2 min não paga oito consultas do dia inteiro para cada uma que muda algo.
+  const pollMs = $derived.by(() => {
+    const seg = cameras.list.find((c) => c.id === cam)?.segmentSeconds || SEG_PADRAO;
+    return Math.min(Math.max(seg * 1000, POLL_MIN_MS), POLL_MAX_MS);
+  });
 
   onMount(async () => {
     if (!cameras.list.length) await loadCameras();
@@ -44,6 +63,26 @@
     if (cam && day) load(cam, day);
   });
 
+  // Hoje a gravação continua crescendo enquanto a tela está aberta: sem isto, o
+  // dia corrente congela no que existia no instante em que a tela abriu. Dia
+  // passado não muda mais, então nem vale a consulta.
+  $effect(() => {
+    if (!cam || !isToday) return;
+
+    const id = setInterval(refresh, pollMs);
+    // Aba escondida não toca vídeo nem desenha timeline; ao voltar, o que se
+    // perdeu é buscado de uma vez em vez de esperar o próximo intervalo.
+    const onVisible = () => {
+      if (!document.hidden) refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  });
+
   async function load(c, d) {
     loading = true;
     error = '';
@@ -61,6 +100,43 @@
       timeline = { ranges: [], segments: [], gens: [] };
     } finally {
       loading = false;
+    }
+  }
+
+  // Assinatura barata do que a tela mostra: só muda quando entra segmento novo
+  // ou a retenção apaga algum. Comparar antes de trocar o objeto evita que a
+  // tira de miniaturas e a barra refaçam suas contas a cada consulta.
+  const assinatura = (t) => `${t.segments.length}:${t.segments.at(-1) ?? ''}`;
+
+  let refreshing = false;
+
+  async function refresh() {
+    // A virada da meia-noite não mexe em `day` sozinha: o dia que era hoje para
+    // de crescer e não precisa mais ser relido.
+    if (refreshing || document.hidden || day !== dayKey()) return;
+    refreshing = true;
+    const c = cam;
+    const d = day;
+    try {
+      const t = await api.timeline(c, d);
+      // Câmera ou dia mudaram durante a busca: quem manda é o load() novo.
+      if (c !== cam || d !== day) return;
+      if (assinatura(t) === assinatura(timeline)) return;
+
+      timeline = t;
+      if (player.hasSegments) {
+        player.updateSegments(t.gens, t.segments);
+      } else if (t.segments.length) {
+        // Primeira gravação do dia chegando com a tela já aberta: é o mesmo
+        // caso do load() inicial, inclusive em ir para o instante mais recente.
+        player.setSource(c, t.gens, t.segments);
+        player.seek(t.segments.at(-1)[0]);
+      }
+    } catch {
+      // Atualização de fundo: uma falha passageira não pode apagar da tela a
+      // timeline que já estava boa nem interromper a reprodução.
+    } finally {
+      refreshing = false;
     }
   }
 
