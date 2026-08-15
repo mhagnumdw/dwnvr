@@ -71,6 +71,13 @@ export const api = {
 
   timeline: (cam, day) =>
     request(`rec/timeline?cam=${encodeURIComponent(cam)}&day=${day}`),
+
+  // A mesma timeline, mas de um pedaço do dia. O dia de hoje é relido em ciclo
+  // enquanto a tela está aberta, e um dia cheio de segmentos de 30s são ~70 KB
+  // sem compressão - buscar só a cauda troca isso por algumas centenas de bytes
+  // por rodada.
+  timelineRange: (cam, from, to) =>
+    request(`rec/timeline?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
 };
 
 // URLs de mídia são montadas, não buscadas: vão direto num <video>, num <img>
