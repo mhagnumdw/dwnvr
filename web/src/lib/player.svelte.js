@@ -33,7 +33,7 @@ export class Player {
   #sb = null;
   #next = 0;
   #initAppended = null;
-  #pumping = false;
+  #pumping = null; // promessa do pump em voo, ou null quando não há nenhum
   #generation = 0; // invalida trabalho em voo depois de um seek
 
   #mime = null; // com que codecs o SourceBuffer atual foi criado
@@ -87,6 +87,33 @@ export class Player {
     this.#generation++;
     this.base = 0;
     this.currentMs = 0;
+  }
+
+  // Atualiza a lista de segmentos sem interromper o que está tocando.
+  //
+  // O dia de hoje cresce enquanto a tela está aberta. Refazer setSource() +
+  // seek() a cada atualização recriaria o MediaSource e devolveria o vídeo ao
+  // ponto de partida; aqui só a lista muda, e o pump segue de onde parou - o
+  // que também faz a reprodução destravar sozinha ao alcançar a ponta viva.
+  async updateSegments(gens, segments) {
+    // Trocar os arrays no meio de um pump o faria avançar o índice sobre a
+    // lista nova. Esperar sai mais barato que invalidar a geração, que abortaria
+    // junto um seek em voo; um pump dura o download de poucos segmentos.
+    await this.#pumping;
+
+    // Por onde o pump retomaria, em relógio de parede. A retenção pode apagar o
+    // começo do dia e deslocar todos os índices, então a posição na lista velha
+    // não serve de referência.
+    const pending = this.#segments[this.#next];
+    const last = this.#segments.at(-1);
+    const resumeMs = pending ? pending[0] : last ? last[0] + 1 : 0;
+
+    this.#gens = gens;
+    this.#segments = segments;
+    const i = segments.findIndex(([start]) => start >= resumeMs);
+    this.#next = i < 0 ? segments.length : i;
+
+    await this.#pump();
   }
 
   get hasSegments() {
@@ -183,7 +210,7 @@ export class Player {
       await this.#reset(this.#segments[i][0], this.#gens[this.#segments[i][2]]);
       if (gen !== this.#generation) return; // outro seek chegou primeiro
       this.#next = i;
-      await this.#pump();
+      await this.#repump();
       if (gen !== this.#generation) return;
 
       const inside = (ms - this.#segments[i][0]) / 1000;
@@ -264,9 +291,31 @@ export class Player {
   // Mantém uma janela deslizante à frente da reprodução. Anexar um dia inteiro
   // seriam gigabytes; é a janela que torna a timeline navegável num hardware
   // modesto.
-  async #pump() {
-    if (this.#pumping || !this.#sb || this.#ms?.readyState !== 'open') return;
-    this.#pumping = true;
+  //
+  // Um pump de cada vez: quem chega no meio de outro recebe a promessa do que
+  // já está rodando, em vez de sair sondando uma flag para saber quando acabou.
+  // Dispensar a chamada é de propósito - o pump em voo enche a mesma janela, e
+  // enfileirar um por timeupdate faria a fila crescer sem fim numa rede lenta.
+  #pump() {
+    if (this.#pumping) return this.#pumping;
+    if (!this.#sb || this.#ms?.readyState !== 'open') return Promise.resolve();
+
+    const p = this.#pumpOnce().finally(() => {
+      if (this.#pumping === p) this.#pumping = null;
+    });
+    this.#pumping = p;
+    return p;
+  }
+
+  // Espera o pump em voo largar o osso e roda outro. É o que seek() precisa:
+  // ele acabou de mudar o ponto de retomada, e o pump que começou antes disso
+  // não serve - só receber a promessa dele deixaria o vídeo sem nada anexado.
+  async #repump() {
+    await this.#pumping;
+    return this.#pump();
+  }
+
+  async #pumpOnce() {
     const gen = this.#generation;
 
     try {
@@ -302,8 +351,6 @@ export class Player {
       if (gen === this.#generation) await this.#evict();
     } catch (e) {
       if (gen === this.#generation) this.error = e.message;
-    } finally {
-      this.#pumping = false;
     }
   }
 
