@@ -3,32 +3,82 @@
 # Este arquivo é SEU. O dwnvr nunca o escreve: ele só lê a lista de streams
 # pela API do go2rtc e grava o que você tiver publicado aqui.
 #
-# Copie para go2rtc.yaml, que é o nome que o docker-compose.yml monta.
+# Copie para go2rtc.yaml, que é o nome que o docker-compose.yml monta em
+# /config/go2rtc.yaml. O go2rtc.yaml é ignorado pelo git, e é por isso que as
+# URLs RTSP com usuário e senha não têm como ir parar num commit.
 
 streams:
+  # O nome de cada stream aqui é o ID da câmera no dwnvr: tudo que estiver
+  # publicado nesta seção aparece sozinho na tela de Câmeras, pronto para
+  # cadastrar. O dwnvr não guarda URL nem senha de câmera - só este nome.
+
   # Fonte sintética, para experimentar o dwnvr sem ter câmera nenhuma.
   # O ffmpeg desenha uma carta de teste com relógio, e o go2rtc a entrega como
   # H264 - do ponto de vista do dwnvr é indistinguível de uma câmera de verdade.
   # Verificado: 1280x720, ~25 fps, keyframe a cada 2s.
   # O ffmpeg já vem na imagem alexxit/go2rtc; não é preciso instalar nada.
+  #
+  # Numa instalação de verdade ela não serve para nada: apague esta linha e
+  # ponha as suas câmeras no lugar.
   cam_teste: ffmpeg:virtual?video=testsrc&size=720#video=h264
 
-  # Uma câmera real. Duas linhas porque quase toda câmera publica dois streams,
-  # e é isso que permite escolher a resolução POR CÂMERA na tela de cadastro do
-  # dwnvr: alta para gravar o portão, baixa para gravar o corredor.
+  # ---------------------------------------------------------------------------
+  # ALGUNS EXEMPLOS DE CONFIGURAÇÃO, para as suas câmeras. Estão todos
+  # comentados: descomente o que servir, troque IP, usuário, senha e caminho -
+  # e reinicie só o go2rtc: `docker compose restart go2rtc`. A câmera nova
+  # aparece sozinha na tela de Câmeras do dwnvr, sem reiniciá-lo.
+  # ---------------------------------------------------------------------------
+
+  # Exemplo 1. Câmera comum, alta e baixa resolução. Duas linhas porque quase
+  #    toda câmera publica dois streams, e é isso que permite escolher a
+  #    resolução POR CÂMERA na tela de cadastro do dwnvr: alta para gravar o
+  #    portão, baixa para o corredor - o que muda direto a conta de disco.
   #
-  # cam_portao: rtsp://usuario:senha@192.168.0.50:554/onvif1
+  # cam_portao:       rtsp://usuario:senha@192.168.0.50:554/onvif1
   # cam_portao_baixa: rtsp://usuario:senha@192.168.0.50:554/onvif2
+
+  # Exemplo 2. O caminho depois do IP muda de fabricante para fabricante, e às
+  #    vezes de firmware para firmware. Descubra o seu no manual da câmera, na
+  #    interface dela, por ONVIF, ou pelas listas de URLs RTSP que circulam por
+  #    modelo. A forma geral é sempre esta:
+  #
+  # cam_quintal: rtsp://usuario:senha@IP:554/CAMINHO
+  #
+  #    Se a senha tiver @, : ou /, escape-a em percent-encoding (@ vira %40).
+
+  # Exemplo 3. Áudio em AAC. O modo "aac" do dwnvr não converte nada sozinho:
+  #    ele espera que exista uma segunda fonte, aqui, com o áudio já
+  #    convertido. A lista faz o go2rtc juntar as duas no mesmo stream.
+  #
+  # cam_sala:
+  #   - rtsp://usuario:senha@192.168.0.51:554/onvif1
+  #   - ffmpeg:cam_sala#audio=aac
+  #
+  #    Já o modo "flac" não pede nada aqui - a conversão acontece dentro do
+  #    go2rtc, em Go puro. O custo de cada modo em CPU e disco está em
+  #    docs/configuracao.md.
 
   # ATENÇÃO ao áudio: NÃO acrescente "#media=video" à fonte se quiser gravar
   # som. Esse filtro descarta o áudio já na origem, e nenhuma configuração do
   # dwnvr o traz de volta. Ver docs/configuracao.md.
 
+  # Tudo que dá para escrever nesta seção - ONVIF, HTTP, USB, backchannel,
+  # opções de transporte - está documentado no go2rtc, que é quem manda aqui:
+  # https://github.com/AlexxIT/go2rtc#module-streams
+  # https://github.com/AlexxIT/go2rtc/wiki
+
+# As três portas abaixo são as mesmas publicadas pelo serviço go2rtc no
+# docker-compose.yml. Mudar uma aqui sem mudar lá derruba o que depende dela.
+
 api:
+  # De onde o dwnvr lê a lista de streams e por onde ele consome o fMP4.
   listen: ":1984"
 
 rtsp:
+  # Servidor RTSP do go2rtc. O dwnvr não usa; fica para outros clientes.
   listen: ":8554"
 
 webrtc:
+  # No "Ao vivo" só a sinalização passa pelo dwnvr - a mídia WebRTC vai direto
+  # do navegador para cá, e é por isso que esta porta precisa estar publicada.
   listen: ":8555"

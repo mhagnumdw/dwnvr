@@ -22,12 +22,12 @@ Medido nesse Orange Pi Zero 3 com as 9 câmeras gravando simultaneamente:
 > Embora seja vibe codado, o projeto já nasceu desde o início com foco em exterma performance, baixíssimo consumo de CPU e memória, tempo de resposta ultra rápido, uma UI super rápida, leve, reativa e responsiva com excelente usabilidade para mobile e desktop (browser). Parte disso era uma necessidade em razão do hardware real que usei e uso, que é um Orange Pi Zero 3 e tudo isso se constata nos testes que faço e no meu uso no dia a dia. Testei diversas outras opções e nenhuma passou perto dos resultados que tenho, fora outros problemas/chatices diversas.
 
 - [Como funciona](#como-funciona)
-- [Subir para um teste rápido](#subir-para-um-teste-rápido)
+- [Subir o dwnvr](#subir-o-dwnvr)
+- [Instalação definitiva](#instalação-definitiva)
 - [Tecnologias](#tecnologias)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Build](#build)
 - [Testes](#testes)
-- [Instalação](#instalação)
 - [Configuração](#configuração)
 - [Estado atual](#estado-atual)
 - [Documentação](#documentação)
@@ -61,58 +61,130 @@ do go2rtc, mas por enquanto não.
 O porquê de cada decisão de formato está em
 [`docs/arquitetura.md`](docs/arquitetura.md).
 
-## Subir para um teste rápido
+## Subir o dwnvr
 
-**Você não precisa de uma câmera real.** O `go2rtc.example.yaml` traz uma fonte
-sintética: o ffmpeg que já vem na imagem do go2rtc desenha uma carta de teste
-com relógio, e o go2rtc a publica como H264 720p. Do ponto de vista do dwnvr é
-indistinguível de uma câmera de verdade.
-
-O dwnvr roda como binário local e o go2rtc num container - assim você testa a
-sua árvore de trabalho, e não uma imagem publicada:
+**Você só precisa de Docker.** Nem câmera, nem Go, nem Node: o compose constrói
+a imagem a partir do clone, e o go2rtc publica uma câmera sintética - o ffmpeg
+que já vem na imagem dele desenha uma carta de teste com relógio em H264 720p,
+indistinguível de uma câmera de verdade para o dwnvr.
 
 ```sh
 git clone https://github.com/mhagnumdw/dwnvr && cd dwnvr
 
+# Precisam existir antes: se o Docker os criar, eles nascem de root e o
+# container - que não roda como root - não consegue escrever dentro deles.
+mkdir -p config storage
+
+# Configuração de infraestrutura do dwnvr, como porta, quota de disco
+# padrão por câmera, endereço do go2rtc etc
+cp dwnvr.example.yaml  config/dwnvr.yaml
+
+# As suas câmeras moram neste arquivo, que o git ignora - URLs RTSP com usuário
+# e senha não têm como ir parar num commit.
 cp go2rtc.example.yaml go2rtc.yaml
-cp dwnvr.example.yaml  dwnvr.yaml
 
-# Grava em ./storage, sem exigir que /mnt/storage/dwnvr exista na sua máquina.
-sed -i 's|/mnt/storage/dwnvr|./storage|' dwnvr.yaml
+# Para um teste rápido isso não é necessário, mas para uma instalação
+# definitiva é altamente recomendado
+# Definir UID e GID para o seu usuário, evita problema com permissões
+{ echo "DWNVR_UID=$(id -u)"; echo "DWNVR_GID=$(id -g)"; } > .env
+# Setar para o seu timezone
+echo "TZ=America/Fortaleza" >> .env
 
-# A fonte dos streams. O dwnvr.example.yaml já aponta para localhost:1984.
-docker run -d --name go2rtc -p 1984:1984 \
-  -v "$PWD/go2rtc.yaml:/config/go2rtc.yaml" alexxit/go2rtc
-
-# Como o internal/api/dist é versionado, isto compila sem Node instalado.
-go build ./cmd/dwnvr && ./dwnvr -config dwnvr.yaml
+docker compose up
 ```
 
-Abra <http://localhost:8080>, entre em **Câmeras** e cadastre a `cam_teste`,
-que já vai estar listada como stream disponível. Em ~30s o primeiro segmento
-fecha e aparece na aba **Gravações**. Para ver acontecer mais rápido, baixe
-`segmentSeconds` para 10 no `dwnvr.yaml`.
+A primeira subida compila a interface e o binário dentro do Docker e leva
+alguns minutos; as seguintes sobem em segundos.
 
-Se preferir conferir por fora da interface, o primeiro segmento gravado
-aparece assim:
+Quando o log disser
+`dwnvr no ar`, abra <http://localhost:8080>:
+
+- vá na aba **Câmeras** clique na `cam_teste`, que já aparece em *Disponíveis no go2rtc*
+- na aba **Ao vivo** funciona no mesmo instante
+- em ~30s o primeiro segmento fecha e aparece na aba **Gravações**
+
+Não há tela de login: enquanto `server.username` e `server.password` estiverem
+vazios a autenticação fica desligada, o que é proposital para não travar o
+primeiro uso - e o dwnvr avisa disso no log.
+
+> O UID só importa se o seu não for 1000 - sem isso a tela de cadastro falha ao
+gravar o `cameras.json`. O `TZ` decide a que dia local cada segmento pertence;
+sem ele a virada de dia da timeline cai no horário errado.
+
+### Colocar a sua câmera <!-- omit in toc -->
+
+Edite o `go2rtc.yaml`: o bloco comentado traz alguns exemplos de configuração -
+alta e baixa resolução, áudio, o formato geral da URL RTSP. Depois:
 
 ```sh
-find storage -name '*.mp4' | head    # o init, e um arquivo por segmento
-
-# Qualquer segmento abre sozinho, sem pré-processamento e sem o init ao lado.
-ffprobe "$(find storage/cam_teste/2* -name '*.mp4' | head -1)"
+docker compose restart go2rtc
 ```
 
-Para derrubar tudo e apagar o que foi gravado:
+A câmera nova aparece sozinha na tela de **Câmeras**, pronta para cadastrar, e
+a `cam_teste` sintética pode ser apagada do `go2rtc.yaml`.
+
+### Conferir por fora da interface <!-- omit in toc -->
+
+As gravações ficam em `./storage`, no host, com o seu usuário:
 
 ```sh
-docker rm -f go2rtc
-rm -rf storage dwnvr.yaml cameras.json go2rtc.yaml .session-secret
+# o init, o índice NDJSON e os segmentos
+find storage -type f
+
+# Qualquer segmento abre sozinho, sem pré-processamento e sem o init ao lado
+ffplay "$(find storage/cam_teste/2* -name '*.mp4' | head -1)"
 ```
 
-> Todos os arquivos criados acima já estão no `.gitignore` - o teste não suja
-> o `git status`. Para a instalação de verdade, com os dois serviços em
-> containers, veja [Instalação](#instalação).
+### Derrubar tudo <!-- omit in toc -->
+
+```sh
+docker compose down
+rm -rf config storage go2rtc.yaml .env
+```
+
+> Para a [instalação definitiva](#instalação-definitiva) a mudança é
+> mínima. Ver a seção logo abaixo.
+
+## Instalação definitiva
+
+Não há um segundo caminho: é o [subir o dwnvr](#subir-o-dwnvr) conforme a seção
+anterior, com cinco mudanças de configuração.
+
+**1. A imagem pronta, em vez do build.** No `docker-compose.yml`, na marca
+`(1)`:
+
+> // TODO: essa imagem ainda não é publicada. Pular esse item.
+
+```yaml
+image: ghcr.io/mhagnumdw/dwnvr:latest
+```
+
+**2. O local definitivo das gravações no host, em vez de `./storage`.**
+No `docker-compose.yml`, na marca `(2)`:
+
+```yaml
+volumes:
+  - /mnt/storage/dwnvr:/storage
+```
+
+Só o lado esquerdo muda - o direito é o que o `dwnvr.yaml` chama de
+`storage.root`. Aponte para o disco onde as gravações cabem.
+
+**3. O `.env` deixa de ser opcional.** UID e GID errados fazem a tela de
+cadastro falhar ao gravar o `cameras.json`; `TZ` errado joga a virada de dia da
+timeline para o horário errado.
+
+**4. As suas câmeras, no lugar da sintética.** Apague a `cam_teste` do
+`go2rtc.yaml` - ela não serve para mais nada - e publique as de verdade.
+
+**5. Login ligado.** Preencha `server.username` e `server.password` no
+`config/dwnvr.yaml`: enquanto os dois estiverem vazios, a autenticação fica
+desligada.
+
+**Se o go2rtc já roda em outro compose ou direto no host:**
+
+1. no `docker-compose.yml` remova o serviço do go2rtc e descomente o `extra_hosts`
+2. no `dwnvr.yaml` troque a `go2rtc.url` para `http://host.docker.internal:1984`
 
 ## Tecnologias
 
@@ -159,7 +231,7 @@ projeto, não uma etapa que faltou.
 │   └── store/              layout em disco e índice NDJSON
 ├── web/                    interface Svelte 5 + Vite (ver web/README.md)
 ├── docs/                   documentação longa (ver docs/README.md)
-├── docker-compose.yml      dwnvr + go2rtc, pronto para subir
+├── docker-compose.yml      dwnvr + go2rtc, o único arquivo para subir tudo
 ├── Dockerfile              imagem FROM scratch, multi-arch
 ├── dwnvr.example.yaml      configuração do dwnvr, campo a campo
 ├── go2rtc.example.yaml     configuração do go2rtc, com uma câmera sintética
@@ -299,76 +371,6 @@ cobrem o que quebra em silêncio: a leitura de caixas fMP4, a reescrita do
 endpoints HTTP.
 
 O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push.
-
-## Instalação
-
-<!-- // TODO: ainda preciso revisar essa seção -->
-
-Os dois serviços, lado a lado:
-
-```yaml
-services:
-  dwnvr:
-    image: ghcr.io/mhagnumdw/dwnvr:latest
-    restart: unless-stopped
-    depends_on: [go2rtc]
-    # Sem isto o container grava como root, e os arquivos nascem de root no
-    # disco. Descubra o seu com: id -u; id -g
-    user: "1000:1000"
-    ports: ["8080:8080"]
-    environment:
-      # Sem TZ, todos os dias são calculados em UTC e a virada de dia da
-      # timeline cai no horário errado.
-      - TZ=America/Fortaleza
-    volumes:
-      - ./config:/etc/dwnvr          # dwnvr.yaml e cameras.json
-      - /mnt/storage/dwnvr:/storage  # as gravações
-    # Rede de segurança: o consumo medido com 9 câmeras é de ~20 MB.
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-
-  go2rtc:
-    image: alexxit/go2rtc
-    restart: unless-stopped
-    shm_size: 128mb
-    volumes:
-      - ./go2rtc.yaml:/config/go2rtc.yaml
-    ports:
-      - "1984:1984"      # API e interface web do go2rtc
-      - "8554:8554"      # servidor RTSP
-      - "8555:8555/tcp"  # WebRTC
-      - "8555:8555/udp"
-```
-
-No `dwnvr.yaml`, aponte para o serviço vizinho - o compose já resolve o nome:
-
-```yaml
-go2rtc:
-  url: http://go2rtc:1984
-```
-
-Ver [`docker-compose.yml`](docker-compose.yml) completo. Imagem `FROM scratch`
-de ~3 MB comprimidos, para **linux/arm64** e **linux/amd64**.
-
-O go2rtc aparece aqui por conveniência, para você subir tudo de uma vez, **mas
-continua fora do escopo do dwnvr**: o conteúdo do `go2rtc.yaml` - as câmeras,
-as URLs RTSP, os codecs - é responsabilidade de quem instala. Se você já tem um
-go2rtc rodando em outro compose ou direto no host, remova o serviço daqui,
-troque a `url` para `http://host.docker.internal:1984` e acrescente ao dwnvr:
-
-```yaml
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-```
-
-Para binários soltos, sem Docker: `make arm64` ou `make amd64`.
-
-A imagem não tem shell - nem `sh`, nem `ls`, nem `cat`. Isso não atrapalha a
-operação, porque **configuração e gravações vivem nos volumes, no host**, e
-porque `docker logs`, `docker cp` e um sidecar de namespaces cobrem o resto.
-Ver [`docs/operacao.md`](docs/operacao.md).
 
 ## Configuração
 

@@ -10,8 +10,10 @@ go2rtc.yaml
 # Configuração de build da máquina de quem desenvolve (ver local.mk.example)
 local.mk
 
-# Gravações geradas pelo teste local (ver "Subir para um teste rápido")
+# Gravações, quando o docker-compose.yml grava ao lado do clone
 /storage/
+
+.env
 
 # Binários
 /dwnvr

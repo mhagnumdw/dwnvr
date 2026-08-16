@@ -5,6 +5,11 @@ web/node_modules/
 dwnvr.yaml
 cameras.json
 .session-secret
+.env
+
+# Os dois volumes que o docker-compose.yml monta ao lado do clone
+/config/
+/storage/
 
 # Binários locais
 /dwnvr
