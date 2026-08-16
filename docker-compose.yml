@@ -1,5 +1,9 @@
-# Exemplo de instalação do dwnvr, com o go2rtc junto para você subir tudo de
-# uma vez.
+# Instalação do dwnvr, com o go2rtc junto para você subir tudo de uma vez.
+#
+# É o mesmo arquivo para experimentar e para instalar de verdade: como vem, ele
+# constrói a imagem deste clone e grava as câmeras em ./storage, então basta ter
+# Docker - nem câmera, nem Go, nem Node. As duas linhas a trocar quando isto
+# virar a sua instalação definitiva estão marcadas abaixo.
 #
 # O go2rtc está aqui por conveniência, mas continua fora do escopo do dwnvr: o
 # conteúdo do go2rtc.yaml - câmeras, URLs RTSP, codecs - é responsabilidade de
@@ -8,9 +12,13 @@
 
 services:
   dwnvr:
-    image: ghcr.io/mhagnumdw/dwnvr:latest
-    # Para construir localmente em vez de baixar:
-    # build: .
+    # Constrói a imagem a partir deste clone. É o que dispensa Go e Node na sua
+    # máquina - o Dockerfile compila a interface e o binário lá dentro.
+    build: .
+    # (1) Trocar por: `image: ghcr.io/mhagnumdw/dwnvr:latest`
+    #     para baixar a imagem pronta em vez de construir, mas ela ainda não
+    #     não está pública.
+
     container_name: dwnvr
     restart: unless-stopped
     depends_on: [go2rtc]
@@ -18,22 +26,34 @@ services:
     # O container grava com este UID. Deixar como root faria os arquivos
     # nascerem de root no disco - que é justamente o que impede você de
     # inspecioná-los ou apagá-los depois sem sudo.
-    # Descubra o seu com: id -u; id -g
-    user: "1000:1000"
+    #
+    # 1000 é o primeiro usuário na maioria das máquinas Linux, e por isso é o
+    # padrão. Se o seu for outro (descubra com: id -u; id -g), crie um .env ao
+    # lado deste arquivo com DWNVR_UID e DWNVR_GID - sem isso o dwnvr sobe, mas
+    # a tela de cadastro falha ao gravar o cameras.json.
+    user: "${DWNVR_UID:-1000}:${DWNVR_GID:-1000}"
 
     ports:
       - "8080:8080"
 
     environment:
       # Sem isto todos os dias são calculados em UTC, e a virada de dia da
-      # timeline cai no horário errado.
-      - TZ=America/Fortaleza
+      # timeline cai no horário errado. Troque aqui, ou defina TZ no .env.
+      - TZ=${TZ:-America/Fortaleza}
 
+    # Crie os dois diretórios antes de subir: `mkdir -p config storage`. Se o
+    # Docker precisar criá-los, eles nascem de root, e aí o container - que
+    # roda com o UID acima - não consegue escrever dentro deles.
     volumes:
       # dwnvr.yaml, cameras.json e o segredo de sessão.
       - ./config:/etc/dwnvr
-      # As gravações. Aponte para o disco de verdade, não para o cartão SD.
-      - /mnt/storage/dwnvr:/storage
+
+      # As gravações das câmeras. Ao lado do clone para você experimentar sem
+      # preparar disco nenhum.
+      - ./storage:/storage
+      # (2) Trocar pelo local definitivo no host, ex: /mnt/storage/dwnvr:/storage
+      #     na instalação de verdade. O lado direito é o que o dwnvr.yaml chama de
+      #     storage.root, e ele não muda.
 
     # Com o go2rtc neste mesmo compose, o dwnvr o alcança pelo nome do serviço:
     # basta que o dwnvr.yaml tenha go2rtc.url: http://go2rtc:1984

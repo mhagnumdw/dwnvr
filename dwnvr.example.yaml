@@ -6,17 +6,30 @@
 
 server:
   listen: ":8080"
+  # Com os dois vazios a autenticação fica desligada, o que é proposital para
+  # não travar o primeiro uso - e o dwnvr avisa disso no log. Preencha numa
+  # instalação definitiva: sem definir, quem abre a interface enxerga as
+  # gravações de todas as câmeras.
+  # username: admin
+  # password: troque-me
 
 go2rtc:
   # O dwnvr apenas consome o go2rtc; configurá-lo continua sendo tarefa sua.
-  url: http://localhost:1984
+  #
+  # "go2rtc" é o nome do serviço no docker-compose.yml, e o Docker o resolve
+  # para o container vizinho. Rodando o binário solto, fora do compose, troque
+  # pelo endereço do seu go2rtc, exemplo: http://localhost:1984.
+  url: http://go2rtc:1984
   # Preencha se a API do go2rtc estiver protegida. A credencial fica no
   # servidor: o navegador fala com o dwnvr, que faz o proxy.
   # username: admin
   # password: troque-me
 
 storage:
-  root: /mnt/storage/dwnvr
+  # Caminho DENTRO do container, e por isso ele não muda: quem decide em que
+  # disco do host isso cai é o docker-compose.yml, que monta ./storage ou
+  # /mnt/storage/dwnvr aqui. Rodando o binário solto, ponha o caminho real.
+  root: /storage
 
   # Rede de segurança global. Quando o disco livre cai abaixo disto, o dwnvr
   # evicta as gravações mais antigas de TODAS as câmeras, ignorando as cotas
