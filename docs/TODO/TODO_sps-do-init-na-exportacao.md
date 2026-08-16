@@ -79,7 +79,7 @@ e ainda deixa o init se contradizendo. **É cirurgia de caixa ou nada.**
 - **Não há distorção.** Os 7 casos são 16:9 dos dois lados: a imagem sai
   correta, só o número está errado.
 - Reencode sempre produz saída correta.
-- A interface do dwnvr já mostra a resolução certa desde o `ca2dd8d`, que lê o
+- A interface do dwnvr já mostra a resolução certa desde o `3943d31`, que lê o
   SPS in-band.
 - O custo é cirurgia de caixa de verdade: o SPS real tem tamanho diferente do
   dummy, então é preciso corrigir o tamanho de toda a cadeia acima dele
