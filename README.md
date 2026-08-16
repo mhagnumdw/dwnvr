@@ -13,19 +13,18 @@ Zero 3 (4 cores Cortex-A53, 1,5 GB RAM), gravando 9 câmeras Yoosee 24/7.
 Medido nesse Orange Pi Zero 3 com as 9 câmeras gravando simultaneamente:
 
 | | CPU | RAM |
-|---|---|---|
+| --- | --- | --- |
 | dwnvr | **4% de 1 core** (1% dos 4) | **17 MB** |
 | go2rtc | 9% de 1 core | 23 MB |
 
+> **ATENÇÃO:** esse projeto é totalmente vibe codado e é meu primeiro projeto assim. Além de querer resolver uma necessidade minha, que eu acho que é de várias outras pessoas, eu queria saber como seria a experiência de desenvolver totalmente nesse estilo.
+>
+> Embora seja vibe codado, o projeto já nasceu desde o início com foco em exterma performance, baixíssimo consumo de CPU e memória, tempo de resposta ultra rápido, uma UI super rápida, leve, reativa e responsiva com excelente usabilidade para mobile e desktop (browser). Parte disso era uma necessidade em razão do hardware real que usei e uso, que é um Orange Pi Zero 3 e tudo isso se constata nos testes que faço e no meu uso no dia a dia. Testei diversas outras opções e nenhuma passou perto dos resultados que tenho, fora outros problemas/chatices diversas.
+
 - [Como funciona](#como-funciona)
+- [Subir para um teste rápido](#subir-para-um-teste-rápido)
 - [Tecnologias](#tecnologias)
 - [Estrutura do projeto](#estrutura-do-projeto)
-  - [`cmd/` - convenção da comunidade](#cmd---convenção-da-comunidade)
-  - [`internal/` - exigência do Go](#internal---exigência-do-go)
-  - [`internal/api/dist/` - o build da interface, versionado](#internalapidist---o-build-da-interface-versionado)
-  - [`web/src/vendor/` - convenção, e do outro lado da cerca](#websrcvendor---convenção-e-do-outro-lado-da-cerca)
-  - [`*_test.go` - exigência do Go](#_testgo---exigência-do-go)
-- [Subir para um teste rápido](#subir-para-um-teste-rápido)
 - [Build](#build)
 - [Testes](#testes)
 - [Instalação](#instalação)
@@ -61,6 +60,59 @@ do go2rtc, mas por enquanto não.
 
 O porquê de cada decisão de formato está em
 [`docs/arquitetura.md`](docs/arquitetura.md).
+
+## Subir para um teste rápido
+
+**Você não precisa de uma câmera real.** O `go2rtc.example.yaml` traz uma fonte
+sintética: o ffmpeg que já vem na imagem do go2rtc desenha uma carta de teste
+com relógio, e o go2rtc a publica como H264 720p. Do ponto de vista do dwnvr é
+indistinguível de uma câmera de verdade.
+
+O dwnvr roda como binário local e o go2rtc num container - assim você testa a
+sua árvore de trabalho, e não uma imagem publicada:
+
+```sh
+git clone https://github.com/mhagnumdw/dwnvr && cd dwnvr
+
+cp go2rtc.example.yaml go2rtc.yaml
+cp dwnvr.example.yaml  dwnvr.yaml
+
+# Grava em ./storage, sem exigir que /mnt/storage/dwnvr exista na sua máquina.
+sed -i 's|/mnt/storage/dwnvr|./storage|' dwnvr.yaml
+
+# A fonte dos streams. O dwnvr.example.yaml já aponta para localhost:1984.
+docker run -d --name go2rtc -p 1984:1984 \
+  -v "$PWD/go2rtc.yaml:/config/go2rtc.yaml" alexxit/go2rtc
+
+# Como o internal/api/dist é versionado, isto compila sem Node instalado.
+go build ./cmd/dwnvr && ./dwnvr -config dwnvr.yaml
+```
+
+Abra <http://localhost:8080>, entre em **Câmeras** e cadastre a `cam_teste`,
+que já vai estar listada como stream disponível. Em ~30s o primeiro segmento
+fecha e aparece na aba **Gravações**. Para ver acontecer mais rápido, baixe
+`segmentSeconds` para 10 no `dwnvr.yaml`.
+
+Se preferir conferir por fora da interface, o primeiro segmento gravado
+aparece assim:
+
+```sh
+find storage -name '*.mp4' | head    # o init, e um arquivo por segmento
+
+# Qualquer segmento abre sozinho, sem pré-processamento e sem o init ao lado.
+ffprobe "$(find storage/cam_teste/2* -name '*.mp4' | head -1)"
+```
+
+Para derrubar tudo e apagar o que foi gravado:
+
+```sh
+docker rm -f go2rtc
+rm -rf storage dwnvr.yaml cameras.json go2rtc.yaml .session-secret
+```
+
+> Todos os arquivos criados acima já estão no `.gitignore` - o teste não suja
+> o `git status`. Para a instalação de verdade, com os dois serviços em
+> containers, veja [Instalação](#instalação).
 
 ## Tecnologias
 
@@ -130,7 +182,7 @@ Resumo antes do detalhe:
 | `web/src/vendor/` | convenção, e do lado JavaScript | nada acontece |
 | `*_test.go` | **exigência do Go** | o arquivo passa a entrar no binário final |
 
-### `cmd/` - convenção da comunidade
+### `cmd/` - convenção da comunidade <!-- omit in toc -->
 
 Não é invenção deste projeto nem exigência do compilador: é o hábito adotado em
 praticamente todo projeto Go de porte - Kubernetes, Docker, Prometheus, o
@@ -146,7 +198,7 @@ sai da frente, com toda a lógica em pacotes testáveis sob `internal/`;
 `go build ./cmd/dwnvr` fica inequívoco, sem caçar qual arquivo tem a função
 `main`; e acrescentar um segundo binário não reorganiza nada.
 
-### `internal/` - exigência do Go
+### `internal/` - exigência do Go <!-- omit in toc -->
 
 Aqui não é hábito, é regra que o próprio Go impõe. Um pacote sob `internal/` só
 pode ser importado de dentro do próprio módulo. Outro projeto que tente
@@ -159,7 +211,7 @@ use of internal package github.com/mhagnumdw/dwnvr/internal/store not allowed
 É o que permite reorganizar tudo que está aqui dentro sem quebrar ninguém lá
 fora: nada disto é API pública, e o Go garante isso em vez de pedir por favor.
 
-### `internal/api/dist/` - o build da interface, versionado
+### `internal/api/dist/` - o build da interface, versionado <!-- omit in toc -->
 
 Commitar artefato gerado costuma ser sinal de desleixo. Aqui é deliberado, e
 duas restrições explicam o formato.
@@ -181,7 +233,7 @@ Por isso o `vite.config.js` manda o build para `../internal/api/dist`, ao lado
 do `web.go` que o embute. Ao mexer em `web/`, rode `npm run build` **antes** de
 commitar - a CI reprova se os dois divergirem.
 
-### `web/src/vendor/` - convenção, e do outro lado da cerca
+### `web/src/vendor/` - convenção, e do outro lado da cerca <!-- omit in toc -->
 
 Guarda código de terceiros: o player de live do go2rtc (MIT), copiado sem
 modificação. Ver [`web/src/vendor/README.md`](web/src/vendor/README.md).
@@ -192,7 +244,7 @@ build passa a usá-las em vez do cache de módulos. Este `vendor/` não é aquel
 está dentro de `web/`, é JavaScript, e para o Go não significa nada. O nome foi
 emprestado pelo costume, não pela regra.
 
-### `*_test.go` - exigência do Go
+### `*_test.go` - exigência do Go <!-- omit in toc -->
 
 O sufixo não é estilo: **o Go só compila esses arquivos durante `go test`**.
 Eles ficam de fora do binário final, o que permite deixá-los ao lado do código
@@ -207,59 +259,6 @@ Referências: [Organizing a Go module](https://go.dev/doc/modules/layout),
 e [golang-standards/project-layout](https://github.com/golang-standards/project-layout).
 
 </details>
-
-## Subir para um teste rápido
-
-**Você não precisa de uma câmera real.** O `go2rtc.example.yaml` traz uma fonte
-sintética: o ffmpeg que já vem na imagem do go2rtc desenha uma carta de teste
-com relógio, e o go2rtc a publica como H264 720p. Do ponto de vista do dwnvr é
-indistinguível de uma câmera de verdade.
-
-O dwnvr roda como binário local e o go2rtc num container - assim você testa a
-sua árvore de trabalho, e não uma imagem publicada:
-
-```sh
-git clone https://github.com/mhagnumdw/dwnvr && cd dwnvr
-
-cp go2rtc.example.yaml go2rtc.yaml
-cp dwnvr.example.yaml  dwnvr.yaml
-
-# Grava em ./storage, sem exigir que /mnt/storage/dwnvr exista na sua máquina.
-sed -i 's|/mnt/storage/dwnvr|./storage|' dwnvr.yaml
-
-# A fonte dos streams. O dwnvr.example.yaml já aponta para localhost:1984.
-docker run -d --name go2rtc -p 1984:1984 \
-  -v "$PWD/go2rtc.yaml:/config/go2rtc.yaml" alexxit/go2rtc
-
-# Como o internal/api/dist é versionado, isto compila sem Node instalado.
-go build ./cmd/dwnvr && ./dwnvr -config dwnvr.yaml
-```
-
-Abra <http://localhost:8080>, entre em **Câmeras** e cadastre a `cam_teste`,
-que já vai estar listada como stream disponível. Em ~30s o primeiro segmento
-fecha e aparece na aba **Gravações**. Para ver acontecer mais rápido, baixe
-`segmentSeconds` para 10 no `dwnvr.yaml`.
-
-Se preferir conferir por fora da interface, o primeiro segmento gravado
-aparece assim:
-
-```sh
-find storage -name '*.mp4' | head    # o init, e um arquivo por segmento
-
-# Qualquer segmento abre sozinho, sem pré-processamento e sem o init ao lado.
-ffprobe "$(find storage/cam_teste/2* -name '*.mp4' | head -1)"
-```
-
-Para derrubar tudo e apagar o que foi gravado:
-
-```sh
-docker rm -f go2rtc
-rm -rf storage dwnvr.yaml cameras.json go2rtc.yaml .session-secret
-```
-
-> Todos os arquivos criados acima já estão no `.gitignore` - o teste não suja
-> o `git status`. Para a instalação de verdade, com os dois serviços em
-> containers, veja [Instalação](#instalação).
 
 ## Build
 
@@ -302,6 +301,8 @@ endpoints HTTP.
 O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push.
 
 ## Instalação
+
+<!-- // TODO: ainda preciso revisar essa seção -->
 
 Os dois serviços, lado a lado:
 
