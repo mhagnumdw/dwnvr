@@ -117,7 +117,7 @@ func defaults() Config {
 		Server: Server{Listen: ":8080"},
 		Go2RTC: Go2RTC{URL: "http://localhost:1984"},
 		Storage: Storage{
-			Root:      "/mnt/storage/dwnvr",
+			Root:      "/mnt/storage/dwnvr/recordings",
 			MinFreeMB: 2048,
 		},
 		Defaults: Defaults{
