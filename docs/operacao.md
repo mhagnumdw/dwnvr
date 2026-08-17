@@ -96,7 +96,7 @@ Nada disso muda a imagem: o sidecar é descartado ao sair.
 ## Trocar de versão
 
 ```sh
-docker compose pull && docker compose up -d
+docker compose up -d --pull always
 ```
 
 O encerramento é gracioso: o dwnvr fecha e indexa o segmento em aberto de cada

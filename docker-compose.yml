@@ -2,8 +2,9 @@
 #
 # É o mesmo arquivo para experimentar e para instalar de verdade: como vem, ele
 # constrói a imagem deste clone e grava as câmeras em ./storage, então basta ter
-# Docker - nem câmera, nem Go, nem Node. As duas linhas a trocar quando isto
-# virar a sua instalação definitiva estão marcadas abaixo.
+# Docker - nem câmera, nem Go, nem Node. Para a instalação definitiva mudam só
+# os três caminhos de volume, marcados abaixo - a seção "Instalação definitiva"
+# do README mostra os três de uma vez.
 #
 # O go2rtc está aqui por conveniência, mas continua fora do escopo do dwnvr: o
 # conteúdo do go2rtc.yaml - câmeras, URLs RTSP, codecs - é responsabilidade de
@@ -12,12 +13,18 @@
 
 services:
   dwnvr:
-    # Constrói a imagem a partir deste clone. É o que dispensa Go e Node na sua
-    # máquina - o Dockerfile compila a interface e o binário lá dentro.
+    # A imagem pronta e o build convivem aqui de propósito, e é o comando que
+    # decide qual dos dois vale:
+    #
+    #   docker compose up                   compila a partir deste clone. É o
+    #                                       que dispensa Go e Node na máquina.
+    #   docker compose up -d --pull always  baixa a publicada, sem compilar.
+    #
+    # O segundo é o da instalação definitiva: num hardware modesto, compilar é
+    # a diferença entre segundos e um build que pode demorar muito e/ou não
+    # caber na memória.
+    image: ghcr.io/mhagnumdw/dwnvr:latest
     build: .
-    # (1) Trocar por: `image: ghcr.io/mhagnumdw/dwnvr:latest`
-    #     para baixar a imagem pronta em vez de construir, mas ela ainda não
-    #     não está pública.
 
     container_name: dwnvr
     restart: unless-stopped
@@ -51,9 +58,11 @@ services:
       # As gravações das câmeras. Ao lado do clone para você experimentar sem
       # preparar disco nenhum.
       - ./storage:/storage
-      # (2) Trocar pelo local definitivo no host, ex: /mnt/storage/dwnvr:/storage
-      #     na instalação de verdade. O lado direito é o que o dwnvr.yaml chama de
-      #     storage.root, e ele não muda.
+
+      # (*) Na instalação definitiva os dois caminhos da esquerda apontam para o
+      #     disco onde as gravações cabem. Só a esquerda muda: /etc/dwnvr e
+      #     /storage são o que o container enxerga por dentro, e /storage é o
+      #     que o dwnvr.yaml chama de `storage.root`.
 
     # Com o go2rtc neste mesmo compose, o dwnvr o alcança pelo nome do serviço:
     # basta que o dwnvr.yaml tenha go2rtc.url: http://go2rtc:1984
@@ -79,6 +88,10 @@ services:
     shm_size: 128mb
 
     # As suas câmeras moram aqui. Este arquivo é seu; o dwnvr não o escreve.
+    #
+    # (*) O terceiro caminho da instalação definitiva. Ele fica fora do diretório
+    #     montado em /etc/dwnvr de propósito: aquele vai inteiro para dentro do
+    #     container do dwnvr, e as URLs RTSP com usuário e senha vivem aqui.
     volumes:
       - ./go2rtc.yaml:/config/go2rtc.yaml
 
