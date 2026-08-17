@@ -401,6 +401,9 @@ divergir de `web/`.
 |---|---|
 | `make web` | constrói a interface para `internal/api/dist` (precisa de Node) |
 | `make build` | binário para a máquina local |
+| `make image-arm64` | imagem docker arm64, carregada no docker local |
+| `make image-amd64` | imagem docker amd64, carregada no docker local |
+| `make image` | imagem multi-arch (amd64 + arm64), como a que a CI publica |
 | `make deploy` | recria o container no servidor remoto via ssh, com a imagem que a CI publicou |
 | `make deploy-wip` | leva o código **não commitado** para o servidor, só para experimentar |
 

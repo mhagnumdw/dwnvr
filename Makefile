@@ -32,7 +32,7 @@ BUILDARGS = --build-arg VERSION=$(VERSION) \
 	--build-arg COMMIT=$(COMMIT) \
 	--build-arg DATE=$(DATE)
 
-.PHONY: all web build test check deploy deploy-wip help
+.PHONY: all web build test check image image-arm64 image-amd64 deploy deploy-wip help
 
 # Guarda usada pelos dois deploys.
 EXIGE_HOST = @test -n "$(DEPLOY_HOST)" || { echo "defina DEPLOY_HOST no local.mk (veja local.mk.example) ou passe na linha de comando: make deploy DEPLOY_HOST=usuario@servidor"; exit 1; }
@@ -46,6 +46,43 @@ web:
 ## build: binário para a máquina local
 build:
 	go build -trimpath -ldflags="$(LDFLAGS)" -o dwnvr ./cmd/dwnvr
+
+## image-arm64: imagem docker arm64, carregada no docker local
+#
+# Compila cruzado na máquina de quem desenvolve (qualquer arquitetura): o Go
+# cruza GOARCH pelo TARGETARCH e os estágios que executam - node e go - rodam no
+# BUILDPLATFORM, então não emula nada. --load deixa a imagem pronta no docker
+# local, sem passar por registry.
+#
+# A tag é local de propósito, sem o ghcr.io de $(IMAGE): um `docker push`
+# distraído publicaria no registry público uma imagem que nunca passou pela CI.
+#
+# --provenance/--sbom desligados não são frescura nem sobra do deploy-wip: com
+# eles o buildx exporta uma manifest list mesmo para uma plataforma só, e o
+# `--load` de um docker sem containerd image store a recusa. Aqui pode
+# funcionar sem as flags e quebrar na máquina de outra pessoa.
+image-arm64:
+	docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
+		$(BUILDARGS) -t dwnvr:$(VERSION)-arm64 --load .
+
+## image-amd64: imagem docker amd64, carregada no docker local
+image-amd64:
+	docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
+		$(BUILDARGS) -t dwnvr:$(VERSION)-amd64 --load .
+
+## image: imagem multi-arch (amd64 + arm64), como a que a CI publica
+#
+# Os dois alvos acima geram imagens separadas; este gera a manifest list única,
+# que é o que de fato vai para o GHCR - a única forma de conferir localmente o
+# artefato que a CI produz, sem publicar versão intermediária.
+#
+# Sem --provenance/--sbom aqui: uma manifest list é o resultado esperado, e as
+# attestations aproximam o que a CI publica. Em compensação este alvo exige o
+# containerd image store no docker local (`docker info | grep containerd`); o
+# store clássico não carrega manifest list e o --load falha na hora.
+image:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		$(BUILDARGS) -t dwnvr:$(VERSION) --load .
 
 ## test: testes de unidade
 test:
