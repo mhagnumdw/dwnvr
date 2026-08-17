@@ -1,16 +1,7 @@
 # CI do dwnvr.
 #
-# ATENÇÃO - este arquivo está INATIVO hoje, de propósito.
-#
-# O GitHub só executa workflows que estejam em `<raiz-do-repositório>/.github/
-# workflows/`. Enquanto o dwnvr for uma subpasta do repositório `cameras`, este
-# arquivo mora em `dwnvr/.github/workflows/` e portanto é ignorado - o que é
-# exatamente o desejado por enquanto.
-#
-# Ele já está escrito assumindo o dwnvr como RAIZ do repositório. Quando a pasta
-# virar um repositório independente, ele passa a valer sozinho, sem nenhuma
-# edição: os caminhos, o contexto do build e o nome da imagem já são
-# relativos à raiz.
+# O job `test` roda em todo push e pull request. O `image` roda depois dele e
+# só fora de pull request, publicando a imagem multi-arch no GHCR.
 
 name: ci
 
