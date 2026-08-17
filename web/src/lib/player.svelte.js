@@ -35,6 +35,7 @@ export class Player {
   #initAppended = null;
   #pumping = null; // promessa do pump em voo, ou null quando não há nenhum
   #generation = 0; // invalida trabalho em voo depois de um seek
+  #seeking = false; // seek em voo: `base` e `currentTime` estão dessincronizados
 
   #mime = null; // com que codecs o SourceBuffer atual foi criado
   #mimes = new Map(); // geração -> mime, para não rebuscar o mesmo init
@@ -85,6 +86,10 @@ export class Player {
     this.#mimes.clear();
     this.#boundary = null;
     this.#generation++;
+    // O incremento acima impede o `finally` de um seek em voo de rodar, então
+    // o portão precisa ser aberto aqui: um dia novo sem gravação nenhuma não
+    // chama seek(), e o relógio ficaria mudo para sempre.
+    this.#seeking = false;
     this.base = 0;
     this.currentMs = 0;
   }
@@ -131,7 +136,13 @@ export class Player {
 
   #onTime = () => {
     if (!this.video) return;
-    this.currentMs = this.base + this.video.currentTime * 1000;
+    // Durante um seek, `base` já é a do segmento alvo enquanto `currentTime`
+    // ainda é do que estava tocando - ou 0, logo depois da troca de src.
+    // Publicar isso jogaria o marcador da timeline para o início do segmento
+    // enquanto a rede entrega os bytes, e só então ele pousaria onde se
+    // clicou. Quem fecha o portão é o próprio seek, que já pôs `currentMs` no
+    // alvo. O pump continua rodando: é ele que enche o buffer.
+    if (!this.#seeking) this.currentMs = this.base + this.video.currentTime * 1000;
     this.#pump();
   };
 
@@ -198,10 +209,20 @@ export class Player {
     if (ms > start + dur && i + 1 < this.#segments.length) i++;
 
     const gen = ++this.#generation;
+    this.#seeking = true;
     this.error = '';
     this.buffering = true;
     // Um seek novo manda em qualquer fronteira que estivesse agendada.
     this.#boundary = null;
+
+    // Onde a reprodução vai mesmo pousar: dentro do segmento, ou no começo
+    // dele quando o clique caiu antes do que existe ou depois do que acabou.
+    const inside = (ms - this.#segments[i][0]) / 1000;
+    const dentro = inside > 0 && inside < this.#segments[i][1] / 1000;
+    // O marcador vai para lá já neste quadro. Trocar o src zera o
+    // `currentTime` e o buffer só chega depois de algumas requisições: sem
+    // isto o cursor passaria esse tempo todo parado no início do segmento.
+    this.currentMs = dentro ? ms : this.#segments[i][0];
 
     try {
       // A geração é a DO SEGMENTO ALVO, não a primeira do dia: ligar o áudio no
@@ -213,10 +234,7 @@ export class Player {
       await this.#repump();
       if (gen !== this.#generation) return;
 
-      const inside = (ms - this.#segments[i][0]) / 1000;
-      if (inside > 0 && inside < this.#segments[i][1] / 1000) {
-        this.video.currentTime = inside;
-      }
+      if (dentro) this.video.currentTime = inside;
       // Reflete a posição imediatamente: o autoplay pode ser bloqueado pelo
       // navegador, e nesse caso nenhum evento de reprodução viria atualizar o
       // relógio nem o marcador da timeline.
@@ -225,7 +243,12 @@ export class Player {
     } catch (e) {
       this.error = e.message;
     } finally {
-      this.buffering = false;
+      // Um seek atropelado não devolve o portão nem apaga o "carregando…":
+      // esse estado agora é do seek novo, que ainda está buscando bytes.
+      if (gen === this.#generation) {
+        this.#seeking = false;
+        this.buffering = false;
+      }
     }
   }
 
