@@ -26,9 +26,9 @@ go2rtc:
   # password: troque-me
 
 storage:
-  # Caminho DENTRO do container, e por isso ele não muda: quem decide em que
-  # disco do host isso cai é o docker-compose.yml, que monta ./storage ou
-  # /mnt/storage/dwnvr aqui. Rodando o binário solto, ponha o caminho real.
+  # Onde o dwnvr escreve - o caminho que o processo enxerga. Em container é um
+  # caminho de dentro dele, e quem escolhe o disco do host é o volume do
+  # docker-compose.yml.
   root: /storage
 
   # Rede de segurança global. Quando o disco livre cai abaixo disto, o dwnvr

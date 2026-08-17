@@ -10,6 +10,9 @@ go2rtc.yaml
 # Configuração de build da máquina de quem desenvolve (ver local.mk.example)
 local.mk
 
+# Personalizações do docker-compose.yml versionado ficam fora do versionamento.
+docker-compose.override.yml
+
 # Gravações, quando o docker-compose.yml grava ao lado do clone
 /storage/
 

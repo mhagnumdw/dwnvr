@@ -142,44 +142,96 @@ docker compose down
 rm -rf config storage go2rtc.yaml .env
 ```
 
-> Para a [instalação definitiva](#instalação-definitiva) a mudança é
-> mínima. Ver a seção logo abaixo.
+> Para a [instalação definitiva](#instalação-definitiva) a mudança é mínima:
+> três caminhos de volume e um `--pull always`. Ver a seção logo abaixo.
 
 ## Instalação definitiva
 
-Não há um segundo caminho: é o [subir o dwnvr](#subir-o-dwnvr) conforme a seção
-anterior, com cinco mudanças de configuração.
+É o mesmo compose do [subir o dwnvr](#subir-o-dwnvr). Muda só onde as coisas
+moram no host.
 
-**1. A imagem pronta, em vez do build.** No `docker-compose.yml`, na marca
-`(1)`:
+### Os diretórios <!-- omit in toc -->
 
-> // TODO: essa imagem ainda não é publicada. Pular esse item.
+Supondo um disco em `/mnt/storage` - troque pelo seu:
 
-```yaml
-image: ghcr.io/mhagnumdw/dwnvr:latest
+```
+No Host                                                            No Container
+/mnt/storage/dwnvr/
+├── config/          dwnvr.yaml, cameras.json, .session-secret  →  /etc/dwnvr
+├── recordings/      as gravações                               →  /storage
+└── go2rtc/
+    └── go2rtc.yaml  as suas câmeras, com usuário e senha       →  /config/go2rtc.yaml
 ```
 
-**2. O local definitivo das gravações no host, em vez de `./storage`.**
-No `docker-compose.yml`, na marca `(2)`:
+O `go2rtc.yaml` fica fora de `config/` de propósito: o `config/` inteiro é
+montado dentro do container do dwnvr, e as URLs RTSP - com usuário e senha - não
+têm por que ficar visíveis lá.
 
-```yaml
-volumes:
-  - /mnt/storage/dwnvr:/storage
+```sh
+sudo mkdir -p /mnt/storage/dwnvr/{config,recordings,go2rtc}
+sudo chown -R "$(id -u):$(id -g)" /mnt/storage/dwnvr
+
+cp dwnvr.example.yaml  /mnt/storage/dwnvr/config/dwnvr.yaml
+cp go2rtc.example.yaml /mnt/storage/dwnvr/go2rtc/go2rtc.yaml
 ```
 
-Só o lado esquerdo muda - o direito é o que o `dwnvr.yaml` chama de
-`storage.root`. Aponte para o disco onde as gravações cabem.
+Crie-os **antes** de subir: criados pelo Docker, eles nascem de root, e aí o
+container - que não roda como root - não escreve dentro deles.
 
-**3. O `.env` deixa de ser opcional.** UID e GID errados fazem a tela de
-cadastro falhar ao gravar o `cameras.json`; `TZ` errado joga a virada de dia da
-timeline para o horário errado.
+### Os três volumes <!-- omit in toc -->
 
-**4. As suas câmeras, no lugar da sintética.** Apague a `cam_teste` do
-`go2rtc.yaml` - ela não serve para mais nada - e publique as de verdade.
+```yaml
+services:
+  dwnvr:
+    volumes:
+      - /mnt/storage/dwnvr/config:/etc/dwnvr
+      - /mnt/storage/dwnvr/recordings:/storage
+  go2rtc:
+    volumes:
+      - /mnt/storage/dwnvr/go2rtc/go2rtc.yaml:/config/go2rtc.yaml
+```
 
-**5. Login ligado.** Preencha `server.username` e `server.password` no
-`config/dwnvr.yaml`: enquanto os dois estiverem vazios, a autenticação fica
-desligada.
+Só o lado esquerdo muda; o direito é o que o container enxerga por dentro e é
+fixo.
+
+**Edite o `docker-compose.yml` direto** - funciona e é o caminho mais simples.
+Se preferir manter o clone limpo para o `git pull`, grave esse mesmo trecho num
+`docker-compose.override.yml` ao lado: o Docker junta os dois sozinho, e o git
+ignora o arquivo.
+
+### O `.env` deixa de ser opcional <!-- omit in toc -->
+
+`DWNVR_UID` e `DWNVR_GID` errados fazem a tela de cadastro falhar ao gravar o
+`cameras.json`; `TZ` errado joga a virada de dia da timeline para o horário
+errado.
+
+### Ligar o login <!-- omit in toc -->
+
+Preencha `server.username` e `server.password` no `dwnvr.yaml`: enquanto os dois
+estiverem vazios a autenticação fica **desligada**, e quem abrir a interface
+enxerga as gravações de todas as câmeras.
+
+### As suas câmeras <!-- omit in toc -->
+
+Apague a `cam_teste` do `go2rtc.yaml` - ela não serve para mais nada -,
+publicando as suas no lugar.
+
+### Subir <!-- omit in toc -->
+
+```sh
+# --pull always baixa a imagem pronta. Sem ele, o compose compila a partir do
+# clone - o que num hardware modesto é a diferença entre segundos e um build
+# que pode demorar muito e/ou não caber na memória.
+docker compose up -d --pull always
+```
+
+### Atualizar <!-- omit in toc -->
+
+```sh
+git pull && docker compose up -d --pull always
+```
+
+Se o pull falhar, o comando para aí e o que está no ar continua gravando.
 
 **Se o go2rtc já roda em outro compose ou direto no host:**
 
