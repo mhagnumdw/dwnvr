@@ -19,3 +19,4 @@ cameras.json
 .git/
 docs/
 *.md
+.editorconfig
