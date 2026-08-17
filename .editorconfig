@@ -1,0 +1,41 @@
+# Formatação de arquivo, para o editor não brigar com o que já está no repo.
+# Só descreve o que hoje é verdade em todo arquivo versionado: UTF-8, LF,
+# newline no fim e sem espaço sobrando no fim da linha.
+#
+# Referência: https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# gofmt indenta com tab e não aceita discussão. O indent_size aqui não muda o
+# arquivo: só diz de quantas colunas o editor deve desenhar o tab.
+[*.{go,mod,sum}]
+indent_style = tab
+indent_size = 4
+
+# O make exige tab no começo da linha de receita - espaço vira erro de sintaxe.
+[{Makefile,*.mk}]
+indent_style = tab
+indent_size = 4
+
+# Build da interface, gerado pelo vite e versionado (ver web/README.md).
+# Nada aqui é editado à mão, então o editor não deve reformatar.
+[internal/api/dist/**]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
+
+# Gerado pelo npm.
+[web/package-lock.json]
+indent_style = unset
+indent_size = unset
