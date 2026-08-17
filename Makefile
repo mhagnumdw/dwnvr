@@ -18,10 +18,8 @@ IMAGE    ?= ghcr.io/mhagnumdw/dwnvr
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT   ?= $(shell git rev-parse HEAD 2>/dev/null || echo desconhecido)
 DATE     ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-PLATFORMS = linux/amd64,linux/arm64
 
-# Sem isto o binário não sabe dizer que código ele é. Vale para build, arm64 e
-# amd64 de uma vez, já que os três compartilham LDFLAGS.
+# Sem isto o binário não sabe dizer que código ele é.
 BUILDPKG  = github.com/mhagnumdw/dwnvr/internal/buildinfo
 LDFLAGS   = -s -w \
 	-X $(BUILDPKG).Version=$(VERSION) \
@@ -34,7 +32,10 @@ BUILDARGS = --build-arg VERSION=$(VERSION) \
 	--build-arg COMMIT=$(COMMIT) \
 	--build-arg DATE=$(DATE)
 
-.PHONY: all web build test check clean image image-push deploy help
+.PHONY: all web build test check deploy deploy-wip help
+
+# Guarda usada pelos dois deploys.
+EXIGE_HOST = @test -n "$(DEPLOY_HOST)" || { echo "defina DEPLOY_HOST no local.mk (veja local.mk.example) ou passe na linha de comando: make deploy DEPLOY_HOST=usuario@servidor"; exit 1; }
 
 all: web build
 
@@ -46,16 +47,6 @@ web:
 build:
 	go build -trimpath -ldflags="$(LDFLAGS)" -o dwnvr ./cmd/dwnvr
 
-## arm64: binário estático para aarch64 Linux (Orange Pi, Raspberry Pi, ...)
-arm64:
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-		go build -trimpath -ldflags="$(LDFLAGS)" -o dwnvr-linux-arm64 ./cmd/dwnvr
-
-## amd64: binário estático para x86_64 Linux
-amd64:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-		go build -trimpath -ldflags="$(LDFLAGS)" -o dwnvr-linux-amd64 ./cmd/dwnvr
-
 ## test: testes de unidade
 test:
 	go test ./... -count=1
@@ -65,54 +56,46 @@ check: test
 	gofmt -l . | tee /dev/stderr | (! read)
 	go vet ./...
 
-## image: imagem multi-arch, carregada localmente só para a arquitetura atual
-image:
-	docker buildx build --platform $(PLATFORMS) $(BUILDARGS) -t $(IMAGE):$(VERSION) .
-
-## image-push: constrói e publica a imagem multi-arch
-image-push:
-	docker buildx build --platform $(PLATFORMS) $(BUILDARGS) \
-		-t $(IMAGE):$(VERSION) -t $(IMAGE):latest --push .
-
-## deploy: constrói a imagem arm64 e recria o container no servidor remoto
+## deploy: atualiza o servidor remoto com a imagem que a CI publicou
 #
-# O dwnvr do servidor roda como container a partir de $(DEPLOY_DIR), e não como
-# binário solto - uma versão anterior deste alvo instalava em ~/dwnvr-test, que
-# há muito não é a instalação de verdade. O efeito era pior que não fazer nada:
-# o deploy terminava com sucesso e o container seguia com a versão antiga.
+# Nada é construído aqui: o servidor baixa do GHCR a imagem que a CI publicou.
+# Sem `git pull` de propósito - o docker-compose.yml de lá costuma estar
+# editado. Recriar o container custa alguns segundos de gravação.
 #
-# A imagem vai pelo ssh em vez de passar por um registry porque isso mantém o
-# ciclo de teste independente de rede externa e de publicar versão intermediária.
-# Note que recriar o container abre um buraco de alguns segundos na gravação de
-# todas as câmeras.
-#
-# A tag dwnvr:arm64 é acordo com o docker-compose.yml que vive em $(DEPLOY_DIR),
-# no servidor: mudá-la aqui faz o compose subir a imagem antiga em silêncio.
-#
-# DEPLOY_HOST não tem default de propósito: qualquer valor aqui seria o servidor
-# de outra pessoa, e um ssh para um host que não existe é justo o tipo de falha
-# silenciosa que o resto deste alvo tenta evitar. Defina no local.mk.
+# DEPLOY_HOST não tem default porque qualquer valor aqui seria o servidor de
+# outra pessoa. Defina no local.mk.
 DEPLOY_HOST ?=
-DEPLOY_DIR  ?= ~/dwnvr-docker
+DEPLOY_DIR  ?= ~/dwnvr
 deploy:
-	@test -n "$(DEPLOY_HOST)" || { echo "defina DEPLOY_HOST no local.mk (veja local.mk.example) ou passe na linha de comando: make deploy DEPLOY_HOST=usuario@servidor"; exit 1; }
-	# --provenance/--sbom desligados de propósito: com eles o buildx exporta uma
-	# manifest list, e o `docker load` do outro lado não engole manifest list.
-	docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
-		$(BUILDARGS) -t dwnvr:arm64 --load .
-	docker save dwnvr:arm64 | gzip | ssh $(DEPLOY_HOST) 'gunzip | docker load'
-	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_DIR) && docker compose up -d'
+	$(EXIGE_HOST)
+	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_DIR) && docker compose up -d --pull always'
 	@sleep 20
 	@ssh $(DEPLOY_HOST) 'docker ps --filter name=dwnvr --format "{{.Status}}"'
-	# A prova de que o deploy pegou: se o servidor responder outra versão, o
-	# container subiu com a imagem antiga - que é o modo como este alvo já
-	# falhou em silêncio uma vez.
+	# A prova de que o deploy pegou - este alvo já falhou em silêncio uma vez.
+	# Se não bater, ou a CI ainda não publicou, ou subiu a imagem antiga.
 	@echo "esperado: $(VERSION)"
 	@ssh $(DEPLOY_HOST) 'curl -sf localhost:8080/api/version' || echo "não respondeu"
 
-clean:
-	rm -f dwnvr dwnvr-linux-*
-	rm -rf internal/api/dist/assets
+## deploy-wip: leva o código NÃO commitado para o servidor, só para experimentar
+#
+# Compila arm64 aqui e empurra a imagem pelo ssh, sem passar pelo registry - é o
+# único jeito de testar no hardware antes do commit. Depois disto o servidor roda
+# algo que não existe em commit nenhum; `make deploy` desfaz.
+#
+# Entra com a tag que o compose de lá espera, e sobe sem --pull always, que
+# baixaria a imagem da CI por cima.
+deploy-wip:
+	$(EXIGE_HOST)
+	# --provenance/--sbom desligados: com eles o buildx exporta uma manifest
+	# list, e o `docker load` do outro lado não engole manifest list.
+	docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
+		$(BUILDARGS) -t dwnvr:wip-arm64 --load .
+	docker save dwnvr:wip-arm64 | gzip | ssh $(DEPLOY_HOST) \
+		'gunzip | docker load && docker tag dwnvr:wip-arm64 $(IMAGE):latest'
+	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_DIR) && docker compose up -d'
+	@sleep 20
+	@echo "esperado: $(VERSION)"
+	@ssh $(DEPLOY_HOST) 'curl -sf localhost:8080/api/version' || echo "não respondeu"
 
 ## help: lista os alvos
 help:
