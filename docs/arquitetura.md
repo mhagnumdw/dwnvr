@@ -79,7 +79,7 @@ GOP de 4s, um alvo de 30s vira ~31,6s.
 Sem banco de dados. O índice é um NDJSON por câmera por dia, append-only:
 
 ```
-/mnt/storage/dwnvr/
+<storage.root>/
   cam_portao/
     init/4edbc50d8e70.mp4        # init segment (ftyp+moov), identificado por hash do conteúdo
     2026-08-08/1786220564113.mp4 # segmento; o nome é o início em epoch ms

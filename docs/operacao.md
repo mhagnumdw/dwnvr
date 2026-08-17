@@ -2,20 +2,23 @@
 
 ## Onde ficam os arquivos
 
-Nada de importante vive dentro do container. Os dois volumes cobrem tudo:
+Nada de importante vive dentro do container. Os dois volumes cobrem tudo. Os
+caminhos do host abaixo são os da [instalação
+definitiva](../README.md#instalação-definitiva); no quickstart os mesmos
+arquivos ficam em `./config` e `./storage`, ao lado do clone.
 
 | No host (exemplo) | No container | O que é |
 |---|---|---|
-| `./config/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuração, editada à mão |
-| `./config/cameras.json` | `/etc/dwnvr/cameras.json` | câmeras, gravado pela tela de cadastro |
-| `./config/.session-secret` | `/etc/dwnvr/.session-secret` | assina os cookies de sessão (0600) |
-| `/mnt/storage/dwnvr/` | `/storage/` | gravações, índices e init segments |
+| `/mnt/storage/dwnvr/config/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuração, editada à mão |
+| `/mnt/storage/dwnvr/config/cameras.json` | `/etc/dwnvr/cameras.json` | câmeras, gravado pela tela de cadastro |
+| `/mnt/storage/dwnvr/config/.session-secret` | `/etc/dwnvr/.session-secret` | assina os cookies de sessão (0600) |
+| `/mnt/storage/dwnvr/recordings/` | `/storage/` | gravações, índices e init segments |
 
 Ou seja: **edite e inspecione tudo pelo host**, sem entrar no container.
 
 ```sh
-cat ~/dwnvr-docker/config/cameras.json
-tail -f /mnt/storage/dwnvr/cam_portao/index/$(date +%F).ndjson
+cat /mnt/storage/dwnvr/config/cameras.json
+tail -f /mnt/storage/dwnvr/recordings/cam_portao/index/$(date +%F).ndjson
 ```
 
 Para descobrir os caminhos de uma instalação qualquer:
