@@ -287,7 +287,7 @@ projeto, não uma etapa que faltou.
 ├── Dockerfile              imagem FROM scratch, multi-arch
 ├── dwnvr.example.yaml      configuração do dwnvr, campo a campo
 ├── go2rtc.example.yaml     configuração do go2rtc, com uma câmera sintética
-└── Makefile                build, testes, imagem e deploy
+└── Makefile                build, testes e deploy
 ```
 
 <details>
@@ -401,10 +401,8 @@ divergir de `web/`.
 |---|---|
 | `make web` | constrói a interface para `internal/api/dist` (precisa de Node) |
 | `make build` | binário para a máquina local |
-| `make arm64` | binário estático para aarch64 Linux (Orange Pi, Raspberry Pi, ...) |
-| `make amd64` | binário estático para x86_64 Linux |
-| `make image` | imagem Docker multi-arch |
-| `make deploy` | constrói a imagem arm64 e recria o container no servidor remoto via ssh |
+| `make deploy` | recria o container no servidor remoto via ssh, com a imagem que a CI publicou |
+| `make deploy-wip` | leva o código **não commitado** para o servidor, só para experimentar |
 
 Como o `internal/api/dist` é versionado, **`go build ./cmd/dwnvr` funciona num
 clone limpo sem Node instalado**. Isso é deliberado: o alvo é um dispositivo
@@ -414,8 +412,13 @@ onde ninguém quer instalar toolchain de frontend.
 
 ```sh
 make test        # testes de unidade
-make check       # o que a CI roda: testes + go vet + gofmt + dist em dia
+make check       # testes + gofmt + go vet
 ```
+
+A CI roda isso e mais uma coisa: reconstrói a interface para conferir se o
+`internal/api/dist` versionado ainda corresponde a `web/`. Fica fora do `make
+check` porque exigiria Node em toda máquina que só quer compilar o Go.
+
 
 Os testes vivem ao lado do código que exercitam, em `internal/*/*_test.go`, e
 cobrem o que quebra em silêncio: a leitura de caixas fMP4, a reescrita do
