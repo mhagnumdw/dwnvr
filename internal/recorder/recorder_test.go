@@ -42,6 +42,9 @@ func TestBitrateZeraQuandoNaoChegaByte(t *testing.T) {
 
 // A estimativa de retenção não pode explodir quando a taxa é desprezível: é
 // exatamente daí que saía "5,4e+128 dias" na tela.
+//
+// Sem histórico em disco não há densidade, então quem responde é a taxa - e é
+// justamente aí que ela precisa do piso.
 func TestRetencaoNaoEstimaComTaxaDesprezivel(t *testing.T) {
 	tests := []struct {
 		nome   string
@@ -55,15 +58,7 @@ func TestRetencaoNaoEstimaComTaxaDesprezivel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.nome, func(t *testing.T) {
-			r := &Recorder{bitrateKbps: tt.taxa}
-			r.cam.QuotaMB = 20480
-
-			// Status() toca o índice; aqui interessa só a conta da estimativa,
-			// que é a mesma linha do Status.
-			var dias float64
-			if r.bitrateKbps >= minBitrateForEstimate {
-				dias = float64(r.cam.QuotaMB) * (1 << 20) / (r.bitrateKbps * 1000 / 8 * 86400)
-			}
+			dias := retainDays(20480, 0, 0, tt.taxa)
 
 			if tt.estima && dias <= 0 {
 				t.Errorf("taxa %v deveria produzir estimativa, veio %v", tt.taxa, dias)
@@ -72,6 +67,58 @@ func TestRetencaoNaoEstimaComTaxaDesprezivel(t *testing.T) {
 				t.Errorf("taxa %v não deveria produzir estimativa, veio %v", tt.taxa, dias)
 			}
 		})
+	}
+}
+
+// A estimativa sai da densidade do que já está gravado, e não da taxa do
+// instante. O caso ancorado é a cam_frente em 18/08/2026, que motivou a
+// mudança: 20478 MB de gravação cobrindo 8,23 dias, com cota de 20480 MB.
+//
+// Com a cota cheia, "cabem" tem que dar o mesmo que o "retido" mostra ao lado -
+// o número velho, tirado da taxa daquele instante, dizia 9,6 dias de madrugada e
+// ~5 de tarde, e era essa oscilação que fazia a tela parecer errada.
+func TestRetencaoUsaDensidadeDoQueEstaGravado(t *testing.T) {
+	const (
+		dia   = int64(86400000)
+		bytes = int64(20478) << 20
+		span  = int64(8.23 * float64(dia))
+	)
+
+	// Uma taxa absurda junto, de propósito: se a densidade não tivesse
+	// precedência, ela apareceria no resultado.
+	dias := retainDays(20480, bytes, span, 5000)
+	if dias < 8.1 || dias > 8.4 {
+		t.Errorf("dias = %v, esperava ~8,23 (a densidade real, não a taxa)", dias)
+	}
+
+	// A conta é linear na cota: dobrar a cota dobra o que cabe. É disso que a
+	// tela de edição depende para responder "e se eu puser 40 GB?".
+	if dobro := retainDays(40960, bytes, span, 5000); dobro < 2*dias-0.01 || dobro > 2*dias+0.01 {
+		t.Errorf("cota dobrada = %v, esperava o dobro de %v", dobro, dias)
+	}
+}
+
+// Câmera recém-cadastrada é quando a estimativa mais serve - é com ela que se
+// escolhe a cota - e é quando não há histórico de onde tirar densidade. Abaixo
+// do span mínimo, quem responde é a taxa.
+func TestRetencaoCaiNaTaxaComHistoricoCurto(t *testing.T) {
+	const bytes = int64(200) << 20
+
+	curto := retainDays(20480, bytes, minSpanForEstimate-1, 900)
+	porTaxa := retainDays(20480, 0, 0, 900)
+	if curto != porTaxa {
+		t.Errorf("span curto deu %v, esperava a estimativa por taxa (%v)", curto, porTaxa)
+	}
+
+	// Um minuto a mais de histórico e a densidade assume.
+	longo := retainDays(20480, bytes, minSpanForEstimate+60000, 900)
+	if longo == porTaxa {
+		t.Errorf("com span suficiente a densidade deveria assumir, veio a taxa (%v)", longo)
+	}
+
+	// Sem nenhuma das duas fontes o campo fica zerado e a tela mostra "-".
+	if vazio := retainDays(20480, 0, 0, 0); vazio != 0 {
+		t.Errorf("sem taxa e sem histórico = %v, esperava 0", vazio)
 	}
 }
 

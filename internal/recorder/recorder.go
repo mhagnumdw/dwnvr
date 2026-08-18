@@ -38,7 +38,46 @@ const (
 	// minBitrateForEstimate é a taxa abaixo da qual a estimativa de retenção
 	// não é publicada. Nenhum stream de câmera real fica abaixo disso.
 	minBitrateForEstimate = 1.0 // kbps
+
+	// minSpanForEstimate é o histórico mínimo para estimar a retenção pela
+	// densidade do que está gravado. Abaixo disso a medida é curta demais e a
+	// estimativa cai na taxa instantânea.
+	minSpanForEstimate = int64(time.Hour / time.Millisecond)
 )
+
+// retainDays estima quantos dias de gravação cabem na cota.
+//
+// É o número que torna a cota compreensível: "20 GB" não diz nada, "≈ 8,2 dias"
+// diz tudo. E é lido ao lado do "retido", que é o passado que existe de fato -
+// então os dois têm que fechar quando a cota enche, senão a tela se contradiz.
+//
+// Daí a preferência pela densidade média do que já está em disco (bytes por dia
+// de histórico) em vez da taxa do instante: a taxa de uma câmera de rua cai à
+// metade de madrugada e dobra de tarde, e dividir a cota por ela fazia a
+// estimativa balançar entre 5 e 9,6 dias no mesmo dia - sempre brigando com um
+// "retido" que não se move na mesma proporção.
+//
+// O viés que sobra é honesto e é o mesmo do "retido": câmera que ficou dias
+// fora do ar tem esse tempo contado no span, o que dilui a densidade e infla a
+// estimativa. Os dois números erram juntos, na mesma direção, o que é
+// preferível a divergirem.
+//
+// Sem histórico que dê medida - câmera nova, que é justamente quando a
+// estimativa mais serve para escolher a cota - cai na taxa instantânea. Sem
+// nenhuma das duas, devolve zero e a tela mostra "-" em vez de mentir.
+func retainDays(quotaMB, bytes, spanMs int64, bitrateKbps float64) float64 {
+	quota := float64(quotaMB) * (1 << 20)
+
+	if bytes > 0 && spanMs >= minSpanForEstimate {
+		bytesPerDay := float64(bytes) * 86400000 / float64(spanMs)
+		return quota / bytesPerDay
+	}
+	if bitrateKbps >= minBitrateForEstimate {
+		bytesPerDay := bitrateKbps * 1000 / 8 * 86400
+		return quota / bytesPerDay
+	}
+	return 0
+}
 
 // Status é a visão de saúde de uma câmera, consumida pela tela de diagnóstico.
 type Status struct {
@@ -180,7 +219,7 @@ func (r *Recorder) Status() Status {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	disk := r.idx.TotalBytes()
+	disk, oldest, newest := r.idx.Resumo()
 	st := Status{
 		ID: r.cam.ID, Name: r.cam.Name, Enabled: r.cam.Enabled,
 		Connected: r.connected, ConnectedAt: r.connectedAt,
@@ -195,20 +234,14 @@ func (r *Recorder) Status() Status {
 	if r.lastEnd > 0 {
 		st.LastSegmentAt = time.UnixMilli(r.lastEnd)
 	}
-	if oldest := r.idx.OldestMs(); oldest > 0 {
+	var span int64
+	if oldest > 0 {
 		st.OldestSegmentAt = time.UnixMilli(oldest)
+		// Só com as duas pontas o span é span. Sem o mais antigo, `newest - 0`
+		// seria a idade do epoch, e a densidade sairia perto de zero.
+		span = newest - oldest
 	}
-	// Quantos dias a cota comporta na taxa observada. É o número que torna a
-	// cota compreensível: "20 GB" não diz nada, "≈ 2,4 dias" diz tudo.
-	//
-	// O piso não é `> 0`: dividir a cota por uma taxa quase nula produz um
-	// número gigante e sem sentido, e nenhum stream de câmera vive abaixo de
-	// 1 kbps. Sem taxa confiável, a estimativa fica zerada - a tela mostra "-"
-	// em vez de mentir.
-	if r.bitrateKbps >= minBitrateForEstimate {
-		bytesPerDay := r.bitrateKbps * 1000 / 8 * 86400
-		st.RetainDays = float64(r.cam.QuotaMB) * (1 << 20) / bytesPerDay
-	}
+	st.RetainDays = retainDays(r.cam.QuotaMB, disk, span, r.bitrateKbps)
 	return st
 }
 

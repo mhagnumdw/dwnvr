@@ -277,6 +277,32 @@ func (c *Camera) OldestMs() int64 {
 	return oldest
 }
 
+// Resumo devolve, numa passada só, o que a tela precisa para descrever a cota:
+// quanto a câmera ocupa e as duas pontas do histórico em disco.
+//
+// Existe por economia: OldestMs e TotalBytes fazem exatamente estas somas, mas
+// quem monta o Status precisa das duas ao mesmo tempo, e chamá-las em sequência
+// custava dois RLock e duas varreduras do mapa a cada leitura do /api/health -
+// vezes o número de câmeras. Os dois métodos separados continuam existindo para
+// quem quer só um dos números (a retenção, o Purge).
+func (c *Camera) Resumo() (bytes, oldestMs, newestMs int64) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, s := range c.days {
+		bytes += s.Bytes
+		// FirstMs zerado seria um resumo sem segmento algum, que não deve
+		// existir - mas se existisse, puxaria o mínimo para zero e apagaria a
+		// informação de todas as outras. Mesma razão do lado do LastMs.
+		if s.FirstMs > 0 && (oldestMs == 0 || s.FirstMs < oldestMs) {
+			oldestMs = s.FirstMs
+		}
+		if s.LastMs > newestMs {
+			newestMs = s.LastMs
+		}
+	}
+	return bytes, oldestMs, newestMs
+}
+
 // TotalBytes é quanto a câmera ocupa em disco, segundo o índice.
 func (c *Camera) TotalBytes() int64 {
 	c.mu.RLock()

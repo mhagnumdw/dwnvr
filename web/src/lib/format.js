@@ -95,13 +95,13 @@ export function duracao(ms) {
 }
 
 // dias converte a estimativa de retenção em algo compreensível. "20 GB" não
-// diz nada a ninguém; "≈ 2,4 dias" diz tudo.
+// diz nada a ninguém; "≈ 8 dias 5h" diz tudo.
 export function dias(n) {
-  if (!n || n <= 0) return '-';
-  // Cotas pequenas (ou taxas altas) dão frações de hora; arredondar tudo para
-  // horas transformaria isso em "0h", que não informa nada.
-  if (n < 1 / 24) return `${Math.max(1, Math.round(n * 1440))}min`;
-  if (n < 1) return `${num(n * 24, 1)}h`;
-  if (n < 10) return `${num(n, 1)} dias`;
-  return `${Math.round(n)} dias`;
+  // A estimativa chega do servidor em dias fracionários, mas ela é lida coladinha
+  // no "retido", que sai do duracao() em dias e horas. Escrever uma em fração
+  // ("8,2 dias") e a outra em horas ("8 dias 5h") obriga quem lê a converter de
+  // cabeça só para comparar as duas - e comparar as duas é a única razão de o
+  // par existir. Então a formatação é a mesma, e as frações de hora que as cotas
+  // pequenas produzem o duracao() já resolve melhor do que isto resolvia.
+  return duracao((n || 0) * 86400000);
 }

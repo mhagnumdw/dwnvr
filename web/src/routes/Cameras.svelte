@@ -34,12 +34,19 @@
     return health.cameras.find((h) => h.id === id);
   }
 
-  // A taxa medida é o que transforma uma cota abstrata em tempo de retenção.
-  function estimaDias(cam) {
-    const rate = statusOf(cam.id)?.bitrateKbps || 0;
-    if (!rate) return null;
-    const bytesPorDia = ((rate * 1000) / 8) * 86400;
-    return (cam.quotaMB * 1024 * 1024) / bytesPorDia;
+  // estimaDias responde "com esta cota, quantos dias de gravação cabem?" - e o
+  // servidor já responde isso em retainDays, na densidade do que está gravado.
+  //
+  // Aqui só falta o "e se eu puser 40 GB?" do formulário de edição, e para isso
+  // basta escalar: a estimativa é linear na cota (dias = cota / consumo por
+  // dia), então a razão entre a cota digitada e a gravada dá o número novo sem
+  // repetir no JS a conta que o Go faz. O denominador é o st.quotaMB, que é
+  // sempre a cota salva - cam.quotaMB é o que está no formulário e se move
+  // enquanto se digita.
+  function estimaDias(cam, quotaMB = cam.quotaMB) {
+    const st = statusOf(cam.id);
+    if (!st?.retainDays || !st.quotaMB) return null;
+    return (st.retainDays * quotaMB) / st.quotaMB;
   }
 
   function novo(streamName) {
@@ -146,7 +153,6 @@
   <div class="list">
     {#each cameras.list as cam (cam.id)}
       {@const st = statusOf(cam.id)}
-      {@const d = estimaDias(cam)}
       <div class="card cam">
         <div class="row wrap head">
           <span
@@ -190,7 +196,9 @@
               retido: {duracao(Date.now() - desde.getTime())}
             </span>
           {/if}
-          {#if d}<span class="chip retain" title={AJUDA_CABEM}>cabem ≈ {dias(d)}</span>{/if}
+          {#if st?.retainDays}
+            <span class="chip retain" title={AJUDA_CABEM}>cabem ≈ {dias(st.retainDays)}</span>
+          {/if}
         </div>
 
         <!-- Onde os arquivos estão de verdade. Toda vez que a pergunta sai do
@@ -334,8 +342,8 @@
              20480 quer saber que isso são 20 GB. -->
         <small class="muted">
           = {bytesDeMB(editing.quotaMB)} ·
-          {#if estimaDias(editing)}
-            ≈ {dias(estimaDias(editing))} na taxa medida agora
+          {#if estimaDias(editing, editing.quotaMB)}
+            ≈ {dias(estimaDias(editing, editing.quotaMB))} no consumo médio medido
           {:else}
             a estimativa aparece após a primeira medição de taxa
           {/if}
