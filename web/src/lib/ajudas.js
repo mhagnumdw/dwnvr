@@ -8,4 +8,4 @@
 export const AJUDA_RETIDO = 'Tempo total de gravação em disco (incluídos períodos de inatividade).';
 
 export const AJUDA_CABEM =
-  'Quantos dias de gravação cabem na cota da câmera na taxa medida agora. É estimativa: se a taxa subir, o passado encolhe.';
+  'Quanto tempo de gravação cabe na cota, pelo consumo médio do que a câmera já gravou. É estimativa: encolhe se ela passar a gastar mais por dia. Com a cota cheia, encosta no retido.';

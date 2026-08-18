@@ -131,6 +131,39 @@ func TestOldestMs(t *testing.T) {
 	}
 }
 
+// Resumo existe para poupar uma varredura do mapa por leitura do /api/health,
+// então o que ele devolve tem que ser idêntico ao dos métodos que substitui -
+// mais o extremo novo, o mais recente.
+func TestResumoBateComOsMetodosSeparados(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+
+	if bytes, oldest, newest := c.Resumo(); bytes != 0 || oldest != 0 || newest != 0 {
+		t.Errorf("câmera sem gravação devia dar tudo 0, veio %d/%d/%d", bytes, oldest, newest)
+	}
+
+	// Dias fora de ordem, como o mapa de resumos entrega: os extremos têm que
+	// sair da comparação, não da ordem da iteração.
+	for _, d := range []int{2, 0, 1} {
+		if err := c.Append(entryAt(base.AddDate(0, 0, d), 60_000, 1_000_000)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	bytes, oldest, newest := c.Resumo()
+	if want := c.TotalBytes(); bytes != want {
+		t.Errorf("bytes=%d, TotalBytes diz %d", bytes, want)
+	}
+	if want := c.OldestMs(); oldest != want {
+		t.Errorf("oldest=%d, OldestMs diz %d", oldest, want)
+	}
+	// O mais recente é o FIM do último segmento, não o começo: é o que faz o
+	// span cobrir a gravação inteira.
+	if want := base.AddDate(0, 0, 2).UnixMilli() + 60_000; newest != want {
+		t.Errorf("newest=%d, esperava %d", newest, want)
+	}
+}
+
 func TestEvictOldest(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()

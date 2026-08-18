@@ -253,13 +253,20 @@ func (m *Manager) Status() []Status {
 		// disco: o passado dela precisa aparecer na tela igual ao das outras,
 		// senão desabilitar uma câmera dá a impressão de ter apagado tudo.
 		idx := m.store.Camera(cam.ID)
+		disk, oldest, newest := idx.Resumo()
 		st := Status{
 			ID: cam.ID, Name: cam.Name, Enabled: cam.Enabled,
-			QuotaMB: cam.QuotaMB, DiskBytes: idx.TotalBytes(),
+			QuotaMB: cam.QuotaMB, DiskBytes: disk,
 		}
-		if oldest := idx.OldestMs(); oldest > 0 {
+		var span int64
+		if oldest > 0 {
 			st.OldestSegmentAt = time.UnixMilli(oldest)
+			span = newest - oldest
 		}
+		// Sem recorder não há taxa instantânea, mas a densidade do que está em
+		// disco não precisa dela: a estimativa da cota aparece igual à das
+		// câmeras ligadas, em vez de virar "-" só por estar desabilitada.
+		st.RetainDays = retainDays(cam.QuotaMB, disk, span, 0)
 		out = append(out, st)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })

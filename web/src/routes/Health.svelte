@@ -57,7 +57,8 @@
       id: 'disco',
       rotulo: 'disco',
       valor: (c) => c.diskBytes || 0,
-      ajuda: 'Espaço que as gravações desta câmera ocupam hoje, somando todos os dias em disco.',
+      ajuda:
+        'Espaço que as gravações desta câmera ocupam hoje, somando todos os dias em disco, e a cota configurada para ela.',
     },
     {
       id: 'retido',
@@ -260,7 +261,9 @@
           {#if c.hasAudio}<span class="chip">áudio</span>{/if}
         </span>
         <span class="mono">{kbps(c.bitrateKbps)}</span>
-        <span class="mono">{bytes(c.diskBytes)}</span>
+        <!-- Uso e cota juntos, como no chip da tela de Câmeras: o número
+             sozinho não diz se é muito ou pouco para esta câmera. -->
+        <span class="mono">{bytes(c.diskBytes)} de {bytesDeMB(c.quotaMB)}</span>
         <span class="mono" title={desdeTitulo(c)}>{duracao(retidoMs(c))}</span>
         <span class="mono">{dias(c.retainDays)}</span>
         <span class="mono">{c.reconnects}</span>
@@ -333,7 +336,12 @@
   .table { padding: 0; overflow-x: auto; }
   .thead, .trow {
     display: grid;
-    grid-template-columns: minmax(130px, 2fr) repeat(5, minmax(70px, 1fr));
+    /* Colunas: nome, taxa, disco, retido, cabem, reconex. O disco tem faixa
+       própria porque carrega duas grandezas ("12,91 GB de 20 GB") e no repeat
+       uniforme ele quebrava em duas linhas antes das outras precisarem. */
+    grid-template-columns:
+      minmax(130px, 2fr) minmax(70px, 1fr) minmax(125px, 1.6fr)
+      repeat(2, minmax(80px, 1.1fr)) minmax(60px, 0.8fr);
     gap: 8px;
     padding: 9px 12px;
     align-items: center;
