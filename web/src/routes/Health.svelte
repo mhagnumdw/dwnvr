@@ -2,13 +2,43 @@
   import { onDestroy } from 'svelte';
   import { health, pollHealth, HEALTH_POLL_MS, cameras, build } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
-  import { bytes, bytesDeMB, kbps, dias, duracao, hhmmss, ddmm } from '../lib/format.js';
+  import {
+    bytes,
+    bytesDeMB,
+    kbps,
+    dias,
+    duracao,
+    hhmmss,
+    ddmm,
+    relogioDeFuso,
+  } from '../lib/format.js';
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
 
   const stop = pollHealth();
   onDestroy(stop);
 
   const disk = $derived(health.disk);
+
+  // Os segundos andam de HEALTH_POLL_MS em HEALTH_POLL_MS, junto com a leitura,
+  // e não de um em um: contar o tempo aqui só para preencher o intervalo daria
+  // um relógio movido pelo navegador, que é o relógio que este campo existe
+  // para NÃO mostrar. O que aparece é sempre um instante que o servidor disse.
+  //
+  // A abreviação ("-03") não identifica região nenhuma - vale para São Paulo,
+  // Buenos Aires e mais um punhado de lugares -, então o nome IANA é o que vai
+  // na tela quando o servidor consegue descobri-lo, e a sigla fica no title.
+  // Servidor sem /etc/timezone manda só a sigla, e aí ela assume o lugar.
+  const relogio = $derived.by(() => {
+    const c = health.clock;
+    if (!c) return null;
+    const lido = Date.parse(c.now);
+    if (isNaN(lido)) return null;
+    return {
+      quando: relogioDeFuso(lido, c.offsetSeconds),
+      fuso: c.zone || c.abbr,
+      sigla: c.zone ? c.abbr : undefined,
+    };
+  });
   const usadoPeloDwnvr = $derived(disk ? disk.dwnvrBytes / disk.totalBytes : 0);
   const usadoPorOutros = $derived(
     disk ? (disk.totalBytes - disk.freeBytes - disk.dwnvrBytes) / disk.totalBytes : 0,
@@ -188,6 +218,14 @@
         <span class="muted">·</span>
         <span class="muted">máquina há</span>
         <span class="mono">{duracao(health.uptime.machineSeconds * 1000)}</span>
+      {/if}
+      <!-- Horário do servidor no fuso do servidor, e não no do navegador: é
+           assim que se descobre relógio ou TZ errado na máquina que grava, que
+           é a que carimba o nome dos segmentos. -->
+      {#if relogio}
+        <span class="muted">·</span>
+        <span class="muted">horário do servidor</span>
+        <span class="mono" title={relogio.sigla}>{relogio.quando} {relogio.fuso}</span>
       {/if}
     </div>
   {/if}

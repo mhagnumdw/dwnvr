@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
@@ -206,7 +208,55 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	resp["uptime"] = up
 
+	// O relógio, ao contrário dos uptimes acima, vai como instante mesmo - e é
+	// o único campo desta resposta que vai. A tela quer justamente a hora de
+	// LÁ: quem administra o dwnvr olha isto para saber se o servidor está com
+	// o fuso ou o NTP errado, e uma duração não responderia isso. O offset já
+	// vem embutido no texto e a interface o mostra sem reconverter; converter
+	// para o fuso do navegador daria a hora que o usuário já tem no relógio
+	// dele, que não é a pergunta.
+	agora := time.Now()
+	sigla, offset := agora.Zone()
+	relogio := map[string]any{
+		"now":           agora.Format(time.RFC3339),
+		"abbr":          sigla,
+		"offsetSeconds": offset,
+	}
+	if nome := zonaLocal(); nome != "" {
+		relogio["zone"] = nome
+	}
+	resp["clock"] = relogio
+
 	writeJSON(w, resp)
+}
+
+// zonaLocal descobre o nome IANA do fuso do servidor ("America/Sao_Paulo").
+//
+// O pacote time não expõe isso: time.Local se chama "Local" e o que sobra é a
+// abreviação ("-03"), que não identifica a região - "-03" é São Paulo, Buenos
+// Aires e mais um punhado de lugares. As fontes consultadas aqui são as mesmas
+// que o próprio time usa para montar time.Local, na mesma ordem.
+//
+// Devolve "" quando nenhuma delas responde, e aí a tela mostra só a hora e a
+// abreviação: o nome é um detalhe do title, não a informação principal.
+func zonaLocal() string {
+	// TZ pode vir como ":America/Sao_Paulo" ou apontar para um arquivo; só o
+	// nome interessa.
+	if tz := strings.TrimPrefix(os.Getenv("TZ"), ":"); tz != "" && !strings.HasPrefix(tz, "/") {
+		return tz
+	}
+	if b, err := os.ReadFile("/etc/timezone"); err == nil {
+		if s := strings.TrimSpace(string(b)); s != "" {
+			return s
+		}
+	}
+	// /etc/localtime costuma ser link para .../zoneinfo/America/Sao_Paulo.
+	if alvo, err := os.Readlink("/etc/localtime"); err == nil {
+		if _, depois, ok := strings.Cut(alvo, "zoneinfo/"); ok {
+			return depois
+		}
+	}
+	return ""
 }
 
 // --- utilidades -------------------------------------------------------------

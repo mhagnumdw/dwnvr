@@ -33,12 +33,33 @@ Todo o resto exige sessão válida.
 | `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs |
 | `POST /api/cameras` | corpo JSON | cadastra ou altera (upsert por id) |
 | `DELETE /api/cameras` | `id`, `recordings=1` | descadastra; com `recordings=1` apaga as gravações junto |
-| `GET /api/health` | - | bitrate medido, dias estimados, estado do disco |
+| `GET /api/health` | - | bitrate medido, dias estimados, estado do disco, uptimes e relógio |
 | `DELETE /api/rec` | `cam` | apaga as gravações; serve também câmera já removida |
 
 `DELETE /api/rec` aceitar câmera já removida é deliberado: descadastrar sem
 apagar deixa gravações órfãs, e sem esse endpoint não haveria como recuperar o
 espaço pela interface.
+
+O `uptime` do `/api/health` vai em **segundos** (`appSeconds`, `machineSeconds`)
+e o `clock` vai em **instante**. A diferença é proposital: duração não tem como
+ser mal interpretada por um navegador de fuso ou de relógio diferente, enquanto
+o `clock` existe justamente para mostrar a hora de lá - é com ele que se
+descobre TZ ou NTP errado na máquina que grava.
+
+```json
+"clock": {
+  "now": "2026-08-18T18:37:12-03:00",
+  "abbr": "-03",
+  "offsetSeconds": -10800,
+  "zone": "America/Fortaleza"
+}
+```
+
+`now` já traz o offset do servidor embutido, e a interface o exibe sem
+reconverter. `zone` é o nome IANA e some quando o servidor não consegue
+descobri-lo (nem `TZ`, nem `/etc/timezone`, nem o link de `/etc/localtime`); aí
+resta a `abbr`, que sozinha não identifica região - `-03` vale para São Paulo,
+Buenos Aires e outros.
 
 ## Gravações
 

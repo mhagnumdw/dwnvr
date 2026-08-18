@@ -31,6 +31,23 @@ export function ddmm(ms) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
 }
 
+// relogioDeFuso escreve um instante no fuso de OUTRA máquina: recebe o epoch em
+// milissegundos e o deslocamento daquele fuso em segundos, e devolve
+// "18/08/2026 18:14:57".
+//
+// O offset entra somado ao epoch e a leitura sai pelos getters UTC. Parece
+// truque e é: o Date só sabe ler pelo fuso do navegador, então adiantar o
+// instante pelo offset alheio e depois ler em UTC cancela exatamente a
+// conversão que não se quer. E não se quer porque o único uso disto é mostrar o
+// relógio de outra máquina - convertido, ele viraria a hora que quem lê já tem
+// no próprio pulso, que não responde nada.
+export function relogioDeFuso(epochMs, offsetSeconds) {
+  const d = new Date(epochMs + offsetSeconds * 1000);
+  const data = `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+  const hora = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  return `${data} ${hora}`;
+}
+
 export function dayKey(date = new Date()) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
