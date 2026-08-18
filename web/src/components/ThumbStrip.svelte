@@ -1,6 +1,6 @@
 <script>
   import { thumbnail } from '../lib/thumbs.js';
-  import { hhmm, hhmmss } from '../lib/format.js';
+  import { hhmmss } from '../lib/format.js';
 
   let {
     cam,
@@ -103,7 +103,7 @@
           <span class="fail">-</span>
         {/if}
       {/await}
-      <span class="time mono">{hhmm(t)}</span>
+      <span class="time mono">{hhmmss(t)}</span>
     </button>
   {/each}
 
