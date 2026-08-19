@@ -2,7 +2,7 @@
 
 Quatro telas, em Svelte 5 + Vite, embutidas no binário: **ao vivo**,
 **gravações**, **câmeras** e **diagnóstico**. O aplicativo inteiro pesa
-**32,6 kB gzipped**, incluindo o player de live do go2rtc.
+**43,2 kB gzipped**, incluindo o player de live do go2rtc.
 
 O build sai para `../internal/api/dist`, que o Go embute com `embed.FS` - é
 isso que mantém a promessa de um binário único.
@@ -37,7 +37,8 @@ Ao alterar algo em `web/`, rode `npm run build` **antes** de commitar.
 ## Estrutura
 
 ```
-src/lib/         api, estado (runes), formatadores, player MSE, miniaturas
+src/lib/         api, estado (runes), formatadores, player MSE, miniaturas,
+                 captura de quadro
 src/routes/      as quatro telas + login
 src/components/  timeline em canvas, tira de miniaturas
 src/vendor/      player de live do go2rtc (MIT) - ver vendor/README.md
