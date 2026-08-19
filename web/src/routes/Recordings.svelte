@@ -4,6 +4,7 @@
   import { api, mediaURL } from '../lib/api.js';
   import { Player } from '../lib/player.svelte.js';
   import { clearThumbnails } from '../lib/thumbs.js';
+  import { baixarQuadro } from '../lib/captura.js';
   import { dayKey, parseDay, hhmmss, duracao } from '../lib/format.js';
   import Timeline from '../components/Timeline.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
@@ -26,6 +27,10 @@
   let loading = $state(false);
   let error = $state('');
   let showThumbs = $state(true);
+  // Falha de captura tem estado próprio: `error` só é apagado no load()
+  // seguinte, e um aviso de captura ficaria colado na tela até trocar de dia.
+  let capturaErro = $state('');
+  let avisoTimer;
 
   const dayStart = $derived(parseDay(day).getTime());
   const dayEnd = $derived(dayStart + 86400_000);
@@ -50,6 +55,7 @@
   onDestroy(() => {
     player.destroy();
     clearThumbnails();
+    clearTimeout(avisoTimer);
   });
 
   // Ligar o player assim que o <video> existir no DOM.
@@ -196,6 +202,22 @@
     const from = Math.round(player.currentMs || dayStart);
     location.href = mediaURL.export(cam, from, from + 5 * 60_000);
   }
+
+  async function capturar() {
+    // O nome segue a mesma convenção da exportação (cam_AAAA-MM-DD_HH-MM-SS),
+    // para que imagem e vídeo do mesmo instante fiquem lado a lado na pasta.
+    // E o instante é o MOSTRADO, não a hora atual: uma captura de ontem
+    // nomeada com hoje não serviria para nada.
+    const d = new Date(player.currentMs);
+    const nome = `${cam}_${dayKey(d)}_${hhmmss(d.getTime()).replaceAll(':', '-')}.jpg`;
+    try {
+      await baixarQuadro(video, nome);
+    } catch (e) {
+      capturaErro = e.message;
+      clearTimeout(avisoTimer);
+      avisoTimer = setTimeout(() => (capturaErro = ''), 5000);
+    }
+  }
 </script>
 
 <div class="page">
@@ -223,9 +245,15 @@
   <div class="stage">
     <!-- svelte-ignore a11y_media_has_caption -->
     <video bind:this={video} playsinline controls={false}></video>
-    {#if player.buffering}<span class="badge">carregando…</span>{/if}
-    {#if player.error}<span class="badge bad">{player.error}</span>{/if}
-    {#if error}<span class="badge bad">{error}</span>{/if}
+    <!-- Empilhados numa coluna, e não cada um no seu `position: absolute`:
+         antes eram três avisos disputando o mesmo canto, e o aviso de captura
+         chega justamente quando o "carregando…" tem chance de estar aceso. -->
+    <div class="avisos">
+      {#if player.buffering}<span class="badge">carregando…</span>{/if}
+      {#if player.error}<span class="badge bad">{player.error}</span>{/if}
+      {#if error}<span class="badge bad">{error}</span>{/if}
+      {#if capturaErro}<span class="badge bad">{capturaErro}</span>{/if}
+    </div>
   </div>
 
   <div class="controls row wrap">
@@ -245,6 +273,13 @@
     <span class="spacer"></span>
     <button class="ghost small" onclick={() => (showThumbs = !showThumbs)}>
       {showThumbs ? 'ocultar' : 'mostrar'} miniaturas
+    </button>
+    <button
+      onclick={capturar}
+      disabled={!player.currentMs}
+      title="Baixar a imagem do instante mostrado"
+    >
+      ⤓ imagem
     </button>
     <button onclick={exportar} disabled={!player.currentMs}>⤓ exportar 5 min</button>
   </div>
@@ -309,10 +344,21 @@
     margin: 0 auto;
   }
 
-  .badge {
+  .avisos {
     position: absolute;
     top: 8px;
     left: 8px;
+    right: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    /* A coluna cobre a largura do palco para o texto poder quebrar no celular,
+       mas não pode virar uma tampa invisível sobre o vídeo. */
+    pointer-events: none;
+  }
+
+  .badge {
     background: rgba(0, 0, 0, 0.7);
     border: 1px solid var(--line);
     border-radius: 6px;
