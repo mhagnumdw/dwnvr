@@ -24,3 +24,9 @@ docker-compose.override.yml
 
 # Frontend
 web/node_modules/
+
+# Claude
+.claude/worktrees/
+.claude/settings.local.json
+.claude/RESUME.md
+
