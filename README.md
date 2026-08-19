@@ -64,9 +64,9 @@ O porquê de cada decisão de formato está em
 ## Subir o dwnvr
 
 **Você só precisa de Docker.** Nem câmera, nem Go, nem Node: o compose constrói
-a imagem a partir do clone, e o go2rtc publica uma câmera sintética - o ffmpeg
-que já vem na imagem dele desenha uma carta de teste com relógio em H264 720p,
-indistinguível de uma câmera de verdade para o dwnvr.
+a imagem a partir do clone, e o go2rtc publica cinco câmeras sintéticas - o
+ffmpeg que já vem na imagem dele desenha as cartas de teste em H264 640x360,
+indistinguíveis de câmeras de verdade para o dwnvr, e uma delas tem áudio.
 
 ```sh
 git clone https://github.com/mhagnumdw/dwnvr && cd dwnvr
@@ -99,7 +99,8 @@ alguns minutos; as seguintes sobem em segundos.
 Quando o log disser
 `dwnvr no ar`, abra <http://localhost:8080>:
 
-- vá na aba **Câmeras** clique na `cam_teste`, que já aparece em *Disponíveis no go2rtc*
+- vá na aba **Câmeras** clique na `cam_teste1`, que já aparece em *Disponíveis no go2rtc*
+  junto com as outras quatro câmeras sintéticas
 - na aba **Ao vivo** funciona no mesmo instante
 - em ~30s o primeiro segmento fecha e aparece na aba **Gravações**
 
@@ -121,7 +122,7 @@ docker compose restart go2rtc
 ```
 
 A câmera nova aparece sozinha na tela de **Câmeras**, pronta para cadastrar, e
-a `cam_teste` sintética pode ser apagada do `go2rtc.yaml`.
+as `cam_teste1` a `cam_teste5` sintéticas podem ser apagadas do `go2rtc.yaml`.
 
 ### Conferir por fora da interface <!-- omit in toc -->
 
@@ -132,7 +133,7 @@ As gravações ficam em `./storage`, no host, com o seu usuário:
 find storage -type f
 
 # Qualquer segmento abre sozinho, sem pré-processamento e sem o init ao lado
-ffplay "$(find storage/cam_teste/2* -name '*.mp4' | head -1)"
+ffplay "$(find storage/cam_teste1/2* -name '*.mp4' | head -1)"
 ```
 
 ### Derrubar tudo <!-- omit in toc -->
@@ -213,8 +214,8 @@ enxerga as gravações de todas as câmeras.
 
 ### As suas câmeras <!-- omit in toc -->
 
-Apague a `cam_teste` do `go2rtc.yaml` - ela não serve para mais nada -,
-publicando as suas no lugar.
+Apague as `cam_teste1` a `cam_teste5` do `go2rtc.yaml` - elas não servem para
+mais nada -, publicando as suas no lugar.
 
 ### Subir <!-- omit in toc -->
 
