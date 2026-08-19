@@ -12,15 +12,48 @@ streams:
   # publicado nesta seção aparece sozinho na tela de Câmeras, pronto para
   # cadastrar. O dwnvr não guarda URL nem senha de câmera - só este nome.
 
-  # Fonte sintética, para experimentar o dwnvr sem ter câmera nenhuma.
-  # O ffmpeg desenha uma carta de teste com relógio, e o go2rtc a entrega como
-  # H264 - do ponto de vista do dwnvr é indistinguível de uma câmera de verdade.
-  # Verificado: 1280x720, ~25 fps, keyframe a cada 2s.
+  # Fontes sintéticas, para experimentar o dwnvr sem ter câmera nenhuma.
+  # O ffmpeg desenha o quadro e o go2rtc o entrega como H264 - do ponto de vista
+  # do dwnvr elas são indistinguíveis de câmeras de verdade.
+  # Verificado: todas em 640x360, 15 fps, keyframe a cada 3,3s (o go2rtc fixa o
+  # GOP em 50 quadros e não dá para mudar por stream).
   # O ffmpeg já vem na imagem alexxit/go2rtc; não é preciso instalar nada.
   #
-  # Numa instalação de verdade ela não serve para nada: apague esta linha e
+  # São cinco porque cada desenho custa uma taxa diferente - a de cada uma foi
+  # medida gravando 20s do stream -, e é essa diferença que deixa a
+  # tela de Câmeras parecida com uma instalação de verdade: a cota some rápido
+  # numa e demora na outra.
+  #
+  # Numa instalação de verdade elas não servem para nada: apague estas linhas e
   # ponha as suas câmeras no lugar.
-  cam_teste: ffmpeg:virtual?video=testsrc&size=720#video=h264
+
+  # Carta de teste clássica, com um contador de segundos no meio. ~100 kbps.
+  cam_teste1: ffmpeg:virtual?video=testsrc&size=640x360&rate=15#video=h264
+
+  # Barras coloridas com formas se movendo e ruído por cima: é o teto da
+  # taxa, e a que mais come CPU para codificar. ~870 kbps.
+  cam_teste2: ffmpeg:virtual?video=testsrc2&size=640x360&rate=15#video=h264
+
+  # Barras SMPTE, cena praticamente parada: é o piso da taxa. ~16 kbps.
+  cam_teste3: ffmpeg:virtual?video=smptehdbars&size=640x360&rate=15#video=h264
+
+  # Fractal de Sierpinski, preto e branco, redesenhado quadro a quadro. ~550 kbps.
+  cam_teste4: ffmpeg:virtual?video=sierpinski&size=640x360&rate=15#video=h264
+
+  # A única com áudio: carta de sincronismo A/V - um risco que anda na régua e um
+  # bipe junto, dá para ver na hora se som e imagem estão casados. O som sai em
+  # pcm_alaw 16 kHz mono, o mesmo formato das câmeras baratas, então ela exercita
+  # os modos "flac" e "aac" do dwnvr sem precisar de câmera com microfone.
+  # ~67 kbps de vídeo + 128 kbps de áudio - aqui o som custa o dobro da imagem.
+  #
+  # Para escolher o áudio dela na tela de cadastro: cadastre primeiro com áudio
+  # "nenhum" e reabra o formulário. O dwnvr só enxerga a trilha de áudio com a
+  # câmera já gravando, e antes disso deixa "flac" e "aac" desabilitados.
+  #
+  # É a única que não usa o atalho "ffmpeg:virtual?...": ele só monta filtro de
+  # uma saída só, e este tem duas (vídeo e áudio). Daí o comando inteiro na mão -
+  # as opções de codec são as mesmas que o go2rtc usaria.
+  cam_teste5: exec:ffmpeg -hide_banner -re -f lavfi -i avsynctest=size=640x360:framerate=15[out0][out1] -c:v libx264 -g 50 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p -c:a pcm_alaw -ar:a 16000 -ac:a 1 -rtsp_transport tcp -f rtsp {output}
 
   # ---------------------------------------------------------------------------
   # ALGUNS EXEMPLOS DE CONFIGURAÇÃO, para as suas câmeras. Estão todos
