@@ -24,6 +24,12 @@
 
   const novos = $derived(cameras.streams.filter((s) => !s.registered));
 
+  // Enquanto a sonda não responde, as opções de áudio seguem bloqueadas; se ela
+  // FALHAR, elas são liberadas. Não conseguir verificar não é o mesmo que saber
+  // que não tem áudio, e bloquear nesse caso impediria de configurar uma câmera
+  // boa que só estava fora do ar na hora do cadastro.
+  const audioBloqueado = $derived(!editing?._hasAudio && !editing?._sondaErro);
+
   onMount(() => {
     if (!cameras.list.length) loadCameras();
   });
@@ -61,20 +67,57 @@
       segmentSeconds: 30,
       maxDays: 0,
       _novo: true,
-      _hasAudio: s?.hasAudio ?? false,
+      ...audioConhecido(s),
     };
+    sondarAudio(streamName);
   }
 
   function editar(cam) {
     const s = cameras.streams.find((x) => x.name === cam.id);
-    editing = { ...cam, _novo: false, _hasAudio: s?.hasAudio ?? false };
+    editing = { ...cam, _novo: false, ...audioConhecido(s) };
+    sondarAudio(cam.id);
+  }
+
+  // O que já se sabe do áudio quando o formulário abre. Num stream ocioso isso
+  // é sempre "não tem", e é mentira: o go2rtc só lista as trilhas enquanto
+  // alguém consome o stream. Por isso sondarAudio() vem logo atrás.
+  const audioConhecido = (s) => ({
+    _hasAudio: s?.hasAudio ?? false,
+    _audioCodecs: s?.audioCodecs ?? [],
+    _sondando: false,
+    _sondaErro: '',
+  });
+
+  // Pergunta ao servidor se a câmera entrega áudio. Só vale a pena quando a
+  // resposta que já se tem é "não": um "sim" veio do medias e não muda.
+  //
+  // A resposta pode demorar alguns segundos (o servidor abre o stream para
+  // descobrir), então o formulário já está na tela quando ela chega - daí a
+  // conferência do id, que descarta a resposta de um formulário já fechado ou
+  // trocado por outro.
+  async function sondarAudio(streamName) {
+    if (editing?._hasAudio) return;
+    editing._sondando = true;
+    try {
+      const r = await api.probeStream(streamName);
+      if (editing?.id !== streamName) return;
+      editing._hasAudio = r.hasAudio;
+      editing._audioCodecs = r.audioCodecs ?? [];
+      editing._sondaErro = r.erro ?? '';
+    } catch (e) {
+      if (editing?.id !== streamName) return;
+      editing._sondaErro = e.message;
+    } finally {
+      if (editing?.id === streamName) editing._sondando = false;
+    }
   }
 
   async function salvar() {
     saving = true;
     error = '';
     try {
-      const { _novo, _hasAudio, ...cam } = editing;
+      const { _novo, _hasAudio, _audioCodecs, _sondando, _sondaErro, ...cam } =
+        editing;
       await api.saveCamera(cam);
       await loadCameras();
       editing = null;
@@ -318,17 +361,28 @@
         Áudio
         <select bind:value={editing.audio}>
           <option value="none">nenhum - custo zero</option>
-          <option value="flac" disabled={!editing._hasAudio}>
+          <option value="flac" disabled={audioBloqueado}>
             FLAC - ~0,6% de CPU, +260 kbps de disco
           </option>
-          <option value="aac" disabled={!editing._hasAudio}>
+          <option value="aac" disabled={audioBloqueado}>
             AAC - ~10% de CPU, +64 kbps (exige fonte ffmpeg no go2rtc)
           </option>
         </select>
-        {#if !editing._hasAudio}
+        {#if editing._sondando}
+          <small class="muted">Verificando se esta câmera entrega áudio...</small>
+        {:else if editing._sondaErro}
+          <small class="muted">
+            Não deu para verificar o áudio desta câmera ({editing._sondaErro}). As
+            opções estão liberadas; o Diagnóstico avisa se o áudio não chegar.
+          </small>
+        {:else if !editing._hasAudio}
           <small class="muted">
             Esta câmera não entrega trilha de áudio. Remova o <code>#media=video</code>
             da fonte no go2rtc.yaml para habilitá-la.
+          </small>
+        {:else if editing._audioCodecs.length}
+          <small class="muted">
+            Esta câmera entrega {editing._audioCodecs.join(', ')}.
           </small>
         {/if}
       </label>

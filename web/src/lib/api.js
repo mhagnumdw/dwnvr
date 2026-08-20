@@ -64,6 +64,11 @@ export const api = {
   deleteRecordings: (cam) =>
     request('rec?cam=' + encodeURIComponent(cam), { method: 'DELETE' }),
 
+  // Descobre se um stream entrega áudio. É um pedido à parte, e não um campo de
+  // cameras(), porque num stream ocioso a resposta custa uma conexão de alguns
+  // segundos com a câmera - ver internal/api/probe.go.
+  probeStream: (name) => request('streams/probe?src=' + encodeURIComponent(name)),
+
   health: () => request('health'),
 
   days: (cam, from, to) =>

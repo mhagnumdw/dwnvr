@@ -61,6 +61,30 @@ Chrome 151 / Fedora 43:
 Safari continua sendo a incógnita: FLAC dentro de MP4 é pouco usual. Quem
 precisar de compatibilidade ampla nos arquivos exportados deve preferir `aac`.
 
+## Como o dwnvr descobre que a câmera tem áudio
+
+O go2rtc só lista as trilhas de um stream (`medias`, em `GET /api/streams`)
+enquanto existe alguém consumindo: sem consumidor ele nem abre a conexão com a
+câmera. Numa câmera ainda não cadastrada isso dava um ovo antes da galinha - o
+formulário de cadastro precisava saber se pode oferecer áudio justamente quando
+ninguém estava consumindo.
+
+Medido com a `cam_teste5` do `go2rtc.example.yaml`, que entrega `H264 + PCMA/16000`:
+
+| estado do stream | `medias` no go2rtc |
+|---|---|
+| ocioso | ausente |
+| com consumidor ligado | `["video, recvonly, H264", "audio, recvonly, PCMA/16000"]` |
+
+Por isso o `GET /api/streams/probe` existe: num stream ocioso ele abre o
+`stream.mp4?mp4=flac` por alguns segundos, lê o `moov` e o `medias` que aparecem,
+e fecha. Em stream que já tem produtor vivo - toda câmera cadastrada e gravando -
+ele responde do `medias` sem abrir nada.
+
+O modo FLAC no pedido não é detalhe: `mp4=flac` é o único filtro que traz a
+trilha de áudio junto, então é o único que produz um `moov` capaz de responder à
+pergunta.
+
 ## Efeito colateral de ligar o áudio na origem
 
 Remover o `#media=video` faz o go2rtc puxar a trilha de áudio da câmera 24/7,

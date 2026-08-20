@@ -28,6 +28,9 @@ type Server struct {
 	// tela de diagnóstico compara com o da máquina para distinguir "só o dwnvr
 	// reiniciou" de "a máquina reiniciou".
 	startedAt time.Time
+	// Resultado das sondas de áudio, para não reabrir conexão com a câmera a
+	// cada vez que o formulário de cadastro é aberto. Ver probe.go.
+	probes probeCache
 }
 
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
@@ -77,6 +80,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/cameras", s.requireAuth(s.handleCameras))
 	mux.HandleFunc("POST /api/cameras", s.requireAuth(s.handleSaveCamera))
 	mux.HandleFunc("DELETE /api/cameras", s.requireAuth(s.handleDeleteCamera))
+	mux.HandleFunc("GET /api/streams/probe", s.requireAuth(s.handleProbeStream))
 	mux.HandleFunc("GET /api/health", s.requireAuth(s.handleHealth))
 	mux.HandleFunc("DELETE /api/rec", s.requireAuth(s.handleDeleteRecordings))
 	mux.HandleFunc("GET /api/rec/days", s.requireAuth(s.handleDays))

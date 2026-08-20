@@ -33,8 +33,25 @@ Todo o resto exige sessão válida.
 | `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs |
 | `POST /api/cameras` | corpo JSON | cadastra ou altera (upsert por id) |
 | `DELETE /api/cameras` | `id`, `recordings=1` | descadastra; com `recordings=1` apaga as gravações junto |
+| `GET /api/streams/probe` | `src` | diz se um stream entrega áudio, abrindo-o se preciso |
 | `GET /api/health` | - | bitrate medido, dias estimados, estado do disco, uptimes e relógio |
 | `DELETE /api/rec` | `cam` | apaga as gravações; serve também câmera já removida |
+
+O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
+consumindo: o go2rtc só preenche o `medias` do produtor enquanto existe
+consumidor, e num stream ocioso ele nem abre a conexão com a câmera. É por isso
+que `GET /api/streams/probe` é um endpoint à parte, e não mais um campo da
+listagem - a resposta dele pode custar alguns segundos e uma conexão nova.
+
+```json
+{"name": "cam_teste5", "hasAudio": true, "audioCodecs": ["PCMA/16000"], "probed": true}
+```
+
+`probed` diz se a resposta custou uma conexão: `false` quando ela veio do
+`medias` de um produtor que já estava vivo, ou do cache da sonda anterior. Se a
+sonda falhar - câmera fora do ar, por exemplo -, a resposta ainda é `200`, com o
+motivo em `erro` e `hasAudio: false`; quem chama deve tratar isso como "não sei",
+e não como "não tem áudio".
 
 `DELETE /api/rec` aceitar câmera já removida é deliberado: descadastrar sem
 apagar deixa gravações órfãs, e sem esse endpoint não haveria como recuperar o
