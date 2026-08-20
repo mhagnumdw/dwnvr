@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/fmp4"
 )
 
 type Client struct {
@@ -233,4 +234,71 @@ func (c *Client) Streams(ctx context.Context) (map[string]Stream, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// Prazos da sonda. São curtos de propósito: quem espera é uma tela aberta, e o
+// stallGuard dá o dobro de probeIdle para o primeiro byte, que é onde mora a
+// lentidão legítima (o go2rtc ainda vai estabelecer a sessão RTSP com a câmera).
+const (
+	probeIdle    = 4 * time.Second
+	probeTimeout = 12 * time.Second
+)
+
+// AudioProbe é o que uma sonda descobriu sobre o áudio de um stream.
+type AudioProbe struct {
+	HasAudio bool
+	Codecs   []string
+}
+
+// ProbeAudio descobre se um stream entrega áudio, abrindo-o por alguns segundos.
+//
+// Existe porque o go2rtc só preenche `medias` enquanto alguém consome o stream:
+// num stream ocioso ele nem abre a conexão com a câmera, e a tela de cadastro
+// ficava sem ter como saber se pode oferecer FLAC ou AAC. A sonda é, por alguns
+// segundos, o consumidor que faltava.
+//
+// Ela pede o stream em modo FLAC de propósito: `mp4=flac` é o único filtro que
+// traz a trilha de áudio, e ler o moov é a prova de que a conexão de fato
+// entregou mídia - o mesmo init segment que o gravador leria. Com a conexão
+// ainda aberta, o `medias` do produtor responde qual codec a câmera anuncia.
+func (c *Client) ProbeAudio(ctx context.Context, cam string) (AudioProbe, error) {
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+
+	body, err := c.OpenStream(ctx, cam, config.AudioFLAC, probeIdle)
+	if err != nil {
+		return AudioProbe{}, err
+	}
+	defer body.Close()
+
+	var probe AudioProbe
+	rd := fmp4.NewReader(body)
+	for {
+		typ, box, err := rd.NextBox()
+		if err != nil {
+			return AudioProbe{}, err
+		}
+		if typ != "moov" {
+			continue
+		}
+		mv, err := fmp4.ParseMoov(box)
+		if err != nil {
+			return AudioProbe{}, fmt.Errorf("moov ilegível: %w", err)
+		}
+		probe.HasAudio = mv.HasAudio()
+		break
+	}
+
+	// O moov só mostraria "fLaC", que é o codec DEPOIS da conversão. O nome que
+	// interessa ao usuário - PCMA/16000 e afins - é o que a câmera anuncia, e
+	// esse só existe no produtor, que agora está vivo por causa desta conexão.
+	if streams, err := c.Streams(ctx); err == nil {
+		for _, p := range streams[cam].Producers {
+			if p.HasAudio() {
+				probe.HasAudio = true
+				probe.Codecs = append(probe.Codecs, p.AudioCodecs()...)
+			}
+		}
+	}
+	return probe, nil
 }
