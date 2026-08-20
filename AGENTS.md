@@ -8,6 +8,30 @@ Regras para agentes de IA que trabalham neste repositório.
   código, comentários, documentação, mensagens de commit e respostas no chat.
   A regra vale inclusive ao reescrever uma linha que já tinha o caractere.
 
+## Git
+
+- A `main` não aceita commit de merge. Para integrar, use rebase
+  (`git pull --rebase`) ou fast-forward; nunca `git merge` que gere merge commit.
+- O body do commit tem duas partes, nesta ordem, separadas pela linha `---`:
+  1. Para o usuário final, possivelmente leigo: o que mudou na prática, em
+     linguagem do dia a dia, sem nome de arquivo, função ou termo técnico.
+     Obrigatória.
+  2. Depois do `---`, para pessoas técnicas e agentes de IA: arquivos, decisões
+     de implementação, o que ficou de fora. Opcional; se não houver o que dizer,
+     omita a parte 2 e o `---` junto.
+
+  ```
+  feat(web): baixa a imagem do quadro mostrado
+
+  Agora dá para salvar como imagem o quadro que está na tela, sem
+  precisar exportar o vídeo inteiro.
+
+  ---
+
+  `Player.svelte` desenha o `<video>` num canvas e usa `toBlob`.
+  O nome do arquivo sai de `mediaURL`.
+  ```
+
 ## Repercussões
 
 Um mesmo fato vive em vários arquivos aqui. Antes de encerrar a tarefa, ache na
