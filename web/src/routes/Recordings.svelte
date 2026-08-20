@@ -8,6 +8,7 @@
   import { dayKey, parseDay, hhmmss, duracao, taxa } from '../lib/format.js';
   import Timeline from '../components/Timeline.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
+  import SemCameras from '../components/SemCameras.svelte';
 
   const player = new Player();
 
@@ -221,94 +222,98 @@
 </script>
 
 <div class="page">
-  <div class="bar row wrap">
-    <select bind:value={cam} aria-label="câmera">
-      {#each cameras.list as c (c.id)}
-        <option value={c.id}>{c.name}</option>
-      {/each}
-    </select>
+  {#if !cameras.list.length && !cameras.loading}
+    <SemCameras />
+  {:else}
+    <div class="bar row wrap">
+      <select bind:value={cam} aria-label="câmera">
+        {#each cameras.list as c (c.id)}
+          <option value={c.id}>{c.name}</option>
+        {/each}
+      </select>
 
-    <div class="row daynav">
-      <button class="ghost" onclick={() => shiftDay(-1)} aria-label="dia anterior">‹</button>
-      <input type="date" bind:value={day} max={dayKey()} aria-label="dia" />
-      <button class="ghost" onclick={() => shiftDay(1)} disabled={isToday} aria-label="próximo dia">›</button>
+      <div class="row daynav">
+        <button class="ghost" onclick={() => shiftDay(-1)} aria-label="dia anterior">‹</button>
+        <input type="date" bind:value={day} max={dayKey()} aria-label="dia" />
+        <button class="ghost" onclick={() => shiftDay(1)} disabled={isToday} aria-label="próximo dia">›</button>
+      </div>
+
+      <span class="spacer"></span>
+      <span class="muted small mono">
+        {#if loading}carregando…
+        {:else if timeline.segments.length}{duracao(gravado)} · {timeline.ranges.length} faixa(s)
+        {:else}sem gravação{/if}
+      </span>
     </div>
 
-    <span class="spacer"></span>
-    <span class="muted small mono">
-      {#if loading}carregando…
-      {:else if timeline.segments.length}{duracao(gravado)} · {timeline.ranges.length} faixa(s)
-      {:else}sem gravação{/if}
-    </span>
-  </div>
-
-  <div class="stage">
-    <!-- svelte-ignore a11y_media_has_caption -->
-    <video bind:this={video} playsinline controls={false}></video>
-    <!-- Empilhados numa coluna, e não cada um no seu `position: absolute`:
-         antes eram três avisos disputando o mesmo canto, e o aviso de captura
-         chega justamente quando o "carregando…" tem chance de estar aceso. -->
-    <div class="avisos">
-      {#if player.buffering}<span class="badge">carregando…</span>{/if}
-      {#if player.error}<span class="badge bad">{player.error}</span>{/if}
-      {#if error}<span class="badge bad">{error}</span>{/if}
-      {#if capturaErro}<span class="badge bad">{capturaErro}</span>{/if}
+    <div class="stage">
+      <!-- svelte-ignore a11y_media_has_caption -->
+      <video bind:this={video} playsinline controls={false}></video>
+      <!-- Empilhados numa coluna, e não cada um no seu `position: absolute`:
+           antes eram três avisos disputando o mesmo canto, e o aviso de captura
+           chega justamente quando o "carregando…" tem chance de estar aceso. -->
+      <div class="avisos">
+        {#if player.buffering}<span class="badge">carregando…</span>{/if}
+        {#if player.error}<span class="badge bad">{player.error}</span>{/if}
+        {#if error}<span class="badge bad">{error}</span>{/if}
+        {#if capturaErro}<span class="badge bad">{capturaErro}</span>{/if}
+      </div>
     </div>
-  </div>
 
-  <div class="controls row wrap">
-    <button class="primary" onclick={() => player.toggle()} aria-label="tocar ou pausar">
-      {player.playing ? '⏸' : '▶'}
-    </button>
-    <span class="clock mono">{player.currentMs ? hhmmss(player.currentMs) : '--:--:--'}</span>
+    <div class="controls row wrap">
+      <button class="primary" onclick={() => player.toggle()} aria-label="tocar ou pausar">
+        {player.playing ? '⏸' : '▶'}
+      </button>
+      <span class="clock mono">{player.currentMs ? hhmmss(player.currentMs) : '--:--:--'}</span>
 
-    <select
-      value={player.rate}
-      onchange={(e) => player.setRate(Number(e.currentTarget.value))}
-      aria-label="velocidade"
-    >
-      {#each [0.25, 0.5, 1, 2, 4, 8, 16] as r}<option value={r}>{taxa(r)}</option>{/each}
-    </select>
+      <select
+        value={player.rate}
+        onchange={(e) => player.setRate(Number(e.currentTarget.value))}
+        aria-label="velocidade"
+      >
+        {#each [0.25, 0.5, 1, 2, 4, 8, 16] as r}<option value={r}>{taxa(r)}</option>{/each}
+      </select>
 
-    <span class="spacer"></span>
-    <button class="ghost small" onclick={() => (showThumbs = !showThumbs)}>
-      {showThumbs ? 'ocultar' : 'mostrar'} miniaturas
-    </button>
-    <button
-      onclick={capturar}
-      disabled={!player.currentMs}
-      title="Baixar a imagem do instante mostrado"
-    >
-      ⤓ imagem
-    </button>
-    <button onclick={exportar} disabled={!player.currentMs}>⤓ exportar 5 min</button>
-  </div>
+      <span class="spacer"></span>
+      <button class="ghost small" onclick={() => (showThumbs = !showThumbs)}>
+        {showThumbs ? 'ocultar' : 'mostrar'} miniaturas
+      </button>
+      <button
+        onclick={capturar}
+        disabled={!player.currentMs}
+        title="Baixar a imagem do instante mostrado"
+      >
+        ⤓ imagem
+      </button>
+      <button onclick={exportar} disabled={!player.currentMs}>⤓ exportar 5 min</button>
+    </div>
 
-  {#if showThumbs}
-    <ThumbStrip
-      {cam}
-      segments={timeline.segments}
+    {#if showThumbs}
+      <ThumbStrip
+        {cam}
+        segments={timeline.segments}
+        currentMs={player.currentMs}
+        onseek={(ms) => player.seek(ms)}
+      />
+    {/if}
+
+    <Timeline
+      ranges={timeline.ranges}
+      {dayStart}
+      {dayEnd}
       currentMs={player.currentMs}
       onseek={(ms) => player.seek(ms)}
     />
+
+    <p class="legend muted small row wrap">
+      <span><i class="has"></i> com gravação</span>
+      <span><i class="gap"></i> sem gravação</span>
+      <span>
+        toque para pular · arraste para navegar · duplo toque aproxima, dois dedos
+        afastam · pince ou role para dar zoom
+      </span>
+    </p>
   {/if}
-
-  <Timeline
-    ranges={timeline.ranges}
-    {dayStart}
-    {dayEnd}
-    currentMs={player.currentMs}
-    onseek={(ms) => player.seek(ms)}
-  />
-
-  <p class="legend muted small row wrap">
-    <span><i class="has"></i> com gravação</span>
-    <span><i class="gap"></i> sem gravação</span>
-    <span>
-      toque para pular · arraste para navegar · duplo toque aproxima, dois dedos
-      afastam · pince ou role para dar zoom
-    </span>
-  </p>
 </div>
 
 <style>

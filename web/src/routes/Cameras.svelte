@@ -13,6 +13,7 @@
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
+  import SemCameras from '../components/SemCameras.svelte';
 
   let editing = $state(null); // cópia da câmera em edição, ou null
   let removendo = $state(null); // câmera aguardando confirmação de remoção
@@ -220,7 +221,7 @@
     {/each}
 
     {#if !cameras.list.length && !cameras.loading}
-      <p class="empty">Nenhuma câmera cadastrada ainda.</p>
+      <SemCameras link={false} />
     {/if}
   </div>
 
