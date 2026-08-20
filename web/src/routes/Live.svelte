@@ -3,6 +3,7 @@
   import '../vendor/video-stream.js';
   import { cameras, loadCameras } from '../lib/state.svelte.js';
   import { mediaURL } from '../lib/api.js';
+  import SemCameras from '../components/SemCameras.svelte';
 
   const STORAGE_KEY = 'dwnvr.live.selection';
   const LAYOUT_KEY = 'dwnvr.live.layout';
@@ -235,9 +236,13 @@
   </div>
 
   {#if !visible.length && !showPicker}
-    <p class="empty">
-      {cameras.list.length ? 'Selecione as câmeras para visualizar.' : 'Nenhuma câmera cadastrada.'}
-    </p>
+    {#if cameras.list.length}
+      <p class="empty">Selecione as câmeras para visualizar.</p>
+    {:else if !cameras.loading}
+      <!-- Sem a guarda do `loading`, o "nenhuma câmera" piscava a cada abertura
+           da tela, no intervalo em que a lista ainda estava sendo buscada. -->
+      <SemCameras />
+    {/if}
   {/if}
 </div>
 

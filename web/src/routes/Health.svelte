@@ -13,6 +13,7 @@
     relogioDeFuso,
   } from '../lib/format.js';
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
+  import SemCameras from '../components/SemCameras.svelte';
 
   const stop = pollHealth();
   onDestroy(stop);
@@ -308,7 +309,15 @@
       </div>
     {/each}
     {#if !health.cameras.length}
-      <p class="empty">sem dados ainda</p>
+      <!-- Duas ausências diferentes moravam no mesmo "sem dados ainda": o
+           servidor que ainda não respondeu e a instalação sem câmera nenhuma.
+           `updatedAt` só sai de 0 quando uma leitura volta, e a resposta traz
+           toda câmera cadastrada - inclusive a desabilitada. -->
+      {#if health.updatedAt}
+        <SemCameras />
+      {:else}
+        <p class="empty">sem dados ainda</p>
+      {/if}
     {/if}
   </div>
 

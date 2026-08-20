@@ -40,7 +40,8 @@ Ao alterar algo em `web/`, rode `npm run build` **antes** de commitar.
 src/lib/         api, estado (runes), formatadores, player MSE, miniaturas,
                  captura de quadro
 src/routes/      as quatro telas + login
-src/components/  timeline em canvas, tira de miniaturas
+src/components/  timeline em canvas, tira de miniaturas, modal e confirmação,
+                 o estado de "nenhuma câmera cadastrada"
 src/vendor/      player de live do go2rtc (MIT) - ver vendor/README.md
 ```
 
