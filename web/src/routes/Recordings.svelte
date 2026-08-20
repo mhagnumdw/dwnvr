@@ -5,7 +5,7 @@
   import { Player } from '../lib/player.svelte.js';
   import { clearThumbnails } from '../lib/thumbs.js';
   import { baixarQuadro } from '../lib/captura.js';
-  import { dayKey, parseDay, hhmmss, duracao } from '../lib/format.js';
+  import { dayKey, parseDay, hhmmss, duracao, taxa } from '../lib/format.js';
   import Timeline from '../components/Timeline.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
 
@@ -267,7 +267,7 @@
       onchange={(e) => player.setRate(Number(e.currentTarget.value))}
       aria-label="velocidade"
     >
-      {#each [0.5, 1, 2, 4, 8] as r}<option value={r}>{r}×</option>{/each}
+      {#each [0.25, 0.5, 1, 2, 4, 8, 16] as r}<option value={r}>{taxa(r)}</option>{/each}
     </select>
 
     <span class="spacer"></span>

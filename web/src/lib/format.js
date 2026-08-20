@@ -13,6 +13,13 @@ function num(v, casas) {
   return f.format(v);
 }
 
+// taxa escreve a velocidade de reprodução do player ("0,25×", "1×", "16×").
+// Mora aqui pelo mesmo motivo dos outros: a vírgula decimal do resto da
+// interface - o `{r}×` cru punha "0.5×" numa tela inteira em português.
+export function taxa(r) {
+  return `${num(r, 2)}×`;
+}
+
 export function hhmmss(ms) {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;

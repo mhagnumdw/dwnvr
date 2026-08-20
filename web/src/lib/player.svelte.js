@@ -11,9 +11,18 @@
 import { mediaURL } from './api.js';
 
 // Quanto manter bufferizado à frente e atrás. À frente cobre a latência do
-// Wi-Fi; atrás permite recuar alguns segundos sem rebuscar tudo.
+// Wi-Fi; atrás permite recuar alguns segundos sem rebuscar tudo. O de frente é
+// a base em 1×: acima disso quem manda é #lookahead().
 const AHEAD_S = 25;
 const BEHIND_S = 15;
+
+// Quanto uma espera precisa durar para virar "carregando…" na tela. Em 16× num
+// celular a reprodução alterna waiting/playing várias vezes por segundo - cada
+// micro-espera por bytes ou por decodificação - e o aviso piscava sem parar,
+// mais incômodo que a espera que ele anuncia. O desktop nunca chegou a piscar
+// porque nunca chega a esperar. Sumir continua sendo imediato: segurar o aviso
+// depois que o vídeo voltou seria mentira.
+const AVISO_MS = 400;
 
 export class Player {
   /** @type {HTMLVideoElement | null} */
@@ -36,6 +45,7 @@ export class Player {
   #pumping = null; // promessa do pump em voo, ou null quando não há nenhum
   #generation = 0; // invalida trabalho em voo depois de um seek
   #seeking = false; // seek em voo: `base` e `currentTime` estão dessincronizados
+  #avisoTimer = null; // conta os ms de espera antes de acender o "carregando…"
 
   #mime = null; // com que codecs o SourceBuffer atual foi criado
   #mimes = new Map(); // geração -> mime, para não rebuscar o mesmo init
@@ -65,6 +75,9 @@ export class Player {
     v.removeEventListener('playing', this.#onPlaying);
     v.removeEventListener('pause', this.#onPause);
     v.removeEventListener('ratechange', this.#onRate);
+    // Um aviso agendado que dispara depois disto acenderia o "carregando…" de
+    // um player que não existe mais - e ninguém o apagaria.
+    this.#aviso(false);
     // Soltar o MediaSource e revogar a URL importa: sem isso o buffer de vídeo
     // decodificado fica preso até o coletor de lixo passar, o que num celular
     // significa dezenas de MB.
@@ -134,6 +147,19 @@ export class Player {
     return s ? s[0] + s[1] : 0;
   }
 
+  // Único caminho para o `buffering`: acender é adiado, apagar é imediato.
+  #aviso(on) {
+    clearTimeout(this.#avisoTimer);
+    this.#avisoTimer = null;
+    if (!on) {
+      this.buffering = false;
+      return;
+    }
+    this.#avisoTimer = setTimeout(() => {
+      this.buffering = true;
+    }, AVISO_MS);
+  }
+
   #onTime = () => {
     if (!this.video) return;
     // Durante um seek, `base` já é a do segmento alvo enquanto `currentTime`
@@ -147,7 +173,7 @@ export class Player {
   };
 
   #onWaiting = () => {
-    this.buffering = true;
+    this.#aviso(true);
     if (this.#crossBoundary()) return;
     this.#skipGap();
   };
@@ -170,7 +196,7 @@ export class Player {
   }
 
   #onPlaying = () => {
-    this.buffering = false;
+    this.#aviso(false);
     this.playing = true;
   };
 
@@ -211,7 +237,7 @@ export class Player {
     const gen = ++this.#generation;
     this.#seeking = true;
     this.error = '';
-    this.buffering = true;
+    this.#aviso(true);
     // Um seek novo manda em qualquer fronteira que estivesse agendada.
     this.#boundary = null;
 
@@ -247,7 +273,7 @@ export class Player {
       // esse estado agora é do seek novo, que ainda está buscando bytes.
       if (gen === this.#generation) {
         this.#seeking = false;
-        this.buffering = false;
+        this.#aviso(false);
       }
     }
   }
@@ -306,6 +332,17 @@ export class Player {
     return mime;
   }
 
+  // Quanto pedir à frente agora. A janela é medida em segundos de gravação e
+  // gasta em segundos de relógio: em 16× os 25s à frente duram 1,5s de
+  // reprodução, e o vídeo passaria o tempo todo esperando bytes. Escalar pela
+  // taxa devolve o mesmo fôlego. O teto existe porque a janela também é
+  // memória - 16× dela seriam minutos de vídeo decodificado, que num celular é
+  // o que derruba a aba. Fica num método, e não numa variável do pump, para que
+  // trocar a velocidade no meio de um pump valha já na volta seguinte.
+  #lookahead() {
+    return AHEAD_S * Math.min(Math.max(this.video?.playbackRate ?? 1, 1), 4);
+  }
+
   #bufferedEnd() {
     const b = this.#sb?.buffered;
     return b?.length ? b.end(b.length - 1) : (this.video?.currentTime ?? 0);
@@ -345,7 +382,7 @@ export class Player {
       while (
         gen === this.#generation &&
         this.#next < this.#segments.length &&
-        this.#bufferedEnd() - this.video.currentTime < AHEAD_S
+        this.#bufferedEnd() - this.video.currentTime < this.#lookahead()
       ) {
         const [start, , gi] = this.#segments[this.#next];
         const g = this.#gens[gi];
