@@ -20,6 +20,10 @@
   // Segundos de segmento assumidos quando a câmera não informa - é o default do
   // dwnvr.example.yaml. Servidor atual já resolve o campo antes de responder.
   const SEG_PADRAO = 30;
+  // Durações oferecidas na exportação. O servidor aceita até 6h (maxExportSpan
+  // em internal/api/recordings.go), então o teto daqui é escolha de interface:
+  // 10 min já é um arquivo grande de se baixar pelo celular.
+  const DURACOES = [1, 2, 3, 5, 10];
 
   let video = $state(null);
   let cam = $state('');
@@ -28,6 +32,12 @@
   let loading = $state(false);
   let error = $state('');
   let showThumbs = $state(true);
+  // A duração escolhida sobrevive ao recarregamento, como o layout do Ao Vivo.
+  // Valor gravado fora da lista é descartado: ele deixaria o <select> sem
+  // opção correspondente, mostrando vazio.
+  let exportMin = $state(
+    DURACOES.find((m) => m === Number(localStorage.getItem('dwnvr.rec.exportMin'))) ?? 5,
+  );
   // Falha de captura tem estado próprio: `error` só é apagado no load()
   // seguinte, e um aviso de captura ficaria colado na tela até trocar de dia.
   let capturaErro = $state('');
@@ -47,6 +57,31 @@
     const seg = cameras.list.find((c) => c.id === cam)?.segmentSeconds || SEG_PADRAO;
     return Math.min(Math.max(seg * 1000, POLL_MIN_MS), POLL_MAX_MS);
   });
+
+  // Decide o que a exportação vai pedir, e se ela é possível.
+  //
+  // O filtro repete a regra do store.Range (internal/store/store.go:372):
+  // segmento inteiro que se sobrepõe ao intervalo entra. Repetir a regra aqui
+  // dá duas coisas que o servidor só diria tarde demais - o início real do
+  // clipe, e as duas recusas antecipadas. Elas importam porque o download sai
+  // por location.href: um 404 ou um 409 apareceria como texto cru numa aba,
+  // sem volta para a tela.
+  const exportacao = $derived.by(() => {
+    const from = Math.round(player.currentMs || 0);
+    if (!from) return null;
+    const to = from + exportMin * 60_000;
+
+    const sel = timeline.segments.filter(([s, d]) => s + d > from && s < to);
+    if (!sel.length) return { erro: 'sem gravação nesse trecho' };
+    // Um MP4 só pode ter um init, então o servidor recusa o intervalo que muda
+    // de geração (internal/api/recordings.go:327).
+    if (sel.some(([, , gi]) => gi !== sel[0][2]))
+      return { erro: 'o trecho atravessa uma troca de codec' };
+
+    return { inicio: sel[0][0], to };
+  });
+
+  $effect(() => localStorage.setItem('dwnvr.rec.exportMin', exportMin));
 
   onMount(async () => {
     if (!cameras.list.length) await loadCameras();
@@ -199,9 +234,14 @@
     day = dayKey(d);
   }
 
+  // O `from` enviado é o início REAL do primeiro segmento, não o instante do
+  // cursor. O conjunto de segmentos é o mesmo - o anterior termina exatamente
+  // nesse instante e o teste do servidor é `>`, então ele continua de fora - e
+  // em troca o nome do arquivo, que sai do `from` pedido
+  // (internal/api/recordings.go:352), passa a casar com o conteúdo.
   function exportar() {
-    const from = Math.round(player.currentMs || dayStart);
-    location.href = mediaURL.export(cam, from, from + 5 * 60_000);
+    if (!exportacao?.inicio) return;
+    location.href = mediaURL.export(cam, exportacao.inicio, exportacao.to);
   }
 
   async function capturar() {
@@ -285,8 +325,23 @@
       >
         ⤓ imagem
       </button>
-      <button onclick={exportar} disabled={!player.currentMs}>⤓ exportar 5 min</button>
+      <span class="split">
+        <button onclick={exportar} disabled={!exportacao?.inicio}>⤓ exportar</button>
+        <select
+          bind:value={exportMin}
+          aria-label="duração da exportação"
+          title="A partir do instante mostrado"
+        >
+          {#each DURACOES as m (m)}<option value={m}>{m} min</option>{/each}
+        </select>
+      </span>
     </div>
+
+    <!-- Só aparece quando há o que explicar. O botão desabilitado diz que não
+         dá; sozinho, ele não diria por quê. -->
+    {#if exportacao?.erro}
+      <p class="exportinfo small mono">⤓ {exportacao.erro}</p>
+    {/if}
 
     {#if showThumbs}
       <ThumbStrip
@@ -373,6 +428,25 @@
   .badge.bad { color: var(--bad); border-color: #5c2b2b; }
 
   .clock { font-size: 16px; }
+
+  /* Botão e seletor são um controle só. Separados eles se leem como duas
+     funções; colados, voltam a dizer "exportar 5 min", que era o rótulo antigo.
+     O min-height iguala o select ao botão: no app.css só `button` tem os 44px,
+     e a diferença de 4px vira um degrau visível quando os dois encostam. */
+  .split { display: inline-flex; }
+  .split > * { border-radius: 0; margin: 0; position: relative; }
+  .split > button { border-radius: 8px 0 0 8px; }
+  .split > select {
+    border-radius: 0 8px 8px 0;
+    margin-left: -1px;
+    min-height: 44px;
+    padding-right: 8px;
+  }
+  /* A sobreposição de 1px esconderia a borda destacada do vizinho de baixo. */
+  .split > :hover:not(:disabled),
+  .split > :focus-visible { z-index: 1; }
+
+  .exportinfo { margin: -4px 0 0; color: var(--bad); }
 
   .legend { gap: 14px; margin: 0; }
   .legend i {
