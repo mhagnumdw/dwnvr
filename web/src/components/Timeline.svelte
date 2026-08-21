@@ -7,12 +7,14 @@
     dayEnd = 0,
     currentMs = 0,
     onseek = () => {},
+    // Janela visível: o único estado que o zoom e o arraste alteram. Sobe para
+    // quem chama porque é ela que vai para a URL - o link precisa reproduzir o
+    // zoom, não só o instante. Zero nos dois quer dizer "ainda não escolhida", e
+    // é o que faz o efeito abaixo ancorar no dia inteiro.
+    viewFrom = $bindable(0),
+    viewTo = $bindable(0),
   } = $props();
 
-  // Janela visível. Começa no dia inteiro e é o único estado que o zoom e o
-  // arraste alteram.
-  let viewFrom = $state(0);
-  let viewTo = $state(0);
   let canvas;
   let width = $state(0);
   let hoverMs = $state(null);
@@ -20,9 +22,13 @@
   const MIN_SPAN = 20_000; // 20s de zoom máximo
 
   // Reancorar quando o dia muda; comparar os limites evita reancorar a cada
-  // repintura e perder o zoom que o usuário acabou de dar.
+  // repintura e perder o zoom que o usuário acabou de dar. O piso do span faz o
+  // mesmo papel para uma janela vinda da URL: o `zoomTo` nunca produz menos que
+  // MIN_SPAN, mas um link editado à mão produz - e aí o zoom máximo, que é
+  // regra desta timeline, passaria a valer só para quem chegou clicando.
   $effect(() => {
-    if (dayStart && (viewFrom < dayStart || viewTo > dayEnd || viewTo === 0)) {
+    const janela = viewTo - viewFrom;
+    if (dayStart && (viewFrom < dayStart || viewTo > dayEnd || viewTo === 0 || janela < MIN_SPAN)) {
       viewFrom = dayStart;
       viewTo = dayEnd;
     }

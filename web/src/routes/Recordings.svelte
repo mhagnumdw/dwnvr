@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { cameras, loadCameras } from '../lib/state.svelte.js';
+  import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { api, mediaURL } from '../lib/api.js';
   import { Player } from '../lib/player.svelte.js';
   import { clearThumbnails } from '../lib/thumbs.js';
@@ -24,14 +25,28 @@
   // em internal/api/recordings.go), então o teto daqui é escolha de interface:
   // 10 min já é um arquivo grande de se baixar pelo celular.
   const DURACOES = [1, 2, 3, 5, 10];
+  // Velocidades oferecidas. Num const, e não solta no template, porque a URL
+  // também precisa dela - para recusar um `rate=999` sem inventar uma segunda
+  // lista que um dia discordaria desta.
+  const RATES = [0.25, 0.5, 1, 2, 4, 8, 16];
+
+  // Lidos uma vez, na inicialização: daqui em diante quem manda é o estado da
+  // tela, que escreve de volta na URL.
+  const params = paramsAtuais();
 
   let video = $state(null);
   let cam = $state('');
-  let day = $state(dayKey());
+  // Num const antes do $state porque o que vem da URL logo abaixo - instante e
+  // zoom - são posições DENTRO deste dia, e precisam do dia de partida, não do
+  // dia que estiver na tela daqui a pouco.
+  const diaInicial = diaDaURL() ?? dayKey();
+  let day = $state(diaInicial);
   let timeline = $state({ ranges: [], segments: [], gens: [] });
   let loading = $state(false);
   let error = $state('');
-  let showThumbs = $state(true);
+  let showThumbs = $state(params.get('thumbs') !== '0');
+  // Segura a escrita na URL até a câmera ter sido resolvida contra o cadastro.
+  let montado = $state(false);
   // A duração escolhida sobrevive ao recarregamento, como o layout do Ao Vivo.
   // Valor gravado fora da lista é descartado: ele deixaria o <select> sem
   // opção correspondente, mostrando vazio.
@@ -42,6 +57,55 @@
   // seguinte, e um aviso de captura ficaria colado na tela até trocar de dia.
   let capturaErro = $state('');
   let avisoTimer;
+
+  // --- o que veio da URL ----------------------------------------------------
+  //
+  // Hora local `HH:MM:SS`, e não epoch: o `day` acima já é uma data local e a
+  // timeline inteira é desenhada em hora local, então um epoch seria treze
+  // dígitos ilegíveis que ainda assim dependeriam do fuso para casar com o dia.
+
+  function diaDaURL() {
+    const d = params.get('day') ?? '';
+    // Três perguntas: o formato, se o dia existe - a ida e volta pega o
+    // `2026-13-45`, que passa em qualquer teste de formato mas volta escrevendo
+    // outra coisa - e se não é no futuro, que é o mesmo teto do `max` do
+    // <input type="date"> logo abaixo. Não existe amanhã para reproduzir.
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) && dayKey(parseDay(d)) === d && d <= dayKey()
+      ? d
+      : null;
+  }
+
+  function horaMs(hms, diaMs) {
+    const m = /^(\d{1,2}):(\d{2}):(\d{2})$/.exec(hms ?? '');
+    if (!m || +m[1] > 23 || +m[2] > 59 || +m[3] > 59) return null;
+    return diaMs + (+m[1] * 3600 + +m[2] * 60 + +m[3]) * 1000;
+  }
+
+  const inicioDoDia = parseDay(diaInicial).getTime();
+
+  // Instante inicial. Vale só na PRIMEIRA carga - depois de trocar de dia à
+  // mão, o instante de um link velho não descreve mais nada -, e por isso o
+  // load() o consome zerando.
+  let tPendente = horaMs(params.get('t'), inicioDoDia);
+  let pausarNaPrimeira = params.get('paused') === '1';
+  const rateDaURL = RATES.find((r) => r === Number(params.get('rate'))) ?? null;
+
+  // Janela da timeline: dois horários do mesmo dia. O fim colado na meia-noite
+  // sai como `00:00:00`, então "fim <= início" só pode ser a virada do dia. Uma
+  // janela mais curta que o zoom máximo passa por aqui e a própria Timeline
+  // reancora no dia inteiro - o piso é regra dela, não desta leitura.
+  const zoomDaURL = (() => {
+    const [de, ate] = (params.get('zoom') ?? '').split(',');
+    const a = horaMs(de, inicioDoDia);
+    const b = horaMs(ate, inicioDoDia);
+    if (a === null || b === null) return null;
+    return { de: a, ate: b <= a ? inicioDoDia + 86400_000 : b };
+  })();
+
+  let viewFrom = $state(zoomDaURL?.de ?? 0);
+  let viewTo = $state(zoomDaURL?.ate ?? 0);
+
+  // --------------------------------------------------------------------------
 
   const dayStart = $derived(parseDay(day).getTime());
   const dayEnd = $derived(dayStart + 86400_000);
@@ -81,11 +145,38 @@
     return { inicio: sel[0][0], to };
   });
 
+  // No localStorage, e não na URL: a duração da exportação é parâmetro de uma
+  // AÇÃO, não do que se está vendo - não tem o que reproduzir num link.
   $effect(() => localStorage.setItem('dwnvr.rec.exportMin', exportMin));
+
+  // A URL, ao contrário, passa a descrever a cena inteira: câmera, dia,
+  // instante, velocidade, pausa, zoom e miniaturas. É isso que faz colar o
+  // endereço em outra aba cair no mesmo trecho da mesma câmera.
+  //
+  // O que está no padrão fica de fora, para o link não carregar o que já vale
+  // sem ele. E `paused` sai do estado real do <video>, não de um sinalizador
+  // próprio: o navegador pode recusar o autoplay, e a barra de endereços não
+  // pode prometer uma reprodução que não está acontecendo.
+  $effect(() => {
+    if (!montado) return;
+    const diaInteiro = !viewTo || (viewFrom <= dayStart && viewTo >= dayEnd);
+    escrever({
+      cam,
+      day,
+      t: player.currentMs ? hhmmss(player.currentMs) : null,
+      rate: player.rate === 1 ? null : player.rate,
+      paused: player.playing ? null : '1',
+      zoom: diaInteiro ? null : `${hhmmss(viewFrom)},${hhmmss(viewTo)}`,
+      thumbs: showThumbs ? null : '0',
+    });
+  });
 
   onMount(async () => {
     if (!cameras.list.length) await loadCameras();
-    cam = cameras.list[0]?.id ?? '';
+    // Câmera do link só vale se ainda existir: cadastro some, link fica.
+    const daURL = params.get('cam');
+    cam = cameras.list.some((c) => c.id === daURL) ? daURL : (cameras.list[0]?.id ?? '');
+    montado = true;
   });
 
   onDestroy(() => {
@@ -96,7 +187,12 @@
 
   // Ligar o player assim que o <video> existir no DOM.
   $effect(() => {
-    if (video && player.video !== video) player.attach(video);
+    if (!video || player.video === video) return;
+    player.attach(video);
+    // Antes de qualquer seek, e aqui e não no onMount porque só aqui o <video>
+    // existe com certeza: trocar o src zera o playbackRate, e o #reset() do
+    // player preserva o valor que encontrar - só precisa encontrá-lo já posto.
+    if (rateDaURL) player.setRate(rateDaURL);
   });
 
   // Recarrega ao trocar de câmera ou de dia. Este é o único ponto de busca de
@@ -133,9 +229,16 @@
       timeline = t;
       player.setSource(c, t.gens, t.segments);
       clearThumbnails();
-      // Num dia passado, o mais útil é o começo; hoje, o mais recente.
+      // Num dia passado, o mais útil é o começo; hoje, o mais recente. O
+      // instante que veio da URL manda em cima disso, mas só desta vez.
       if (t.segments.length) {
-        player.seek(d === dayKey() ? t.segments.at(-1)[0] : t.segments[0][0]);
+        const alvo = tPendente ?? (d === dayKey() ? t.segments.at(-1)[0] : t.segments[0][0]);
+        tPendente = null;
+        await player.seek(alvo);
+        // Depois do seek, nunca antes: ele termina em play(). Também só desta
+        // vez - dali em diante o botão é que decide.
+        if (pausarNaPrimeira) player.pause();
+        pausarNaPrimeira = false;
       }
     } catch (e) {
       error = e.message;
@@ -311,7 +414,7 @@
         onchange={(e) => player.setRate(Number(e.currentTarget.value))}
         aria-label="velocidade"
       >
-        {#each [0.25, 0.5, 1, 2, 4, 8, 16] as r}<option value={r}>{taxa(r)}</option>{/each}
+        {#each RATES as r (r)}<option value={r}>{taxa(r)}</option>{/each}
       </select>
 
       <span class="spacer"></span>
@@ -357,6 +460,8 @@
       {dayStart}
       {dayEnd}
       currentMs={player.currentMs}
+      bind:viewFrom
+      bind:viewTo
       onseek={(ms) => player.seek(ms)}
     />
 

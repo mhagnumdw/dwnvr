@@ -461,6 +461,13 @@ export class Player {
     }
   }
 
+  // Pausar sem alternar. O toggle() serve ao botão, que sempre sabe em que
+  // estado está; quem vem da URL com `paused=1` precisa mandar parar, e mandar
+  // DEPOIS que o primeiro seek pousou - porque seek() termina em play().
+  pause() {
+    this.video?.pause();
+  }
+
   setRate(r) {
     if (this.video) this.video.playbackRate = r;
   }

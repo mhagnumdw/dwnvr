@@ -1,6 +1,7 @@
 <script>
   import { onDestroy } from 'svelte';
   import { health, pollHealth, HEALTH_POLL_MS, cameras, build } from '../lib/state.svelte.js';
+  import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { api } from '../lib/api.js';
   import {
     bytes,
@@ -116,7 +117,25 @@
   // ser nomeadas aqui.
   const colator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
 
-  let ordem = $state({ col: 'name', asc: true });
+  // A ordenação vem da URL quando o link traz uma, e é validada contra as
+  // colunas acima - `sort=inventado` cai no padrão em vez de deixar a tabela
+  // sem critério nenhum.
+  const params = paramsAtuais();
+  const sortDaURL = params.get('sort');
+
+  let ordem = $state({
+    col: colunas.some((c) => c.id === sortDaURL) ? sortDaURL : 'name',
+    asc: params.get('dir') !== 'desc',
+  });
+
+  // De volta para a URL, com o padrão - nome, crescente - ficando de fora: o
+  // link não precisa carregar o que já vale sem ele.
+  $effect(() =>
+    escrever({
+      sort: ordem.col === 'name' ? null : ordem.col,
+      dir: ordem.asc ? null : 'desc',
+    }),
+  );
 
   function ordenar(id) {
     if (ordem.col === id) ordem.asc = !ordem.asc;
