@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { session, checkSession, loadCameras, loadBuild, logout } from './lib/state.svelte.js';
+  import { rota, ROTA_PADRAO } from './lib/rota.svelte.js';
   import { setUnauthorizedHandler } from './lib/api.js';
   import Login from './routes/Login.svelte';
   import Live from './routes/Live.svelte';
@@ -16,15 +17,22 @@
   ];
 
   // Roteamento por hash: são quatro telas, e um roteador de verdade custaria
-  // mais bytes que o resto do aplicativo junto.
-  const ROTA_PADRAO = 'live';
-  let hash = $state(location.hash.slice(1) || ROTA_PADRAO);
+  // mais bytes que o resto do aplicativo junto. Quem lê e escreve o hash é o
+  // `lib/rota.svelte.js`, porque ele carrega também o estado de cada tela.
+  // Hash apontando para tela que não existe - erro de digitação, link de uma
+  // versão futura: a tela padrão assume. O nome inventado continua na barra de
+  // endereços, e é de propósito: reescrevê-lo custaria um efeito que lê e grava
+  // o mesmo estado, e o link segue funcionando exatamente igual do jeito que é.
   const route = $derived(
-    ROUTES.find((r) => r.id === hash) ?? ROUTES.find((r) => r.id === ROTA_PADRAO),
+    ROUTES.find((r) => r.id === rota.id) ?? ROUTES.find((r) => r.id === ROTA_PADRAO),
   );
 
-  function onHashChange() {
-    hash = location.hash.slice(1) || ROTA_PADRAO;
+  // Clicar na aba em que já se está não pode reiniciar a tela. Antes o href era
+  // igual ao hash e o navegador nem disparava evento; agora o hash carrega o
+  // estado (`#rec?cam=x&t=…`), e o mesmo clique viraria uma navegação para o
+  // `#rec` pelado - jogando fora justamente o que a URL passou a guardar.
+  function navegar(ev, id) {
+    if (id === route.id) ev.preventDefault();
   }
 
   onMount(async () => {
@@ -52,8 +60,6 @@
   }
 </script>
 
-<svelte:window onhashchange={onHashChange} />
-
 {#if !session.checked}
   <div class="boot">carregando…</div>
 {:else if session.authRequired && !session.authenticated}
@@ -68,7 +74,9 @@
     </span>
     <nav class="top">
       {#each ROUTES as r (r.id)}
-        <a href="#{r.id}" class:active={r.id === route.id}>{r.label}</a>
+        <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => navegar(e, r.id)}>
+          {r.label}
+        </a>
       {/each}
     </nav>
     <!-- Sem autenticação configurada não há sessão para encerrar, e um botão
@@ -83,15 +91,21 @@
   <main>
     <!-- A chave força a remontagem ao trocar de tela: cada uma tem recursos
          pesados (conexões de live, MediaSource) que precisam ser liberados,
-         e depender de limpeza manual seria fonte garantida de vazamento. -->
-    {#key route.id}
+         e depender de limpeza manual seria fonte garantida de vazamento.
+
+         É o hash inteiro, e não só a rota, porque cada tela lê o seu estado da
+         URL uma vez, ao montar. `rota.hash` só muda em navegação de verdade -
+         voltar, avançar, URL colada à mão -, e é aí que remontar é o certo: as
+         escritas da própria tela usam replaceState, que não dispara
+         hashchange, então elas não remontam nada. -->
+    {#key rota.hash}
       <route.component />
     {/key}
   </main>
 
   <nav class="bottom">
     {#each ROUTES as r (r.id)}
-      <a href="#{r.id}" class:active={r.id === route.id}>
+      <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => navegar(e, r.id)}>
         <span class="icon">{r.icon}</span>
         <span class="label">{r.label}</span>
       </a>

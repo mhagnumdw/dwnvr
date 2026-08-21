@@ -2,7 +2,7 @@
 
 Quatro telas, em Svelte 5 + Vite, embutidas no binário: **ao vivo**,
 **gravações**, **câmeras** e **diagnóstico**. O aplicativo inteiro pesa
-**43,2 kB gzipped**, incluindo o player de live do go2rtc.
+**44,3 kB gzipped**, incluindo o player de live do go2rtc.
 
 O build sai para `../internal/api/dist`, que o Go embute com `embed.FS` - é
 isso que mantém a promessa de um binário único.
@@ -37,8 +37,8 @@ Ao alterar algo em `web/`, rode `npm run build` **antes** de commitar.
 ## Estrutura
 
 ```
-src/lib/         api, estado (runes), formatadores, player MSE, miniaturas,
-                 captura de quadro
+src/lib/         api, estado (runes), rota e estado na URL, formatadores,
+                 player MSE, miniaturas, captura de quadro
 src/routes/      as quatro telas + login
 src/components/  timeline em canvas, tira de miniaturas, modal e confirmação,
                  o estado de "nenhuma câmera cadastrada"
@@ -57,6 +57,23 @@ No modo "encaixar", a quantidade de colunas não é escolhida - é calculada. Pa
 cada número possível, mede-se o maior tile 16:9 que caberia considerando também
 a altura das linhas resultantes, e vence o que produzir o tile maior. Como a
 altura entra na conta, a grade nunca transborda a janela.
+
+**Estado da tela na URL.** O hash não diz só em que tela você está, mas o que
+você está vendo dentro dela: `#live?cams=garagem&cams=portao&view=2`,
+`#rec?cam=garagem&day=2026-08-19&t=14:32:07&rate=4&paused=1`. Copiar a barra de
+endereços e colar em outra aba reproduz a mesma cena. Segue sendo hash, e não
+caminho de verdade, porque o fragmento nunca sai do navegador - assim o
+`internal/api/web.go`, que só serve arquivo, não precisa de rota nova.
+
+Quem cuida disso é o `src/lib/rota.svelte.js`. Cada tela lê a URL uma vez, ao
+montar, e um `$effect` escreve de volta o que o estado real diz - `paused` sai
+de `player.playing`, e não de um sinalizador paralelo, para o endereço nunca
+prometer uma reprodução que o navegador bloqueou. As escritas usam
+`replaceState` com piso de um segundo, porque o instante do player muda várias
+vezes por segundo e o Safari recusa mais de 100 em 30s. Onde a URL e o
+`localStorage` falam da mesma coisa - seleção e layout do Ao vivo -, a URL
+manda; e só clique do usuário grava no `localStorage`, para o link de outra
+pessoa não virar a sua preferência.
 
 **Timeline com Pointer Events**, que cobre mouse, dedo e caneta com o mesmo
 código. Arrastar desliza a janela visível, tocar navega, pinçar e roda do mouse

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import '../vendor/video-stream.js';
   import { cameras, loadCameras } from '../lib/state.svelte.js';
+  import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { mediaURL } from '../lib/api.js';
   import SemCameras from '../components/SemCameras.svelte';
 
@@ -18,19 +19,38 @@
   const GAP = 8;
   const PROPORCAO = 16 / 9;
 
+  // Lida uma vez, na inicialização: daqui em diante quem manda é o estado da
+  // tela, que escreve de volta na URL.
+  const params = paramsAtuais();
+
   let selected = $state(new Set());
-  let modo = $state(lerLayout());
+  let modo = $state(lerModo());
   let showPicker = $state(false);
   let palco = $state(null);
   let encaixe = $state({ cols: 1, w: 0 });
+  // Segura a escrita na URL até a seleção ter sido lida - ver o efeito no fim
+  // do bloco.
+  let montado = $state(false);
 
   const visible = $derived(cameras.list.filter((c) => selected.has(c.id)));
   const tudoMarcado = $derived(
     cameras.list.length > 0 && selected.size === cameras.list.length,
   );
 
-  // Lido na inicialização, não no onMount: começar sempre em 2× e corrigir
-  // depois faria a grade piscar no celular, onde o padrão é 1×.
+  // A URL vem primeiro, o localStorage depois, e só então o palpite pela
+  // largura da tela. A URL descreve ESTE link; o localStorage, o hábito deste
+  // navegador. Ler dali nunca grava aqui - senão abrir o link de outra pessoa
+  // viraria a preferência de quem abriu.
+  //
+  // Tudo isso na inicialização, e não no onMount: começar sempre em 2× e
+  // corrigir depois faria a grade piscar no celular, onde o padrão é 1×.
+  function lerModo() {
+    const daURL = params.get('view');
+    if (daURL === 'fit') return 'fit';
+    if (COLUNAS.includes(Number(daURL))) return Number(daURL);
+    return lerLayout();
+  }
+
   function lerLayout() {
     const salvo = localStorage.getItem(LAYOUT_KEY);
     if (salvo === 'fit') return 'fit';
@@ -41,17 +61,37 @@
   onMount(async () => {
     if (!cameras.list.length) await loadCameras();
 
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      // Só mantém câmeras que ainda existem: uma seleção salva pode citar uma
-      // câmera que foi removida do cadastro desde então.
-      const ids = new Set(JSON.parse(saved));
-      selected = new Set(cameras.list.filter((c) => ids.has(c.id)).map((c) => c.id));
+    // `cams=` vazio é uma escolha - "nenhuma câmera" -, e a chave ausente é
+    // falta de opinião: aí vale o que este navegador usou por último.
+    const daURL = params.has('cams') ? params.getAll('cams').filter(Boolean) : null;
+    const ids = daURL ?? JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (ids) {
+      // Só mantém câmeras que ainda existem: uma seleção salva - ou um link
+      // antigo - pode citar uma câmera removida do cadastro desde então.
+      const querem = new Set(ids);
+      selected = new Set(cameras.list.filter((c) => querem.has(c.id)).map((c) => c.id));
     }
-    if (!selected.size) {
+    if (!selected.size && !daURL) {
       // Duas por padrão: abrir nove streams 1080p de uma vez trava celular.
       selected = new Set(cameras.list.slice(0, 2).map((c) => c.id));
     }
+    montado = true;
+  });
+
+  // A URL passa a dizer o que está na tela, e é isso que faz colar o endereço
+  // em outra aba cair na mesma grade. O `montado` segura a escrita até a
+  // seleção ter sido lida: sem ele o primeiro quadro publicaria `cams=` vazio,
+  // apagando da barra de endereços justamente o que ainda ia ser lido dela.
+  $effect(() => {
+    if (!montado) return;
+    escrever({
+      // Na ordem do cadastro, e não na de inserção do Set: desmarcar e marcar
+      // de novo reescreveria a URL sem nada ter mudado na tela.
+      cams: cameras.list.filter((c) => selected.has(c.id)).map((c) => c.id),
+      // Sempre escrito, mesmo no padrão: o padrão daqui depende da largura da
+      // tela, então omiti-lo faria o mesmo link abrir diferente no celular.
+      view: modo,
+    });
   });
 
   // O componente do go2rtc cria o <video> com controls=true. Numa grade ao
@@ -75,6 +115,10 @@
     else el.requestFullscreen?.().catch(() => {});
   }
 
+  // Estes dois são os ÚNICOS que gravam no localStorage, e é de propósito: o
+  // que vai para lá é o que o usuário escolheu clicando, nunca o que veio de um
+  // link. É o que impede o `#live?view=3` de alguém de virar o seu padrão.
+  //
   // Reatribui em vez de mutar: runes não observam mudança dentro de um Set.
   function setSelection(next) {
     selected = next;
