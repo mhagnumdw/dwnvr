@@ -71,8 +71,7 @@ export const api = {
 
   health: () => request('health'),
 
-  days: (cam, from, to) =>
-    request(`rec/days?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
+  days: (cam) => request('rec/days?cam=' + encodeURIComponent(cam)),
 
   timeline: (cam, day) =>
     request(`rec/timeline?cam=${encodeURIComponent(cam)}&day=${day}`),
