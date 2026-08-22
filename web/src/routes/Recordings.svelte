@@ -10,6 +10,7 @@
   import Timeline from '../components/Timeline.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
   import SemCameras from '../components/SemCameras.svelte';
+  import DayPicker from '../components/DayPicker.svelte';
 
   const player = new Player();
 
@@ -41,10 +42,21 @@
   // dia que estiver na tela daqui a pouco.
   const diaInicial = diaDaURL() ?? dayKey();
   let day = $state(diaInicial);
+  let daysList = $state([]);
   let timeline = $state({ ranges: [], segments: [], gens: [] });
   let loading = $state(false);
   let error = $state('');
   let showThumbs = $state(params.get('thumbs') !== '0');
+  // As setas andam pelo que EXISTE, pulando os buracos do histórico. Sem lista
+  // - câmera nova, ou a consulta que falhou - elas voltam a andar de um em um
+  // dia até hoje, que é o comportamento antigo: não saber onde há gravação não
+  // pode virar não poder navegar.
+  const podeRecuarDia = $derived(
+    daysList.length ? daysList.some((d) => d < day) : true,
+  );
+  const podeAvancarDia = $derived(
+    daysList.length ? daysList.some((d) => d > day) : day < dayKey(),
+  );
   // Segura a escrita na URL até a câmera ter sido resolvida contra o cadastro.
   let montado = $state(false);
   // A duração escolhida sobrevive ao recarregamento, como o layout do Ao Vivo.
@@ -68,8 +80,8 @@
     const d = params.get('day') ?? '';
     // Três perguntas: o formato, se o dia existe - a ida e volta pega o
     // `2026-13-45`, que passa em qualquer teste de formato mas volta escrevendo
-    // outra coisa - e se não é no futuro, que é o mesmo teto do `max` do
-    // <input type="date"> logo abaixo. Não existe amanhã para reproduzir.
+    // outra coisa - e se não é no futuro, que é o mesmo teto do calendário.
+    // Não existe amanhã para reproduzir.
     return /^\d{4}-\d{2}-\d{2}$/.test(d) && dayKey(parseDay(d)) === d && d <= dayKey()
       ? d
       : null;
@@ -201,6 +213,47 @@
     if (cam && day) load(cam, day);
   });
 
+  // Os dias com gravação, uma vez por câmera. É a única leitura deste endpoint
+  // na tela: o dia que estreia com a tela aberta entra pelo refresh(), sem
+  // custar requisição nenhuma.
+  $effect(() => {
+    if (cam) carregarDias(cam);
+  });
+
+  async function carregarDias(c) {
+    try {
+      const res = await api.days(c);
+      if (c !== cam) return;
+      daysList = (res.days || []).map((d) => d.day);
+      // Dia que não existe para esta câmera - link antigo, ou a câmera que
+      // acabou de ser trocada. O instante que veio da URL descrevia aquele
+      // outro dia e não sobrevive à troca.
+      if (daysList.length && !daysList.includes(day)) {
+        tPendente = null;
+        day = daysList.includes(dayKey()) ? dayKey() : daysList.at(-1);
+      }
+    } catch {
+      // Lista vazia é o modo permissivo do seletor: qualquer dia até hoje volta
+      // a ser alcançável, como era com o campo de data nativo. Não vira aviso
+      // na tela - se o servidor estiver mesmo fora, quem diz isso é o load() da
+      // timeline, que é o dado que a pessoa veio ver.
+      daysList = [];
+    }
+  }
+
+  // Hoje estreando no calendário, com a tela já aberta. Local de propósito:
+  // o refresh() já sabe o dia, e reler o /api/rec/days a cada segmento fechado
+  // seria uma requisição a cada 30s pelo dia inteiro para descobrir algo que a
+  // resposta que acabou de chegar já disse.
+  //
+  // Em modo permissivo a lista fica como está: uma lista de um dia só faria o
+  // seletor sair do "tudo liberado" para "só hoje", que é o oposto do que ele
+  // deve fazer quando não conhece o histórico.
+  function registrarDia(d) {
+    if (!daysList.length || daysList.includes(d)) return;
+    daysList = [...daysList, d].sort();
+  }
+
   // Hoje a gravação continua crescendo enquanto a tela está aberta: sem isto, o
   // dia corrente congela no que existia no instante em que a tela abriu. Dia
   // passado não muda mais, então nem vale a consulta.
@@ -227,6 +280,11 @@
     try {
       const t = await api.timeline(c, d);
       timeline = t;
+      // Dia que o calendário oferecia e voltou vazio: a lista está velha - a
+      // retenção apagou esse dia com a tela aberta. Reler conserta a lista e
+      // leva para um dia que ainda existe. Só acontece nesse desencontro, e é
+      // por isso que o poll não precisa reler nada.
+      if (!t.segments.length && daysList.includes(d)) carregarDias(c);
       player.setSource(c, t.gens, t.segments);
       clearThumbnails();
       // Num dia passado, o mais útil é o começo; hoje, o mais recente. O
@@ -309,6 +367,7 @@
         if (!t.segments.length) return;
         // Primeira gravação do dia chegando com a tela já aberta: é o mesmo
         // caso do load() inicial, inclusive em ir para o instante mais recente.
+        registrarDia(d);
         timeline = t;
         player.setSource(c, t.gens, t.segments);
         player.seek(t.segments.at(-1)[0]);
@@ -332,9 +391,19 @@
   }
 
   function shiftDay(n) {
-    const d = parseDay(day);
-    d.setDate(d.getDate() + n);
-    day = dayKey(d);
+    if (daysList.length) {
+      if (n < 0) {
+        const anterior = daysList.filter((d) => d < day).at(-1);
+        if (anterior) day = anterior;
+      } else if (n > 0) {
+        const proximo = daysList.find((d) => d > day);
+        if (proximo) day = proximo;
+      }
+    } else {
+      const d = parseDay(day);
+      d.setDate(d.getDate() + n);
+      day = dayKey(d);
+    }
   }
 
   // O `from` enviado é o início REAL do primeiro segmento, não o instante do
@@ -376,9 +445,23 @@
       </select>
 
       <div class="row daynav">
-        <button class="ghost" onclick={() => shiftDay(-1)} aria-label="dia anterior">‹</button>
-        <input type="date" bind:value={day} max={dayKey()} aria-label="dia" />
-        <button class="ghost" onclick={() => shiftDay(1)} disabled={isToday} aria-label="próximo dia">›</button>
+        <button
+          class="ghost"
+          onclick={() => shiftDay(-1)}
+          disabled={!podeRecuarDia}
+          aria-label="dia anterior"
+        >
+          ‹
+        </button>
+        <DayPicker value={day} days={daysList} onchange={(d) => (day = d)} />
+        <button
+          class="ghost"
+          onclick={() => shiftDay(1)}
+          disabled={!podeAvancarDia}
+          aria-label="próximo dia"
+        >
+          ›
+        </button>
       </div>
 
       <span class="spacer"></span>
