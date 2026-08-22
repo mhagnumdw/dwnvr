@@ -1,6 +1,9 @@
 # AGENTS.md
 
-Regras para agentes de IA que trabalham neste repositório.
+## O que esse projeto é
+
+NVR de gravação contínua **projetado com foco em hardware extremamente
+limitado**, como exemplo o Orange Pi Zero 3. Ele não é feito *para* um hardware específico. É focado em exterma performance, baixíssimo consumo de CPU e memória, tempo de resposta ultra rápido, uma UI super rápida, leve, reativa e responsiva com excelente usabilidade para mobile (browser) e desktop (browser).
 
 ## Escrita
 

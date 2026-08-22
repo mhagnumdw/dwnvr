@@ -19,7 +19,7 @@ Medido nesse Orange Pi Zero 3 com as 9 câmeras gravando simultaneamente:
 
 > **ATENÇÃO:** esse projeto é totalmente vibe codado e é meu primeiro projeto assim. Além de querer resolver uma necessidade minha, que eu acho que é de várias outras pessoas, eu queria saber como seria a experiência de desenvolver totalmente nesse estilo.
 >
-> Embora seja vibe codado, o projeto já nasceu desde o início com foco em exterma performance, baixíssimo consumo de CPU e memória, tempo de resposta ultra rápido, uma UI super rápida, leve, reativa e responsiva com excelente usabilidade para mobile e desktop (browser). Parte disso era uma necessidade em razão do hardware real que usei e uso, que é um Orange Pi Zero 3 e tudo isso se constata nos testes que faço e no meu uso no dia a dia. Testei diversas outras opções e nenhuma passou perto dos resultados que tenho, fora outros problemas/chatices diversas.
+> Embora seja vibe codado, o projeto já nasceu desde o início com foco em exterma performance, baixíssimo consumo de CPU e memória, tempo de resposta ultra rápido, uma UI super rápida, leve, reativa e responsiva com excelente usabilidade para mobile (browser) e desktop (browser). Parte disso era uma necessidade em razão do hardware real que usei e uso, que é um Orange Pi Zero 3 e tudo isso se constata nos testes que faço e no meu uso no dia a dia. Testei diversas outras opções e nenhuma passou perto dos resultados que tenho, fora outros problemas/chatices diversas.
 
 - [Como funciona](#como-funciona)
 - [Subir o dwnvr](#subir-o-dwnvr)
