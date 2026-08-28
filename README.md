@@ -243,7 +243,7 @@ Se o pull falhar, o comando para aí e o que está no ar continua gravando.
 
 | O quê | Onde entra |
 | --- | --- |
-| **Go 1.24** | Todo o servidor. Só a biblioteca padrão, **sem [cgo](https://pkg.go.dev/cmd/cgo)** - o binário é estático, de ~3 MB |
+| **Go 1.27** | Todo o servidor. Só a biblioteca padrão, **sem [cgo](https://pkg.go.dev/cmd/cgo)** - o binário é estático, de ~8 MB |
 | **go2rtc** | Fonte dos streams: fala RTSP com as câmeras e entrega fMP4, WebRTC e MJPEG |
 | **fMP4** (MP4 fragmentado) | O formato em disco. É o que o go2rtc já produz, então gravar é copiar bytes |
 | **NDJSON** | O índice das gravações, um arquivo por câmera por dia, append-only |

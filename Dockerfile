@@ -15,7 +15,7 @@ RUN npm run build
 
 # Binário. Também roda no BUILDPLATFORM e faz cross-compile via GOARCH: compilar
 # Go emulado seria ordens de grandeza mais lento que compilar cruzado.
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETARCH
 WORKDIR /src
 
