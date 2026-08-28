@@ -55,7 +55,7 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 | campo em `store.Entry` | índice append-only: a leitura tolera zero em linha antiga · `internal/retention/retention.go` · `internal/api/recordings.go` |
 | variável de `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/ci.yml` (`build-args`) · `GET /api/version` |
 | alvo ou variável no `Makefile` | comentário `## alvo:` (o `make help` lê) · §Build do `README.md` · `local.mk.example` |
-| versão de Go ou de Node | `go.mod` · `Dockerfile` (`golang:`/`node:`) · `ci.yml` (`setup-go`/`setup-node`) · §Tecnologias do `README.md` |
+| versão de Go ou de Node | `go.mod` · `.tool-versions` (o asdf local) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` (`setup-go`/`setup-node`) · §Tecnologias do `README.md` |
 | arquivo ou diretório novo na raiz | `.gitignore` se for local. O `.dockerignore` é allowlist invertida (`**` + `!`): o que o build precisar exige um `!` explícito, senão some do contexto |
 | volume, porta, env ou serviço no `docker-compose.yml` | §Subir o dwnvr e §Instalação definitiva do `README.md` · `docs/operacao.md` · `go2rtc.url` do `dwnvr.example.yaml` (depende do nome do serviço) |
 | caminho interno (`/etc/dwnvr`, `/storage`) | `Dockerfile` (`VOLUME`, `CMD`, `HEALTHCHECK`) · `docker-compose.yml` · `storage.root` do `dwnvr.example.yaml` · `README.md` |
