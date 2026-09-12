@@ -24,6 +24,16 @@ const BEHIND_S = 15;
 // depois que o vídeo voltou seria mentira.
 const AVISO_MS = 400;
 
+// Como passar por cima de um trecho corrompido. Um pacote perdido na rede
+// estraga os quadros até o próximo keyframe, e o player não sabe onde ele está
+// - então avança de passo em passo até achar um ponto que decodifique. O passo
+// é fixo e curto de propósito: dobrá-lo chegava lá em menos tentativas, mas
+// passava do ponto bom (medido em 11/09/2026: pousava em 15:27:12 quando
+// 15:27:10 já tocava). Passado o teto, desiste do segmento e vai para o começo
+// do seguinte, que sempre abre num keyframe.
+const PULO_PASSO_MS = 1000;
+const PULO_MAX_MS = 10000;
+
 export class Player {
   /** @type {HTMLVideoElement | null} */
   video = null;
@@ -50,6 +60,7 @@ export class Player {
   #mime = null; // com que codecs o SourceBuffer atual foi criado
   #mimes = new Map(); // geração -> mime, para não rebuscar o mesmo init
   #boundary = null; // início do segmento onde as trilhas mudam e é preciso recomeçar
+  #pulo = null; // último pulo sobre dado corrompido: { inicio, alvo }, em ms
 
   attach(video) {
     this.video = video;
@@ -63,6 +74,7 @@ export class Player {
     video.addEventListener('playing', this.#onPlaying);
     video.addEventListener('pause', this.#onPause);
     video.addEventListener('ratechange', this.#onRate);
+    video.addEventListener('error', this.#onError);
   }
 
   destroy() {
@@ -75,6 +87,7 @@ export class Player {
     v.removeEventListener('playing', this.#onPlaying);
     v.removeEventListener('pause', this.#onPause);
     v.removeEventListener('ratechange', this.#onRate);
+    v.removeEventListener('error', this.#onError);
     // Um aviso agendado que dispara depois disto acenderia o "carregando…" de
     // um player que não existe mais - e ninguém o apagaria.
     this.#aviso(false);
@@ -98,6 +111,7 @@ export class Player {
     this.#segments = segments;
     this.#mimes.clear();
     this.#boundary = null;
+    this.#pulo = null;
     this.#generation++;
     // O incremento acima impede o `finally` de um seek em voo de rodar, então
     // o portão precisa ser aberto aqui: um dia novo sem gravação nenhuma não
@@ -206,6 +220,39 @@ export class Player {
 
   #onRate = () => {
     this.rate = this.video?.playbackRate ?? 1;
+  };
+
+  // Dado corrompido na gravação - pacote perdido no UDP entre a câmera e o
+  // go2rtc - derruba o decodificador do navegador de vez: o <video> entra em
+  // erro e nenhum append passa mais. O ffmpeg disfarça o mesmo estrago e segue;
+  // o Chrome desiste. Sem isto a reprodução parava ali até alguém clicar mais à
+  // frente na timeline.
+  //
+  // Só o erro de decodificação: os outros não se resolvem pulando - um init que
+  // o navegador recusa seria recusado de novo, e o laço não teria fim.
+  #onError = () => {
+    if (this.video?.error?.code !== MediaError.MEDIA_ERR_DECODE) return;
+    if (!this.hasSegments) return;
+
+    // Caiu de novo logo depois do último pulo: é o mesmo trecho estragado, e
+    // o teto conta desde onde ele começou. Longe dali é um trecho novo.
+    const onde = this.currentMs;
+    const ultimo = this.#pulo;
+    const inicio = ultimo && onde < ultimo.alvo + PULO_PASSO_MS ? ultimo.inicio : onde;
+
+    let alvo = onde + PULO_PASSO_MS;
+    if (alvo - inicio > PULO_MAX_MS) {
+      const seguinte = this.#segments[this.#indexAt(onde) + 1];
+      if (!seguinte) return;
+      alvo = seguinte[0];
+    }
+    // Depois do fim do que existe não há ponto bom para onde ir. Pedir isso ao
+    // seek() o faria voltar ao começo do último segmento, direto para o mesmo
+    // trecho estragado.
+    if (alvo >= this.lastMs) return;
+
+    this.#pulo = { inicio, alvo };
+    this.seek(alvo);
   };
 
   /** Índice do último segmento que começa em ms ou antes. */
@@ -403,9 +450,13 @@ export class Player {
             break;
           }
           await this.#append(mediaURL.init(this.#cam, g), null);
+          if (gen !== this.#generation) break;
           this.#initAppended = g;
         }
         await this.#append(mediaURL.segment(this.#cam, start), (start - this.base) / 1000);
+        // Um seek durante o download já apontou `#next` para o segmento dele;
+        // avançar aqui faria o pump novo pular justamente esse.
+        if (gen !== this.#generation) break;
         this.#next++;
       }
       if (gen === this.#generation) await this.#evict();
@@ -415,15 +466,21 @@ export class Player {
   }
 
   async #append(url, offset) {
+    // O SourceBuffer é o de quando o download começou. Um seek no meio dele -
+    // o do usuário ou o de #onError - troca o MediaSource, e os bytes que
+    // chegassem depois iriam parar no buffer novo, antes do init dele e com o
+    // timestampOffset do antigo.
+    const ms = this.#ms;
+    const sb = this.#sb;
     const buf = await fetch(url).then((r) => r.arrayBuffer());
-    if (this.#ms?.readyState !== 'open') return;
-    if (offset !== null) this.#sb.timestampOffset = offset;
+    if (this.#sb !== sb || ms?.readyState !== 'open') return;
+    if (offset !== null) sb.timestampOffset = offset;
     await new Promise((res, rej) => {
-      this.#sb.addEventListener('updateend', res, { once: true });
-      this.#sb.addEventListener('error', () => rej(new Error('falha ao anexar segmento')), {
+      sb.addEventListener('updateend', res, { once: true });
+      sb.addEventListener('error', () => rej(new Error('falha ao anexar segmento')), {
         once: true,
       });
-      this.#sb.appendBuffer(buf);
+      sb.appendBuffer(buf);
     });
   }
 
