@@ -35,6 +35,23 @@ const (
 	// em silêncio.
 	clockJumpThreshold = 5 * time.Second
 
+	// Ver relogio e inicioEmendado em relogio.go.
+	//
+	// relogioBalde é quanto de mídia cada balde do estimador cobre. Precisa
+	// conter com folga um quadro entregue sem rajada; 30s são 450 quadros a
+	// 15fps. Os dois baldes somados ficam em 60s, e nesse tempo a deriva
+	// medida (0,04%) não chega a 25ms.
+	relogioBalde = 30 * time.Second
+	// relogioTolerancia é quanto a timeline pode se afastar do relógio sem ser
+	// corrigida. A hora impressa na imagem só mostra segundos, e abaixo disso
+	// ninguém nota; acima, cada correção ainda é de meio quadro.
+	relogioTolerancia = 250 * time.Millisecond
+	// relogioBuraco é o atraso da timeline a partir do qual a mídia deixou de
+	// contar um tempo que passou de fato, e o segmento pula para o relógio
+	// deixando um buraco. O jitter da rede não chega aqui: o estimador já o
+	// filtrou.
+	relogioBuraco = time.Second
+
 	// minBitrateForEstimate é a taxa abaixo da qual a estimativa de retenção
 	// não é publicada. Nenhum stream de câmera real fica abaixo disso.
 	minBitrateForEstimate = 1.0 // kbps
@@ -147,8 +164,8 @@ type Recorder struct {
 	gen         string
 	bitrateKbps float64
 
-	// lastEnd é o fim (em relógio de parede) do último segmento fechado. É o
-	// piso do início do próximo, o que impede sobreposição entre segmentos.
+	// lastEnd é o fim (em relógio de parede) do último segmento fechado. É a
+	// emenda de onde o próximo parte - ver segmenter.inicioDe.
 	lastEnd int64
 
 	startedAt    time.Time
@@ -332,7 +349,10 @@ func (r *Recorder) session(ctx context.Context) error {
 	}
 	defer body.Close()
 
-	seg := &segmenter{rec: r, segDur: time.Duration(r.cam.SegmentSeconds) * time.Second}
+	seg := &segmenter{
+		rec: r, segDur: time.Duration(r.cam.SegmentSeconds) * time.Second,
+		relogio: relogio{balde: relogioBalde.Milliseconds()},
+	}
 	defer seg.close()
 
 	rd := fmp4.NewReader(body)
@@ -398,6 +418,9 @@ func (r *Recorder) session(ctx context.Context) error {
 				return fmt.Errorf("moof ilegível: %w", err)
 			}
 			if frag.TrackID == seg.videoTrack.ID {
+				// Antes de rotacionar: o keyframe que abre o segmento também
+				// conta para a estimativa de onde ele começa.
+				seg.relogio.observar(seg.midiaMs(frag.BaseDecodeTime), time.Now().UnixMilli())
 				if err := seg.maybeRotate(frag); err != nil {
 					return err
 				}
@@ -486,6 +509,11 @@ type segmenter struct {
 	frags     int
 	firstFrag int64
 	day       string
+
+	relogio relogio
+	// emendado diz que esta conexão já fechou um segmento: o próximo continua
+	// a mesma mídia, e começa na emenda em vez de no relógio de parede.
+	emendado bool
 }
 
 func (s *segmenter) open() bool { return s.f != nil }
@@ -497,6 +525,15 @@ func (s *segmenter) elapsed(dts uint64) time.Duration {
 		return 0
 	}
 	return time.Duration(float64(dts-s.baseDTS) / float64(s.videoTrack.Timescale) * float64(time.Second))
+}
+
+// midiaMs é o instante de mídia desde o começo da conexão, que é de onde o
+// go2rtc conta o tfdt.
+func (s *segmenter) midiaMs(dts uint64) int64 {
+	if s.videoTrack.Timescale == 0 {
+		return 0
+	}
+	return int64(float64(dts) / float64(s.videoTrack.Timescale) * 1000)
 }
 
 func (s *segmenter) maybeRotate(frag fmp4.Fragment) error {
@@ -523,27 +560,7 @@ func (s *segmenter) maybeRotate(frag fmp4.Fragment) error {
 }
 
 func (s *segmenter) start(frag fmp4.Fragment) error {
-	now := time.Now()
-	startMs := now.UnixMilli()
-
-	// O início vem do relógio de parede, mas a duração vem do relógio de mídia
-	// (os timestamps da câmera). Os dois derivam entre si com o jitter da rede
-	// - medido em ±1,1s num segmento de 30s -, e quando a mídia adianta o
-	// segmento novo começaria ANTES de o anterior terminar. No MSE isso faz o
-	// trecho sobreposto ser sobrescrito, ou seja, perde-se gravação.
-	//
-	// Ancorar no fim do segmento anterior elimina a sobreposição sem abandonar
-	// o relógio de parede como referência: a correção só age quando há
-	// sobreposição de fato, e o segmento seguinte volta a seguir o relógio
-	// assim que ele alcança. Isso também cobre o salto de relógio para trás de
-	// servidores sem RTC.
-	if lastEnd := s.rec.lastEndMs(); startMs < lastEnd {
-		if lastEnd-startMs > int64(clockJumpThreshold/time.Millisecond) {
-			s.rec.log.Warn("início do segmento muito antes do fim do anterior",
-				"agora", now, "fim_anterior_ms", lastEnd, "diferenca_ms", lastEnd-startMs)
-		}
-		startMs = lastEnd
-	}
+	startMs := s.inicioDe(frag)
 
 	s.day = time.UnixMilli(startMs).Format(store.DayLayout)
 	if err := s.rec.idx.EnsureDirs(s.day); err != nil {
@@ -571,6 +588,55 @@ func (s *segmenter) start(frag fmp4.Fragment) error {
 	// Cada segmento carrega o próprio init: abre no VLC, no ffprobe e num
 	// <video> sem nenhum pré-processamento.
 	return s.write(s.init)
+}
+
+// inicioDe decide o instante da timeline em que começa o segmento aberto por
+// frag.
+//
+// O início vem do relógio de parede, mas a duração vem do relógio de mídia (os
+// timestamps da câmera). Se cada segmento começasse na hora em que chegou, o
+// jitter da rede faria o novo começar ANTES de o anterior terminar, e no MSE o
+// trecho sobreposto é sobrescrito - perde-se gravação. Por isso, dentro de uma
+// conexão, o segmento parte da emenda com o anterior, corrigida aos poucos em
+// direção ao relógio (inicioEmendado).
+//
+// O primeiro segmento da conexão não tem emenda: a mídia recomeçou do zero, e o
+// que houve entre as conexões foi tempo sem gravação. Ele segue o relógio,
+// só nunca começando antes do fim do último segmento gravado - o que também
+// cobre o salto de relógio para trás de servidores sem RTC.
+func (s *segmenter) inicioDe(frag fmp4.Fragment) int64 {
+	lastEnd := s.rec.lastEndMs()
+	// Sem observação não há estimativa; não acontece, porque o fragmento que
+	// abre o segmento é observado antes, mas a hora de chegada é o palpite
+	// que o código antigo usava.
+	alvo, ok := s.relogio.parede(s.midiaMs(frag.BaseDecodeTime))
+	if !ok {
+		alvo = time.Now().UnixMilli()
+	}
+
+	if lastEnd-alvo > clockJumpThreshold.Milliseconds() {
+		s.rec.log.Warn("início do segmento muito antes do fim do anterior",
+			"estimado", time.UnixMilli(alvo), "fim_anterior_ms", lastEnd,
+			"diferenca_ms", lastEnd-alvo)
+	}
+
+	if !s.emendado {
+		return max(alvo, lastEnd)
+	}
+	return inicioEmendado(lastEnd, alvo, s.meioQuadroMs(frag),
+		relogioTolerancia.Milliseconds(), relogioBuraco.Milliseconds())
+}
+
+// meioQuadroMs é o tamanho de cada correção do início - ver inicioEmendado.
+// Sai do próprio keyframe porque a taxa de quadros é da câmera, não uma
+// constante: meio quadro a 15fps é 33ms, a 30fps é 16ms. O piso de 1ms é para
+// uma câmera acima de 500fps, que não existe, não desligar a correção.
+func (s *segmenter) meioQuadroMs(frag fmp4.Fragment) int64 {
+	if frag.SampleCount == 0 || s.videoTrack.Timescale == 0 {
+		return 1
+	}
+	quadro := float64(frag.Duration) / float64(frag.SampleCount) / float64(s.videoTrack.Timescale) * 1000
+	return max(int64(quadro/2), 1)
 }
 
 func (s *segmenter) write(b []byte) error {
@@ -608,6 +674,7 @@ func (s *segmenter) finish() error {
 		return err
 	}
 	s.rec.setLastEndMs(s.entry.StartMs + s.entry.DurMs)
+	s.emendado = true
 	s.rec.segments.Add(1)
 	s.rec.log.Debug("segmento fechado", "inicio", s.entry.StartMs,
 		"dur_s", float64(s.entry.DurMs)/1000, "mb", float64(s.entry.Size)/(1<<20))
