@@ -1,5 +1,5 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { cameras, loadCameras } from '../lib/state.svelte.js';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { api, mediaURL } from '../lib/api.js';
@@ -191,6 +191,14 @@
     montado = true;
   });
 
+  // Anda pela lista de câmeras dando a volta nas pontas.
+  function shiftCam(delta) {
+    const n = cameras.list.length;
+    if (!n) return;
+    const i = cameras.list.findIndex((c) => c.id === cam);
+    cam = cameras.list[(i + delta + n) % n].id;
+  }
+
   onDestroy(() => {
     player.destroy();
     clearThumbnails();
@@ -209,8 +217,19 @@
 
   // Recarrega ao trocar de câmera ou de dia. Este é o único ponto de busca de
   // dados da tela, o que evita duas telas disputando o mesmo estado.
+  //
+  // Trocar só de câmera mantém o instante: é o mesmo momento visto de outro
+  // ângulo. O untrack impede que o relógio do player vire dependência e
+  // recarregue a tela a cada quadro.
+  let camCarregada = '';
   $effect(() => {
-    if (cam && day) load(cam, day);
+    if (!cam || !day) return;
+    if (camCarregada && camCarregada !== cam) {
+      const agora = untrack(() => player.currentMs);
+      if (agora) tPendente = agora;
+    }
+    camCarregada = cam;
+    load(cam, day);
   });
 
   // Os dias com gravação, uma vez por câmera. É a única leitura deste endpoint
@@ -438,11 +457,29 @@
     <SemCameras />
   {:else}
     <div class="bar row wrap">
-      <select bind:value={cam} aria-label="câmera">
-        {#each cameras.list as c (c.id)}
-          <option value={c.id}>{c.name}</option>
-        {/each}
-      </select>
+      <div class="row camnav">
+        <button
+          class="ghost"
+          onclick={() => shiftCam(-1)}
+          disabled={cameras.list.length < 2}
+          aria-label="câmera anterior"
+        >
+          ‹
+        </button>
+        <select bind:value={cam} aria-label="câmera">
+          {#each cameras.list as c (c.id)}
+            <option value={c.id}>{c.name}</option>
+          {/each}
+        </select>
+        <button
+          class="ghost"
+          onclick={() => shiftCam(1)}
+          disabled={cameras.list.length < 2}
+          aria-label="próxima câmera"
+        >
+          ›
+        </button>
+      </div>
 
       <div class="row daynav">
         <button
@@ -569,8 +606,8 @@
   }
 
   .bar select { max-width: 45vw; }
-  .daynav { gap: 4px; }
-  .daynav button { padding: 9px 12px; }
+  .daynav, .camnav { gap: 4px; }
+  .daynav button, .camnav button { padding: 9px 12px; }
 
   .stage {
     position: relative;
