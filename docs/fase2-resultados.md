@@ -88,6 +88,21 @@ E qualquer buraco real (reconexão, câmera fora do ar) reancora no relógio de
 parede, porque aí `agora` passa o fim do anterior e vence a comparação. Na
 prática o desvio não acumula.
 
+> **Revisto em 11/09/2026: acumula.** Os 316s medidos acima eram curtos demais
+> para ver a deriva. Com um dia inteiro de gravação, 97% dos segmentos de cada
+> câmera saíam colados no anterior, ou seja, a âncora agia sempre, e a timeline
+> andava à frente do relógio real: mediana de 1,5s nas 9 câmeras, até 21,8s na
+> `cam_lateral2`, cujo relógio corre 0,04% à frente. Na tela, a hora impressa
+> na imagem ficava 7s atrás da timeline. As reconexões zeravam o desvio, mas não
+> vinham com frequência suficiente.
+>
+> Agora, dentro de uma conexão, o segmento parte da emenda e se aproxima meio
+> quadro por segmento de um relógio estimado. A estimativa é a menor diferença
+> entre chegada e mídia numa janela de 30-60s, que a rajada não contamina
+> porque a rajada só atrasa. Meio quadro de sobreposição ou de vão é tocado pelo
+> MSE sem perder quadro e sem parar; conferido no Chrome com gravação real. Ver
+> `internal/recorder/relogio.go`.
+
 ## Um susto que era comportamento correto
 
 Logo depois de um reinício, a `cam_portao` apareceu com 12 faixas separadas e
