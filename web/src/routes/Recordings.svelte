@@ -11,6 +11,7 @@
   import ThumbStrip from '../components/ThumbStrip.svelte';
   import SemCameras from '../components/SemCameras.svelte';
   import DayPicker from '../components/DayPicker.svelte';
+  import Relogio from '../components/Relogio.svelte';
 
   const player = new Player();
 
@@ -527,7 +528,7 @@
       <button class="primary" onclick={() => player.toggle()} aria-label="tocar ou pausar">
         {player.playing ? '⏸' : '▶'}
       </button>
-      <span class="clock mono">{player.currentMs ? hhmmss(player.currentMs) : '--:--:--'}</span>
+      <Relogio ms={player.currentMs} onir={(seg) => player.seek(dayStart + seg * 1000)} />
 
       <select
         value={player.rate}
@@ -651,8 +652,6 @@
     font-size: 12px;
   }
   .badge.bad { color: var(--bad); border-color: #5c2b2b; }
-
-  .clock { font-size: 16px; }
 
   /* Botão e seletor são um controle só. Separados eles se leem como duas
      funções; colados, voltam a dizer "exportar 5 min", que era o rótulo antigo.
