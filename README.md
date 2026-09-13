@@ -251,7 +251,7 @@ Se o pull falhar, o comando para aí e o que está no ar continua gravando.
 | **MSE** (Media Source Extensions) | Player das gravações, escrito à mão para não carregar [hls.js](https://github.com/video-dev/hls.js/) |
 | **Docker** | Imagem `FROM scratch` multi-arch, para `linux/arm64` e `linux/amd64` |
 
-A única dependência Go do projeto é `gopkg.in/yaml.v3`. Não há banco de dados,
+A única dependência Go do projeto é `go.yaml.in/yaml/v3`. Não há banco de dados,
 ORM, framework HTTP, ffmpeg nem detecção de movimento - e essa ausência é o
 projeto, não uma etapa que faltou.
 
