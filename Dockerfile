@@ -3,7 +3,7 @@
 # Interface. Roda na arquitetura de quem constrói (BUILDPLATFORM) porque o
 # resultado é HTML, CSS e JS - não depende da arquitetura de destino, e emular
 # Node em ARM só desperdiçaria minutos.
-FROM --platform=$BUILDPLATFORM node:22-alpine AS web
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web
 WORKDIR /src/web
 # package.json separado do resto para que a camada de dependências só refaça
 # quando as dependências realmente mudarem.
