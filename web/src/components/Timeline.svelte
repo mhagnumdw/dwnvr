@@ -117,6 +117,12 @@
   const DOUBLE_TAP_MS = 300;
   const DOUBLE_TAP_PX = 32;
   const ZOOM_STEP = 3; // um gesto deliberado merece um salto maior que o da roda
+  // Zoom da roda proporcional ao deltaY: um clique de mouse (~100px) dá o passo
+  // de 1.35, e o touchpad, que manda dezenas de deltas pequenos, soma o mesmo
+  // zoom na medida do movimento dos dedos em vez de um passo cheio por evento.
+  const WHEEL_ZOOM_POR_PX = Math.log(1.35) / 100;
+  const WHEEL_PX_POR_LINHA = 33;   // Firefox pode mandar o delta em linhas
+  const WHEEL_DELTA_MAX_PX = 300;  // um evento isolado nunca salta mais que ~2.5x
 
   function localX(ev) {
     return ev.clientX - canvas.getBoundingClientRect().left;
@@ -219,7 +225,12 @@
 
   function onWheel(ev) {
     ev.preventDefault();
-    zoomTo(toMs(localX(ev)), span * (ev.deltaY > 0 ? 1.35 : 1 / 1.35), localX(ev) / width);
+    let dy = ev.deltaY;
+    if (ev.deltaMode === WheelEvent.DOM_DELTA_LINE) dy *= WHEEL_PX_POR_LINHA;
+    else if (ev.deltaMode === WheelEvent.DOM_DELTA_PAGE) dy *= width;
+    dy = Math.max(-WHEEL_DELTA_MAX_PX, Math.min(WHEEL_DELTA_MAX_PX, dy));
+    const x = localX(ev);
+    zoomTo(toMs(x), span * Math.exp(dy * WHEEL_ZOOM_POR_PX), x / width);
   }
 
   function zoomTo(anchorMs, nextSpan, frac = 0.5) {
