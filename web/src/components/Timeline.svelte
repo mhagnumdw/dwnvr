@@ -122,7 +122,7 @@
   // zoom na medida do movimento dos dedos em vez de um passo cheio por evento.
   const WHEEL_ZOOM_POR_PX = Math.log(1.35) / 100;
   const WHEEL_PX_POR_LINHA = 33;   // Firefox pode mandar o delta em linhas
-  const WHEEL_DELTA_MAX_PX = 300;  // um evento isolado nunca salta mais que ~2.5x
+  const WHEEL_DELTA_MAX_PX = 300;  // um evento isolado nunca salta mais que ~2.5x nem ~¼ da tela
 
   function localX(ev) {
     return ev.clientX - canvas.getBoundingClientRect().left;
@@ -225,12 +225,28 @@
 
   function onWheel(ev) {
     ev.preventDefault();
-    let dy = ev.deltaY;
-    if (ev.deltaMode === WheelEvent.DOM_DELTA_LINE) dy *= WHEEL_PX_POR_LINHA;
-    else if (ev.deltaMode === WheelEvent.DOM_DELTA_PAGE) dy *= width;
-    dy = Math.max(-WHEEL_DELTA_MAX_PX, Math.min(WHEEL_DELTA_MAX_PX, dy));
+    let dx = wheelPx(ev, ev.deltaX);
+    let dy = wheelPx(ev, ev.deltaY);
+    // Shift + roda é o horizontal do mouse comum; nem todo navegador já entrega
+    // isso trocado para deltaX.
+    if (ev.shiftKey && dx === 0) [dx, dy] = [dy, 0];
+
+    // O dedo nunca anda reto: aplicar os dois eixos juntos faria a janela dar
+    // zoom enquanto se quer só andar no tempo. Cada evento vale pelo eixo dominante.
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Andar é proporcional ao zoom: o deslocamento na tela vira tempo na mesma
+      // escala do arraste, então o conteúdo acompanha o dedo.
+      pan((dx / Math.max(1, width)) * span);
+      return;
+    }
     const x = localX(ev);
     zoomTo(toMs(x), span * Math.exp(dy * WHEEL_ZOOM_POR_PX), x / width);
+  }
+
+  function wheelPx(ev, d) {
+    if (ev.deltaMode === WheelEvent.DOM_DELTA_LINE) d *= WHEEL_PX_POR_LINHA;
+    else if (ev.deltaMode === WheelEvent.DOM_DELTA_PAGE) d *= width;
+    return Math.max(-WHEEL_DELTA_MAX_PX, Math.min(WHEEL_DELTA_MAX_PX, d));
   }
 
   function zoomTo(anchorMs, nextSpan, frac = 0.5) {
