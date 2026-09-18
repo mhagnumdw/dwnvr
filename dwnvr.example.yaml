@@ -25,6 +25,16 @@ go2rtc:
   # username: admin
   # password: troque-me
 
+# O detector de objetos, opcional: o container dwnvr-detect, que diz se o
+# movimento marcado era pessoa, veículo ou animal. Sem ele, as câmeras com
+# `detect` ligado marcam só movimento.
+#
+# Ele custa CPU e RAM de verdade - ~6,5 s de um núcleo e ~210 MB por olhada no
+# Orange Pi Zero 3 -, e só olha as câmeras com `detect` ligado. Ver
+# docs/configuracao.md.
+# detector:
+#   url: http://dwnvr-detect:8480
+
 storage:
   # Onde o dwnvr escreve - o caminho que o processo enxerga. Em container é um
   # caminho de dentro dele, e quem escolhe o disco do host é o volume do
@@ -72,3 +82,35 @@ defaults:
   #
   # Aumente num enlace ruim; não pode ser 0, que seria desligar a proteção.
   stallSeconds: 15
+
+  # --- marcação de movimento na timeline ---
+  #
+  # Liga o gatilho que acha os instantes em que a imagem mudou o bastante para
+  # valer uma olhada. Ele é BARATO: o sinal é o tamanho de cada quadro, que o
+  # gravador já tem na mão, e nenhum pixel é decodificado.
+  #
+  # Com ele ligado a timeline ganha a faixa de calor, que mostra QUANDO houve
+  # movimento. Dizer O QUE era - pessoa, veículo, animal - é do detector de
+  # objetos, a seção `detector` lá em cima, e ele é opcional. Vem desligado:
+  # quem não pediu não paga.
+  detect: false
+
+  # kleinberg-p  estatístico: dispara quando o quadro destoa do normal DAQUELA
+  #              câmera. Foi medido contra 23 concorrentes em gravações reais
+  #              e ganhou de todos - pega 2 a 3 vezes mais que o periódico
+  #              pelo mesmo custo.
+  # periodico    dispara em intervalo fixo, ignorando a imagem. Custo idêntico
+  #              e perfeitamente previsível; pega bem menos.
+  detectMecanismo: kleinberg-p
+
+  # De 1 a 5, e o que ele controla é o CUSTO - quantas vezes por hora, POR
+  # CÂMERA, o dwnvr para para olhar. Multiplique pelo número de câmeras.
+  #
+  #   1 muito baixa    6 marcas/hora   pega  2,8% do que passa
+  #   2 baixa         12 marcas/hora   pega  9,2%
+  #   3 média         25 marcas/hora   pega 22,3%
+  #   4 alta          50 marcas/hora   pega 41,5%   <- padrão
+  #   5 muito alta   100 marcas/hora   pega 57,4%
+  #
+  # As duas colunas são medidas, não estimadas: ver docs/configuracao.md.
+  detectSensibilidade: 4
