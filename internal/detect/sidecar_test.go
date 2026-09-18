@@ -24,8 +24,8 @@ func TestSidecarMandaOPedacoEOPisoELeOsAchados(t *testing.T) {
 	d := sidecarFalso(t, func(w http.ResponseWriter, r *http.Request) {
 		corpo, _ := io.ReadAll(r.Body)
 		switch {
-		case r.Method != http.MethodPost || r.URL.Path != "/detecta":
-			t.Errorf("%s %s, esperado POST /detecta", r.Method, r.URL.Path)
+		case r.Method != http.MethodPost || r.URL.Path != "/detect":
+			t.Errorf("%s %s, esperado POST /detect", r.Method, r.URL.Path)
 		case r.URL.Query().Get("piso") != "0.2":
 			t.Errorf("piso %q, esperado o PisoDoDetector", r.URL.Query().Get("piso"))
 		case !bytes.Equal(corpo, pedaco):

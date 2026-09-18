@@ -21,6 +21,11 @@ docker-compose.override.yml
 # Binários
 /dwnvr
 /dwnvr-*
+# ... menos o detector de objetos, que é código e casa com o padrão acima
+!/dwnvr-detect/
+# O fp32 que o dwnvr-detect/modelo/exporta.py gera no caminho: ~100 MB, e
+# qualquer um o refaz a partir dos pesos públicos.
+/dwnvr-detect/modelo/*_fp32.onnx
 
 # Frontend
 web/node_modules/
@@ -30,3 +35,5 @@ web/node_modules/
 .claude/settings.local.json
 .claude/RESUME.md
 
+# Bytecode do Python, do dwnvr-detect.
+__pycache__/

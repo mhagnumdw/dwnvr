@@ -1,0 +1,18 @@
+# As dependências do exporta.py, nas versões que geraram o .onnx publicado.
+# Não vão para a imagem: servem só para gerar o modelo de novo.
+#
+# O torch pode ser o de CPU, que é bem menor que o de CUDA:
+#
+#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+rfdetr==1.10.1
+torch==2.11.0
+torchvision==0.26.0
+transformers==5.16.1
+supervision==0.30.2
+onnx==1.22.0
+onnxslim==0.1.96
+onnxruntime==1.29.0
+numpy==2.5.3
+pillow==12.3.0
+# O exporta.py importa o preparo do servidor.py, que carrega o PyAV.
+av==18.1.0
