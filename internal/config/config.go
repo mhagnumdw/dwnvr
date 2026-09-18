@@ -17,9 +17,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/mhagnumdw/dwnvr/internal/detect"
 )
 
 // Modos de áudio suportados por câmera.
@@ -42,6 +45,7 @@ type Config struct {
 	Go2RTC   Go2RTC   `yaml:"go2rtc"`
 	Storage  Storage  `yaml:"storage"`
 	Defaults Defaults `yaml:"defaults"`
+	Detector Detector `yaml:"detector"`
 
 	// dir é o diretório do dwnvr.yaml; cameras.json fica ao lado dele.
 	dir string `yaml:"-"`
@@ -72,6 +76,17 @@ type Go2RTC struct {
 	Password string `yaml:"password"`
 }
 
+// Detector é o detector de objetos: o container `dwnvr-detect`, que diz se o
+// movimento era pessoa, veículo ou animal. É opcional e fica à parte porque
+// decodificar vídeo e rodar um modelo exigem código nativo, e o dwnvr é Go
+// puro.
+type Detector struct {
+	// URL do sidecar, ex.: http://dwnvr-detect:8480. Vazio é "sem detector":
+	// as câmeras com `detect` ligado continuam marcando só movimento, e o
+	// dwnvr não guarda um byte de vídeo a mais por causa disso.
+	URL string `yaml:"url"`
+}
+
 type Storage struct {
 	// Root é onde as gravações são escritas.
 	Root string `yaml:"root"`
@@ -90,6 +105,14 @@ type Defaults struct {
 	MaxDays        int    `yaml:"maxDays"`
 	Audio          string `yaml:"audio"`
 	StallSeconds   int    `yaml:"stallSeconds"`
+
+	// Detect liga a marcação de movimento. Vem desligada: quem não pediu a
+	// faixa de calor na timeline - nem o detector de objetos que acorda por
+	// ela - não deve começar a pagar por isso.
+	Detect bool `yaml:"detect"`
+
+	DetectMecanismo     string `yaml:"detectMecanismo"`
+	DetectSensibilidade int    `yaml:"detectSensibilidade"`
 }
 
 // Camera é uma câmera registrada. O ID é o nome do stream no go2rtc: o dwnvr
@@ -110,6 +133,29 @@ type Camera struct {
 	// câmera num Wi-Fi ruim pode precisar de mais folga que uma no cabo, e
 	// baixar o limiar demais troca perda silenciosa por reconexão em excesso.
 	StallSeconds int `json:"stallSeconds,omitempty"`
+
+	// Detect liga a marcação de movimento nesta câmera.
+	//
+	// Ele é ponteiro, e não bool, porque aqui o zero PRECISA se distinguir do
+	// ausente: com um bool, "desligada" e "não configurada" seriam a mesma
+	// coisa, e uma câmera desligada à mão voltaria a ligar sozinha assim que o
+	// default mudasse.
+	Detect *bool `json:"detect,omitempty"`
+
+	// DetectMecanismo escolhe quem decide disparar: `kleinberg-p`, o melhor
+	// dos 24 candidatos medidos, ou `periodico`, que dispara de X em X
+	// segundos e é a régua honesta a bater.
+	//
+	// É por câmera porque as câmeras não são iguais: numa delas, medida, o
+	// campeão pegou 10,1% das chegadas e o segundo colocado 23,4%. Trocar o
+	// mecanismo de uma câmera difícil é mais barato que subir o nível de
+	// todas.
+	DetectMecanismo string `json:"detectMecanismo,omitempty"`
+
+	// DetectSensibilidade é o nível de 1 a 5. Ele é o CUSTO: cada nível dobra
+	// o número de detecções por hora, e cada detecção é o gasto de CPU inteiro
+	// da feature.
+	DetectSensibilidade int `json:"detectSensibilidade,omitempty"`
 }
 
 func defaults() Config {
@@ -121,10 +167,13 @@ func defaults() Config {
 			MinFreeMB: 2048,
 		},
 		Defaults: Defaults{
-			SegmentSeconds: 30,
-			QuotaMB:        10240,
-			Audio:          AudioNone,
-			StallSeconds:   DefaultStallSeconds,
+			SegmentSeconds:      30,
+			QuotaMB:             10240,
+			Audio:               AudioNone,
+			StallSeconds:        DefaultStallSeconds,
+			Detect:              false,
+			DetectMecanismo:     detect.MecanismoPadrao,
+			DetectSensibilidade: detect.NivelPadrao,
 		},
 	}
 }
@@ -164,6 +213,30 @@ func (c *Config) validate() error {
 	if err := ValidAudio(c.Defaults.Audio); err != nil {
 		return fmt.Errorf("defaults.audio: %w", err)
 	}
+	if err := ValidDetect(c.Defaults.DetectMecanismo, c.Defaults.DetectSensibilidade); err != nil {
+		return fmt.Errorf("defaults: %w", err)
+	}
+	return nil
+}
+
+// ValidDetect confere o mecanismo e o nível de sensibilidade. O `detect.Novo`
+// cai no padrão diante de um valor estranho, para que uma câmera nunca fique
+// sem gatilho em silêncio - mas o que veio do usuário é recusado na entrada,
+// que é onde ele ainda pode corrigir.
+func ValidDetect(mecanismo string, sensibilidade int) error {
+	if _, ok := detect.Mecanismos[mecanismo]; !ok {
+		nomes := make([]string, 0, len(detect.Mecanismos))
+		for n := range detect.Mecanismos {
+			nomes = append(nomes, n)
+		}
+		sort.Strings(nomes)
+		return fmt.Errorf("detectMecanismo %q inválido (use %s)",
+			mecanismo, strings.Join(nomes, " ou "))
+	}
+	if sensibilidade < detect.NivelMin || sensibilidade > detect.NivelMax {
+		return fmt.Errorf("detectSensibilidade %d fora da faixa de %d a %d",
+			sensibilidade, detect.NivelMin, detect.NivelMax)
+	}
 	return nil
 }
 
@@ -197,6 +270,16 @@ func (c *Config) Resolve(cam Camera) Camera {
 	if cam.StallSeconds <= 0 {
 		cam.StallSeconds = c.Defaults.StallSeconds
 	}
+	if cam.Detect == nil {
+		v := c.Defaults.Detect
+		cam.Detect = &v
+	}
+	if cam.DetectMecanismo == "" {
+		cam.DetectMecanismo = c.Defaults.DetectMecanismo
+	}
+	if cam.DetectSensibilidade <= 0 {
+		cam.DetectSensibilidade = c.Defaults.DetectSensibilidade
+	}
 	if cam.Name == "" {
 		cam.Name = cam.ID
 	}
@@ -223,6 +306,12 @@ func (c *Config) LoadCameras() ([]Camera, error) {
 		}
 		if cam.Audio != "" {
 			if err := ValidAudio(cam.Audio); err != nil {
+				return nil, fmt.Errorf("câmera %q: %w", cam.ID, err)
+			}
+		}
+		if cam.DetectMecanismo != "" || cam.DetectSensibilidade != 0 {
+			r := c.Resolve(cam)
+			if err := ValidDetect(r.DetectMecanismo, r.DetectSensibilidade); err != nil {
 				return nil, fmt.Errorf("câmera %q: %w", cam.ID, err)
 			}
 		}

@@ -449,9 +449,14 @@ tela de cadastro ou uma queda de energia no meio dela não alcançam a
 configuração do serviço.
 
 Tudo que é política de gravação é **por câmera**: qual stream do go2rtc usar
-(alta ou baixa resolução), áudio, cota, tamanho do segmento e o limiar de
-inatividade. Detalhes, incluindo o custo de cada modo de áudio em CPU e disco,
-em [`docs/configuracao.md`](docs/configuracao.md).
+(alta ou baixa resolução), áudio, cota, tamanho do segmento, o limiar de
+inatividade e a detecção - ligada ou não, o mecanismo e o nível de
+sensibilidade, de 1 a 5. Detalhes, incluindo o custo de cada modo de áudio em
+CPU e disco, em [`docs/configuracao.md`](docs/configuracao.md).
+
+O detector de objetos é opcional: um container à parte, `dwnvr-detect`,
+apontado por `detector.url` no `dwnvr.yaml`. Sem ele, a detecção marca só
+movimento.
 
 ## Estado atual
 
