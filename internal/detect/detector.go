@@ -42,7 +42,8 @@ type Detector interface {
 // O `nenhum` é o que faz a detecção de movimento funcionar sem sidecar nenhum:
 // o gatilho marca movimento na timeline, e ninguém olha.
 var Detectores = map[string]func(url string) Detector{
-	"nenhum": func(string) Detector { return nenhum{} },
+	"nenhum":  func(string) Detector { return nenhum{} },
+	"sidecar": NovoSidecar,
 }
 
 // nenhum é o detector que não olha. Não é um esboço: é o comportamento correto
