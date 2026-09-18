@@ -3,6 +3,12 @@
 
   let {
     ranges = [],       // [[inícioMs, fimMs], …] faixas com gravação
+    // Instantes em que o gatilho viu movimento, crescentes. Vazio quer dizer
+    // "não há o que mostrar" - seja porque a câmera está com a detecção
+    // desligada, seja porque o dia foi quieto -, e nesse caso a faixa de calor
+    // não é desenhada NEM ocupa altura: uma tira vazia permanente seria pior
+    // que nada para quem não usa detecção.
+    events = [],
     dayStart = 0,
     dayEnd = 0,
     currentMs = 0,
@@ -21,6 +27,29 @@
 
   const MIN_SPAN = 20_000; // 20s de zoom máximo
 
+  // A PILHA, de cima para baixo: vídeo e movimento. Os números da barra e da
+  // régua são os que ela sempre teve; a faixa de calor entra por baixo só
+  // quando há o que mostrar.
+  const TOPO_PX = 6;
+  const BARRA_PX = 36;
+  const VAO_PX = 3;    // respiro entre a barra e a faixa de calor
+  const CALOR_PX = 10;
+  const REGUA_PX = 20; // o que sobra embaixo, para os rótulos de hora
+  const FUNDO = '#1b1f24';
+
+  // A intensidade é ADAPTATIVA: o pico da janela visível vira o topo da
+  // escala. A alternativa era escala fixa, comparável entre telas e entre
+  // câmeras - perdeu porque numa câmera quieta ela pinta o dia inteiro do mesmo
+  // cinza, que é justamente quando a faixa precisava estar dizendo alguma
+  // coisa. O preço, assumido: a mesma cor quer dizer densidades diferentes em
+  // zooms diferentes.
+  //
+  // O piso de alfa existe para que uma coluna com UMA marca ainda apareça; a
+  // raiz abre o meio da escala, onde a diferença entre 2 e 4 marcas se perderia
+  // se a rampa fosse linear.
+  const CALOR_COR = '#d29922';
+  const CALOR_ALFA_MIN = 0.3;
+
   // Reancorar quando o dia muda; comparar os limites evita reancorar a cada
   // repintura e perder o zoom que o usuário acabou de dar. O piso do span faz o
   // mesmo papel para uma janela vinda da URL: o `zoomTo` nunca produz menos que
@@ -33,6 +62,12 @@
       viewTo = dayEnd;
     }
   });
+
+  const temCalor = $derived(events.length > 0);
+  const barTop = TOPO_PX;
+  const alturaCanvas = $derived(
+    barTop + BARRA_PX + (temCalor ? VAO_PX + CALOR_PX : 0) + REGUA_PX,
+  );
 
   const span = $derived(Math.max(1, viewTo - viewFrom));
   const toX = (ms) => ((ms - viewFrom) / span) * width;
@@ -48,24 +83,57 @@
 
   $effect(() => {
     // Redesenha sempre que qualquer uma destas mudar.
-    ranges; viewFrom; viewTo; currentMs; width; hoverMs;
+    ranges; events; viewFrom; viewTo; currentMs; width; hoverMs; alturaCanvas;
     draw();
   });
+
+  /* Quantas marcas caem em cada coluna de pixel da janela visível.
+   *
+   * Contar por coluna, e não desenhar marca a marca, é o que faz a faixa
+   * aguentar o dia inteiro: a 1200px o dia dá 72 s por coluna, e um risco por
+   * marca viraria um borrão sólido que não distingue "passou alguém" de
+   * "choveu a tarde toda". A DENSIDADE é a informação; o risco solto não é.
+   *
+   * A busca binária evita percorrer as milhares de marcas do dia a cada
+   * repintura - e há repintura a cada pixel de arraste. */
+  function contaPorColuna() {
+    const cols = new Int32Array(Math.max(1, Math.ceil(width)));
+    for (let i = limiteInferior(events, viewFrom); i < events.length; i++) {
+      if (events[i] >= viewTo) break;
+      const x = Math.floor(toX(events[i]));
+      if (x >= 0 && x < cols.length) cols[x]++;
+    }
+    return cols;
+  }
+
+  function limiteInferior(arr, v) {
+    let lo = 0;
+    let hi = arr.length;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if (arr[m] < v) lo = m + 1;
+      else hi = m;
+    }
+    return lo;
+  }
 
   function draw() {
     if (!canvas || !width) return;
     const dpr = window.devicePixelRatio || 1;
-    const h = canvas.clientHeight;
+    const h = alturaCanvas;
     canvas.width = width * dpr;
     canvas.height = h * dpr;
 
     const g = canvas.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const barTop = 6;
-    const barH = h - 26;
+    const barH = BARRA_PX;
+    const calorTop = barTop + barH + VAO_PX;
+    // O fio do cursor e o do ponteiro atravessam a pilha inteira: eles marcam
+    // UM instante, e um instante vale igual nas duas camadas.
+    const pilhaH = barH + (temCalor ? VAO_PX + CALOR_PX : 0);
 
-    g.fillStyle = '#1b1f24';
+    g.fillStyle = FUNDO;
     g.fillRect(0, barTop, width, barH);
 
     g.fillStyle = '#2f81f7';
@@ -75,6 +143,23 @@
       // Mínimo de 2px: uma gravação curta não pode desaparecer da barra só
       // porque o zoom está afastado.
       if (x1 > 0 && x0 < width) g.fillRect(x0, barTop, Math.max(2, x1 - x0), barH);
+    }
+
+    if (temCalor) {
+      const cols = contaPorColuna();
+      let teto = 1;
+      for (const c of cols) if (c > teto) teto = c;
+
+      g.fillStyle = FUNDO;
+      g.fillRect(0, calorTop, width, CALOR_PX);
+      g.fillStyle = CALOR_COR;
+      for (let x = 0; x < cols.length; x++) {
+        if (!cols[x]) continue;
+        g.globalAlpha =
+          CALOR_ALFA_MIN + (1 - CALOR_ALFA_MIN) * Math.sqrt(Math.min(1, cols[x] / teto));
+        g.fillRect(x, calorTop, 1, CALOR_PX);
+      }
+      g.globalAlpha = 1;
     }
 
     g.fillStyle = '#8b949e';
@@ -90,14 +175,14 @@
     if (hoverMs !== null) {
       const x = toX(hoverMs);
       g.fillStyle = 'rgba(230,237,243,.35)';
-      g.fillRect(x, barTop, 1, barH);
+      g.fillRect(x, barTop, 1, pilhaH);
     }
 
     if (currentMs) {
       const x = toX(currentMs);
       if (x >= -2 && x <= width + 2) {
         g.fillStyle = '#f85149';
-        g.fillRect(x - 1.5, barTop - 3, 3, barH + 6);
+        g.fillRect(x - 1.5, barTop - 3, 3, pilhaH + 6);
       }
     }
   }
@@ -285,6 +370,7 @@
 <div class="wrapper" bind:clientWidth={width}>
   <canvas
     bind:this={canvas}
+    style:height="{alturaCanvas}px"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
@@ -308,7 +394,7 @@
 
   canvas {
     width: 100%;
-    height: 62px;
+    /* A altura vem do script: ela muda conforme a faixa de calor entra ou não. */
     display: block;
     border-radius: 8px;
     cursor: crosshair;

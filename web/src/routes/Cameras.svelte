@@ -10,7 +10,7 @@
   } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
   import { dias, kbps, bytes, bytesDeMB, resolucao, ddmm, duracao } from '../lib/format.js';
-  import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
+  import { AJUDA_RETIDO, AJUDA_CABEM, AJUDA_SENSIBILIDADE, NIVEIS } from '../lib/ajudas.js';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import SemCameras from '../components/SemCameras.svelte';
@@ -66,6 +66,12 @@
       quotaMB: 10240,
       segmentSeconds: 30,
       maxDays: 0,
+      // Os três vêm dos defaults do servidor, onde a detecção nasce DESLIGADA:
+      // quem só grava não paga nada por ela. O literal só cobre resposta sem
+      // "padrao".
+      detect: cameras.padrao?.detect ?? false,
+      detectMecanismo: cameras.padrao?.detectMecanismo ?? 'kleinberg-p',
+      detectSensibilidade: cameras.padrao?.detectSensibilidade ?? 4,
       _novo: true,
       ...audioConhecido(s),
     };
@@ -225,6 +231,11 @@
           <span class="chip">{st?.videoCodec ?? '-'}</span>
           <span class="chip">{resolucao(st?.width, st?.height)}</span>
           <span class="chip">áudio: {cam.audio}</span>
+          {#if cam.detect}
+            <span class="chip" title={AJUDA_SENSIBILIDADE}>
+              movimento: {NIVEIS[cam.detectSensibilidade]?.rotulo ?? cam.detectSensibilidade}
+            </span>
+          {/if}
           <span class="chip">{kbps(st?.bitrateKbps)}</span>
           <span class="chip">{bytes(st?.diskBytes ?? 0)} de {bytesDeMB(cam.quotaMB)}</span>
           <!-- O par "retido / cabem" é o que torna a cota compreensível: o
@@ -410,6 +421,40 @@
         <input type="number" bind:value={editing.segmentSeconds} min="10" max="600" step="10" />
         <small class="muted">o corte real espera o próximo keyframe</small>
       </label>
+
+      <label class="check">
+        <input type="checkbox" bind:checked={editing.detect} />
+        Marcar movimento na timeline
+      </label>
+
+      {#if editing.detect}
+        <label>
+          Sensibilidade
+          <select bind:value={editing.detectSensibilidade}>
+            {#each NIVEIS.slice(1) as n, i (i)}
+              <option value={i + 1}>{i + 1} - {n.rotulo}</option>
+            {/each}
+          </select>
+          <!-- O custo é o que o usuário paga de verdade, e ele é POR CÂMERA:
+               com dez câmeras no nível 4 são 500 olhadas por hora, não 50. -->
+          <small class="muted">
+            ≈ {NIVEIS[editing.detectSensibilidade]?.porHora} marcas por hora nesta câmera
+          </small>
+        </label>
+
+        <label>
+          Mecanismo
+          <select bind:value={editing.detectMecanismo}>
+            <option value="kleinberg-p">estatístico (recomendado)</option>
+            <option value="periodico">periódico</option>
+          </select>
+          <small class="muted">
+            {editing.detectMecanismo === 'periodico'
+              ? 'dispara em intervalo fixo, ignorando a imagem - custo previsível, mas pega menos'
+              : 'dispara quando a imagem destoa do normal da própria câmera'}
+          </small>
+        </label>
+      {/if}
 
       <div class="row">
         {#if !editing._novo}
