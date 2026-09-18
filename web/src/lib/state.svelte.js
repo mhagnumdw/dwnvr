@@ -18,6 +18,8 @@ export const cameras = $state({
   // Gravações que sobraram de câmeras já removidas. Vêm junto com a listagem
   // porque nenhum outro endpoint enxerga câmera sem cadastro.
   orphans: [],
+  // Câmera vazia com os defaults do servidor, de onde nasce o cadastro novo.
+  padrao: null,
   go2rtcError: null,
   loading: true,
   error: null,
@@ -95,6 +97,7 @@ export async function loadCameras() {
     cameras.list = data.cameras ?? [];
     cameras.streams = data.streams ?? [];
     cameras.orphans = data.orphans ?? [];
+    cameras.padrao = data.padrao ?? null;
     cameras.go2rtcError = data.go2rtcError ?? null;
   } catch (e) {
     cameras.error = e.message;

@@ -45,6 +45,10 @@
   let day = $state(diaInicial);
   let daysList = $state([]);
   let timeline = $state({ ranges: [], segments: [], gens: [] });
+  // As marcas de movimento do dia, crescentes - a faixa de calor. Elas vêm num
+  // pedido à parte da timeline de propósito: a barra azul é o que a tela existe
+  // para mostrar, e uma falha ao ler as marcas não pode deixá-la sem desenhar.
+  let eventos = $state([]);
   let loading = $state(false);
   let error = $state('');
   let showThumbs = $state(params.get('thumbs') !== '0');
@@ -324,6 +328,23 @@
     } finally {
       loading = false;
     }
+
+    // Depois, e à parte. Câmera com a detecção desligada nem pergunta: quem só
+    // grava não paga pedido nenhum pela faixa. O preço é que as marcas de um
+    // período em que ela esteve ligada somem da tela junto com o desligar.
+    let ev = [];
+    if (detectLigado(c)) {
+      try {
+        ev = (await api.events(c, d)).onsets;
+      } catch {
+        // Sem marcas a faixa só não aparece; a timeline já está na tela.
+      }
+    }
+    if (c === cam && d === day) eventos = ev;
+  }
+
+  function detectLigado(c) {
+    return !!cameras.list.find((x) => x.id === c)?.detect;
   }
 
   // Costura a cauda recém-buscada no que a tela já tinha.
@@ -407,6 +428,23 @@
       // timeline que já estava boa nem interromper a reprodução.
     } finally {
       refreshing = false;
+    }
+
+    await caudaDeEventos(c, d);
+  }
+
+  // A cauda das marcas, pelo mesmo desenho da cauda da timeline: pede só o
+  // pedaço recente, e acrescenta no fim. Uma marca é um instante, e nada dela
+  // muda depois de gravada: basta pedir a partir da última.
+  async function caudaDeEventos(c, d) {
+    if (!detectLigado(c)) return;
+    const ultimo = eventos.at(-1) ?? dayStart - 1;
+    try {
+      const ev = await api.eventsRange(c, ultimo + 1, dayEnd);
+      if (c !== cam || d !== day) return;
+      if (ev.onsets.length) eventos = [...eventos, ...ev.onsets];
+    } catch {
+      // Igual à timeline: falha de fundo não apaga o que já está na tela.
     }
   }
 
@@ -578,6 +616,7 @@
 
     <Timeline
       ranges={timeline.ranges}
+      events={eventos}
       {dayStart}
       {dayEnd}
       currentMs={player.currentMs}
@@ -589,6 +628,9 @@
     <p class="legend muted small row wrap">
       <span><i class="has"></i> com gravação</span>
       <span><i class="gap"></i> sem gravação</span>
+      {#if eventos.length}
+        <span><i class="heat"></i> movimento</span>
+      {/if}
       <span>
         toque para pular · arraste para navegar · duplo toque aproxima, dois dedos
         afastam · pince ou role para dar zoom
@@ -682,4 +724,6 @@
   }
   .legend i.has { background: var(--accent); }
   .legend i.gap { background: #1b1f24; border: 1px solid var(--line); }
+  /* O mesmo âmbar da faixa de calor, em CALOR_COR no Timeline.svelte. */
+  .legend i.heat { background: #d29922; }
 </style>

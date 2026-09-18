@@ -48,7 +48,7 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 | formato do JSON de resposta ou de erro | a tela em `web/src/routes/` |
 | `.go` novo em `internal/api/` | árvore §Estrutura do projeto do `README.md` |
 | campo em `internal/config/config.go` | `dwnvr.example.yaml` (com comentário) · `docs/configuracao.md` · §Configuração do `README.md` |
-| default em `config.defaults()` | o número está repetido à mão em `dwnvr.example.yaml` · `docs/configuracao.md` · `web/src/routes/Cameras.svelte` (`audio`, `quotaMB`, `segmentSeconds`, `maxDays`) |
+| default em `config.defaults()` | o número está repetido à mão em `dwnvr.example.yaml` · `docs/configuracao.md` · `web/src/routes/Cameras.svelte` (`audio`, `quotaMB`, `segmentSeconds`, `maxDays`, e no fallback do `padrao`: `detect`, `detectMecanismo`, `detectSensibilidade`) |
 | campo em `config.Camera` | `config.Resolve` · validação em `internal/api/cameras.go` · `Cameras.svelte` · §Política por câmera do `docs/configuracao.md` |
 | limite em `internal/api/cameras.go` (`minQuotaMB`, faixas) | `min`/`max`/`step` do input em `Cameras.svelte` - divergem hoje: `docs/TODO/TODO_limites-numericos-so-valem-na-api.md` |
 | caminho ou `DayLayout` em `internal/store/store.go` | `docs/arquitetura.md` · `docs/operacao.md` · §Conferir por fora da interface do `README.md` |

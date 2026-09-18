@@ -82,6 +82,16 @@ export const api = {
   // por rodada.
   timelineRange: (cam, from, to) =>
     request(`rec/timeline?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
+
+  // As marcas de movimento do dia - o que a faixa de calor desenha. Câmera com
+  // a detecção desligada responde lista vazia, e a faixa nem aparece.
+  events: (cam, day) =>
+    request(`rec/events?cam=${encodeURIComponent(cam)}&day=${day}`),
+
+  // A cauda das marcas, pelo mesmo motivo do timelineRange: no dia de hoje a
+  // tela pergunta de novo em ciclo, e só quer o que ainda não tem.
+  eventsRange: (cam, from, to) =>
+    request(`rec/events?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
 };
 
 // URLs de mídia são montadas, não buscadas: vão direto num <video>, num <img>
