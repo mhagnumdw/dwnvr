@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/fmp4"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/store"
@@ -135,11 +137,49 @@ type Status struct {
 	// dias de medida.
 	OldestSegmentAt time.Time `json:"oldestSegmentAt,omitzero"`
 
+	// Detect e Onsets respondem "o gatilho de movimento está vivo nesta
+	// câmera?". Sem eles a única forma de saber é abrir o arquivo de eventos
+	// do dia no disco.
+	Detect bool  `json:"detect"`
+	Onsets int64 `json:"onsets"`
+
+	// Funil é o destino dos onsets desta câmera desde que o dwnvr subiu. Só
+	// existe com o detector de objetos configurado.
+	Funil *Funil `json:"funil,omitempty"`
+
 	// QuotaMB e Bytes em disco alimentam a estimativa de retenção mostrada na
 	// tela de cadastro ("com esta cota, cabem ~N dias").
 	QuotaMB    int64   `json:"quotaMB"`
 	DiskBytes  int64   `json:"diskBytes"`
 	RetainDays float64 `json:"retainDays"`
+}
+
+// Funil diz o que aconteceu com cada onset da câmera. As fatias fecham a conta
+// com os Onsets do Status: onsets = semVideo + descartados + falhas + recusados +
+// semObjeto + comObjeto + naFila.
+type Funil struct {
+	// Pedacos são os onsets cujo vídeo foi cortado e oferecido ao detector.
+	// Não é fatia: é o total do que chegou à fila.
+	Pedacos int64 `json:"pedacos"`
+	// SemVideo são onsets que terminaram sem pedaço para mandar - logo depois
+	// de conectar, antes do primeiro frame I. Ver Recortador.SemVideo.
+	SemVideo int64 `json:"semVideo"`
+	// Descartados a fila recusou: a câmera já tinha PedacosPorCamera esperando
+	// a vez. Não são olhados nem depois: ficam só como movimento na timeline.
+	Descartados int64 `json:"descartados"`
+	// Falhas são olhadas que o detector não respondeu: fora do ar, ou travado.
+	Falhas int64 `json:"falhas"`
+	// Recusados o detector respondeu que não conseguiu olhar - vídeo que não
+	// decodifica, que a própria câmera mandou corrompido.
+	Recusados int64 `json:"recusados"`
+	// SemObjeto: olhado, e nada que tenha CHEGADO agora - inclusive o carro
+	// que já estava estacionado.
+	SemObjeto int64 `json:"semObjeto"`
+	// ComObjeto: olhado, e virou marca de objeto na timeline.
+	ComObjeto int64 `json:"comObjeto"`
+	// NaFila é o resto, o que ainda não tem desfecho: esperando o pico da
+	// janela para ser cortado, esperando a vez na fila, ou sendo olhado agora.
+	NaFila int64 `json:"naFila"`
 }
 
 // Recorder grava uma câmera.
@@ -152,6 +192,53 @@ type Recorder struct {
 	bytes      atomic.Int64
 	segments   atomic.Int64
 	reconnects atomic.Int64
+	onsets     atomic.Int64
+
+	// mec é o gatilho de movimento desta câmera. Ele pertence à goroutine da
+	// sessão e só ela o toca - por isso não tem lock nenhum, e por isso a troca
+	// de configuração vem pelo detectPedido logo abaixo em vez de ser escrita
+	// aqui direto.
+	mec detect.Mecanismo
+
+	// pedacos é para onde vai o pedaço de vídeo que o detector deve olhar. É a
+	// fila do detector de objetos que o liga; nil é "ninguém olha", e aí o GOP
+	// nem é guardado - quem não instalou o detector não paga a cópia.
+	pedacos func(detect.Pedaco)
+
+	// recorte guarda o GOP corrente e corta o pedaço no quadro que o mec mandou
+	// olhar. Como o mec, pertence à goroutine da sessão.
+	//
+	// Ele só existe com a detecção ligada E um destino para o pedaço: nasce no
+	// primeiro quadro em que as duas coisas valem, e morre quando a detecção é
+	// desligada. Morrer é o que devolve os buffers do GOP, que podem ter
+	// crescido até TetoDoGOPBytes cada.
+	recorte *detect.Recortador
+
+	// initAtual é o init da conexão corrente, para o recortador que nascer no
+	// meio dela. Da goroutine da sessão.
+	initAtual []byte
+
+	// semVideoAntes soma o SemVideo dos recortadores que já morreram, para o
+	// Funil não zerar a cada vez que a detecção é desligada e ligada de novo.
+	// Da goroutine da sessão.
+	semVideoAntes int64
+
+	// marcador decide o que o detector achou que vira marca. Ele é da
+	// goroutine da FILA, e não da sessão: é ela que entrega as olhadas, uma de
+	// cada vez. Sobrevive a reconexão de propósito - o carro estacionado
+	// continua lá quando o stream volta.
+	marcador detect.Marcador
+
+	// As fatias do Funil. semVideo é a cópia do contador do recorte, somado ao
+	// semVideoAntes, que são da goroutine da sessão: é publicada aqui para o
+	// Status ler sem corrida.
+	cortados, descartados, falhas, recusados, semObjeto, comObjeto, semVideo atomic.Int64
+
+	// detectPedido é a configuração de detecção que a API acabou de salvar. O
+	// laço de gravação a aplica no próximo quadro, e é isso que permite mudar a
+	// sensibilidade sem abrir um buraco na gravação: nem a API espera pelo
+	// recorder, nem o recorder reconecta para obedecer.
+	detectPedido atomic.Pointer[ajusteDetect]
 
 	mu          sync.RWMutex
 	connected   bool
@@ -175,11 +262,187 @@ type Recorder struct {
 	sampleBytes int64
 }
 
+// ajusteDetect é a configuração de detecção de uma câmera, na forma em que ela
+// atravessa da API para o laço de gravação.
+type ajusteDetect struct {
+	ligada        bool
+	mecanismo     string
+	sensibilidade int
+}
+
+func detectDe(cam config.Camera) ajusteDetect {
+	return ajusteDetect{
+		ligada:        cam.Detect != nil && *cam.Detect,
+		mecanismo:     cam.DetectMecanismo,
+		sensibilidade: cam.DetectSensibilidade,
+	}
+}
+
 func newRecorder(cam config.Camera, client *go2rtc.Client, idx *store.Camera, log *slog.Logger) *Recorder {
-	return &Recorder{
+	r := &Recorder{
 		cam: cam, client: client, idx: idx, log: log.With("cam", cam.ID),
 		startedAt: time.Now(),
 	}
+	r.pedeDetect(cam)
+	return r
+}
+
+// pedeDetect avisa o laço de gravação que a detecção desta câmera mudou.
+func (r *Recorder) pedeDetect(cam config.Camera) {
+	a := detectDe(cam)
+	r.detectPedido.Store(&a)
+}
+
+// aplicaDetectPendente troca o gatilho quando a configuração mudou. Roda no
+// caminho quente, então é um Swap atômico e nada mais: sem pedido, sai em uma
+// instrução.
+func (r *Recorder) aplicaDetectPendente() {
+	pedido := r.detectPedido.Swap(nil)
+	if pedido == nil {
+		return
+	}
+	// O recortador só é alimentado enquanto há gatilho. Na troca, o GOP que ele
+	// tinha pode ter buraco - os quadros de quando a detecção estava desligada -,
+	// e o pedaço que o mecanismo velho esperava não tem mais quem o feche.
+	if r.recorte != nil {
+		r.recorte.Esquece()
+		r.publicaSemVideo()
+	}
+	if !pedido.ligada {
+		r.mec = nil
+		if r.recorte != nil {
+			r.semVideoAntes += r.recorte.SemVideo()
+			r.recorte = nil
+		}
+		return
+	}
+	r.mec = detect.Novo(pedido.mecanismo, pedido.sensibilidade)
+	r.log.Info("gatilho de movimento ligado",
+		"mecanismo", r.mec.Nome(), "sensibilidade", pedido.sensibilidade,
+		"onsets_por_hora", detect.OnsetsPorHora[min(max(pedido.sensibilidade, detect.NivelMin), detect.NivelMax)])
+}
+
+// movimento é o gancho do gatilho no laço de gravação.
+//
+// Ele roda UMA VEZ POR QUADRO DE VÍDEO, para cada câmera: várias câmeras a 15
+// quadros por segundo num Orange Pi Zero 3. Por isso é O(1) e não aloca - o
+// pacote detect tem um teste que guarda essas duas propriedades - e por isso o
+// sinal é `len(box)`, que o laço já tem na mão, e não um pixel decodificado.
+//
+// Só quadro de VÍDEO chega aqui. Fragmento de áudio chega igual ao de vídeo no
+// stream, e os samples dele também vêm marcados como sync: sem o filtro de
+// trilha, todo pacote de áudio viraria um keyframe gigante para a estatística.
+//
+// `moof` e `mdat` são as caixas do fragmento como vão para o disco. O mdat é o
+// sinal; as duas juntas são o que o recortador guarda.
+func (r *Recorder) movimento(instanteMs int64, keyframe bool, moof, mdat []byte) {
+	r.aplicaDetectPendente()
+	if r.mec == nil {
+		return
+	}
+	v := r.mec.Quadro(instanteMs, len(mdat), keyframe)
+	if r.recorte == nil && r.pedacos != nil {
+		r.recorte = detect.NovoRecortador(r.cam.ID)
+		r.recorte.Init(r.initAtual)
+	}
+	if r.recorte != nil {
+		r.entrega(r.recorte.Quadro(v, instanteMs, keyframe, moof, mdat))
+	}
+	if !v.Onset {
+		return
+	}
+	r.onsets.Add(1)
+	if err := r.idx.AppendEvento(store.Evento{InstanteMs: instanteMs}); err != nil {
+		r.log.Warn("falha ao gravar marca de movimento", "erro", err)
+	}
+}
+
+// entrega manda para o detector o pedaço que o recortador acabou de cortar, e
+// publica quantos onsets ficaram sem pedaço até aqui.
+func (r *Recorder) entrega(p detect.Pedaco, cortou bool) {
+	if cortou {
+		r.pedacos(p)
+	}
+	r.publicaSemVideo()
+}
+
+func (r *Recorder) publicaSemVideo() {
+	r.semVideo.Store(r.semVideoAntes + r.recorte.SemVideo())
+}
+
+// ofereceA liga o recorder à fila do detector. É o destino dos pedaços, e é
+// chamado no laço de gravação: a fila não bloqueia nunca.
+func (r *Recorder) ofereceA(f *detect.Fila) func(detect.Pedaco) {
+	return func(p detect.Pedaco) {
+		r.cortados.Add(1)
+		if !f.Oferece(p) {
+			r.descartados.Add(1)
+		}
+	}
+}
+
+// olhou recebe a resposta do detector a um pedaço desta câmera, na goroutine
+// da fila, e grava o que virou marca.
+func (r *Recorder) olhou(o detect.Olhada) {
+	if errors.Is(o.Erro, detect.ErrPedacoRecusado) {
+		r.recusados.Add(1)
+		return
+	}
+	if o.Erro != nil {
+		r.falhas.Add(1)
+		return
+	}
+	if r.marcador == nil {
+		r.marcador = detect.NovoMarcador(detect.MarcadorPadrao)
+	}
+	marcas := r.marcador.Olha(o.Achados)
+	if len(marcas) == 0 {
+		r.semObjeto.Add(1)
+		return
+	}
+	r.comObjeto.Add(1)
+
+	// Uma linha por família, com a classe de maior confiança: duas pessoas
+	// chegando juntas são uma chegada de `pessoa` na timeline.
+	melhor := map[detect.Familia]detect.Achado{}
+	for _, a := range marcas {
+		f := detect.FamiliasPadrao[a.Classe]
+		if b, ok := melhor[f]; !ok || a.Score > b.Score {
+			melhor[f] = a
+		}
+	}
+	for _, f := range detect.Familias {
+		a, ok := melhor[f]
+		if !ok {
+			continue
+		}
+		// A caixa com 4 casas: 0,0001 do quadro é menos de meio pixel numa
+		// câmera de 2560 px, e a linha fica legível num `tail`.
+		var caixa [4]float64
+		for i, v := range a.Caixa {
+			caixa[i] = math.Round(v*10000) / 10000
+		}
+		ev := store.Evento{InstanteMs: o.Pedaco.OnsetMs, Familia: string(f), Classe: a.Classe,
+			Score: math.Round(a.Score*1000) / 1000, QuadroMs: o.Pedaco.QuadroMs, Caixa: &caixa}
+		if err := r.idx.AppendEvento(ev); err != nil {
+			r.log.Warn("falha ao gravar marca de objeto", "erro", err)
+		}
+	}
+}
+
+// funil monta as fatias. NaFila sai por diferença, porque é a única que não é
+// um evento: é o que ainda não aconteceu.
+func (r *Recorder) funil() *Funil {
+	if r.pedacos == nil {
+		return nil
+	}
+	f := &Funil{
+		Pedacos: r.cortados.Load(), SemVideo: r.semVideo.Load(), Descartados: r.descartados.Load(),
+		Falhas: r.falhas.Load(), Recusados: r.recusados.Load(), SemObjeto: r.semObjeto.Load(),
+		ComObjeto: r.comObjeto.Load(),
+	}
+	f.NaFila = max(0, r.onsets.Load()-f.SemVideo-f.Descartados-f.Falhas-f.Recusados-f.SemObjeto-f.ComObjeto)
+	return f
 }
 
 // silenceLimitLocked é quanto tempo sem fechar um segmento basta para dizer que
@@ -243,6 +506,8 @@ func (r *Recorder) Status() Status {
 		BitrateKbps: r.bitrateKbps,
 		Bytes:       r.bytes.Load(), Segments: r.segments.Load(),
 		Reconnects: r.reconnects.Load(), LastError: r.lastErr,
+		Detect: r.cam.Detect != nil && *r.cam.Detect, Onsets: r.onsets.Load(),
+		Funil:      r.funil(),
 		VideoCodec: r.videoCodec, HasAudio: r.hasAudio, Gen: r.gen,
 		Width: r.width, Height: r.height,
 		QuotaMB: r.cam.QuotaMB, DiskBytes: disk,
@@ -362,7 +627,29 @@ func (r *Recorder) session(ctx context.Context) error {
 	// keyframe - que é onde os parameter sets aparecem, sempre antes do IDR.
 	// Varrer todo mdat custaria 15 varreduras por segundo por câmera para
 	// reencontrar eternamente o mesmo dado.
-	var wantInbandSPS, keyframePending bool
+	var wantInbandSPS bool
+
+	// O fragmento corrente: o moof dele já foi lido, o mdat ainda não.
+	// Fragmento de áudio chega exatamente igual ao de vídeo, e o que decide se
+	// o mdat é imagem é o fragEhVideo, reescrito a cada moof, de vídeo ou de
+	// áudio. Um "é keyframe" solto, sem ele, sobreviveria de um fragmento de
+	// vídeo até o mdat de áudio seguinte, e o gatilho e a busca do SPS leriam
+	// áudio achando que era imagem.
+	var fragEhVideo, fragKeyframe bool
+	var fragInstanteMs int64
+
+	// A estatística do gatilho não atravessa reconexão: o que veio antes de um
+	// buraco não descreve mais a câmera.
+	if r.mec != nil {
+		r.mec.Zera()
+	}
+	// O pedaço que esperava a janela quando a conexão caiu continua bom: o
+	// vídeo dele já chegou inteiro.
+	defer func() {
+		if r.recorte != nil {
+			r.entrega(r.recorte.Encerra())
+		}
+	}()
 
 	for {
 		typ, box, err := rd.NextBox()
@@ -394,6 +681,10 @@ func (r *Recorder) session(ctx context.Context) error {
 				return fmt.Errorf("gravando init: %w", err)
 			}
 			seg.gen = gen
+			r.initAtual = seg.init
+			if r.recorte != nil {
+				r.recorte.Init(seg.init)
+			}
 
 			// A resolução do init é só a primeira aproximação: se a câmera
 			// mandar parameter sets in-band, é o SPS deles que vale. Ver
@@ -417,7 +708,7 @@ func (r *Recorder) session(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("moof ilegível: %w", err)
 			}
-			if frag.TrackID == seg.videoTrack.ID {
+			if fragEhVideo = frag.TrackID == seg.videoTrack.ID; fragEhVideo {
 				// Antes de rotacionar: o keyframe que abre o segmento também
 				// conta para a estimativa de onde ele começa.
 				seg.relogio.observar(seg.midiaMs(frag.BaseDecodeTime), time.Now().UnixMilli())
@@ -425,7 +716,10 @@ func (r *Recorder) session(ctx context.Context) error {
 					return err
 				}
 				seg.lastEnd = frag.EndTime()
-				keyframePending = frag.Keyframe
+				fragKeyframe = frag.Keyframe
+				// Depois do maybeRotate: se ele abriu um segmento novo, é o
+				// início DELE que ancora este quadro.
+				fragInstanteMs = seg.instanteDe(frag.BaseDecodeTime)
 			}
 			pending = append(pending[:0], box...)
 			if seg.open() {
@@ -435,10 +729,14 @@ func (r *Recorder) session(ctx context.Context) error {
 			}
 
 		case "mdat":
-			if wantInbandSPS && keyframePending {
-				wantInbandSPS = false
-				r.readInbandSPS(seg.videoTrack, box)
+			if fragEhVideo {
+				if wantInbandSPS && fragKeyframe {
+					wantInbandSPS = false
+					r.readInbandSPS(seg.videoTrack, box)
+				}
+				r.movimento(fragInstanteMs, fragKeyframe, pending, box)
 			}
+			fragEhVideo, fragKeyframe = false, false
 			if len(pending) == 0 {
 				continue // sobra de fragmento parcial após reconexão
 			}
@@ -534,6 +832,24 @@ func (s *segmenter) midiaMs(dts uint64) int64 {
 		return 0
 	}
 	return int64(float64(dts) / float64(s.videoTrack.Timescale) * 1000)
+}
+
+// instanteDe traduz o relógio de mídia de um fragmento para o relógio de
+// parede, que é o eixo da timeline.
+//
+// É a MESMA conta que foi usada para produzir as séries em que o gatilho foi
+// medido: o início do segmento, que é relógio de parede, mais
+// o tempo de mídia já decorrido dentro dele. Usar o relógio de parede da
+// chegada do pacote poria a marca alguns décimos fora do vídeo que ela aponta,
+// porque a rede entrega em rajada - foi medido em ±1,1 s num segmento de 30 s.
+//
+// Sem segmento aberto sobra o relógio de parede. É a janela entre conectar e o
+// primeiro keyframe, e nenhuma marca sai dela: o gatilho ainda está aquecendo.
+func (s *segmenter) instanteDe(dts uint64) int64 {
+	if !s.open() {
+		return time.Now().UnixMilli()
+	}
+	return s.entry.StartMs + s.elapsed(dts).Milliseconds()
 }
 
 func (s *segmenter) maybeRotate(frag fmp4.Fragment) error {
