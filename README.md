@@ -8,7 +8,8 @@ limitado**. Ele não é feito *para* um hardware específico.
 O dwnvr vem sendo testado durante todo o seu desenvolvimento em um Orange Pi
 Zero 3 (4 cores Cortex-A53, 1,5 GB RAM), gravando 9 câmeras Yoosee 24/7.
 
-**Sem transcodificação de vídeo. Sem banco de dados. Sem detecção de movimento.**
+**Sem transcodificação de vídeo. Sem banco de dados. Sem decodificar vídeo para
+achar movimento.**
 
 Medido nesse Orange Pi Zero 3 com as 9 câmeras gravando simultaneamente:
 
@@ -217,6 +218,28 @@ enxerga as gravações de todas as câmeras.
 Apague as `cam_teste1` a `cam_teste5` do `go2rtc.yaml` - elas não servem para
 mais nada -, publicando as suas no lugar.
 
+### O detector de objetos, se quiser <!-- omit in toc -->
+
+Opcional, e desligado por padrão. Ele diz se o movimento marcado na timeline
+era pessoa, veículo ou animal, e custa CPU e RAM de verdade (ver
+[`dwnvr-detect/README.md`](dwnvr-detect/README.md)). Para ligar:
+
+```sh
+# o compose passa a subir o serviço dwnvr-detect junto
+echo "COMPOSE_PROFILES=detect" >> .env
+```
+
+E no `dwnvr.yaml`:
+
+```yaml
+detector:
+  url: http://dwnvr-detect:8480
+```
+
+Os comandos de subir e atualizar abaixo continuam os mesmos: o `.env` já diz
+ao compose qual profile usar. Depois, ligue a detecção nas câmeras que a
+merecem, na aba **Câmeras**.
+
 ### Subir <!-- omit in toc -->
 
 ```sh
@@ -250,10 +273,12 @@ Se o pull falhar, o comando para aí e o que está no ar continua gravando.
 | **Svelte 5 + Vite** | A interface, embutida no binário com `go:embed` |
 | **MSE** (Media Source Extensions) | Player das gravações, escrito à mão para não carregar [hls.js](https://github.com/video-dev/hls.js/) |
 | **Docker** | Imagem `FROM scratch` multi-arch, para `linux/arm64` e `linux/amd64` |
+| **dwnvr-detect** (opcional) | O detector de objetos: Python, PyAV e onnxruntime rodando o RF-DETR nano (Apache-2.0) a 512x288 em int8 |
 
 A única dependência Go do projeto é `go.yaml.in/yaml/v3`. Não há banco de dados,
-ORM, framework HTTP, ffmpeg nem detecção de movimento - e essa ausência é o
-projeto, não uma etapa que faltou.
+ORM, framework HTTP nem ffmpeg - e essa ausência é o projeto, não uma etapa que
+faltou. O que exige código nativo, decodificar vídeo e rodar um modelo de
+visão, mora fora do binário, no container opcional `dwnvr-detect`.
 
 ## Estrutura do projeto
 
@@ -272,6 +297,7 @@ projeto, não uma etapa que faltou.
 │   │   └── dist/           build da interface, versionado (ver web/README.md)
 │   ├── buildinfo/          versão, commit e data injetados no build
 │   ├── config/             leitura do dwnvr.yaml (infra) e do cameras.json (câmeras)
+│   ├── detect/             a detecção: do tamanho dos quadros à marca de objeto
 │   ├── fmp4/               leitor de caixas MP4 - o coração do "sem decodificar"
 │   │   ├── box.go          percorre as caixas sem tocar em mídia
 │   │   ├── moov.go         lê o init segment (ftyp+moov) e suas trilhas
@@ -283,9 +309,10 @@ projeto, não uma etapa que faltou.
 │   ├── recorder/           um recorder por câmera: corta em keyframe e grava
 │   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram
 │   └── store/              layout em disco e índice NDJSON
+├── dwnvr-detect/           o detector de objetos, opcional, num container à parte (ver dwnvr-detect/README.md)
 ├── web/                    interface Svelte 5 + Vite (ver web/README.md)
 ├── docs/                   documentação longa (ver docs/README.md)
-├── docker-compose.yml      dwnvr + go2rtc, o único arquivo para subir tudo
+├── docker-compose.yml      dwnvr + go2rtc (+ dwnvr-detect, opcional), o único arquivo para subir tudo
 ├── Dockerfile              imagem FROM scratch, multi-arch
 ├── dwnvr.example.yaml      configuração do dwnvr, campo a campo
 ├── go2rtc.example.yaml     configuração do go2rtc, com uma câmera sintética
