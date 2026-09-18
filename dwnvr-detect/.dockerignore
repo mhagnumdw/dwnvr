@@ -1,0 +1,9 @@
+# Mesma lógica do .dockerignore da raiz: nada entra no contexto de build, exceto
+# o que for liberado abaixo.
+**
+
+!requirements.txt
+!servidor.py
+# Só o modelo que vai na imagem: o fp32 que o exporta.py deixa ao lado tem
+# ~100 MB, e entraria à toa no contexto do build.
+!modelo/rfdetr-n_512x288_int8.onnx

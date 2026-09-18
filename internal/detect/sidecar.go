@@ -38,7 +38,7 @@ func (s *sidecar) Nome() string { return "sidecar" }
 // segmentos, e o pedaço que pega um desses trechos não decodifica.
 var ErrPedacoRecusado = errors.New("detector recusou o pedaço")
 
-// respostaDoSidecar é o JSON de POST /detecta: os achados, ou o motivo de não
+// respostaDoSidecar é o JSON de POST /detect: os achados, ou o motivo de não
 // ter olhado.
 type respostaDoSidecar struct {
 	Achados []Achado `json:"achados"`
@@ -50,7 +50,7 @@ type respostaDoSidecar struct {
 const maiorResposta = 1 << 20
 
 func (s *sidecar) Olha(ctx context.Context, p Pedaco) ([]Achado, error) {
-	url := s.url + "/detecta?piso=" + strconv.FormatFloat(PisoDoDetector, 'f', -1, 64)
+	url := s.url + "/detect?piso=" + strconv.FormatFloat(PisoDoDetector, 'f', -1, 64)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(p.Fmp4))
 	if err != nil {
 		return nil, err
