@@ -153,6 +153,75 @@ func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 }
 
+// eventsResponse é a lista de onsets de um trecho, e é deliberadamente
+// compacta pelo mesmo motivo da timelineResponse acima: um dia no nível mais
+// sensível tem ~2.400 marcas, e a forma verbosa (um objeto por marca)
+// dobraria a resposta para dizer exatamente o mesmo.
+type eventsResponse struct {
+	Cam  string `json:"cam"`
+	From int64  `json:"from"`
+	To   int64  `json:"to"`
+	// Onsets são os instantes, em epoch ms, em que a imagem mudou o bastante
+	// para valer uma olhada. Vêm em ordem crescente.
+	Onsets []int64 `json:"onsets"`
+
+	// Objetos são as marcas que o detector confirmou: uma por família por
+	// olhada, no instante do onset que a originou. São poucas - dezenas por
+	// câmera por dia -, então vão com chave por extenso, ao contrário dos
+	// onsets. Câmera sem detector responde lista vazia.
+	Objetos []objetoMarcado `json:"objetos"`
+}
+
+type objetoMarcado struct {
+	InstanteMs int64   `json:"instanteMs"`
+	Familia    string  `json:"familia"`
+	Classe     string  `json:"classe"`
+	Score      float64 `json:"score"`
+	// Onde e quando desenhar a caixa sobre o vídeo. Marca sem eles não ganha
+	// caixa na tela. Ver o store.Evento.
+	QuadroMs int64       `json:"quadroMs,omitempty"`
+	Caixa    *[4]float64 `json:"caixa,omitempty"`
+}
+
+// handleEvents devolve as marcas de um trecho: os onsets de movimento, que a
+// faixa de calor da timeline desenha, e as marcas de objeto do detector.
+//
+// O CAMINHO DE CAUDA é o que faz esta rota caber num Orange Pi: no dia
+// corrente a tela pergunta de novo a cada dez segundos, e pedir o dia inteiro
+// toda vez seria reenviar milhares de marcas para acrescentar duas. Como
+// `from` e `to` são livres, a tela pede só o pedaço que ainda não tem, do mesmo
+// jeito que já faz com a timeline. Dia passado não muda e nem é repedido.
+func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
+	cam, err := s.camParam(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	from, to, err := s.rangeParams(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	eventos, err := cam.EventoRange(from, to)
+	if err != nil {
+		s.fail(w, "lendo as marcas de movimento", err)
+		return
+	}
+
+	resp := eventsResponse{Cam: cam.ID, From: from, To: to, Onsets: []int64{}, Objetos: []objetoMarcado{}}
+	for _, ev := range eventos {
+		// A marca de objeto mora no mesmo arquivo, e não pode entrar na faixa
+		// de calor: cada objeto contaria como um segundo onset no mesmo instante.
+		if ev.EhObjeto() {
+			resp.Objetos = append(resp.Objetos, objetoMarcado{ev.InstanteMs, ev.Familia, ev.Classe, ev.Score, ev.QuadroMs, ev.Caixa})
+			continue
+		}
+		resp.Onsets = append(resp.Onsets, ev.InstanteMs)
+	}
+	writeJSON(w, resp)
+}
+
 // handleInit serve o init segment de uma geração.
 func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
 	cam, err := s.camParam(r)

@@ -85,6 +85,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/rec", s.requireAuth(s.handleDeleteRecordings))
 	mux.HandleFunc("GET /api/rec/days", s.requireAuth(s.handleDays))
 	mux.HandleFunc("GET /api/rec/timeline", s.requireAuth(s.handleTimeline))
+	mux.HandleFunc("GET /api/rec/events", s.requireAuth(s.handleEvents))
 	mux.HandleFunc("GET /api/rec/init", s.requireAuth(s.handleInit))
 	mux.HandleFunc("GET /api/rec/seg", s.requireAuth(s.handleSegment))
 	mux.HandleFunc("GET /api/rec/thumb", s.requireAuth(s.handleThumb))
@@ -141,7 +142,9 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		Transcoding bool     `json:"transcoding"`
 	}
 
-	resp := map[string]any{"cameras": cams}
+	// "padrao" é uma câmera vazia com os defaults aplicados: o formulário de
+	// câmera nova parte dela, para seguir o defaults do dwnvr.yaml.
+	resp := map[string]any{"cameras": cams, "padrao": s.cfg.Resolve(config.Camera{})}
 
 	if orphans, err := s.store.Orphans(registered); err != nil {
 		// Não impede a listagem: no caso comum não há órfão nenhum, e uma falha
@@ -211,6 +214,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		up["machineSeconds"] = int64(d.Seconds())
 	}
 	resp["uptime"] = up
+
+	// A fila do detector é uma só para todas as câmeras, então vai fora da
+	// lista delas. Some sem detector configurado.
+	if d := s.mgr.Detector(); d != nil {
+		resp["detector"] = d
+	}
 
 	// O relógio, ao contrário dos uptimes acima, vai como instante mesmo - e é
 	// o único campo desta resposta que vai. A tela quer justamente a hora de

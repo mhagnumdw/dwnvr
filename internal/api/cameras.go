@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/detect"
 )
 
 // minQuotaMB é o mesmo piso que o formulário da web cobra no campo de cota.
@@ -59,8 +60,11 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mgr.Set(cam)
 
-	s.log.Info("câmera salva", "cam", cam.ID, "habilitada", cam.Enabled, "audio", cam.Audio)
-	writeJSON(w, map[string]any{"ok": true, "camera": s.cfg.Resolve(cam)})
+	resolvida := s.cfg.Resolve(cam)
+	s.log.Info("câmera salva", "cam", cam.ID, "habilitada", cam.Enabled, "audio", cam.Audio,
+		"detect", *resolvida.Detect, "detect_mecanismo", resolvida.DetectMecanismo,
+		"detect_sensibilidade", resolvida.DetectSensibilidade)
+	writeJSON(w, map[string]any{"ok": true, "camera": resolvida})
 }
 
 // handleDeleteCamera tira a câmera do dwnvr.
@@ -139,6 +143,20 @@ func validateCamera(cam config.Camera) error {
 	// vigilância que impede a câmera de parar de gravar em silêncio.
 	if cam.StallSeconds < 0 || cam.StallSeconds > 3600 {
 		return fmt.Errorf("limiar de inatividade fora do intervalo aceito")
+	}
+	// Vazio e zero são "usar o default", e o Resolve cuida deles. O que veio
+	// preenchido tem que ser um mecanismo que existe e um nível que existe.
+	if cam.DetectMecanismo != "" || cam.DetectSensibilidade != 0 {
+		mec, nivel := cam.DetectMecanismo, cam.DetectSensibilidade
+		if mec == "" {
+			mec = detect.MecanismoPadrao
+		}
+		if nivel == 0 {
+			nivel = detect.NivelPadrao
+		}
+		if err := config.ValidDetect(mec, nivel); err != nil {
+			return err
+		}
 	}
 	return nil
 }
