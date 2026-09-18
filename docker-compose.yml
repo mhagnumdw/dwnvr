@@ -100,3 +100,32 @@ services:
       - "8554:8554"      # servidor RTSP
       - "8555:8555/tcp"  # WebRTC, usado pelo player ao vivo
       - "8555:8555/udp"
+
+  # O detector de objetos, opcional: diz se o movimento marcado era pessoa,
+  # veículo ou animal. Ver dwnvr-detect/README.md.
+  #
+  # Ele só sobe com o profile `detect`, e quem só grava não baixa nem a imagem.
+  # Para ligar, ponha COMPOSE_PROFILES=detect no .env, e no dwnvr.yaml:
+  #   detector:
+  #     url: http://dwnvr-detect:8480
+  dwnvr-detect:
+    profiles: [detect]
+    image: ghcr.io/mhagnumdw/dwnvr-detect:latest
+    build: ./dwnvr-detect
+    container_name: dwnvr-detect
+    restart: unless-stopped
+
+    # Sem porta publicada: só o dwnvr fala com ele, pela rede do compose.
+
+    environment:
+      # Com 2 threads, uma olhada cai de ~6,5 s para ~3,6 s num Orange Pi
+      # Zero 3, por ~10% a mais de CPU no total. Com 1, baixe o `cpus` para 1.
+      - DETECT_THREADS=2
+
+    # O teto de CPU é o que impede o detector de tomar a máquina de quem grava.
+    # O de memória cobre o pico de uma olhada (~210 MB) com folga.
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 400M

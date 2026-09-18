@@ -12,13 +12,16 @@ arquivos ficam em `./config` e `./storage`, ao lado do clone.
 | `/mnt/storage/dwnvr/config/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuração, editada à mão |
 | `/mnt/storage/dwnvr/config/cameras.json` | `/etc/dwnvr/cameras.json` | câmeras, gravado pela tela de cadastro |
 | `/mnt/storage/dwnvr/config/.session-secret` | `/etc/dwnvr/.session-secret` | assina os cookies de sessão (0600) |
-| `/mnt/storage/dwnvr/recordings/` | `/storage/` | gravações, índices e init segments |
+| `/mnt/storage/dwnvr/recordings/` | `/storage/` | gravações, índices, init segments e marcas de movimento |
 
 Ou seja: **edite e inspecione tudo pelo host**, sem entrar no container.
 
 ```sh
 cat /mnt/storage/dwnvr/config/cameras.json
 tail -f /mnt/storage/dwnvr/recordings/cam_iota/index/$(date +%F).ndjson
+
+# as marcas de movimento, se a câmera estiver com a detecção ligada
+tail -f /mnt/storage/dwnvr/recordings/cam_iota/eventos/$(date +%F).ndjson
 ```
 
 Para descobrir os caminhos de uma instalação qualquer:
@@ -127,3 +130,16 @@ host-gateway`), o nome do serviço se os dois estiverem na mesma rede, ou
 navegador cacheia os assets - que têm hash no nome justamente para isso não
 acontecer. Se persistir, é sinal de que o binário foi construído sem rodar
 `npm run build` antes.
+
+**Nenhuma marca de objeto aparece.** Três coisas, nesta ordem:
+
+1. **O `detector.url` está vazio.** Sem ele, o dwnvr não pergunta nada a
+   ninguém. Com ele, o log do dwnvr diz `detector de objetos configurado` ao
+   subir.
+2. **O `dwnvr-detect` não subiu.** Ele só sobe com o profile `detect`
+   (`COMPOSE_PROFILES=detect` no `.env`). Confira com
+   `docker inspect dwnvr-detect --format '{{.State.Health.Status}}'`.
+3. **O detector caiu.** O dwnvr avisa no log uma vez, com
+   `detector de objetos fora do ar`, e outra quando ele volta. Enquanto isso,
+   as câmeras seguem gravando e marcando movimento. As olhadas perdidas
+   aparecem como `falhas` no funil do `/api/health`.
