@@ -8,13 +8,15 @@
 //
 // Layout:
 //
-//	{root}/{cam}/init/{gen}.mp4          init segment por geração de codec
-//	{root}/{cam}/2026-08-08/{startMs}.mp4  segmentos, nome = início em ms
-//	{root}/{cam}/index/2026-08-08.ndjson   índice do dia
+//	{root}/{cam}/init/{gen}.mp4             init segment por geração de codec
+//	{root}/{cam}/2026-08-08/{startMs}.mp4   segmentos, nome = início em ms
+//	{root}/{cam}/index/2026-08-08.ndjson    índice do dia
+//	{root}/{cam}/eventos/2026-08-08.ndjson  onsets de movimento do dia
 package store
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -58,6 +60,47 @@ func (e Entry) EndMs() int64 { return e.StartMs + e.DurMs }
 
 // Day devolve o dia (hora local) ao qual o segmento pertence.
 func (e Entry) Day() string { return time.UnixMilli(e.StartMs).Format(DayLayout) }
+
+// Evento é um ONSET: o instante em que a imagem de uma câmera mudou o bastante
+// para valer uma olhada mais cara. É o que a faixa de calor da timeline
+// desenha, e o que acorda o detector de objetos.
+//
+// A chave vai por extenso, ao contrário das do Entry acima. Ali a abreviação se
+// paga: são centenas de milhares de segmentos num histórico de 30 dias. Aqui
+// são da ordem de mil linhas por câmera por dia no nível padrão, e economizar
+// oito bytes numa linha que alguém pode precisar ler com `tail` não vale a
+// troca.
+//
+// A mesma linha serve para a MARCA DE OBJETO que o detector devolve depois,
+// com `familia` preenchida: {"instanteMs":...,"familia":"pessoa",
+// "classe":"person","score":0.87,"quadroMs":...,"caixa":[0.51,0.26,0.67,0.98]}.
+// O instante é o do ONSET que a originou - é ele que casa com a chegada -,
+// mesmo que a resposta tenha vindo segundos depois. Morar no mesmo arquivo dá
+// de graça a mesma retenção: a marca some junto com o vídeo que ela aponta.
+type Evento struct {
+	InstanteMs int64 `json:"instanteMs"`
+
+	// Familia vazia é onset de movimento; preenchida, é marca de objeto.
+	Familia string  `json:"familia,omitempty"`
+	Classe  string  `json:"classe,omitempty"`
+	Score   float64 `json:"score,omitempty"`
+
+	// QuadroMs é o instante do quadro que o detector olhou, que pode vir até
+	// JanelaDoPicoMs depois do onset. É nele, e não no onset, que a Caixa está
+	// no lugar certo: desenhada no instante da marca, ela chegaria até 3 s
+	// antes do objeto.
+	QuadroMs int64 `json:"quadroMs,omitempty"`
+	// Caixa é X1, Y1, X2, Y2 em fração do quadro, de 0 a 1. Ponteiro, e não
+	// array, por causa do omitempty: array nunca é "vazio" para o JSON, e cada
+	// linha de onset do dia sairia com "caixa":[0,0,0,0].
+	Caixa *[4]float64 `json:"caixa,omitempty"`
+}
+
+// EhObjeto diz se a linha é marca de objeto, e não onset de movimento.
+func (e Evento) EhObjeto() bool { return e.Familia != "" }
+
+// Day devolve o dia (hora local) a que o evento pertence.
+func (e Evento) Day() string { return time.UnixMilli(e.InstanteMs).Format(DayLayout) }
 
 // DaySummary é o que fica em memória por dia. Manter só isto - em vez da lista
 // completa de segmentos - é o que segura o uso de RAM: são ~270 resumos para 9
@@ -127,6 +170,12 @@ func (c *Camera) IndexDir() string       { return filepath.Join(c.root, "index")
 func (c *Camera) InitDir() string        { return filepath.Join(c.root, "init") }
 func (c *Camera) DayDir(d string) string { return filepath.Join(c.root, d) }
 
+func (c *Camera) EventosDir() string { return filepath.Join(c.root, "eventos") }
+
+func (c *Camera) EventosPath(day string) string {
+	return filepath.Join(c.EventosDir(), day+".ndjson")
+}
+
 func (c *Camera) IndexPath(day string) string {
 	return filepath.Join(c.IndexDir(), day+".ndjson")
 }
@@ -175,6 +224,9 @@ func (c *Camera) SegmentPath(startMs int64) string {
 // --- escrita ----------------------------------------------------------------
 
 // EnsureDirs cria a estrutura de diretórios necessária para gravar no dia dado.
+//
+// O eventos/ não entra: ele nasce no primeiro AppendEvento, e câmera sem
+// detecção ligada não ganha um diretório vazio.
 func (c *Camera) EnsureDirs(day string) error {
 	for _, d := range []string{c.IndexDir(), c.InitDir(), c.DayDir(day)} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
@@ -237,6 +289,39 @@ func (c *Camera) mergeLocked(day string, e Entry) {
 	if e.EndMs() > s.LastMs {
 		s.LastMs = e.EndMs()
 	}
+}
+
+// AppendEvento acrescenta um onset ao arquivo do dia.
+//
+// SEM fsync, ao contrário do Append acima, e a diferença é deliberada: um
+// segmento perdido do índice é vídeo que existe em disco e some da interface,
+// enquanto um onset perdido é uma marca a menos numa faixa de calor que tem
+// milhares. Pagar um fsync por marca seria caro pelo motivo errado.
+//
+// Isto é chamado de dentro do laço do recorder, uma vez a cada dezenas de
+// segundos. Três syscalls nessa cadência não incomodam o mesmo laço que já
+// escreve o vídeo.
+func (c *Camera) AppendEvento(ev Evento) error {
+	day := ev.Day()
+	if err := os.MkdirAll(c.EventosDir(), 0o755); err != nil {
+		return err
+	}
+
+	b, err := json.Marshal(ev)
+	if err != nil {
+		return err
+	}
+	b = append(b, '\n')
+
+	f, err := os.OpenFile(c.EventosPath(day), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // --- leitura ----------------------------------------------------------------
@@ -371,6 +456,67 @@ func (c *Camera) Range(fromMs, toMs int64) ([]Entry, error) {
 		for _, e := range entries {
 			if e.EndMs() > fromMs && e.StartMs < toMs {
 				out = append(out, e)
+			}
+		}
+	}
+	return out, nil
+}
+
+// LoadEventos lê os onsets de um dia, ordenados. Dia sem arquivo devolve fatia
+// vazia sem erro: câmera sem detecção ligada é o caso comum, não uma falha.
+func (c *Camera) LoadEventos(day string) ([]Evento, error) {
+	f, err := os.Open(c.EventosPath(day))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var out []Evento
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
+	for sc.Scan() {
+		line := sc.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var ev Evento
+		// Mesma tolerância do LoadDay: a última linha pode ter sido cortada por
+		// uma queda, e o formato append-only prevê exatamente isso.
+		if err := json.Unmarshal(line, &ev); err != nil {
+			continue
+		}
+		out = append(out, ev)
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].InstanteMs < out[j].InstanteMs })
+	return out, nil
+}
+
+// EventoRange devolve os onsets de [fromMs, toMs).
+//
+// Ao contrário do Range dos segmentos, o dia anterior NÃO precisa ser lido: um
+// onset é um instante, não um intervalo, e não atravessa a meia-noite.
+func (c *Camera) EventoRange(fromMs, toMs int64) ([]Evento, error) {
+	if toMs <= fromMs {
+		return nil, nil
+	}
+	start := time.UnixMilli(fromMs)
+	end := time.UnixMilli(toMs)
+
+	var out []Evento
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+		evs, err := c.LoadEventos(d.Format(DayLayout))
+		if err != nil {
+			return nil, err
+		}
+		for _, ev := range evs {
+			if ev.InstanteMs >= fromMs && ev.InstanteMs < toMs {
+				out = append(out, ev)
 			}
 		}
 	}
@@ -533,8 +679,10 @@ func (c *Camera) DropDay(day string) (freed int64, err error) {
 	if err := os.RemoveAll(c.DayDir(day)); err != nil {
 		return 0, err
 	}
-	if err := os.Remove(c.IndexPath(day)); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return 0, err
+	for _, p := range []string{c.IndexPath(day), c.EventosPath(day)} {
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return 0, err
+		}
 	}
 
 	c.mu.Lock()
@@ -612,14 +760,84 @@ func (c *Camera) EvictOldest(want int64) (freed int64, err error) {
 		if err := c.rewrite(day, rest); err != nil {
 			return freed, err
 		}
+		// As marcas do trecho que acabou de ser apagado vão junto. Marca sem
+		// gravação por baixo é faixa de calor apontando para vídeo que não
+		// existe mais: o clique não leva a lugar nenhum.
+		if err := c.aparaEventos(day, rest[0].StartMs); err != nil {
+			return freed, err
+		}
 		c.recount(day, rest)
 	}
 	return freed, nil
 }
 
-// rewrite regrava o índice de um dia de forma atômica. Os arquivos de índice
-// são pequenos (~100 KB por dia), então reescrever sai mais barato - e é mais
-// simples de acertar - que manter marcas de remoção.
+// aparaEventos descarta os onsets anteriores a partirMs, regravando o arquivo
+// do dia. Dia sem eventos não é erro nem trabalho.
+func (c *Camera) aparaEventos(day string, partirMs int64) error {
+	evs, err := c.LoadEventos(day)
+	if err != nil || len(evs) == 0 {
+		return err
+	}
+	corte := sort.Search(len(evs), func(i int) bool { return evs[i].InstanteMs >= partirMs })
+	if corte == 0 {
+		return nil
+	}
+	if corte == len(evs) {
+		err := os.Remove(c.EventosPath(day))
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	for _, ev := range evs[corte:] {
+		if err := enc.Encode(ev); err != nil {
+			return err
+		}
+	}
+	return escreveAtomico(c.EventosPath(day), buf.Bytes())
+}
+
+// escreveAtomico regrava um arquivo inteiro sem nunca deixar um estado
+// intermediário visível: escreve num temporário do MESMO diretório e renomeia.
+//
+// O Chmod não é detalhe: sem ele o arquivo, criado com 0644 pelo append,
+// cairia para 0600 na primeira reescrita - uma mudança silenciosa de permissão
+// no meio da vida do arquivo.
+func escreveAtomico(caminho string, conteudo []byte) error {
+	dir := filepath.Dir(caminho)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".tmp-*.ndjson")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := tmp.Write(conteudo); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), caminho)
+}
+
+// rewrite regrava o índice de um dia. Os arquivos de índice são pequenos
+// (~100 KB por dia), então reescrever sai mais barato - e é mais simples de
+// acertar - que manter marcas de remoção.
 func (c *Camera) rewrite(day string, entries []Entry) error {
 	if len(entries) == 0 {
 		err := os.Remove(c.IndexPath(day))
@@ -629,44 +847,14 @@ func (c *Camera) rewrite(day string, entries []Entry) error {
 		return err
 	}
 
-	if err := os.MkdirAll(c.IndexDir(), 0o755); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(c.IndexDir(), ".idx-*.ndjson")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-
-	w := bufio.NewWriter(tmp)
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
 	for _, e := range entries {
-		b, err := json.Marshal(e)
-		if err != nil {
-			tmp.Close()
+		if err := enc.Encode(e); err != nil {
 			return err
 		}
-		w.Write(b)
-		w.WriteByte('\n')
 	}
-	if err := w.Flush(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	// Sem isto o índice, criado com 0644 pelo Append, cairia para 0600 na
-	// primeira evicção - uma mudança silenciosa de permissão no meio da vida
-	// do arquivo.
-	if err := tmp.Chmod(0o644); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), c.IndexPath(day))
+	return escreveAtomico(c.IndexPath(day), buf.Bytes())
 }
 
 func (c *Camera) recount(day string, entries []Entry) {
