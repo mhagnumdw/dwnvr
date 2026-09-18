@@ -32,6 +32,9 @@ export const health = $state({
   // responde o campo - a faixa de estado simplesmente não aparece.
   uptime: null,
   clock: null,
+  // { fila: { agora, cap, pico }, tempos: { analiseMs, esperaMs } }. Nulo sem
+  // detector de objetos configurado.
+  detector: null,
   updatedAt: 0,
 });
 
@@ -74,6 +77,7 @@ export async function logout() {
   health.disk = null;
   health.uptime = null;
   health.clock = null;
+  health.detector = null;
   health.updatedAt = 0;
 }
 
@@ -113,6 +117,7 @@ export async function loadHealth() {
     health.disk = data.disk ?? null;
     health.uptime = data.uptime ?? null;
     health.clock = data.clock ?? null;
+    health.detector = data.detector ?? null;
     health.updatedAt = Date.now();
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.
