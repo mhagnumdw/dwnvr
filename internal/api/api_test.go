@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
@@ -75,6 +76,138 @@ func getTimeline(t *testing.T, s *Server, query string) timelineResponse {
 		t.Fatalf("resposta ilegível: %v", err)
 	}
 	return out
+}
+
+func getEvents(t *testing.T, s *Server, query string) eventsResponse {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	s.handleEvents(rec, httptest.NewRequest(http.MethodGet, "/api/rec/events?"+query, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
+	}
+	var out eventsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("resposta ilegível: %v", err)
+	}
+	return out
+}
+
+func TestEventsDevolveAsMarcasDoDia(t *testing.T) {
+	s, cam := testServer(t)
+	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
+	for _, off := range []int64{0, 60_000, 120_000} {
+		if err := cam.AppendEvento(store.Evento{InstanteMs: base.UnixMilli() + off}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := getEvents(t, s, "cam=cam_teste&day="+base.Format(store.DayLayout))
+	if len(got.Onsets) != 3 {
+		t.Fatalf("esperava 3 marcas, veio %d: %v", len(got.Onsets), got.Onsets)
+	}
+	if got.Onsets[0] != base.UnixMilli() {
+		t.Errorf("primeira marca = %d, esperado %d", got.Onsets[0], base.UnixMilli())
+	}
+}
+
+// A marca de objeto mora no mesmo arquivo do onset, e não pode aparecer na
+// faixa de calor como um segundo onset.
+func TestEventsSeparaObjetoDeMovimento(t *testing.T) {
+	s, cam := testServer(t)
+	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local).UnixMilli()
+	for _, ev := range []store.Evento{
+		{InstanteMs: base},
+		{InstanteMs: base, Familia: "pessoa", Classe: "person", Score: 0.87},
+		{InstanteMs: base + 60_000},
+	} {
+		if err := cam.AppendEvento(ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := getEvents(t, s, "cam=cam_teste&day=2026-08-08")
+	if len(got.Onsets) != 2 {
+		t.Errorf("onsets %v: a marca de objeto entrou na faixa de calor", got.Onsets)
+	}
+	want := objetoMarcado{InstanteMs: base, Familia: "pessoa", Classe: "person", Score: 0.87}
+	if len(got.Objetos) != 1 || got.Objetos[0] != want {
+		t.Errorf("objetos %+v, esperado [%+v]", got.Objetos, want)
+	}
+}
+
+// A marca com caixa leva a caixa e o instante do quadro olhado até a tela; a
+// marca sem eles sai sem as duas chaves, e não com zeros - uma caixa
+// [0,0,0,0] seria desenhada como um ponto no canto do vídeo.
+func TestEventsLevaACaixaSoDaMarcaQueTem(t *testing.T) {
+	s, cam := testServer(t)
+	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local).UnixMilli()
+	caixa := [4]float64{0.5156, 0.2611, 0.6734, 0.9778}
+	for _, ev := range []store.Evento{
+		{InstanteMs: base, Familia: "pessoa", Classe: "person", Score: 0.87},
+		{InstanteMs: base + 60_000, Familia: "veiculo", Classe: "car", Score: 0.91,
+			QuadroMs: base + 62_000, Caixa: &caixa},
+	} {
+		if err := cam.AppendEvento(ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	s.handleEvents(rec, httptest.NewRequest(http.MethodGet, "/api/rec/events?cam=cam_teste&day=2026-08-08", nil))
+	var cru struct {
+		Objetos []map[string]json.RawMessage `json:"objetos"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &cru); err != nil || len(cru.Objetos) != 2 {
+		t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
+	}
+	for _, chave := range []string{"quadroMs", "caixa"} {
+		if _, tem := cru.Objetos[0][chave]; tem {
+			t.Errorf("a marca sem caixa saiu com %q: %s", chave, rec.Body.String())
+		}
+	}
+
+	got := getEvents(t, s, "cam=cam_teste&day=2026-08-08").Objetos[1]
+	if got.QuadroMs != base+62_000 {
+		t.Errorf("quadroMs = %d, esperado %d", got.QuadroMs, base+62_000)
+	}
+	if got.Caixa == nil || *got.Caixa != caixa {
+		t.Errorf("caixa = %v, esperado %v", got.Caixa, caixa)
+	}
+}
+
+// O caminho de cauda: a tela do dia corrente pergunta de novo a cada dez
+// segundos e só quer o que ainda não tem.
+func TestEventsCaudaSoTrazOQueEhNovo(t *testing.T) {
+	s, cam := testServer(t)
+	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
+	for _, off := range []int64{0, 60_000, 120_000} {
+		if err := cam.AppendEvento(store.Evento{InstanteMs: base.UnixMilli() + off}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	from := base.UnixMilli() + 60_001
+	got := getEvents(t, s, fmt.Sprintf("cam=cam_teste&from=%d&to=%d",
+		from, base.Add(24*time.Hour).UnixMilli()))
+	if len(got.Onsets) != 1 || got.Onsets[0] != base.UnixMilli()+120_000 {
+		t.Errorf("cauda = %v, esperava só a marca dos 120s", got.Onsets)
+	}
+}
+
+// Câmera sem detecção ligada é o caso comum, e a tela precisa distinguir "sem
+// marcas" de "deu erro". Lista vazia, e não null.
+func TestEventsSemMarcasDevolveListaVazia(t *testing.T) {
+	s, _ := testServer(t)
+	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
+
+	rec := httptest.NewRecorder()
+	s.handleEvents(rec, httptest.NewRequest(http.MethodGet,
+		"/api/rec/events?cam=cam_teste&day="+base.Format(store.DayLayout), nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"onsets":[]`) {
+		t.Errorf("esperava lista vazia, veio %s", rec.Body.String())
+	}
 }
 
 // Segmentos encostados têm que virar UMA faixa: a barra de 24h ficaria coberta
@@ -328,6 +461,76 @@ func TestValidateCameraCota(t *testing.T) {
 		if err := validateCamera(config.Camera{ID: "cam_teste", QuotaMB: q}); err == nil {
 			t.Errorf("quotaMB=%d aceita, deveria recusar", q)
 		}
+	}
+}
+
+func TestValidateCameraDetect(t *testing.T) {
+	// Vazio e zero são "usar o default"; preencher só um dos dois vale.
+	validas := []config.Camera{
+		{ID: "cam_teste"},
+		{ID: "cam_teste", DetectMecanismo: "periodico"},
+		{ID: "cam_teste", DetectSensibilidade: 1},
+		{ID: "cam_teste", DetectMecanismo: "kleinberg-p", DetectSensibilidade: 5},
+	}
+	invalidas := []config.Camera{
+		{ID: "cam_teste", DetectMecanismo: "magico"},
+		{ID: "cam_teste", DetectSensibilidade: 6},
+		{ID: "cam_teste", DetectMecanismo: "periodico", DetectSensibilidade: 9},
+	}
+	for _, c := range validas {
+		if err := validateCamera(c); err != nil {
+			t.Errorf("%q nível %d recusada: %v", c.DetectMecanismo, c.DetectSensibilidade, err)
+		}
+	}
+	for _, c := range invalidas {
+		if err := validateCamera(c); err == nil {
+			t.Errorf("%q nível %d aceita, deveria recusar", c.DetectMecanismo, c.DetectSensibilidade)
+		}
+	}
+}
+
+// O formulário de câmera nova parte do "padrao", e não de números repetidos à
+// mão na interface: é assim que ele segue o defaults do dwnvr.yaml.
+func TestCamerasTrazOPadrao(t *testing.T) {
+	s, _ := testServer(t)
+	s.cfg.Defaults.DetectMecanismo, s.cfg.Defaults.DetectSensibilidade = "periodico", 2
+	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // fora do ar
+
+	rec := httptest.NewRecorder()
+	s.handleCameras(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
+	var got struct {
+		Padrao config.Camera `json:"padrao"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
+	}
+	p := got.Padrao
+	if p.Detect == nil || *p.Detect || p.DetectMecanismo != "periodico" || p.DetectSensibilidade != 2 {
+		t.Errorf("padrao %+v: esperava detect false, periodico, nível 2", p)
+	}
+}
+
+// A fila do detector só aparece no /api/health com o detector configurado.
+func TestHealthMostraODetectorSoQuandoConfigurado(t *testing.T) {
+	temDetector := func(s *Server) bool {
+		rec := httptest.NewRecorder()
+		s.handleHealth(rec, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+		var got map[string]json.RawMessage
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
+		}
+		_, tem := got["detector"]
+		return tem
+	}
+
+	s, _ := testServer(t)
+	if temDetector(s) {
+		t.Error("detector no /api/health sem detector.url")
+	}
+	s.cfg.Detector.URL = "http://127.0.0.1:1"
+	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
+	if !temDetector(s) {
+		t.Error("detector.url configurado e o /api/health não mostra a fila")
 	}
 }
 
