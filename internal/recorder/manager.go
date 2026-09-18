@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
@@ -38,15 +39,35 @@ type Manager struct {
 	recs map[string]*running
 	cams map[string]config.Camera
 
+	// fila leva os pedaços de vídeo de todas as câmeras ao detector de
+	// objetos. Nil sem `detector.url`: aí ninguém olha, e nenhum recorder
+	// guarda GOP.
+	fila *detect.Fila
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
 func NewManager(cfg *config.Config, client *go2rtc.Client, st *store.Store, log *slog.Logger) *Manager {
-	return &Manager{
+	m := &Manager{
 		cfg: cfg, client: client, store: st, log: log,
 		recs: map[string]*running{}, cams: map[string]config.Camera{},
+	}
+	if cfg.Detector.URL != "" {
+		m.fila = detect.NovaFila(detect.Detectores["sidecar"](cfg.Detector.URL), m.olhou, log)
+	}
+	return m
+}
+
+// olhou entrega a resposta do detector ao recorder da câmera. Câmera que saiu
+// do ar enquanto o pedaço dela esperava simplesmente não recebe.
+func (m *Manager) olhou(o detect.Olhada) {
+	m.mu.RLock()
+	r := m.recs[o.Pedaco.Camera]
+	m.mu.RUnlock()
+	if r != nil {
+		r.rec.olhou(o)
 	}
 }
 
@@ -63,6 +84,15 @@ func (m *Manager) Start(ctx context.Context, cams []config.Camera) {
 		defer m.wg.Done()
 		m.sampleLoop(m.ctx)
 	}()
+
+	if m.fila != nil {
+		m.log.Info("detector de objetos configurado", "url", m.cfg.Detector.URL)
+		m.wg.Add(1)
+		go func() {
+			defer m.wg.Done()
+			m.fila.Roda(m.ctx)
+		}()
+	}
 }
 
 // Set cadastra ou atualiza uma câmera, subindo, derrubando ou reiniciando o
@@ -91,6 +121,10 @@ func (m *Manager) Set(raw config.Camera) {
 			m.mu.Lock()
 			old.rec.cam = cam
 			m.mu.Unlock()
+			// A detecção muda em pleno voo: o laço de gravação troca o gatilho
+			// no próximo quadro. Reconectar para mudar a sensibilidade abriria
+			// um buraco na gravação por uma coisa que não depende da conexão.
+			old.rec.pedeDetect(cam)
 			return
 		}
 		m.stop(cam.ID)
@@ -100,9 +134,10 @@ func (m *Manager) Set(raw config.Camera) {
 	m.start(cam)
 }
 
-// recordingParamsChanged diz se a mudança exige reabrir a conexão. Nome e cota
-// não exigem: a cota é aplicada pela retenção, que lê a configuração a cada
-// passada.
+// recordingParamsChanged diz se a mudança exige reabrir a conexão. Nome, cota e
+// detecção não exigem: a cota é aplicada pela retenção, que lê a configuração a
+// cada passada, e o gatilho de movimento é trocado pelo próprio laço de
+// gravação no quadro seguinte.
 func recordingParamsChanged(a, b config.Camera) bool {
 	return a.Audio != b.Audio || a.SegmentSeconds != b.SegmentSeconds ||
 		a.StallSeconds != b.StallSeconds
@@ -114,6 +149,9 @@ func (m *Manager) start(cam config.Camera) {
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
 	rec := newRecorder(cam, m.client, m.store.Camera(cam.ID), m.log)
+	if m.fila != nil {
+		rec.pedacos = rec.ofereceA(m.fila)
+	}
 	r := &running{rec: rec, cancel: cancel, done: make(chan struct{})}
 
 	m.mu.Lock()
@@ -271,6 +309,26 @@ func (m *Manager) Status() []Status {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
+}
+
+// Detector devolve o retrato da fila do detector de objetos, ou nil sem
+// `detector.url` - aí não há fila, e a tela não tem o que mostrar.
+//
+// O teto é contado aqui porque é o Manager quem sabe quais câmeras estão com
+// a detecção ligada agora: cada uma pode ter PedacosPorCamera esperando.
+func (m *Manager) Detector() *detect.EstadoDaFila {
+	if m.fila == nil {
+		return nil
+	}
+	e := m.fila.Estado()
+	m.mu.RLock()
+	for _, r := range m.recs {
+		if d := r.rec.cam.Detect; d != nil && *d {
+			e.Fila.Cap += detect.PedacosPorCamera
+		}
+	}
+	m.mu.RUnlock()
+	return &e
 }
 
 // Stop encerra tudo e espera cada segmento em aberto ser fechado e indexado.
