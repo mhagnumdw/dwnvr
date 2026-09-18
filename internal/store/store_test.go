@@ -597,3 +597,163 @@ func TestOrphansAceitaDiretorioSemIndice(t *testing.T) {
 		t.Errorf("cam_lixo = %+v", got[0])
 	}
 }
+
+// --- eventos de movimento ---------------------------------------------------
+
+func appendEventos(t *testing.T, c *Camera, base time.Time, offsets ...time.Duration) {
+	t.Helper()
+	for _, o := range offsets {
+		if err := c.AppendEvento(Evento{InstanteMs: base.Add(o).UnixMilli()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestEventosAppendELeitura(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	appendEventos(t, c, base, 0, time.Minute, 2*time.Minute)
+
+	evs, err := c.LoadEventos(base.Format(DayLayout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 3 {
+		t.Fatalf("esperava 3 marcas, veio %d", len(evs))
+	}
+	if evs[0].InstanteMs != base.UnixMilli() {
+		t.Errorf("primeira marca em %d, esperado %d", evs[0].InstanteMs, base.UnixMilli())
+	}
+
+	// Dia sem arquivo é o caso comum - câmera sem detecção ligada - e não pode
+	// ser erro.
+	vazio, err := c.LoadEventos("2020-01-01")
+	if err != nil || len(vazio) != 0 {
+		t.Errorf("dia sem eventos: %d marcas, erro %v", len(vazio), err)
+	}
+}
+
+// TestEnsureDirsNaoCriaEventos: quem só grava não ganha o diretório da
+// detecção.
+func TestEnsureDirsNaoCriaEventos(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	if err := c.EnsureDirs(base.Format(DayLayout)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(c.EventosDir()); !os.IsNotExist(err) {
+		t.Fatalf("eventos/ criado sem nenhum evento: %v", err)
+	}
+	appendEventos(t, c, base, 0)
+	if _, err := os.Stat(c.EventosPath(base.Format(DayLayout))); err != nil {
+		t.Errorf("o primeiro evento não criou o arquivo: %v", err)
+	}
+}
+
+func TestEventoRangeCortaNasPontas(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	appendEventos(t, c, base, 0, time.Minute, 2*time.Minute, 3*time.Minute)
+
+	// [base+1min, base+3min): pega a de 1 e a de 2, e não a de 3.
+	evs, err := c.EventoRange(base.Add(time.Minute).UnixMilli(), base.Add(3*time.Minute).UnixMilli())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 2 {
+		t.Fatalf("esperava 2 marcas, veio %d: %v", len(evs), evs)
+	}
+	if evs[0].InstanteMs != base.Add(time.Minute).UnixMilli() {
+		t.Errorf("corte errado na ponta de baixo: %v", evs)
+	}
+}
+
+func TestEventoRangeAtravessaDias(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	// Uma marca hoje ao meio-dia e outra amanhã ao meio-dia.
+	appendEventos(t, c, base, 0, 24*time.Hour)
+
+	evs, err := c.EventoRange(base.UnixMilli(), base.Add(48*time.Hour).UnixMilli())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 2 {
+		t.Fatalf("esperava 2 marcas em dois dias, veio %d", len(evs))
+	}
+}
+
+func TestDropDayLevaOsEventosJunto(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	e := entryAt(base, 30_000, 1000)
+	writeSegmentFile(t, c, e)
+	if err := c.Append(e); err != nil {
+		t.Fatal(err)
+	}
+	appendEventos(t, c, base, 0, time.Minute)
+
+	if _, err := c.DropDay(base.Format(DayLayout)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(c.EventosPath(base.Format(DayLayout))); !os.IsNotExist(err) {
+		t.Errorf("o arquivo de eventos sobreviveu ao DropDay: %v", err)
+	}
+}
+
+// TestEvictOldestAparaAsMarcasSemGravacao guarda a regra que faz a faixa de
+// calor ser clicável: marca sem vídeo por baixo é marca que não leva a lugar
+// nenhum.
+func TestEvictOldestAparaAsMarcasSemGravacao(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+
+	// Três segmentos de 1 minuto e uma marca dentro de cada um.
+	for i := range 3 {
+		e := entryAt(base.Add(time.Duration(i)*time.Minute), 60_000, 1000)
+		writeSegmentFile(t, c, e)
+		if err := c.Append(e); err != nil {
+			t.Fatal(err)
+		}
+		appendEventos(t, c, base, time.Duration(i)*time.Minute+time.Second)
+	}
+
+	// Libera o primeiro segmento. A marca dele tem que ir junto; as outras
+	// duas ficam.
+	if _, err := c.EvictOldest(1000); err != nil {
+		t.Fatal(err)
+	}
+	evs, err := c.LoadEventos(base.Format(DayLayout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 2 {
+		t.Fatalf("esperava 2 marcas depois da evicção, veio %d: %v", len(evs), evs)
+	}
+	if evs[0].InstanteMs < base.Add(time.Minute).UnixMilli() {
+		t.Errorf("sobrou marca do segmento apagado: %v", evs)
+	}
+}
+
+func TestEventosIgnoraLinhaTruncada(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	appendEventos(t, c, base, 0, time.Minute)
+
+	// Uma queda no meio de um append deixa exatamente isto.
+	path := c.EventosPath(base.Format(DayLayout))
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(`{"instanteMs":178849`)
+	f.Close()
+
+	evs, err := c.LoadEventos(base.Format(DayLayout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 2 {
+		t.Errorf("a linha truncada não foi descartada: %d marcas", len(evs))
+	}
+}
