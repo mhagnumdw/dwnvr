@@ -78,9 +78,23 @@ GET  /health
 ```
 
 ```json
-{"achados": [{"classe": "person", "score": 0.87, "caixa": [0.31, 0.12, 0.38, 0.55]}],
- "quadrosDecodificados": 14, "largura": 640, "altura": 360,
- "tempoMs": {"decodifica": 180.2, "preparo": 190.4, "modelo": 5900.1}}
+{
+  "achados": [
+    {
+      "classe": "person",
+      "score": 0.87,
+      "caixa": [0.31, 0.12, 0.38, 0.55]
+    }
+  ],
+  "quadrosDecodificados": 14,
+  "largura": 640,
+  "altura": 360,
+  "tempoMs": {
+    "decodifica": 180.2,
+    "preparo": 190.4,
+    "modelo": 5900.1
+  }
+}
 ```
 
 A caixa vai em fração do quadro (x1, y1, x2, y2). Ele devolve TODA caixa a

@@ -58,25 +58,72 @@ como ela funciona por dentro, e por quê.
 
 ## O caminho de um quadro até a marca
 
-```
-go2rtc ──fMP4──> gravador ──────────────────────────────────> disco (sempre)
-                    │
-                    │ tamanho de cada quadro de vídeo
-                    v
-                 destaque ──> mecanismo ──onset──> marca de MOVIMENTO
-                                  │
-                                  │ quadro do pico (até 3 s depois)
-                                  v
-                 GOP guardado ──> pedaço fMP4
-                                  │
-                                  v
-                 fila (2 lugares por câmera) ──> dwnvr-detect ──> caixas
-                                                                     │
-                                                                     v
-                                          corte por família + rastreio
-                                                                     │
-                                                                     v
-                                                     marca de OBJETO
+```mermaid
+flowchart TD
+    subgraph cameras["câmeras"]
+        cam1((1))
+        cam2((2))
+        cam3((3))
+        cam4((4))
+        cam5((5))
+        cam6((6))
+        cam7((7))
+        cam8((8))
+        cam9((9))
+        camMais["..."]:::reticencias
+        camN((N))
+    end
+    cam1 & cam2 & cam3 & cam4 & cam5 & cam6 & cam7 & cam8 & cam9 & camN --> go2rtc
+    camMais ~~~ go2rtc
+    classDef reticencias fill:none,stroke:none
+    go2rtc -->|fMP4| gravador
+
+    subgraph dwnvr
+        gravador
+        destaque
+        mecanismo
+        movimento["marca de MOVIMENTO"]
+        corte["corte por família"]
+        objeto["marca de OBJETO"]
+
+        subgraph ram["memória RAM"]
+            gop["GOP guardado"]
+            pedaco["pedaço fMP4"]
+            fila["fila (2 lugares por câmera)"]
+            rastreio["rastreio (lugares já ocupados)"]
+        end
+    end
+
+    subgraph sidecar["dwnvr-detect"]
+        modelo["decodifica o pedaço e roda o modelo"]
+    end
+
+    subgraph disco
+        gravacao["gravação (sempre)"]
+        eventos["eventos/{dia}.ndjson"]
+    end
+
+    gravador --> gravacao
+    gravador -->|tamanho de cada quadro de vídeo| destaque
+    destaque --> mecanismo
+    mecanismo -->|onset| movimento
+    mecanismo -->|"quadro do pico (até 3 s depois)"| gop
+    gop --> pedaco
+    pedaco --> fila
+    fila -->|"HTTP: POST /detect?piso=0.2"| modelo
+    modelo -->|caixas| corte
+    corte --> rastreio
+    rastreio --> objeto
+    movimento --> eventos
+    objeto --> eventos
+
+    notaDestaque["o quanto o quadro destoa do normal<br>DA PRÓPRIA câmera, em unidades do ruído dela.<br>Sai do tamanho do quadro, sem decodificar"]:::nota
+    destaque -.- notaDestaque
+    notaMecanismo["quem decide, olhando o destaque, QUANDO marcar movimento<br>e mandar um quadro ao detector de objetos.<br>kleinberg-p (estatístico, o padrão)<br>ou periodico (intervalo fixo)"]:::nota
+    mecanismo -.- notaMecanismo
+    notaCorte["das caixas da resposta HTTP, joga fora<br>a classe que não é pessoa, veículo ou animal.<br>Caixa abaixo de 0,40 de confiança não vira marca,<br>mas segue para o rastreio, que aprende com ela"]:::nota
+    corte -.- notaCorte
+    classDef nota fill:#fff8c5,stroke:#d4a72c,color:#000
 ```
 
 1. **O tamanho do quadro.** O gravador já tem na mão o tamanho de cada quadro
@@ -117,9 +164,23 @@ GET  /health              só o HEALTHCHECK do Docker; o dwnvr não chama
 ```
 
 ```json
-{"achados": [{"classe": "person", "score": 0.87, "caixa": [0.41, 0.32, 0.47, 0.62]}],
- "quadrosDecodificados": 14, "largura": 640, "altura": 360,
- "tempoMs": {"decodifica": 181.3, "preparo": 42.7, "modelo": 3391.5}}
+{
+  "achados": [
+    {
+      "classe": "person",
+      "score": 0.87,
+      "caixa": [0.41, 0.32, 0.47, 0.62]
+    }
+  ],
+  "quadrosDecodificados": 14,
+  "largura": 640,
+  "altura": 360,
+  "tempoMs": {
+    "decodifica": 181.3,
+    "preparo": 42.7,
+    "modelo": 3391.5
+  }
+}
 ```
 
 - **`caixa` é `[x1, y1, x2, y2]` em fração do quadro**, e não em pixels: é a

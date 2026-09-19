@@ -44,7 +44,12 @@ que `GET /api/streams/probe` é um endpoint à parte, e não mais um campo da
 listagem - a resposta dele pode custar alguns segundos e uma conexão nova.
 
 ```json
-{"name": "cam_teste5", "hasAudio": true, "audioCodecs": ["PCMA/16000"], "probed": true}
+{
+  "name": "cam_teste5",
+  "hasAudio": true,
+  "audioCodecs": ["PCMA/16000"],
+  "probed": true
+}
 ```
 
 `probed` diz se a resposta custou uma conexão: `false` quando ela veio do
@@ -66,7 +71,16 @@ a conta com o `onsets` da câmera -
 `onsets = semVideo + descartados + falhas + recusados + semObjeto + comObjeto + naFila`:
 
 ```json
-"funil": {"pedacos": 412, "semVideo": 3, "descartados": 31, "falhas": 0, "recusados": 2, "semObjeto": 350, "comObjeto": 28, "naFila": 1}
+"funil": {
+  "pedacos": 412,
+  "semVideo": 3,
+  "descartados": 31,
+  "falhas": 0,
+  "recusados": 2,
+  "semObjeto": 350,
+  "comObjeto": 28,
+  "naFila": 1
+}
 ```
 
 `pedacos` não é fatia: é quantos onsets tiveram o vídeo cortado e oferecido à
@@ -86,9 +100,24 @@ A fila é uma só para todas as câmeras, e vem fora da lista delas, em
 `detector`:
 
 ```json
-"detector": {"fila": {"agora": 1, "cap": 8, "pico": 5, "porCamera": 2,
-                       "cameras": {"cam_teste1": {"esperando": 1, "olhando": true}}},
-             "tempos": {"analiseMs": 3620, "esperaMs": 410}}
+"detector": {
+  "fila": {
+    "agora": 1,
+    "cap": 8,
+    "pico": 5,
+    "porCamera": 2,
+    "cameras": {
+      "cam_teste1": {
+        "esperando": 1,
+        "olhando": true
+      }
+    }
+  },
+  "tempos": {
+    "analiseMs": 3620,
+    "esperaMs": 410
+  }
+}
 ```
 
 `agora` são os pedaços esperando a vez, sem contar o que está sendo olhado, e
@@ -161,10 +190,22 @@ MSE baixar o init uma vez só e depois pedir apenas mídia. Ver
 da timeline desenha, e as marcas de objeto que o detector confirmou:
 
 ```json
-{"cam":"cam_teste1","from":1786176000000,"to":1786262400000,
- "onsets":[1786220571043,1786220604112],
- "objetos":[{"instanteMs":1786220571043,"familia":"pessoa","classe":"person","score":0.87,
-             "quadroMs":1786220572851,"caixa":[0.5156,0.2611,0.6734,0.9778]}]}
+{
+  "cam": "cam_teste1",
+  "from": 1786176000000,
+  "to": 1786262400000,
+  "onsets": [1786220571043, 1786220604112],
+  "objetos": [
+    {
+      "instanteMs": 1786220571043,
+      "familia": "pessoa",
+      "classe": "person",
+      "score": 0.87,
+      "quadroMs": 1786220572851,
+      "caixa": [0.5156, 0.2611, 0.6734, 0.9778]
+    }
+  ]
+}
 ```
 
 Os `onsets` são números soltos, e não objetos, pela mesma razão que a timeline
