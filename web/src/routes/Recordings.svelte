@@ -7,6 +7,7 @@
   import { clearThumbnails } from '../lib/thumbs.js';
   import { baixarQuadro } from '../lib/captura.js';
   import { dayKey, parseDay, hhmmss, duracao, taxa } from '../lib/format.js';
+  import { FAMILIAS } from '../lib/icones.js';
   import Timeline from '../components/Timeline.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
   import SemCameras from '../components/SemCameras.svelte';
@@ -49,6 +50,9 @@
   // pedido à parte da timeline de propósito: a barra azul é o que a tela existe
   // para mostrar, e uma falha ao ler as marcas não pode deixá-la sem desenhar.
   let eventos = $state([]);
+  // As marcas de objeto do dia, do mesmo pedido: [{ instanteMs, familia, classe,
+  // score }, …].
+  let objetos = $state([]);
   let loading = $state(false);
   let error = $state('');
   let showThumbs = $state(params.get('thumbs') !== '0');
@@ -332,15 +336,18 @@
     // Depois, e à parte. Câmera com a detecção desligada nem pergunta: quem só
     // grava não paga pedido nenhum pela faixa. O preço é que as marcas de um
     // período em que ela esteve ligada somem da tela junto com o desligar.
-    let ev = [];
+    let ev = { onsets: [], objetos: [] };
     if (detectLigado(c)) {
       try {
-        ev = (await api.events(c, d)).onsets;
+        ev = await api.events(c, d);
       } catch {
         // Sem marcas a faixa só não aparece; a timeline já está na tela.
       }
     }
-    if (c === cam && d === day) eventos = ev;
+    if (c === cam && d === day) {
+      eventos = ev.onsets;
+      objetos = ev.objetos;
+    }
   }
 
   function detectLigado(c) {
@@ -434,15 +441,36 @@
   }
 
   // A cauda das marcas, pelo mesmo desenho da cauda da timeline: pede só o
-  // pedaço recente, e acrescenta no fim. Uma marca é um instante, e nada dela
-  // muda depois de gravada: basta pedir a partir da última.
+  // pedaço recente, e acrescenta no fim.
+  //
+  // Uma marca é um instante, não um intervalo: nada dela muda depois de
+  // gravada. Mas a de OBJETO chega atrasada - ela leva o instante do onset que
+  // a originou e só é gravada depois que o detector olha, com o pedaço
+  // esperando a vez na fila. Pedir a partir do último onset perderia para
+  // sempre o objeto de um onset que já estava na tela. Por isso a cauda volta
+  // ATRASO_DO_OBJETO_MS antes do último onset, e o que já se tinha é filtrado.
+  //
+  // O atraso máximo sai de internal/detect/parametros.go: cada câmera guarda
+  // até PedacosPorCamera (2) na fila, e uma olhada desiste em PrazoDaOlhadaMs
+  // (60 s). O pior caso é 2 x câmeras x 60 s, com o detector no limite em
+  // todas, e 30 min o cobrem até 15 câmeras. Com o detector são, o atraso é de
+  // segundos; a folga custa uns poucos KB de onsets por rodada.
+  const ATRASO_DO_OBJETO_MS = 30 * 60_000;
+
   async function caudaDeEventos(c, d) {
     if (!detectLigado(c)) return;
     const ultimo = eventos.at(-1) ?? dayStart - 1;
+    const desde = Math.max(dayStart, ultimo - ATRASO_DO_OBJETO_MS);
     try {
-      const ev = await api.eventsRange(c, ultimo + 1, dayEnd);
+      const ev = await api.eventsRange(c, desde, dayEnd);
       if (c !== cam || d !== day) return;
-      if (ev.onsets.length) eventos = [...eventos, ...ev.onsets];
+      const onsets = ev.onsets.filter((t) => t > ultimo);
+      if (onsets.length) eventos = [...eventos, ...onsets];
+      // Uma olhada grava no máximo uma marca por família.
+      const chave = (o) => `${o.instanteMs}|${o.familia}`;
+      const conhecidos = new Set(objetos.map(chave));
+      const novos = ev.objetos.filter((o) => !conhecidos.has(chave(o)));
+      if (novos.length) objetos = [...objetos, ...novos];
     } catch {
       // Igual à timeline: falha de fundo não apaga o que já está na tela.
     }
@@ -617,6 +645,7 @@
     <Timeline
       ranges={timeline.ranges}
       events={eventos}
+      {objetos}
       {dayStart}
       {dayEnd}
       currentMs={player.currentMs}
@@ -630,6 +659,13 @@
       <span><i class="gap"></i> sem gravação</span>
       {#if eventos.length}
         <span><i class="heat"></i> movimento</span>
+      {/if}
+      <!-- As três, e não só as do dia: a legenda explica a cor antes de ela
+           aparecer, e não muda de tamanho a cada marca nova. -->
+      {#if objetos.length}
+        {#each Object.values(FAMILIAS) as f (f.nome)}
+          <span><i style:background={f.cor}></i> {f.nome}</span>
+        {/each}
       {/if}
       <span>
         toque para pular · arraste para navegar · duplo toque aproxima, dois dedos
