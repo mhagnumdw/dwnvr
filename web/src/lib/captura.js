@@ -8,7 +8,11 @@
 // baixarQuadro recorta o quadro corrente do <video> e o entrega ao usuário:
 // folha de compartilhamento onde houver, download onde não houver. Joga se não
 // der para capturar, para quem chamou avisar na tela.
-export async function baixarQuadro(video, nome) {
+//
+// `porCima(g, largura, altura)`, quando vier, desenha sobre o quadro já no
+// tamanho nativo - é assim que as caixas do detector entram na imagem quando
+// estão ligadas na tela.
+export async function baixarQuadro(video, nome, porCima) {
   // Antes do primeiro quadro decodificado o <video> ainda não tem tamanho, e
   // capturar aí produziria uma imagem 0x0 sem erro nenhum.
   if (!video?.videoWidth || !video.videoHeight) {
@@ -21,7 +25,9 @@ export async function baixarQuadro(video, nome) {
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video, 0, 0);
+  const g = canvas.getContext('2d');
+  g.drawImage(video, 0, 0);
+  porCima?.(g, canvas.width, canvas.height);
 
   // JPEG porque o quadro veio de um H.264/H.265 já comprimido: o PNG guardaria
   // fielmente os artefatos da compressão anterior por várias vezes o tamanho.
