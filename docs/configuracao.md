@@ -86,6 +86,9 @@ comportamento sem surpresa numa câmera específica.
 Mudar qualquer um dos três **não reabre a conexão**: o gravador troca o gatilho
 no quadro seguinte, sem abrir buraco na gravação.
 
+Como o destaque, o onset e os níveis funcionam por dentro está em
+[`deteccao.md`](deteccao.md).
+
 ## Detector de objetos
 
 A marca de movimento diz QUANDO. O detector diz O QUÊ: a cada marca, o dwnvr
@@ -107,7 +110,7 @@ Sem a `url`, as câmeras com `detect` marcam só movimento, e o dwnvr não guard
 um byte de vídeo a mais por isso.
 
 **O que ele custa.** No Orange Pi Zero 3, cada olhada leva ~6,5 s de um núcleo
-e o container ocupa ~210 MB. No nível 4 isso é ~9% de um núcleo por câmera,
+e o container ocupa ~230 MB. No nível 4 isso é ~9% de um núcleo por câmera,
 contínuo. As olhadas passam por uma **fila com dois lugares por câmera**: se
 uma câmera dispara de novo com os dois ocupados, a marca nova fica só como
 movimento. Isso impede a câmera mais agitada de ocupar a vez das outras, e é o
@@ -119,6 +122,9 @@ existisse; o log avisa uma vez quando ele sai do ar, e outra quando volta.
 onde já há um objeto parado, e só marca a CHEGADA. Essa memória não sobrevive
 a um reinício: depois dele, cada objeto parado aparece uma vez como se tivesse
 acabado de chegar.
+
+O caminho inteiro, do quadro à marca de objeto, o que acontece quando o
+detector cai e os limites do modelo estão em [`deteccao.md`](deteccao.md).
 
 ## Retenção
 

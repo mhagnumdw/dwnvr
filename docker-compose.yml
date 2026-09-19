@@ -123,7 +123,7 @@ services:
       - DETECT_THREADS=2
 
     # O teto de CPU é o que impede o detector de tomar a máquina de quem grava.
-    # O de memória cobre o pico de uma olhada (~210 MB) com folga.
+    # O de memória cobre o pico de uma olhada (~250 MB) com folga.
     deploy:
       resources:
         limits:
