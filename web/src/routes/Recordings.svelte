@@ -56,6 +56,20 @@
   let loading = $state(false);
   let error = $state('');
   let showThumbs = $state(params.get('thumbs') !== '0');
+  // As caixas do detector sobre o vídeo, e os rótulos delas. Ligadas por
+  // padrão e guardadas na URL, como as miniaturas. Rótulo sem caixa não existe:
+  // o botão dele se apaga junto.
+  let showCaixas = $state(params.get('caixas') !== '0');
+  let showRotulos = $state(params.get('rotulos') !== '0');
+  let camadaCaixas = $state(null);
+  // O componente das caixas vem num chunk à parte, baixado só quando o dia tem
+  // objeto: quem não usa detecção não paga os bytes dele.
+  let Caixas = $state(null);
+  $effect(() => {
+    if (objetos.length && !Caixas) {
+      import('../components/Caixas.svelte').then((m) => (Caixas = m.default));
+    }
+  });
   // As setas andam pelo que EXISTE, pulando os buracos do histórico. Sem lista
   // - câmera nova, ou a consulta que falhou - elas voltam a andar de um em um
   // dia até hoje, que é o comportamento antigo: não saber onde há gravação não
@@ -171,7 +185,7 @@
   $effect(() => localStorage.setItem('dwnvr.rec.exportMin', exportMin));
 
   // A URL, ao contrário, passa a descrever a cena inteira: câmera, dia,
-  // instante, velocidade, pausa, zoom e miniaturas. É isso que faz colar o
+  // instante, velocidade, pausa, zoom, miniaturas, caixas e rótulos. É isso que faz colar o
   // endereço em outra aba cair no mesmo trecho da mesma câmera.
   //
   // O que está no padrão fica de fora, para o link não carregar o que já vale
@@ -189,6 +203,8 @@
       paused: player.playing ? null : '1',
       zoom: diaInteiro ? null : `${hhmmss(viewFrom)},${hhmmss(viewTo)}`,
       thumbs: showThumbs ? null : '0',
+      caixas: showCaixas ? null : '0',
+      rotulos: showRotulos ? null : '0',
     });
   });
 
@@ -510,7 +526,9 @@
     const d = new Date(player.currentMs);
     const nome = `${cam}_${dayKey(d)}_${hhmmss(d.getTime()).replaceAll(':', '-')}.jpg`;
     try {
-      await baixarQuadro(video, nome);
+      // A imagem sai como a tela está: com as caixas acesas, se estiverem ligadas.
+      const porCima = showCaixas ? (g, w, h) => camadaCaixas?.desenhaEm(g, w, h) : undefined;
+      await baixarQuadro(video, nome, porCima);
     } catch (e) {
       capturaErro = e.message;
       clearTimeout(avisoTimer);
@@ -579,6 +597,17 @@
     <div class="stage">
       <!-- svelte-ignore a11y_media_has_caption -->
       <video bind:this={video} playsinline controls={false}></video>
+      {#if Caixas && showCaixas && objetos.length}
+        <Caixas
+          bind:this={camadaCaixas}
+          {video}
+          {objetos}
+          currentMs={player.currentMs}
+          playing={player.playing}
+          rate={player.rate}
+          rotulos={showRotulos}
+        />
+      {/if}
       <!-- Empilhados numa coluna, e não cada um no seu `position: absolute`:
            antes eram três avisos disputando o mesmo canto, e o aviso de captura
            chega justamente quando o "carregando…" tem chance de estar aceso. -->
@@ -608,6 +637,20 @@
       <button class="ghost small" onclick={() => (showThumbs = !showThumbs)}>
         {showThumbs ? 'ocultar' : 'mostrar'} miniaturas
       </button>
+      <!-- Só com objeto no dia, como as cores da legenda: câmera sem detecção
+           não tem caixa nenhuma para mostrar. -->
+      {#if objetos.length}
+        <button class="ghost small" onclick={() => (showCaixas = !showCaixas)}>
+          {showCaixas ? 'ocultar' : 'mostrar'} caixas
+        </button>
+        <button
+          class="ghost small"
+          onclick={() => (showRotulos = !showRotulos)}
+          disabled={!showCaixas}
+        >
+          {showRotulos ? 'ocultar' : 'mostrar'} rótulos
+        </button>
+      {/if}
       <button
         onclick={capturar}
         disabled={!player.currentMs}

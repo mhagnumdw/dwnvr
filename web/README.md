@@ -39,11 +39,12 @@ Ao alterar algo em `web/`, rode `npm run build` **antes** de commitar.
 ```
 src/lib/         api, estado (runes), rota e estado na URL, formatadores,
                  player MSE, miniaturas, captura de quadro, ícones das
-                 famílias de objeto
+                 famílias de objeto, disposição e desenho das caixas
 src/routes/      as quatro telas + login
 src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  horário digitado, modal e confirmação,
-                 o estado de "nenhuma câmera cadastrada", seletor de dia
+                 o estado de "nenhuma câmera cadastrada", seletor de dia,
+                 caixas do detector sobre o vídeo (chunk à parte)
 src/vendor/      player de live do go2rtc (MIT) - ver vendor/README.md
 ```
 
