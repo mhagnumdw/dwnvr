@@ -1,8 +1,9 @@
 # CI do dwnvr.
 #
-# O job `test` roda em todo push e pull request. O `image` e o `image-detect`
-# rodam depois dele e só fora de pull request, publicando as imagens
-# multi-arch no GHCR: a do dwnvr e a do detector de objetos, opcional.
+# O job `test` roda em todo push e pull request. O `image-dwnvr-recorder` e o
+# `image-dwnvr-detect` rodam depois dele e só fora de pull request, publicando
+# as imagens multi-arch no GHCR: a do dwnvr e a do detector de objetos,
+# opcional.
 
 name: ci
 
@@ -14,8 +15,8 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }}
-  IMAGE_DETECT: ghcr.io/${{ github.repository }}-detect
+  IMAGE_DWNVR_RECORDER: ghcr.io/${{ github.repository }}
+  IMAGE_DWNVR_DETECT: ghcr.io/${{ github.repository }}-detect
 
 jobs:
   test:
@@ -58,7 +59,7 @@ jobs:
             exit 1
           fi
 
-  image:
+  image-dwnvr-recorder:
     needs: test
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -78,7 +79,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.IMAGE }}
+          images: ${{ env.IMAGE_DWNVR_RECORDER }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
@@ -109,14 +110,14 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=dwnvr-recorder
+          cache-to: type=gha,scope=dwnvr-recorder,mode=max
 
-  # O detector de objetos, em dwnvr-detect/. Mesmo molde do `image`: o
-  # Dockerfile dele também não executa nada da arquitetura de destino, então o
-  # arm64 sai daqui sem emulação. O cache tem escopo próprio para não disputar
-  # espaço com o do dwnvr.
-  image-detect:
+  # O detector de objetos, em dwnvr-detect/. Mesmo molde do
+  # `image-dwnvr-recorder`: o Dockerfile dele também não executa nada da
+  # arquitetura de destino, então o arm64 sai daqui sem emulação. Cada job tem
+  # o próprio escopo de cache para um não disputar espaço com o outro.
+  image-dwnvr-detect:
     needs: test
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -136,7 +137,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.IMAGE_DETECT }}
+          images: ${{ env.IMAGE_DWNVR_DETECT }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
@@ -149,5 +150,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=detect
-          cache-to: type=gha,scope=detect,mode=max
+          cache-from: type=gha,scope=dwnvr-detect
+          cache-to: type=gha,scope=dwnvr-detect,mode=max
