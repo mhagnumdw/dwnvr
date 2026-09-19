@@ -94,7 +94,14 @@ Sem banco de dados. O índice é um NDJSON por câmera por dia, append-only:
 > nada inteiro na memória. Cada linha é assim:
 
 ```json
-{"t":1786220564113,"d":31596,"sz":2434983,"g":"4edbc50d8e70","io":737,"f0":160567}
+{
+  "t": 1786220564113,
+  "d": 31596,
+  "sz": 2434983,
+  "g": "4edbc50d8e70",
+  "io": 737,
+  "f0": 160567
+}
 ```
 
 - `t` início
