@@ -14,6 +14,8 @@ Aqui ficam as respostas longas.
 
 - [arquitetura.md](arquitetura.md) - o formato em disco: por que consumir o
   fMP4 do go2rtc, o índice NDJSON, o init identificado por hash
+- [deteccao.md](deteccao.md) - a detecção de movimento e de objetos: o fluxo
+  de um quadro até a marca, o `dwnvr-detect`, o custo e os limites do modelo
 - [resiliencia.md](resiliencia.md) - os dois modos de falha reais: queda de
   energia e go2rtc que emudece sem avisar
 - [api.md](api.md) - referência dos endpoints HTTP

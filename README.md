@@ -15,8 +15,19 @@ Medido nesse Orange Pi Zero 3 com as 9 câmeras gravando simultaneamente:
 
 | | CPU | RAM |
 | --- | --- | --- |
-| dwnvr | **4% de 1 core** (1% dos 4) | **17 MB** |
-| go2rtc | 9% de 1 core | 23 MB |
+| dwnvr | **5% de 1 core** (1% dos 4) | **18 MB** |
+| go2rtc | 10% de 1 core | 89 MB |
+
+Com o [detector de objetos](docs/deteccao.md) ligado, que é opcional, nas 9
+câmeras e no nível de sensibilidade 5, o mais alto:
+
+| | CPU | RAM |
+| --- | --- | --- |
+| dwnvr | 5% de 1 core | 29 MB |
+| go2rtc | 9% de 1 core | 80 MB |
+| dwnvr-detect | 157% de 1 core (39% dos 4) | 229 MB, com picos de 246 MB |
+
+Com a detecção desligada, o dwnvr custa o mesmo que uma versão sem ela.
 
 > **ATENÇÃO:** esse projeto é totalmente vibe codado e é meu primeiro projeto assim. Além de querer resolver uma necessidade minha, que eu acho que é de várias outras pessoas, eu queria saber como seria a experiência de desenvolver totalmente nesse estilo.
 >
@@ -61,6 +72,12 @@ do go2rtc, mas por enquanto não.
 
 O porquê de cada decisão de formato está em
 [`docs/arquitetura.md`](docs/arquitetura.md).
+
+**A detecção é opcional**, e vem desligada. Ligada numa câmera, ela marca na
+timeline os instantes de movimento, calculados do tamanho dos quadros - de novo
+sem decodificar nada. Com o container `dwnvr-detect`, ela diz também se era
+pessoa, veículo ou animal. Como funciona e quanto custa, em
+[`docs/deteccao.md`](docs/deteccao.md).
 
 ## Subir o dwnvr
 
@@ -492,6 +509,7 @@ movimento.
 - [x] **Fase 2** - API HTTP, autenticação, exportação ([resultados](docs/fase2-resultados.md))
 - [x] **Fase 3** - SPA Svelte com as quatro telas ([resultados](docs/fase3-resultados.md))
 - [x] **Fase 4** - Docker multi-arch e empacotamento ([resultados](docs/fase4-resultados.md))
+- [x] **Detecção** - movimento pelo tamanho dos quadros, e objetos no container `dwnvr-detect` ([como funciona](docs/deteccao.md))
 
 > A Fase 0 foi feita com programas descartáveis, escritos só para responder duas
 > perguntas antes de comprometer o projeto com elas: "dá mesmo para gravar o
@@ -508,6 +526,7 @@ movimento.
 | [`docs/operacao.md`](docs/operacao.md) | o dia a dia: arquivos, logs, container sem shell |
 | [`docs/configuracao.md`](docs/configuracao.md) | os dois arquivos, política por câmera, retenção, áudio |
 | [`docs/arquitetura.md`](docs/arquitetura.md) | o formato em disco e por que ele é assim |
+| [`docs/deteccao.md`](docs/deteccao.md) | a detecção de movimento e de objetos: o fluxo, o custo e os limites |
 | [`docs/resiliencia.md`](docs/resiliencia.md) | queda de energia e o go2rtc que emudece sem avisar |
 | [`docs/api.md`](docs/api.md) | referência dos endpoints HTTP |
 | [`web/README.md`](web/README.md) | desenvolver a interface |

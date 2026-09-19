@@ -56,9 +56,10 @@ Detalhes em [`modelo/README.md`](modelo/README.md).
 ## O custo
 
 Num Orange Pi Zero 3, uma olhada leva ~6,5 s com `DETECT_THREADS=1` e ~3,6 s
-com 2, por ~10% a mais de CPU no total. O container ocupa ~210 MB. Quantas
-olhadas por hora ele faz depende de quantas câmeras têm a detecção ligada e do
-nível de sensibilidade de cada uma: ver `docs/configuracao.md`.
+com 2, por ~10% a mais de CPU no total. O container ocupa ~230 MB, com picos
+de ~250 MB. Quantas olhadas por hora ele faz depende de quantas câmeras têm a
+detecção ligada e do nível de sensibilidade de cada uma: ver
+`docs/configuracao.md`.
 
 ## Build local
 

@@ -84,6 +84,7 @@ Sem banco de dados. O índice é um NDJSON por câmera por dia, append-only:
     init/4edbc50d8e70.mp4        # init segment (ftyp+moov), identificado por hash do conteúdo
     2026-08-08/1786220564113.mp4 # segmento; o nome é o início em epoch ms
     index/2026-08-08.ndjson
+    eventos/2026-08-08.ndjson    # marcas da detecção; só existe com ela ligada
 ```
 
 > **NDJSON** (*Newline-Delimited JSON*) é um arquivo texto com **um objeto JSON
@@ -115,6 +116,20 @@ Três detalhes que o formato compra barato:
   decodificar nada**
 - **`g` (geração)** identifica o init segment pelo **hash do seu conteúdo**, e
   não por um contador - ver abaixo
+
+O `eventos/` segue o mesmo desenho, append-only e um arquivo por dia, e só
+nasce na primeira marca: câmera sem detecção não ganha diretório vazio. Cada
+linha é um instante, e não um intervalo. A de movimento leva só o instante; a
+de objeto leva também a família, a classe, a confiança, o quadro olhado e a
+caixa em fração do quadro:
+
+```json
+{"instanteMs":1786220571900}
+{"instanteMs":1786220571900,"familia":"pessoa","classe":"person","score":0.87,"quadroMs":1786220573300,"caixa":[0.41,0.32,0.47,0.62]}
+```
+
+O arquivo do dia sai junto com o vídeo do dia na retenção. O que cada campo
+quer dizer está em [`deteccao.md`](deteccao.md).
 
 O layout em disco e o índice vivem em [`internal/store/`](../internal/store/).
 
