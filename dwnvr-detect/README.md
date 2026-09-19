@@ -49,7 +49,9 @@ RF-DETR Nano, treinado no COCO pela Roboflow (Apache-2.0), exportado a 512x288
 e quantizado para int8. A calibração foi feita com quadros de câmeras de
 segurança comuns, de dia e de noite. Em câmera de outra natureza (noite
 colorida, olho de peixe, térmica) ou fora de 16:9, cujo quadro chega esticado,
-ninguém mediu ainda. Detalhes em [`modelo/README.md`](modelo/README.md).
+ninguém mediu ainda (ver
+[`TODO_modelo-em-cameras-de-terceiros.md`](../docs/TODO/TODO_modelo-em-cameras-de-terceiros.md)).
+Detalhes em [`modelo/README.md`](modelo/README.md).
 
 ## O custo
 
