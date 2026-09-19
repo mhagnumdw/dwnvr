@@ -1,5 +1,6 @@
 <script>
   import { hhmm, hhmmss } from '../lib/format.js';
+  import { familia, iconeDa, desenhaIcone, NOME_DA_CLASSE } from '../lib/icones.js';
 
   let {
     ranges = [],       // [[inícioMs, fimMs], …] faixas com gravação
@@ -9,6 +10,12 @@
     // não é desenhada NEM ocupa altura: uma tira vazia permanente seria pior
     // que nada para quem não usa detecção.
     events = [],
+    // As marcas que o detector confirmou: [{ instanteMs, familia, classe }, …],
+    // em qualquer ordem. Uma marca é um INSTANTE - o do onset que a originou -,
+    // e não um intervalo: o detector olha uma vez por chegada, então não sabe
+    // quando o objeto saiu. Vazio segue a regra da faixa de calor: nem desenha
+    // nem ocupa altura.
+    objetos = [],
     dayStart = 0,
     dayEnd = 0,
     currentMs = 0,
@@ -24,17 +31,43 @@
   let canvas;
   let width = $state(0);
   let hoverMs = $state(null);
+  // A marca sob o ponteiro, quando ele está a um alvo dela: é o que a dica
+  // descreve e o que o fio do ponteiro aponta.
+  let hoverGrupo = $state(null);
 
   const MIN_SPAN = 20_000; // 20s de zoom máximo
 
-  // A PILHA, de cima para baixo: vídeo e movimento. Os números da barra e da
-  // régua são os que ela sempre teve; a faixa de calor entra por baixo só
+  // A PILHA, de cima para baixo: objeto, vídeo, movimento - cada altura quer
+  // dizer uma coisa só. Os números da barra e da régua são os que ela sempre
+  // teve; a faixa de calor entra por baixo e a de objeto por cima, cada uma só
   // quando há o que mostrar.
   const TOPO_PX = 6;
+  // Onde o ícone se apoia, acima da linha de objeto. Fixa, e não do tamanho do
+  // ícone: o ícone de classe é maior que o de família, e com a zona crescendo a
+  // barra desceria no meio de um zoom.
+  const ZONA_PX = 24;
+  const OBJ_PX = 10;   // a linha de objeto
   const BARRA_PX = 36;
-  const VAO_PX = 3;    // respiro entre a barra e a faixa de calor
+  const VAO_PX = 3;    // respiro entre a barra e cada faixa vizinha
   const CALOR_PX = 10;
   const REGUA_PX = 20; // o que sobra embaixo, para os rótulos de hora
+
+  // O desenho da marca de objeto: um tique na linha, e o ícone em cima SEMPRE
+  // que couber. Uma câmera marca dezenas de objetos por dia, não centenas, e o
+  // ícone cabe em boa parte do dia. O que não cabe fica só no tique - a cor já
+  // diz a família.
+  const TIQUE_PX = 3;
+  const ICONE_FAMILIA_PX = 14;
+  // A 20px o ícone de classe separa moto de bicicleta e gato de cachorro; a
+  // 14px eles viram o mesmo desenho. Por isso a classe só entra de perto.
+  const ICONE_CLASSE_PX = 20;
+  const CLASSE_ATE_MS = 20 * 60_000;
+  const ICONE_FOLGA_PX = 4; // respiro entre dois ícones vizinhos
+  // Distância em que o toque "cai" numa marca e vai ao instante dela, em vez de
+  // ao pixel tocado. O dedo é impreciso, o mouse não - o mesmo raciocínio do
+  // limiar de arraste lá embaixo.
+  const ALVO_MOUSE_PX = 8;
+  const ALVO_DEDO_PX = 16;
   const FUNDO = '#1b1f24';
 
   // A intensidade é ADAPTATIVA: o pico da janela visível vira o topo da
@@ -64,10 +97,31 @@
   });
 
   const temCalor = $derived(events.length > 0);
-  const barTop = TOPO_PX;
+  const temObjetos = $derived(objetos.length > 0);
+  const objTop = TOPO_PX + ZONA_PX;
+  const barTop = $derived(temObjetos ? objTop + OBJ_PX + VAO_PX : TOPO_PX);
   const alturaCanvas = $derived(
     barTop + BARRA_PX + (temCalor ? VAO_PX + CALOR_PX : 0) + REGUA_PX,
   );
+
+  // As marcas agrupadas por instante, crescentes. Uma olhada pode confirmar
+  // mais de uma família no mesmo quadro - pessoa e moto chegam juntas, e numa
+  // rua isso é comum -, e o grupo é
+  // desenhado como UMA marca dividida, e não como duas que se tampam.
+  // Dentro do grupo, a família de mais prioridade vem primeiro.
+  const grupos = $derived.by(() => {
+    const out = [];
+    for (const o of [...objetos].sort((a, b) => a.instanteMs - b.instanteMs)) {
+      const ult = out.at(-1);
+      if (ult && ult.t === o.instanteMs) ult.marcas.push(o);
+      else out.push({ t: o.instanteMs, marcas: [o] });
+    }
+    for (const gr of out) {
+      gr.marcas.sort((a, b) => familia(a.familia).prioridade - familia(b.familia).prioridade);
+      gr.prioridade = familia(gr.marcas[0].familia).prioridade;
+    }
+    return out;
+  });
 
   const span = $derived(Math.max(1, viewTo - viewFrom));
   const toX = (ms) => ((ms - viewFrom) / span) * width;
@@ -83,7 +137,7 @@
 
   $effect(() => {
     // Redesenha sempre que qualquer uma destas mudar.
-    ranges; events; viewFrom; viewTo; currentMs; width; hoverMs; alturaCanvas;
+    ranges; events; grupos; viewFrom; viewTo; currentMs; width; hoverMs; alturaCanvas;
     draw();
   });
 
@@ -117,6 +171,87 @@
     return lo;
   }
 
+  /* O tique de um grupo na linha de objeto. Duas famílias no mesmo instante
+   * dividem o tique em faixas, a de mais prioridade no alto. */
+  function tique(g, gr) {
+    const x = toX(gr.t) - TIQUE_PX / 2;
+    const h = OBJ_PX / gr.marcas.length;
+    gr.marcas.forEach((m, i) => {
+      g.fillStyle = familia(m.familia).cor;
+      g.fillRect(x, objTop + i * h, TIQUE_PX, h);
+    });
+  }
+
+  /* Onde cada ícone vai, sem que dois se sobreponham.
+   *
+   * Percorre por PRIORIDADE, e não por tempo: `pessoa` escolhe lugar antes de
+   * todos, então um gato vizinho nunca tira o ícone de uma pessoa. Um grupo de
+   * duas famílias pede lugar para os dois ícones lado a lado; sem espaço, tenta
+   * ao menos o da família principal. O que não coube continua no tique. */
+  function encaixa(visiveis, lado, porClasse) {
+    const ordem = [...visiveis].sort((a, b) => a.prioridade - b.prioridade || a.t - b.t);
+    const ocupados = [];
+    const postos = [];
+    const livre = (x0, x1) =>
+      ocupados.every(([a, b]) => x1 + ICONE_FOLGA_PX <= a || x0 >= b + ICONE_FOLGA_PX);
+    for (const gr of ordem) {
+      const tentativas = gr.marcas.length > 1 ? [gr.marcas, gr.marcas.slice(0, 1)] : [gr.marcas];
+      for (const marcas of tentativas) {
+        const larg = marcas.length * lado + (marcas.length - 1) * 2;
+        const x0 = toX(gr.t) - larg / 2;
+        if (!livre(x0, x0 + larg)) continue;
+        ocupados.push([x0, x0 + larg]);
+        marcas.forEach((m, i) => {
+          const nome = iconeDa(m, porClasse);
+          if (nome) postos.push({ nome, x: x0 + i * (lado + 2), cor: familia(m.familia).cor });
+        });
+        break;
+      }
+    }
+    return postos;
+  }
+
+  function desenhaObjetos(g) {
+    g.fillStyle = FUNDO;
+    g.fillRect(0, objTop, width, OBJ_PX);
+
+    // Um pouco além das bordas, para o ícone de uma marca logo fora da janela
+    // entrar pela metade em vez de pular para dentro de uma vez.
+    const visiveis = grupos.filter((gr) => {
+      const x = toX(gr.t);
+      return x > -ICONE_CLASSE_PX && x < width + ICONE_CLASSE_PX;
+    });
+
+    // A de menos prioridade primeiro: onde dois tiques caem no mesmo pixel, o
+    // de `pessoa` é o último pintado, e fica por cima.
+    for (const gr of [...visiveis].sort((a, b) => b.prioridade - a.prioridade)) tique(g, gr);
+
+    const porClasse = span <= CLASSE_ATE_MS;
+    const lado = porClasse ? ICONE_CLASSE_PX : ICONE_FAMILIA_PX;
+    for (const p of encaixa(visiveis, lado, porClasse)) {
+      desenhaIcone(g, p.nome, p.x, objTop - lado - 2, lado, p.cor);
+    }
+  }
+
+  /* A marca a até `alvo` px de x, ou null. No empate, a de mais prioridade. */
+  function grupoPerto(x, alvo) {
+    let melhor = null;
+    let dist = Infinity;
+    for (const gr of grupos) {
+      const d = Math.abs(toX(gr.t) - x);
+      if (d > alvo) continue;
+      if (d < dist || (d === dist && gr.prioridade < melhor.prioridade)) {
+        melhor = gr;
+        dist = d;
+      }
+    }
+    return melhor;
+  }
+
+  function descreve(gr) {
+    return gr.marcas.map((m) => NOME_DA_CLASSE[m.classe] ?? m.classe).join(' + ');
+  }
+
   function draw() {
     if (!canvas || !width) return;
     const dpr = window.devicePixelRatio || 1;
@@ -130,8 +265,11 @@
     const barH = BARRA_PX;
     const calorTop = barTop + barH + VAO_PX;
     // O fio do cursor e o do ponteiro atravessam a pilha inteira: eles marcam
-    // UM instante, e um instante vale igual nas duas camadas.
-    const pilhaH = barH + (temCalor ? VAO_PX + CALOR_PX : 0);
+    // UM instante, e um instante vale igual nas três camadas.
+    const pilhaTop = temObjetos ? objTop : barTop;
+    const pilhaH = (temCalor ? calorTop + CALOR_PX : barTop + barH) - pilhaTop;
+
+    if (temObjetos) desenhaObjetos(g);
 
     g.fillStyle = FUNDO;
     g.fillRect(0, barTop, width, barH);
@@ -175,14 +313,14 @@
     if (hoverMs !== null) {
       const x = toX(hoverMs);
       g.fillStyle = 'rgba(230,237,243,.35)';
-      g.fillRect(x, barTop, 1, pilhaH);
+      g.fillRect(x, pilhaTop, 1, pilhaH);
     }
 
     if (currentMs) {
       const x = toX(currentMs);
       if (x >= -2 && x <= width + 2) {
         g.fillStyle = '#f85149';
-        g.fillRect(x - 1.5, barTop - 3, 3, pilhaH + 6);
+        g.fillRect(x - 1.5, pilhaTop - 3, 3, pilhaH + 6);
       }
     }
   }
@@ -237,7 +375,11 @@
   function onPointerMove(ev) {
     const p = pointers.get(ev.pointerId);
     if (!p) {
-      if (ev.pointerType === 'mouse') hoverMs = toMs(localX(ev));
+      if (ev.pointerType === 'mouse') {
+        const x = localX(ev);
+        hoverGrupo = grupoPerto(x, ALVO_MOUSE_PX);
+        hoverMs = hoverGrupo ? hoverGrupo.t : toMs(x);
+      }
       return;
     }
     const x = localX(ev);
@@ -305,7 +447,10 @@
     // No desktop a roda já resolve o zoom, e clicar repetido para ajustar a
     // posição não pode virar zoom surpresa.
     if (ev.pointerType !== 'mouse') lastTap = { t: ev.timeStamp, x };
-    onseek(Math.round(toMs(x)));
+    // Toque que cai numa marca de objeto vai ao instante DELA: acertar o pixel
+    // de um tique de 3px com o dedo não pode ser a condição para chegar nele.
+    const gr = grupoPerto(x, ev.pointerType === 'mouse' ? ALVO_MOUSE_PX : ALVO_DEDO_PX);
+    onseek(gr ? gr.t : Math.round(toMs(x)));
   }
 
   function onWheel(ev) {
@@ -375,13 +520,19 @@
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
     onpointercancel={onPointerUp}
-    onpointerleave={() => (hoverMs = null)}
+    onpointerleave={() => {
+      hoverMs = null;
+      hoverGrupo = null;
+    }}
     onwheel={onWheel}
   ></canvas>
 
   {#if hoverMs !== null}
-    <span class="tip mono" style:left="{Math.min(Math.max(toX(hoverMs), 28), width - 28)}px">
-      {hhmmss(hoverMs)}
+    <!-- A margem da borda cresce com o texto: a dica de uma marca é mais longa
+         que a de um horário, e sairia pela lateral. -->
+    {@const margem = hoverGrupo ? 90 : 28}
+    <span class="tip mono" style:left="{Math.min(Math.max(toX(hoverMs), margem), width - margem)}px">
+      {hhmmss(hoverMs)}{#if hoverGrupo}&nbsp;· {descreve(hoverGrupo)}{/if}
     </span>
   {/if}
 </div>
