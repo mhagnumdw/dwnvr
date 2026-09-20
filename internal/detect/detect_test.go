@@ -613,6 +613,27 @@ func TestNaoAlocaNoCaminhoQuente(t *testing.T) {
 	}
 }
 
+// TestScoreNaoAlocaNoCaminhoQuente é o mesmo requisito do teste acima, mas
+// sobre as FUNÇÕES, e não sobre os mecanismos: função nova entra em
+// FuncoesDeScore antes de entrar em Mecanismos, e sem isto ela passaria sem
+// que ninguém medisse o preço dela por quadro.
+func TestScoreNaoAlocaNoCaminhoQuente(t *testing.T) {
+	for nome, novo := range FuncoesDeScore {
+		s := novo()
+		i := 0
+		for ; i < 400; i++ {
+			s.Empurra(cenaParada(i), false, 67)
+		}
+		n := testing.AllocsPerRun(2000, func() {
+			i++
+			s.Empurra(cenaParada(i), false, 67)
+		})
+		if n != 0 {
+			t.Errorf("%s: %v alocações por quadro, esperado 0", nome, n)
+		}
+	}
+}
+
 func TestDetectorNenhumNaoOlhaEIssoEUmResultado(t *testing.T) {
 	d := Detectores["nenhum"]("")
 	achados, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("gop")})
