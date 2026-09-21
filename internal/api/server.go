@@ -150,6 +150,12 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	// câmera nova parte dela, para seguir o defaults do dwnvr.yaml.
 	resp := map[string]any{"cameras": cams, "padrao": s.cfg.Resolve(config.Camera{})}
 
+	// A interface só mostra a aba Detecções com o detector de objetos
+	// configurado: sem ele não há detecção nenhuma para listar. Vai aqui, e
+	// não no /api/health, porque esta é a resposta que a interface busca ao
+	// entrar.
+	resp["detector"] = s.mgr.Detector() != nil
+
 	if orphans, err := s.store.Orphans(registered); err != nil {
 		// Não impede a listagem: no caso comum não há órfão nenhum, e uma falha
 		// ao varrer o storage não deve derrubar a tela de câmeras inteira.

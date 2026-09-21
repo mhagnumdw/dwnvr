@@ -60,7 +60,9 @@ e não como "não tem áudio".
 
 O `GET /api/cameras` traz também o `padrao`: uma câmera vazia com os `defaults`
 do `dwnvr.yaml` aplicados. É dele que o formulário de câmera nova parte, e não
-de números repetidos na interface.
+de números repetidos na interface. E traz o `detector`: `true` quando o
+detector de objetos está configurado. Sem ele, a interface esconde a aba
+Detecções.
 
 Cada câmera do `/api/health` diz se a marcação de movimento está ligada
 (`detect`) e quantos onsets ela marcou desde que o dwnvr subiu (`onsets`).
