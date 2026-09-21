@@ -228,6 +228,75 @@ leva o instante do onset, mas só é gravada depois que o detector olha -, entã
 a cauda volta 30 min antes do último onset e descarta o que já tinha. Pedir a
 partir do último onset perderia para sempre o objeto de um onset anterior.
 
+## Detecções
+
+As detecções de objeto de todas as câmeras juntas: é o que a tela de Detecções
+rola.
+
+| Endpoint | Parâmetros | Devolve |
+|---|---|---|
+| `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias` | uma página de detecções, da mais nova para a mais velha |
+| `GET /api/deteccoes/quadro` | `cam`, `t` | o JPEG do quadro que o detector olhou, `immutable` |
+
+**`/api/deteccoes`** pagina por cursor, e não por número de página: o dia
+corrente ganha detecção nova a todo momento, e "página 3" mudaria de conteúdo
+entre um pedido e outro.
+
+- `antes=<ms>`: as detecções anteriores a este instante, para rolar para baixo.
+  Sem cursor nenhum, vêm as mais novas.
+- `depois=<ms>`: as posteriores, para rolar para cima depois de um "ir para".
+  São as mais próximas do cursor, mas a resposta vem na mesma ordem das outras:
+  da mais nova para a mais velha.
+- `limite`: quantas, de 1 a 200. Padrão 60.
+- `cams=cam_a,cam_b` e `familias=pessoa,veiculo`: só essas. Sem eles, todas.
+  Câmera não cadastrada ou família desconhecida é erro.
+
+```json
+{
+  "deteccoes": [
+    {
+      "cam": "cam_teste1",
+      "instanteMs": 1786220571043,
+      "quadroMs": 1786220572851,
+      "temQuadro": true,
+      "objetos": [
+        { "familia": "pessoa", "classe": "person", "score": 0.87, "caixa": [0.5156, 0.2611, 0.6734, 0.9778] },
+        { "familia": "veiculo", "classe": "car", "score": 0.61, "caixa": [0.05, 0.4, 0.3, 0.7] }
+      ]
+    }
+  ],
+  "fim": false
+}
+```
+
+Uma **detecção** é uma olhada do detector numa câmera: o instante do onset e
+tudo o que ele achou naquele quadro. Pessoa e carro no mesmo quadro são duas
+marcas no `eventos/{dia}.ndjson`, mas uma detecção só, com dois objetos. O
+filtro de família tira objetos, e a detecção que fica sem nenhum sai da página.
+`caixa` e `quadroMs` são os mesmos de `/api/rec/events`.
+
+O próximo cursor é o `instanteMs` da última detecção da página. A página **não
+parte um instante ao meio**: se a última empata, no mesmo milissegundo, com a de
+outra câmera, as duas vêm e a página passa um pouco do limite - senão o cursor
+pularia a que ficou de fora. `fim` diz que não há mais nada na direção pedida;
+ele pode vir falso na página que por acaso pegou a última detecção, e a próxima
+vem vazia e com `fim` verdadeiro.
+
+A marca de objeto chega **atrasada**, como em `/api/rec/events`: ela leva o
+instante do onset, mas só é gravada depois que o detector olha. Uma detecção
+nova pode, então, cair abaixo do topo que a tela já mostrou.
+
+O servidor memoriza as marcas de objeto de cada dia já lido, sem os onsets:
+dia passado é lido do disco uma vez só, e do dia corrente só o pedaço que o
+arquivo cresceu. Medido com 11 dias de uma instalação real, nove câmeras e 7.987
+detecções: 0,85 MB em memória, e uma página de 60 em 0,2 ms depois da primeira
+leitura.
+
+**`/api/deteccoes/quadro`** serve o arquivo como ele está no disco, sem
+redimensionar nem reencodar: `t` é o `instanteMs` da detecção. Ele nunca muda
+depois de gravado, então vai com `immutable` e rolar de volta não pede nada ao
+servidor. Detecção com `temQuadro` falso responde 404.
+
 ## Live
 
 | Endpoint | O que faz |

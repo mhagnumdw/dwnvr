@@ -135,6 +135,9 @@ type Camera struct {
 	// quadrosBytes é o que os quadros de cada dia ocupam, memorizado. Ver
 	// QuadrosBytes.
 	quadrosBytes map[string]int64
+
+	// memo são as marcas de objeto de cada dia já lido. Ver ObjetosDoDia.
+	memo objetosMemo
 }
 
 type Store struct {

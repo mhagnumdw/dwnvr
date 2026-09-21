@@ -92,6 +92,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/rec/playlist.m3u8", s.requireAuth(s.handlePlaylist))
 	mux.HandleFunc("GET /api/rec/export", s.requireAuth(s.handleExport))
 
+	// Detecções de objeto, de todas as câmeras juntas: a tela de Detecções.
+	mux.HandleFunc("GET /api/deteccoes", s.requireAuth(s.handleDeteccoes))
+	mux.HandleFunc("GET /api/deteccoes/quadro", s.requireAuth(s.handleQuadroDaDeteccao))
+
 	// Live: sinalização e mídia ficam com o go2rtc; o dwnvr só faz proxy.
 	mux.Handle("/api/live/", s.requireAuthHandler(s.liveProxy()))
 

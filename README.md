@@ -309,6 +309,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── cameras.go      cadastro de câmeras, cruzado com os streams do go2rtc
 │   │   ├── probe.go        descobre se um stream ocioso entrega áudio, com cache
 │   │   ├── recordings.go   dias, timeline, init, segmentos, thumbnail, HLS, exportação
+│   │   ├── deteccoes.go    as detecções de todas as câmeras, paginadas, e o quadro de cada uma
 │   │   ├── live.go         proxy do go2rtc, com a credencial ficando no servidor
 │   │   ├── web.go          serve a SPA embutida
 │   │   └── dist/           build da interface, versionado (ver web/README.md)
