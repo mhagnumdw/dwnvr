@@ -799,16 +799,6 @@
   }
 
   .familia.on { color: var(--fg); border-color: var(--accent); }
-
-  /* A borda azul é o "ligado" destes botões: o hover global, que pinta a
-     borda de azul, fazia o desligado parecer ligado debaixo do mouse. Aqui o
-     hover só clareia o fundo. */
-  @media (hover: hover) {
-    .barra button:hover:not(:disabled):not(.on) {
-      border-color: var(--line);
-      background: var(--panel-2);
-    }
-  }
   .familia img { display: block; flex: none; }
   .familia:not(.on) img { opacity: 0.4; }
 
