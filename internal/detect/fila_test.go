@@ -19,15 +19,15 @@ type detectorDeTeste struct {
 }
 
 func (d *detectorDeTeste) Nome() string { return "teste" }
-func (d *detectorDeTeste) Olha(ctx context.Context, p Pedaco) ([]Achado, error) {
+func (d *detectorDeTeste) Olha(ctx context.Context, p Pedaco) (Visao, error) {
 	d.mu.Lock()
 	d.vistos = append(d.vistos, p.Camera)
 	d.mu.Unlock()
 	select {
 	case err := <-d.solta:
-		return []Achado{}, err
+		return Visao{Achados: []Achado{}}, err
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return Visao{}, ctx.Err()
 	}
 }
 

@@ -7,8 +7,15 @@ quadro dele. Nada mais: sem estado, sem fila, sem decidir o que vira marca.
 Isso tudo é do dwnvr, que é Go puro e não pode carregar decodificador de vídeo
 nem runtime de modelo.
 
-  POST /detect?piso=0.20    corpo: o pedaço (.mp4)   -> {"achados": [...], ...}
+  POST /detect?piso=0.20&quadro=480&qualidade=75
+                            corpo: o pedaço (.mp4)   -> {"achados": [...], ...}
   GET  /health                                       -> o modelo carregado
+
+Com `quadro`, e havendo achado, a resposta traz também o quadro olhado em
+JPEG, reduzido àquela largura e em base64. É a miniatura da tela de Detecções:
+o quadro sai daqui porque aqui ele já está decodificado - o dwnvr não tem como
+decodificar vídeo -, e a caixa, que vai em fração, cai no lugar certo sobre
+ele em qualquer tamanho.
 
 Faz UMA detecção por vez, de propósito: numa placa de 4 núcleos que também
 está gravando, duas em paralelo seriam o dobro de RAM de pico sem uma resposta
@@ -30,6 +37,8 @@ A porta não é a 8555 de propósito: é a do WebRTC do go2rtc, que roda ao lado
 """
 from __future__ import annotations
 
+import base64
+import fractions
 import http.server
 import io
 import json
@@ -54,6 +63,10 @@ PISO_PADRAO = 0.20
 #: Maior pedaço aceito. O dwnvr não guarda GOP maior que 4 MB por câmera
 #: (`TetoDoGOPBytes`); isto é só para um cliente errado não esgotar a RAM.
 MAIOR_PEDACO = 16 << 20
+
+#: Maior largura aceita para o quadro de volta. Acima disso o JPEG custaria
+#: mais banda e mais tempo do que qualquer tela usa; o dwnvr pede 480.
+MAIOR_QUADRO = 1920
 
 #: Normalização do ImageNet, a do treino do RF-DETR.
 IMAGENET_MEDIA = (0.485, 0.456, 0.406)
@@ -104,6 +117,34 @@ def ultimo_quadro(fmp4: bytes) -> tuple[int, np.ndarray]:
     if ultimo is None:
         raise PedacoRuim("nenhum quadro no pedaço")
     return n, ultimo.to_ndarray(format="rgb24")
+
+
+def jpeg_do_quadro(img: np.ndarray, largura: int, qualidade: int) -> bytes:
+    """Devolve o quadro em JPEG, reduzido a `largura` mantendo a proporção.
+
+    Encoda com o PyAV, que já está aqui pelo vídeo: um container mjpeg de um
+    frame é um arquivo .jpg. O redimensionamento é o do swscale, no `reformat`.
+    """
+    alt, larg = img.shape[0], img.shape[1]
+    if largura >= larg:  # nunca ampliar: não inventa detalhe e só custa bytes
+        largura = larg
+    altura = max(2, round(alt * largura / larg))
+    largura, altura = largura - largura % 2, altura - altura % 2
+
+    quadro = av.VideoFrame.from_ndarray(img, format="rgb24")
+    quadro = quadro.reformat(width=largura, height=altura, format="yuvj420p")
+
+    buf = io.BytesIO()
+    with av.open(buf, mode="w", format="mjpeg") as c:
+        st = c.add_stream("mjpeg", rate=fractions.Fraction(1, 1))
+        st.width, st.height, st.pix_fmt = largura, altura, "yuvj420p"
+        # No mjpeg a qualidade vai pelo quantizador global, de 1 (melhor) a 31.
+        st.codec_context.qmin = st.codec_context.qmax = max(1, min(31, round(32 - qualidade * 31 / 100)))
+        for pacote in st.encode(quadro):
+            c.mux(pacote)
+        for pacote in st.encode():
+            c.mux(pacote)
+    return buf.getvalue()
 
 
 # ------------------------------------------------------------------ o preparo
@@ -204,10 +245,13 @@ class Atendente(http.server.BaseHTTPRequestHandler):
         url = urllib.parse.urlsplit(self.path)
         if url.path != "/detect":
             return self._responde(404, {"erro": "não existe"})
+        consulta = urllib.parse.parse_qs(url.query)
         try:
-            piso = float(urllib.parse.parse_qs(url.query).get("piso", [PISO_PADRAO])[0])
+            piso = float(consulta.get("piso", [PISO_PADRAO])[0])
+            largura_quadro = min(MAIOR_QUADRO, int(consulta.get("quadro", [0])[0]))
+            qualidade = min(100, max(1, int(consulta.get("qualidade", [75])[0])))
         except ValueError:
-            return self._responde(400, {"erro": "piso ilegível"})
+            return self._responde(400, {"erro": "piso, quadro ou qualidade ilegível"})
         tamanho = int(self.headers.get("Content-Length") or 0)
         if tamanho <= 0 or tamanho > MAIOR_PEDACO:
             return self._responde(413 if tamanho > 0 else 400,
@@ -223,13 +267,28 @@ class Atendente(http.server.BaseHTTPRequestHandler):
             t1 = time.perf_counter()
             achados, tempos = self.modelo.olha(img, piso)
             tempos["decodifica"] = round((t1 - t0) * 1000, 1)
-        self._responde(200, {
+
+            # Só com achado: quadro de onset sem objeto ninguém vê, e são a
+            # maior parte das olhadas. Falhar em encodar não perde a detecção.
+            quadro = None
+            if achados and largura_quadro > 0:
+                t2 = time.perf_counter()
+                try:
+                    quadro = base64.b64encode(jpeg_do_quadro(img, largura_quadro, qualidade)).decode()
+                    tempos["quadro"] = round((time.perf_counter() - t2) * 1000, 1)
+                except av.error.FFmpegError as ex:
+                    print(f"quadro não encodou: {ex}", file=sys.stderr, flush=True)
+
+        resposta = {
             "achados": achados,
             "quadrosDecodificados": n,
             "largura": int(img.shape[1]),
             "altura": int(img.shape[0]),
             "tempoMs": tempos,
-        })
+        }
+        if quadro:
+            resposta["quadro"] = quadro
+        self._responde(200, resposta)
 
     def log_message(self, formato, *args):
         pass  # centenas de pedidos por hora; quem conta é a telemetria do dwnvr

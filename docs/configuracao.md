@@ -94,8 +94,10 @@ Como o destaque, o onset e os níveis funcionam por dentro está em
 A marca de movimento diz QUANDO. O detector diz O QUÊ: a cada marca, o dwnvr
 separa o pedaço de vídeo daquele instante e pergunta ao container
 `dwnvr-detect` o que havia nele. Se era pessoa, veículo ou animal, a marca de
-objeto vai para o mesmo `eventos/{dia}.ndjson`, e some junto com o vídeo na
-retenção.
+objeto vai para o mesmo `eventos/{dia}.ndjson`, e o quadro em que o objeto
+aparece vai para `quadros/{dia}/{instanteMs}.jpg`, do lado. Os dois somem junto com o vídeo
+na retenção, e os quadros contam na cota da câmera: ~14 KB por detecção, uns
+37 MB num dia de nove câmeras movimentadas.
 
 Ele é **opcional** e mora num container à parte, porque decodificar vídeo e
 rodar um modelo exigem código nativo e o dwnvr é Go puro. Liga-se no

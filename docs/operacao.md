@@ -12,7 +12,7 @@ arquivos ficam em `./config` e `./storage`, ao lado do clone.
 | `/mnt/storage/dwnvr/config/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuração, editada à mão |
 | `/mnt/storage/dwnvr/config/cameras.json` | `/etc/dwnvr/cameras.json` | câmeras, gravado pela tela de cadastro |
 | `/mnt/storage/dwnvr/config/.session-secret` | `/etc/dwnvr/.session-secret` | assina os cookies de sessão (0600) |
-| `/mnt/storage/dwnvr/recordings/` | `/storage/` | gravações, índices, init segments e marcas de movimento |
+| `/mnt/storage/dwnvr/recordings/` | `/storage/` | gravações, índices, init segments, marcas de movimento e quadros das detecções |
 
 Ou seja: **edite e inspecione tudo pelo host**, sem entrar no container.
 
@@ -22,6 +22,9 @@ tail -f /mnt/storage/dwnvr/recordings/cam_iota/index/$(date +%F).ndjson
 
 # as marcas de movimento, se a câmera estiver com a detecção ligada
 tail -f /mnt/storage/dwnvr/recordings/cam_iota/eventos/$(date +%F).ndjson
+
+# os quadros das detecções do dia, um .jpg por detecção, nomeado pelo instante
+ls -l /mnt/storage/dwnvr/recordings/cam_iota/quadros/$(date +%F)/
 ```
 
 Para descobrir os caminhos de uma instalação qualquer:

@@ -33,13 +33,13 @@ func TestSidecarMandaOPedacoEOPisoELeOsAchados(t *testing.T) {
 		}
 		io.WriteString(w, `{"achados":[{"classe":"person","score":0.87,"caixa":[0.1,0.2,0.3,0.4]}]}`)
 	})
-	achados, err := d.Olha(t.Context(), Pedaco{Fmp4: pedaco})
+	visao, err := d.Olha(t.Context(), Pedaco{Fmp4: pedaco})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := Achado{Classe: "person", Score: 0.87, Caixa: [4]float64{0.1, 0.2, 0.3, 0.4}}
-	if len(achados) != 1 || achados[0] != want {
-		t.Errorf("achados %+v, esperado [%+v]", achados, want)
+	if len(visao.Achados) != 1 || visao.Achados[0] != want {
+		t.Errorf("achados %+v, esperado [%+v]", visao.Achados, want)
 	}
 }
 
@@ -51,9 +51,9 @@ func TestSidecarOlhadaVaziaEResultado(t *testing.T) {
 		d := sidecarFalso(t, func(w http.ResponseWriter, r *http.Request) {
 			io.WriteString(w, corpo)
 		})
-		achados, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("x")})
-		if err != nil || achados == nil || len(achados) != 0 {
-			t.Errorf("%s: achados %v, erro %v: esperado fatia vazia sem erro", corpo, achados, err)
+		visao, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("x")})
+		if err != nil || visao.Achados == nil || len(visao.Achados) != 0 {
+			t.Errorf("%s: achados %v, erro %v: esperado fatia vazia sem erro", corpo, visao.Achados, err)
 		}
 	}
 }

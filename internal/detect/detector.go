@@ -14,6 +14,23 @@ type Achado struct {
 	Caixa [4]float64 `json:"caixa"`
 }
 
+// Visao é o que o detector devolve de uma olhada: os achados e, quando o
+// quadro foi pedido, o próprio quadro em JPEG.
+//
+// O quadro é o MESMO que o modelo olhou - o último do pedaço -, e por isso a
+// caixa do Achado, que vai em fração, cai no lugar certo sobre ele em qualquer
+// tamanho. É ele que a tela de Detecções mostra.
+type Visao struct {
+	// Achados é toda caixa a partir de PisoDoDetector. Fatia vazia é
+	// resultado: "este onset foi olhado, e não era nada".
+	Achados []Achado
+
+	// Quadro é o JPEG do quadro olhado, já reduzido a LarguraDoQuadro, ou
+	// nil. Vem só quando houve achado: quadro de onset sem objeto ninguém vê,
+	// e gravá-lo custaria disco para nada.
+	Quadro []byte
+}
+
 // Detector é o terceiro contrato: quem olha o pedaço de vídeo e diz o que
 // havia no último quadro dele.
 //
@@ -28,10 +45,10 @@ type Achado struct {
 // reinicia não pode virar marca falsa na timeline.
 type Detector interface {
 	// Olha manda o pedaço e devolve o que havia no ÚLTIMO quadro dele, que é
-	// o quadro que o Mecanismo mandou olhar. Fatia vazia é resultado, não
-	// falta de resultado: é ela que diz "este onset já foi olhado, e não era
-	// nada" - e é ela que conta como falta no rastreio.
-	Olha(ctx context.Context, p Pedaco) ([]Achado, error)
+	// o quadro que o Mecanismo mandou olhar. Visao com Achados vazio é
+	// resultado, não falta de resultado: é ela que diz "este onset já foi
+	// olhado, e não era nada" - e é ela que conta como falta no rastreio.
+	Olha(ctx context.Context, p Pedaco) (Visao, error)
 
 	Nome() string
 }
@@ -53,4 +70,4 @@ type nenhum struct{}
 
 func (nenhum) Nome() string { return "nenhum" }
 
-func (nenhum) Olha(context.Context, Pedaco) ([]Achado, error) { return nil, nil }
+func (nenhum) Olha(context.Context, Pedaco) (Visao, error) { return Visao{}, nil }

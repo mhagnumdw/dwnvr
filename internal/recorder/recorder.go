@@ -402,6 +402,19 @@ func (r *Recorder) olhou(o detect.Olhada) {
 	}
 	r.comObjeto.Add(1)
 
+	// O quadro é gravado UMA vez, antes das linhas, e as duas famílias do
+	// mesmo instante apontam para o mesmo arquivo. Falhar aqui não cancela a
+	// marca: melhor uma detecção sem miniatura do que uma detecção perdida.
+	var temQuadro bool
+	if len(o.Quadro) > 0 {
+		dia := store.Evento{InstanteMs: o.Pedaco.OnsetMs}.Day()
+		if err := r.idx.WriteQuadro(dia, o.Pedaco.OnsetMs, o.Quadro); err != nil {
+			r.log.Warn("falha ao gravar o quadro da detecção", "erro", err)
+		} else {
+			temQuadro = true
+		}
+	}
+
 	// Uma linha por família, com a classe de maior confiança: duas pessoas
 	// chegando juntas são uma chegada de `pessoa` na timeline.
 	melhor := map[detect.Familia]detect.Achado{}
@@ -423,7 +436,8 @@ func (r *Recorder) olhou(o detect.Olhada) {
 			caixa[i] = math.Round(v*10000) / 10000
 		}
 		ev := store.Evento{InstanteMs: o.Pedaco.OnsetMs, Familia: string(f), Classe: a.Classe,
-			Score: math.Round(a.Score*1000) / 1000, QuadroMs: o.Pedaco.QuadroMs, Caixa: &caixa}
+			Score: math.Round(a.Score*1000) / 1000, QuadroMs: o.Pedaco.QuadroMs, Caixa: &caixa,
+			TemQuadro: temQuadro}
 		if err := r.idx.AppendEvento(ev); err != nil {
 			r.log.Warn("falha ao gravar marca de objeto", "erro", err)
 		}

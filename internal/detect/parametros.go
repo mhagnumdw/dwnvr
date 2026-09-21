@@ -200,6 +200,23 @@ var FamiliasPadrao = map[string]Familia{
 // que passa do corte deixaria o rastreio cego para metade das aparições dele.
 const PisoDoDetector = 0.20
 
+// LarguraDoQuadro é a largura, em pixels, do JPEG do quadro que o detector
+// devolve com os achados - o que a tela de Detecções mostra como miniatura.
+//
+// 480 porque é o dobro da maior miniatura que a grade usa (240 px numa tela de
+// desktop com 5 colunas), o que deixa a imagem nítida em tela de alta
+// densidade e ainda serve à folha do player, que abre em 850. A altura sai da
+// proporção da câmera; a caixa vai em fração e não depende de nenhum dos dois.
+const LarguraDoQuadro = 480
+
+// QualidadeDoQuadro é a qualidade JPEG do quadro gravado, de 1 a 100.
+//
+// Medido em 40 quadros reais do pitoco, a 480 px: 75 dá 13,8 KB de média e
+// 15,8 KB no pior. Num dia de 2.700 detecções em nove câmeras são ~37 MB, e
+// ~1,1 GB em 30 dias de retenção - contra dezenas de GB de vídeo por dia.
+// Esses bytes entram na cota da câmera, como o vídeo.
+const QualidadeDoQuadro = 75
+
 // CorteDaFamilia é a confiança a partir da qual uma caixa pode virar marca.
 //
 // 0,40, e não 0,35: medido contra rótulos feitos à mão, ganha em `pessoa` e

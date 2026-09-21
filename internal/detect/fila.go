@@ -15,7 +15,11 @@ type Olhada struct {
 	// segurá-los até quem recebe terminar seria RAM à toa.
 	Pedaco  Pedaco
 	Achados []Achado
-	Erro    error
+
+	// Quadro é o JPEG do quadro olhado, ou nil. Ver Visao.
+	Quadro []byte
+
+	Erro error
 }
 
 // Fila liga os recorders ao Detector. As câmeras oferecem pedaços; UM
@@ -197,7 +201,7 @@ func (f *Fila) Roda(ctx context.Context) {
 		}
 		octx, cancel := context.WithTimeout(ctx, f.prazo)
 		inicio := time.Now()
-		achados, err := f.det.Olha(octx, p)
+		visao, err := f.det.Olha(octx, p)
 		levou := time.Since(inicio)
 		cancel()
 		if ctx.Err() != nil {
@@ -209,7 +213,7 @@ func (f *Fila) Roda(ctx context.Context) {
 			f.mu.Unlock()
 		}
 		p.Fmp4 = nil
-		f.entrega(Olhada{Pedaco: p, Achados: achados, Erro: err})
+		f.entrega(Olhada{Pedaco: p, Achados: visao.Achados, Quadro: visao.Quadro, Erro: err})
 		f.mu.Lock()
 		f.olhando = ""
 		f.mu.Unlock()
