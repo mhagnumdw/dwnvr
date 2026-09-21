@@ -14,7 +14,9 @@
 <script>
   import { onMount } from 'svelte';
 
-  let { onclose = () => {}, children } = $props();
+  // `largura` é o teto no desktop: o formulário lê bem em 460px, e a folha de
+  // uma detecção mostra um quadro de câmera, que pede mais.
+  let { onclose = () => {}, largura = 460, children } = $props();
 
   const self = {};
   onMount(() => {
@@ -34,7 +36,7 @@
   role="presentation"
   onclick={(e) => e.target === e.currentTarget && onclose()}
 >
-  <div class="card sheet">{@render children?.()}</div>
+  <div class="card sheet" style:--largura="{largura}px">{@render children?.()}</div>
 </div>
 
 <style>
@@ -60,6 +62,6 @@
 
   @media (min-width: 640px) {
     .overlay { place-items: center; padding: 20px; }
-    .sheet { max-width: 460px; border-radius: var(--radius); }
+    .sheet { max-width: var(--largura); border-radius: var(--radius); }
   }
 </style>

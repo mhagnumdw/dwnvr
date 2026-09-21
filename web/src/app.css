@@ -63,7 +63,12 @@ button {
   transition: border-color 0.12s, background 0.12s;
 }
 
-button:hover:not(:disabled) { border-color: var(--accent); }
+/* Só onde existe ponteiro de verdade. No toque o navegador deixa o botão tocado
+   em :hover até o próximo toque em outro lugar, e o botão que acabou de ser
+   desligado continuava de borda azul, como se ainda estivesse ligado. */
+@media (hover: hover) {
+  button:hover:not(:disabled) { border-color: var(--accent); }
+}
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 button.primary {

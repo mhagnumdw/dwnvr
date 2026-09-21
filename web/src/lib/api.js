@@ -92,6 +92,19 @@ export const api = {
   // tela pergunta de novo em ciclo, e só quer o que ainda não tem.
   eventsRange: (cam, from, to) =>
     request(`rec/events?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
+
+  // Uma página das detecções de objeto de todas as câmeras, da mais nova para a
+  // mais velha. `antes` e `depois` são o cursor (um ou nenhum); `cams` e
+  // `familias` vazios ou nulos querem dizer "todas".
+  deteccoes: ({ antes, depois, limite, cams, familias }) => {
+    const q = new URLSearchParams();
+    if (antes != null) q.set('antes', antes);
+    if (depois != null) q.set('depois', depois);
+    if (limite) q.set('limite', limite);
+    if (cams?.length) q.set('cams', cams.join(','));
+    if (familias?.length) q.set('familias', familias.join(','));
+    return request('deteccoes?' + q);
+  },
 };
 
 // URLs de mídia são montadas, não buscadas: vão direto num <video>, num <img>
@@ -100,6 +113,8 @@ export const mediaURL = {
   init: (cam, gen) => `api/rec/init?cam=${encodeURIComponent(cam)}&g=${gen}`,
   segment: (cam, t) => `api/rec/seg?cam=${encodeURIComponent(cam)}&t=${t}`,
   thumb: (cam, t) => `api/rec/thumb?cam=${encodeURIComponent(cam)}&t=${t}`,
+  // O JPEG que o detector de objetos olhou. `t` é o `instanteMs` da detecção.
+  quadro: (cam, t) => `api/deteccoes/quadro?cam=${encodeURIComponent(cam)}&t=${t}`,
   export: (cam, from, to) =>
     `api/rec/export?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`,
   // O live vai para o go2rtc através do proxy do dwnvr, para que a credencial
