@@ -29,6 +29,12 @@
 
   const player = new Player();
   let tocando = $state(false);
+  // O vídeo já pintou o primeiro quadro. Entre o toque no play e esse quadro
+  // passam uns 300ms buscando bytes, e nesse intervalo o `<video>` ainda é
+  // transparente: é ele quem decide quando o quadro parado sai de cena, não o
+  // clique. Trocar no clique deixava aparecer a foto sem as caixas no meio do
+  // caminho - o quadro com as caixas fica até o vídeo ter o que mostrar.
+  let videoPintou = $state(false);
   let erro = $state('');
   let Caixas = $state(null);
 
@@ -80,6 +86,9 @@
 
   // --- o trecho ---------------------------------------------------------------
 
+  const fimMs = $derived(det.instanteMs + DEPOIS_MS);
+  const inicioMs = $derived(det.instanteMs - ANTES_MS);
+
   async function tocar() {
     if (tocando) {
       player.toggle();
@@ -89,8 +98,7 @@
     erro = '';
     if (!Caixas) import('./Caixas.svelte').then((m) => (Caixas = m.default));
     try {
-      const inicio = det.instanteMs - ANTES_MS;
-      const t = await api.timelineRange(det.cam, inicio, det.instanteMs + DEPOIS_MS);
+      const t = await api.timelineRange(det.cam, inicioMs, fimMs);
       if (!video) return; // a folha fechou durante a busca
       if (!t.segments.length) {
         erro = 'sem gravação neste trecho';
@@ -99,23 +107,38 @@
       }
       player.attach(video);
       player.setSource(det.cam, t.gens, t.segments);
-      await player.seek(inicio);
+      await player.seek(inicioMs);
     } catch (e) {
       erro = e.message;
       tocando = false;
     }
   }
 
-  // Passou do fim do trecho: para ali. Sem isto o player seguiria pedindo os
-  // segmentos seguintes, que a lista cortada nem tem - e ficaria esperando.
+  // Passou do fim do trecho: acaba ali e a folha volta ao quadro da detecção,
+  // como quando abriu. Parar é obrigatório - sem isso o player seguiria
+  // pedindo os segmentos seguintes, que a lista cortada nem tem, e ficaria
+  // esperando. Voltar ao quadro é o que torna o trecho repetível: o player
+  // sai de cena, e o play seguinte refaz o mesmo caminho da primeira vez.
+  //
+  // Só pausar não bastava por dois motivos. O relógio parava no fim, e o play
+  // seguinte reacendia `playing` com a posição ainda passada do fim - este
+  // mesmo efeito pausava no quadro seguinte, e o trecho só tocava de novo
+  // fechando e reabrindo a folha. E o `<video>` ficava por cima do `<img>`
+  // exibindo o último quadro: trocar o src para recomeçar o deixava vazio por
+  // um instante, e o quadro parado piscava por baixo antes do vídeo entrar.
+  //
+  // Soltar o player também devolve a memória do vídeo decodificado entre uma
+  // reprodução e outra, que num celular são dezenas de MB.
   $effect(() => {
-    if (tocando && player.playing && player.currentMs >= det.instanteMs + DEPOIS_MS) player.pause();
+    if (tocando && player.playing && player.currentMs >= fimMs) {
+      player.destroy();
+      tocando = false;
+      videoPintou = false;
+    }
   });
 
   const progresso = $derived(
-    tocando
-      ? Math.max(0, Math.min(1, (player.currentMs - det.instanteMs + ANTES_MS) / (ANTES_MS + DEPOIS_MS)))
-      : 0,
+    tocando ? Math.max(0, Math.min(1, (player.currentMs - inicioMs) / (fimMs - inicioMs))) : 0,
   );
 
   function tecla(e) {
@@ -145,10 +168,10 @@
         onload={pintaQuadro}
       />
     {/if}
-    <canvas bind:this={canvas} class:escondido={tocando}></canvas>
+    <canvas bind:this={canvas} class:escondido={videoPintou}></canvas>
     {#if tocando}
       <!-- svelte-ignore a11y_media_has_caption -->
-      <video bind:this={video} playsinline></video>
+      <video bind:this={video} playsinline onloadeddata={() => (videoPintou = true)}></video>
       {#if Caixas && video}
         <Caixas
           {video}

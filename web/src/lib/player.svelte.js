@@ -91,6 +91,10 @@ export class Player {
     // Um aviso agendado que dispara depois disto acenderia o "carregando…" de
     // um player que não existe mais - e ninguém o apagaria.
     this.#aviso(false);
+    // O mesmo vale para o `playing`: os ouvintes já saíram, então a parada
+    // logo abaixo não dispara mais 'pause' e a flag ficaria presa em true -
+    // e quem desenha um botão a partir dela mostraria ⏸ de um vídeo morto.
+    this.playing = false;
     // Soltar o MediaSource e revogar a URL importa: sem isso o buffer de vídeo
     // decodificado fica preso até o coletor de lixo passar, o que num celular
     // significa dezenas de MB.
