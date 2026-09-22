@@ -19,7 +19,15 @@
   // px; uma string entra como está, para quem precisa de uma conta - a folha
   // da detecção amarra a largura à altura livre (`--altura-max`), porque o
   // quadro dela é 16:9 e numa janela baixa é a largura que tem de ceder.
-  let { onclose = () => {}, largura = 460, children } = $props();
+  //
+  // `reservaRolagem` deixa o espaço da barra de rolagem sempre guardado, dos
+  // dois lados para o conteúdo seguir centrado. Serve a quem tem a altura
+  // presa à largura, como o palco 16:9 da detecção: sem a reserva, a barra que
+  // aparece estreita o conteúdo, ele fica mais baixo, a barra some, ele volta
+  // a crescer - e a folha vibra entre os dois estados a cada quadro. Com a
+  // reserva a largura não depende da barra e o ciclo não tem por onde começar.
+  // No celular a barra flutua sobre o conteúdo e a reserva não ocupa nada.
+  let { onclose = () => {}, largura = 460, reservaRolagem = false, children } = $props();
   const larguraCSS = $derived(typeof largura === 'number' ? `${largura}px` : largura);
 
   const self = {};
@@ -40,7 +48,7 @@
   role="presentation"
   onclick={(e) => e.target === e.currentTarget && onclose()}
 >
-  <div class="card sheet" style:--largura={larguraCSS}>{@render children?.()}</div>
+  <div class="card sheet" class:reserva-rolagem={reservaRolagem} style:--largura={larguraCSS}>{@render children?.()}</div>
 </div>
 
 <style>
@@ -73,6 +81,10 @@
     overflow-y: auto;
     border-radius: var(--radius) var(--radius) 0 0;
     padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .sheet.reserva-rolagem {
+    scrollbar-gutter: stable both-edges;
   }
 
   @media (min-width: 640px) {
