@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -755,5 +756,86 @@ func TestEventosIgnoraLinhaTruncada(t *testing.T) {
 	}
 	if len(evs) != 2 {
 		t.Errorf("a linha truncada não foi descartada: %d marcas", len(evs))
+	}
+}
+
+// Os quadros das detecções: um .jpg por detecção, nomeado pelo instante dela.
+func TestQuadrosDoDia(t *testing.T) {
+	c := newTestCamera(t)
+	dia := baseTime().Format(DayLayout)
+	jpeg := []byte("\xff\xd8um quadro\xff\xd9")
+	instante := baseTime().UnixMilli()
+
+	if err := c.WriteQuadro(dia, instante, jpeg); err != nil {
+		t.Fatal(err)
+	}
+
+	caminho := c.QuadroPath(dia, instante)
+	if filepath.Base(caminho) != fmt.Sprintf("%d.jpg", instante) {
+		t.Errorf("caminho %q: o nome tem que ser o instante da detecção", caminho)
+	}
+	got, err := os.ReadFile(caminho)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(jpeg) {
+		t.Errorf("quadro gravado %q, esperado %q", got, jpeg)
+	}
+
+	// As duas marcas do mesmo instante - uma por família - gravam o mesmo
+	// arquivo, e não dois.
+	if err := c.WriteQuadro(dia, instante, jpeg); err != nil {
+		t.Fatal(err)
+	}
+	entradas, err := os.ReadDir(c.QuadrosDir(dia))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entradas) != 1 {
+		t.Errorf("%d arquivos na pasta do dia, esperado 1", len(entradas))
+	}
+}
+
+// Os quadros entram na cota da câmera e saem com o dia, como o vídeo.
+func TestQuadrosContamNaCotaESaemComODia(t *testing.T) {
+	c := newTestCamera(t)
+	e := entryAt(baseTime(), 60_000, 1_000_000)
+	if err := c.Append(e); err != nil {
+		t.Fatal(err)
+	}
+	writeSegmentFile(t, c, e)
+
+	jpeg := make([]byte, 14_000)
+	for i := range 3 {
+		if err := c.WriteQuadro(e.Day(), e.StartMs+int64(i)*1000, jpeg); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if got, want := c.TotalBytes(), int64(1_000_000+3*14_000); got != want {
+		t.Errorf("TotalBytes=%d, esperado %d: os quadros contam na cota", got, want)
+	}
+
+	// A conta de um dia é memorizada; um quadro novo depois disso tem que
+	// entrar no total, senão a cota congela no primeiro valor lido.
+	if err := c.WriteQuadro(e.Day(), e.StartMs+9000, jpeg); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := c.TotalBytes(), int64(1_000_000+4*14_000); got != want {
+		t.Errorf("TotalBytes=%d, esperado %d: quadro gravado depois da conta", got, want)
+	}
+
+	freed, err := c.DropDay(e.Day())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := int64(1_000_000 + 4*14_000); freed != want {
+		t.Errorf("liberou %d, esperado %d: os quadros saem com o dia", freed, want)
+	}
+	if _, err := os.Stat(c.QuadrosDir(e.Day())); !os.IsNotExist(err) {
+		t.Errorf("a pasta de quadros do dia sobrou: %v", err)
+	}
+	if got := c.TotalBytes(); got != 0 {
+		t.Errorf("TotalBytes=%d depois do DropDay, esperado 0", got)
 	}
 }

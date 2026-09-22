@@ -94,6 +94,16 @@ type Evento struct {
 	// array, por causa do omitempty: array nunca é "vazio" para o JSON, e cada
 	// linha de onset do dia sairia com "caixa":[0,0,0,0].
 	Caixa *[4]float64 `json:"caixa,omitempty"`
+
+	// TemQuadro diz que o JPEG do quadro olhado foi gravado, em
+	// quadros/{dia}/{instanteMs}.jpg. Falso é marca sem imagem: anterior a
+	// esta versão, ou olhada em que o quadro não voltou do detector.
+	//
+	// O caminho não é guardado porque é derivável do instante, como o do
+	// segmento não é guardado no índice. As duas marcas de famílias
+	// diferentes do mesmo instante apontam para o MESMO arquivo: o quadro é
+	// um só.
+	TemQuadro bool `json:"temQuadro,omitempty"`
 }
 
 // EhObjeto diz se a linha é marca de objeto, e não onset de movimento.
@@ -121,6 +131,13 @@ type Camera struct {
 
 	mu   sync.RWMutex
 	days map[string]*DaySummary
+
+	// quadrosBytes é o que os quadros de cada dia ocupam, memorizado. Ver
+	// QuadrosBytes.
+	quadrosBytes map[string]int64
+
+	// memo são as marcas de objeto de cada dia já lido. Ver ObjetosDoDia.
+	memo objetosMemo
 }
 
 type Store struct {
@@ -137,7 +154,8 @@ func New(root string) *Store {
 func (s *Store) Root() string { return s.root }
 
 func newCamera(root, id string) *Camera {
-	return &Camera{ID: id, root: filepath.Join(root, id), days: map[string]*DaySummary{}}
+	return &Camera{ID: id, root: filepath.Join(root, id), days: map[string]*DaySummary{},
+		quadrosBytes: map[string]int64{}}
 }
 
 // Camera devolve (criando se preciso) o índice de uma câmera.
@@ -174,6 +192,19 @@ func (c *Camera) EventosDir() string { return filepath.Join(c.root, "eventos") }
 
 func (c *Camera) EventosPath(day string) string {
 	return filepath.Join(c.EventosDir(), day+".ndjson")
+}
+
+// QuadrosDir é a pasta do dia com os quadros das detecções, um .jpg por
+// detecção, nomeado pelo instante dela - como o segmento é nomeado pelo seu
+// início.
+func (c *Camera) QuadrosDir(day string) string {
+	return filepath.Join(c.root, "quadros", day)
+}
+
+// QuadroPath é o JPEG do quadro que o detector olhou naquela detecção. Abre
+// com qualquer visualizador, e apagar um é apagar um arquivo.
+func (c *Camera) QuadroPath(day string, instanteMs int64) string {
+	return filepath.Join(c.QuadrosDir(day), strconv.FormatInt(instanteMs, 10)+".jpg")
 }
 
 func (c *Camera) IndexPath(day string) string {
@@ -324,6 +355,65 @@ func (c *Camera) AppendEvento(ev Evento) error {
 	return f.Close()
 }
 
+// WriteQuadro grava o JPEG do quadro daquela detecção.
+//
+// Sem fsync e sem arquivo temporário, ao contrário do init: quadro perdido é
+// uma miniatura a menos numa grade de milhares, e a tela já sabe mostrar
+// detecção sem imagem. Escrever direto poupa o rename numa chamada que
+// acontece dentro do laço de gravação da câmera.
+func (c *Camera) WriteQuadro(day string, instanteMs int64, jpeg []byte) error {
+	if len(jpeg) == 0 {
+		return nil
+	}
+	if err := os.MkdirAll(c.QuadrosDir(day), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(c.QuadroPath(day, instanteMs), jpeg, 0o644); err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	if n, ok := c.quadrosBytes[day]; ok {
+		c.quadrosBytes[day] = n + int64(len(jpeg))
+	}
+	c.mu.Unlock()
+	return nil
+}
+
+// QuadrosBytes é quanto os quadros de um dia ocupam. Entra na cota da câmera,
+// como o vídeo.
+//
+// O número é memorizado por dia, e o WriteQuadro o mantém em dia: sem isso,
+// cada passada da retenção faria um stat em cada quadro de cada dia - dezenas
+// de milhares num histórico de 30 dias, que é justamente o preço de ter um
+// arquivo por detecção. A conta de um dia é feita UMA vez, na primeira vez que
+// alguém pergunta por ele.
+func (c *Camera) QuadrosBytes(day string) int64 {
+	c.mu.RLock()
+	n, ok := c.quadrosBytes[day]
+	c.mu.RUnlock()
+	if ok {
+		return n
+	}
+
+	entradas, err := os.ReadDir(c.QuadrosDir(day))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return 0 // pasta ilegível: não inventa número para a cota
+	}
+	for _, e := range entradas {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		n += info.Size()
+	}
+
+	c.mu.Lock()
+	c.quadrosBytes[day] = n
+	c.mu.Unlock()
+	return n
+}
+
 // --- leitura ----------------------------------------------------------------
 
 // Days devolve os resumos por dia, do mais antigo para o mais recente.
@@ -388,13 +478,24 @@ func (c *Camera) Resumo() (bytes, oldestMs, newestMs int64) {
 	return bytes, oldestMs, newestMs
 }
 
-// TotalBytes é quanto a câmera ocupa em disco, segundo o índice.
+// TotalBytes é tudo o que a câmera ocupa: o vídeo mais os quadros das
+// detecções. É o número que a cota por câmera limita.
+//
+// Os quadros entram pela conta memorizada de cada dia, e não por um stat em
+// cada arquivo: são um arquivo por detecção, dezenas de milhares num histórico
+// de 30 dias, e a retenção pergunta isto a cada passada. Ver QuadrosBytes.
 func (c *Camera) TotalBytes() int64 {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	dias := make([]string, 0, len(c.days))
 	var n int64
 	for _, s := range c.days {
 		n += s.Bytes
+		dias = append(dias, s.Day)
+	}
+	c.mu.RUnlock()
+
+	for _, d := range dias {
+		n += c.QuadrosBytes(d)
 	}
 	return n
 }
@@ -675,8 +776,12 @@ func (c *Camera) DropDay(day string) (freed int64, err error) {
 	if !ok {
 		return 0, nil
 	}
+	freed += c.QuadrosBytes(day) // os quadros das detecções vão junto, abaixo
 
 	if err := os.RemoveAll(c.DayDir(day)); err != nil {
+		return 0, err
+	}
+	if err := os.RemoveAll(c.QuadrosDir(day)); err != nil {
 		return 0, err
 	}
 	for _, p := range []string{c.IndexPath(day), c.EventosPath(day)} {
@@ -687,6 +792,7 @@ func (c *Camera) DropDay(day string) (freed int64, err error) {
 
 	c.mu.Lock()
 	delete(c.days, day)
+	delete(c.quadrosBytes, day)
 	c.mu.Unlock()
 	return freed, nil
 }

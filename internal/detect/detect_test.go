@@ -636,11 +636,11 @@ func TestScoreNaoAlocaNoCaminhoQuente(t *testing.T) {
 
 func TestDetectorNenhumNaoOlhaEIssoEUmResultado(t *testing.T) {
 	d := Detectores["nenhum"]("")
-	achados, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("gop")})
+	visao, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("gop")})
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
-	if len(achados) != 0 {
-		t.Errorf("achou %d objetos sem olhar", len(achados))
+	if len(visao.Achados) != 0 {
+		t.Errorf("achou %d objetos sem olhar", len(visao.Achados))
 	}
 }

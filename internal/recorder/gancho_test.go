@@ -475,8 +475,11 @@ func TestGanchoSemDestinoNaoGuardaGOP(t *testing.T) {
 type detectorQueVePessoa struct{}
 
 func (detectorQueVePessoa) Nome() string { return "pessoa" }
-func (detectorQueVePessoa) Olha(context.Context, detect.Pedaco) ([]detect.Achado, error) {
-	return []detect.Achado{{Classe: "person", Score: 0.87654, Caixa: [4]float64{0.1, 0.1, 0.2, 0.4}}}, nil
+func (detectorQueVePessoa) Olha(context.Context, detect.Pedaco) (detect.Visao, error) {
+	return detect.Visao{
+		Achados: []detect.Achado{{Classe: "person", Score: 0.87654, Caixa: [4]float64{0.1, 0.1, 0.2, 0.4}}},
+		Quadro:  []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+	}, nil
 }
 
 // TestDoOnsetAMarcaDeObjeto fecha o caminho inteiro do lado do dwnvr: o
@@ -553,13 +556,24 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 	got := objetos[0]
 	caixa := got.Caixa
 	got.Caixa = nil
+	jpeg := []byte("\xff\xd8jpeg-de-teste\xff\xd9")
 	want := store.Evento{InstanteMs: onsets[0], Familia: "pessoa", Classe: "person", Score: 0.877,
-		QuadroMs: quadros[0]}
+		QuadroMs: quadros[0], TemQuadro: true}
 	if got != want {
 		t.Errorf("marca %+v, esperado %+v", got, want)
 	}
 	if caixa == nil || *caixa != [4]float64{0.1, 0.1, 0.2, 0.4} {
 		t.Errorf("caixa %v, esperada a do detector, [0.1 0.1 0.2 0.4]", caixa)
+	}
+
+	// O quadro que a tela de Detecções mostra: o arquivo tem o nome do
+	// instante da marca e os bytes que o detector mandou.
+	lido, err := os.ReadFile(idx.QuadroPath(time.Now().Format(store.DayLayout), got.InstanteMs))
+	if err != nil {
+		t.Fatalf("lendo o quadro da marca: %v", err)
+	}
+	if !bytes.Equal(lido, jpeg) {
+		t.Errorf("quadro gravado %q, esperado %q", lido, jpeg)
 	}
 
 	f := r.funil()

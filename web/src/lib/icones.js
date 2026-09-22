@@ -187,3 +187,25 @@ export function desenhaIcone(g, nome, x, y, lado, cor) {
   f(g);
   g.restore();
 }
+
+// O mesmo ícone como imagem, para quem desenha em HTML e não em canvas: a
+// grade de Detecções põe o ícone em cada miniatura, e um <canvas> por ícone
+// seria um contexto 2D por miniatura. Cada combinação é desenhada uma vez só,
+// na densidade da tela, e reaproveitada por todas.
+const imagens = new Map();
+
+export function iconeURL(nome, lado, cor) {
+  const dpr = window.devicePixelRatio || 1;
+  const chave = `${nome}|${lado}|${cor}|${dpr}`;
+  let url = imagens.get(chave);
+  if (!url) {
+    const c = document.createElement('canvas');
+    c.width = c.height = Math.ceil(lado * dpr);
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    desenhaIcone(g, nome, 0, 0, lado, cor);
+    url = c.toDataURL();
+    imagens.set(chave, url);
+  }
+  return url;
+}

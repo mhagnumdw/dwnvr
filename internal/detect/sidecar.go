@@ -43,37 +43,45 @@ var ErrPedacoRecusado = errors.New("detector recusou o pedaço")
 type respostaDoSidecar struct {
 	Achados []Achado `json:"achados"`
 	Erro    string   `json:"erro"`
+
+	// Quadro é o JPEG do quadro olhado, em base64, e só vem quando houve
+	// achado. Base64 custa um terço a mais de bytes numa conexão que é local
+	// - o sidecar roda na mesma máquina -, e em troca a resposta continua um
+	// JSON só, que se lê com `curl` na hora de depurar.
+	Quadro []byte `json:"quadro,omitempty"`
 }
 
 // maiorResposta é folga larga: uma olhada com 300 caixas acima do piso, que é
-// o máximo que o RF-DETR devolve, dá uns 30 KB.
-const maiorResposta = 1 << 20
+// o máximo que o RF-DETR devolve, dá uns 30 KB - e o quadro em base64, umas
+// dezenas de KB.
+const maiorResposta = 4 << 20
 
-func (s *sidecar) Olha(ctx context.Context, p Pedaco) ([]Achado, error) {
-	url := s.url + "/detect?piso=" + strconv.FormatFloat(PisoDoDetector, 'f', -1, 64)
+func (s *sidecar) Olha(ctx context.Context, p Pedaco) (Visao, error) {
+	url := s.url + "/detect?piso=" + strconv.FormatFloat(PisoDoDetector, 'f', -1, 64) +
+		"&quadro=" + strconv.Itoa(LarguraDoQuadro) + "&qualidade=" + strconv.Itoa(QualidadeDoQuadro)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(p.Fmp4))
 	if err != nil {
-		return nil, err
+		return Visao{}, err
 	}
 	req.Header.Set("Content-Type", "video/mp4")
 	resp, err := s.cliente.Do(req)
 	if err != nil {
-		return nil, err
+		return Visao{}, err
 	}
 	defer resp.Body.Close()
 
 	var r respostaDoSidecar
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maiorResposta)).Decode(&r); err != nil {
-		return nil, fmt.Errorf("resposta do sidecar ilegível (HTTP %d): %w", resp.StatusCode, err)
+		return Visao{}, fmt.Errorf("resposta do sidecar ilegível (HTTP %d): %w", resp.StatusCode, err)
 	}
 	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-		return nil, fmt.Errorf("%w: HTTP %d: %s", ErrPedacoRecusado, resp.StatusCode, r.Erro)
+		return Visao{}, fmt.Errorf("%w: HTTP %d: %s", ErrPedacoRecusado, resp.StatusCode, r.Erro)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("sidecar respondeu HTTP %d: %s", resp.StatusCode, r.Erro)
+		return Visao{}, fmt.Errorf("sidecar respondeu HTTP %d: %s", resp.StatusCode, r.Erro)
 	}
 	if r.Achados == nil {
 		r.Achados = []Achado{} // olhada sem nada é resultado, não falta dele
 	}
-	return r.Achados, nil
+	return Visao{Achados: r.Achados, Quadro: r.Quadro}, nil
 }

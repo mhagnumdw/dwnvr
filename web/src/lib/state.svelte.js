@@ -20,6 +20,9 @@ export const cameras = $state({
   orphans: [],
   // Câmera vazia com os defaults do servidor, de onde nasce o cadastro novo.
   padrao: null,
+  // Se o detector de objetos está configurado. Sem ele não há aba Detecções.
+  // Nulo até a primeira resposta: "ainda não sei" é diferente de "não tem".
+  detector: null,
   go2rtcError: null,
   loading: true,
   error: null,
@@ -70,6 +73,7 @@ export async function logout() {
   cameras.list = [];
   cameras.streams = [];
   cameras.orphans = [];
+  cameras.detector = null;
   cameras.go2rtcError = null;
   cameras.loading = true;
   cameras.error = null;
@@ -102,9 +106,13 @@ export async function loadCameras() {
     cameras.streams = data.streams ?? [];
     cameras.orphans = data.orphans ?? [];
     cameras.padrao = data.padrao ?? null;
+    cameras.detector = data.detector === true;
     cameras.go2rtcError = data.go2rtcError ?? null;
   } catch (e) {
     cameras.error = e.message;
+    // Sem resposta nenhuma, a aba fica de fora: melhor que a tela em branco
+    // esperando para sempre.
+    cameras.detector ??= false;
   } finally {
     cameras.loading = false;
   }

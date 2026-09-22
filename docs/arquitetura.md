@@ -85,6 +85,7 @@ Sem banco de dados. O índice é um NDJSON por câmera por dia, append-only:
     2026-08-08/1786220564113.mp4 # segmento; o nome é o início em epoch ms
     index/2026-08-08.ndjson
     eventos/2026-08-08.ndjson    # marcas da detecção; só existe com ela ligada
+    quadros/2026-08-08/1786220571900.jpg  # o quadro de uma detecção; o nome é o instante dela
 ```
 
 > **NDJSON** (*Newline-Delimited JSON*) é um arquivo texto com **um objeto JSON
@@ -132,11 +133,33 @@ caixa em fração do quadro:
 
 ```json
 {"instanteMs":1786220571900}
-{"instanteMs":1786220571900,"familia":"pessoa","classe":"person","score":0.87,"quadroMs":1786220573300,"caixa":[0.41,0.32,0.47,0.62]}
+{"instanteMs":1786220571900,"familia":"pessoa","classe":"person","score":0.87,"quadroMs":1786220573300,"caixa":[0.41,0.32,0.47,0.62],"temQuadro":true}
 ```
 
 O arquivo do dia sai junto com o vídeo do dia na retenção. O que cada campo
 quer dizer está em [`deteccao.md`](deteccao.md).
+
+### `quadros/`: a imagem da detecção
+
+`temQuadro` diz que existe `quadros/{dia}/{instanteMs}.jpg`: o quadro que o
+detector olhou, em JPEG de 480 px. É a miniatura da tela de Detecções, e é a
+única forma de mostrar o objeto - o keyframe do segmento pode estar meio minuto
+antes dele. O caminho não é guardado, é derivável do instante, como o do
+segmento.
+
+O quadro vem pronto do `dwnvr-detect`, onde ele já está decodificado; o dwnvr é
+Go puro e não decodifica vídeo. Como a caixa vai em **fração** do quadro, ela
+cai no lugar certo sobre a miniatura em qualquer tamanho. Servir é abrir o
+arquivo e entregá-lo: **nada é redimensionado ou reencodado por requisição.**
+
+Um arquivo por detecção, numa pasta por dia. Apagar um quadro é apagar um
+arquivo, e abrir um é dar dois cliques nele. O preço é o `readdir` da pasta,
+que a cota precisa para somar bytes: a conta de cada dia é feita uma vez e
+memorizada, e as gravações seguintes a mantêm em dia.
+
+As duas marcas de famílias diferentes do mesmo instante apontam para o mesmo
+arquivo: o quadro é um só. Marca sem `temQuadro` é marca sem imagem - de antes
+desta versão, ou de uma olhada em que o quadro não voltou.
 
 O layout em disco e o índice vivem em [`internal/store/`](../internal/store/).
 

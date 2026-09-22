@@ -534,6 +534,35 @@ func TestHealthMostraODetectorSoQuandoConfigurado(t *testing.T) {
 	}
 }
 
+// A aba Detecções depende deste campo para aparecer.
+func TestCamerasDizSeHaDetector(t *testing.T) {
+	temDetector := func(s *Server) bool {
+		rec := httptest.NewRecorder()
+		s.handleCameras(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
+		var got struct {
+			Detector *bool `json:"detector"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
+		}
+		if got.Detector == nil {
+			t.Fatal("o /api/cameras não trouxe o campo detector")
+		}
+		return *got.Detector
+	}
+
+	s, _ := testServer(t)
+	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // fora do ar
+	if temDetector(s) {
+		t.Error("detector: true sem detector.url")
+	}
+	s.cfg.Detector.URL = "http://127.0.0.1:1"
+	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
+	if !temDetector(s) {
+		t.Error("detector.url configurado e o /api/cameras diz detector: false")
+	}
+}
+
 func TestRangeParams(t *testing.T) {
 	s, _ := testServer(t)
 

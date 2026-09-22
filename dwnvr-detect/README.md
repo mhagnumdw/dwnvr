@@ -73,7 +73,8 @@ docker buildx build --platform linux/amd64 -t dwnvr-detect:amd64 --load dwnvr-de
 ## O contrato
 
 ```
-POST /detect?piso=0.20       corpo: o pedaço (.mp4), do frame I ao quadro a olhar
+POST /detect?piso=0.20&quadro=480&qualidade=75
+                             corpo: o pedaço (.mp4), do frame I ao quadro a olhar
 GET  /health
 ```
 
@@ -92,10 +93,17 @@ GET  /health
   "tempoMs": {
     "decodifica": 180.2,
     "preparo": 190.4,
-    "modelo": 5900.1
-  }
+    "modelo": 5900.1,
+    "quadro": 11.4
+  },
+  "quadro": "/9j/4AAQSkZJRgABAQAAAQ… (base64)"
 }
 ```
+
+Com `quadro=<largura>`, e havendo achado, a resposta traz também o quadro
+olhado em JPEG, reduzido àquela largura, em base64. É a miniatura da tela de
+Detecções: o quadro sai daqui porque aqui ele já está decodificado. Sem o
+parâmetro, ou sem achado, o campo não vem.
 
 A caixa vai em fração do quadro (x1, y1, x2, y2). Ele devolve TODA caixa a
 partir do `piso`, de qualquer classe, e não decide nada: o corte por família e

@@ -92,6 +92,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/rec/playlist.m3u8", s.requireAuth(s.handlePlaylist))
 	mux.HandleFunc("GET /api/rec/export", s.requireAuth(s.handleExport))
 
+	// Detecções de objeto, de todas as câmeras juntas: a tela de Detecções.
+	mux.HandleFunc("GET /api/deteccoes", s.requireAuth(s.handleDeteccoes))
+	mux.HandleFunc("GET /api/deteccoes/quadro", s.requireAuth(s.handleQuadroDaDeteccao))
+
 	// Live: sinalização e mídia ficam com o go2rtc; o dwnvr só faz proxy.
 	mux.Handle("/api/live/", s.requireAuthHandler(s.liveProxy()))
 
@@ -145,6 +149,12 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	// "padrao" é uma câmera vazia com os defaults aplicados: o formulário de
 	// câmera nova parte dela, para seguir o defaults do dwnvr.yaml.
 	resp := map[string]any{"cameras": cams, "padrao": s.cfg.Resolve(config.Camera{})}
+
+	// A interface só mostra a aba Detecções com o detector de objetos
+	// configurado: sem ele não há detecção nenhuma para listar. Vai aqui, e
+	// não no /api/health, porque esta é a resposta que a interface busca ao
+	// entrar.
+	resp["detector"] = s.mgr.Detector() != nil
 
 	if orphans, err := s.store.Orphans(registered); err != nil {
 		// Não impede a listagem: no caso comum não há órfão nenhum, e uma falha

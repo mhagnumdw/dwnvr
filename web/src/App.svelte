@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { session, checkSession, loadCameras, loadBuild, logout } from './lib/state.svelte.js';
+  import { session, cameras, checkSession, loadCameras, loadBuild, logout } from './lib/state.svelte.js';
   import { rota, ROTA_PADRAO } from './lib/rota.svelte.js';
   import { setUnauthorizedHandler } from './lib/api.js';
   import Login from './routes/Login.svelte';
@@ -12,20 +12,50 @@
   const ROUTES = [
     { id: 'live', label: 'Ao vivo', icon: '◉', component: Live },
     { id: 'rec', label: 'Gravações', icon: '⏱', component: Recordings },
+    // Chunk à parte: só quem abre a tela paga os bytes dela. E só existe com o
+    // detector de objetos configurado - sem ele não há detecção para listar.
+    {
+      id: 'detection',
+      label: 'Detecções',
+      icon: '▣',
+      carregar: () => import('./routes/Deteccoes.svelte'),
+      soComDetector: true,
+    },
     { id: 'cams', label: 'Câmeras', icon: '☰', component: Cameras },
     { id: 'health', label: 'Diagnóstico', icon: '♥', component: Health },
   ];
 
-  // Roteamento por hash: são quatro telas, e um roteador de verdade custaria
+  const abas = $derived(ROUTES.filter((r) => !r.soComDetector || cameras.detector));
+
+  // A aba que depende do detector só se decide depois do /api/cameras. Até lá
+  // a tela fica em branco: cair na padrão e trocar em seguida montaria e
+  // desmontaria o ao vivo, com as conexões dele, à toa.
+  const pedida = $derived(ROUTES.find((r) => r.id === rota.id));
+  const esperando = $derived(pedida?.soComDetector && cameras.detector === null);
+
+  // Roteamento por hash: são cinco telas, e um roteador de verdade custaria
   // mais bytes que o resto do aplicativo junto. Quem lê e escreve o hash é o
   // `lib/rota.svelte.js`, porque ele carrega também o estado de cada tela.
   // Hash apontando para tela que não existe - erro de digitação, link de uma
-  // versão futura: a tela padrão assume. O nome inventado continua na barra de
-  // endereços, e é de propósito: reescrevê-lo custaria um efeito que lê e grava
-  // o mesmo estado, e o link segue funcionando exatamente igual do jeito que é.
+  // versão futura, `#detection` num servidor sem detector: a tela padrão
+  // assume. O nome inventado continua na barra de endereços, e é de propósito:
+  // reescrevê-lo custaria um efeito que lê e grava o mesmo estado, e o link
+  // segue funcionando exatamente igual do jeito que é.
   const route = $derived(
-    ROUTES.find((r) => r.id === rota.id) ?? ROUTES.find((r) => r.id === ROTA_PADRAO),
+    abas.find((r) => r.id === rota.id) ?? ROUTES.find((r) => r.id === ROTA_PADRAO),
   );
+
+  // As telas em chunk à parte, já baixadas: id -> componente.
+  let carregadas = $state({});
+  const Tela = $derived(esperando ? null : (route.component ?? carregadas[route.id]));
+
+  $effect(() => {
+    if (esperando) return;
+    const r = route;
+    if (r.carregar && !carregadas[r.id]) {
+      r.carregar().then((m) => (carregadas[r.id] = m.default));
+    }
+  });
 
   // Clicar na aba em que já se está não pode reiniciar a tela. Antes o href era
   // igual ao hash e o navegador nem disparava evento; agora o hash carrega o
@@ -73,7 +103,7 @@
       dwnvr
     </span>
     <nav class="top">
-      {#each ROUTES as r (r.id)}
+      {#each abas as r (r.id)}
         <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => navegar(e, r.id)}>
           {r.label}
         </a>
@@ -99,12 +129,12 @@
          escritas da própria tela usam replaceState, que não dispara
          hashchange, então elas não remontam nada. -->
     {#key rota.hash}
-      <route.component />
+      {#if Tela}<Tela />{/if}
     {/key}
   </main>
 
-  <nav class="bottom">
-    {#each ROUTES as r (r.id)}
+  <nav class="bottom" style:--abas={abas.length}>
+    {#each abas as r (r.id)}
       <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => navegar(e, r.id)}>
         <span class="icon">{r.icon}</span>
         <span class="label">{r.label}</span>
@@ -185,7 +215,7 @@
     position: fixed;
     inset: auto 0 0 0;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(var(--abas), 1fr);
     background: var(--panel);
     border-top: 1px solid var(--line);
     padding-bottom: env(safe-area-inset-bottom);
