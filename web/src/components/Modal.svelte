@@ -15,8 +15,12 @@
   import { onMount } from 'svelte';
 
   // `largura` é o teto no desktop: o formulário lê bem em 460px, e a folha de
-  // uma detecção mostra um quadro de câmera, que pede mais.
+  // uma detecção mostra um quadro de câmera, que pede mais. Um número vale em
+  // px; uma string entra como está, para quem precisa de uma conta - a folha
+  // da detecção amarra a largura à altura livre (`--altura-max`), porque o
+  // quadro dela é 16:9 e numa janela baixa é a largura que tem de ceder.
   let { onclose = () => {}, largura = 460, children } = $props();
+  const larguraCSS = $derived(typeof largura === 'number' ? `${largura}px` : largura);
 
   const self = {};
   onMount(() => {
@@ -36,11 +40,16 @@
   role="presentation"
   onclick={(e) => e.target === e.currentTarget && onclose()}
 >
-  <div class="card sheet" style:--largura="{largura}px">{@render children?.()}</div>
+  <div class="card sheet" style:--largura={larguraCSS}>{@render children?.()}</div>
 </div>
 
 <style>
   .overlay {
+    /* Até onde a folha pode crescer. Mora aqui, e não solto no `max-height`,
+       porque quem calcula a própria largura a partir da altura livre precisa
+       do mesmo número - é o caso da folha de uma detecção. */
+    --altura-max: 92dvh;
+
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.6);
@@ -54,7 +63,13 @@
     display: grid;
     gap: 14px;
     width: 100%;
-    max-height: 92dvh;
+    max-height: var(--altura-max);
+    /* Passando do teto, o grid espreme as linhas para caber. Um filho que se
+       desenha por conta própria não encolhe junto e passa a pintar por cima do
+       que vem depois - foi o que aconteceu com o palco 16:9 da detecção, que
+       tem `overflow: hidden` e por isso aceita ser espremido até zero. Com as
+       linhas em `min-content` ninguém é espremido e a folha rola. */
+    grid-auto-rows: min-content;
     overflow-y: auto;
     border-radius: var(--radius) var(--radius) 0 0;
     padding-bottom: calc(14px + env(safe-area-inset-bottom));

@@ -20,6 +20,27 @@
   const ANTES_MS = 2000;
   const DEPOIS_MS = 6000;
 
+  // A largura da folha. O palco é 16:9 e é o que mais cresce, então numa
+  // janela baixa é a largura que precisa ceder para o quadro caber inteiro -
+  // o teto sai da altura livre, e não o contrário. `RESTO_PX` é o que o resto
+  // da folha ocupa em altura (cabeçalho 36 + objetos 19 + ações 44 + três
+  // espaços de 14 + 28 de respiro, medidos em 22/09/2026) e `RESPIRO_PX` é o
+  // respiro lateral, que entra na largura mas não no palco.
+  //
+  // O piso existe porque a conta não tem fundo: numa janela muito baixa ela
+  // pedia uma folha mais estreita que a própria fileira de botões, e aí o
+  // palco é que transbordava para os lados.
+  //
+  // Uma lista de objetos que quebre em duas linhas deixa a conta curta, e o
+  // piso também. Nos dois casos o `grid-auto-rows` do Modal põe a folha para
+  // rolar, que é o pior caso - e não o quadro cobrindo os botões, que era o
+  // defeito.
+  const LARGURA_MAX_PX = 880;
+  const LARGURA_MIN_PX = 360;
+  const RESTO_PX = 169;
+  const RESPIRO_PX = 28;
+  const largura = `clamp(${LARGURA_MIN_PX}px, calc((var(--altura-max) - ${RESTO_PX}px) * 16 / 9 + ${RESPIRO_PX}px), ${LARGURA_MAX_PX}px)`;
+
   let { det, camera, onclose, onanterior = null, onproxima = null } = $props();
 
   let palco;
@@ -149,7 +170,7 @@
 
 <svelte:window onkeydown={tecla} />
 
-<Modal {onclose} largura={880}>
+<Modal {onclose} {largura}>
   <div class="cab">
     <span class="hora mono">{hhmmss(det.instanteMs)}</span>
     <span class="muted small">{ddmm(det.instanteMs)}</span>
