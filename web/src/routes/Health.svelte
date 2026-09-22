@@ -15,6 +15,7 @@
   } from '../lib/format.js';
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
   import SemCameras from '../components/SemCameras.svelte';
+  import { coletar, comoTexto, copiar } from '../lib/navegador.js';
 
   const stop = pollHealth();
   onDestroy(stop);
@@ -167,6 +168,58 @@
     const d = new Date(build.date);
     return build.date && !isNaN(d) ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
   });
+
+  // ---- este navegador ---------------------------------------------------
+  //
+  // Vem fechado e só coleta ao abrir: é consulta de quem está investigando um
+  // defeito, e quem só veio ver as câmeras não paga por ela. Aberto, coleta de
+  // novo quando a janela muda de tamanho - girar o celular muda a área da
+  // página, que é justamente um dos números.
+  let navegadorAberto = $state(false);
+  let grupos = $state([]);
+  let copiado = $state('');
+
+  $effect(() => {
+    if (!navegadorAberto) return;
+    const recoletar = async () => (grupos = await coletar());
+    recoletar();
+    let t;
+    const mudou = () => {
+      clearTimeout(t);
+      t = setTimeout(recoletar, 250);
+    };
+    addEventListener('resize', mudou);
+    return () => {
+      clearTimeout(t);
+      removeEventListener('resize', mudou);
+    };
+  });
+
+  // O relógio do aparelho contra o do servidor. A hora da resposta, pela
+  // latência, chega uns milissegundos atrasada; abaixo de 5s é ruído, e acima
+  // é relógio errado, que faz "agora" apontar para outro ponto da timeline.
+  const diferencaRelogio = $derived.by(() => {
+    const lido = Date.parse(health.clock?.now);
+    if (isNaN(lido) || !health.updatedAt) return null;
+    const d = Math.round((health.updatedAt - lido) / 1000);
+    if (Math.abs(d) < 5) return { valor: 'igual ao do servidor' };
+    return { valor: `${duracao(Math.abs(d) * 1000)} ${d > 0 ? 'adiantado' : 'atrasado'}`, alerta: true };
+  });
+
+  const gruposComRelogio = $derived(
+    grupos.map((g) =>
+      g.titulo === 'Ambiente' && diferencaRelogio
+        ? { ...g, itens: [...g.itens, { rotulo: 'relógio do aparelho', ...diferencaRelogio }] }
+        : g,
+    ),
+  );
+
+  async function copiarDiagnostico() {
+    const cabecalho = [`dwnvr ${build.version || '?'} - diagnóstico do navegador`, new Date().toString()];
+    const ok = await copiar(comoTexto(gruposComRelogio, cabecalho));
+    copiado = ok ? 'copiado' : 'não deu para copiar';
+    setTimeout(() => (copiado = ''), 2500);
+  }
 
   const totalKbps = $derived(health.cameras.reduce((a, c) => a + (c.bitrateKbps || 0), 0));
   const bytesPorDia = $derived(((totalKbps * 1000) / 8) * 86400);
@@ -719,6 +772,42 @@
     </div>
   {/if}
 
+  <!-- Este navegador: o lado de quem olha, que o servidor não enxerga. O
+       "copiar" é o que torna a seção útil de longe - a pessoa manda o texto
+       numa conversa em vez de descrever o celular. -->
+  <div class="card navegador">
+    <div class="row">
+      <!-- O cabeçalho inteiro é o botão, e não só a seta: no celular é o
+           alvo que o dedo acha. O "copiar" fica fora dele, senão tocar para
+           copiar também fecharia o card. -->
+      <button class="abrir row" onclick={() => (navegadorAberto = !navegadorAberto)} aria-expanded={navegadorAberto}>
+        <span class="seta-card">{navegadorAberto ? '▾' : '▸'}</span>
+        <strong>Este navegador</strong>
+      </button>
+      {#if navegadorAberto && grupos.length}
+        {#if copiado}<span class="muted small">{copiado}</span>{/if}
+        <button onclick={copiarDiagnostico}>copiar</button>
+      {/if}
+    </div>
+    {#if navegadorAberto && grupos.length}
+      <div class="grupos">
+        {#each gruposComRelogio as g (g.titulo)}
+          <section>
+            <p class="titulo muted">{g.titulo}</p>
+            <dl>
+              {#each g.itens as i (i.rotulo)}
+                <div class="item small">
+                  <dt class="muted">{i.rotulo}</dt>
+                  <dd class="mono" class:alerta={i.alerta}>{i.valor}</dd>
+                </div>
+              {/each}
+            </dl>
+          </section>
+        {/each}
+      </div>
+    {/if}
+  </div>
+
   <!-- O separador vai como expressão porque o Svelte apara o espaço no início
        de um bloco {#if}, e sem isso sai "5s· última leitura". -->
   <p class="muted small">
@@ -874,6 +963,32 @@
   }
   .legenda-fila { gap: 14px; padding: 8px 12px 10px; border-top: 1px solid #21262d; }
   .legenda-fila .lugar, .legenda-fila .processando { margin-right: 6px; vertical-align: -1px; }
+
+  /* ---- este navegador ---- */
+
+  /* Uma coluna no celular, duas quando cabe. Os grupos não se partem entre
+     colunas: "Vídeo" pela metade separaria o H.265 do MediaSource. */
+  .grupos { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .navegador dl { margin: 0; display: grid; gap: 2px; }
+  .navegador .titulo { margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
+  /* Botão sem cara de botão: lê como o título dos outros cards. Os 44px de
+     toque ficam; a margem negativa devolve a altura para o card fechado não
+     ficar mais alto que os vizinhos. */
+  .navegador .abrir {
+    flex: 1;
+    gap: 8px;
+    margin: -8px 0;
+    padding: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+  .navegador .abrir:hover:not(:disabled) { border-color: transparent; }
+  .seta-card { width: 12px; font-size: 12px; color: var(--dim); }
+  .navegador .item { display: flex; gap: 10px; justify-content: space-between; }
+  .navegador dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 
   .table { padding: 0; overflow-x: auto; }
   .thead, .trow {
