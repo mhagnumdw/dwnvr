@@ -3,9 +3,10 @@
 ## Onde ficam os arquivos
 
 Nada de importante vive dentro do container. Os dois volumes cobrem tudo. Os
-caminhos do host abaixo são os da [instalação
-definitiva](../README.md#instalação-definitiva); no quickstart os mesmos
-arquivos ficam em `./config` e `./storage`, ao lado do clone.
+caminhos do host abaixo são os da [instalação de
+verdade](../README.md#instalar-de-verdade), definidos no `.env` por
+`DWNVR_CONFIG_DIR` e `DWNVR_STORAGE_DIR`; no teste rápido os mesmos arquivos
+ficam em `./config` e `./storage`.
 
 | No host (exemplo) | No container | O que é |
 |---|---|---|
@@ -116,11 +117,11 @@ para a versão anterior é trocar a tag e subir de novo.
 
 ## Problemas comuns
 
-**Arquivos aparecendo como root no disco.** Falta `user: "1000:1000"` no compose.
-Descubra o seu com `id -u; id -g`. Para consertar o que já foi gravado:
+**Arquivos aparecendo como root no disco.** Falta `DWNVR_UID` e `DWNVR_GID` no
+`.env`, ou o `user:` sumiu do compose. Descubra o seu com `id -u; id -g`. Para consertar o que já foi gravado:
 `sudo chown -R 1000:1000 /mnt/storage/dwnvr`.
 
-**A timeline vira o dia no horário errado.** Falta `TZ` no compose. A imagem não
+**A timeline vira o dia no horário errado.** Falta `TZ` no `.env`. A imagem não
 tem `/usr/share/zoneinfo` - a base de fusos vai embutida no binário, mas alguém
 precisa dizer qual fuso usar.
 

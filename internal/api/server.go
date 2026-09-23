@@ -253,7 +253,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 }
 
-// zonaLocal descobre o nome IANA do fuso do servidor ("America/Sao_Paulo").
+// zonaLocal descobre o nome IANA do fuso do servidor ("America/Fortaleza").
 //
 // O pacote time não expõe isso: time.Local se chama "Local" e o que sobra é a
 // abreviação ("-03"), que não identifica a região - "-03" é São Paulo, Buenos
@@ -263,7 +263,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // Devolve "" quando nenhuma delas responde, e aí a tela mostra só a hora e a
 // abreviação: o nome é um detalhe do title, não a informação principal.
 func zonaLocal() string {
-	// TZ pode vir como ":America/Sao_Paulo" ou apontar para um arquivo; só o
+	// TZ pode vir como ":America/Fortaleza" ou apontar para um arquivo; só o
 	// nome interessa.
 	if tz := strings.TrimPrefix(os.Getenv("TZ"), ":"); tz != "" && !strings.HasPrefix(tz, "/") {
 		return tz
@@ -273,7 +273,7 @@ func zonaLocal() string {
 			return s
 		}
 	}
-	// /etc/localtime costuma ser link para .../zoneinfo/America/Sao_Paulo.
+	// /etc/localtime costuma ser link para .../zoneinfo/America/Fortaleza.
 	if alvo, err := os.Readlink("/etc/localtime"); err == nil {
 		if _, depois, ok := strings.Cut(alvo, "zoneinfo/"); ok {
 			return depois

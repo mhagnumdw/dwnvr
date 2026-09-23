@@ -1,0 +1,20 @@
+# Para quem desenvolve: sobe o dwnvr compilado a partir deste clone, em vez da
+# imagem publicada. Quem só quer usar o dwnvr não precisa deste arquivo.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
+#
+# A tag é local de propósito, sem o ghcr.io - a mesma regra dos alvos de
+# imagem do Makefile: um `docker push` distraído não publica no registry uma
+# imagem que nunca passou pela CI, e a imagem publicada que já estiver baixada
+# não é sobrescrita.
+#
+# O dwnvr-detect só sobe com o profile `detect` (ver docker-compose.yml).
+
+services:
+  dwnvr:
+    image: dwnvr:dev
+    build: .
+
+  dwnvr-detect:
+    image: dwnvr-detect:dev
+    build: ./dwnvr-detect

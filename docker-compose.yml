@@ -1,10 +1,12 @@
 # Instalação do dwnvr, com o go2rtc junto para você subir tudo de uma vez.
 #
-# É o mesmo arquivo para experimentar e para instalar de verdade: como vem, ele
-# constrói a imagem deste clone e grava as câmeras em ./storage, então basta ter
-# Docker - nem câmera, nem Go, nem Node. Para a instalação definitiva mudam só
-# os três caminhos de volume, marcados abaixo - a seção "Instalação definitiva"
-# do README mostra os três de uma vez.
+# É o mesmo arquivo para experimentar e para instalar de verdade, e você não
+# precisa editá-lo: tudo que muda de uma instalação para outra - os caminhos
+# no disco, o UID, o fuso - vem do .env ao lado dele. Sem .env, ele sobe com os
+# valores do teste rápido: grava em ./config e ./storage.
+#
+# As imagens vêm prontas do ghcr.io, publicadas pela CI; nada é compilado na
+# sua máquina. Para subir a partir do código, veja docker-compose.build.yml.
 #
 # O go2rtc está aqui por conveniência, mas continua fora do escopo do dwnvr: o
 # conteúdo do go2rtc.yaml - câmeras, URLs RTSP, codecs - é responsabilidade de
@@ -13,19 +15,7 @@
 
 services:
   dwnvr:
-    # A imagem pronta e o build convivem aqui de propósito, e é o comando que
-    # decide qual dos dois vale:
-    #
-    #   docker compose up                   compila a partir deste clone. É o
-    #                                       que dispensa Go e Node na máquina.
-    #   docker compose up -d --pull always  baixa a publicada, sem compilar.
-    #
-    # O segundo é o da instalação definitiva: num hardware modesto, compilar é
-    # a diferença entre segundos e um build que pode demorar muito e/ou não
-    # caber na memória.
     image: ghcr.io/mhagnumdw/dwnvr:latest
-    build: .
-
     container_name: dwnvr
     restart: unless-stopped
     depends_on: [go2rtc]
@@ -45,29 +35,29 @@ services:
 
     environment:
       # Sem isto todos os dias são calculados em UTC, e a virada de dia da
-      # timeline cai no horário errado. Troque aqui, ou defina TZ no .env.
+      # timeline cai no horário errado. Defina TZ no .env.
       - TZ=${TZ:-America/Fortaleza}
 
-    # Crie os dois diretórios antes de subir: `mkdir -p config storage`. Se o
-    # Docker precisar criá-los, eles nascem de root, e aí o container - que
-    # roda com o UID acima - não consegue escrever dentro deles.
+    # Crie os dois diretórios antes de subir. Se o Docker precisar criá-los,
+    # eles nascem de root, e aí o container - que roda com o UID acima - não
+    # consegue escrever dentro deles.
     #
     # O `:z` no fim de cada volume é para quem tem SELinux ligado (Fedora, RHEL)
     # e sobe com Podman: ele troca o label do diretório para um que o container
     # pode ler. Sem isso, até o dwnvr.yaml dá `permission denied`. Onde não há
     # SELinux, ou no Docker, que por padrão não o aplica, ele não faz nada.
     volumes:
+      # Só o lado esquerdo muda, e pelo .env: DWNVR_CONFIG_DIR e
+      # DWNVR_STORAGE_DIR apontam para o disco onde as gravações cabem. O lado
+      # direito é o que o container enxerga por dentro, e /storage é o que o
+      # dwnvr.yaml chama de `storage.root`.
+
       # dwnvr.yaml, cameras.json e o segredo de sessão.
-      - ./config:/etc/dwnvr:z
+      - ${DWNVR_CONFIG_DIR:-./config}:/etc/dwnvr:z
 
-      # As gravações das câmeras. Ao lado do clone para você experimentar sem
+      # As gravações das câmeras. O default é para você experimentar sem
       # preparar disco nenhum.
-      - ./storage:/storage:z
-
-      # (*) Na instalação definitiva os dois caminhos da esquerda apontam para o
-      #     disco onde as gravações cabem. Só a esquerda muda: /etc/dwnvr e
-      #     /storage são o que o container enxerga por dentro, e /storage é o
-      #     que o dwnvr.yaml chama de `storage.root`.
+      - ${DWNVR_STORAGE_DIR:-./storage}:/storage:z
 
     # Com o go2rtc neste mesmo compose, o dwnvr o alcança pelo nome do serviço:
     # basta que o dwnvr.yaml tenha go2rtc.url: http://go2rtc:1984
@@ -94,11 +84,11 @@ services:
 
     # As suas câmeras moram aqui. Este arquivo é seu; o dwnvr não o escreve.
     #
-    # (*) O terceiro caminho da instalação definitiva. Ele fica fora do diretório
-    #     montado em /etc/dwnvr de propósito: aquele vai inteiro para dentro do
-    #     container do dwnvr, e as URLs RTSP com usuário e senha vivem aqui.
+    # O caminho vem de GO2RTC_CONFIG no .env. Ele fica fora do diretório
+    # montado em /etc/dwnvr de propósito: aquele vai inteiro para dentro do
+    # container do dwnvr, e as URLs RTSP com usuário e senha vivem aqui.
     volumes:
-      - ./go2rtc.yaml:/config/go2rtc.yaml:z
+      - ${GO2RTC_CONFIG:-./go2rtc.yaml}:/config/go2rtc.yaml:z
 
     ports:
       - "1984:1984"      # API e interface web do go2rtc
@@ -116,7 +106,6 @@ services:
   dwnvr-detect:
     profiles: [detect]
     image: ghcr.io/mhagnumdw/dwnvr-detect:latest
-    build: ./dwnvr-detect
     container_name: dwnvr-detect
     restart: unless-stopped
 
