@@ -16,7 +16,7 @@
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
   import SemCameras from '../components/SemCameras.svelte';
   import { coletar, comoTexto } from '../lib/navegador.js';
-  import { grupos as gruposDoServidor, linhaDoLog } from '../lib/servidor.js';
+  import { grupos as gruposDoServidor, linhaDoLog } from '../lib/diagnostico-servidor.js';
   import CardDiagnostico from '../components/CardDiagnostico.svelte';
 
   const stop = pollHealth();

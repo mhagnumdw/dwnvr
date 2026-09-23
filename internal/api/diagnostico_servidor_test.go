@@ -192,14 +192,14 @@ func TestFalhaDeEscritaNaoEncheOLog(t *testing.T) {
 
 // A resposta inteira, pelo handler: go2rtc fora do ar não derruba o resto, e
 // os avisos do log chegam.
-func TestHandleServidor(t *testing.T) {
+func TestHandleDiagnosticoServidor(t *testing.T) {
 	s, _ := testServer(t)
 	h := logbuf.New(slog.DiscardHandler, 10)
 	s.log = slog.New(h)
 	s.log.Warn("conexão caiu", "cam", "garagem")
 
 	rec := httptest.NewRecorder()
-	s.handleServidor(rec, httptest.NewRequest(http.MethodGet, "/api/health/servidor", nil))
+	s.handleDiagnosticoServidor(rec, httptest.NewRequest(http.MethodGet, "/api/health/servidor", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}

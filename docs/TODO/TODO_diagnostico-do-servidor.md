@@ -25,8 +25,9 @@ resposta.
 
 ## Implementado no card
 
-Tudo pelo `GET /api/health/servidor` (`internal/api/servidor.go`). A tela é
-`web/src/lib/servidor.js`, desenhada pelo `CardDiagnostico.svelte`.
+Tudo pelo `GET /api/health/servidor` (`internal/api/diagnostico_servidor.go`).
+A tela é `web/src/lib/diagnostico-servidor.js`, desenhada pelo
+`CardDiagnostico.svelte`.
 
 | Item | Fonte |
 |---|---|

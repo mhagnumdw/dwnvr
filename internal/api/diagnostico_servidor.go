@@ -130,7 +130,7 @@ type recentes interface {
 	Recentes() ([]logbuf.Linha, int64)
 }
 
-func (s *Server) handleServidor(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Request) {
 	f := fontesDoSistema
 	resp := servidorInfo{
 		Maquina: coletarMaquina(f),
