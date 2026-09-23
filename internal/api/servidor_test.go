@@ -63,6 +63,30 @@ func TestColetaMaquinaQuente(t *testing.T) {
 	}
 }
 
+// Um PC com duas zonas "acpitz": o nome repetido ganha o número da zona, senão
+// a tela não tem como separar as duas linhas.
+func TestSensoresComNomeRepetido(t *testing.T) {
+	sys := t.TempDir()
+	for zona, temp := range map[string]string{"0": "90000", "1": "88000", "2": "50000"} {
+		tipo := "acpitz"
+		if zona == "2" {
+			tipo = "x86_pkg_temp"
+		}
+		fixture(t, sys, "class/thermal/thermal_zone"+zona+"/type", tipo+"\n")
+		fixture(t, sys, "class/thermal/thermal_zone"+zona+"/temp", temp+"\n")
+	}
+	got := lerSensores(sys)
+	want := []sensor{{"acpitz 0", 90}, {"acpitz 1", 88}, {"x86_pkg_temp", 50}}
+	if len(got) != len(want) {
+		t.Fatalf("sensores %v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("sensor %d: %v, esperado %v", i, got[i], want[i])
+		}
+	}
+}
+
 func TestColetaMemoria(t *testing.T) {
 	m := coletarMemoria(sistemaFalso(t))
 	if m == nil {

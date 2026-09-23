@@ -39,7 +39,10 @@
         <section>
           <p class="titulo muted">{g.titulo}</p>
           <dl>
-            {#each g.itens as i (i.rotulo)}
+            <!-- Pela posição, e não pelo rótulo: parte do rótulo vem do
+                 servidor (o nome do sensor), e dois iguais fariam o Svelte
+                 parar de desenhar o card inteiro. -->
+            {#each g.itens as i, n (n)}
               <div class="item small">
                 <dt class="muted">{i.rotulo}</dt>
                 <dd class="mono" class:alerta={i.alerta}>{i.valor}</dd>

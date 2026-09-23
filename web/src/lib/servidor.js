@@ -72,7 +72,7 @@ function memoria(m) {
   if (m.limiteBytes) itens.push({ rotulo: 'limite do container', valor: bytes(m.limiteBytes) });
   if (m.oomKills != null) {
     itens.push({
-      rotulo: 'mortos por falta de memória',
+      rotulo: 'processos encerrados por falta de memória (OOM kill)',
       valor: m.oomKills ? `${m.oomKills} desde que a máquina ligou` : 'nenhum desde que a máquina ligou',
       alerta: m.oomKills > 0,
     });

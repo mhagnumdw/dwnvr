@@ -36,7 +36,7 @@ Tudo pelo `GET /api/health/servidor` (`internal/api/servidor.go`). A tela é
 | Pressão (PSI) de CPU, memória e disco | `/proc/pressure/{cpu,memory,io}` |
 | Memória total e disponível, swap total e usada | `/proc/meminfo` |
 | Limite de memória do container | cgroup v2 `memory.max` (v1 como plano B) |
-| Processos mortos por falta de memória, desde que a máquina ligou | `oom_kill` do `/proc/vmstat` |
+| Processos encerrados por falta de memória (OOM kill), desde que a máquina ligou | `oom_kill` do `/proc/vmstat` |
 | Sistema de arquivos, dispositivo e se o storage está somente leitura | `/proc/self/mountinfo` |
 | Teste de escrita no storage: 4 KB, `fsync`, tempo em ms | arquivo temporário em `storage.root` |
 | go2rtc responde? Em quantos ms? Qual versão? | `GET /api` do go2rtc |

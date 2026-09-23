@@ -200,9 +200,15 @@ func lerCarga(s string) []float64 {
 // como "cpu_thermal" e "gpu_thermal"; num PC, "x86_pkg_temp" e "acpitz". Zona
 // que não responde (algumas devolvem EINVAL com o sensor desligado) fica de
 // fora.
+//
+// O nome não é único: um PC pode ter duas zonas "acpitz". Nome repetido leva o
+// número da zona ("acpitz 0", "acpitz 1"), senão as duas linhas da tela e do
+// "copiar" ficam indistinguíveis.
 func lerSensores(sys string) []sensor {
 	zonas, _ := filepath.Glob(filepath.Join(sys, "class/thermal/thermal_zone*"))
 	var out []sensor
+	var numeros []string
+	vezes := map[string]int{}
 	for _, z := range zonas {
 		b, err := os.ReadFile(filepath.Join(z, "temp"))
 		if err != nil {
@@ -217,6 +223,13 @@ func lerSensores(sys string) []sensor {
 			nome = filepath.Base(z)
 		}
 		out = append(out, sensor{Nome: nome, Celsius: float64(mili/100) / 10})
+		numeros = append(numeros, strings.TrimPrefix(filepath.Base(z), "thermal_zone"))
+		vezes[nome]++
+	}
+	for i := range out {
+		if vezes[out[i].Nome] > 1 {
+			out[i].Nome += " " + numeros[i]
+		}
 	}
 	// Mais quente primeiro: é ele que a tela destaca.
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Celsius > out[j].Celsius })
