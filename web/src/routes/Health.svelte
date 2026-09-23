@@ -15,7 +15,9 @@
   } from '../lib/format.js';
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
   import SemCameras from '../components/SemCameras.svelte';
-  import { coletar, comoTexto, copiar } from '../lib/navegador.js';
+  import { coletar, comoTexto } from '../lib/navegador.js';
+  import { grupos as gruposDoServidor, linhaDoLog } from '../lib/servidor.js';
+  import CardDiagnostico from '../components/CardDiagnostico.svelte';
 
   const stop = pollHealth();
   onDestroy(stop);
@@ -177,7 +179,6 @@
   // página, que é justamente um dos números.
   let navegadorAberto = $state(false);
   let grupos = $state([]);
-  let copiado = $state('');
 
   $effect(() => {
     if (!navegadorAberto) return;
@@ -214,11 +215,50 @@
     ),
   );
 
-  async function copiarDiagnostico() {
+  function textoDoNavegador() {
     const cabecalho = [`dwnvr ${build.version || '?'} - diagnóstico do navegador`, new Date().toString()];
-    const ok = await copiar(comoTexto(gruposComRelogio, cabecalho));
-    copiado = ok ? 'copiado' : 'não deu para copiar';
-    setTimeout(() => (copiado = ''), 2500);
+    return comoTexto(gruposComRelogio, cabecalho, [`user agent: ${navigator.userAgent}`]);
+  }
+
+  // ---- este servidor ----------------------------------------------------
+  //
+  // Mesmo trato do navegador: fechado, e só pergunta ao servidor com o card
+  // aberto. A leitura custa um teste de escrita no storage e uma ida ao
+  // go2rtc, então o ritmo é mais lento que o do resto da tela - temperatura e
+  // pressão mudam em dezenas de segundos, não em 5.
+  const SERVIDOR_POLL_MS = 15000;
+  let servidorAberto = $state(false);
+  let servidor = $state(null);
+  let erroServidor = $state('');
+
+  $effect(() => {
+    if (!servidorAberto) return;
+    let vivo = true;
+    const ler = async () => {
+      try {
+        const r = await api.servidor();
+        if (vivo) (servidor = r), (erroServidor = '');
+      } catch (e) {
+        if (vivo) erroServidor = e.message;
+      }
+    };
+    ler();
+    const id = setInterval(ler, SERVIDOR_POLL_MS);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+    };
+  });
+
+  const gruposServidor = $derived(servidor ? gruposDoServidor(servidor) : []);
+  const logServidor = $derived(servidor?.log);
+
+  function textoDoServidor() {
+    const cabecalho = [`dwnvr ${build.version || '?'} - diagnóstico do servidor`, new Date().toString()];
+    const log = logServidor?.linhas.length
+      ? [`[Últimos avisos e erros do log: ${logServidor.linhas.length} de ${logServidor.total}]`, ...logServidor.linhas.map(linhaDoLog)]
+      : [];
+    return comoTexto(gruposServidor, cabecalho, log);
   }
 
   const totalKbps = $derived(health.cameras.reduce((a, c) => a + (c.bitrateKbps || 0), 0));
@@ -775,38 +815,33 @@
   <!-- Este navegador: o lado de quem olha, que o servidor não enxerga. O
        "copiar" é o que torna a seção útil de longe - a pessoa manda o texto
        numa conversa em vez de descrever o celular. -->
-  <div class="card navegador">
-    <div class="row">
-      <!-- O cabeçalho inteiro é o botão, e não só a seta: no celular é o
-           alvo que o dedo acha. O "copiar" fica fora dele, senão tocar para
-           copiar também fecharia o card. -->
-      <button class="abrir row" onclick={() => (navegadorAberto = !navegadorAberto)} aria-expanded={navegadorAberto}>
-        <span class="seta-card">{navegadorAberto ? '▾' : '▸'}</span>
-        <strong>Este navegador</strong>
-      </button>
-      {#if navegadorAberto && grupos.length}
-        {#if copiado}<span class="muted small">{copiado}</span>{/if}
-        <button onclick={copiarDiagnostico}>copiar</button>
-      {/if}
-    </div>
-    {#if navegadorAberto && grupos.length}
-      <div class="grupos">
-        {#each gruposComRelogio as g (g.titulo)}
-          <section>
-            <p class="titulo muted">{g.titulo}</p>
-            <dl>
-              {#each g.itens as i (i.rotulo)}
-                <div class="item small">
-                  <dt class="muted">{i.rotulo}</dt>
-                  <dd class="mono" class:alerta={i.alerta}>{i.valor}</dd>
-                </div>
-              {/each}
-            </dl>
-          </section>
-        {/each}
-      </div>
+  <CardDiagnostico titulo="Este navegador" grupos={gruposComRelogio} bind:aberto={navegadorAberto} texto={textoDoNavegador} />
+
+  <!-- Este servidor: a máquina que grava, vista de dentro. Responde "a
+       máquina tem fôlego para gravar?", que a tabela de câmeras acima não
+       responde - ela só mostra a consequência. -->
+  <CardDiagnostico titulo="Este servidor" grupos={gruposServidor} bind:aberto={servidorAberto} texto={textoDoServidor}>
+    {#if logServidor}
+      <section class="log">
+        <p class="titulo muted">
+          Últimos avisos e erros do log
+          {#if logServidor.total > logServidor.linhas.length}({logServidor.linhas.length} de {logServidor.total}){/if}
+        </p>
+        {#if logServidor.linhas.length}
+          <ol class="mono small">
+            {#each logServidor.linhas as l, i (i)}
+              <li class:erro={l.nivel === 'ERROR'}>{linhaDoLog(l)}</li>
+            {/each}
+          </ol>
+        {:else}
+          <p class="muted small">Nenhum desde que o dwnvr subiu.</p>
+        {/if}
+      </section>
     {/if}
-  </div>
+  </CardDiagnostico>
+  {#if servidorAberto && erroServidor}
+    <p class="muted small">Não deu para ler o servidor: {erroServidor}</p>
+  {/if}
 
   <!-- O separador vai como expressão porque o Svelte apara o espaço no início
        de um bloco {#if}, e sem isso sai "5s· última leitura". -->
@@ -964,31 +999,24 @@
   .legenda-fila { gap: 14px; padding: 8px 12px 10px; border-top: 1px solid #21262d; }
   .legenda-fila .lugar, .legenda-fila .processando { margin-right: 6px; vertical-align: -1px; }
 
-  /* ---- este navegador ---- */
+  /* ---- este servidor ---- */
 
-  /* Uma coluna no celular, duas quando cabe. Os grupos não se partem entre
-     colunas: "Vídeo" pela metade separaria o H.265 do MediaSource. */
-  .grupos { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-  .navegador dl { margin: 0; display: grid; gap: 2px; }
-  .navegador .titulo { margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
-  /* Botão sem cara de botão: lê como o título dos outros cards. Os 44px de
-     toque ficam; a margem negativa devolve a altura para o card fechado não
-     ficar mais alto que os vizinhos. */
-  .navegador .abrir {
-    flex: 1;
-    gap: 8px;
-    margin: -8px 0;
+  /* O log fica em lista corrida e não em rótulo e valor: cada linha é longa,
+     e alinhada à direita ficaria ilegível. Rola por dentro para 50 linhas não
+     empurrarem o resto da tela. */
+  .log .titulo { margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
+  .log ol {
+    margin: 0;
     padding: 0;
-    background: none;
-    border: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
+    list-style: none;
+    display: grid;
+    gap: 4px;
+    max-height: 260px;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
   }
-  .navegador .abrir:hover:not(:disabled) { border-color: transparent; }
-  .seta-card { width: 12px; font-size: 12px; color: var(--dim); }
-  .navegador .item { display: flex; gap: 10px; justify-content: space-between; }
-  .navegador dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+  .log li { color: var(--warn); }
+  .log li.erro { color: var(--bad); }
 
   .table { padding: 0; overflow-x: auto; }
   .thead, .trow {

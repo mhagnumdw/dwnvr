@@ -29,6 +29,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/fmp4"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
+	"github.com/mhagnumdw/dwnvr/internal/logbuf"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/retention"
 	"github.com/mhagnumdw/dwnvr/internal/store"
@@ -52,7 +53,9 @@ func main() {
 	if *debug {
 		level = slog.LevelDebug
 	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	// Os últimos avisos e erros ficam também em memória, para a tela de
+	// Diagnóstico mostrar sem ninguém precisar do docker logs.
+	log := slog.New(logbuf.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}), 50))
 
 	if err := run(log, *cfgPath); err != nil {
 		log.Error("dwnvr encerrou com erro", "erro", err)

@@ -236,6 +236,40 @@ func (c *Client) Streams(ctx context.Context) (map[string]Stream, error) {
 	return out, nil
 }
 
+// Versao pergunta ao go2rtc a versão dele. Serve à tela de Diagnóstico como
+// prova de vida: responder aqui quer dizer que a URL, a credencial e a rede até
+// ele estão certas. O prazo é curto porque quem espera é uma tela aberta, e um
+// go2rtc que leva mais que isso para uma resposta trivial já é o diagnóstico.
+func (c *Client) Versao(ctx context.Context) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api", nil)
+	if err != nil {
+		return "", err
+	}
+	c.auth(req)
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("go2rtc devolveu HTTP %d em /api", resp.StatusCode)
+	}
+
+	// O /api traz também caminhos e endereços do go2rtc; só a versão interessa,
+	// e só ela é lida - o resto não deve atravessar para o navegador.
+	var out struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", err
+	}
+	return out.Version, nil
+}
+
 // Prazos da sonda. São curtos de propósito: quem espera é uma tela aberta, e o
 // stallGuard dá o dobro de probeIdle para o primeiro byte, que é onde mora a
 // lentidão legítima (o go2rtc ainda vai estabelecer a sessão RTSP com a câmera).

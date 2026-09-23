@@ -311,6 +311,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── recordings.go   dias, timeline, init, segmentos, thumbnail, HLS, exportação
 │   │   ├── deteccoes.go    as detecções de todas as câmeras, paginadas, e o quadro de cada uma
 │   │   ├── live.go         proxy do go2rtc, com a credencial ficando no servidor
+│   │   ├── servidor.go     a máquina que grava, para o Diagnóstico: temperatura, memória, storage, go2rtc
 │   │   ├── web.go          serve a SPA embutida
 │   │   └── dist/           build da interface, versionado (ver web/README.md)
 │   ├── buildinfo/          versão, commit e data injetados no build
@@ -324,6 +325,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── probe.go        hash do init e sondagem de segmento órfão
 │   │   └── sps.go          resolução real a partir do SPS de H264/H265
 │   ├── go2rtc/             cliente da API do go2rtc e do stream fMP4
+│   ├── logbuf/             guarda em memória os últimos avisos e erros do log, para o Diagnóstico
 │   ├── recorder/           um recorder por câmera: corta em keyframe e grava
 │   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram
 │   └── store/              layout em disco e índice NDJSON

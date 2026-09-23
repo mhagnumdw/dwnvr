@@ -40,14 +40,16 @@ Ao alterar algo em `web/`, rode `npm run build` **antes** de commitar.
 src/lib/         api, estado (runes), rota e estado na URL, formatadores,
                  player MSE, miniaturas, captura de quadro, ícones das
                  famílias de objeto, disposição e desenho das caixas,
-                 diagnóstico do navegador de quem está olhando
+                 diagnóstico do navegador de quem está olhando e do
+                 servidor que grava
 src/routes/      as cinco telas + login; a de Detecções é chunk à parte e só
                  aparece com o detector de objetos configurado
 src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  horário digitado, modal e confirmação,
                  o estado de "nenhuma câmera cadastrada", seletor de dia,
                  caixas do detector sobre o vídeo (chunk à parte), a folha
-                 que abre uma detecção com o quadro e o trecho gravado
+                 que abre uma detecção com o quadro e o trecho gravado,
+                 o card fechável de diagnóstico com o "copiar"
 src/vendor/      player de live do go2rtc (MIT) - ver vendor/README.md
 ```
 

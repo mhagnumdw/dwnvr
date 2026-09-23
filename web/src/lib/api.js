@@ -71,6 +71,11 @@ export const api = {
 
   health: () => request('health'),
 
+  // A máquina que grava: temperatura, memória, pressão, storage, go2rtc e os
+  // últimos avisos do log. À parte do health porque custa um teste de escrita
+  // no disco - só a pede quem abriu o card "Este servidor".
+  servidor: () => request('health/servidor'),
+
   days: (cam) => request('rec/days?cam=' + encodeURIComponent(cam)),
 
   timeline: (cam, day) =>
