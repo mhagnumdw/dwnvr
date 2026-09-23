@@ -179,6 +179,12 @@ virada de dia da timeline cai no horário errado.
 
 ### 3. As suas câmeras <!-- omit in toc -->
 
+> **Antes:** o dwnvr lê o stream direto da câmera, e muita câmera vem com isso
+> desligado. Ative o RTSP (ou ONVIF) na interface web ou no app da câmera.
+> Ele costuma ter usuário e senha próprios. Se a sua câmera não tiver RTSP, o
+> go2rtc aceita [outras fontes](https://github.com/AlexxIT/go2rtc#module-streams),
+> como RTMP, HTTP e protocolos de fabricante.
+
 No `go2rtc.yaml`, apague as câmeras de teste que não quiser - ou todas, da
 `cam_teste1` à `cam_teste5` e mais a `traffic`, a `roadcam` e a `accident` - e
 publique as suas. O bloco comentado do arquivo traz exemplos: alta e baixa
