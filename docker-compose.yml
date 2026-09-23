@@ -51,13 +51,18 @@ services:
     # Crie os dois diretórios antes de subir: `mkdir -p config storage`. Se o
     # Docker precisar criá-los, eles nascem de root, e aí o container - que
     # roda com o UID acima - não consegue escrever dentro deles.
+    #
+    # O `:z` no fim de cada volume é para quem tem SELinux ligado (Fedora, RHEL)
+    # e sobe com Podman: ele troca o label do diretório para um que o container
+    # pode ler. Sem isso, até o dwnvr.yaml dá `permission denied`. Onde não há
+    # SELinux, ou no Docker, que por padrão não o aplica, ele não faz nada.
     volumes:
       # dwnvr.yaml, cameras.json e o segredo de sessão.
-      - ./config:/etc/dwnvr
+      - ./config:/etc/dwnvr:z
 
       # As gravações das câmeras. Ao lado do clone para você experimentar sem
       # preparar disco nenhum.
-      - ./storage:/storage
+      - ./storage:/storage:z
 
       # (*) Na instalação definitiva os dois caminhos da esquerda apontam para o
       #     disco onde as gravações cabem. Só a esquerda muda: /etc/dwnvr e
@@ -93,7 +98,7 @@ services:
     #     montado em /etc/dwnvr de propósito: aquele vai inteiro para dentro do
     #     container do dwnvr, e as URLs RTSP com usuário e senha vivem aqui.
     volumes:
-      - ./go2rtc.yaml:/config/go2rtc.yaml
+      - ./go2rtc.yaml:/config/go2rtc.yaml:z
 
     ports:
       - "1984:1984"      # API e interface web do go2rtc
