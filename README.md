@@ -56,15 +56,16 @@ Com a detecção desligada, o dwnvr custa o mesmo que uma versão sem ela.
 
 Só isso. Nada é compilado nem instalado na sua máquina: o dwnvr já vem pronto
 para rodar. E nem câmera é preciso para experimentar, porque o teste rápido
-traz cinco câmeras de teste.
+traz oito câmeras de teste.
 
 ## Experimentar em poucos minutos
 
 > Se você já quer instalar para valer, com as suas câmeras, pule para
 [instalar de verdade](#instalar-de-verdade).
 
-Sobe o dwnvr gravando cinco câmeras de teste. Tudo fica dentro do diretório do
-clone, e apagá-lo desfaz tudo.
+Sobe o dwnvr com oito câmeras de teste: cinco sintéticas, desenhadas pelo
+ffmpeg, e três streams públicos da internet, com imagem de rua de verdade. Tudo
+fica dentro do diretório do clone, e apagá-lo desfaz tudo.
 
 ```sh
 git clone https://github.com/mhagnumdw/dwnvr && cd dwnvr
@@ -73,7 +74,7 @@ git clone https://github.com/mhagnumdw/dwnvr && cd dwnvr
 # container - que não roda como root - não consegue escrever dentro deles.
 mkdir -p config storage
 
-# A configuração do dwnvr e a do go2rtc, com as câmeras sintéticas.
+# A configuração do dwnvr e a do go2rtc, com as câmeras de teste.
 cp dwnvr.example.yaml  config/dwnvr.yaml
 cp go2rtc.example.yaml go2rtc.yaml
 
@@ -91,7 +92,8 @@ docker compose up
 Quando o log disser `dwnvr no ar`, abra <http://localhost:8080>:
 
 1. na aba **Câmeras**, clique na `cam_teste1`, que aparece em *Disponíveis no
-   go2rtc* junto com as outras quatro sintéticas - uma delas tem áudio;
+   go2rtc* junto com as outras sete - a `cam_teste5` tem áudio, e a
+   `traffic`, a `roadcam` e a `accident` são imagem de rua de verdade;
 2. a aba **Ao vivo** já mostra a câmera;
 3. em ~30s o primeiro trecho fecha e aparece na aba **Gravações**.
 
@@ -178,9 +180,9 @@ virada de dia da timeline cai no horário errado.
 ### 3. As suas câmeras <!-- omit in toc -->
 
 No `go2rtc.yaml`, apague as câmeras de teste que não quiser - ou todas, da
-`cam_teste1` à `cam_teste5` - e publique as suas. O bloco comentado do arquivo
-traz exemplos: alta e baixa resolução, áudio, o
-formato geral da URL RTSP. Depois de subir, elas aparecem sozinhas na aba
+`cam_teste1` à `cam_teste5` e mais a `traffic`, a `roadcam` e a `accident` - e
+publique as suas. O bloco comentado do arquivo traz exemplos: alta e baixa
+resolução, áudio, o formato geral da URL RTSP. Depois de subir, elas aparecem sozinhas na aba
 **Câmeras**, prontas para cadastrar.
 
 ### 4. O login <!-- omit in toc -->
@@ -500,7 +502,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 ├── docker-compose.yml      dwnvr + go2rtc (+ dwnvr-detect, opcional), o único arquivo para subir tudo
 ├── Dockerfile              imagem FROM scratch, multi-arch
 ├── dwnvr.example.yaml      configuração do dwnvr, campo a campo
-├── go2rtc.example.yaml     configuração do go2rtc, com uma câmera sintética
+├── go2rtc.example.yaml     configuração do go2rtc, com as câmeras de teste
 └── Makefile                build, testes e deploy
 ```
 

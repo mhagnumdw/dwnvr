@@ -55,6 +55,29 @@ streams:
   # as opções de codec são as mesmas que o go2rtc usaria.
   cam_teste5: exec:ffmpeg -hide_banner -re -f lavfi -i avsynctest=size=640x360:framerate=15[out0][out1] -c:v libx264 -g 50 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p -c:a pcm_alaw -ar:a 16000 -ac:a 1 -rtsp_transport tcp -f rtsp {output}
 
+  # Streams RTSP públicos na internet, com imagem de verdade: carro, moto e
+  # gente passando - o que as sintéticas nunca mostram. São eles que dão ao
+  # detector de objetos alguma coisa para achar. Não são ao vivo: cada um repete
+  # um vídeo gravado, em loop.
+  # Verificado: todos H264 em 1280x720, sem áudio, keyframe a cada 2s.
+  #
+  # Dependem de internet e de um servidor de terceiros (samples.rts.videodb.io),
+  # que pode sair do ar ou mudar sem aviso. Se um deles parar, as sintéticas
+  # acima continuam gravando. Numa instalação de verdade, apague estas linhas
+  # também.
+
+  # Avenida movimentada à noite, em timelapse. 25 fps, ~1,8 Mbps.
+  traffic: rtsp://samples.rts.videodb.io:8554/traffic
+
+  # Câmera no guidão de uma moto, na rua, com pedestres, carros e riquixás.
+  # 20 fps, ~1,7 Mbps.
+  roadcam: rtsp://samples.rts.videodb.io:8554/roadcam
+
+  # Câmera de segurança numa praça de pedágio, tirada de um telejornal: entre
+  # uma volta e outra do loop aparece o aviso de conteúdo sensível da emissora.
+  # 20 fps, ~1,3 Mbps.
+  accident: rtsp://samples.rts.videodb.io:8554/accident
+
   # ---------------------------------------------------------------------------
   # ALGUNS EXEMPLOS DE CONFIGURAÇÃO, para as suas câmeras. Estão todos
   # comentados: descomente o que servir, troque IP, usuário, senha e caminho -
