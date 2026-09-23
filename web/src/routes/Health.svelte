@@ -234,7 +234,11 @@
   $effect(() => {
     if (!servidorAberto) return;
     let vivo = true;
+    // Aba em segundo plano não pergunta: cada leitura grava no storage, e um
+    // card esquecido aberto numa aba escondida faria isso a cada 15 s para
+    // sempre. Ao voltar para a aba, lê na hora em vez de esperar o próximo tique.
     const ler = async () => {
+      if (document.hidden) return;
       try {
         const r = await api.servidor();
         if (vivo) (servidor = r), (erroServidor = '');
@@ -244,9 +248,11 @@
     };
     ler();
     const id = setInterval(ler, SERVIDOR_POLL_MS);
+    document.addEventListener('visibilitychange', ler);
     return () => {
       vivo = false;
       clearInterval(id);
+      document.removeEventListener('visibilitychange', ler);
     };
   });
 
