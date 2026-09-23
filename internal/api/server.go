@@ -32,8 +32,11 @@ type Server struct {
 	// Resultado das sondas de áudio, para não reabrir conexão com a câmera a
 	// cada vez que o formulário de cadastro é aberto. Ver probe.go.
 	probes probeCache
-	// Um teste de escrita no storage em andamento. Ver servidor.go.
-	escrevendo atomic.Bool
+	// Um teste de escrita no storage em andamento, e o erro do último que
+	// falhou. Ver servidor.go. Só a goroutine que ganhou o escrevendo toca
+	// o erroEscrita.
+	escrevendo  atomic.Bool
+	erroEscrita string
 }
 
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,

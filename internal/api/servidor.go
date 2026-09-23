@@ -490,6 +490,10 @@ const prazoEscrita = 5 * time.Second
 // um fsync. Por isso o teste roda à parte, a resposta desiste no prazo, e um
 // teste ainda preso faz os pedidos seguintes responderem isso mesmo em vez de
 // empilhar mais arquivos e mais goroutines no disco que já não responde.
+//
+// A falha vai para o log só quando muda. Com o card aberto o teste roda de 15
+// em 15 s, e um aviso a cada rodada encheria em minutos as 50 linhas que a
+// tela mostra, empurrando para fora justamente o erro que explicava o disco.
 func (s *Server) testarEscrita() escrita {
 	if !s.escrevendo.CompareAndSwap(false, true) {
 		return escrita{Erro: "o teste anterior ainda não terminou: o disco não está respondendo"}
@@ -501,10 +505,14 @@ func (s *Server) testarEscrita() escrita {
 		err := escreverTeste(s.cfg.Storage.Root)
 		ms := time.Since(inicio).Milliseconds()
 		if err != nil {
-			s.log.Warn("teste de escrita no storage falhou", "erro", err)
+			if err.Error() != s.erroEscrita {
+				s.log.Warn("teste de escrita no storage falhou", "erro", err)
+			}
+			s.erroEscrita = err.Error()
 			pronto <- escrita{Ms: ms, Erro: motivoDaEscrita(err)}
 			return
 		}
+		s.erroEscrita = ""
 		pronto <- escrita{OK: true, Ms: ms}
 	}()
 	select {
@@ -515,10 +523,16 @@ func (s *Server) testarEscrita() escrita {
 	}
 }
 
+// arquivoDeTeste é sempre o mesmo, e não um nome aleatório por rodada: se o
+// dwnvr morrer entre criar e apagar, sobra no máximo este arquivo, e o próximo
+// teste o reaproveita e apaga. O ponto na frente o esconde do ls comum e ele
+// nunca parece câmera; o store.Orphans só olha diretórios.
+const arquivoDeTeste = ".dwnvr-teste"
+
 func escreverTeste(root string) (err error) {
-	// Nome com ponto na frente: some do ls comum e nunca parece câmera, e o
-	// store.Orphans só olha diretórios.
-	f, err := os.CreateTemp(root, ".dwnvr-teste-*")
+	// Um teste de cada vez, garantido pelo escrevendo: o nome fixo não tem
+	// como ser disputado.
+	f, err := os.OpenFile(filepath.Join(root, arquivoDeTeste), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}

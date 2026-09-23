@@ -145,6 +145,9 @@ func TestMontagemMaisEspecifica(t *testing.T) {
 
 func TestTesteDeEscrita(t *testing.T) {
 	s, _ := testServer(t)
+	// A sobra de um dwnvr que morreu no meio do teste: o próximo a reaproveita
+	// e apaga.
+	fixture(t, s.cfg.Storage.Root, arquivoDeTeste, "sobra")
 	e := s.testarEscrita()
 	if !e.OK || e.Erro != "" {
 		t.Fatalf("escrita num diretório gravável: %+v", e)
@@ -159,6 +162,31 @@ func TestTesteDeEscrita(t *testing.T) {
 	s.cfg.Storage.Root = filepath.Join(t.TempDir(), "nao-existe")
 	if e := s.testarEscrita(); e.OK || e.Erro != "o diretório do storage não existe" {
 		t.Errorf("storage inexistente: %+v", e)
+	}
+}
+
+// A mesma falha repetida vai uma vez só para o log: com o card aberto, o teste
+// roda a cada 15 s e não pode tomar as linhas que a tela mostra.
+func TestFalhaDeEscritaNaoEncheOLog(t *testing.T) {
+	s, _ := testServer(t)
+	h := logbuf.New(slog.DiscardHandler, 10)
+	s.log = slog.New(h)
+	s.cfg.Storage.Root = filepath.Join(t.TempDir(), "nao-existe")
+	for range 3 {
+		s.testarEscrita()
+	}
+	if _, total := h.Recentes(); total != 1 {
+		t.Errorf("3 falhas iguais geraram %d avisos, esperado 1", total)
+	}
+
+	// Voltou a gravar e falhou de novo: é outro episódio, e avisa outra vez.
+	root := s.cfg.Storage.Root
+	s.cfg.Storage.Root = t.TempDir()
+	s.testarEscrita()
+	s.cfg.Storage.Root = root
+	s.testarEscrita()
+	if _, total := h.Recentes(); total != 2 {
+		t.Errorf("falha depois de um sucesso: %d avisos, esperado 2", total)
 	}
 }
 
