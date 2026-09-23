@@ -130,6 +130,32 @@ primeiro uso - e o dwnvr avisa disso no log.
 gravar o `cameras.json`. O `TZ` decide a que dia local cada segmento pertence;
 sem ele a virada de dia da timeline cai no horário errado.
 
+### Com Podman <!-- omit in toc -->
+
+O mesmo compose sobe com `podman-compose`, desde que o Podman mapeie o seu
+usuário para ele mesmo dentro do container:
+
+```sh
+PODMAN_USERNS=keep-id podman-compose --in-pod false up
+```
+
+Sem o `keep-id`, o Podman rootless faz o seu UID virar root dentro do
+container, e o dwnvr, que roda com o `DWNVR_UID`, não consegue ler o
+`.session-secret` nem gravar em `config/` e `storage/`. O `--in-pod false` é
+porque, dentro de um pod, o `PODMAN_USERNS` é ignorado. As duas opções ficam
+fora do `docker-compose.yml` porque o Docker recusa o `keep-id`.
+
+Para derrubar, o `--in-pod false` continua necessário. Sem ele, o
+`podman-compose` procura um pod `pod_dwnvr` que nunca foi criado e termina com
+`Error: no pod with name or ID pod_dwnvr found`:
+
+```sh
+podman-compose --in-pod false down
+```
+
+Com SELinux ligado (Fedora, RHEL), o Podman também bloqueia a leitura dos
+volumes, e o `:z` que o compose já traz em cada um é o que libera.
+
 ### Colocar a sua câmera <!-- omit in toc -->
 
 Edite o `go2rtc.yaml`: o bloco comentado traz alguns exemplos de configuração -
@@ -203,15 +229,17 @@ container - que não roda como root - não escreve dentro deles.
 services:
   dwnvr:
     volumes:
-      - /mnt/storage/dwnvr/config:/etc/dwnvr
-      - /mnt/storage/dwnvr/recordings:/storage
+      - /mnt/storage/dwnvr/config:/etc/dwnvr:z
+      - /mnt/storage/dwnvr/recordings:/storage:z
   go2rtc:
     volumes:
-      - /mnt/storage/dwnvr/go2rtc/go2rtc.yaml:/config/go2rtc.yaml
+      - /mnt/storage/dwnvr/go2rtc/go2rtc.yaml:/config/go2rtc.yaml:z
 ```
 
 Só o lado esquerdo muda; o direito é o que o container enxerga por dentro e é
-fixo.
+fixo. O `:z` só tem efeito com SELinux e Podman (ver [com Podman](#com-podman)).
+Nesse caso, a primeira subida troca o label de todas as gravações que já
+estiverem lá, e pode demorar se forem muitas.
 
 **Edite o `docker-compose.yml` direto** - funciona e é o caminho mais simples.
 Se preferir manter o clone limpo para o `git pull`, grave esse mesmo trecho num
