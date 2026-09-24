@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -194,6 +195,11 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		}
 		available = append(available, info)
 	}
+	// O go2rtc devolve os streams num map, e o Go não garante ordem ao
+	// percorrê-lo: sem isto a lista mudava de ordem a cada recarga da tela.
+	slices.SortFunc(available, func(a, b streamInfo) int {
+		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
 	resp["streams"] = available
 	writeJSON(w, resp)
 }
