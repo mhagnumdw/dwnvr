@@ -178,13 +178,15 @@ export async function coletar() {
 }
 
 // comoTexto põe os grupos numa linha por item, para colar numa conversa.
-export function comoTexto(grupos, extras = []) {
-  const linhas = [...extras];
+// `cabecalho` vai antes dos grupos e `rodape` depois - o user agent no card do
+// navegador, as linhas do log no do servidor.
+export function comoTexto(grupos, cabecalho = [], rodape = []) {
+  const linhas = [...cabecalho];
   for (const g of grupos) {
     linhas.push('', `[${g.titulo}]`);
     for (const i of g.itens) linhas.push(`${i.rotulo}: ${i.valor}`);
   }
-  linhas.push('', `user agent: ${navigator.userAgent}`);
+  if (rodape.length) linhas.push('', ...rodape);
   return linhas.join('\n').trim();
 }
 

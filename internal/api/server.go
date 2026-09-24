@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
@@ -31,6 +32,11 @@ type Server struct {
 	// Resultado das sondas de áudio, para não reabrir conexão com a câmera a
 	// cada vez que o formulário de cadastro é aberto. Ver probe.go.
 	probes probeCache
+	// Um teste de escrita no storage em andamento, e o erro do último que
+	// falhou. Ver diagnostico_servidor.go. Só a goroutine que ganhou o
+	// escrevendo toca o erroEscrita.
+	escrevendo  atomic.Bool
+	erroEscrita string
 }
 
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
@@ -82,6 +88,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/cameras", s.requireAuth(s.handleDeleteCamera))
 	mux.HandleFunc("GET /api/streams/probe", s.requireAuth(s.handleProbeStream))
 	mux.HandleFunc("GET /api/health", s.requireAuth(s.handleHealth))
+	mux.HandleFunc("GET /api/health/servidor", s.requireAuth(s.handleDiagnosticoServidor))
 	mux.HandleFunc("DELETE /api/rec", s.requireAuth(s.handleDeleteRecordings))
 	mux.HandleFunc("GET /api/rec/days", s.requireAuth(s.handleDays))
 	mux.HandleFunc("GET /api/rec/timeline", s.requireAuth(s.handleTimeline))

@@ -31,7 +31,7 @@ Com a detecção desligada, o dwnvr custa o mesmo que uma versão sem ela.
 
 > **ATENÇÃO:** esse projeto é totalmente vibe codado e é meu primeiro projeto assim. Além de querer resolver uma necessidade minha, que eu acho que é de várias outras pessoas, eu queria saber como seria a experiência de desenvolver totalmente nesse estilo.
 >
-> Embora seja vibe codado, o projeto já nasceu desde o início com foco em exterma performance, baixíssimo consumo de CPU e memória, tempo de resposta ultra rápido, uma UI super rápida, leve, reativa e responsiva com excelente usabilidade para mobile (browser) e desktop (browser). Parte disso era uma necessidade em razão do hardware real que usei e uso, que é um Orange Pi Zero 3 e tudo isso se constata nos testes que faço e no meu uso no dia a dia. Testei diversas outras opções e nenhuma passou perto dos resultados que tenho, fora outros problemas/chatices diversas.
+> Embora seja vibe codado, o projeto já nasceu desde o início com foco em extrema performance, baixíssimo consumo de CPU e memória, tempo de resposta ultra rápido, uma UI super rápida, leve, reativa e responsiva com excelente usabilidade para mobile (browser) e desktop (browser). Parte disso era uma necessidade em razão do hardware real que usei e uso, que é um Orange Pi Zero 3 e tudo isso se constata nos testes que faço e no meu uso no dia a dia. Testei diversas outras opções e nenhuma passou perto dos resultados que tenho, fora outros problemas/chatices diversas.
 
 - [O que você precisa](#o-que-você-precisa)
 - [Experimentar em poucos minutos](#experimentar-em-poucos-minutos)
@@ -486,6 +486,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── recordings.go   dias, timeline, init, segmentos, thumbnail, HLS, exportação
 │   │   ├── deteccoes.go    as detecções de todas as câmeras, paginadas, e o quadro de cada uma
 │   │   ├── live.go         proxy do go2rtc, com a credencial ficando no servidor
+│   │   ├── diagnostico_servidor.go  a máquina que grava, para o Diagnóstico: temperatura, memória, storage, go2rtc
 │   │   ├── web.go          serve a SPA embutida
 │   │   └── dist/           build da interface, versionado (ver web/README.md)
 │   ├── buildinfo/          versão, commit e data injetados no build
@@ -499,6 +500,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── probe.go        hash do init e sondagem de segmento órfão
 │   │   └── sps.go          resolução real a partir do SPS de H264/H265
 │   ├── go2rtc/             cliente da API do go2rtc e do stream fMP4
+│   ├── logbuf/             guarda em memória os últimos avisos e erros do log, para o Diagnóstico
 │   ├── recorder/           um recorder por câmera: corta em keyframe e grava
 │   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram
 │   └── store/              layout em disco e índice NDJSON

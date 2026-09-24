@@ -35,6 +35,7 @@ Todo o resto exige sessão válida.
 | `DELETE /api/cameras` | `id`, `recordings=1` | descadastra; com `recordings=1` apaga as gravações junto |
 | `GET /api/streams/probe` | `src` | diz se um stream entrega áudio, abrindo-o se preciso |
 | `GET /api/health` | - | bitrate medido, dias estimados, estado do disco, uptimes e relógio |
+| `GET /api/health/servidor` | - | a máquina que grava: temperatura, memória, pressão, storage, go2rtc e últimos avisos do log |
 | `DELETE /api/rec` | `cam` | apaga as gravações; serve também câmera já removida |
 
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
@@ -158,6 +159,60 @@ reconverter. `zone` é o nome IANA e some quando o servidor não consegue
 descobri-lo (nem `TZ`, nem `/etc/timezone`, nem o link de `/etc/localtime`); aí
 resta a `abbr`, que sozinha não identifica região - `-03` vale para São Paulo,
 Buenos Aires e outros.
+
+O `GET /api/health/servidor` é o card "Este servidor" do Diagnóstico. Fica fora
+do `/api/health` porque custa mais: a cada chamada ele grava, sincroniza com
+`fsync` e apaga 4 KB no `storage.root`, e pergunta a versão ao go2rtc. A tela só
+o chama com o card aberto, de 15 em 15 segundos. Tudo sai de `/proc` e `/sys`,
+e cada campo some quando a fonte não existe (kernel sem PSI, sistema sem
+cgroup, fora do Linux).
+
+```json
+{
+  "maquina": {
+    "nucleos": 4, "carga": [3.1, 2.05, 1.5],
+    "sensores": [{ "nome": "cpu_thermal", "celsius": 84.3 }],
+    "mhz": 1008, "mhzMax": 1512, "governor": "ondemand"
+  },
+  "memoria": {
+    "totalBytes": 1036640256, "disponivelBytes": 209715200,
+    "swapTotalBytes": 536870912, "swapUsadaBytes": 268435456,
+    "limiteBytes": 536870912, "oomKills": 2
+  },
+  "pressao": {
+    "cpu":     { "some": { "avg10": 12.5, "avg60": 8, "avg300": 3.25 }, "full": { "avg10": 0, "avg60": 0, "avg300": 0 } },
+    "memoria": { "some": { "avg10": 0, "avg60": 0, "avg300": 0 } },
+    "io":      { "some": { "avg10": 40, "avg60": 35.1, "avg300": 20 } }
+  },
+  "storage": {
+    "caminho": "/storage", "tipo": "ext4", "origem": "/dev/sda1",
+    "opcoes": "rw,relatime", "somenteLeitura": false,
+    "escrita": { "ok": true, "ms": 12 }
+  },
+  "go2rtc": { "ok": true, "ms": 4, "versao": "1.9.9" },
+  "log": {
+    "total": 37,
+    "linhas": [{ "em": "2026-09-22T18:37:12-03:00", "nivel": "WARN", "texto": "conexão caiu cam=garagem erro=EOF" }]
+  }
+}
+```
+
+- `pressao` é o PSI do kernel: a porcentagem do tempo em que alguma tarefa
+  (`some`) ou todas (`full`) ficaram paradas esperando CPU, memória ou disco,
+  em média de 10, 60 e 300 segundos.
+- `oomKills` conta os processos que o kernel matou por falta de memória desde
+  que a **máquina** ligou, e não só os do container. Quando a vítima é o próprio
+  dwnvr, o Docker sobe um container novo e o contador do cgroup antigo some
+  junto; o da máquina continua lá.
+- `limiteBytes` é o teto de memória do container, e some quando não há teto.
+- `somenteLeitura` vale para a montagem ou para o superbloco: um cartão SD com
+  defeito é remontado somente leitura pelo kernel sem avisar ninguém.
+- `escrita.erro` só traz causa conhecida (somente leitura, sem permissão, disco
+  cheio, diretório inexistente, disco que não respondeu em 5 s). Qualquer outra
+  falha vai genérica, com o detalhe no log. Enquanto um teste anterior continuar
+  preso num disco travado, a resposta diz isso e não abre outro teste.
+- `log` traz os últimos 50 avisos e erros, do mais novo para o mais velho, e
+  `total` diz quantos houve desde que o dwnvr subiu.
 
 ## Gravações
 

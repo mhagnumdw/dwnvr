@@ -252,3 +252,20 @@ func TestOpenStreamDesisteDeQuemNaoResponde(t *testing.T) {
 		t.Errorf("demorou %s para desistir", se)
 	}
 }
+
+// O /api de um go2rtc 1.9 traz mais que a versão; só ela deve ser lida.
+func TestVersaoLeSoAVersao(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api" {
+			http.NotFound(w, r)
+			return
+		}
+		io.WriteString(w, `{"config_path":"/config/go2rtc.yaml","host":"192.168.0.10:1984","pid":1,"rtsp":{"listen":":8554"},"version":"1.9.9"}`)
+	}))
+	defer srv.Close()
+
+	v, err := New(config.Go2RTC{URL: srv.URL}).Versao(context.Background())
+	if err != nil || v != "1.9.9" {
+		t.Errorf("versão %q, erro %v", v, err)
+	}
+}
