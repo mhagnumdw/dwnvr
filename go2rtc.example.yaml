@@ -3,9 +3,10 @@
 # Este arquivo é SEU. O dwnvr nunca o escreve: ele só lê a lista de streams
 # pela API do go2rtc e grava o que você tiver publicado aqui.
 #
-# Copie para go2rtc.yaml, que é o nome que o docker-compose.yml monta em
-# /config/go2rtc.yaml. O go2rtc.yaml é ignorado pelo git, e é por isso que as
-# URLs RTSP com usuário e senha não têm como ir parar num commit.
+# Copie para config/go2rtc/go2rtc.yaml: o docker-compose.yml monta a pasta
+# config/go2rtc/ em /config, e o go2rtc lê /config/go2rtc.yaml. O go2rtc.yaml é ignorado pelo
+# git, e é por isso que as URLs RTSP com usuário e senha não têm como ir parar
+# num commit.
 
 streams:
   # O nome de cada stream aqui é o ID da câmera no dwnvr: tudo que estiver

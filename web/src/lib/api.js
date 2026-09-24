@@ -69,6 +69,9 @@ export const api = {
   // segundos com a câmera - ver internal/api/probe.go.
   probeStream: (name) => request('streams/probe?src=' + encodeURIComponent(name)),
 
+  // Faz o go2rtc reler o go2rtc.yaml. Todas as câmeras param por alguns segundos.
+  reiniciarGo2rtc: () => request('go2rtc/restart', { method: 'POST' }),
+
   health: () => request('health'),
 
   // A máquina que grava: temperatura, memória, pressão, storage, go2rtc e os

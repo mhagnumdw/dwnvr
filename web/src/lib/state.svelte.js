@@ -24,6 +24,10 @@ export const cameras = $state({
   // Nulo até a primeira resposta: "ainda não sei" é diferente de "não tem".
   detector: null,
   go2rtcError: null,
+  // O que está no go2rtc.yaml e o go2rtc ainda não carregou: { novas,
+  // alteradas, foraDoArquivo }. Nulo quando os dois batem, ou quando o go2rtc
+  // não deixa ler o arquivo.
+  go2rtcConfigFile: null,
   loading: true,
   error: null,
 });
@@ -75,6 +79,7 @@ export async function logout() {
   cameras.orphans = [];
   cameras.detector = null;
   cameras.go2rtcError = null;
+  cameras.go2rtcConfigFile = null;
   cameras.loading = true;
   cameras.error = null;
   health.cameras = [];
@@ -108,6 +113,7 @@ export async function loadCameras() {
     cameras.padrao = data.padrao ?? null;
     cameras.detector = data.detector === true;
     cameras.go2rtcError = data.go2rtcError ?? null;
+    cameras.go2rtcConfigFile = data.go2rtcConfigFile ?? null;
   } catch (e) {
     cameras.error = e.message;
     // Sem resposta nenhuma, a aba fica de fora: melhor que a tela em branco

@@ -72,11 +72,11 @@ git clone https://github.com/mhagnumdw/dwnvr && cd dwnvr
 
 # Precisam existir antes: se o Docker os criar, eles nascem de root e o
 # container - que não roda como root - não consegue escrever dentro deles.
-mkdir -p config storage
+mkdir -p config/dwnvr config/go2rtc storage
 
 # A configuração do dwnvr e a do go2rtc, com as câmeras de teste.
-cp dwnvr.example.yaml  config/dwnvr.yaml
-cp go2rtc.example.yaml go2rtc.yaml
+cp dwnvr.example.yaml  config/dwnvr/dwnvr.yaml
+cp go2rtc.example.yaml config/go2rtc/go2rtc.yaml
 
 # O container grava com o seu usuário, para os arquivos serem seus no disco,
 # e no fuso da sua máquina, para a timeline virar o dia na hora certa.
@@ -110,7 +110,7 @@ Para desfazer tudo:
 
 ```sh
 docker compose down
-rm -rf config storage go2rtc.yaml .env
+rm -rf config storage .env
 ```
 
 > Com [Podman](#com-podman) no lugar do Docker, o primeiro comando é
@@ -130,27 +130,28 @@ de comandos:
 ```
 No Host                                                            No Container
 /mnt/storage/dwnvr/
-├── config/          dwnvr.yaml, cameras.json, .session-secret  →  /etc/dwnvr
-├── recordings/      as gravações                               →  /storage
-└── go2rtc/
-    └── go2rtc.yaml  as suas câmeras, com usuário e senha       →  /config/go2rtc.yaml
+├── config/
+│   ├── dwnvr/       dwnvr.yaml, cameras.json, .session-secret  →  /etc/dwnvr
+│   └── go2rtc/      go2rtc.yaml: as suas câmeras, com senha    →  /config
+└── recordings/      as gravações                               →  /storage
 ```
 
 ```sh
 # O diretório da instalação, no seu disco
 DWNVR_DIR=/mnt/storage/dwnvr
 
-sudo mkdir -p "$DWNVR_DIR"/{config,recordings,go2rtc}
+sudo mkdir -p "$DWNVR_DIR"/{config/dwnvr,config/go2rtc,recordings}
 sudo chown -R "$(id -u):$(id -g)" "$DWNVR_DIR"
 
-cp dwnvr.example.yaml  "$DWNVR_DIR/config/dwnvr.yaml"
-cp go2rtc.example.yaml "$DWNVR_DIR/go2rtc/go2rtc.yaml"
+cp dwnvr.example.yaml  "$DWNVR_DIR/config/dwnvr/dwnvr.yaml"
+cp go2rtc.example.yaml "$DWNVR_DIR/config/go2rtc/go2rtc.yaml"
 ```
 
-Crie-os **antes** de subir, pelo mesmo motivo do teste rápido. O `go2rtc.yaml`
-fica fora de `config/` de propósito: o `config/` inteiro é montado dentro do
-container do dwnvr, e as URLs RTSP - com usuário e senha - não têm por que
-ficar visíveis lá.
+Crie-os **antes** de subir, pelo mesmo motivo do teste rápido. Cada serviço
+tem a sua subpasta em `config/` de propósito: cada container enxerga só a
+própria. As URLs RTSP, com usuário e senha, não ficam visíveis para o dwnvr, e
+o segredo de sessão e a senha de login do dwnvr não ficam visíveis para o
+go2rtc.
 
 ### 2. O `.env` <!-- omit in toc -->
 
@@ -160,9 +161,9 @@ tem o `DWNVR_DIR`:
 ```sh
 cat > .env <<EOF
 # Onde as coisas moram no host
-DWNVR_CONFIG_DIR=$DWNVR_DIR/config
+DWNVR_CONFIG_DIR=$DWNVR_DIR/config/dwnvr
 DWNVR_STORAGE_DIR=$DWNVR_DIR/recordings
-GO2RTC_CONFIG=$DWNVR_DIR/go2rtc/go2rtc.yaml
+GO2RTC_CONFIG_DIR=$DWNVR_DIR/config/go2rtc
 
 # O usuário com que o container grava
 DWNVR_UID=$(id -u)
@@ -192,9 +193,10 @@ resolução, áudio, o formato geral da URL RTSP. Depois de subir, elas aparecem
 **Câmeras**, prontas para cadastrar.
 
 Mexeu no arquivo com tudo já no ar - câmera nova, câmera removida ou só uma
-URL trocada? O go2rtc só lê o `go2rtc.yaml` quando sobe, então rode
-`docker compose restart go2rtc` para a mudança valer. Enquanto isso, as câmeras
-param de gravar por alguns segundos.
+URL trocada? O go2rtc só lê o `go2rtc.yaml` quando sobe, então ele precisa
+reiniciar para a mudança valer. A aba **Câmeras** avisa quando percebe a
+diferença e tem o botão para reiniciar; `docker compose restart go2rtc` faz o
+mesmo. Enquanto isso, as câmeras param de gravar por alguns segundos.
 
 ### 4. O login <!-- omit in toc -->
 
@@ -321,7 +323,7 @@ PODMAN_USERNS=keep-id podman-compose --in-pod false up
 
 Sem o `keep-id`, o Podman rootless faz o seu UID virar root dentro do
 container, e o dwnvr, que roda com o `DWNVR_UID`, não consegue ler o
-`.session-secret` nem gravar em `config/` e `storage/`. O `--in-pod false` é
+`.session-secret` nem gravar em `config/dwnvr/` e `storage/`. O `--in-pod false` é
 porque, dentro de um pod, o `PODMAN_USERNS` é ignorado. As duas opções ficam
 fora do `docker-compose.yml` porque o Docker recusa o `keep-id`.
 

@@ -24,6 +24,24 @@
 
   const novos = $derived(cameras.streams.filter((s) => !s.registered));
 
+  // Reinício do go2rtc: ele só lê o go2rtc.yaml quando sobe.
+  let confirmandoReinicio = $state(false);
+  let reiniciando = $state(false);
+  // O go2rtc responde ao pedido antes de reiniciar: perguntar logo em seguida
+  // ainda pega o processo velho, com a lista velha.
+  const REINICIO_PRIMEIRA_PERGUNTA_MS = 1500;
+  const REINICIO_INTERVALO_MS = 1000;
+  // Medido no go2rtc local: volta em menos de 2 s. Passado disto, desiste e
+  // deixa a tela mostrar o erro de conexão, que é a verdade.
+  const REINICIO_DESISTE_MS = 20000;
+
+  const cadastradas = $derived(new Set(cameras.list.map((c) => c.id)));
+  // Câmera cadastrada que saiu do arquivo para de gravar depois do reinício: é o
+  // único efeito do reinício que alguém pode não querer, e o diálogo o repete.
+  const vaoParar = $derived(
+    (cameras.go2rtcConfigFile?.foraDoArquivo ?? []).filter((id) => cadastradas.has(id)),
+  );
+
   // Enquanto a sonda não responde, as opções de áudio seguem bloqueadas; se ela
   // FALHAR, elas são liberadas. Não conseguir verificar não é o mesmo que saber
   // que não tem áudio, e bloquear nesse caso impediria de configurar uma câmera
@@ -185,6 +203,33 @@
     }
   }
 
+  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function reiniciarGo2rtc() {
+    confirmandoReinicio = false;
+    reiniciando = true;
+    error = '';
+    try {
+      await api.reiniciarGo2rtc();
+      // Pergunta direto à API, sem passar pelo estado: enquanto o go2rtc está
+      // fora, a resposta traz go2rtcError, e jogá-la na tela piscaria o aviso
+      // de "não foi possível falar com o go2rtc" no meio de um reinício normal.
+      const desiste = Date.now() + REINICIO_DESISTE_MS;
+      await espera(REINICIO_PRIMEIRA_PERGUNTA_MS);
+      while (Date.now() < desiste) {
+        const data = await api.cameras().catch(() => null);
+        if (data && !data.go2rtcError) break;
+        await espera(REINICIO_INTERVALO_MS);
+      }
+    } catch (e) {
+      error = e.message;
+    } finally {
+      await loadCameras();
+      await loadHealth();
+      reiniciando = false;
+    }
+  }
+
   async function confirmarApagamento() {
     const alvo = apagando;
     apagando = null;
@@ -310,6 +355,39 @@
       </button>
     </div>
 
+    {#if cameras.go2rtcConfigFile}
+      {@const arq = cameras.go2rtcConfigFile}
+      <div class="card warnbox aviso">
+        <p class="small">
+          O <code>go2rtc.yaml</code> mudou depois que o go2rtc subiu. Ele só lê o arquivo quando
+          sobe, então estas mudanças ainda não valem:
+        </p>
+        <ul class="small">
+          {#each arq.novas ?? [] as id (id)}
+            <li><code>{id}</code> <span class="muted">nova - aparece para cadastrar depois do reinício</span></li>
+          {/each}
+          {#each arq.alteradas ?? [] as id (id)}
+            <li><code>{id}</code> <span class="muted">configuração mudou</span></li>
+          {/each}
+          {#each arq.foraDoArquivo ?? [] as id (id)}
+            <li>
+              <code>{id}</code>
+              <span class="muted">
+                {cadastradas.has(id)
+                  ? 'saiu do arquivo - para de gravar depois do reinício'
+                  : 'saiu do arquivo - some desta lista depois do reinício'}
+              </span>
+            </li>
+          {/each}
+        </ul>
+        <div class="row acao">
+          <button class="warn" onclick={() => (confirmandoReinicio = true)} disabled={reiniciando}>
+            {reiniciando ? 'reiniciando…' : 'reiniciar go2rtc'}
+          </button>
+        </div>
+      </div>
+    {/if}
+
     {#if novos.length}
       <div class="row wrap">
         {#each novos as s (s.name)}
@@ -334,6 +412,18 @@
       go2rtc, que só lê o arquivo quando sobe. Aí ele aparece nesta lista - um clique escolhe
       cota, áudio e retenção, e a gravação começa. Vale também para mudar uma câmera que já grava.
     </p>
+
+    <!-- Sem aviso não quer dizer arquivo igual: mudar a fonte ffmpeg de uma
+         câmera que está gravando não é detectável (ver go2rtc.Divergencias).
+         O reinício fica ao alcance, discreto. -->
+    {#if !cameras.go2rtcConfigFile && !cameras.go2rtcError}
+      <p class="muted small reinicio">
+        Mudou o <code>go2rtc.yaml</code> e não apareceu aqui?
+        <button class="link" onclick={() => (confirmandoReinicio = true)} disabled={reiniciando}>
+          {reiniciando ? 'reiniciando…' : 'reiniciar o go2rtc'}
+        </button>
+      </p>
+    {/if}
   </div>
 
   <!-- Só aparece quando há algo: uma seção vazia permanente sugeriria que sobrar
@@ -529,6 +619,24 @@
   </ConfirmDialog>
 {/if}
 
+{#if confirmandoReinicio}
+  {@const ativas = cameras.list.filter((c) => c.enabled).length}
+  <ConfirmDialog
+    title="Reiniciar o go2rtc?"
+    confirmLabel="reiniciar"
+    onconfirm={reiniciarGo2rtc}
+    oncancel={() => (confirmandoReinicio = false)}
+  >
+    Ele volta a ler o <code>go2rtc.yaml</code>.
+    {ativas === 1
+      ? 'Enquanto isso, a câmera para de gravar por alguns segundos e volta sozinha.'
+      : `Enquanto isso, as ${ativas} câmeras param de gravar por alguns segundos e voltam sozinhas.`}
+    {#each vaoParar as id (id)}
+      <p class="vai-parar"><code>{id}</code> saiu do arquivo: depois do reinício ela para de gravar.</p>
+    {/each}
+  </ConfirmDialog>
+{/if}
+
 {#if apagando}
   <ConfirmDialog
     title="Apagar as gravações de {apagando.nome}?"
@@ -599,6 +707,28 @@
   }
   .atualizar.girando svg { animation: girar 0.8s linear infinite; }
   @keyframes girar { to { transform: rotate(360deg); } }
+  /* O aviso fica dentro do card, entre o título e a lista: é onde se olha
+     depois de editar o arquivo, e é a lista que ele explica. */
+  .aviso { display: grid; gap: 10px; margin: 0 0 12px; padding: 12px; }
+  .aviso p { margin: 0; }
+  .aviso ul { margin: 0; padding-left: 18px; color: var(--fg); }
+  .aviso li { margin: 2px 0; }
+  .aviso li .muted { font-size: 12px; }
+  .aviso .acao { justify-content: flex-end; }
+  button.warn { color: var(--warn); border-color: #6b5a1f; white-space: nowrap; }
+  .reinicio { margin: 10px 0 0; }
+  /* Com cara de link, porque é a saída de exceção; o alvo de toque vem do
+     padding, já que 44px de altura mínima afastariam a linha do texto. */
+  button.link {
+    background: none;
+    border: 0;
+    min-height: 0;
+    padding: 6px 2px;
+    color: var(--accent);
+    text-decoration: underline;
+    font-size: inherit;
+  }
+  .vai-parar { margin: 8px 0 0; color: var(--warn); }
   .ajuda .vazio { margin: 0; }
   .ajuda .explica { margin: 12px 0 0; }
   .ajuda code { color: var(--fg); }

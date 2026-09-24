@@ -34,6 +34,7 @@ Todo o resto exige sessão válida.
 | `POST /api/cameras` | corpo JSON | cadastra ou altera (upsert por id) |
 | `DELETE /api/cameras` | `id`, `recordings=1` | descadastra; com `recordings=1` apaga as gravações junto |
 | `GET /api/streams/probe` | `src` | diz se um stream entrega áudio, abrindo-o se preciso |
+| `POST /api/go2rtc/restart` | - | reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
 | `GET /api/health` | - | bitrate medido, dias estimados, estado do disco, uptimes e relógio |
 | `GET /api/health/servidor` | - | a máquina que grava: temperatura, memória, pressão, storage, go2rtc e últimos avisos do log |
 | `DELETE /api/rec` | `cam` | apaga as gravações; serve também câmera já removida |
@@ -64,6 +65,28 @@ do `dwnvr.yaml` aplicados. É dele que o formulário de câmera nova parte, e n�
 de números repetidos na interface. E traz o `detector`: `true` quando o
 detector de objetos está configurado. Sem ele, a interface esconde a aba
 Detecções.
+
+O go2rtc só lê o `go2rtc.yaml` quando sobe. Quando o arquivo diz uma coisa e o
+go2rtc em execução faz outra, o `GET /api/cameras` traz `go2rtcConfigFile`, e a
+tela oferece o `POST /api/go2rtc/restart`:
+
+```json
+"go2rtcConfigFile": {
+  "novas": ["cam_quintal"],
+  "alteradas": ["cam_portao"],
+  "foraDoArquivo": ["cam_garagem"]
+}
+```
+
+`novas` estão no arquivo e não foram carregadas; `foraDoArquivo` estão rodando
+e saíram do arquivo; `alteradas` existem nos dois lados com fonte diferente.
+Listas vazias são omitidas, e o campo inteiro some quando os dois lados batem
+ou quando o go2rtc não deixa ler o arquivo (`GET /api/config` dele). A
+comparação é só da seção `streams`. `alteradas` não é completa: enquanto uma
+fonte `ffmpeg:` ou `exec:` está em uso, o go2rtc não mostra a fonte original, e
+essa câmera fica de fora. RTSP em uso mostra, e entra. O arquivo, que tem as
+URLs com usuário e senha, é lido no servidor e não vai ao navegador - só os
+nomes.
 
 Cada câmera do `/api/health` diz se a marcação de movimento está ligada
 (`detect`) e quantos onsets ela marcou desde que o dwnvr subiu (`onsets`).

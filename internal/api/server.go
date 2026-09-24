@@ -88,6 +88,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/cameras", s.requireAuth(s.handleSaveCamera))
 	mux.HandleFunc("DELETE /api/cameras", s.requireAuth(s.handleDeleteCamera))
 	mux.HandleFunc("GET /api/streams/probe", s.requireAuth(s.handleProbeStream))
+	mux.HandleFunc("POST /api/go2rtc/restart", s.requireAuth(s.handleReiniciarGo2rtc))
 	mux.HandleFunc("GET /api/health", s.requireAuth(s.handleHealth))
 	mux.HandleFunc("GET /api/health/servidor", s.requireAuth(s.handleDiagnosticoServidor))
 	mux.HandleFunc("DELETE /api/rec", s.requireAuth(s.handleDeleteRecordings))
@@ -201,7 +202,34 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
 	})
 	resp["streams"] = available
+
+	// O go2rtc só lê o go2rtc.yaml ao subir: câmera acrescentada depois não
+	// aparece em streams, e nada na tela explicava por quê. A divergência entre
+	// o arquivo e o que ele serve vira o aviso de reiniciar.
+	//
+	// Falhar aqui não é erro de ninguém - um go2rtc externo pode não expor o
+	// /api/config -, e a tela segue sem o aviso. Debug, e não Warn, porque isto
+	// roda a cada abertura da tela e encheria os avisos do Diagnóstico.
+	if arquivo, err := s.client.Arquivo(r.Context()); err != nil {
+		s.log.Debug("lendo o go2rtc.yaml pela API do go2rtc", "erro", err)
+	} else if d, err := go2rtc.Divergencias(arquivo, streams); err != nil {
+		s.log.Debug("comparando o go2rtc.yaml com os streams", "erro", err)
+	} else if !d.Vazia() {
+		resp["go2rtcConfigFile"] = d
+	}
 	writeJSON(w, resp)
+}
+
+// handleReiniciarGo2rtc faz o go2rtc reler o go2rtc.yaml. Todas as câmeras
+// param por alguns segundos; quem avisa disso antes é a tela.
+func (s *Server) handleReiniciarGo2rtc(w http.ResponseWriter, r *http.Request) {
+	if err := s.client.Reiniciar(r.Context()); err != nil {
+		s.log.Error("reiniciando o go2rtc", "erro", err)
+		writeError(w, http.StatusBadGateway, "o go2rtc não aceitou reiniciar: "+err.Error())
+		return
+	}
+	s.log.Info("go2rtc reiniciado pela interface")
+	writeJSON(w, map[string]bool{"reiniciado": true})
 }
 
 // handleVersion diz qual código está rodando.

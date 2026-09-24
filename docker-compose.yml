@@ -3,7 +3,7 @@
 # É o mesmo arquivo para experimentar e para instalar de verdade, e você não
 # precisa editá-lo: tudo que muda de uma instalação para outra - os caminhos
 # no disco, o UID, o fuso - vem do .env ao lado dele. Sem .env, ele sobe com os
-# valores do teste rápido: grava em ./config e ./storage.
+# valores do teste rápido: lê de ./config e grava em ./storage.
 #
 # As imagens vêm prontas do ghcr.io, publicadas pela CI; nada é compilado na
 # sua máquina. Para subir a partir do código, veja docker-compose.build.yml.
@@ -53,7 +53,7 @@ services:
       # dwnvr.yaml chama de `storage.root`.
 
       # dwnvr.yaml, cameras.json e o segredo de sessão.
-      - ${DWNVR_CONFIG_DIR:-./config}:/etc/dwnvr:z
+      - ${DWNVR_CONFIG_DIR:-./config/dwnvr}:/etc/dwnvr:z
 
       # As gravações das câmeras. O default é para você experimentar sem
       # preparar disco nenhum.
@@ -82,13 +82,15 @@ services:
     restart: unless-stopped
     shm_size: 128mb
 
-    # As suas câmeras moram aqui. Este arquivo é seu; o dwnvr não o escreve.
+    # As suas câmeras moram no go2rtc.yaml desta pasta. Ele é seu; o dwnvr
+    # não o escreve.
     #
-    # O caminho vem de GO2RTC_CONFIG no .env. Ele fica fora do diretório
-    # montado em /etc/dwnvr de propósito: aquele vai inteiro para dentro do
-    # container do dwnvr, e as URLs RTSP com usuário e senha vivem aqui.
+    # A pasta vem de GO2RTC_CONFIG_DIR no .env. Ela é irmã da do dwnvr, e não
+    # a mesma, de propósito: cada container enxerga só a própria configuração.
+    # As URLs RTSP, com usuário e senha, ficam aqui; o segredo de sessão e a
+    # senha de login do dwnvr ficam lá.
     volumes:
-      - ${GO2RTC_CONFIG:-./go2rtc.yaml}:/config/go2rtc.yaml:z
+      - ${GO2RTC_CONFIG_DIR:-./config/go2rtc}:/config:z
 
     ports:
       - "1984:1984"      # API e interface web do go2rtc

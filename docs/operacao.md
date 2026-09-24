@@ -2,23 +2,24 @@
 
 ## Onde ficam os arquivos
 
-Nada de importante vive dentro do container. Os dois volumes cobrem tudo. Os
+Nada de importante vive dentro do container. Os volumes cobrem tudo. Os
 caminhos do host abaixo são os da [instalação de
 verdade](../README.md#instalar-de-verdade), definidos no `.env` por
-`DWNVR_CONFIG_DIR` e `DWNVR_STORAGE_DIR`; no teste rápido os mesmos arquivos
-ficam em `./config` e `./storage`.
+`DWNVR_CONFIG_DIR`, `DWNVR_STORAGE_DIR` e `GO2RTC_CONFIG_DIR`; no teste rápido
+os mesmos arquivos ficam em `./config/dwnvr`, `./storage` e `./config/go2rtc`.
 
 | No host (exemplo) | No container | O que é |
 |---|---|---|
-| `/mnt/storage/dwnvr/config/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuração, editada à mão |
-| `/mnt/storage/dwnvr/config/cameras.json` | `/etc/dwnvr/cameras.json` | câmeras, gravado pela tela de cadastro |
-| `/mnt/storage/dwnvr/config/.session-secret` | `/etc/dwnvr/.session-secret` | assina os cookies de sessão (0600) |
+| `/mnt/storage/dwnvr/config/dwnvr/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuração, editada à mão |
+| `/mnt/storage/dwnvr/config/dwnvr/cameras.json` | `/etc/dwnvr/cameras.json` | câmeras, gravado pela tela de cadastro |
+| `/mnt/storage/dwnvr/config/dwnvr/.session-secret` | `/etc/dwnvr/.session-secret` | assina os cookies de sessão (0600) |
+| `/mnt/storage/dwnvr/config/go2rtc/go2rtc.yaml` | `/config/go2rtc.yaml`, no container do go2rtc | as câmeras, editado à mão |
 | `/mnt/storage/dwnvr/recordings/` | `/storage/` | gravações, índices, init segments, marcas de movimento e quadros das detecções |
 
 Ou seja: **edite e inspecione tudo pelo host**, sem entrar no container.
 
 ```sh
-cat /mnt/storage/dwnvr/config/cameras.json
+cat /mnt/storage/dwnvr/config/dwnvr/cameras.json
 tail -f /mnt/storage/dwnvr/recordings/cam_iota/index/$(date +%F).ndjson
 
 # as marcas de movimento, se a câmera estiver com a detecção ligada
