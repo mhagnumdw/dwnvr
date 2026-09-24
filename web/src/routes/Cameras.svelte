@@ -34,6 +34,17 @@
     if (!cameras.list.length) loadCameras();
   });
 
+  // O caminho comum para câmera nova é trocar de janela, editar o go2rtc.yaml e
+  // voltar: recarregar quando a aba reaparece poupa o clique no botão. Com a aba
+  // escondida não há custo nenhum - o evento só dispara na troca.
+  function aoVoltarParaAba() {
+    if (!document.hidden) loadCameras();
+  }
+  onMount(() => {
+    document.addEventListener('visibilitychange', aoVoltarParaAba);
+    return () => document.removeEventListener('visibilitychange', aoVoltarParaAba);
+  });
+
   const stop = pollHealth();
   onDestroy(stop);
 
@@ -283,7 +294,21 @@
        stream novo, quem chegava na tela com tudo já cadastrado não encontrava o
        botão de adicionar e concluía que ele não existia. -->
   <div class="card ajuda">
-    <h3>Disponíveis no go2rtc</h3>
+    <div class="row titulo">
+      <h3>Disponíveis no go2rtc</h3>
+      <button
+        class="ghost atualizar"
+        class:girando={cameras.loading}
+        onclick={loadCameras}
+        disabled={cameras.loading}
+        aria-label="atualizar"
+        title="perguntar de novo ao go2rtc quais streams ele serve"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+    </div>
 
     {#if novos.length}
       <div class="row wrap">
@@ -305,8 +330,9 @@
          quem não entendeu lê a explicação ao lado do que ela explica. -->
     <p class="muted small explica">
       Câmera não se cadastra aqui do zero: o dwnvr grava o que o go2rtc entrega e não guarda
-      endereço nem senha de câmera. Declare o stream no <code>go2rtc.yaml</code> e ele aparece
-      nesta lista - um clique escolhe cota, áudio e retenção, e a gravação começa.
+      endereço nem senha de câmera. Declare o stream no <code>go2rtc.yaml</code> e reinicie o
+      go2rtc, que só lê o arquivo quando sobe. Aí ele aparece nesta lista - um clique escolhe
+      cota, áudio e retenção, e a gravação começa. Vale também para mudar uma câmera que já grava.
     </p>
   </div>
 
@@ -550,7 +576,29 @@
 
   h3 { margin: 0 0 4px; font-size: 15px; }
 
-  .ajuda h3 { margin: 0 0 10px; }
+  /* O botão fica colado à direita do título, e não na lista: ele vale também
+     quando a lista está vazia, que é justamente quando se desconfia dela. A
+     margem negativa devolve a altura que o alvo de 44px acrescenta à linha. */
+  .ajuda .titulo { justify-content: space-between; margin: -10px 0 0; }
+  .ajuda h3 { margin: 0; }
+  /* Sem borda em repouso: com ela, o botão pesava mais que o título ao lado. A
+     borda de :hover e o foco do teclado continuam valendo. */
+  .atualizar {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 12px;
+    color: var(--dim);
+    border-color: transparent;
+  }
+  .atualizar svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+  }
+  .atualizar.girando svg { animation: girar 0.8s linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
   .ajuda .vazio { margin: 0; }
   .ajuda .explica { margin: 12px 0 0; }
   .ajuda code { color: var(--fg); }

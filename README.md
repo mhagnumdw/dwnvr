@@ -191,6 +191,11 @@ publique as suas. O bloco comentado do arquivo traz exemplos: alta e baixa
 resolução, áudio, o formato geral da URL RTSP. Depois de subir, elas aparecem sozinhas na aba
 **Câmeras**, prontas para cadastrar.
 
+Mexeu no arquivo com tudo já no ar - câmera nova, câmera removida ou só uma
+URL trocada? O go2rtc só lê o `go2rtc.yaml` quando sobe, então rode
+`docker compose restart go2rtc` para a mudança valer. Enquanto isso, as câmeras
+param de gravar por alguns segundos.
+
 ### 4. O login <!-- omit in toc -->
 
 Preencha `server.username` e `server.password` no `dwnvr.yaml`. Enquanto os
