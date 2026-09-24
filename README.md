@@ -122,19 +122,20 @@ rm -rf config storage .env
 muda é o `.env`, que diz onde as coisas moram no disco. Por isso o `git pull`
 da atualização nunca conflita com a sua instalação.
 
-### 1. Os diretórios <!-- omit in toc -->
+### 1. O código <!-- omit in toc -->
+
+```sh
+git clone https://github.com/mhagnumdw/dwnvr && cd dwnvr
+```
+
+O clone pode ficar onde você quiser: ele guarda só o `docker-compose.yml` e o
+`.env`. A configuração e as gravações moram no diretório do próximo passo. Se
+você já clonou para o teste rápido, desfaça o teste e use o mesmo clone.
+
+### 2. Os diretórios <!-- omit in toc -->
 
 Supondo um disco em `/mnt/storage` - troque pelo seu na primeira linha do bloco
-de comandos:
-
-```
-No Host                                                            No Container
-/mnt/storage/dwnvr/
-├── config/
-│   ├── dwnvr/       dwnvr.yaml, cameras.json, .session-secret  →  /etc/dwnvr
-│   └── go2rtc/      go2rtc.yaml: as suas câmeras, com senha    →  /config
-└── recordings/      as gravações                               →  /storage
-```
+de comandos, rodado dentro do clone:
 
 ```sh
 # O diretório da instalação, no seu disco
@@ -147,13 +148,24 @@ cp dwnvr.example.yaml  "$DWNVR_DIR/config/dwnvr/dwnvr.yaml"
 cp go2rtc.example.yaml "$DWNVR_DIR/config/go2rtc/go2rtc.yaml"
 ```
 
+Ficará assim:
+
+```
+No Host                                                            No Container
+/mnt/storage/dwnvr/
+├── config/
+│   ├── dwnvr/       dwnvr.yaml, cameras.json, .session-secret  →  /etc/dwnvr
+│   └── go2rtc/      go2rtc.yaml: as suas câmeras, com senha    →  /config
+└── recordings/      as gravações                               →  /storage
+```
+
 Crie-os **antes** de subir, pelo mesmo motivo do teste rápido. Cada serviço
 tem a sua subpasta em `config/` de propósito: cada container enxerga só a
 própria. As URLs RTSP, com usuário e senha, não ficam visíveis para o dwnvr, e
 o segredo de sessão e a senha de login do dwnvr não ficam visíveis para o
 go2rtc.
 
-### 2. O `.env` <!-- omit in toc -->
+### 3. O `.env` <!-- omit in toc -->
 
 Ao lado do `docker-compose.yml`, no mesmo terminal do passo anterior, que já
 tem o `DWNVR_DIR`:
@@ -172,13 +184,16 @@ DWNVR_GID=$(id -g)
 # O fuso da sua máquina, como America/Fortaleza
 TZ=$(timedatectl show -p Timezone --value)
 EOF
+
+# Confira como ficou
+cat .env
 ```
 
 `DWNVR_UID` e `DWNVR_GID` errados fazem a tela de cadastro falhar ao gravar o
 `cameras.json`. O `TZ` decide a que dia cada gravação pertence: errado, a
 virada de dia da timeline cai no horário errado.
 
-### 3. As suas câmeras <!-- omit in toc -->
+### 4. As suas câmeras <!-- omit in toc -->
 
 > **Antes:** o dwnvr lê o stream direto da câmera, e muita câmera vem com isso
 > desligado. Ative o RTSP (ou ONVIF) na interface web ou no app da câmera.
@@ -186,11 +201,10 @@ virada de dia da timeline cai no horário errado.
 > go2rtc aceita [outras fontes](https://github.com/AlexxIT/go2rtc#module-streams),
 > como RTMP, HTTP e protocolos de fabricante.
 
-No `go2rtc.yaml`, apague as câmeras de teste que não quiser - ou todas, da
-`cam_teste1` à `cam_teste5` e mais a `traffic`, a `roadcam` e a `accident` - e
-publique as suas. O bloco comentado do arquivo traz exemplos: alta e baixa
-resolução, áudio, o formato geral da URL RTSP. Depois de subir, elas aparecem sozinhas na aba
-**Câmeras**, prontas para cadastrar.
+No `go2rtc.yaml`, apague todas as câmeras de teste e coloque as suas. O bloco
+comentado do arquivo traz exemplos: alta e baixa resolução, áudio, o formato
+geral da URL RTSP. Depois de subir, elas aparecem sozinhas na aba **Câmeras**,
+prontas para cadastrar.
 
 Mexeu no arquivo com tudo já no ar - câmera nova, câmera removida ou só uma
 URL trocada? O go2rtc só lê o `go2rtc.yaml` quando sobe, então ele precisa
@@ -198,13 +212,13 @@ reiniciar para a mudança valer. A aba **Câmeras** avisa quando percebe a
 diferença e tem o botão para reiniciar; `docker compose restart go2rtc` faz o
 mesmo. Enquanto isso, as câmeras param de gravar por alguns segundos.
 
-### 4. O login <!-- omit in toc -->
+### 5. O login <!-- omit in toc -->
 
 Preencha `server.username` e `server.password` no `dwnvr.yaml`. Enquanto os
 dois estiverem vazios, quem abrir a interface enxerga as gravações de todas as
 câmeras.
 
-### 5. Subir <!-- omit in toc -->
+### 6. Subir <!-- omit in toc -->
 
 ```sh
 docker compose up -d
@@ -216,7 +230,7 @@ docker compose up -d
 Quando o `docker compose logs dwnvr` disser `dwnvr no ar`, abra
 `http://<ip-da-máquina>:8080` no navegador:
 
-1. entre com o usuário e a senha do passo 4;
+1. entre com o usuário e a senha do passo 5;
 2. na aba **Câmeras**, clique numa câmera em *Disponíveis no go2rtc*;
 3. ajuste nome, cota e o que mais quiser, e clique em **salvar** - ela começa a
    gravar na hora.
@@ -225,7 +239,8 @@ Repita o passo 2 para cada câmera.
 
 ## Detecção de movimento e de objetos
 
-Opcional, e desligada por padrão. São duas camadas:
+Opcional, e desligada por padrão. Os passos abaixo partem de uma
+[instalação de verdade](#instalar-de-verdade) já no ar. São duas camadas:
 
 - **Movimento** marca na timeline os instantes em que algo mexeu. Não precisa
   de nada além do dwnvr: ligue por câmera, na aba **Câmeras**. Quase não custa
@@ -261,7 +276,7 @@ a timeline ganha também o ícone de pessoa, veículo ou animal, e surge a aba
 
 ### Ligar o detector de objetos <!-- omit in toc -->
 
-Sobre a [instalação de verdade](#instalar-de-verdade):
+Na pasta do clone:
 
 ```sh
 # O compose passa a subir o serviço dwnvr-detect junto
@@ -304,9 +319,11 @@ git pull && docker compose up -d --pull always
 > git pull && PODMAN_USERNS=keep-id podman-compose --in-pod false up -d --pull-always
 > ```
 
-O `git pull` traz o `docker-compose.yml` e os exemplos novos; o `--pull always`
-baixa as imagens novas e recria só os containers que mudaram. A configuração e
-as gravações ficam onde estão.
+O `git pull` traz o `docker-compose.yml` novo; o `--pull always` baixa as
+imagens novas e recria só os containers que mudaram. A configuração e as
+gravações ficam onde estão: o `dwnvr.yaml` e o `go2rtc.yaml` são seus e nenhuma
+atualização os reescreve. Para ver se chegou opção nova, compare o seu
+`dwnvr.yaml` com o `dwnvr.example.yaml` do clone.
 
 Se o pull falhar, o comando para aí e o que está no ar continua gravando.
 
