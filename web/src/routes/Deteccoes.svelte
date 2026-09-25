@@ -17,6 +17,7 @@
   import { cameras, loadCameras } from '../lib/state.svelte.js';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { FAMILIAS, familia, iconeURL } from '../lib/icones.js';
+  import { CAIXA_FOLGA_PX } from '../lib/caixas.js';
   import { hhmmss, ddmm, dayKey, parseDay } from '../lib/format.js';
 
   // --- parâmetros -------------------------------------------------------------
@@ -445,6 +446,12 @@
 
   const pct = (v) => `${Math.min(1, Math.max(0, v)) * 100}%`;
 
+  // A caixa com a mesma folga do vídeo e da folha (CAIXA_FOLGA_PX), parando na
+  // borda da imagem. A folga é em px e a caixa em fração, então quem soma é o
+  // CSS.
+  const inicio = (v) => `max(0px, calc(${pct(v)} - ${CAIXA_FOLGA_PX}px))`;
+  const tamanho = (de, ate) => `calc(min(100%, calc(${pct(ate)} + ${CAIXA_FOLGA_PX}px)) - ${inicio(de)})`;
+
   // --- a folha ----------------------------------------------------------------
 
   let aberto = $state(null);
@@ -685,10 +692,10 @@
                   {#if o.caixa}
                     <span
                       class="caixa"
-                      style:left={pct(o.caixa[0])}
-                      style:top={pct(o.caixa[1])}
-                      style:width={pct(o.caixa[2] - o.caixa[0])}
-                      style:height={pct(o.caixa[3] - o.caixa[1])}
+                      style:left={inicio(o.caixa[0])}
+                      style:top={inicio(o.caixa[1])}
+                      style:width={tamanho(o.caixa[0], o.caixa[2])}
+                      style:height={tamanho(o.caixa[1], o.caixa[3])}
                       style:border-color={familia(o.familia).cor}
                     >
                       <span

@@ -25,6 +25,15 @@ export const ESMAECER_MS = 450;
 // nunca "passaria" por ele.
 export const POUSO_MS = 300;
 
+// Quanto a caixa desenhada cresce para cada lado além da caixa do detector de
+// objetos, em pixel de TELA - o mesmo em miniatura e em tela cheia. O traço
+// fica por dentro da caixa, então com 0 ele cobre a beirada do objeto, e num
+// gato de 20 px isso é metade das orelhas. Com 5, sobram 3 px livres em volta.
+// Perto da borda a caixa para na imagem: a folga some só daquele lado. 0 volta
+// à caixa exata do detector de objetos. A grade da tela Detecções usa o mesmo
+// valor.
+export const CAIXA_FOLGA_PX = 5;
+
 // A geometria do rótulo.
 const AFASTAMENTO_PX = 18; // entre o rótulo e a borda da caixa
 const FOLGA_PX = 4;        // entre um rótulo e o que ele está evitando
@@ -40,8 +49,8 @@ const ESCURO = '#0d1117';
 // --- disposição -------------------------------------------------------------
 
 // dispoe calcula, em pixels do quadro mostrado (largura x altura), a caixa de
-// cada marca e - com `comRotulo` - onde vai o rótulo e o traço que o liga à
-// caixa. Marca sem `caixa` não entra.
+// cada marca, já com a CAIXA_FOLGA_PX, e - com `comRotulo` - onde vai o rótulo
+// e o traço que o liga à caixa. Marca sem `caixa` não entra.
 //
 // `g` só é usado para medir o texto.
 export function dispoe(g, marcas, largura, altura, comRotulo) {
@@ -49,11 +58,15 @@ export function dispoe(g, marcas, largura, altura, comRotulo) {
     .filter((m) => m.caixa)
     .map((m) => {
       const [x1, y1, x2, y2] = m.caixa.map((v) => Math.min(1, Math.max(0, v)));
+      const x = Math.max(0, x1 * largura - CAIXA_FOLGA_PX);
+      const y = Math.max(0, y1 * altura - CAIXA_FOLGA_PX);
+      const xf = Math.min(largura, x2 * largura + CAIXA_FOLGA_PX);
+      const yf = Math.min(altura, y2 * altura + CAIXA_FOLGA_PX);
       return {
         marca: m,
         cor: familia(m.familia).cor,
         prioridade: familia(m.familia).prioridade,
-        caixa: { x: x1 * largura, y: y1 * altura, w: (x2 - x1) * largura, h: (y2 - y1) * altura },
+        caixa: { x, y, w: xf - x, h: yf - y },
       };
     });
   if (!comRotulo) return itens;
