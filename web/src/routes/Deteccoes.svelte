@@ -50,6 +50,11 @@
   const NOVAS_MS = 20000;
   const ATRASO_MS = 5 * 60 * 1000;
 
+  // A altura do menu do ⋮, para abrir para cima quando não cabe embaixo. E
+  // quanto tempo o "desfazer" fica na tela depois de ocultar uma câmera.
+  const MENU_PX = 60;
+  const DESFAZER_MS = 6000;
+
   const ORDEM_FAMILIAS = Object.keys(FAMILIAS);
 
   // --- estado da URL ----------------------------------------------------------
@@ -489,6 +494,92 @@
 
   function foraDasCameras(e) {
     if (camerasAbertas && camsEl && !camsEl.contains(e.target)) camerasAbertas = false;
+    if (menu && menuEl && !menuEl.contains(e.target) && !e.target.closest?.('.mais')) menu = null;
+  }
+
+  // --- ocultar uma câmera daqui mesmo -----------------------------------------
+
+  // O menu do ⋮ de uma miniatura. Um só, fora da grade e em `position: fixed`:
+  // a miniatura corta o que passa da borda dela, e a linha pode sair do DOM
+  // no meio da rolagem. Por isso mesmo ele fecha quando a tela rola.
+  let menu = $state(null); // { k, cam, x, y, paraCima }
+  let menuEl = $state(null);
+
+  function abreMenu(d, ev) {
+    if (menu?.k === chave(d)) {
+      menu = null;
+      return;
+    }
+    const r = ev.currentTarget.getBoundingClientRect();
+    const paraCima = r.bottom + MENU_PX > window.innerHeight;
+    menu = {
+      k: chave(d),
+      cam: d.cam,
+      x: window.innerWidth - r.right,
+      y: paraCima ? window.innerHeight - r.top : r.bottom,
+      paraCima,
+    };
+  }
+
+  // O aviso de desfazer: a miniatura some debaixo do dedo, e um toque errado
+  // no meio da rolagem é fácil. Desfazer sai mais barato que perguntar antes.
+  let desfazer = $state(null); // { nome, antes }
+  let desfazerTimer = 0;
+
+  // A âncora de `ancora()`, mas pulando a câmera que vai sair: a detecção que
+  // segura a vista precisa continuar na lista depois do filtro.
+  function ancoraSem(cam) {
+    if (!noTopo) return null;
+    for (let i = noTopo.linha.itens[0]; i < lista.length; i++) {
+      if (lista[i].cam !== cam) {
+        return { k: chave(lista[i]), dy: layout.linhas[layout.linhaDe[i]].y - rolagem.ini };
+      }
+    }
+    return null;
+  }
+
+  // Só desmarca a câmera no filtro desta tela, o mesmo do "☰ câmeras". A lista
+  // não recomeça: as detecções dela saem do que já está carregado e a vista
+  // fica onde estava, que é o ponto de ocultar sem subir até a barra.
+  async function ocultaCamera(cam) {
+    menu = null;
+    aberto = null;
+    const antes = camsMarcadas;
+    const restantes = (camsMarcadas ?? cameras.list.map((c) => c.id)).filter((x) => x !== cam);
+
+    clearTimeout(desfazerTimer);
+    desfazer = { nome: nomes[cam] ?? cam, antes };
+    desfazerTimer = setTimeout(() => (desfazer = null), DESFAZER_MS);
+
+    if (!restantes.length) {
+      camsMarcadas = restantes;
+      recomeca();
+      return;
+    }
+    const a = ancoraSem(cam);
+    // A busca que estava no ar ainda traria a câmera: ela é descartada.
+    geracao++;
+    buscandoAcima = buscandoAbaixo = false;
+    camsMarcadas = restantes;
+    lista = lista.filter((d) => d.cam !== cam);
+    await restaura(a);
+    confere();
+  }
+
+  // Desfazer precisa buscar de novo: o que era da câmera já foi solto. A busca
+  // parte da detecção do topo da vista, como um "ir para", e o que está acima
+  // chega com a rolagem.
+  function desfaz() {
+    if (!desfazer) return;
+    clearTimeout(desfazerTimer);
+    camsMarcadas = desfazer.antes;
+    desfazer = null;
+    const ms = noTopo?.det.instanteMs;
+    recomeca(rolagem.ini > 0 && ms != null ? ms + 1 : null);
+  }
+
+  function tecla(e) {
+    if (e.key === 'Escape') menu = null;
   }
 
   // "Ir para": o dia vai ao fim dele, e o horário ao segundo digitado, os dois
@@ -538,13 +629,22 @@
     return () => {
       ro.disconnect();
       clearInterval(t);
+      clearTimeout(desfazerTimer);
       cancelAnimationFrame(pedido);
       geracao++;
     };
   });
 </script>
 
-<svelte:window onscroll={rolou} onresize={redimensiona} onclick={foraDasCameras} />
+<svelte:window
+  onscroll={() => {
+    menu = null;
+    rolou();
+  }}
+  onresize={redimensiona}
+  onclick={foraDasCameras}
+  onkeydown={tecla}
+/>
 
 <div class="tela" style:--cab-h="{cabH}px" style:--barra-h="{barraH}px">
   <div class="barra" bind:this={barraEl}>
@@ -674,49 +774,58 @@
         >
           {#each l.itens as i (chave(lista[i]))}
             {@const d = lista[i]}
-            <button
-              class="tile"
-              onclick={() => (aberto = chave(d))}
-              aria-label="abrir {hhmmss(d.instanteMs)}, {nomes[d.cam] ?? d.cam}"
-            >
-              <span class="imagem" style={areaDaImagem(d.cam)}>
-                {#if d.temQuadro}
-                  <img
-                    src={mediaURL.quadro(d.cam, d.instanteMs)}
-                    alt=""
-                    decoding="async"
-                    onload={(e) => aprende(d.cam, e)}
-                  />
-                {/if}
-                {#each d.objetos as o, j (j)}
-                  {#if o.caixa}
-                    <span
-                      class="caixa"
-                      style:left={inicio(o.caixa[0])}
-                      style:top={inicio(o.caixa[1])}
-                      style:width={tamanho(o.caixa[0], o.caixa[2])}
-                      style:height={tamanho(o.caixa[1], o.caixa[3])}
-                      style:border-color={familia(o.familia).cor}
-                    >
-                      <span
-                        class="score mono"
-                        class:dentro={o.caixa[1] < 0.1}
-                        style:background={familia(o.familia).cor}>{score(o.score)}</span
-                      >
-                    </span>
+            <div class="celula">
+              <button
+                class="tile"
+                onclick={() => (aberto = chave(d))}
+                aria-label="abrir {hhmmss(d.instanteMs)}, {nomes[d.cam] ?? d.cam}"
+              >
+                <span class="imagem" style={areaDaImagem(d.cam)}>
+                  {#if d.temQuadro}
+                    <img
+                      src={mediaURL.quadro(d.cam, d.instanteMs)}
+                      alt=""
+                      decoding="async"
+                      onload={(e) => aprende(d.cam, e)}
+                    />
                   {/if}
-                {/each}
-              </span>
-              <span class="icones">
-                {#each familiasDe(d) as f (f)}
-                  <img src={iconeURL(f, 12, familia(f).cor)} alt="" width="12" height="12" />
-                {/each}
-              </span>
-              <span class="legenda">
-                <span class="mono">{hhmmss(d.instanteMs)}</span>
-                <span class="nome">{nomes[d.cam] ?? d.cam}</span>
-              </span>
-            </button>
+                  {#each d.objetos as o, j (j)}
+                    {#if o.caixa}
+                      <span
+                        class="caixa"
+                        style:left={inicio(o.caixa[0])}
+                        style:top={inicio(o.caixa[1])}
+                        style:width={tamanho(o.caixa[0], o.caixa[2])}
+                        style:height={tamanho(o.caixa[1], o.caixa[3])}
+                        style:border-color={familia(o.familia).cor}
+                      >
+                        <span
+                          class="score mono"
+                          class:dentro={o.caixa[1] < 0.1}
+                          style:background={familia(o.familia).cor}>{score(o.score)}</span
+                        >
+                      </span>
+                    {/if}
+                  {/each}
+                </span>
+                <span class="icones">
+                  {#each familiasDe(d) as f (f)}
+                    <img src={iconeURL(f, 12, familia(f).cor)} alt="" width="12" height="12" />
+                  {/each}
+                </span>
+                <span class="legenda">
+                  <span class="mono">{hhmmss(d.instanteMs)}</span>
+                  <span class="nome">{nomes[d.cam] ?? d.cam}</span>
+                </span>
+              </button>
+              <button
+                class="mais"
+                onclick={(e) => abreMenu(d, e)}
+                aria-label="opções da câmera {nomes[d.cam] ?? d.cam}"
+                aria-haspopup="menu"
+                aria-expanded={menu?.k === chave(d)}
+              ><span aria-hidden="true">⋮</span></button>
+            </div>
           {/each}
         </div>
       {/if}
@@ -749,8 +858,31 @@
       onclose={() => (aberto = null)}
       onanterior={iAberto + 1 < lista.length ? () => (aberto = chave(lista[iAberto + 1])) : null}
       onproxima={iAberto > 0 ? () => (aberto = chave(lista[iAberto - 1])) : null}
+      onocultar={() => ocultaCamera(d.cam)}
     />
   {/key}
+{/if}
+
+{#if menu}
+  <div
+    class="menu"
+    role="menu"
+    bind:this={menuEl}
+    style:right="{menu.x}px"
+    style:top={menu.paraCima ? null : `${menu.y + 4}px`}
+    style:bottom={menu.paraCima ? `${menu.y + 4}px` : null}
+  >
+    <button class="ghost" role="menuitem" onclick={() => ocultaCamera(menu.cam)}>
+      Ocultar a câmera <strong>{nomes[menu.cam] ?? menu.cam}</strong>
+    </button>
+  </div>
+{/if}
+
+{#if desfazer}
+  <div class="aviso" role="status">
+    <span><strong>{desfazer.nome}</strong> oculta</span>
+    <button class="ghost" onclick={desfaz}>desfazer</button>
+  </div>
 {/if}
 
 <style>
@@ -909,6 +1041,12 @@
     gap: var(--vao);
   }
 
+  .celula {
+    position: relative;
+    min-width: 0;
+    height: 100%;
+  }
+
   .tile {
     position: relative;
     display: block;
@@ -976,6 +1114,102 @@
 
   .icones img { display: block; }
 
+  /* O ⋮ no canto, à direita dos ícones das famílias e com a mesma pastilha
+     deles. A pastilha é pequena, mas o alvo do toque é o canto inteiro. */
+  .mais {
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-height: 0;
+    width: 40px;
+    height: 36px;
+    padding: 4px 4px 0 0;
+    border: 0;
+    background: none;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+  }
+
+  .mais span {
+    display: block;
+    width: 22px;
+    height: 20px;
+    border-radius: 6px;
+    background: rgba(13, 17, 23, 0.8);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+    color: var(--fg);
+  }
+
+  .mais:focus-visible { outline: none; }
+  .mais:focus-visible span,
+  .mais[aria-expanded='true'] span { outline: 2px solid var(--accent); }
+
+  .celula .icones { right: 30px; }
+
+  /* Com mouse o ⋮ aparece só sobre a miniatura, e fica enquanto o menu dele
+     está aberto. No toque não há hover: ele fica sempre à vista. */
+  @media (hover: hover) {
+    .mais { opacity: 0; }
+    .celula:hover .mais,
+    .mais:focus-visible,
+    .mais[aria-expanded='true'] { opacity: 1; }
+    .celula:hover .mais span { background: rgba(13, 17, 23, 0.95); }
+  }
+
+  /* Na miniatura pequena o ⋮ não se acerta com o dedo: a ação fica na folha. */
+  .compacta .mais { display: none; }
+  .compacta .icones { right: 4px; }
+
+  .menu {
+    position: fixed;
+    z-index: 40;
+    max-width: calc(100vw - 20px);
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .menu button {
+    display: block;
+    width: 100%;
+    border: 0;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @media (hover: hover) {
+    .menu button:hover { background: var(--panel-2); }
+  }
+
+  .aviso {
+    position: fixed;
+    z-index: 40;
+    left: 50%;
+    bottom: calc(var(--nav-h) + 12px);
+    transform: translateX(-50%);
+    max-width: calc(100vw - 20px);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 6px 0 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+  }
+
+  .aviso span { overflow: hidden; text-overflow: ellipsis; }
+  .aviso button { border: 0; color: var(--accent); font-weight: 600; }
+
   .legenda {
     position: absolute;
     left: 4px;
@@ -1021,6 +1255,7 @@
 
     .hora { left: -18px; right: -18px; padding: 0 20px; }
     .legenda { font-size: 12px; line-height: 20px; }
+    .aviso { bottom: 20px; }
   }
 
   /* Linha única quando tudo cabe: a barra inteira mede ~1000 px. A folga

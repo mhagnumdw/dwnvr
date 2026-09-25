@@ -49,7 +49,7 @@
   const RESPIRO_PX = 30;
   const largura = `clamp(${LARGURA_MIN_PX}px, calc((var(--altura-max) - ${RESTO_PX}px) * 16 / 9 + ${RESPIRO_PX}px), ${LARGURA_MAX_PX}px)`;
 
-  let { det, camera, onclose, onanterior = null, onproxima = null } = $props();
+  let { det, camera, onclose, onanterior = null, onproxima = null, onocultar = null } = $props();
 
   let palco;
   let img = $state(null);
@@ -185,6 +185,11 @@
     <span class="muted">·</span>
     <span class="camera">{camera}</span>
     <span class="spacer"></span>
+    {#if onocultar}
+      <button class="ghost ocultar" onclick={onocultar} aria-label="ocultar a câmera {camera} desta tela">
+        ocultar câmera
+      </button>
+    {/if}
     <button class="ghost fechar" onclick={onclose} aria-label="fechar">✕</button>
   </div>
 
@@ -265,10 +270,13 @@
     white-space: nowrap;
   }
 
-  .fechar {
+  .fechar,
+  .ocultar {
     min-height: 36px;
     padding: 4px 10px;
   }
+
+  .ocultar { flex: none; color: var(--dim); font-size: 13px; }
 
   .palco {
     position: relative;
