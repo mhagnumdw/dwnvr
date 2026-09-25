@@ -9,6 +9,7 @@
     HEALTH_POLL_MS,
   } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
+  import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { dias, kbps, bytes, bytesDeMB, resolucao, ddmm, duracao } from '../lib/format.js';
   import { AJUDA_RETIDO, AJUDA_CABEM, AJUDA_SENSIBILIDADE, NIVEIS } from '../lib/ajudas.js';
   import Modal from '../components/Modal.svelte';
@@ -48,8 +49,16 @@
   // boa que só estava fora do ar na hora do cadastro.
   const audioBloqueado = $derived(!editing?._hasAudio && !editing?._sondaErro);
 
-  onMount(() => {
-    if (!cameras.list.length) loadCameras();
+  // `#cams?editar=<id>` abre direto o formulário da câmera: é o link da
+  // tela Diagnóstico para quem está com a detecção desligada. O parâmetro é
+  // consumido ao abrir, senão recarregar a página reabriria o formulário.
+  onMount(async () => {
+    const id = paramsAtuais().get('editar');
+    if (!cameras.list.length) await loadCameras();
+    if (!id) return;
+    escrever({ editar: null });
+    const cam = cameras.list.find((c) => c.id === id);
+    if (cam) editar(cam);
   });
 
   // O caminho comum para câmera nova é trocar de janela, editar o go2rtc.yaml e

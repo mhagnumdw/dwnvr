@@ -500,9 +500,19 @@
         perdidas: d.semVideo + d.recusados + d.falhas,
         acerto: olhadas ? Math.round((d.objeto / olhadas) * 100) : null,
         fila: filaDe(c.id),
+        ligada: c.detect,
       };
     });
-    return ordena(linhas, colunasDet, ordemDet, (c) => c.nome);
+    // O servidor manda o funil de toda câmera assim que existe detector, com a
+    // detecção de movimento dela ligada ou não. Desligada ela não marca nada, e
+    // a linha zerada leria como "não viu nada". Fica na tabela, porque os
+    // números sobrevivem a desligar no meio do dia, mas num grupo à parte, no
+    // fim: a ordenação escolhida vale dentro de cada grupo.
+    const ordenadas = ordena(linhas, colunasDet, ordemDet, (c) => c.nome);
+    return {
+      ligadas: ordenadas.filter((c) => c.ligada),
+      desligadas: ordenadas.filter((c) => !c.ligada),
+    };
   });
 
   // Avisos que explicam problemas antes de eles virarem mistério - que foi
@@ -775,9 +785,16 @@
             </button>
           {/each}
         </div>
-        {#each detCams as c (c.id)}
-          <div class="trow detgrid row">
-            <span class="nome">{c.nome}</span>
+        {#snippet linhaDet(c)}
+          <div class="trow detgrid row" class:desligada={!c.ligada}>
+            {#if c.ligada}
+              <span class="nome">{c.nome}</span>
+            {:else}
+              <span class="c-desligada row">
+                <span class="nome">{c.nome}</span>
+                <a class="small" href="#cams?editar={encodeURIComponent(c.id)}">ligar</a>
+              </span>
+            {/if}
             <span class="mono" class:zero={!c.olhadas}>{c.olhadas}</span>
             <span class="mono" class:zero={!c.objeto}>{c.objeto}</span>
             <!-- Quase tudo com objeto não é bom sinal: costuma ser um objeto
@@ -791,21 +808,30 @@
             <!-- Os lugares da câmera, e não um número: cheio ou vazio se lê
                  de relance. Âmbar quando todos estão ocupados, que é quando a
                  próxima marca dela é descartada. O azul fica à esquerda deles,
-                 e separado: a imagem em processamento não está na fila. -->
+                 e separado: a imagem em processamento não está na fila. Sem
+                 detecção a câmera não entra na fila, e lugares vazios ali
+                 diriam que ela está esperando a vez. -->
             <span class="celula-fila">
-              {#if c.fila.olhando}
-                <span class="processando" title="o detector está processando uma imagem desta câmera agora"></span>
+              {#if c.ligada}
+                {#if c.fila.olhando}
+                  <span class="processando" title="o detector está processando uma imagem desta câmera agora"></span>
+                {/if}
+                <span
+                  class="lugares"
+                  class:cheia={c.fila.cheia}
+                  title="{c.fila.esperando} de {c.fila.lugares.length} lugares ocupados"
+                >
+                  {#each c.fila.lugares as l, i (i)}<span class="lugar {l}"></span>{/each}
+                </span>
               {/if}
-              <span
-                class="lugares"
-                class:cheia={c.fila.cheia}
-                title="{c.fila.esperando} de {c.fila.lugares.length} lugares ocupados"
-              >
-                {#each c.fila.lugares as l, i (i)}<span class="lugar {l}"></span>{/each}
-              </span>
             </span>
           </div>
-        {/each}
+        {/snippet}
+        {#each detCams.ligadas as c (c.id)}{@render linhaDet(c)}{/each}
+        {#if detCams.desligadas.length}
+          <div class="grupo small muted">detecção de movimento desligada</div>
+          {#each detCams.desligadas as c (c.id)}{@render linhaDet(c)}{/each}
+        {/if}
       </div>
       {#if detector}
         <div class="row wrap small muted legenda-fila">
@@ -976,6 +1002,19 @@
   /* Zero é resposta, mas não é notícia: apagado para a linha que tem número
      saltar dentre as que não têm. */
   .zero { color: #4a5058; }
+  /* A câmera sem detecção: o nome continua legível, porque é ele que diz de
+     quem é o aviso, e os números recuam. */
+  .c-desligada { gap: 8px; min-width: 0; }
+  .desligada > :not(:first-child) { opacity: 0.5; }
+  /* O rótulo do grupo das câmeras sem detecção, no tom dos cabeçalhos: é
+     divisão da tabela, não mais uma linha dela. */
+  .grupo {
+    padding: 12px 12px 6px;
+    border-top: 1px solid var(--line);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 11px;
+  }
   .alerta { color: var(--warn); }
 
   /* Os lugares de uma câmera na fila. Do tamanho do .dot global, para ler
