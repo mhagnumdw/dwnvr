@@ -53,7 +53,7 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 | limite em `internal/api/cameras.go` (`minQuotaMB`, faixas) | `min`/`max`/`step` do input em `Cameras.svelte` - divergem hoje: `docs/TODO/TODO_limites-numericos-so-valem-na-api.md` |
 | caminho ou `DayLayout` em `internal/store/store.go` | `docs/arquitetura.md` · `docs/operacao.md` · §Conferir por fora da interface do `README.md` |
 | campo em `store.Entry` | índice append-only: a leitura tolera zero em linha antiga · `internal/retention/retention.go` · `internal/api/recordings.go` |
-| variável de `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/ci.yml` (`build-args`) · `GET /api/version` |
+| variável de `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/imagens.yml` (`build-args`) · `GET /api/version` |
 | alvo ou variável no `Makefile` | comentário `## alvo:` (o `make help` lê) · §Build do `README.md` · `local.mk.example` |
 | versão de Go ou de Node | `go.mod` · `.tool-versions` (o asdf local) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` (`setup-go`/`setup-node`) · §Tecnologias do `README.md` |
 | arquivo ou diretório novo na raiz | `.gitignore` se for local. O `.dockerignore` é allowlist invertida (`**` + `!`): o que o build precisar exige um `!` explícito, senão some do contexto |

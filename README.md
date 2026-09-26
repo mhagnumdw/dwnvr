@@ -675,4 +675,6 @@ cobrem o que quebra em silêncio: a leitura de caixas fMP4, a reescrita do
 `tfdt`, o corte em keyframe, a reconciliação de órfãos, a retenção e os
 endpoints HTTP.
 
-O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push.
+O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push na
+main e em pull request. As imagens saem do `.github/workflows/imagens.yml`,
+que ele chama depois dos testes: na main, com a tag `main`.

@@ -110,6 +110,10 @@ Nada disso muda a imagem: o sidecar é descartado ao sair.
 docker compose up -d --pull always
 ```
 
+A tag das duas imagens, dwnvr e dwnvr-detect, vem de `DWNVR_VERSION` no
+`.env`; sem ela, vale o default do `docker-compose.yml`. `DWNVR_VERSION=main`
+segue cada commit da main, e `DWNVR_VERSION=sha-abc1234` fixa um commit.
+
 O encerramento é gracioso: o dwnvr fecha e indexa o segmento em aberto de cada
 câmera antes de sair. Sem isso, todo reinício perderia o último minuto gravado.
 

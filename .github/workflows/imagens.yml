@@ -1,0 +1,141 @@
+# As imagens multi-arch do dwnvr e do detector de objetos, publicadas no GHCR.
+#
+# É um workflow reutilizável (workflow_call), chamado como uma função: pelo
+# ci.yml a cada push na main e pela release, que publica uma versão. Não pode
+# morar dentro do ci.yml acordando com `on: push: tags`, porque a release faz
+# o push da tag com o GITHUB_TOKEN, e o GitHub não deixa o que essa chave faz
+# disparar outro workflow - é a trava dele contra laço infinito. A tag chegaria
+# e ninguém construiria a imagem.
+#
+# Tags de cada chamada:
+#   push na main   main, sha-xxxxxxx
+#   release        vX.Y.Z, latest, main, sha-xxxxxxx
+
+name: imagens
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: o commit ou a tag a construir
+        type: string
+        required: true
+      release:
+        description: acrescenta as tags latest e vX.Y.Z (o próprio ref)
+        type: boolean
+        default: false
+
+env:
+  IMAGE_DWNVR_RECORDER: ghcr.io/${{ github.repository }}
+  IMAGE_DWNVR_DETECT: ghcr.io/${{ github.repository }}-detect
+
+jobs:
+  image-dwnvr-recorder:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          # O git describe abaixo precisa das tags e do caminho até elas.
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A mesma versão que o Makefile carimba: `git describe` dá a tag num
+      # commit de release, `v0.1.0-3-gabc1234` nos commits depois dela e o
+      # hash curto enquanto não houver tag nenhuma. Precisa ser calculada aqui
+      # porque o build da imagem não vê o .git.
+      #
+      # O commit também sai do checkout, e não do github.sha: numa release, o
+      # github.sha é o commit de antes do CHANGELOG, e não o que vira imagem.
+      - id: versao
+        run: |
+          {
+            echo "version=$(git describe --tags --always)"
+            echo "commit=$(git rev-parse HEAD)"
+            echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+
+      # context: git tira o sha e as labels do checkout, pelo mesmo motivo do
+      # commit acima. O latest só nasce de release: com o default da action
+      # (latest=auto) ele apareceria sozinho em qualquer tag semver.
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          context: git
+          images: ${{ env.IMAGE_DWNVR_RECORDER }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ inputs.ref }},enable=${{ inputs.release }}
+            type=raw,value=latest,enable=${{ inputs.release }}
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=short
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          build-args: |
+            VERSION=${{ steps.versao.outputs.version }}
+            COMMIT=${{ steps.versao.outputs.commit }}
+            DATE=${{ steps.versao.outputs.date }}
+          # Duas arquiteturas por enquanto: aarch64 (Orange Pi, Raspberry Pi) e
+          # x86_64. Outras entram quando houver quem as use.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=dwnvr-recorder
+          cache-to: type=gha,scope=dwnvr-recorder,mode=max
+
+  # O detector de objetos, em dwnvr-detect/. Mesmo molde do
+  # `image-dwnvr-recorder`: o Dockerfile dele também não executa nada da
+  # arquitetura de destino, então o arm64 sai daqui sem emulação. Cada job tem
+  # o próprio escopo de cache para um não disputar espaço com o outro. As tags
+  # são as mesmas do dwnvr, e é isso que deixa um DWNVR_VERSION só no .env
+  # escolher as duas imagens.
+  image-dwnvr-detect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          context: git
+          images: ${{ env.IMAGE_DWNVR_DETECT }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ inputs.ref }},enable=${{ inputs.release }}
+            type=raw,value=latest,enable=${{ inputs.release }}
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=short
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: dwnvr-detect
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=dwnvr-detect
+          cache-to: type=gha,scope=dwnvr-detect,mode=max

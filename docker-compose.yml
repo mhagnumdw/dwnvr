@@ -15,7 +15,9 @@
 
 services:
   dwnvr:
-    image: ghcr.io/mhagnumdw/dwnvr:latest
+    # A tag das imagens vem de DWNVR_VERSION no .env: `main` segue cada
+    # commit da main. Sem ela, vale o que está depois do `:-`.
+    image: ghcr.io/mhagnumdw/dwnvr:${DWNVR_VERSION:-latest}
     container_name: dwnvr
     restart: unless-stopped
     depends_on: [go2rtc]
@@ -107,7 +109,9 @@ services:
   #     url: http://dwnvr-detect:8480
   dwnvr-detect:
     profiles: [detect]
-    image: ghcr.io/mhagnumdw/dwnvr-detect:latest
+    # A mesma DWNVR_VERSION do dwnvr: as duas imagens saem juntas, com as
+    # mesmas tags.
+    image: ghcr.io/mhagnumdw/dwnvr-detect:${DWNVR_VERSION:-latest}
     container_name: dwnvr-detect
     restart: unless-stopped
 
