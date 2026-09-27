@@ -9,7 +9,8 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 12 (zizmor).** Os detalhes estão na seção dela.
+**Etapa 12 (zizmor), commit 2: as outras correções.** Os detalhes estão na
+seção dela.
 
 ## Checklist
 
@@ -329,7 +330,11 @@ o hook acusou os três.
   permissões amplas (`excessive-permissions`), 2 `self-repository` e 1
   `superfluous-actions`: o `softprops/action-gh-release` pode virar
   `gh release create`.
-- [ ] Commit 1: as actions fixadas por SHA, com a versão num comentário.
+- [x] Commit 1: a política de pin. Tudo por SHA deixaria os 23 `uses:`
+  ilegíveis, então o `.github/zizmor.yml` aceita a tag de major nas actions
+  do GitHub (`actions/*`) e da Docker (`docker/*`), e exige SHA das de
+  terceiro, com a versão num comentário. Hoje isso é só o
+  `orhun/git-cliff-action`; o `softprops/action-gh-release` sai no commit 2.
 - [ ] Commit 2: as outras correções.
 - [ ] Commit 3: o hook, do `zizmorcore/zizmor-pre-commit`.
 

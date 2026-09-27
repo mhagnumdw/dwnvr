@@ -1,0 +1,12 @@
+# Regras do zizmor, que audita a segurança dos workflows.
+rules:
+  unpinned-uses:
+    config:
+      # Uma tag pode ser movida para outro código; o SHA não. As actions do
+      # GitHub e da Docker ficam na tag de major, que se lê e recebe correção
+      # sozinha. As de terceiro, onde tag movida já virou ataque, vão por SHA,
+      # com a versão num comentário.
+      policies:
+        actions/*: ref-pin
+        docker/*: ref-pin
+        "*": hash-pin
