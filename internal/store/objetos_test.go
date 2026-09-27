@@ -26,9 +26,13 @@ func TestObjetosDoDiaSoAsMarcasEmOrdem(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime().UnixMilli()
 	dia := baseTime().Format(DayLayout)
-	c.AppendEvento(Evento{InstanteMs: base})
+	if err := c.AppendEvento(Evento{InstanteMs: base}); err != nil {
+		t.Fatal(err)
+	}
 	appendObjeto(t, c, base+2000, "pessoa")
-	c.AppendEvento(Evento{InstanteMs: base + 3000})
+	if err := c.AppendEvento(Evento{InstanteMs: base + 3000}); err != nil {
+		t.Fatal(err)
+	}
 	appendObjeto(t, c, base+1000, "veiculo")
 
 	got, err := c.ObjetosDoDia(dia)
@@ -55,7 +59,9 @@ func TestObjetosDoDiaAcompanhaOArquivoCrescendo(t *testing.T) {
 
 	antes, _ := c.ObjetosDoDia(dia)
 	appendObjeto(t, c, base+1000, "animal")
-	c.AppendEvento(Evento{InstanteMs: base + 5000})
+	if err := c.AppendEvento(Evento{InstanteMs: base + 5000}); err != nil {
+		t.Fatal(err)
+	}
 
 	depois, err := c.ObjetosDoDia(dia)
 	if err != nil {
@@ -82,14 +88,18 @@ func TestObjetosDoDiaEsperaALinhaTerminar(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	f.WriteString(`{"instanteMs":1786201260000,"familia":"vei`)
+	if _, err := f.WriteString(`{"instanteMs":1786201260000,"familia":"vei`); err != nil {
+		t.Fatal(err)
+	}
 
 	got, _ := c.ObjetosDoDia(dia)
 	if len(got) != 1 {
 		t.Fatalf("a linha pela metade entrou: %v", instantes(got))
 	}
 
-	f.WriteString(`culo","classe":"car","score":0.8}` + "\n")
+	if _, err := f.WriteString(`culo","classe":"car","score":0.8}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
 	got, _ = c.ObjetosDoDia(dia)
 	if len(got) != 2 || got[1].Familia != "veiculo" {
 		t.Errorf("a linha terminada não entrou inteira: %+v", got)
@@ -104,7 +114,9 @@ func TestObjetosDoDiaPercebeARegravacao(t *testing.T) {
 	dia := baseTime().Format(DayLayout)
 	appendObjeto(t, c, base, "pessoa")
 	appendObjeto(t, c, base+60_000, "pessoa")
-	c.ObjetosDoDia(dia)
+	if _, err := c.ObjetosDoDia(dia); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := c.aparaEventos(dia, base+1); err != nil {
 		t.Fatal(err)

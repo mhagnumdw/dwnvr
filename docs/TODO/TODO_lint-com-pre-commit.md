@@ -9,9 +9,8 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 7 (golangci-lint, primeira leva).** O `lint.yml` ganha o `setup-go`,
-e falta decidir se o `go vet` e o `gofmt` saem do `ci.yml` e do `make check`.
-Os detalhes estão na seção dela.
+**Etapa 8 (svelte-check).** O `lint.yml` ganha o `setup-node` e o `npm ci` do
+`web/`. Os detalhes estão na seção dela.
 
 ## Checklist
 
@@ -22,7 +21,7 @@ Os detalhes estão na seção dela.
 - [x] [Etapa 4 - yamllint](#etapa-4---yamllint) - sintaxe e estilo dos YAML: workflows, compose e configs
 - [x] [Etapa 5 - hadolint](#etapa-5---hadolint) - boas práticas nos Dockerfiles, com o shellcheck nos `RUN`
 - [x] [Etapa 6 - actionlint](#etapa-6---actionlint) - erro de sintaxe e de expressão nos workflows do GitHub Actions
-- [ ] [Etapa 7 - golangci-lint, primeira leva](#etapa-7---golangci-lint-primeira-leva) - bug no Go: erro ignorado, código morto, uso errado da stdlib
+- [x] [Etapa 7 - golangci-lint, primeira leva](#etapa-7---golangci-lint-primeira-leva) - bug no Go: erro ignorado, código morto, uso errado da stdlib
 - [ ] [Etapa 8 - svelte-check](#etapa-8---svelte-check) - warnings do compilador do Svelte: acessibilidade e CSS sem uso
 - [ ] [Etapa 9 - ESLint com o plugin do Svelte](#etapa-9---eslint-com-o-plugin-do-svelte) - bug e má prática no JavaScript e nos componentes Svelte
 - [ ] [Etapa 10 - ruff no dwnvr-detect](#etapa-10---ruff-no-dwnvr-detect) - lint e formatação do Python (o flake8 e o black numa ferramenta só)
@@ -197,6 +196,16 @@ o hook acusou os três.
   nada. Com cache, roda em meio segundo.
 - Decidir na etapa: o `go vet` e o `gofmt` do `ci.yml` e do `make check`
   ficam redundantes. Tirar de lá faz os dois pararem de segurar as imagens.
+- Como saiu, em 27/09: o `go vet` e o `gofmt` saíram do `ci.yml` e do `make
+  check`. Nos testes, o `Write` de handler HTTP e o `session` que termina em
+  EOF viraram descarte explícito (`_ =`); o que prepara o teste
+  (`AppendEvento`, `WriteString`, `ObjetosDoDia`) passou a conferir o erro com
+  `t.Fatal`. Das 2 SA4000, a da fila não era igual de verdade: as duas
+  chamadas mudam a fila, e viraram duas variáveis, como a do `InitGen`. O
+  padrão do golangci-lint esconde achado repetido: para ver todos,
+  `--max-issues-per-linter=0 --max-same-issues=0`.
+- A primeira execução de cada `rev` compila o golangci-lint: ~40 s. Depois,
+  2 s.
 - Commit: `ci: golangci-lint no pre-commit`.
 
 ### Etapa 8 - svelte-check

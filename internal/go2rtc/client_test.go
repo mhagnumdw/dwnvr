@@ -260,7 +260,7 @@ func TestVersaoLeSoAVersao(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		io.WriteString(w, `{"config_path":"/config/go2rtc.yaml","host":"192.168.0.10:1984","pid":1,"rtsp":{"listen":":8554"},"version":"1.9.9"}`)
+		_, _ = io.WriteString(w, `{"config_path":"/config/go2rtc.yaml","host":"192.168.0.10:1984","pid":1,"rtsp":{"listen":":8554"},"version":"1.9.9"}`)
 	}))
 	defer srv.Close()
 

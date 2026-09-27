@@ -60,7 +60,8 @@ func TestFilaNaoTemTotal(t *testing.T) {
 	f := novaFila(&detectorDeTeste{}, func(Olhada) {}, mudo(), 2, time.Minute, time.Millisecond)
 	for i := range 40 {
 		cam := fmt.Sprintf("cam%d", i)
-		if !f.Oferece(pedacoDe(cam)) || !f.Oferece(pedacoDe(cam)) {
+		primeira, segunda := f.Oferece(pedacoDe(cam)), f.Oferece(pedacoDe(cam))
+		if !primeira || !segunda {
 			t.Fatalf("%s recusada com %d esperando: não há total", cam, f.Tamanho())
 		}
 		if f.Oferece(pedacoDe(cam)) {

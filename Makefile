@@ -90,8 +90,6 @@ test:
 
 ## check: o que a CI roda
 check: test
-	gofmt -l . | tee /dev/stderr | (! read)
-	go vet ./...
 	pre-commit run --all-files
 
 ## deploy: atualiza o servidor remoto com a imagem que a CI publicou

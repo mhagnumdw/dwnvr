@@ -31,7 +31,7 @@ func TestSidecarMandaOPedacoEOPisoELeOsAchados(t *testing.T) {
 		case !bytes.Equal(corpo, pedaco):
 			t.Errorf("corpo %q, esperado o pedaço", corpo)
 		}
-		io.WriteString(w, `{"achados":[{"classe":"person","score":0.87,"caixa":[0.1,0.2,0.3,0.4]}]}`)
+		_, _ = io.WriteString(w, `{"achados":[{"classe":"person","score":0.87,"caixa":[0.1,0.2,0.3,0.4]}]}`)
 	})
 	visao, err := d.Olha(t.Context(), Pedaco{Fmp4: pedaco})
 	if err != nil {
@@ -49,7 +49,7 @@ func TestSidecarMandaOPedacoEOPisoELeOsAchados(t *testing.T) {
 func TestSidecarOlhadaVaziaEResultado(t *testing.T) {
 	for _, corpo := range []string{`{"achados":[]}`, `{"achados":null}`, `{}`} {
 		d := sidecarFalso(t, func(w http.ResponseWriter, r *http.Request) {
-			io.WriteString(w, corpo)
+			_, _ = io.WriteString(w, corpo)
 		})
 		visao, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("x")})
 		if err != nil || visao.Achados == nil || len(visao.Achados) != 0 {
@@ -61,7 +61,7 @@ func TestSidecarOlhadaVaziaEResultado(t *testing.T) {
 func TestSidecarErroVoltaComOMotivo(t *testing.T) {
 	d := sidecarFalso(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		io.WriteString(w, `{"erro":"pedaço não decodifica: nenhum quadro"}`)
+		_, _ = io.WriteString(w, `{"erro":"pedaço não decodifica: nenhum quadro"}`)
 	})
 	_, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("x")})
 	if err == nil || !strings.Contains(err.Error(), "nenhum quadro") || !strings.Contains(err.Error(), "422") {
@@ -76,7 +76,7 @@ func TestSidecarErroVoltaComOMotivo(t *testing.T) {
 func TestSidecarErroDoServidorNaoERecusa(t *testing.T) {
 	d := sidecarFalso(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		io.WriteString(w, `{"erro":"quebrou"}`)
+		_, _ = io.WriteString(w, `{"erro":"quebrou"}`)
 	})
 	_, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("x")})
 	if err == nil || errors.Is(err, ErrPedacoRecusado) {

@@ -693,7 +693,7 @@ onde ninguém quer instalar toolchain de frontend.
 
 ```sh
 make test        # testes de unidade
-make check       # testes + gofmt + go vet + os lints do pre-commit
+make check       # testes + os lints do pre-commit
 ```
 
 A CI roda isso e mais uma coisa: reconstrói a interface para conferir se o

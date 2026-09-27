@@ -116,7 +116,7 @@ func gravaStream(t *testing.T, corpo []byte) (*espiao, *store.Camera) {
 	t.Helper()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(corpo)
+		_, _ = w.Write(corpo)
 	}))
 	t.Cleanup(srv.Close)
 
@@ -132,7 +132,7 @@ func gravaStream(t *testing.T, corpo []byte) (*espiao, *store.Camera) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r.session(ctx) // termina em EOF quando o corpo acaba
+	_ = r.session(ctx) // termina em EOF quando o corpo acaba
 	return esp, idx
 }
 
@@ -232,7 +232,7 @@ func TestGanchoGravaOOnsetNoArquivoDoDia(t *testing.T) {
 	corpo = append(corpo, mdat(100)...)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(corpo)
+		_, _ = w.Write(corpo)
 	}))
 	defer srv.Close()
 
@@ -244,7 +244,7 @@ func TestGanchoGravaOOnsetNoArquivoDoDia(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r.session(ctx)
+	_ = r.session(ctx)
 
 	if got := r.onsets.Load(); got != 2 {
 		t.Fatalf("contador de onsets = %d, esperado 2", got)
@@ -278,15 +278,15 @@ func TestTrocaDeDetectEmPlenoVooNaoCorre(t *testing.T) {
 	// Um go2rtc que entrega quadros devagar, para a sessão ainda estar viva
 	// enquanto as trocas acontecem.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(cabeca)
+		_, _ = w.Write(cabeca)
 		fl, _ := w.(http.Flusher)
 		for i := range 300 {
 			flags := uint32(flagsQuadroP)
 			if i%30 == 0 {
 				flags = flagsQuadroI
 			}
-			w.Write(moof(idVideo, uint64(i)*6000, flags, 6000))
-			w.Write(mdat(100 + i%7))
+			_, _ = w.Write(moof(idVideo, uint64(i)*6000, flags, 6000))
+			_, _ = w.Write(mdat(100 + i%7))
 			if fl != nil {
 				fl.Flush()
 			}
@@ -309,7 +309,7 @@ func TestTrocaDeDetectEmPlenoVooNaoCorre(t *testing.T) {
 	fim := make(chan struct{})
 	go func() {
 		defer close(fim)
-		r.session(ctx)
+		_ = r.session(ctx)
 	}()
 
 	// Do lado da "API": liga, desliga, troca mecanismo e nível, sem parar.
@@ -373,7 +373,7 @@ func TestGanchoCortaOPedacoComoFoiParaODisco(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(corpo)
+		_, _ = w.Write(corpo)
 	}))
 	defer srv.Close()
 
@@ -391,7 +391,7 @@ func TestGanchoCortaOPedacoComoFoiParaODisco(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r.session(ctx)
+	_ = r.session(ctx)
 
 	if len(saiu) != 1 {
 		t.Fatalf("%d pedaços, esperado 1", len(saiu))
@@ -453,7 +453,7 @@ func TestGanchoSemDestinoNaoGuardaGOP(t *testing.T) {
 	corpo = append(corpo, mdat(100)...)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(corpo)
+		_, _ = w.Write(corpo)
 	}))
 	defer srv.Close()
 
@@ -465,7 +465,7 @@ func TestGanchoSemDestinoNaoGuardaGOP(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r.session(ctx)
+	_ = r.session(ctx)
 	if r.recorte != nil {
 		t.Error("sem destino para o pedaço, o recortador não devia existir")
 	}
@@ -501,10 +501,10 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 		metades[i/3] = append(metades[i/3], mdat(100)...)
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(metades[0])
+		_, _ = w.Write(metades[0])
 		w.(http.Flusher).Flush()
 		time.Sleep(200 * time.Millisecond)
-		w.Write(metades[1])
+		_, _ = w.Write(metades[1])
 	}))
 	defer srv.Close()
 
@@ -527,7 +527,7 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 	defer cancel()
 	go fila.Roda(ctx)
 
-	r.session(ctx)
+	_ = r.session(ctx)
 	var onsets, quadros []int64
 	for range 2 {
 		select {

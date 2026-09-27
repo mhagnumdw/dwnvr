@@ -606,7 +606,7 @@ func TestInitGen(t *testing.T) {
 	a := makeMoov(1, 90000, "hev1", false)
 	b := makeMoov(1, 90000, "avc1", false)
 
-	if InitGen(a) != InitGen(a) {
+	if g1, g2 := InitGen(a), InitGen(a); g1 != g2 {
 		t.Error("InitGen não é determinística")
 	}
 	if InitGen(a) == InitGen(b) {

@@ -88,3 +88,25 @@ repos:
     rev: v1.7.12
     hooks:
       - id: actionlint-docker
+
+  # Go: bug (errcheck, govet, staticcheck, unused...) e formatação (gofmt e
+  # goimports). As regras estão no .golangci.yml. O -full olha o módulo
+  # inteiro: o hook comum só olha o que mudou desde o HEAD, e na CI não acharia
+  # nada. Ele é compilado com o Go do PATH.
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.14.0
+    hooks:
+      - id: golangci-lint-full
+      - id: golangci-lint-fmt
+      - id: golangci-lint-config-verify
+
+  # go.mod e go.sum de acordo com os imports: dependência que falta entra, a
+  # que sobra sai.
+  - repo: local
+    hooks:
+      - id: go-mod-tidy
+        name: go mod tidy
+        language: system
+        entry: go mod tidy
+        files: (\.go|^go\.mod|^go\.sum)$
+        pass_filenames: false

@@ -401,7 +401,9 @@ func TestLoadDayIgnoraLinhaTruncada(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.WriteString(`{"t":123,"d":60000,"sz":`) // JSON pela metade
+	if _, err := f.WriteString(`{"t":123,"d":60000,"sz":`); err != nil { // JSON pela metade
+		t.Fatal(err)
+	}
 	f.Close()
 
 	entries, err := c.LoadDay(base.Format(DayLayout))
@@ -747,7 +749,9 @@ func TestEventosIgnoraLinhaTruncada(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.WriteString(`{"instanteMs":178849`)
+	if _, err := f.WriteString(`{"instanteMs":178849`); err != nil {
+		t.Fatal(err)
+	}
 	f.Close()
 
 	evs, err := c.LoadEventos(base.Format(DayLayout))
