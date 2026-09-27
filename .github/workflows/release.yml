@@ -35,8 +35,8 @@ jobs:
   preparar:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # push do commit da release e da tag
-      actions: read # conferir a CI do commit
+      contents: write  # push do commit da release e da tag
+      actions: read  # conferir a CI do commit
     # Nunca interpolar ${{ inputs.version }} dentro de run:, ele viraria código
     # de shell.
     env:
@@ -58,8 +58,8 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # o git-cliff precisa do histórico inteiro e das tags
-          persist-credentials: true # o push da release, abaixo, reusa a credencial
+          fetch-depth: 0  # o git-cliff precisa do histórico inteiro e das tags
+          persist-credentials: true  # o push da release, abaixo, reusa a credencial
 
       - name: tag nova, maior que a última, e com commit novo desde ela
         run: |
@@ -152,7 +152,7 @@ jobs:
     needs: imagens
     runs-on: ubuntu-latest
     permissions:
-      contents: write # criar a release
+      contents: write  # criar a release
     steps:
       - uses: actions/checkout@v7
         with:

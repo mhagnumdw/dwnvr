@@ -1,0 +1,13 @@
+# Regras do yamllint, lidas pelo hook do pre-commit (e por ele na CI).
+
+extends: default
+
+rules:
+  # Sem o `---` no começo: nenhum YAML daqui tem mais de um documento.
+  document-start: disable
+  # Sem limite de linha: expressão do Actions, regex de sed e comando do
+  # ffmpeg não têm onde quebrar.
+  line-length: disable
+  # O `on:` do GitHub Actions é chave, não booleano.
+  truthy:
+    check-keys: false

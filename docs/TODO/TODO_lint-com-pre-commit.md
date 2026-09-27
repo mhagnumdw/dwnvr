@@ -9,8 +9,8 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 4 (yamllint).** Falta decidir se o `line-length` fica. Os detalhes
-estão na seção dela.
+**Etapa 5 (hadolint).** Precisa de Docker local. Os detalhes estão na seção
+dela.
 
 ## Checklist
 
@@ -18,7 +18,7 @@ estão na seção dela.
 - [x] [Etapa 1 - a base: pre-commit-hooks e o lint.yml](#etapa-1---a-base-pre-commit-hooks-e-o-lintyml) - higiene de todo arquivo texto: espaço no fim, newline final, YAML e JSON válidos, chave privada
 - [x] [Etapa 2 - markdownlint-cli2](#etapa-2---markdownlint-cli2) - estilo e estrutura do Markdown
 - [x] [Etapa 3 - lychee: link e âncora do Markdown](#etapa-3---lychee-link-e-âncora-do-markdown) - link e âncora quebrados no Markdown
-- [ ] [Etapa 4 - yamllint](#etapa-4---yamllint) - sintaxe e estilo dos YAML: workflows, compose e configs
+- [x] [Etapa 4 - yamllint](#etapa-4---yamllint) - sintaxe e estilo dos YAML: workflows, compose e configs
 - [ ] [Etapa 5 - hadolint](#etapa-5---hadolint) - boas práticas nos Dockerfiles, com o shellcheck nos `RUN`
 - [ ] [Etapa 6 - actionlint](#etapa-6---actionlint) - erro de sintaxe e de expressão nos workflows do GitHub Actions
 - [ ] [Etapa 7 - golangci-lint, primeira leva](#etapa-7---golangci-lint-primeira-leva) - bug no Go: erro ignorado, código morto, uso errado da stdlib
@@ -150,6 +150,11 @@ o hook acusou os três.
   `release.yml`, e 4 linhas longas: 2 no `release.yml`, a chave do cache no
   `lint.yml` e uma de 281 caracteres no `go2rtc.example.yaml`. Decidir na
   etapa se o `line-length` fica.
+- Em 27/09, o padrão de 80 colunas deu 22 linhas longas, e não 4: os 9
+  avisos acima foram medidos com 120. As 4 acima de 120 não têm onde quebrar
+  (expressão do Actions, regex de `sed`, `printf` com link e comando do
+  ffmpeg), e o `line-length` saiu, como o MD013 no Markdown. Os 5 comentários
+  ganharam o segundo espaço.
 - Commit: `ci: yamllint`.
 
 ### Etapa 5 - hadolint

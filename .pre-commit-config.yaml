@@ -64,3 +64,11 @@ repos:
       - id: lychee-docker
         entry: docker.io/lycheeverse/lychee:0.24.2-alpine
         types: [markdown]
+
+  # YAML: workflows, compose e configs. As regras estão no .yamllint.yaml, e o
+  # --strict faz aviso também interromper o commit.
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: [--strict]
