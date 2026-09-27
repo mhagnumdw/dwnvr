@@ -167,11 +167,11 @@ jobs:
         env:
           OUTPUT: ${{ runner.temp }}/notas.md
 
-      # O rodapé fixo de toda release: como atualizar e como voltar.
+      # O rodapé fixo de toda release. Só o link: o comando mora no README, e
+      # uma cópia dele aqui envelheceria sem ninguém ver.
       - name: como atualizar
         run: |
-          printf '\n' >> "$RUNNER_TEMP/notas.md"
-          cat .github/como-atualizar.md >> "$RUNNER_TEMP/notas.md"
+          printf '\n---\n\n**Como atualizar:** veja o [Atualizar do README](https://github.com/mhagnumdw/dwnvr#atualizar).\n' >> "$RUNNER_TEMP/notas.md"
 
       - uses: softprops/action-gh-release@v3
         with:

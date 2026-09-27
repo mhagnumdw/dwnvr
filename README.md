@@ -709,7 +709,7 @@ em três jobs:
 |---|---|
 | `preparar` | confere que a versão é nova e maior que a última, que há commit desde ela e que a CI do commit terminou verde; escreve o `CHANGELOG.md` e troca a versão do `image:` no `docker-compose.yml`; faz o commit `chore(release): vX.Y.Z`, a tag e o push das duas |
 | `imagens` | o `imagens.yml` a partir da tag: `vX.Y.Z`, `latest`, `main` e `sha-*` das duas imagens |
-| `publicar` | a página da release, com as notas do git-cliff e o `.github/como-atualizar.md` no fim |
+| `publicar` | a página da release, com as notas do git-cliff e, no fim, o link para o [Atualizar](#atualizar) |
 
 A página vem por último porque ela é o anúncio: só existe quando as imagens
 existem. Se as imagens falharem, o commit e a tag já estão na `main`, e basta

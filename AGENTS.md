@@ -55,7 +55,7 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 | campo em `store.Entry` | índice append-only: a leitura tolera zero em linha antiga · `internal/retention/retention.go` · `internal/api/recordings.go` |
 | variável de `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/imagens.yml` (`build-args`) · `GET /api/version` |
 | `image:` do dwnvr ou do dwnvr-detect no `docker-compose.yml` | manter `${DWNVR_VERSION:-vX.Y.Z}` numa linha só: o passo do compose no `.github/workflows/release.yml` reescreve o default e falha se não achar as 2 linhas |
-| comando de atualizar | §Atualizar do `README.md` · `.github/como-atualizar.md` (vai em toda página de release) · §Trocar de versão do `docs/operacao.md` |
+| comando de atualizar | §Atualizar do `README.md` (a página de cada release aponta para ela) · §Trocar de versão do `docs/operacao.md` |
 | alvo ou variável no `Makefile` | comentário `## alvo:` (o `make help` lê) · §Build do `README.md` · `local.mk.example` |
 | versão de Go ou de Node | `go.mod` · `.tool-versions` (o asdf local) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` (`setup-go`/`setup-node`) · §Tecnologias do `README.md` |
 | arquivo ou diretório novo na raiz | `.gitignore` se for local. O `.dockerignore` é allowlist invertida (`**` + `!`): o que o build precisar exige um `!` explícito, senão some do contexto |
