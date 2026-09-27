@@ -29,8 +29,8 @@ estão na seção dela.
 - [x] [Etapa 12 - zizmor](#etapa-12---zizmor) - segurança dos workflows: action sem SHA, permissão ampla, credencial exposta
 - [ ] [Etapa 13 - gitleaks, com uma regra para senha de câmera](#etapa-13---gitleaks-com-uma-regra-para-senha-de-câmera) - segredo no commit: token, chave e senha de câmera
 - [ ] [Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)](#etapa-14---as-regras-de-commit-do-agentsmd-como-hook-opcional) - Conventional Commits, sem travessão e body obrigatório
-- [ ] [Etapa 15 - Prettier (opcional)](#etapa-15---prettier-opcional) - formatação automática de JavaScript, Svelte e CSS
-- [ ] [Etapa 16 - cspell pt-BR (opcional)](#etapa-16---cspell-pt-br-opcional) - ortografia pt-BR nos `.md`
+- ~~[Etapa 15 - Prettier (opcional)](#etapa-15---prettier-opcional) - formatação automática de JavaScript, Svelte e CSS~~ - cancelada em 27/09/2026
+- ~~[Etapa 16 - cspell pt-BR (opcional)](#etapa-16---cspell-pt-br-opcional) - ortografia pt-BR nos `.md`~~ - cancelada em 27/09/2026
 
 ## Por que
 
@@ -392,6 +392,11 @@ o hook acusou os três.
 
 ### Etapa 15 - Prettier (opcional)
 
+- **Cancelada em 27/09/2026.** O estilo do `web/src` já é uniforme sem ele:
+  nos 30 arquivos `.js` e `.svelte` fora do `vendor/`, nenhum indenta com
+  tab, os 82 imports usam aspas simples e o ponto e vírgula vale em todos. A
+  reformatação trocaria esse estilo pelo dele, e bug é com o ESLint e o
+  svelte-check. O que segue fica como registro da medição.
 - [Prettier](https://github.com/prettier/prettier) com o
   [prettier-plugin-svelte](https://github.com/sveltejs/prettier-plugin-svelte):
   um formato só para JS, Svelte e CSS.
@@ -401,6 +406,8 @@ o hook acusou os três.
 
 ### Etapa 16 - cspell pt-BR (opcional)
 
+- **Cancelada em 27/09/2026.** Não vai entrar; o que segue fica como
+  registro da medição.
 - [cspell](https://github.com/streetsidesoftware/cspell) com o dicionário
   `@cspell/dict-pt-br`, só nos `.md`, ignorando bloco de código e link.
 - Hoje, medido em 24/09: 72 termos para o dicionário do projeto, quase todos
