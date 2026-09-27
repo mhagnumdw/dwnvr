@@ -627,6 +627,7 @@
 
   {#if avisos.length}
     <div class="card avisos">
+      <!-- eslint-disable-next-line svelte/require-each-key -- só texto, sem estado por linha; e dois avisos podem ter o mesmo texto, o que quebraria a chave -->
       {#each avisos as a}
         <p class="row {a.nivel}"><span class="dot {a.nivel}"></span>{a.texto}</p>
       {/each}
@@ -761,7 +762,7 @@
           {#if naoAnalisadas.length}
             <p class="small muted quebra">
               das {funil.perdidas} não analisadas:
-              {#each naoAnalisadas as m, i}{i ? ' · ' : ' '}<b class="mono">{m.n}</b> {m.texto}{/each}
+              {#each naoAnalisadas as m, i (m.texto)}{i ? ' · ' : ' '}<b class="mono">{m.n}</b> {m.texto}{/each}
             </p>
           {/if}
         {:else}

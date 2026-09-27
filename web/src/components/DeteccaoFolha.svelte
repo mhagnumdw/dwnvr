@@ -204,7 +204,6 @@
     {/if}
     <canvas bind:this={canvas} class:escondido={videoPintou}></canvas>
     {#if tocando}
-      <!-- svelte-ignore a11y_media_has_caption -->
       <video bind:this={video} playsinline onloadeddata={() => (videoPintou = true)}></video>
       {#if Caixas && video}
         <Caixas

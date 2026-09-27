@@ -52,6 +52,7 @@ export const rota = $state({
 // a URL é a fonte da PRIMEIRA leitura, e daí em diante quem manda é o estado da
 // tela, que escreve de volta.
 export function paramsAtuais() {
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- leitura única, na inicialização
   return new URLSearchParams(partes(location.hash).query);
 }
 

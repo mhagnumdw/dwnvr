@@ -118,11 +118,12 @@
 
   function mudarMes(delta, focar) {
     const d = parseDay(diaFocado ?? hoje);
-    const alvo = new Date(d.getFullYear(), d.getMonth() + delta, 1);
+    const ano = d.getFullYear();
+    const mes = d.getMonth() + delta;
     // Dia 31 caindo num mês de 30: deixado ao `Date`, ele viraria para o mês
     // seguinte - justamente o pulo que este botão não deve dar.
-    const ultimo = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate();
-    alvo.setDate(Math.min(d.getDate(), ultimo));
+    const ultimo = new Date(ano, mes + 1, 0).getDate();
+    const alvo = new Date(ano, mes, Math.min(d.getDate(), ultimo));
     irPara(limitar(dayKey(alvo)));
     if (focar) focarCelula();
   }

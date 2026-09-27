@@ -31,6 +31,7 @@
   // As caixas acesas: chave -> { marca, desde }, com `desde` no relógio de
   // performance.now(). Sem reatividade de propósito: quem desenha é o canvas,
   // e redesenhar é pedido à mão.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- quem desenha é o canvas
   const acesas = new Map();
   let pausadaDesde = null;
   let itens = [];

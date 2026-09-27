@@ -595,7 +595,6 @@
     </div>
 
     <div class="stage">
-      <!-- svelte-ignore a11y_media_has_caption -->
       <video bind:this={video} playsinline controls={false}></video>
       {#if Caixas && showCaixas && objetos.length}
         <Caixas

@@ -126,6 +126,7 @@
   }
 
   function toggle(id) {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- vira o `selected` inteiro, sem mutar o antigo
     const next = new Set(selected);
     next.has(id) ? next.delete(id) : next.add(id);
     setSelection(next);
@@ -259,7 +260,7 @@
       style:--tile-w="{Math.floor(encaixe.w)}px"
     >
       {#each visible as c (c.id)}
-        <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="tile" ondblclick={(e) => fullscreen(e.currentTarget)} title="duplo clique: tela cheia">
           <!-- O componente do go2rtc negocia WebRTC/MSE sozinho. A mídia vai
                direto do navegador ao go2rtc; o dwnvr só faz proxy da

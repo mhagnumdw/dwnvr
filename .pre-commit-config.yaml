@@ -113,15 +113,28 @@ repos:
 
   # Svelte: os warnings do compilador (acessibilidade, CSS sem uso). Tipo do
   # JavaScript ele não confere: o web/ não tem jsconfig.json com checkJs. Roda
-  # no web/ inteiro, com o svelte do web/node_modules: em clone novo, antes
-  # rode `npm ci` no web/. O pre-commit instala o svelte-check num ambiente
-  # próprio, e o package.json do web/ não muda.
+  # no web/ inteiro, e o svelte-check vem das devDependencies do web/, como o
+  # ESLint abaixo: em clone novo, antes rode `npm ci` no web/.
   - repo: local
     hooks:
       - id: svelte-check
         name: svelte-check
-        language: node
-        entry: svelte-check --workspace web --fail-on-warnings
-        additional_dependencies: [svelte-check@4.7.6, typescript@6.0.3]
+        language: system
+        entry: web/node_modules/.bin/svelte-check --workspace web --fail-on-warnings
         files: ^web/(src/|svelte\.config\.js$|vite\.config\.js$)
         pass_filenames: false
+
+  # JavaScript e Svelte: bug e má prática. As regras estão no
+  # web/eslint.config.js, e o ESLint vem das devDependencies do web/: em clone
+  # novo, antes rode `npm ci` no web/. O --no-warn-ignored cala o aviso sobre o
+  # src/vendor/, que a config deixa de fora. O --max-warnings=0 faz warning
+  # interromper o commit: no recommended, o `$inspect` e o `{@debug}`
+  # esquecidos são só warning.
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        language: system
+        entry: web/node_modules/.bin/eslint
+        args: [--fix, --no-warn-ignored, --max-warnings=0]
+        files: ^web/(src/.*\.(js|svelte)|[^/]+\.js)$

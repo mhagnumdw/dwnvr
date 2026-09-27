@@ -331,6 +331,7 @@
   // Pointer Events cobre mouse, dedo e caneta com o mesmo código.
   // Cada ponteiro guarda também o x inicial: o limiar de arraste precisa do
   // deslocamento acumulado, não do passo do último evento.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- estado do gesto, não da tela
   const pointers = new Map();
   let dragged = false;
   let pinchStart = null;

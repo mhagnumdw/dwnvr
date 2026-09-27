@@ -208,12 +208,11 @@ export async function copiar(texto) {
   ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
   document.body.append(ta);
   ta.select();
-  let ok = false;
   try {
-    ok = document.execCommand('copy');
+    return document.execCommand('copy');
   } catch {
-    ok = false;
+    return false;
+  } finally {
+    ta.remove();
   }
-  ta.remove();
-  return ok;
 }

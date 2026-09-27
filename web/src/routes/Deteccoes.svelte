@@ -128,6 +128,7 @@
   // junta duas fatias em ordem, sem repetir: a busca de novas volta de
   // propósito sobre o que já se tem, e uma página pode empatar com a vizinha.
   function junta(a, b) {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Set local, só para juntar
     const vistos = new Set();
     const out = [];
     for (const d of [...a, ...b].sort((x, y) => y.instanteMs - x.instanteMs || (x.cam < y.cam ? -1 : 1))) {

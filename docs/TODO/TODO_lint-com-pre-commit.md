@@ -9,9 +9,7 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 9 (ESLint com o plugin do Svelte).** A correção pode mudar o
-comportamento da tela: ver rodando antes do commit. Os detalhes estão na seção
-dela.
+**Etapa 10 (ruff no dwnvr-detect).** Os detalhes estão na seção dela.
 
 ## Checklist
 
@@ -24,7 +22,7 @@ dela.
 - [x] [Etapa 6 - actionlint](#etapa-6---actionlint) - erro de sintaxe e de expressão nos workflows do GitHub Actions
 - [x] [Etapa 7 - golangci-lint, primeira leva](#etapa-7---golangci-lint-primeira-leva) - bug no Go: erro ignorado, código morto, uso errado da stdlib
 - [x] [Etapa 8 - svelte-check](#etapa-8---svelte-check) - warnings do compilador do Svelte: acessibilidade e CSS sem uso
-- [ ] [Etapa 9 - ESLint com o plugin do Svelte](#etapa-9---eslint-com-o-plugin-do-svelte) - bug e má prática no JavaScript e nos componentes Svelte
+- [x] [Etapa 9 - ESLint com o plugin do Svelte](#etapa-9---eslint-com-o-plugin-do-svelte) - bug e má prática no JavaScript e nos componentes Svelte
 - [ ] [Etapa 10 - ruff no dwnvr-detect](#etapa-10---ruff-no-dwnvr-detect) - lint e formatação do Python (o flake8 e o black numa ferramenta só)
 - [ ] [Etapa 11 - golangci-lint, segunda leva](#etapa-11---golangci-lint-segunda-leva) - Go mais moderno e idiomático, quase tudo com fix automático
 - [ ] [Etapa 12 - zizmor](#etapa-12---zizmor) - segurança dos workflows: action sem SHA, permissão ampla, credencial exposta
@@ -231,6 +229,11 @@ o hook acusou os três.
   `jsconfig.json` temporário: 32 erros sem `strict` e 894 com. Os 32 são
   JSDoc impreciso ou inferência (`alfa = () => 1` vira função sem
   parâmetro), nenhum bug; o `checkJs` ficou de fora.
+- Também na revisão de 27/09, o svelte-check e o typescript foram para as
+  devDependencies do `web/`, e o hook virou `language: system`, como o do
+  ESLint. O motivo de deixá-los fora, não pesar o `npm ci` do build da imagem,
+  caiu na Etapa 9, que pôs lá os ~130 pacotes do ESLint; e assim uma versão
+  nova chega pelo `npm`, como as outras.
 
 ### Etapa 9 - ESLint com o plugin do Svelte
 
@@ -248,6 +251,32 @@ o hook acusou os três.
 - Custo: 4 devDependencies, ~130 pacotes no `node_modules`. O bundle e a
   imagem final não mudam, mas o `npm ci` do build da imagem baixa tudo.
 - A correção pode mudar o comportamento da tela: ver rodando antes do commit.
+- Como saiu, em 27/09: a config segue o README do plugin (`defineConfig`,
+  `globalIgnores` e o `svelte.config.js` no parser), e o `no-unused-vars`
+  ganhou `ignoreRestSiblings`, e não o padrão `_`: o `Cameras.svelte` tira
+  campos com `...resto`. Os 9 `prefer-svelte-reactivity` eram todos falso
+  positivo, conhecido no plugin (issue #1271, aberta). O do `DayPicker` saiu
+  calculando o dia antes de criar o `Date`, sem o `setDate`. Os outros 8 (Set
+  local, só para juntar; o `Map` do canvas, que não é reativo de propósito; o
+  `Set` que substitui o `selected` inteiro) foram desligados na linha, com o
+  motivo. Os 5 `no-useless-mustaches` também: o
+  Svelte 5 apara o espaço no começo de um `{#if}`, e o `{' · '}` é o que o
+  segura (conferido compilando os dois jeitos). O `--fix` colaria o texto, e a
+  regra saiu da config. Dos 3 `svelte-ignore` sem uso, saíram os 2 do
+  `<video>` e metade do `Live.svelte`: o `a11y_no_static_element_interactions`
+  ainda avisa. O `each` do `naoAnalisadas` ganhou chave; o do `avisos` foi
+  desligado na linha, porque dois avisos podem ter o mesmo texto, e chave
+  repetida quebra a tela. O `no-empty` ganhou comentário, e o
+  `no-useless-assignment` saiu com um `return` no `try` e o `remove` no
+  `finally`.
+- Hook local, `language: system`, com o ESLint do `web/node_modules`: a
+  config importa os plugins, e o import resolve a partir do `web/`. Com
+  `--fix` e `--no-warn-ignored`, que cala o aviso do `src/vendor/`.
+  Conferido com um arquivo plantado: o hook acusou variável sem uso e bloco
+  vazio.
+- Na revisão de 27/09, o hook ganhou `--max-warnings=0`: o `svelte/no-inspect`
+  e o `svelte/no-at-debug-tags` são warning no `recommended`, e um `$inspect`
+  esquecido passava no commit com saída 0.
 - Commit: `ci: ESLint com o plugin do Svelte`.
 
 ### Etapa 10 - ruff no dwnvr-detect

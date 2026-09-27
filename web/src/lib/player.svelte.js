@@ -58,6 +58,7 @@ export class Player {
   #avisoTimer = null; // conta os ms de espera antes de acender o "carregando…"
 
   #mime = null; // com que codecs o SourceBuffer atual foi criado
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- cache interno, fora da tela
   #mimes = new Map(); // geração -> mime, para não rebuscar o mesmo init
   #boundary = null; // início do segmento onde as trilhas mudam e é preciso recomeçar
   #pulo = null; // último pulo sobre dado corrompido: { inicio, alvo }, em ms
@@ -100,7 +101,9 @@ export class Player {
     // significa dezenas de MB.
     try {
       if (this.#ms?.readyState === 'open') this.#ms.endOfStream();
-    } catch {}
+    } catch {
+      // o MediaSource já estava fechando: nada a encerrar
+    }
     if (v.src.startsWith('blob:')) URL.revokeObjectURL(v.src);
     v.removeAttribute('src');
     v.load();
@@ -373,6 +376,7 @@ export class Player {
       Opus: 'opus',
       mp4a: 'mp4a.40.2',
     };
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Set local, só para juntar
     const codecs = new Set();
     for (let i = 0; i + 8 <= buf.length; i++) {
       const c = map[at(i + 4)];
