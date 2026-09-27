@@ -1,0 +1,183 @@
+# Release do dwnvr: Actions > release > Run workflow, com a versão (X.Y.Z).
+#
+# Três jobs, nesta ordem:
+#   preparar   confere que dá para lançar; escreve o CHANGELOG.md e o default
+#              do docker-compose.yml; commit, tag vX.Y.Z e push das duas
+#   imagens    o imagens.yml a partir da tag: vX.Y.Z, latest, main e sha-*
+#   publicar   a página da release no GitHub, com as notas do git-cliff
+#
+# A página vem por último porque ela é o anúncio: é ela que acende o aviso de
+# versão nova na interface de quem já roda o dwnvr, e ela só pode existir
+# depois das imagens. Se as imagens falharem, o commit e a tag já estão na
+# main e basta o "Re-run failed jobs" - não há nada a desfazer no git.
+#
+# As imagens são chamadas aqui dentro, e não pelo ci.yml ouvindo a tag: o push
+# feito com o GITHUB_TOKEN não dispara outro workflow (ver imagens.yml).
+
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão (X.Y.Z, sem o v). Sugestão: git cliff --bumped-version'
+        required: true
+
+# Nenhum job recebe token com permissão, a não ser que peça.
+permissions: {}
+
+# Duas releases ao mesmo tempo disputariam o push na main e a tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  preparar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push do commit da release e da tag
+      actions: read # conferir a CI do commit
+    # Nunca interpolar ${{ inputs.version }} dentro de run:, ele viraria código
+    # de shell.
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: versão no formato X.Y.Z
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Versão inválida: '$VERSION'. Use X.Y.Z, sem o v."
+            exit 1
+          fi
+
+      - name: lançada da main
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::A release sai só da main, e esta execução é de $GITHUB_REF."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # o git-cliff precisa do histórico inteiro e das tags
+          persist-credentials: true # o push da release, abaixo, reusa a credencial
+
+      - name: tag nova, maior que a última, e com commit novo desde ela
+        run: |
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::A tag v$VERSION já existe."
+            exit 1
+          fi
+          ultima=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
+          if [ -z "$ultima" ]; then
+            echo "Primeira release."
+            exit 0
+          fi
+          maior=$(printf '%s\n%s\n' "$ultima" "v$VERSION" | sort -V | tail -n1)
+          if [ "$maior" != "v$VERSION" ]; then
+            echo "::error::v$VERSION não é maior que a última release, $ultima."
+            exit 1
+          fi
+          if [ "$(git rev-list --count "$ultima..HEAD")" -eq 0 ]; then
+            echo "::error::Nenhum commit desde $ultima."
+            exit 1
+          fi
+
+      # A release publica exatamente este commit, então a CI dele (testes e
+      # imagens da main) precisa ter terminado verde.
+      - name: CI verde neste commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          verdes=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq length)
+          if [ "$verdes" -eq 0 ]; then
+            echo "::error::A CI de $GITHUB_SHA não terminou verde (ou ainda está rodando). Veja em Actions > ci."
+            exit 1
+          fi
+
+      - name: configurar o git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
+
+      - name: CHANGELOG.md
+        uses: orhun/git-cliff-action@v4
+        with:
+          args: --unreleased --prepend CHANGELOG.md
+        env:
+          GIT_CLIFF_TAG: v${{ inputs.version }}
+          # Fora do workspace, para a saída padrão da action não entrar no commit.
+          OUTPUT: ${{ runner.temp }}/cliff-output.md
+
+      # O compose de cada versão aponta para as imagens dela. São duas linhas,
+      # a do dwnvr e a do dwnvr-detect; se o sed não trocar exatamente as duas,
+      # o formato mudou e a release para aqui, antes de qualquer push.
+      - name: docker-compose.yml na versão nova
+        run: |
+          padrao='image: ghcr\.io/mhagnumdw/dwnvr(-detect)?:\$\{DWNVR_VERSION:-[^}]+\}$'
+          antes=$(grep -cE "$padrao" docker-compose.yml || true)
+          if [ "$antes" -ne 2 ]; then
+            echo "::error::Esperava 2 linhas 'image: ...:\${DWNVR_VERSION:-...}' no docker-compose.yml, achei $antes."
+            exit 1
+          fi
+          sed -i -E "s#^(\s*image: ghcr\.io/mhagnumdw/dwnvr(-detect)?:\\\$\{DWNVR_VERSION:-)[^}]+\}\$#\1v${VERSION}}#" docker-compose.yml
+          depois=$(grep -cF ":\${DWNVR_VERSION:-v${VERSION}}" docker-compose.yml || true)
+          if [ "$depois" -ne 2 ]; then
+            echo "::error::O sed trocou $depois linhas, e não 2."
+            git diff docker-compose.yml
+            exit 1
+          fi
+          git diff docker-compose.yml
+
+      - name: commit e tag
+        run: |
+          git add CHANGELOG.md docker-compose.yml
+          git commit -m "chore(release): v$VERSION"
+          git tag -a "v$VERSION" -m "chore(release): v$VERSION"
+
+      # Atômico: ou sobem o commit e a tag, ou nenhum dos dois.
+      - name: push
+        run: git push --atomic origin HEAD:main "v$VERSION"
+
+  imagens:
+    needs: preparar
+    uses: ./.github/workflows/imagens.yml
+    with:
+      ref: v${{ inputs.version }}
+      release: true
+    permissions:
+      contents: read
+      packages: write
+
+  publicar:
+    needs: imagens
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # criar a release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ inputs.version }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: notas da release
+        uses: orhun/git-cliff-action@v4
+        with:
+          args: --latest --strip all
+        env:
+          OUTPUT: ${{ runner.temp }}/notas.md
+
+      # O rodapé fixo de toda release. Só o link: o comando mora no README, e
+      # uma cópia dele aqui envelheceria sem ninguém ver.
+      - name: como atualizar
+        run: |
+          printf '\n---\n\n**Como atualizar:** veja o [Atualizar do README](https://github.com/mhagnumdw/dwnvr#atualizar).\n' >> "$RUNNER_TEMP/notas.md"
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          body_path: ${{ runner.temp }}/notas.md
+          draft: false
+          prerelease: false
+          make_latest: true

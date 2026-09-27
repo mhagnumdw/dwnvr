@@ -96,8 +96,10 @@ check: test
 ## deploy: atualiza o servidor remoto com a imagem que a CI publicou
 #
 # Nada é construído aqui: o servidor baixa do GHCR a imagem que a CI publicou.
-# Sem `git pull` de propósito - o docker-compose.yml de lá costuma estar
-# editado. Recriar o container custa alguns segundos de gravação.
+# Para receber cada push na main, e não só as releases, o .env de lá precisa
+# de DWNVR_VERSION=main. Sem `git pull` de propósito - o docker-compose.yml de
+# lá costuma estar editado. Recriar o container custa alguns segundos de
+# gravação.
 #
 # DEPLOY_HOST não tem default porque qualquer valor aqui seria o servidor de
 # outra pessoa. Defina no local.mk.
@@ -119,8 +121,8 @@ deploy:
 # único jeito de testar no hardware antes do commit. Depois disto o servidor roda
 # algo que não existe em commit nenhum; `make deploy` desfaz.
 #
-# Entra com a tag que o compose de lá espera, e sobe sem --pull always, que
-# baixaria a imagem da CI por cima.
+# Entra com a tag `main`, a que o compose de lá usa com DWNVR_VERSION=main, e
+# sobe sem --pull always, que baixaria a imagem da CI por cima.
 deploy-wip:
 	$(EXIGE_HOST)
 	# --provenance/--sbom desligados: com eles o buildx exporta uma manifest
@@ -128,7 +130,7 @@ deploy-wip:
 	docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
 		$(BUILDARGS) -t dwnvr:wip-arm64 --load .
 	docker save dwnvr:wip-arm64 | gzip | ssh $(DEPLOY_HOST) \
-		'gunzip | docker load && docker tag dwnvr:wip-arm64 $(IMAGE):latest'
+		'gunzip | docker load && docker tag dwnvr:wip-arm64 $(IMAGE):main'
 	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_DIR) && docker compose up -d'
 	@sleep 20
 	@echo "esperado: $(VERSION)"

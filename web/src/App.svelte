@@ -1,6 +1,16 @@
 <script>
   import { onMount } from 'svelte';
-  import { session, cameras, checkSession, loadCameras, loadBuild, logout } from './lib/state.svelte.js';
+  import {
+    session,
+    cameras,
+    build,
+    checkSession,
+    loadCameras,
+    loadBuild,
+    checarNovaVersao,
+    logout,
+    RELEASES_URL,
+  } from './lib/state.svelte.js';
   import { rota, ROTA_PADRAO } from './lib/rota.svelte.js';
   import { setUnauthorizedHandler } from './lib/api.js';
   import Login from './routes/Login.svelte';
@@ -71,7 +81,7 @@
     });
     // Fora do await da sessão: a tela de login também mostra a versão, e não
     // há motivo para uma busca esperar a outra.
-    loadBuild();
+    loadBuild().then(checarNovaVersao);
     await checkSession();
     if (session.authenticated) loadCameras();
   });
@@ -95,7 +105,7 @@
 {:else if session.authRequired && !session.authenticated}
   <Login onSuccess={afterLogin} />
 {:else}
-  <header class:autenticado={session.authRequired}>
+  <header>
     <span class="brand">
       <!-- O mesmo arquivo do favicon, servido de public/: uma marca só, um
            lugar só para mudar. -->
@@ -109,13 +119,28 @@
         </a>
       {/each}
     </nav>
-    <!-- Sem autenticação configurada não há sessão para encerrar, e um botão
-         que não faz nada é pior que botão nenhum. -->
-    {#if session.authRequired}
-      <button class="ghost sair" onclick={sair} disabled={saindo}>
-        {saindo ? 'saindo…' : 'Sair'}
-      </button>
-    {/if}
+    <div class="acoes">
+      <!-- Leva às releases, e não direto à versão nova: quem pulou algumas
+           precisa ler as notas de todas desde a sua. -->
+      {#if build.nova}
+        <a
+          class="nova"
+          href={RELEASES_URL}
+          target="_blank"
+          rel="noopener"
+          title="Versão nova do dwnvr: {build.nova} (você está na {build.version}). Veja o que mudou e como atualizar."
+        >
+          ↑ {build.nova}
+        </a>
+      {/if}
+      <!-- Sem autenticação configurada não há sessão para encerrar, e um botão
+           que não faz nada é pior que botão nenhum. -->
+      {#if session.authRequired}
+        <button class="ghost sair" onclick={sair} disabled={saindo}>
+          {saindo ? 'saindo…' : 'Sair'}
+        </button>
+      {/if}
+    </div>
   </header>
 
   <main>
@@ -151,11 +176,12 @@
     color: var(--dim);
   }
 
-  /* No celular a barra existe só para hospedar o Sair: a navegação mora
-     embaixo, e cada pixel de altura faz falta na grade ao vivo. Por isso as
-     propriedades ficam todas aqui e só o `display` muda entre os estados. */
+  /* A barra existe sempre, também no celular sem login, onde ela só tem a
+     marca: é o mesmo canto para o aviso de versão nova em todo caso, e os
+     ~37px que ela come da grade ao vivo quem usa com login já pagava. No
+     celular a navegação mora embaixo. */
   header {
-    display: none;
+    display: flex;
     align-items: center;
     gap: 12px;
     padding: 6px 12px;
@@ -164,10 +190,6 @@
     position: sticky;
     top: 0;
     z-index: 20;
-  }
-
-  header.autenticado {
-    display: flex;
   }
 
   .brand {
@@ -189,10 +211,39 @@
     display: none;
   }
 
-  /* Empurrado para a ponta oposta da marca, longe do polegar que navega pelo
-     rodapé: sair por engano custa digitar a senha de novo. */
-  .sair {
+  /* Empurradas para a ponta oposta da marca. O Sair, em especial, longe do
+     polegar que navega pelo rodapé: sair por engano custa digitar a senha de
+     novo. */
+  .acoes {
     margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Pílula e não ponto: sem hover no celular, um ponto sozinho não diz o que
+     é. O número já diz. O fundo e a borda são o --accent translúcido. */
+  .nova {
+    display: inline-flex;
+    align-items: center;
+    /* A mesma altura do Sair ao lado. */
+    min-height: 34px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    background: rgba(47, 129, 247, 0.12);
+    border: 1px solid rgba(47, 129, 247, 0.55);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .nova:hover {
+    background: rgba(47, 129, 247, 0.2);
+  }
+
+  .sair {
     min-height: 34px;
     padding: 5px 12px;
     font-size: 13px;
@@ -244,10 +295,8 @@
   /* No desktop a navegação sobe: o polegar deixa de ser a restrição e a
      altura da tela passa a ser o recurso escasso. */
   @media (min-width: 720px) {
-    /* Aqui a barra vale para todo mundo: ela também carrega a navegação, que
-       no desktop não tem onde mais ficar. */
+    /* A navegação sobe para a barra, que ganha folga. */
     header {
-      display: flex;
       gap: 20px;
       padding: 10px 18px;
     }

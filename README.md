@@ -48,6 +48,7 @@ Com a detecção desligada, o dwnvr custa o mesmo que uma versão sem ela.
   - [Estrutura do projeto](#estrutura-do-projeto)
   - [Build](#build)
   - [Testes](#testes)
+  - [Release](#release)
 
 ## O que você precisa
 
@@ -306,8 +307,10 @@ docker compose up -d && docker compose restart dwnvr
 
 ## Atualizar
 
-Atualiza o dwnvr para a versão mais nova - e, junto, o `dwnvr-detect`, se
-estiver ligado, e o go2rtc. Na mesma pasta do clone:
+Atualiza o dwnvr para a última versão - e, junto, o `dwnvr-detect`, se
+estiver ligado, e o go2rtc. O que mudou em cada versão está nas
+[releases](https://github.com/mhagnumdw/dwnvr/releases) e no
+[`CHANGELOG.md`](CHANGELOG.md). Na mesma pasta do clone:
 
 ```sh
 git pull && docker compose up -d --pull always
@@ -319,13 +322,26 @@ git pull && docker compose up -d --pull always
 > git pull && PODMAN_USERNS=keep-id podman-compose --in-pod false up -d --pull-always
 > ```
 
-O `git pull` traz o `docker-compose.yml` novo; o `--pull always` baixa as
-imagens novas e recria só os containers que mudaram. A configuração e as
-gravações ficam onde estão: o `dwnvr.yaml` e o `go2rtc.yaml` são seus e nenhuma
-atualização os reescreve. Para ver se chegou opção nova, compare o seu
-`dwnvr.yaml` com o `dwnvr.example.yaml` do clone.
+O `git pull` traz o `docker-compose.yml` novo, que aponta para as imagens da
+versão dele; o `--pull always` baixa essas imagens e recria só os containers
+que mudaram. A configuração e as gravações ficam onde estão: o `dwnvr.yaml` e
+o `go2rtc.yaml` são seus e nenhuma atualização os reescreve. Para ver se chegou
+opção nova, compare o seu `dwnvr.yaml` com o `dwnvr.example.yaml` do clone.
 
 Se o pull falhar, o comando para aí e o que está no ar continua gravando.
+
+Quando sai versão nova, a interface avisa com uma pílula `↑ vX.Y.Z` no topo,
+que leva às releases. Quem pergunta é o navegador, direto ao GitHub, no máximo
+uma vez a cada 12 horas: o servidor do dwnvr não sai para a internet, e numa
+rede sem ela o aviso simplesmente não aparece.
+
+**Fixar ou voltar uma versão.** A tag das imagens vem de `DWNVR_VERSION` no
+`.env`, que passa por cima da versão escrita no compose. Para ficar numa
+versão, ou voltar para uma anterior, ponha a tag dela no `.env`, como
+`DWNVR_VERSION=v0.1.0`, e rode o mesmo comando de cima; as gravações e a
+configuração ficam nos volumes, fora da imagem. Para voltar a seguir as
+releases, apague a linha do `.env`. Com `DWNVR_VERSION=main`, a instalação
+segue cada commit da `main`, antes de virar versão: é o canal de quem testa.
 
 ## Casos específicos
 
@@ -460,6 +476,7 @@ movimento.
 | [`docs/api.md`](docs/api.md) | referência dos endpoints HTTP |
 | [`web/README.md`](web/README.md) | desenvolver a interface |
 | [`docs/README.md`](docs/README.md) | índice completo, incluindo as medições datadas |
+| [`CHANGELOG.md`](CHANGELOG.md) | o que mudou em cada versão |
 
 ## Desenvolvimento
 
@@ -531,6 +548,8 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 ├── dwnvr-detect/           o detector de objetos, opcional, num container à parte (ver dwnvr-detect/README.md)
 ├── web/                    interface Svelte 5 + Vite (ver web/README.md)
 ├── docs/                   documentação longa (ver docs/README.md)
+├── CHANGELOG.md            o que mudou em cada versão, gerado na release
+├── cliff.toml              o formato do CHANGELOG.md e das notas de cada release (git-cliff)
 ├── docker-compose.yml      dwnvr + go2rtc (+ dwnvr-detect, opcional), o único arquivo para subir tudo
 ├── Dockerfile              imagem FROM scratch, multi-arch
 ├── dwnvr.example.yaml      configuração do dwnvr, campo a campo
@@ -675,4 +694,34 @@ cobrem o que quebra em silêncio: a leitura de caixas fMP4, a reescrita do
 `tfdt`, o corte em keyframe, a reconciliação de órfãos, a retenção e os
 endpoints HTTP.
 
-O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push.
+O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push na
+main e em pull request. As imagens saem do `.github/workflows/imagens.yml`,
+que ele chama depois dos testes: na main, com a tag `main`. A release também
+o chama, com a versão (ver [Release](#release)).
+
+### Release
+
+Uma versão sai por um botão: **Actions > release > Run workflow**, na `main`,
+com o número no formato `X.Y.Z`. O `.github/workflows/release.yml` faz o resto,
+em três jobs:
+
+| Job | O que faz |
+|---|---|
+| `preparar` | confere que a versão é nova e maior que a última, que há commit desde ela e que a CI do commit terminou verde; escreve o `CHANGELOG.md` e troca a versão do `image:` no `docker-compose.yml`; faz o commit `chore(release): vX.Y.Z`, a tag e o push das duas |
+| `imagens` | o `imagens.yml` a partir da tag: `vX.Y.Z`, `latest`, `main` e `sha-*` das duas imagens |
+| `publicar` | a página da release, com as notas do git-cliff e, no fim, o link para o [Atualizar](#atualizar) |
+
+A página vem por último porque ela é o anúncio: só existe quando as imagens
+existem. Se as imagens falharem, o commit e a tag já estão na `main`, e basta
+o **Re-run failed jobs** na execução.
+
+Antes de clicar, dá para ver as notas e a sugestão de número pelos commits
+(`feat` sobe o minor, o resto sobe o patch):
+
+```sh
+git cliff --unreleased --tag vX.Y.Z   # prévia do que entra no CHANGELOG.md
+git cliff --bumped-version            # a próxima versão sugerida
+```
+
+O formato das notas mora no `cliff.toml`. O `CHANGELOG.md` não se edita à mão:
+a release o reescreve.

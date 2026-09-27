@@ -1,22 +1,18 @@
 # CI do dwnvr.
 #
-# O job `test` roda em todo push e pull request. O `image-dwnvr-recorder` e o
-# `image-dwnvr-detect` rodam depois dele e só fora de pull request, publicando
-# as imagens multi-arch no GHCR: a do dwnvr e a do detector de objetos,
-# opcional.
+# O job `test` roda em todo push na main e em todo pull request. Fora de pull
+# request, o `imagens` roda depois dele e publica no GHCR as imagens
+# multi-arch do dwnvr e do detector de objetos, opcional, com a tag `main`.
+# Quem as constrói é o imagens.yml, que a release também chama; a tag de
+# versão e o `latest` só saem da release.
 
 name: ci
 
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
-
-env:
-  IMAGE_DWNVR_RECORDER: ghcr.io/${{ github.repository }}
-  IMAGE_DWNVR_DETECT: ghcr.io/${{ github.repository }}-detect
 
 jobs:
   test:
@@ -59,96 +55,12 @@ jobs:
             exit 1
           fi
 
-  image-dwnvr-recorder:
+  imagens:
     needs: test
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/imagens.yml
+    with:
+      ref: ${{ github.sha }}
     permissions:
       contents: read
       packages: write
-    steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.IMAGE_DWNVR_RECORDER }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
-            type=sha,format=short
-
-      # A mesma versão que o Makefile carimba: a tag quando houver, senão o
-      # hash curto - que é o que `git describe --tags --always` devolveria.
-      # Precisa ser calculada aqui porque o build da imagem não vê o .git.
-      - id: versao
-        run: |
-          if [ "${{ github.ref_type }}" = tag ]; then
-            echo "version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          fi
-          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          build-args: |
-            VERSION=${{ steps.versao.outputs.version }}
-            COMMIT=${{ github.sha }}
-            DATE=${{ steps.versao.outputs.date }}
-          # Duas arquiteturas por enquanto: aarch64 (Orange Pi, Raspberry Pi) e
-          # x86_64. Outras entram quando houver quem as use.
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=dwnvr-recorder
-          cache-to: type=gha,scope=dwnvr-recorder,mode=max
-
-  # O detector de objetos, em dwnvr-detect/. Mesmo molde do
-  # `image-dwnvr-recorder`: o Dockerfile dele também não executa nada da
-  # arquitetura de destino, então o arm64 sai daqui sem emulação. Cada job tem
-  # o próprio escopo de cache para um não disputar espaço com o outro.
-  image-dwnvr-detect:
-    needs: test
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.IMAGE_DWNVR_DETECT }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
-            type=sha,format=short
-
-      - uses: docker/build-push-action@v7
-        with:
-          context: dwnvr-detect
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=dwnvr-detect
-          cache-to: type=gha,scope=dwnvr-detect,mode=max
