@@ -9,7 +9,9 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 6 (actionlint).** Os detalhes estão na seção dela.
+**Etapa 7 (golangci-lint, primeira leva).** O `lint.yml` ganha o `setup-go`,
+e falta decidir se o `go vet` e o `gofmt` saem do `ci.yml` e do `make check`.
+Os detalhes estão na seção dela.
 
 ## Checklist
 
@@ -19,7 +21,7 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 - [x] [Etapa 3 - lychee: link e âncora do Markdown](#etapa-3---lychee-link-e-âncora-do-markdown) - link e âncora quebrados no Markdown
 - [x] [Etapa 4 - yamllint](#etapa-4---yamllint) - sintaxe e estilo dos YAML: workflows, compose e configs
 - [x] [Etapa 5 - hadolint](#etapa-5---hadolint) - boas práticas nos Dockerfiles, com o shellcheck nos `RUN`
-- [ ] [Etapa 6 - actionlint](#etapa-6---actionlint) - erro de sintaxe e de expressão nos workflows do GitHub Actions
+- [x] [Etapa 6 - actionlint](#etapa-6---actionlint) - erro de sintaxe e de expressão nos workflows do GitHub Actions
 - [ ] [Etapa 7 - golangci-lint, primeira leva](#etapa-7---golangci-lint-primeira-leva) - bug no Go: erro ignorado, código morto, uso errado da stdlib
 - [ ] [Etapa 8 - svelte-check](#etapa-8---svelte-check) - warnings do compilador do Svelte: acessibilidade e CSS sem uso
 - [ ] [Etapa 9 - ESLint com o plugin do Svelte](#etapa-9---eslint-com-o-plugin-do-svelte) - bug e má prática no JavaScript e nos componentes Svelte
@@ -171,8 +173,12 @@ o hook acusou os três.
 ### Etapa 6 - actionlint
 
 - [actionlint](https://github.com/rhysd/actionlint): sintaxe e expressões dos
-  workflows, com o shellcheck do PATH nos `run:` (o runner do GitHub tem).
-- Hoje: 0 nos 4 workflows.
+  workflows, com o shellcheck nos `run:`.
+- Hook `actionlint-docker`, e não o `actionlint`, que depende do shellcheck
+  do PATH: a imagem já traz o dela, e o hook vem com a tag fixada.
+- Hoje: 0 nos 4 workflows. Conferido em 27/09 com um workflow plantado: o hook
+  acusou variável sem aspas (SC2086), título de PR direto num `run:` e um
+  input de action com erro de digitação.
 - Commit: `ci: actionlint nos workflows`.
 
 ### Etapa 7 - golangci-lint, primeira leva

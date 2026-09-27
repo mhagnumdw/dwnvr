@@ -81,3 +81,10 @@ repos:
     hooks:
       - id: hadolint-docker
         entry: ghcr.io/hadolint/hadolint:v2.15.1 hadolint
+
+  # Workflows do GitHub Actions: sintaxe, expressões e o shellcheck nos `run:`.
+  # Roda pela imagem oficial, que já traz o shellcheck e vem com a tag fixada.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint-docker
