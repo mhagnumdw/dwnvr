@@ -1,0 +1,77 @@
+# Config do git-cliff: gera o CHANGELOG.md a partir do histórico do git.
+# Docs: https://git-cliff.org/docs/configuration
+# Usado pela release (.github/workflows/release.yml). Prévia da próxima versão:
+#   git cliff --unreleased --tag vX.Y.Z
+# Sugestão do número, pelos commits desde a última tag:
+#   git cliff --bumped-version
+
+[changelog]
+# Header ESTÁTICO: o `--prepend` reconhece este bloco e insere as releases novas
+# logo abaixo dele, então ele precisa ser igual, byte a byte, ao topo do
+# CHANGELOG.md (sem variáveis de template). A nota mora aqui - fonte única; o
+# CHANGELOG.md não deve ser editado à mão.
+header = """
+# Changelog
+
+> Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
+
+"""
+# Uma seção por release: "## [vX.Y.Z](link do compare) (AAAA-MM-DD)" + grupos
+# (### Added/Fixed/...) + bullets. A primeira versão não tem com o que comparar,
+# e listar o histórico inteiro dela daria centenas de linhas: no lugar dos
+# grupos entra um texto curto.
+body = """
+{% if version -%}
+    ## [{{ version }}]({% if previous.version %}<REPO>/compare/{{ previous.version }}...{{ version }}{% else %}<REPO>/tree/{{ version }}{% endif %}) ({{ timestamp | date(format="%Y-%m-%d") }})
+{% else -%}
+    ## Unreleased
+{% endif -%}
+{% if previous.version or not version %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.raw_message | split(pat="\n") | first | trim }} ([{{ commit.id | truncate(length=8, end="") }}](<REPO>/commit/{{ commit.id }}))\
+    {% endfor %}
+{% endfor %}\
+{% else %}
+Primeira versão com número. Até aqui o dwnvr saía só como `latest`, a cada commit; daqui em diante cada versão tem nome, notas e imagens próprias, e a interface avisa quando sai uma nova.
+{% endif %}\n
+"""
+trim = true
+# Rodam só sobre a release recém-gerada (as que já estão abaixo do header ficam
+# como estão).
+postprocessors = [
+  # "(#123)" -> link para o pull request
+  { pattern = '\(#([0-9]+)\)', replace = "([#${1}](<REPO>/pull/${1}))" },
+  { pattern = '<REPO>', replace = "https://github.com/mhagnumdw/dwnvr" },
+]
+
+[git]
+conventional_commits = true
+# Mantém todo commit, mesmo os que não seguem Conventional Commits (caem em "Other").
+filter_commits = false
+filter_unconventional = false
+sort_commits = "newest"
+# Só as tags de versão contam como release; qualquer outra tag é ignorada.
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+commit_parsers = [
+    # O commit da própria release (chore(release): vX.Y.Z) não entra no changelog.
+    { message = "^chore\\(release\\)", skip = true },
+    { message = "^feat", group = "<!-- 0 -->Added" },
+    { message = "^fix", group = "<!-- 1 -->Fixed" },
+    { message = "^perf", group = "<!-- 2 -->Performance" },
+    { message = "^refactor", group = "<!-- 3 -->Changed" },
+    { message = "^docs", group = "<!-- 4 -->Docs" },
+    { message = "^ci|^build", group = "<!-- 5 -->CI/Build" },
+    { message = ".*", group = "<!-- 9 -->Other" },
+]
+
+# Só alimenta a sugestão do `git cliff --bumped-version`: o número da release
+# é sempre o que se digita no botão.
+[bump]
+initial_tag = "v0.1.0"
+# Enquanto a versão for 0.x, um feat sobe o minor (0.1.0 -> 0.2.0), e não o patch.
+features_always_bump_minor = true
+# E uma mudança incompatível (feat!:) também sobe só o minor: o 1.0.0 é decisão
+# de quem faz a release, não de um `!` num commit.
+breaking_always_bump_major = false
