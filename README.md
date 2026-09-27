@@ -53,6 +53,7 @@ Com a detecção desligada, o dwnvr custa o mesmo que uma versão sem ela.
   - [Estrutura do projeto](#estrutura-do-projeto)
   - [Build](#build)
   - [Testes](#testes)
+  - [Lint](#lint)
   - [Release](#release)
 
 ## O que você precisa
@@ -692,7 +693,7 @@ onde ninguém quer instalar toolchain de frontend.
 
 ```sh
 make test        # testes de unidade
-make check       # testes + gofmt + go vet
+make check       # testes + gofmt + go vet + os lints do pre-commit
 ```
 
 A CI roda isso e mais uma coisa: reconstrói a interface para conferir se o
@@ -708,6 +709,25 @@ O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push na
 main e em pull request. As imagens saem do `.github/workflows/imagens.yml`,
 que ele chama depois dos testes: na main, com a tag `main`. A release também
 o chama, com a versão (ver [Release](#release)).
+
+### Lint
+
+Os lints rodam pelo [pre-commit](https://pre-commit.com), na versão do
+`.tool-versions`. Uma vez por clone:
+
+```sh
+pre-commit install            # liga os hooks neste clone
+pre-commit run --all-files    # roda todos, como a CI
+```
+
+A cada commit, os hooks do `.pre-commit-config.yaml` conferem os arquivos do
+commit e corrigem o que dá. Quando um hook corrige algo, o commit é
+interrompido: confira a correção, dê `git add` e commite de novo.
+
+A CI roda o mesmo arquivo no `.github/workflows/lint.yml`, em todos os
+arquivos, e não corrige nada: se algum hook mudaria um arquivo, o job falha e
+mostra o diff. Esse workflow é separado do `ci.yml`, então lint vermelho não
+segura a publicação das imagens.
 
 ### Release
 

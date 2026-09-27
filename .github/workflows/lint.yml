@@ -1,0 +1,58 @@
+# Lint do dwnvr: roda na CI o mesmo .pre-commit-config.yaml do commit local,
+# em todos os arquivos.
+#
+# Aqui nada é corrigido. Se um hook mudaria algum arquivo, o job falha e o
+# --show-diff-on-failure mostra o diff; a correção se faz no clone, com
+# `pre-commit run --all-files`, e vai num commit.
+#
+# Fica fora do ci.yml de propósito: lint vermelho avisa, mas não segura a
+# publicação das imagens, e a release só confere o ci.yml.
+
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Nenhum job recebe token com permissão, a não ser que peça.
+permissions: {}
+
+# Um push novo no mesmo PR cancela o lint do anterior, que já não vale. Na
+# main, cada push termina o seu.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    # Leva ~1 min, e ~2 min com o cache frio. Sem isto, um hook travado
+    # prenderia o runner por 6 h.
+    timeout-minutes: 15
+    permissions:
+      contents: read  # ler o código
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # nada aqui faz push
+
+      - uses: actions/setup-python@v7
+        id: python
+        with:
+          python-version: '3.x'
+
+      # Os ambientes dos hooks, que o pre-commit monta na primeira execução.
+      # Mudou o .pre-commit-config.yaml, monta de novo.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # A mesma versão do asdf local.
+      - name: instalar o pre-commit
+        run: pip install "pre-commit==$(awk '$1 == "pre-commit" { print $2 }' .tool-versions)"
+
+      - name: pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure --color=always

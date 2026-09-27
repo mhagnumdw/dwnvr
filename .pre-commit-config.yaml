@@ -1,0 +1,45 @@
+# Hooks do pre-commit (https://pre-commit.com). Rodam a cada commit, nos
+# arquivos do commit, e corrigem o que dá para corrigir. Quando um hook corrige
+# algo, o commit é interrompido: confira, dê `git add` e commite de novo.
+#
+# Uma vez por clone: `pre-commit install` (a versão está no .tool-versions).
+# Rodar em tudo, como a CI: `pre-commit run --all-files`
+#
+# A CI roda este mesmo arquivo (.github/workflows/lint.yml) e não corrige
+# nada: se um hook mudaria algum arquivo, o job falha e mostra o diff.
+
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+
+# O que é gerado, e por isso nunca editado à mão, fica fora de todo hook. O
+# internal/api/dist/ sai do `npm run build`, e o ci.yml o compara com um build
+# novo; o CHANGELOG.md é escrito pela release. Um hook que os "consertasse"
+# quebraria as duas coisas.
+exclude: ^(internal/api/dist/|CHANGELOG\.md$)
+
+repos:
+  # Higiene de qualquer arquivo texto. Binário fica de fora sozinho.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: fix-byte-order-marker
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-yaml
+      - id: check-json
+        exclude: ^\.vscode/  # JSONC: o VS Code aceita comentário
+      - id: check-toml
+      # Arquivo acima de 500 KB interrompe o commit: modelo, vídeo ou quadro
+      # de câmera entrando sem querer. Quando for de propósito:
+      # SKIP=check-added-large-files git commit ... e o arquivo entra no
+      # exclude. O --enforce-all confere todo arquivo que o hook recebe, e não
+      # só o novo no staged: sem ele, na CI, que não tem staged, o hook não
+      # confere nada.
+      - id: check-added-large-files
+        args: [--enforce-all]
+        exclude: ^dwnvr-detect/modelo/rfdetr-n_512x288_int8\.onnx$
+      - id: detect-private-key

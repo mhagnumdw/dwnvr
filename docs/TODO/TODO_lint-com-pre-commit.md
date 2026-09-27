@@ -10,14 +10,15 @@ próximo passo, logo abaixo.
 
 ## Próximo passo
 
-**Etapa 1 (a base).** O `.pre-commit-config.yaml` com os hooks de higiene de
-arquivo, e o `.github/workflows/lint.yml`, que roda o mesmo arquivo na CI.
-Nenhuma correção esperada. Os detalhes estão na seção dela.
+**Etapa 2 (markdownlint).** Antes, conferir em Actions que o workflow `lint`
+ficou verde depois do push da Etapa 1. A Etapa 2 tem dois commits: primeiro só
+o `--fix` das tabelas, que vai para o `.git-blame-ignore-revs`; depois a
+config, o hook e as correções feitas à mão. Os detalhes estão na seção dela.
 
 ## Checklist
 
 - [x] Etapa 0 - este plano
-- [ ] Etapa 1 - a base: pre-commit-hooks e o `lint.yml`
+- [x] Etapa 1 - a base: pre-commit-hooks e o `lint.yml`
 - [ ] Etapa 2 - markdownlint-cli2
 - [ ] Etapa 3 - lychee: link e âncora do Markdown
 - [ ] Etapa 4 - as regras de commit do AGENTS.md como hook
@@ -84,6 +85,10 @@ erro aparece no commit, com arquivo e linha, e o `--fix` resolve sozinho o que
 - O `make check` roda o pre-commit também; README §Lint e AGENTS.md §Lint.
 - Hoje: 0 achados.
 - Commit: `ci: pre-commit com as checagens básicas de arquivo`.
+- Na revisão de 27/09, o `check-added-large-files` ganhou `--enforce-all`: sem
+  ele, o hook só olha arquivo novo no staged, e na CI, que não tem staged, não
+  conferia nada. O modelo `.onnx` do `dwnvr-detect/`, de 28 MB, versionado de
+  propósito, entrou no `exclude` do hook.
 
 ### Etapa 2 - markdownlint-cli2
 
@@ -217,10 +222,10 @@ achados em 28 arquivos.
 - [yamllint](https://github.com/adrienverge/yamllint) com `--strict` e um
   `.yamllint.yaml` curto: `extends: default`, `truthy` sem conferir chave (o
   `on:` do GitHub Actions) e `document-start` desligado.
-- Hoje: 8 avisos. São 5 comentários com um espaço só antes do `#`, no
-  `release.yml`, e 3 linhas longas: 2 no `release.yml` e uma de 281
-  caracteres no `go2rtc.example.yaml`. Decidir na etapa se o `line-length`
-  fica.
+- Hoje: 9 avisos. São 5 comentários com um espaço só antes do `#`, no
+  `release.yml`, e 4 linhas longas: 2 no `release.yml`, a chave do cache no
+  `lint.yml` e uma de 281 caracteres no `go2rtc.example.yaml`. Decidir na
+  etapa se o `line-length` fica.
 - Commit: `ci: yamllint`.
 
 ### Etapa 11 - hadolint
@@ -236,7 +241,7 @@ achados em 28 arquivos.
 
 - [actionlint](https://github.com/rhysd/actionlint): sintaxe e expressões dos
   workflows, com o shellcheck do PATH nos `run:` (o runner do GitHub tem).
-- Hoje: 0 nos 3 workflows.
+- Hoje: 0 nos 4 workflows.
 - Commit: `ci: actionlint nos workflows`.
 
 ### Etapa 13 - golangci-lint, segunda leva
@@ -258,7 +263,7 @@ achados em 28 arquivos.
 
 - [zizmor](https://github.com/zizmorcore/zizmor): segurança dos workflows,
   que publicam no GHCR e fazem push na `main`.
-- Hoje: 26 achados nos 3 workflows. São 18 actions sem SHA
+- Hoje: 29 achados nos 4 workflows. São 21 actions sem SHA
   (`unpinned-uses`), 3 checkouts com a credencial persistida (`artipacked`), 2
   permissões amplas (`excessive-permissions`), 2 `self-repository` e 1
   `superfluous-actions`: o `softprops/action-gh-release` pode virar

@@ -35,6 +35,17 @@ limitado**, como exemplo o Orange Pi Zero 3. Ele não é feito *para* um hardwar
   O nome do arquivo sai de `mediaURL`.
   ```
 
+## Lint
+
+- Uma vez por clone: `pre-commit install`. A cada commit, os hooks do
+  `.pre-commit-config.yaml` conferem os arquivos e corrigem o que dá; quando
+  um hook corrige algo, o commit é interrompido, e basta conferir, dar
+  `git add` e commitar de novo.
+- Antes de propor um commit: `pre-commit run --all-files`. A CI
+  (`.github/workflows/lint.yml`) roda o mesmo arquivo, sem corrigir nada.
+- Nunca `git commit --no-verify`. Regra de lint não se desliga para passar:
+  corrija; se não houver como, desligue só naquela linha, com o motivo nela.
+
 ## Repercussões
 
 Um mesmo fato vive em vários arquivos aqui. Antes de encerrar a tarefa, ache na
@@ -60,6 +71,7 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 | alvo ou variável no `Makefile` | comentário `## alvo:` (o `make help` lê) · §Build do `README.md` · `local.mk.example` |
 | versão de Go ou de Node | `go.mod` · `.tool-versions` (o asdf local) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` (`setup-go`/`setup-node`) · §Tecnologias do `README.md` |
 | arquivo ou diretório novo na raiz | `.gitignore` se for local. O `.dockerignore` é allowlist invertida (`**` + `!`): o que o build precisar exige um `!` explícito, senão some do contexto |
+| arquivo gerado, que não se edita à mão | `exclude` do `.pre-commit-config.yaml` (hoje `internal/api/dist/` e `CHANGELOG.md`): sem ele, um hook o reescreve e o lint da CI falha |
 | volume, porta, env ou serviço no `docker-compose.yml` | §Experimentar em poucos minutos, §Instalar de verdade e §Detecção de movimento e de objetos do `README.md` · `docker-compose.build.yml` (se for serviço com imagem própria) · `docs/operacao.md` · `go2rtc.url` do `dwnvr.example.yaml` (depende do nome do serviço) |
 | caminho interno (`/etc/dwnvr`, `/storage`) | `Dockerfile` (`VOLUME`, `CMD`, `HEALTHCHECK`) · `docker-compose.yml` · `storage.root` do `dwnvr.example.yaml` · `README.md` |
 | flag em `cmd/dwnvr/main.go` | `CMD` e `HEALTHCHECK` do `Dockerfile` (`-config`, `-healthcheck`) · `docs/operacao.md` |
