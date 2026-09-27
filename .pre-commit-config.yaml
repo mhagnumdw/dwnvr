@@ -72,3 +72,12 @@ repos:
     hooks:
       - id: yamllint
         args: [--strict]
+
+  # Dockerfiles, com o shellcheck nos RUN. Roda pela imagem oficial, então
+  # precisa de Docker. O `entry` repete o do hook para fixar a tag: o original
+  # usa a imagem sem tag, que muda sozinha.
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.15.1
+    hooks:
+      - id: hadolint-docker
+        entry: ghcr.io/hadolint/hadolint:v2.15.1 hadolint

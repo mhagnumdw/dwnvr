@@ -9,8 +9,7 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 5 (hadolint).** Precisa de Docker local. Os detalhes estão na seção
-dela.
+**Etapa 6 (actionlint).** Os detalhes estão na seção dela.
 
 ## Checklist
 
@@ -19,7 +18,7 @@ dela.
 - [x] [Etapa 2 - markdownlint-cli2](#etapa-2---markdownlint-cli2) - estilo e estrutura do Markdown
 - [x] [Etapa 3 - lychee: link e âncora do Markdown](#etapa-3---lychee-link-e-âncora-do-markdown) - link e âncora quebrados no Markdown
 - [x] [Etapa 4 - yamllint](#etapa-4---yamllint) - sintaxe e estilo dos YAML: workflows, compose e configs
-- [ ] [Etapa 5 - hadolint](#etapa-5---hadolint) - boas práticas nos Dockerfiles, com o shellcheck nos `RUN`
+- [x] [Etapa 5 - hadolint](#etapa-5---hadolint) - boas práticas nos Dockerfiles, com o shellcheck nos `RUN`
 - [ ] [Etapa 6 - actionlint](#etapa-6---actionlint) - erro de sintaxe e de expressão nos workflows do GitHub Actions
 - [ ] [Etapa 7 - golangci-lint, primeira leva](#etapa-7---golangci-lint-primeira-leva) - bug no Go: erro ignorado, código morto, uso errado da stdlib
 - [ ] [Etapa 8 - svelte-check](#etapa-8---svelte-check) - warnings do compilador do Svelte: acessibilidade e CSS sem uso
@@ -164,6 +163,9 @@ o hook acusou os três.
   hook do repositório usa a imagem sem tag. Precisa de Docker local; o runner
   do GitHub tem.
 - Hoje, medido em 24/09 (os Dockerfiles não mudaram): 0 nos 2 Dockerfiles.
+  Em 27/09, pelo hook: 0. Conferido com um Dockerfile plantado, com `cd` num
+  `RUN` e variável sem aspas: o hook falhou, com o DL3003 e o SC2086 do
+  shellcheck.
 - Commit: `ci: hadolint nos Dockerfiles`.
 
 ### Etapa 6 - actionlint
