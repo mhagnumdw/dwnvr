@@ -37,6 +37,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false  # nada aqui faz push
+          fetch-depth: 0  # o histórico inteiro, para o betterleaks
 
       - uses: actions/setup-python@v7
         id: python
@@ -75,10 +76,18 @@ jobs:
       - name: instalar o pre-commit
         run: pip install "pre-commit==$(awk '$1 == "pre-commit" { print $2 }' .tool-versions)"
 
-      # Com o token, o zizmor liga os audits que consultam o GitHub (action
-      # com vulnerabilidade conhecida, commit impostor, tag ambígua); sem ele,
-      # roda offline, como no clone. O token só lê o código, que já é público.
+      # O betterleaks olha só o staged, e aqui não há staged. Com o token, o
+      # zizmor liga os audits que consultam o GitHub (action com
+      # vulnerabilidade conhecida, commit impostor, tag ambígua); sem ele, roda
+      # offline, como no clone. O token só lê o código, que já é público.
       - name: pre-commit
         run: pre-commit run --all-files --show-diff-on-failure --color=always
         env:
+          SKIP: betterleaks
           ZIZMOR_GITHUB_TOKEN: ${{ github.token }}
+
+      # O betterleaks no histórico inteiro: o commit que não passou pelo hook
+      # não passa por aqui.
+      - name: betterleaks no histórico
+        if: ${{ !cancelled() }}
+        run: pre-commit run betterleaks-historico --hook-stage manual --all-files --color=always

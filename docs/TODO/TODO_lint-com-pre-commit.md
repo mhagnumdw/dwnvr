@@ -9,8 +9,8 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 13 (gitleaks, com uma regra para senha de câmera).** Os detalhes
-estão na seção dela.
+**Etapa 14 (as regras de commit do AGENTS.md como hook), opcional.** Os
+detalhes estão na seção dela.
 
 ## Checklist
 
@@ -27,7 +27,7 @@ estão na seção dela.
 - [x] [Etapa 10 - ruff no dwnvr-detect](#etapa-10---ruff-no-dwnvr-detect) - lint e formatação do Python (o flake8 e o black numa ferramenta só)
 - [x] [Etapa 11 - golangci-lint, segunda leva](#etapa-11---golangci-lint-segunda-leva) - Go mais moderno e idiomático, quase tudo com fix automático
 - [x] [Etapa 12 - zizmor](#etapa-12---zizmor) - segurança dos workflows: action sem SHA, permissão ampla, credencial exposta
-- [ ] [Etapa 13 - gitleaks, com uma regra para senha de câmera](#etapa-13---gitleaks-com-uma-regra-para-senha-de-câmera) - segredo no commit: token, chave e senha de câmera
+- [x] [Etapa 13 - betterleaks, com uma regra para senha de câmera](#etapa-13---betterleaks-com-uma-regra-para-senha-de-câmera) - segredo no commit: token, chave e senha de câmera
 - [ ] [Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)](#etapa-14---as-regras-de-commit-do-agentsmd-como-hook-opcional) - Conventional Commits, sem travessão e body obrigatório
 - ~~[Etapa 15 - Prettier (opcional)](#etapa-15---prettier-opcional) - formatação automática de JavaScript, Svelte e CSS~~ - cancelada em 27/09/2026
 - ~~[Etapa 16 - cspell pt-BR (opcional)](#etapa-16---cspell-pt-br-opcional) - ortografia pt-BR nos `.md`~~ - cancelada em 27/09/2026
@@ -56,7 +56,7 @@ erro aparece no commit, com arquivo e linha, e o `--fix` resolve sozinho o que
 - **Cada etapa zera o seu lint**, sem ignorar achado antigo. A correção
   mecânica entra no mesmo commit da etapa, sem `.git-blame-ignore-revs`.
 - **O que a etapa exigir na CI vem junto**: o `setup-go` ou o `setup-node` no
-  `lint.yml`. Hook que não faz sentido lá, como o gitleaks, que só olha o
+  `lint.yml`. Hook que não faz sentido lá, como o betterleaks, que só olha o
   staged, entra no `SKIP` do job.
 - **Versão mais nova antes de implementar**, com
   `gh api repos/<dono>/<repo>/releases/latest --jq .tag_name`. A tabela do fim
@@ -352,18 +352,30 @@ o hook acusou os três.
   `stale-action-refs`). Rodados aqui com um token, deram 0. No clone o hook
   segue offline.
 
-### Etapa 13 - gitleaks, com uma regra para senha de câmera
+### Etapa 13 - betterleaks, com uma regra para senha de câmera
 
-- [gitleaks](https://github.com/gitleaks/gitleaks) no commit local. Ele olha o
-  staged, então na CI entra no `SKIP`. O push protection do GitHub já está
+- [betterleaks](https://github.com/betterleaks/betterleaks) no commit local.
+  Era o gitleaks, mas desde 2026 ele só recebe correção de segurança, e o
+  autor passou a manter o betterleaks, com o mesmo formato de regra. Ele olha
+  o staged, então na CI entra no `SKIP`. O push protection do GitHub já está
   ligado no repositório, mas só conhece token de provedor.
-- `.gitleaks.toml` com as regras padrão e mais uma para URL `rtsp://` com
-  usuário e senha, o vazamento mais provável aqui. Allowlist para os exemplos
-  do repositório (`usuario:senha` e `admin:senha`).
-- Hoje: 0 achados, nos arquivos e no histórico.
-- Verificação: pôr no stage um arquivo com uma URL `rtsp://` com usuário e
-  senha inventados; o commit deve parar.
-- Commit: `ci: gitleaks barra segredo e senha de câmera no commit`.
+- `.betterleaks.toml` com as regras padrão e mais uma para URL `rtsp://` com
+  usuário e senha, o vazamento mais provável aqui. Um filtro deixa passar as
+  senhas de exemplo do repositório: `senha`, `troque-me`, e `admin` só nos
+  testes, porque usuário `admin` com senha `admin` é o de fábrica de muita
+  câmera.
+- Hoje: 9 achados da regra genérica de senha, 3 nos arquivos e 6 no
+  histórico, todos senha de exemplo. Com o filtro, 0.
+- Verificação: no stage, `rtsp://` com senha inventada e com `admin:admin`
+  pararam o commit; `usuario:senha` passou.
+- Commit: `ci: betterleaks barra segredo e senha de câmera no commit`.
+- Na revisão de 27/09, a CI ganhou o `betterleaks-historico`: o mesmo hook,
+  com `alias`, `stages: [manual]` e `betterleaks git`, no histórico inteiro
+  (checkout com `fetch-depth: 0`). Sem ele, a regra do `rtsp://` não via o
+  commit feito pelo editor do GitHub ou num clone sem `pre-commit install`,
+  e o push protection do GitHub não a conhece. O histórico todo leva ~1 s.
+  Conferido num clone descartável: um commit com senha, feito com
+  `--no-verify`, fez o hook falhar.
 
 ### Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)
 
@@ -442,7 +454,7 @@ o hook acusou os três.
 | markdownlint-cli2 | v0.23.3 |
 | lychee | lychee-v0.24.2 |
 | conventional-pre-commit | v4.4.0 |
-| gitleaks | v8.30.1 |
+| betterleaks | v1.8.1 |
 | golangci-lint | v2.14.0 |
 | svelte-check | 4.7.6 |
 | eslint e eslint-plugin-svelte | 10.11.0 e 3.23.0 |

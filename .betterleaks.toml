@@ -1,0 +1,28 @@
+# Regras do betterleaks (https://github.com/betterleaks/betterleaks): segredo
+# no commit. O hook está no .pre-commit-config.yaml e olha só o staged.
+#
+# As regras padrão cobrem token e chave de provedor. A de baixo cobre o
+# vazamento mais provável aqui: a senha de câmera dentro da URL rtsp://.
+#
+# Falso positivo pontual: comentário `betterleaks:allow` no fim da linha.
+
+title = "dwnvr"
+
+# As senhas de exemplo do repositório, que não são segredo: "senha" nas URLs
+# rtsp:// do go2rtc.example.yaml e nos testes, "troque-me" no
+# dwnvr.example.yaml. O "admin" só nos testes (`Username, Password = "admin",
+# "senha"` confunde a regra genérica): fora deles, usuário admin com senha
+# admin é o de fábrica de muita câmera, e tem que barrar.
+filter = '''
+finding["secret"] in ["senha", "troque-me"] ||
+(finding["secret"] == "admin" && attributes["path"] endsWith "_test.go")
+'''
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "rtsp-url-com-senha"
+description = "URL rtsp:// com usuário e senha"
+keywords = ["rtsp"]
+regex = '''(?i)rtsps?://[^\s:/@'"]+:([^\s@'"]+)@'''

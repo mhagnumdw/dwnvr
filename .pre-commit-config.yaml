@@ -97,6 +97,23 @@ repos:
     hooks:
       - id: zizmor
 
+  # Segredo no commit: token, chave e senha de câmera na URL rtsp://. As
+  # regras estão no .betterleaks.toml. O binário é compilado com o Go do PATH.
+  #
+  # O primeiro olha só o staged, e a CI o pula (o SKIP do lint.yml). O
+  # segundo, só na CI, olha o histórico inteiro: pega o que entrou sem passar
+  # pelo hook (editor do GitHub, clone sem `pre-commit install`). À mão:
+  # pre-commit run betterleaks-historico --hook-stage manual --all-files
+  - repo: https://github.com/betterleaks/betterleaks
+    rev: v1.8.1
+    hooks:
+      - id: betterleaks
+      - id: betterleaks
+        alias: betterleaks-historico
+        name: betterleaks no histórico
+        entry: betterleaks git --redact --verbose
+        stages: [manual]
+
   # Go: bug (errcheck, govet, staticcheck, unused...) e formatação (gofmt e
   # goimports). As regras estão no .golangci.yml. O -full olha o módulo
   # inteiro: o hook comum só olha o que mudou desde o HEAD, e na CI não acharia
