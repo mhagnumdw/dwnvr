@@ -35,6 +35,7 @@ Configuração por variável de ambiente:
 
 A porta não é a 8555 de propósito: é a do WebRTC do go2rtc, que roda ao lado.
 """
+
 from __future__ import annotations
 
 import base64
@@ -75,6 +76,7 @@ IMAGENET_DESVIO = (0.229, 0.224, 0.225)
 #: Índice de saída do RF-DETR -> classe. É COCO de 91, com buracos (person=1),
 #: e não o de 80 do YOLO: ler um com o mapa do outro troca pessoa por bicicleta
 #: calado. Copiado de `rfdetr.assets.coco_classes`, que não vai para a imagem.
+# fmt: off
 CLASSES = {
     1: "person", 2: "bicycle", 3: "car", 4: "motorcycle", 5: "airplane", 6: "bus",
     7: "train", 8: "truck", 9: "boat", 10: "traffic light", 11: "fire hydrant",
@@ -93,6 +95,7 @@ CLASSES = {
     81: "sink", 82: "refrigerator", 84: "book", 85: "clock", 86: "vase",
     87: "scissors", 88: "teddy bear", 89: "hair drier", 90: "toothbrush",
 }
+# fmt: on
 
 
 class PedacoRuim(Exception):
@@ -101,6 +104,7 @@ class PedacoRuim(Exception):
 
 
 # ------------------------------------------------------------------ o vídeo
+
 
 def ultimo_quadro(fmp4: bytes) -> tuple[int, np.ndarray]:
     """Decodifica o pedaço inteiro e devolve (quadros decodificados, o último
@@ -126,8 +130,7 @@ def jpeg_do_quadro(img: np.ndarray, largura: int, qualidade: int) -> bytes:
     frame é um arquivo .jpg. O redimensionamento é o do swscale, no `reformat`.
     """
     alt, larg = img.shape[0], img.shape[1]
-    if largura >= larg:  # nunca ampliar: não inventa detalhe e só custa bytes
-        largura = larg
+    largura = min(largura, larg)  # nunca ampliar: não inventa detalhe e só custa bytes
     altura = max(2, round(alt * largura / larg))
     largura, altura = largura - largura % 2, altura - altura % 2
 
@@ -148,6 +151,7 @@ def jpeg_do_quadro(img: np.ndarray, largura: int, qualidade: int) -> bytes:
 
 
 # ------------------------------------------------------------------ o preparo
+
 
 def bilinear(img: np.ndarray, ah: int, aw: int) -> np.ndarray:
     """Bilinear SEM antialias, com centros de meio pixel - a convenção do
@@ -178,6 +182,7 @@ def prepara(img: np.ndarray, ah: int, aw: int) -> np.ndarray:
 
 
 # ------------------------------------------------------------------ o modelo
+
 
 class Modelo:
     def __init__(self, caminho: str):
@@ -211,17 +216,18 @@ class Modelo:
             if classe is None:
                 continue  # índice de enchimento do COCO de 91
             cx, cy, w, h = dets[i]
-            achados.append({
-                "classe": classe,
-                "score": float(escores[i]),
-                "caixa": [float(cx - w / 2), float(cy - h / 2),
-                          float(cx + w / 2), float(cy + h / 2)],
-            })
-        return achados, {"preparo": round((t1 - t0) * 1000, 1),
-                         "modelo": round((t2 - t1) * 1000, 1)}
+            achados.append(
+                {
+                    "classe": classe,
+                    "score": float(escores[i]),
+                    "caixa": [float(cx - w / 2), float(cy - h / 2), float(cx + w / 2), float(cy + h / 2)],
+                }
+            )
+        return achados, {"preparo": round((t1 - t0) * 1000, 1), "modelo": round((t2 - t1) * 1000, 1)}
 
 
 # ------------------------------------------------------------------ o HTTP
+
 
 class Atendente(http.server.BaseHTTPRequestHandler):
     modelo: Modelo  # posto no main
@@ -254,8 +260,7 @@ class Atendente(http.server.BaseHTTPRequestHandler):
             return self._responde(400, {"erro": "piso, quadro ou qualidade ilegível"})
         tamanho = int(self.headers.get("Content-Length") or 0)
         if tamanho <= 0 or tamanho > MAIOR_PEDACO:
-            return self._responde(413 if tamanho > 0 else 400,
-                                  {"erro": f"pedaço de {tamanho} bytes"})
+            return self._responde(413 if tamanho > 0 else 400, {"erro": f"pedaço de {tamanho} bytes"})
         corpo = self.rfile.read(tamanho)
 
         with self.vez:
@@ -308,8 +313,11 @@ class Servidor(http.server.ThreadingHTTPServer):
 def main():
     Atendente.modelo = Modelo(MODELO)
     m = Atendente.modelo
-    print(f"dwnvr-detect: {m.nome}, entrada {m.aw}x{m.ah}, {THREADS} thread(s), "
-          f"porta {PORTA}", file=sys.stderr, flush=True)
+    print(
+        f"dwnvr-detect: {m.nome}, entrada {m.aw}x{m.ah}, {THREADS} thread(s), porta {PORTA}",
+        file=sys.stderr,
+        flush=True,
+    )
     Servidor(("", PORTA), Atendente).serve_forever()
 
 

@@ -138,3 +138,12 @@ repos:
         entry: web/node_modules/.bin/eslint
         args: [--fix, --no-warn-ignored, --max-warnings=0]
         files: ^web/(src/.*\.(js|svelte)|[^/]+\.js)$
+
+  # Python do dwnvr-detect: lint e formatação, o flake8 e o black numa
+  # ferramenta só. As regras estão no dwnvr-detect/ruff.toml.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.9
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format

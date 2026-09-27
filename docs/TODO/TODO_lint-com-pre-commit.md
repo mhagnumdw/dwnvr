@@ -9,7 +9,7 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 10 (ruff no dwnvr-detect).** Os detalhes estão na seção dela.
+**Etapa 11 (golangci-lint, segunda leva).** Os detalhes estão na seção dela.
 
 ## Checklist
 
@@ -23,7 +23,7 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 - [x] [Etapa 7 - golangci-lint, primeira leva](#etapa-7---golangci-lint-primeira-leva) - bug no Go: erro ignorado, código morto, uso errado da stdlib
 - [x] [Etapa 8 - svelte-check](#etapa-8---svelte-check) - warnings do compilador do Svelte: acessibilidade e CSS sem uso
 - [x] [Etapa 9 - ESLint com o plugin do Svelte](#etapa-9---eslint-com-o-plugin-do-svelte) - bug e má prática no JavaScript e nos componentes Svelte
-- [ ] [Etapa 10 - ruff no dwnvr-detect](#etapa-10---ruff-no-dwnvr-detect) - lint e formatação do Python (o flake8 e o black numa ferramenta só)
+- [x] [Etapa 10 - ruff no dwnvr-detect](#etapa-10---ruff-no-dwnvr-detect) - lint e formatação do Python (o flake8 e o black numa ferramenta só)
 - [ ] [Etapa 11 - golangci-lint, segunda leva](#etapa-11---golangci-lint-segunda-leva) - Go mais moderno e idiomático, quase tudo com fix automático
 - [ ] [Etapa 12 - zizmor](#etapa-12---zizmor) - segurança dos workflows: action sem SHA, permissão ampla, credencial exposta
 - [ ] [Etapa 13 - gitleaks, com uma regra para senha de câmera](#etapa-13---gitleaks-com-uma-regra-para-senha-de-câmera) - segredo no commit: token, chave e senha de câmera
@@ -286,6 +286,15 @@ o hook acusou os três.
 - Hoje, medido em 24/09 (o `dwnvr-detect/` não mudou desde então): 5 achados
   e 2 arquivos a reformatar. Dois achados são `EXE001`: o `servidor.py` e o
   `exporta.py` têm shebang sem permissão de execução.
+- Como saiu, em 27/09: os mesmos 5 achados, com as regras padrão do ruff
+  0.16, que já trazem bugbear, isort e parte do pylint. Os dois arquivos
+  ganharam permissão de execução, e o `if` que limitava a largura virou
+  `min()`; o `--fix` tirou um `noqa: E402` que nenhuma regra ligada usa e
+  reordenou um import. `dwnvr-detect/ruff.toml` com `target-version` 3.12, a
+  da imagem, e `line-length = 120`: com o 88 padrão, o formatter quebraria em
+  várias linhas trechos que hoje se leem numa só. O dicionário `CLASSES` do `servidor.py`
+  ficou entre `# fmt: off` e `# fmt: on`: formatado, viraria 80 linhas de uma
+  classe cada.
 - Commit: `ci: ruff no dwnvr-detect`.
 
 ### Etapa 11 - golangci-lint, segunda leva

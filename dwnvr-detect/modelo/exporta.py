@@ -24,6 +24,7 @@ use exatamente o preparo que roda em produção.
   pip install -r requirements.txt
   python exporta.py --imagens ~/calibracao
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,7 +40,7 @@ from PIL import Image
 
 AQUI = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(AQUI.parent))
-from servidor import prepara  # noqa: E402
+from servidor import prepara
 
 # (altura, largura). As duas precisam ser múltiplas de 32, o que a janela de
 # atenção do RF-DETR exige (patch 16 x 2 janelas). 512x288 é 16:9, o formato
@@ -47,7 +48,7 @@ from servidor import prepara  # noqa: E402
 ENTRADA = (288, 512)
 
 OPSET = 17  # o padrão do rfdetr.export()
-LOTE = 1    # o dwnvr olha UM quadro por onset; lote maior não existe aqui
+LOTE = 1  # o dwnvr olha UM quadro por onset; lote maior não existe aqui
 
 # Ativação sem sinal e peso com sinal, por canal: é o par para o qual o kernel
 # ARM64 do onnxruntime tem caminho rápido. O Cortex-A53 não tem dotprod nem
@@ -84,8 +85,7 @@ def exporta_fp32(destino: pathlib.Path) -> None:
     m = rfdetr.RFDETRNano()
     tmp = destino.parent / f".tmp-export-{w}x{h}"
     tmp.mkdir(parents=True, exist_ok=True)
-    m.export(output_dir=str(tmp), shape=(h, w), batch_size=LOTE,
-             opset_version=OPSET, format="onnx", verbose=False)
+    m.export(output_dir=str(tmp), shape=(h, w), batch_size=LOTE, opset_version=OPSET, format="onnx", verbose=False)
     saiu = sorted(tmp.rglob("*.onnx"), key=lambda p: -p.stat().st_size)
     if not saiu:
         raise SystemExit(f"o export não deixou .onnx em {tmp}")
@@ -116,8 +116,7 @@ class Calibracao:
 
 def quantiza(fp32: pathlib.Path, destino: pathlib.Path, imagens: list[pathlib.Path]) -> None:
     import onnxruntime as ort
-    from onnxruntime.quantization import (CalibrationMethod, QuantFormat,
-                                          QuantType, quantize_static)
+    from onnxruntime.quantization import CalibrationMethod, QuantFormat, QuantType, quantize_static
     from onnxruntime.quantization.shape_inference import quant_pre_process
 
     pronto = destino.parent / f".pre-{destino.name}"
@@ -128,7 +127,8 @@ def quantiza(fp32: pathlib.Path, destino: pathlib.Path, imagens: list[pathlib.Pa
     del sessao
 
     quantize_static(
-        str(pronto), str(destino),
+        str(pronto),
+        str(destino),
         Calibracao(imagens, entrada),
         quant_format=QuantFormat.QDQ,
         per_channel=PESO_POR_CANAL,
@@ -142,10 +142,10 @@ def quantiza(fp32: pathlib.Path, destino: pathlib.Path, imagens: list[pathlib.Pa
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--imagens", required=True, type=pathlib.Path,
-                    help="pasta com as imagens de calibração (.jpg ou .png)")
-    ap.add_argument("--saida", default=AQUI, type=pathlib.Path,
-                    help="onde gravar os .onnx (padrão: esta pasta)")
+    ap.add_argument(
+        "--imagens", required=True, type=pathlib.Path, help="pasta com as imagens de calibração (.jpg ou .png)"
+    )
+    ap.add_argument("--saida", default=AQUI, type=pathlib.Path, help="onde gravar os .onnx (padrão: esta pasta)")
     a = ap.parse_args()
 
     imagens = sorted(p for p in a.imagens.iterdir() if p.suffix.lower() in EXTENSOES)
