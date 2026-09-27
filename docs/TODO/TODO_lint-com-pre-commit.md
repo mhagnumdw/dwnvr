@@ -9,8 +9,8 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 14 (as regras de commit do AGENTS.md como hook), opcional.** Os
-detalhes estão na seção dela.
+Nenhum. O plano terminou em 27/09/2026: as Etapas 1 a 13 entraram, e as
+Etapas 14 a 16, opcionais, foram canceladas.
 
 ## Checklist
 
@@ -28,7 +28,7 @@ detalhes estão na seção dela.
 - [x] [Etapa 11 - golangci-lint, segunda leva](#etapa-11---golangci-lint-segunda-leva) - Go mais moderno e idiomático, quase tudo com fix automático
 - [x] [Etapa 12 - zizmor](#etapa-12---zizmor) - segurança dos workflows: action sem SHA, permissão ampla, credencial exposta
 - [x] [Etapa 13 - betterleaks, com uma regra para senha de câmera](#etapa-13---betterleaks-com-uma-regra-para-senha-de-câmera) - segredo no commit: token, chave e senha de câmera
-- [ ] [Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)](#etapa-14---as-regras-de-commit-do-agentsmd-como-hook-opcional) - Conventional Commits, sem travessão e body obrigatório
+- ~~[Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)](#etapa-14---as-regras-de-commit-do-agentsmd-como-hook-opcional) - Conventional Commits, sem travessão e body obrigatório~~ - cancelada em 27/09/2026
 - ~~[Etapa 15 - Prettier (opcional)](#etapa-15---prettier-opcional) - formatação automática de JavaScript, Svelte e CSS~~ - cancelada em 27/09/2026
 - ~~[Etapa 16 - cspell pt-BR (opcional)](#etapa-16---cspell-pt-br-opcional) - ortografia pt-BR nos `.md`~~ - cancelada em 27/09/2026
 
@@ -379,6 +379,8 @@ o hook acusou os três.
 
 ### Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)
 
+- **Cancelada em 27/09/2026.** Por enquanto não há necessidade; o que segue
+  fica como registro da medição e do teste.
 - [conventional-pre-commit](https://github.com/compilerla/conventional-pre-commit)
   no stage `commit-msg`. Os tipos usados desde 09/08 estão todos na lista
   padrão, e o escopo fica livre. O git-cliff da release depende desse formato.
