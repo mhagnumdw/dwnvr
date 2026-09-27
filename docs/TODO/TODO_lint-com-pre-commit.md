@@ -9,15 +9,16 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 14 em três), e o
 
 ## Próximo passo
 
-**Etapa 3 (lychee).** Os 5 `#com-podman` que ela achava já saíram na Etapa 2,
-então hoje ela deve dar 0 achados. Os detalhes estão na seção dela.
+**Etapa 4 (as regras de commit do AGENTS.md como hook).** Ela liga o stage
+`commit-msg`: depois do commit dela, este clone roda `pre-commit install` de
+novo. Os detalhes estão na seção dela.
 
 ## Checklist
 
 - [x] Etapa 0 - este plano
 - [x] Etapa 1 - a base: pre-commit-hooks e o `lint.yml`
 - [x] Etapa 2 - markdownlint-cli2
-- [ ] Etapa 3 - lychee: link e âncora do Markdown
+- [x] Etapa 3 - lychee: link e âncora do Markdown
 - [ ] Etapa 4 - as regras de commit do AGENTS.md como hook
 - [ ] Etapa 5 - gitleaks, com uma regra para senha de câmera
 - [ ] Etapa 6 - golangci-lint, primeira leva
@@ -124,13 +125,19 @@ Como saiu, em 27/09:
 ### Etapa 3 - lychee: link e âncora do Markdown
 
 [lychee](https://github.com/lycheeverse/lychee). Hoje: os mesmos 5
-`#com-podman`, que saem na Etapa 2; os outros 137 links estão certos.
+`#com-podman`, que saem na Etapa 2; os outros 137 links estão certos. Em
+27/09, depois da Etapa 2: 0 achados. Conferido plantando um arquivo que não
+existe, uma âncora que não existe no próprio arquivo e outra em outro arquivo:
+o hook acusou os três.
 
 - `lychee.toml`: `offline = true`, conferindo a âncora (`include_fragments`) e
   sem barra de progresso. Offline porque link externo cai por motivo alheio ao
   commit.
 - Hook `lychee`, com `types: [markdown]`. Ele baixa o binário sozinho, e o
   `rev` é a tag `lychee-vX`.
+- Na revisão de 27/09, virou o `lychee-docker`, com a tag da imagem fixada no
+  `entry`, como o hadolint: para baixar o binário, o hook `lychee` roda no
+  bash um script do branch `main` do `cargo-bins/cargo-binstall`, sem versão.
 - AGENTS.md §Varredura final: sai o script de link quebrado, que pula todo
   link com `#` e por isso não viu o `#com-podman`.
 - Commit: `ci: lychee confere link e âncora do Markdown`.

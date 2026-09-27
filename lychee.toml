@@ -1,0 +1,14 @@
+# Regras do lychee (https://lychee.cli.rs/), lidas pelo hook do pre-commit (e
+# por ele na CI). O lychee carrega este arquivo sozinho quando roda na raiz.
+
+# Só link local (arquivo, imagem e âncora), sem rede: link externo cai por
+# motivo alheio ao commit.
+offline = true
+
+# Confere também a âncora (#secao), inclusive a que aponta para outro arquivo.
+include_fragments = "anchor-only"
+
+# Rodado à mão num diretório (`lychee .`), olha só os Markdown.
+extensions = ["md"]
+
+no_progress = true

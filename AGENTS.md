@@ -84,13 +84,6 @@ A tabela cobre o previsto; isto pega o resto. Antes do commit:
 
 ```sh
 git grep -n "nome-antigo"   # renomeou algo? o nome velho não pode ter sobrado
-
-# Link relativo apontando para arquivo inexistente. O AGENTS.md fica de fora:
-# não tem link nenhum, e casaria com a própria linha abaixo.
-git ls-files '*.md' | grep -v AGENTS.md | while read -r f; do
-  grep -o '](\([^)#]*\))' "$f" | sed 's/](//;s/)$//' | grep -v '^http' |
-    while read -r l; do
-      [ -e "$(dirname "$f")/$l" ] || echo "QUEBRADO: $f -> $l"
-    done
-done
 ```
+
+Link e âncora quebrados no Markdown o lychee acha no commit (§Lint).

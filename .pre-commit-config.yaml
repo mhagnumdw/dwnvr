@@ -52,3 +52,15 @@ repos:
     hooks:
       - id: markdownlint-cli2
         args: [--no-globs, --fix]
+
+  # Link e âncora do Markdown, sem rede. As regras estão no lychee.toml. Roda
+  # pela imagem oficial, então precisa de Docker. O hook `lychee` evitaria o
+  # Docker, mas instala o binário rodando no bash um script baixado do branch
+  # main de outro repositório, que pode mudar a qualquer hora. O `entry` fixa
+  # a tag da imagem, que o hook traz atrasada.
+  - repo: https://github.com/lycheeverse/lychee
+    rev: lychee-v0.24.2
+    hooks:
+      - id: lychee-docker
+        entry: docker.io/lycheeverse/lychee:0.24.2-alpine
+        types: [markdown]
