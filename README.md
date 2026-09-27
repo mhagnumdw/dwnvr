@@ -343,6 +343,11 @@ configuração ficam nos volumes, fora da imagem. Para voltar a seguir as
 releases, apague a linha do `.env`. Com `DWNVR_VERSION=main`, a instalação
 segue cada commit da `main`, antes de virar versão: é o canal de quem testa.
 
+O go2rtc também tem versão fixa no compose, a que foi testada com aquela
+versão do dwnvr, e só muda quando o compose muda. Para usar outra, ponha
+`GO2RTC_VERSION` no `.env`, como `GO2RTC_VERSION=1.9.14`, com uma das
+[tags do go2rtc](https://hub.docker.com/r/alexxit/go2rtc/tags).
+
 ## Casos específicos
 
 ### Com Podman <!-- omit in toc -->

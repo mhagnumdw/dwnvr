@@ -124,6 +124,10 @@ reescreve com a versão dela. Os valores possíveis:
 As versões e o que mudou em cada uma estão nas
 [releases](https://github.com/mhagnumdw/dwnvr/releases).
 
+O go2rtc segue a mesma ideia, com a própria variável: `GO2RTC_VERSION` no
+`.env` passa por cima da versão fixa no compose. A release não a reescreve;
+ela muda só por commit, depois de testada com o dwnvr.
+
 O encerramento é gracioso: o dwnvr fecha e indexa o segmento em aberto de cada
 câmera antes de sair. Sem isso, todo reinício perderia o último minuto gravado.
 

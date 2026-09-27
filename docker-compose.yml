@@ -81,7 +81,10 @@ services:
 
   # Fonte dos streams. O dwnvr só consome o que este serviço já produz.
   go2rtc:
-    image: alexxit/go2rtc
+    # Versão fixa, a que foi testada com esta versão do dwnvr: sem tag, o
+    # --pull always da atualização traria o go2rtc mais novo, que ninguém
+    # testou com ela. Para outra, ponha GO2RTC_VERSION no .env.
+    image: alexxit/go2rtc:${GO2RTC_VERSION:-1.9.14}
     container_name: go2rtc
     restart: unless-stopped
     shm_size: 128mb
