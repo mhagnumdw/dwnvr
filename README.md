@@ -330,6 +330,11 @@ opção nova, compare o seu `dwnvr.yaml` com o `dwnvr.example.yaml` do clone.
 
 Se o pull falhar, o comando para aí e o que está no ar continua gravando.
 
+Quando sai versão nova, a interface avisa com uma pílula `↑ vX.Y.Z` no topo,
+que leva às releases. Quem pergunta é o navegador, direto ao GitHub, no máximo
+uma vez a cada 12 horas: o servidor do dwnvr não sai para a internet, e numa
+rede sem ela o aviso simplesmente não aparece.
+
 **Fixar ou voltar uma versão.** A tag das imagens vem de `DWNVR_VERSION` no
 `.env`, que passa por cima da versão escrita no compose. Para ficar numa
 versão, ou voltar para uma anterior, ponha a tag dela no `.env`, como

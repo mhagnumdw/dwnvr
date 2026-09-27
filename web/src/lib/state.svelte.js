@@ -51,7 +51,21 @@ export const build = $state({
   version: '',
   commit: '',
   date: '',
+  // A tag da última release, quando ela é mais nova que a versão em uso; vazio
+  // em qualquer outro caso. É o que acende o aviso no header.
+  nova: '',
 });
+
+// Aviso de versão nova. Quem pergunta é o navegador, direto à API do GitHub
+// (CORS aberto, 60 requisições por hora por IP): o servidor não abre conexão
+// para fora, não ganha goroutine nem config, e numa rede sem internet a
+// consulta só falha em silêncio.
+const RELEASE_API = 'https://api.github.com/repos/mhagnumdw/dwnvr/releases/latest';
+export const RELEASES_URL = 'https://github.com/mhagnumdw/dwnvr/releases';
+// A resposta fica guardada por este tempo, inclusive o "ainda não há release":
+// sem isso, cada aba aberta gastaria uma requisição.
+const RELEASE_CACHE = 'dwnvr.release';
+const RELEASE_CACHE_MS = 12 * 60 * 60 * 1000;
 
 export async function checkSession() {
   try {
@@ -100,6 +114,61 @@ export async function loadBuild() {
     // Versão é informativa: um servidor antigo, sem o endpoint, continua
     // usável - a interface apenas não mostra nada.
   }
+}
+
+// [maior, menor, patch] de 'v0.1.0', e também de 'v0.1.0-3-gabc1234', que é
+// um build da main depois da v0.1.0. Nulo para 'dev' ou um hash solto.
+function semver(v) {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(v ?? '');
+  return m ? m.slice(1).map(Number) : null;
+}
+
+// Comparação numérica: como texto, 'v0.1.10' viria antes de 'v0.1.9'.
+function maisNova(a, b) {
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i];
+  return false;
+}
+
+// A tag guardada, ou undefined se não há nada válido dentro do prazo.
+function lerCacheRelease() {
+  try {
+    const c = JSON.parse(localStorage.getItem(RELEASE_CACHE));
+    if (c && typeof c.tag === 'string' && Date.now() - c.em < RELEASE_CACHE_MS) return c.tag;
+  } catch {
+    // localStorage bloqueado ou conteúdo estragado: vale como vazio.
+  }
+  return undefined;
+}
+
+function gravarCacheRelease(tag) {
+  try {
+    localStorage.setItem(RELEASE_CACHE, JSON.stringify({ tag, em: Date.now() }));
+  } catch {
+    // Sem onde guardar, a próxima abertura pergunta de novo. Só isso.
+  }
+}
+
+// Depende de loadBuild(): sem saber a versão em uso não há o que comparar.
+// Build de desenvolvimento ou só com hash não consulta nada.
+export async function checarNovaVersao() {
+  const atual = semver(build.version);
+  if (!atual) return;
+  let tag = lerCacheRelease();
+  if (tag === undefined) {
+    try {
+      const r = await fetch(RELEASE_API);
+      // 404 é "ainda não há release": resposta válida, que vai para o cache.
+      if (r.ok) tag = (await r.json()).tag_name ?? '';
+      else if (r.status === 404) tag = '';
+    } catch {
+      // Sem internet, ou o GitHub fora: fica para a próxima abertura.
+    }
+    // Limite de requisições estourado e afins também ficam sem cache.
+    if (tag === undefined) return;
+    gravarCacheRelease(tag);
+  }
+  const ultima = semver(tag);
+  if (ultima && maisNova(ultima, atual)) build.nova = tag;
 }
 
 export async function loadCameras() {

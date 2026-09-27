@@ -1,6 +1,6 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { health, pollHealth, HEALTH_POLL_MS, cameras, build } from '../lib/state.svelte.js';
+  import { health, pollHealth, HEALTH_POLL_MS, cameras, build, RELEASES_URL } from '../lib/state.svelte.js';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { api } from '../lib/api.js';
   import {
@@ -881,11 +881,16 @@
     Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(Date.now() - health.updatedAt)}{/if}
   </p>
 
-  <!-- Único lugar onde a versão aparece no celular: o header com a marca só
-       existe a partir de 720px. -->
+  <!-- Único lugar onde a versão em uso aparece fora da tela de login, e por
+       isso é onde se procura versão: a nova, quando há, entra ao lado dela,
+       além da pílula do header. -->
   {#if build.version}
     <p class="muted small">
-      dwnvr <span class="mono">{build.version}</span>{#if compiladoEm}{' · '}compilado em {compiladoEm}{/if}
+      dwnvr <span class="mono">{build.version}</span>{#if compiladoEm}{' · '}compilado em {compiladoEm}{/if}{#if build.nova}{' · '}<a
+          href={RELEASES_URL}
+          target="_blank"
+          rel="noopener">{build.nova} disponível</a
+        >{/if}
     </p>
   {/if}
 </div>
