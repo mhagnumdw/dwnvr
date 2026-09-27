@@ -173,11 +173,14 @@ jobs:
         run: |
           printf '\n---\n\n**Como atualizar:** veja o [Atualizar do README](https://github.com/mhagnumdw/dwnvr#atualizar).\n' >> "$RUNNER_TEMP/notas.md"
 
-      - uses: softprops/action-gh-release@v3
-        with:
-          tag_name: v${{ inputs.version }}
-          name: v${{ inputs.version }}
-          body_path: ${{ runner.temp }}/notas.md
-          draft: false
-          prerelease: false
-          make_latest: true
+      # O --verify-tag falha se a tag não estiver no GitHub, em vez de criá-la.
+      - name: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: >-
+          gh release create "v$VERSION"
+          --title "v$VERSION"
+          --notes-file "$RUNNER_TEMP/notas.md"
+          --latest
+          --verify-tag

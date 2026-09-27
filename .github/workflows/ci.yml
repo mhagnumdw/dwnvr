@@ -14,11 +14,18 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Nenhum job recebe token com permissão, a não ser que peça.
+permissions: {}
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # ler o código
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # nada aqui faz push
 
       - uses: actions/setup-go@v7
         with:

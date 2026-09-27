@@ -9,8 +9,7 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 12 (zizmor), commit 2: as outras correções.** Os detalhes estão na
-seção dela.
+**Etapa 12 (zizmor), commit 3: o hook.** Os detalhes estão na seção dela.
 
 ## Checklist
 
@@ -335,7 +334,13 @@ o hook acusou os três.
   do GitHub (`actions/*`) e da Docker (`docker/*`), e exige SHA das de
   terceiro, com a versão num comentário. Hoje isso é só o
   `orhun/git-cliff-action`; o `softprops/action-gh-release` sai no commit 2.
-- [ ] Commit 2: as outras correções.
+- [x] Commit 2: as outras correções. O `ci.yml` ganhou `permissions: {}` no
+  topo e `contents: read` no `test`; os três checkouts sem push ganharam
+  `persist-credentials: false`; o `softprops/action-gh-release` virou
+  `gh release create`. O `self-repository` ficou desligado no
+  `.github/zizmor.yml`: a sintaxe `uses: $/...` que ele pede não passa no
+  actionlint (rhysd/actionlint#711), e os dois `./` só chamam o
+  `imagens.yml` no nível do job, sem checkout antes.
 - [ ] Commit 3: o hook, do `zizmorcore/zizmor-pre-commit`.
 
 ### Etapa 13 - gitleaks, com uma regra para senha de câmera

@@ -10,3 +10,8 @@ rules:
         actions/*: ref-pin
         docker/*: ref-pin
         "*": hash-pin
+  # O `uses: $/...` não passa no actionlint, que ainda não o conhece
+  # (rhysd/actionlint#711). E aqui o `./` só chama o imagens.yml no nível do
+  # job, onde não há checkout que possa trocar o arquivo antes.
+  self-repository:
+    disable: true
