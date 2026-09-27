@@ -4,34 +4,33 @@ Planejado em 24/09/2026. Os números abaixo foram medidos de novo em
 27/09/2026, na `main` em `f4fe3b3`, com cada ferramenta só lendo, sem corrigir
 nada.
 
-Uma etapa por vez. Cada uma entra no seu commit (a Etapa 14 em três), e o
+Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 último marca o checkbox dela e atualiza o próximo passo, logo abaixo.
 
 ## Próximo passo
 
-**Etapa 4 (as regras de commit do AGENTS.md como hook).** Ela liga o stage
-`commit-msg`: depois do commit dela, este clone roda `pre-commit install` de
-novo. Os detalhes estão na seção dela.
+**Etapa 4 (yamllint).** Falta decidir se o `line-length` fica. Os detalhes
+estão na seção dela.
 
 ## Checklist
 
 - [x] Etapa 0 - este plano
-- [x] Etapa 1 - a base: pre-commit-hooks e o `lint.yml`
-- [x] Etapa 2 - markdownlint-cli2
-- [x] Etapa 3 - lychee: link e âncora do Markdown
-- [ ] Etapa 4 - as regras de commit do AGENTS.md como hook
-- [ ] Etapa 5 - gitleaks, com uma regra para senha de câmera
-- [ ] Etapa 6 - golangci-lint, primeira leva
-- [ ] Etapa 7 - svelte-check
-- [ ] Etapa 8 - ESLint com o plugin do Svelte
-- [ ] Etapa 9 - ruff no `dwnvr-detect/`
-- [ ] Etapa 10 - yamllint
-- [ ] Etapa 11 - hadolint
-- [ ] Etapa 12 - actionlint
-- [ ] Etapa 13 - golangci-lint, segunda leva
-- [ ] Etapa 14 - zizmor
-- [ ] Etapa 15 - Prettier (opcional)
-- [ ] Etapa 16 - cspell pt-BR (opcional)
+- [x] [Etapa 1 - a base: pre-commit-hooks e o lint.yml](#etapa-1---a-base-pre-commit-hooks-e-o-lintyml) - higiene de todo arquivo texto: espaço no fim, newline final, YAML e JSON válidos, chave privada
+- [x] [Etapa 2 - markdownlint-cli2](#etapa-2---markdownlint-cli2) - estilo e estrutura do Markdown
+- [x] [Etapa 3 - lychee: link e âncora do Markdown](#etapa-3---lychee-link-e-âncora-do-markdown) - link e âncora quebrados no Markdown
+- [ ] [Etapa 4 - yamllint](#etapa-4---yamllint) - sintaxe e estilo dos YAML: workflows, compose e configs
+- [ ] [Etapa 5 - hadolint](#etapa-5---hadolint) - boas práticas nos Dockerfiles, com o shellcheck nos `RUN`
+- [ ] [Etapa 6 - actionlint](#etapa-6---actionlint) - erro de sintaxe e de expressão nos workflows do GitHub Actions
+- [ ] [Etapa 7 - golangci-lint, primeira leva](#etapa-7---golangci-lint-primeira-leva) - bug no Go: erro ignorado, código morto, uso errado da stdlib
+- [ ] [Etapa 8 - svelte-check](#etapa-8---svelte-check) - warnings do compilador do Svelte: acessibilidade e CSS sem uso
+- [ ] [Etapa 9 - ESLint com o plugin do Svelte](#etapa-9---eslint-com-o-plugin-do-svelte) - bug e má prática no JavaScript e nos componentes Svelte
+- [ ] [Etapa 10 - ruff no dwnvr-detect](#etapa-10---ruff-no-dwnvr-detect) - lint e formatação do Python (o flake8 e o black numa ferramenta só)
+- [ ] [Etapa 11 - golangci-lint, segunda leva](#etapa-11---golangci-lint-segunda-leva) - Go mais moderno e idiomático, quase tudo com fix automático
+- [ ] [Etapa 12 - zizmor](#etapa-12---zizmor) - segurança dos workflows: action sem SHA, permissão ampla, credencial exposta
+- [ ] [Etapa 13 - gitleaks, com uma regra para senha de câmera](#etapa-13---gitleaks-com-uma-regra-para-senha-de-câmera) - segredo no commit: token, chave e senha de câmera
+- [ ] [Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)](#etapa-14---as-regras-de-commit-do-agentsmd-como-hook-opcional) - Conventional Commits, sem travessão e body obrigatório
+- [ ] [Etapa 15 - Prettier (opcional)](#etapa-15---prettier-opcional) - formatação automática de JavaScript, Svelte e CSS
+- [ ] [Etapa 16 - cspell pt-BR (opcional)](#etapa-16---cspell-pt-br-opcional) - ortografia pt-BR nos `.md`
 
 ## Por que
 
@@ -142,34 +141,34 @@ o hook acusou os três.
   link com `#` e por isso não viu o `#com-podman`.
 - Commit: `ci: lychee confere link e âncora do Markdown`.
 
-### Etapa 4 - as regras de commit do AGENTS.md como hook
+### Etapa 4 - yamllint
 
-- [conventional-pre-commit](https://github.com/compilerla/conventional-pre-commit)
-  no stage `commit-msg`. Os tipos usados desde 09/08 estão todos na lista
-  padrão, e o escopo fica livre. O git-cliff da release depende desse formato.
-- Hook local `pygrep` para o travessão (U+2014), nos arquivos e na mensagem de
-  commit. Hoje: nenhum desde que a regra entrou, em 14/08.
-- Hook local de body obrigatório, a parte 1 do AGENTS.md. Hoje: 2 commits sem
-  body desde que a regra entrou, em 20/08 (`1728362` e `def9240`). O
-  `chore(release): vX.Y.Z` nasce na CI e não passa por hook.
-- `default_install_hook_types: [pre-commit, commit-msg]`. Depois do commit,
-  cada clone roda `pre-commit install` de novo, para ligar o `commit-msg`.
-- Commit: `ci: as regras de commit do AGENTS.md viram hook`.
+- [yamllint](https://github.com/adrienverge/yamllint) com `--strict` e um
+  `.yamllint.yaml` curto: `extends: default`, `truthy` sem conferir chave (o
+  `on:` do GitHub Actions) e `document-start` desligado.
+- Hoje: 9 avisos. São 5 comentários com um espaço só antes do `#`, no
+  `release.yml`, e 4 linhas longas: 2 no `release.yml`, a chave do cache no
+  `lint.yml` e uma de 281 caracteres no `go2rtc.example.yaml`. Decidir na
+  etapa se o `line-length` fica.
+- Commit: `ci: yamllint`.
 
-### Etapa 5 - gitleaks, com uma regra para senha de câmera
+### Etapa 5 - hadolint
 
-- [gitleaks](https://github.com/gitleaks/gitleaks) no commit local. Ele olha o
-  staged, então na CI entra no `SKIP`. O push protection do GitHub já está
-  ligado no repositório, mas só conhece token de provedor.
-- `.gitleaks.toml` com as regras padrão e mais uma para URL `rtsp://` com
-  usuário e senha, o vazamento mais provável aqui. Allowlist para os exemplos
-  do repositório (`usuario:senha` e `admin:senha`).
-- Hoje: 0 achados, nos arquivos e no histórico.
-- Verificação: pôr no stage um arquivo com uma URL `rtsp://` com usuário e
-  senha inventados; o commit deve parar.
-- Commit: `ci: gitleaks barra segredo e senha de câmera no commit`.
+- [hadolint](https://github.com/hadolint/hadolint), que passa o shellcheck
+  nos `RUN`. Hook `hadolint-docker`, com a tag da imagem fixada no `entry`: o
+  hook do repositório usa a imagem sem tag. Precisa de Docker local; o runner
+  do GitHub tem.
+- Hoje, medido em 24/09 (os Dockerfiles não mudaram): 0 nos 2 Dockerfiles.
+- Commit: `ci: hadolint nos Dockerfiles`.
 
-### Etapa 6 - golangci-lint, primeira leva
+### Etapa 6 - actionlint
+
+- [actionlint](https://github.com/rhysd/actionlint): sintaxe e expressões dos
+  workflows, com o shellcheck do PATH nos `run:` (o runner do GitHub tem).
+- Hoje: 0 nos 4 workflows.
+- Commit: `ci: actionlint nos workflows`.
+
+### Etapa 7 - golangci-lint, primeira leva
 
 - [golangci-lint](https://github.com/golangci/golangci-lint) v2 com o conjunto
   `standard` (errcheck, govet, ineffassign, staticcheck e unused), os presets
@@ -187,7 +186,7 @@ o hook acusou os três.
   ficam redundantes. Tirar de lá faz os dois pararem de segurar as imagens.
 - Commit: `ci: golangci-lint no pre-commit`.
 
-### Etapa 7 - svelte-check
+### Etapa 8 - svelte-check
 
 - [svelte-check](https://github.com/sveltejs/language-tools): os warnings do
   compilador do Svelte, com acessibilidade e CSS sem uso.
@@ -198,7 +197,7 @@ o hook acusou os três.
 - O `lint.yml` ganha o `setup-node` e o `npm ci` do `web/`.
 - Commit: `ci: svelte-check no pre-commit`.
 
-### Etapa 8 - ESLint com o plugin do Svelte
+### Etapa 9 - ESLint com o plugin do Svelte
 
 - [ESLint](https://github.com/eslint/eslint) com o
   [eslint-plugin-svelte](https://github.com/sveltejs/eslint-plugin-svelte), em
@@ -216,7 +215,7 @@ o hook acusou os três.
 - A correção pode mudar o comportamento da tela: ver rodando antes do commit.
 - Commit: `ci: ESLint com o plugin do Svelte`.
 
-### Etapa 9 - ruff no dwnvr-detect
+### Etapa 10 - ruff no dwnvr-detect
 
 - [ruff](https://github.com/astral-sh/ruff), com os hooks `ruff-check`
   (`--fix`) e `ruff-format`.
@@ -225,34 +224,7 @@ o hook acusou os três.
   `exporta.py` têm shebang sem permissão de execução.
 - Commit: `ci: ruff no dwnvr-detect`.
 
-### Etapa 10 - yamllint
-
-- [yamllint](https://github.com/adrienverge/yamllint) com `--strict` e um
-  `.yamllint.yaml` curto: `extends: default`, `truthy` sem conferir chave (o
-  `on:` do GitHub Actions) e `document-start` desligado.
-- Hoje: 9 avisos. São 5 comentários com um espaço só antes do `#`, no
-  `release.yml`, e 4 linhas longas: 2 no `release.yml`, a chave do cache no
-  `lint.yml` e uma de 281 caracteres no `go2rtc.example.yaml`. Decidir na
-  etapa se o `line-length` fica.
-- Commit: `ci: yamllint`.
-
-### Etapa 11 - hadolint
-
-- [hadolint](https://github.com/hadolint/hadolint), que passa o shellcheck
-  nos `RUN`. Hook `hadolint-docker`, com a tag da imagem fixada no `entry`: o
-  hook do repositório usa a imagem sem tag. Precisa de Docker local; o runner
-  do GitHub tem.
-- Hoje, medido em 24/09 (os Dockerfiles não mudaram): 0 nos 2 Dockerfiles.
-- Commit: `ci: hadolint nos Dockerfiles`.
-
-### Etapa 12 - actionlint
-
-- [actionlint](https://github.com/rhysd/actionlint): sintaxe e expressões dos
-  workflows, com o shellcheck do PATH nos `run:` (o runner do GitHub tem).
-- Hoje: 0 nos 4 workflows.
-- Commit: `ci: actionlint nos workflows`.
-
-### Etapa 13 - golangci-lint, segunda leva
+### Etapa 11 - golangci-lint, segunda leva
 
 - Entram modernize, intrange, errorlint, perfsprint, unconvert, noctx,
   bodyclose, nolintlint, copyloopvar e usestdlibvars.
@@ -267,7 +239,7 @@ o hook acusou os três.
   Nos testes, o noctx acha mais 21: decidir se vale lá.
 - Commit: `ci: segunda leva do golangci-lint`.
 
-### Etapa 14 - zizmor
+### Etapa 12 - zizmor
 
 - [zizmor](https://github.com/zizmorcore/zizmor): segurança dos workflows,
   que publicam no GHCR e fazem push na `main`.
@@ -279,6 +251,44 @@ o hook acusou os três.
 - [ ] Commit 1: as actions fixadas por SHA, com a versão num comentário.
 - [ ] Commit 2: as outras correções.
 - [ ] Commit 3: o hook, do `zizmorcore/zizmor-pre-commit`.
+
+### Etapa 13 - gitleaks, com uma regra para senha de câmera
+
+- [gitleaks](https://github.com/gitleaks/gitleaks) no commit local. Ele olha o
+  staged, então na CI entra no `SKIP`. O push protection do GitHub já está
+  ligado no repositório, mas só conhece token de provedor.
+- `.gitleaks.toml` com as regras padrão e mais uma para URL `rtsp://` com
+  usuário e senha, o vazamento mais provável aqui. Allowlist para os exemplos
+  do repositório (`usuario:senha` e `admin:senha`).
+- Hoje: 0 achados, nos arquivos e no histórico.
+- Verificação: pôr no stage um arquivo com uma URL `rtsp://` com usuário e
+  senha inventados; o commit deve parar.
+- Commit: `ci: gitleaks barra segredo e senha de câmera no commit`.
+
+### Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)
+
+- [conventional-pre-commit](https://github.com/compilerla/conventional-pre-commit)
+  no stage `commit-msg`. Os tipos usados desde 09/08 estão todos na lista
+  padrão, e o escopo fica livre. O git-cliff da release depende desse formato.
+- Hook local `pygrep` para o travessão (U+2014), nos arquivos e na mensagem de
+  commit. Hoje: nenhum desde que a regra entrou, em 14/08.
+- Hook local de body obrigatório, a parte 1 do AGENTS.md. Hoje: 2 commits sem
+  body desde que a regra entrou, em 20/08 (`1728362` e `def9240`). O
+  `chore(release): vX.Y.Z` nasce na CI e não passa por hook.
+- `default_install_hook_types: [pre-commit, commit-msg]`. Depois do commit,
+  cada clone roda `pre-commit install` de novo, para ligar o `commit-msg`.
+- Implementada e testada em 27/09, e depois adiada para opcional. Os dois hooks
+  locais eram `pygrep`: o do travessão com `entry: "\u2014"`, e o do body com
+  `entry: '\A[^\n]+\n\n[^#\s]'` e `args: [--multiline, --negate]`. Num
+  clone descartável, com commits de verdade, barraram: commit sem body, fora do
+  Conventional Commits, travessão na mensagem e no arquivo, e mensagem do
+  editor só com as linhas `#` do git depois do título. Passaram: body pelo
+  `-m`, pelo editor e pelo `commit -v`.
+- O hook não vê o squash do GitHub: o título do PR vira o commit na `main`
+  sem passar por ele. Foi assim que o
+  `Release com CHANGELOG (git-cliff) e aviso de versão nova na interface (#4)`
+  entrou fora do Conventional Commits.
+- Commit: `ci: as regras de commit do AGENTS.md viram hook`.
 
 ### Etapa 15 - Prettier (opcional)
 
@@ -312,7 +322,7 @@ o hook acusou os três.
 - **editorconfig-checker**: 187 achados em 24/09, quase todos falso positivo
   em Markdown, onde a continuação de lista numerada usa 3 espaços.
 - **shellcheck e shfmt**: entram com o primeiro `.sh`. Hoje não há nenhum, e
-  os `run:` e os `RUN` passam pelo shellcheck nas Etapas 11 e 12.
+  os `run:` e os `RUN` passam pelo shellcheck nas Etapas 5 e 6.
 - **GitHub, Settings > General**: "Allow merge commits" está ligado, e o
   AGENTS.md diz que a `main` não aceita merge commit.
 
