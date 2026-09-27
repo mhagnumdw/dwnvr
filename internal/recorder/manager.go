@@ -79,19 +79,15 @@ func (m *Manager) Start(ctx context.Context, cams []config.Camera) {
 		m.Set(cam)
 	}
 
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
+	m.wg.Go(func() {
 		m.sampleLoop(m.ctx)
-	}()
+	})
 
 	if m.fila != nil {
 		m.log.Info("detector de objetos configurado", "url", m.cfg.Detector.URL)
-		m.wg.Add(1)
-		go func() {
-			defer m.wg.Done()
+		m.wg.Go(func() {
 			m.fila.Roda(m.ctx)
-		}()
+		})
 	}
 }
 
@@ -158,12 +154,10 @@ func (m *Manager) start(cam config.Camera) {
 	m.recs[cam.ID] = r
 	m.mu.Unlock()
 
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
+	m.wg.Go(func() {
 		defer close(r.done)
 		rec.run(ctx)
-	}()
+	})
 }
 
 // stop encerra o recorder de uma câmera e espera o segmento em aberto ser

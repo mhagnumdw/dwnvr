@@ -174,7 +174,7 @@ func parseTraf(traf []byte, videoTrackID uint32, f *Fragment) error {
 					entrySize += 4
 				}
 			}
-			for i := uint32(0); i < count; i++ {
+			for i := range count {
 				p := off + int(i)*entrySize
 				if flags&0x000100 != 0 { // sample_duration
 					if v, ok := be32(body, p); ok {

@@ -5,12 +5,33 @@ version: "2"
 linters:
   # errcheck, govet, ineffassign, staticcheck e unused.
   default: standard
+  # Go mais moderno e idiomático, quase tudo com fix automático.
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - intrange
+    - modernize
+    - noctx
+    - nolintlint
+    - perfsprint
+    - unconvert
+    - usestdlibvars
   exclusions:
     # Não cobra o erro de Close, Flush e afins, e cala os falsos positivos
     # conhecidos.
     presets:
       - std-error-handling
       - common-false-positives
+    # O ./... também desce aqui: o flatted, do npm, traz um pacote Go.
+    paths:
+      - web/node_modules
+    rules:
+      # Nos testes a requisição vai para um httptest local: context ali é
+      # ruído.
+      - path: _test\.go
+        linters:
+          - noctx
 
 formatters:
   enable:

@@ -201,8 +201,8 @@ func (p Producer) AudioCodecs() []string {
 			continue
 		}
 		// "audio, recvonly, PCMA/16000" -> "PCMA/16000"
-		if i := strings.LastIndex(m, ", "); i >= 0 {
-			out = append(out, strings.TrimSpace(m[i+2:]))
+		if _, after, ok := strings.CutLast(m, ", "); ok {
+			out = append(out, strings.TrimSpace(after))
 		}
 	}
 	return out

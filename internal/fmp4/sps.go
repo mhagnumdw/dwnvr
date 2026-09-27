@@ -27,7 +27,7 @@ type bitReader struct {
 
 func (r *bitReader) u(n int) uint32 {
 	var v uint32
-	for i := 0; i < n; i++ {
+	for range n {
 		if r.pos >= len(r.b)*8 {
 			r.err = true
 			return v
@@ -148,7 +148,7 @@ func h264SPSSize(nal []byte) (uint16, uint16, bool) {
 			if chroma == 3 {
 				lists = 12
 			}
-			for i := 0; i < lists; i++ {
+			for i := range lists {
 				if r.flag() {
 					size := 16
 					if i >= 6 {
@@ -311,7 +311,7 @@ func FindSPS(codec string, data []byte, lengthSize int) ([]byte, bool) {
 
 	for p := 0; p+lengthSize <= len(data); {
 		n := 0
-		for i := 0; i < lengthSize; i++ {
+		for i := range lengthSize {
 			n = n<<8 | int(data[p+i])
 		}
 		p += lengthSize

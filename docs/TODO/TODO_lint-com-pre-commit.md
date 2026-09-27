@@ -9,7 +9,7 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 11 (golangci-lint, segunda leva).** Os detalhes estão na seção dela.
+**Etapa 12 (zizmor).** Os detalhes estão na seção dela.
 
 ## Checklist
 
@@ -24,7 +24,7 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 - [x] [Etapa 8 - svelte-check](#etapa-8---svelte-check) - warnings do compilador do Svelte: acessibilidade e CSS sem uso
 - [x] [Etapa 9 - ESLint com o plugin do Svelte](#etapa-9---eslint-com-o-plugin-do-svelte) - bug e má prática no JavaScript e nos componentes Svelte
 - [x] [Etapa 10 - ruff no dwnvr-detect](#etapa-10---ruff-no-dwnvr-detect) - lint e formatação do Python (o flake8 e o black numa ferramenta só)
-- [ ] [Etapa 11 - golangci-lint, segunda leva](#etapa-11---golangci-lint-segunda-leva) - Go mais moderno e idiomático, quase tudo com fix automático
+- [x] [Etapa 11 - golangci-lint, segunda leva](#etapa-11---golangci-lint-segunda-leva) - Go mais moderno e idiomático, quase tudo com fix automático
 - [ ] [Etapa 12 - zizmor](#etapa-12---zizmor) - segurança dos workflows: action sem SHA, permissão ampla, credencial exposta
 - [ ] [Etapa 13 - gitleaks, com uma regra para senha de câmera](#etapa-13---gitleaks-com-uma-regra-para-senha-de-câmera) - segredo no commit: token, chave e senha de câmera
 - [ ] [Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)](#etapa-14---as-regras-de-commit-do-agentsmd-como-hook-opcional) - Conventional Commits, sem travessão e body obrigatório
@@ -310,6 +310,14 @@ o hook acusou os três.
   intrange, 4 perfsprint, 3 errorlint (`==` num erro que pode vir embrulhado),
   1 unconvert e 1 noctx, o `http.Get` do healthcheck em `cmd/dwnvr/main.go`.
   Nos testes, o noctx acha mais 21: decidir se vale lá.
+- Como saiu, em 27/09: o `--fix` resolveu quase tudo. À mão ficaram o
+  healthcheck, que passou a usar `http.NewRequestWithContext` com timeout, e
+  um laço que virou `slices.Contains`. O noctx ficou fora dos `_test.go`: lá a
+  requisição vai para um `httptest` local. As duas conversões de `Bsize` em
+  `internal/retention/disk_unix.go` ficaram, com `//nolint:unconvert`: o tipo
+  é `int64` no amd64 e no arm64, mas `int32` no linux/arm e `uint32` no
+  darwin. O `web/node_modules` entrou nas exclusões: o `./...` desce nele, e o
+  `flatted` do npm traz um pacote Go que o `--fix` chegou a alterar.
 - Commit: `ci: segunda leva do golangci-lint`.
 
 ### Etapa 12 - zizmor

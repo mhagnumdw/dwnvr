@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -666,7 +667,7 @@ func TestFaviconEmbutidoEhXMLBemFormado(t *testing.T) {
 	dec := xml.NewDecoder(bytes.NewReader(b))
 	for {
 		_, err := dec.Token()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

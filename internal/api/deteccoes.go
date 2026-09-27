@@ -237,7 +237,7 @@ func (s *Server) camerasDoFiltro(lista string) ([]*store.Camera, error) {
 		}
 		return out, nil
 	}
-	for _, id := range strings.Split(lista, ",") {
+	for id := range strings.SplitSeq(lista, ",") {
 		if !s.knownCamera(id) {
 			return nil, fmt.Errorf("câmera %q não cadastrada", id)
 		}
@@ -253,7 +253,7 @@ func familiasDoFiltro(lista string) (map[string]bool, error) {
 		return nil, nil
 	}
 	out := map[string]bool{}
-	for _, f := range strings.Split(lista, ",") {
+	for f := range strings.SplitSeq(lista, ",") {
 		if !slices.Contains(detect.Familias, detect.Familia(f)) {
 			return nil, fmt.Errorf("família %q desconhecida", f)
 		}

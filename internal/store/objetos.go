@@ -111,11 +111,11 @@ func leObjetos(caminho string, desde int64) ([]Evento, int64, error) {
 	r := bufio.NewReaderSize(f, 64<<10)
 	for {
 		linha, err := r.ReadSlice('\n')
-		if err == bufio.ErrBufferFull {
+		if errors.Is(err, bufio.ErrBufferFull) {
 			// Linha maior que 64 KB não é marca nenhuma: é lixo de uma queda.
 			// Descarta até o fim dela.
 			lido += int64(len(linha))
-			for err == bufio.ErrBufferFull {
+			for errors.Is(err, bufio.ErrBufferFull) {
 				linha, err = r.ReadSlice('\n')
 				lido += int64(len(linha))
 			}

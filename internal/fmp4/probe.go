@@ -3,6 +3,7 @@ package fmp4
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"os"
 )
@@ -66,7 +67,7 @@ func probeSegment(r io.Reader) (*SegmentInfo, error) {
 	for {
 		typ, box, err := rd.NextBox()
 		if err != nil {
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 				break
 			}
 			return nil, err

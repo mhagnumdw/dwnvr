@@ -105,7 +105,7 @@ func TestPaginaDeDeteccoesRolaSemPularNemRepetir(t *testing.T) {
 
 	var todas []string
 	query := "limite=2"
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		p := getPagina(t, s, query)
 		todas = append(todas, rotulos(p, hoje)...)
 		if p.Fim {

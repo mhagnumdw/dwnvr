@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -299,7 +300,7 @@ func lerCampo(b []byte, nome string) (int64, bool) {
 // na raiz de /sys/fs/cgroup. O v1 fica como plano B para kernel antigo.
 func limiteDoCgroup(f fontes) int64 {
 	if b, err := os.ReadFile(filepath.Join(f.proc, "self/cgroup")); err == nil {
-		for _, l := range strings.Split(string(b), "\n") {
+		for l := range strings.SplitSeq(string(b), "\n") {
 			caminho, ok := strings.CutPrefix(l, "0::")
 			if !ok {
 				continue
@@ -341,7 +342,7 @@ func coletarPressao(f fontes) map[string]pressao {
 //	full avg10=0.00 avg60=0.00 avg300=0.00 total=0
 func lerPressao(s string) pressao {
 	var p pressao
-	for _, l := range strings.Split(s, "\n") {
+	for l := range strings.SplitSeq(s, "\n") {
 		campos := strings.Fields(l)
 		if len(campos) < 4 {
 			continue
@@ -448,12 +449,7 @@ func contem(ponto, caminho string) bool {
 }
 
 func temOpcao(opcoes, nome string) bool {
-	for _, o := range strings.Split(opcoes, ",") {
-		if o == nome {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(strings.Split(opcoes, ","), nome)
 }
 
 // desescapar desfaz o \040 (espaço) e companhia com que o kernel escreve

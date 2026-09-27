@@ -188,7 +188,7 @@ func TestOpenStreamDerrubaStreamQueEmudece(t *testing.T) {
 // abriria buracos na gravação em vez de fechá-los.
 func TestOpenStreamNaoDerrubaStreamAtivo(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			if _, err := w.Write([]byte("x")); err != nil {
 				return
 			}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -128,21 +129,21 @@ func validateCamera(cam config.Camera) error {
 	// uma cota de poucos MB não guarda nem um segmento, e a câmera passaria a
 	// vida apagando o que acabou de gravar.
 	if cam.QuotaMB < 0 {
-		return fmt.Errorf("cota não pode ser negativa")
+		return errors.New("cota não pode ser negativa")
 	}
 	if cam.QuotaMB > 0 && cam.QuotaMB < minQuotaMB {
 		return fmt.Errorf("cota mínima é de %d MB", minQuotaMB)
 	}
 	if cam.SegmentSeconds < 0 || cam.SegmentSeconds > 3600 {
-		return fmt.Errorf("duração de segmento fora do intervalo aceito")
+		return errors.New("duração de segmento fora do intervalo aceito")
 	}
 	if cam.MaxDays < 0 {
-		return fmt.Errorf("idade máxima não pode ser negativa")
+		return errors.New("idade máxima não pode ser negativa")
 	}
 	// Zero é "usar o default"; negativo ou absurdo desligaria na prática a
 	// vigilância que impede a câmera de parar de gravar em silêncio.
 	if cam.StallSeconds < 0 || cam.StallSeconds > 3600 {
-		return fmt.Errorf("limiar de inatividade fora do intervalo aceito")
+		return errors.New("limiar de inatividade fora do intervalo aceito")
 	}
 	// Vazio e zero são "usar o default", e o Resolve cuida deles. O que veio
 	// preenchido tem que ser um mecanismo que existe e um nível que existe.

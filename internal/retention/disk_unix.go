@@ -17,7 +17,7 @@ func FreeBytes(path string) (int64, error) {
 	if err := syscall.Statfs(path, &st); err != nil {
 		return 0, fmt.Errorf("statfs %s: %w", path, err)
 	}
-	return int64(st.Bavail) * int64(st.Bsize), nil
+	return int64(st.Bavail) * int64(st.Bsize), nil //nolint:unconvert // Bsize é int32 no linux/arm e uint32 no darwin
 }
 
 // TotalBytes é a capacidade do sistema de arquivos.
@@ -26,5 +26,5 @@ func TotalBytes(path string) (int64, error) {
 	if err := syscall.Statfs(path, &st); err != nil {
 		return 0, fmt.Errorf("statfs %s: %w", path, err)
 	}
-	return int64(st.Blocks) * int64(st.Bsize), nil
+	return int64(st.Blocks) * int64(st.Bsize), nil //nolint:unconvert // Bsize é int32 no linux/arm e uint32 no darwin
 }

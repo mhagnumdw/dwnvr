@@ -117,7 +117,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) requireAuthHandler(h http.Handler) http.Handler {
-	return http.HandlerFunc(s.requireAuth(h.ServeHTTP))
+	return s.requireAuth(h.ServeHTTP)
 }
 
 // cameraInfo é a câmera como a tela a vê: o cadastro já com os defaults
