@@ -10,7 +10,7 @@ Montando a fixture de `quadros_reais_test.go`, o mesmo episódio deu destaques
 diferentes conforme quanto de cena parada veio ANTES dele:
 
 | início da série | quadros até o evento | maior destaque na pessoa |
-|---|---|---|
+| --- | --- | --- |
 | 10:43:30 | ~900 | **8,52** |
 | 10:41:00 | ~2.400 | 1,61 |
 | 10:38:03 | ~4.100 | 1,61 |
@@ -28,7 +28,7 @@ função de quantos quadros se passaram desde o último `Zera`
 (`detect-test-v5/aquecimento`), sobre 9 câmera-dias:
 
 | quadros desde o Zera | onsets/hora |
-|---|---|
+| --- | --- |
 | 300 a 600 | 113,8 |
 | 600 a 1.200 | 80,5 |
 | 1.200 a 2.400 | 93,7 |

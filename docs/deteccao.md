@@ -43,7 +43,7 @@ como ela funciona por dentro, e por quê.
 ## O vocabulário
 
 | Termo | O que é |
-|---|---|
+| --- | --- |
 | **destaque** (score) | o quanto um quadro destoa do normal DA PRÓPRIA câmera, em unidades do ruído dela. Sai do tamanho do quadro, sem decodificar |
 | **mecanismo** | quem decide QUANDO disparar, olhando o destaque. `kleinberg-p` (estatístico, o padrão) ou `periodico` (intervalo fixo) |
 | **onset** | o instante em que o mecanismo dispara. Vira uma marca de movimento, e é o instante que a timeline mostra |
@@ -158,7 +158,7 @@ Um endpoint HTTP **sem estado**: recebe um pedaço, devolve as caixas do último
 quadro. Não tem fila, não tem memória e não decide o que vira marca. Detalhes
 de build, modelo e licença em [`dwnvr-detect/README.md`](../dwnvr-detect/README.md).
 
-```
+```text
 POST /detect?piso=0.2&quadro=480&qualidade=75
                           Content-Type: video/mp4, corpo: o pedaço
 GET  /health              só o HEALTHCHECK do Docker; o dwnvr não chama
@@ -207,7 +207,7 @@ GET  /health              só o HEALTHCHECK do Docker; o dwnvr não chama
 **Por que a divisão é exatamente aí:**
 
 | Tarefa | Quem |
-|---|---|
+| --- | --- |
 | gravar, calcular o destaque, disparar o onset, achar o pico | dwnvr |
 | guardar o GOP e cortar o pedaço | dwnvr |
 | a fila: ordem, limite por câmera, descarte, timeout, pausa | dwnvr |
@@ -231,7 +231,7 @@ daquela câmera, e marcaria dezenas de vezes por dia. O **rastreio**
 objeto. Para cada caixa, a cada olhada:
 
 | A caixa | O que acontece |
-|---|---|
+| --- | --- |
 | cai num lugar **já ocupado** (mesma família, sobreposição IoU de pelo menos 0,7) | **não marca**, só confirma o lugar |
 | cai num lugar **livre**, com confiança de pelo menos 0,40 | **marca**, e passa a ocupar o lugar |
 | cai num lugar livre, com confiança entre 0,20 e 0,40 | não marca, mas **ocupa** o lugar |
@@ -257,7 +257,7 @@ liberado depois de 5 olhadas. Volta, e marca de novo.
 **O que o usuário escolhe** - ver [`configuracao.md`](configuracao.md):
 
 | Onde | O quê |
-|---|---|
+| --- | --- |
 | `cameras.json`, pela tela de Câmeras | `detect`, `detectMecanismo`, `detectSensibilidade` |
 | `dwnvr.yaml` | `defaults` desses três, e `detector.url` |
 | env do `dwnvr-detect` | `DETECT_THREADS`, `DETECT_MODELO`, `DETECT_PORTA` |
@@ -268,7 +268,7 @@ número tem ao lado o porquê dele. Não são preferência, e mudar um sem medir
 novo faz a medição deixar de valer em silêncio:
 
 | Número | Valor | O que é |
-|---|---|---|
+| --- | --- | --- |
 | `OnsetsPorHora` | 6, 12, 25, 50, 100 | o custo de cada nível, por câmera |
 | `LimiarKleinbergP` | um por nível | o limiar que faz o `kleinberg-p` custar exatamente o que o nível manda |
 | `JanelaDoPicoMs` | 3 s | onde procurar o quadro a olhar depois do onset |
@@ -297,7 +297,7 @@ câmeras no nível 4 são 500 olhadas por hora, não 50. Tomando o Orange Pi Zer
 3 como referência:
 
 | | Custo |
-|---|---|
+| --- | --- |
 | marca de movimento (sem detector) | desprezível: uma conta O(1) por quadro, sem alocar |
 | GOP guardado, por câmera com detecção | dois buffers, na prática ~230 KB; no máximo 8 MB |
 | uma olhada | ~6,5 s de um núcleo com `DETECT_THREADS=1`, ~3,6 s com 2 (por ~10% a mais de CPU no total) |
@@ -315,7 +315,7 @@ a máquina de quem grava.
 marcas de objeto se perdem.
 
 | Caso | Como o dwnvr percebe | O que faz |
-|---|---|---|
+| --- | --- | --- |
 | **caiu** (container parado, conexão recusada, HTTP 5xx) | a olhada falha na hora | conta como falha e pausa a fila por 30 s |
 | **travou** (aceita a conexão e não responde) | espera o timeout de 60 s | conta como falha e pausa 30 s |
 | **recusou o pedaço** (HTTP 4xx, ex.: vídeo corrompido) | a resposta | conta como recusado, sem pausa: o sidecar está bem |
@@ -342,7 +342,7 @@ aceita qualquer resolução: o `servidor.py` estica o quadro até 512x288, e a
 caixa volta em fração. Aceitar não é detectar bem:
 
 | Requisito | Por quê |
-|---|---|
+| --- | --- |
 | codec H.264 ou H.265 | é o que o dwnvr lê do go2rtc |
 | proporção 16:9 | outra proporção chega deformada; uma câmera 4:3 nunca foi medida |
 | objeto grande o bastante no quadro | o que conta é a FRAÇÃO da altura do quadro, não os pixels da câmera. Pessoa ao longe, com ~10% da altura, é onde ele mais perde |
@@ -361,7 +361,7 @@ e [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO/TODO_recalibrar-modelo
 ## Onde está no código
 
 | Arquivo | O quê |
-|---|---|
+| --- | --- |
 | `internal/detect/score.go` | o destaque de cada quadro |
 | `internal/detect/mecanismo.go` | o onset e o pico: `kleinberg-p` e `periodico` |
 | `internal/detect/recorte.go` | o GOP guardado e o pedaço fMP4 |

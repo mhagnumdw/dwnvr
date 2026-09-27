@@ -10,7 +10,7 @@ recomendação é a B.
 ## O pedido
 
 | O quê | Como |
-|---|---|
+| --- | --- |
 | lista | rolagem infinita, com a busca paginada no servidor |
 | cada item | dia e hora, a imagem do objeto com as caixas desenhadas, um player pequeno e o link para Gravações |
 | player | só carrega quando alguém toca nele; até lá, a imagem com as caixas |
@@ -30,7 +30,7 @@ a `pessoa`: filtro de família, "ir para" e quantas cabem por tela.
 ## As três variantes
 
 | Variante | A favor | Custo | Por tela (celular / desktop) |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **A - lista vertical** | imagem grande, rótulos legíveis, o trecho toca no próprio card | atravessar o dia depende dos filtros e do "ir para" | 2 / 3 |
 | **B - grade** | dá para achar gente olhando as miniaturas | a miniatura não tem rótulo, e o vídeo pede um toque a mais (abre a folha) | 10 / 20 |
 | **C - tira horizontal** | um player só, e a régua do dia mostra onde houve detecção, como em Gravações | a tira anda devagar pelo dia, e na régua de 24 h meia hora ocupa poucos pixels | 3 / 7 |

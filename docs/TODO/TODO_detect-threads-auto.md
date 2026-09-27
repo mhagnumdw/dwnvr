@@ -18,7 +18,7 @@ núcleo parado. O valor certo tem que ser descoberto e posto à mão.
 `DETECT_THREADS=auto`, e ele passa a ser o padrão:
 
 | Situação | `auto` vira | Por quê |
-|---|---|---|
+| --- | --- | --- |
 | Container com limite de CPU (`cpus:` no compose) | **o limite**, arredondado para baixo, mínimo 1 | quem montou o compose já decidiu quanto dar ao detector de objetos; mais threads que isso só pioram |
 | Sem limite | **metade dos núcleos visíveis**, mínimo 1 | a outra metade fica para o dwnvr e o go2rtc, que não podem perder segmento |
 | Número explícito | o número | quem mediu manda |

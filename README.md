@@ -93,7 +93,7 @@ printf 'DWNVR_UID=%s\nDWNVR_GID=%s\nTZ=%s\n' \
 docker compose up
 ```
 
-> Com [Podman](#com-podman) no lugar do Docker, o último comando é
+> Com [Podman](#com-podman-) no lugar do Docker, o último comando é
 `PODMAN_USERNS=keep-id podman-compose --in-pod false up`.
 
 Quando o log disser `dwnvr no ar`, abra <http://localhost:8080>:
@@ -120,7 +120,7 @@ docker compose down
 rm -rf config storage .env
 ```
 
-> Com [Podman](#com-podman) no lugar do Docker, o primeiro comando é
+> Com [Podman](#com-podman-) no lugar do Docker, o primeiro comando é
 `podman-compose --in-pod false down`.
 
 ## Instalar de verdade
@@ -157,7 +157,7 @@ cp go2rtc.example.yaml "$DWNVR_DIR/config/go2rtc/go2rtc.yaml"
 
 Ficará assim:
 
-```
+```text
 No Host                                                            No Container
 /mnt/storage/dwnvr/
 ├── config/
@@ -231,7 +231,7 @@ câmeras.
 docker compose up -d
 ```
 
-> Com [Podman](#com-podman) no lugar do Docker:
+> Com [Podman](#com-podman-) no lugar do Docker:
 `PODMAN_USERNS=keep-id podman-compose --in-pod false up -d`.
 
 Quando o `docker compose logs dwnvr` disser `dwnvr no ar`, abra
@@ -304,7 +304,7 @@ estivesse no ar:
 docker compose up -d && docker compose restart dwnvr
 ```
 
-> Com [Podman](#com-podman) no lugar do Docker:
+> Com [Podman](#com-podman-) no lugar do Docker:
 >
 > ```sh
 > PODMAN_USERNS=keep-id podman-compose --in-pod false up -d \
@@ -322,7 +322,7 @@ estiver ligado, e o go2rtc. O que mudou em cada versão está nas
 git pull && docker compose up -d --pull always
 ```
 
-> Com [Podman](#com-podman) no lugar do Docker:
+> Com [Podman](#com-podman-) no lugar do Docker:
 >
 > ```sh
 > git pull && PODMAN_USERNS=keep-id podman-compose --in-pod false up -d --pull-always
@@ -478,7 +478,7 @@ movimento.
 ## Documentação
 
 | Documento | Para quê |
-|---|---|
+| --- | --- |
 | [`docs/operacao.md`](docs/operacao.md) | o dia a dia: arquivos, logs, container sem shell |
 | [`docs/configuracao.md`](docs/configuracao.md) | os dois arquivos, política por câmera, retenção, áudio |
 | [`docs/arquitetura.md`](docs/arquitetura.md) | o formato em disco e por que ele é assim |
@@ -526,7 +526,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 
 ### Estrutura do projeto
 
-```
+```text
 ├── cmd/
 │   └── dwnvr/              o binário: lê a config, sobe um recorder por câmera, serve HTTP
 ├── internal/
@@ -577,7 +577,7 @@ quem lê. Outros são **exigência do Go**: mudar o nome faz o build falhar.
 Resumo antes do detalhe:
 
 | Caminho | O que é | Se você renomear |
-|---|---|---|
+| --- | --- | --- |
 | `cmd/` | convenção da comunidade | compila igual, só surpreende quem lê |
 | `internal/` | **exigência do Go** | o pacote passa a ser importável por qualquer projeto |
 | `internal/api/dist/` | escolha nossa, **imposta pelo `go:embed`** | o build quebra |
@@ -606,7 +606,7 @@ Aqui não é hábito, é regra que o próprio Go impõe. Um pacote sob `internal
 pode ser importado de dentro do próprio módulo. Outro projeto que tente
 importar `github.com/mhagnumdw/dwnvr/internal/store` recebe:
 
-```
+```text
 use of internal package github.com/mhagnumdw/dwnvr/internal/store not allowed
 ```
 
@@ -627,7 +627,7 @@ onde ninguém quer instalar toolchain de frontend.
 não consegue sair do diretório do pacote. Um `//go:embed ../web/dist` não
 compila:
 
-```
+```text
 pattern ../web/dist: invalid pattern syntax
 ```
 
@@ -676,7 +676,7 @@ encadeia as duas coisas, e a CI reprova se o `internal/api/dist` versionado
 divergir de `web/`.
 
 | Alvo | O que faz |
-|---|---|
+| --- | --- |
 | `make web` | constrói a interface para `internal/api/dist` (precisa de Node) |
 | `make build` | binário para a máquina local |
 | `make image-arm64` | imagem docker arm64, carregada no docker local |
@@ -736,7 +736,7 @@ com o número no formato `X.Y.Z`. O `.github/workflows/release.yml` faz o resto,
 em três jobs:
 
 | Job | O que faz |
-|---|---|
+| --- | --- |
 | `preparar` | confere que a versão é nova e maior que a última, que há commit desde ela e que a CI do commit terminou verde; escreve o `CHANGELOG.md` e troca a versão do `image:` no `docker-compose.yml`; faz o commit `chore(release): vX.Y.Z`, a tag e o push das duas |
 | `imagens` | o `imagens.yml` a partir da tag: `vX.Y.Z`, `latest`, `main` e `sha-*` das duas imagens |
 | `publicar` | a página da release, com as notas do git-cliff e, no fim, o link para o [Atualizar](#atualizar) |

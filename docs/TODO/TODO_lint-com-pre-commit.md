@@ -4,22 +4,19 @@ Planejado em 24/09/2026. Os números abaixo foram medidos de novo em
 27/09/2026, na `main` em `f4fe3b3`, com cada ferramenta só lendo, sem corrigir
 nada.
 
-Uma etapa por vez. Cada uma entra no seu commit (em dois, quando houver
-correção mecânica grande), e esse commit marca o checkbox dela e atualiza o
-próximo passo, logo abaixo.
+Uma etapa por vez. Cada uma entra no seu commit (a Etapa 14 em três), e o
+último marca o checkbox dela e atualiza o próximo passo, logo abaixo.
 
 ## Próximo passo
 
-**Etapa 2 (markdownlint).** Antes, conferir em Actions que o workflow `lint`
-ficou verde depois do push da Etapa 1. A Etapa 2 tem dois commits: primeiro só
-o `--fix` das tabelas, que vai para o `.git-blame-ignore-revs`; depois a
-config, o hook e as correções feitas à mão. Os detalhes estão na seção dela.
+**Etapa 3 (lychee).** Os 5 `#com-podman` que ela achava já saíram na Etapa 2,
+então hoje ela deve dar 0 achados. Os detalhes estão na seção dela.
 
 ## Checklist
 
 - [x] Etapa 0 - este plano
 - [x] Etapa 1 - a base: pre-commit-hooks e o `lint.yml`
-- [ ] Etapa 2 - markdownlint-cli2
+- [x] Etapa 2 - markdownlint-cli2
 - [ ] Etapa 3 - lychee: link e âncora do Markdown
 - [ ] Etapa 4 - as regras de commit do AGENTS.md como hook
 - [ ] Etapa 5 - gitleaks, com uma regra para senha de câmera
@@ -56,9 +53,8 @@ erro aparece no commit, com arquivo e linha, e o `--fix` resolve sozinho o que
   hook já está no 0.23.3.
 - **Lint vermelho não segura as imagens.** O `lint.yml` é separado do
   `ci.yml`, e a release só confere o `ci.yml`.
-- **Cada etapa zera o seu lint**, sem ignorar achado antigo. Correção
-  mecânica grande vai num commit `style:` separado, listado no
-  `.git-blame-ignore-revs`.
+- **Cada etapa zera o seu lint**, sem ignorar achado antigo. A correção
+  mecânica entra no mesmo commit da etapa, sem `.git-blame-ignore-revs`.
 - **O que a etapa exigir na CI vem junto**: o `setup-go` ou o `setup-node` no
   `lint.yml`. Hook que não faz sentido lá, como o gitleaks, que só olha o
   staged, entra no `SKIP` do job.
@@ -102,23 +98,28 @@ achados em 28 arquivos.
 | MD051, âncora que não existe | 5 | à mão, ver abaixo |
 | MD010, MD012, MD028, MD032 e MD046 | 5 | `--fix` ou à mão |
 
-- Os 5 MD051 são o link `[Podman](#com-podman)` do README, quebrado de
+Como saiu, em 27/09:
+
+- Os 5 MD051 eram o link `[Podman](#com-podman)` do README, quebrado de
   verdade. O espaço antes do `<!-- omit in toc -->` do título vira hífen, e a
   âncora que o GitHub gera é `#com-podman-` (conferido na página renderizada
-  em 24/09). Trocar os links, ou tirar o espaço, se a extensão Markdown All in
-  One ainda reconhecer o comentário assim.
+  em 24/09). Os links passaram a `#com-podman-`.
+- Os blocos sem linguagem são todos texto (árvore, saída de terminal, lista de
+  endpoints) e ganharam `text`.
+- O MD010 não olha bloco de código: o `--fix` trocava por espaço o tab de um
+  trecho Go, e Go se indenta com tab.
+- O MD032 achou um `- ou seja` no começo da linha, que o GitHub mostrava como
+  item de lista: o hífen subiu para a linha de cima.
 - `.markdownlint-cli2.yaml`, lido pelo hook, pela CI e pela extensão do VS
   Code: `default: true`; `MD013: false`, sem limite de linha; `MD024` só entre
   irmãos; `MD033` liberando `details`, `summary` e `b`, que o README usa;
-  `MD009` estrito, como o `trailing-whitespace`; `globs: ["**/*.md"]`,
-  `gitignore: true` e o `CHANGELOG.md` em `ignores`.
+  `MD009` estrito, como o `trailing-whitespace`; `MD010` fora dos blocos de
+  código; `globs: ["**/*.md"]`, `gitignore: true` e o `CHANGELOG.md` em
+  `ignores`. O `CHANGELOG.md` termina com uma linha em branco de propósito: é o
+  `\n` do fim do `body` do `cliff.toml`, que separa uma release da seguinte.
 - Hook com `args: [--no-globs, --fix]`. O `--no-globs` faz ele olhar só os
   arquivos do commit, e não o `globs` da config, que é o repositório inteiro.
-- [ ] Commit 1, só o `--fix` com a MD060 ligada sozinha:
-  `style(docs): normaliza as tabelas do Markdown`.
-- [ ] Commit 2, com a config, o hook, as correções à mão e o
-  `.git-blame-ignore-revs` apontando para o commit 1:
-  `ci: markdownlint no pre-commit`.
+- Commit: `ci: markdownlint no pre-commit`.
 
 ### Etapa 3 - lychee: link e âncora do Markdown
 
@@ -279,8 +280,7 @@ achados em 28 arquivos.
   um formato só para JS, Svelte e CSS.
 - Hoje: reformataria 36 arquivos do `web/`; em 24/09, eram ~4.900 linhas de
   diff.
-- Se entrar, o diff vai num `style(web):` separado, listado no
-  `.git-blame-ignore-revs`. Decidir vendo o diff.
+- Se entrar, o diff vai num `style(web):` separado. Decidir vendo o diff.
 
 ### Etapa 16 - cspell pt-BR (opcional)
 

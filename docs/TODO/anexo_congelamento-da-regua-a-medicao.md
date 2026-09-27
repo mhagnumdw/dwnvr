@@ -5,7 +5,6 @@ Os números completos por trás de
 A bancada que os produziu (`detect-test-v5/`) não é versionada: ela é
 descartável e depende de dezenas de GB de gravação. O que fica é este anexo.
 
-
 Medição de uma mudança candidata no score do gatilho de movimento, feita em
 20/09/2026 sobre as gravações do pitoco.
 
@@ -21,7 +20,7 @@ média e no desvio, e o desvio é o denominador do z.
 Medido na chegada que motivou isto (`cam_lateral1`, 20/09/2026, 10:45):
 
 | instante | quadro | média da régua | desvio (log) | z | destaque |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | 10:44:52, antes do carro | 2.092 B | 525 B | 0,414 | **3,20** | **3,09 → onset** |
 | 10:45:51, a pessoa descendo | **3.592 B** | 942 B | 0,832 | 1,62 | **-0,87 → nada** |
 
@@ -57,7 +56,7 @@ foi conferido byte a byte contra o que o mecanismo produz.
 ## Os limiares calibrados (nível 5, 100 olhadas/h por câmera)
 
 | função | limiar | custo obtido |
-|---|---|---|
+| --- | --- | --- |
 | `kleinberg-p` (hoje) | 1,6882 | 99,79/h |
 | `kleinberg-c:2.0:10` | 1,0967 | 100,35/h |
 | `kleinberg-c:1.5:10` | 0,5911 | 99,85/h |
@@ -65,7 +64,7 @@ foi conferido byte a byte contra o que o mecanismo produz.
 **O limiar de produção rende menos do que promete neste corpus:**
 
 | limiar em produção | alvo | rende |
-|---|---|---|
+| --- | --- | --- |
 | 2,1312 (nível 5) | 100/h | **91,9/h** |
 | 4,9695 (nível 4) | 50/h | **44,5/h** |
 
@@ -81,7 +80,7 @@ tamanho do que calibrou o de hoje.
 `kleinberg-p` (limiar 1,6882) contra `kleinberg-c:2.0:10` (limiar 1,0967):
 
 | câmera | olhadas hoje | olhadas cand. | comuns | só hoje | só cand. |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | cam_cozinha | 5.206 | 3.473 | 2.435 | 2.771 | 1.038 |
 | cam_frente | 4.887 | 5.162 | 3.985 | 902 | 1.177 |
 | cam_fundo | 4.576 | 5.003 | 3.787 | 789 | 1.216 |
@@ -102,7 +101,7 @@ candidata gasta 33% menos, e em outras um pouco mais.
 Com os dois limiares calibrados no mesmo corpus, no episódio de `cam_lateral1`:
 
 | | onsets entre 10:44:30 e 10:47:00 |
-|---|---|
+| --- | --- |
 | hoje | 10:44:51 · 10:45:00 · 10:46:39 |
 | candidata | 10:44:51 · 10:45:00 · **10:45:49** · 10:46:37 |
 
@@ -132,7 +131,7 @@ Medido por câmera-dia (`detect-test-v5/congelamento`), é a fração dos quadro
 em que o score não aprendeu:
 
 | câmera | `1,0` / 30 quadros | `2,0` / 10 quadros |
-|---|---|---|
+| --- | --- | --- |
 | cam_cozinha | **95,6% · 96,9%** | 67,5% · 52,1% |
 | cam_frente | 64,9% · 60,2% | 20,8% · 15,6% |
 | cam_fundo | 55,2% · 57,9% | 16,1% · 16,3% |
@@ -160,7 +159,7 @@ essa mudança.
 mesmo custo, sobre as 379,9 horas:
 
 | família | hoje | candidata | comuns | perdas | ganhos | **saldo** |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | **pessoa** | 1.018 | 900 | 678 | 340 | 222 | **-118** |
 | veiculo | 689 | 642 | 567 | 122 | 75 | -47 |
 | animal | 192 | 154 | 107 | 85 | 47 | -38 |
@@ -169,7 +168,7 @@ mesmo custo, sobre as 379,9 horas:
 O funil das duas, pelas mesmas olhadas por hora:
 
 | | hoje | candidata |
-|---|---|---|
+| --- | --- | --- |
 | olhadas | 37.907 | 38.119 |
 | sem pedaço | 496 | 449 |
 | falhas do detector | 190 | 200 |
@@ -182,7 +181,7 @@ por 380 horas - mais de uma por dia em nove câmeras.
 ### Por câmera: o estrago está onde a régua prende
 
 | câmera | hoje | cand. | perdas | ganhos | saldo | congelamento |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | cam_cozinha | 336 | **138** | 231 | 33 | **-198** | 52-67% |
 | cam_frente | 819 | 781 | 131 | 93 | -38 | 16-21% |
 | cam_lateral1 | 86 | 69 | 47 | 30 | -17 | 45-64% |

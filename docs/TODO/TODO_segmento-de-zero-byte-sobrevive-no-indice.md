@@ -13,7 +13,7 @@ porque a correção é pequena e mora num lugar que já faz quase tudo certo.
 Toda queda suja deixa, por câmera, um ou dois registros ruins. O padrão é
 sempre o mesmo par:
 
-```
+```text
 11:03:09.923  d=35981  sz=0  g=4edbc50d8e70   <- o índice promete 36s, o arquivo tem 0 byte
 11:03:45.904  d=0      sz=0  g=""             <- registro zerado, sem geração
 ```
@@ -46,7 +46,9 @@ ao `finish`, entrando pelo caminho dos órfãos
 devolve erro - mas um arquivo vazio **não** devolve erro. Medido com um teste
 descartável em `fmp4.ProbeSegment`, sobre um `.mp4` de zero byte:
 
-    erro=<nil>  info=&{InitSize:0 FirstFragSize:0 DurationMs:0 Gen: Movie:<nil>}
+```text
+erro=<nil>  info=&{InitSize:0 FirstFragSize:0 DurationMs:0 Gen: Movie:<nil>}
+```
 
 Sem erro, a `Entry` entra com geração vazia, `DurMs` 0 e `Size` 0. Geração
 vazia é o campo pelo qual o player agrupa o que dá para emendar, então esse

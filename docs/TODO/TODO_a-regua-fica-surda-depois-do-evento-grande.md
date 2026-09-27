@@ -18,7 +18,7 @@ e às 10:45:49 uma pessoa desce dele e atravessa o quadro. A timeline marcou o
 carro e **não marcou a pessoa**.
 
 | instante | tamanho do quadro | média da régua | desvio (log) | z | destaque |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | 10:44:52, antes do carro | 2.092 B | 525 B | 0,414 | **3,20** | **3,09 → onset** |
 | 10:45:51, a pessoa descendo | **3.592 B** | 942 B | 0,832 | 1,62 | **-0,87 → nada** |
 
@@ -40,7 +40,7 @@ calibradas para o **mesmo custo** (100 olhadas/h por câmera) e o `dwnvr-detect`
 de produção como juiz:
 
 | família | hoje | candidata | perdas | ganhos | **saldo** |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | **pessoa** | 1.018 | 900 | 340 | 222 | **-118** |
 | veiculo | 689 | 642 | 122 | 75 | -47 |
 | animal | 192 | 154 | 85 | 47 | -38 |
@@ -53,7 +53,7 @@ A causa do estrago é a mesma do ganho: ela para de aprender. Onde o
 congelamento fica em 15-20% do tempo, ela ganha; onde prende, desaba.
 
 | câmera | saldo | tempo congelado |
-|---|---|---|
+| --- | --- | --- |
 | cam_cozinha | **-198** | 52-67% |
 | cam_lateral1 | -17 | 45-64% |
 | cam_jardim | **+23** | 18-20% |

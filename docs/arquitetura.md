@@ -31,7 +31,7 @@ Cortar segmento vira, literalmente, ler um bit de flag.
 > escritas em C. Evitá-lo é o que mantém o binário estático de ~7,6 MB, sem
 > depender de nenhuma biblioteca do sistema, e o que faz a compilação cruzada
 > para ARM ser um `GOARCH=arm64 go build` e nada mais.
-
+>
 > Um MP4 é feito de **caixas** (*boxes*), cada uma com um tamanho e um nome de
 > 4 letras. As que importam aqui:
 >
@@ -78,7 +78,7 @@ GOP de 4s, um alvo de 30s vira ~31,6s.
 
 Sem banco de dados. O índice é um NDJSON por câmera por dia, append-only:
 
-```
+```text
 <storage.root>/
   cam_iota/
     init/4edbc50d8e70.mp4        # init segment (ftyp+moov), identificado por hash do conteúdo
@@ -182,7 +182,7 @@ graça:
 
 Exemplo real, de uma instalação com 9 câmeras:
 
-```
+```text
 cam_teta   4edbc50d8e70   737 B   H265, só vídeo
 cam_teta   e38cb0530c62  1192 B   H265 + FLAC (depois de ligar o áudio)
 cam_gama    e38cb0530c62  1192 B   idêntico ao acima → mesmo arquivo

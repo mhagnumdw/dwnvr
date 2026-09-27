@@ -1,0 +1,31 @@
+# Regras do markdownlint-cli2, lidas pelo hook do pre-commit (e por ele na CI)
+# e pela extensão markdownlint do VS Code.
+
+config:
+  default: true
+  # Nenhum espaço no fim da linha, nem para quebra forçada.
+  MD009:
+    strict: true
+  # Tab proibido só fora de bloco de código: Go se indenta com tab.
+  MD010:
+    code_blocks: false
+  # Sem limite de linha: tabela e link passam de qualquer limite.
+  MD013: false
+  # Título repetido só conflita entre irmãos.
+  MD024:
+    siblings_only: true
+  # HTML só o do bloco recolhível. O <b> é o negrito dentro do <summary>, onde
+  # o ** não funciona.
+  MD033:
+    allowed_elements:
+      - details
+      - summary
+      - b
+
+globs:
+  - "**/*.md"
+
+gitignore: true
+ignores:
+  # Escrito pela release (git-cliff), que deixa uma linha em branco no fim.
+  - CHANGELOG.md

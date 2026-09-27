@@ -15,7 +15,7 @@ justificou.
 5 minutos gravando as **9 câmeras simultaneamente**, segmentos de 60s:
 
 | Processo | CPU | RSS |
-|---|---|---|
+| --- | --- | --- |
 | dwnvr (gravador) | **4,98% de 1 core** (1,2% dos 4) | **16,4 MB** |
 | go2rtc | 16,9% de 1 core | 15,9 MB |
 | **soma** | **~22% de 1 core (5,5% do sistema)** | **~32 MB** |
@@ -30,7 +30,7 @@ Load average do Pi durante o teste: 0,12.
 ## Taxa de dados real por câmera (stream `onvif1`)
 
 | Câmera | kbps | GB/dia |
-|---|---|---|
+| --- | --- | --- |
 | cam_alfa | 928 | 9,6 |
 | cam_iota | 928 | 9,6 |
 | cam_gama | 792 | 8,2 |
@@ -70,7 +70,7 @@ resolução é o número que dimensiona a retenção.
 ## Dimensões erradas no container (limitação do go2rtc)
 
 | Fonte | Resolução |
-|---|---|
+| --- | --- |
 | `stsd/hev1` gravado pelo go2rtc | 2560x1440 |
 | Decodificação real (ffmpeg→PNG e WebCodecs) | **1920x1080** |
 
@@ -98,7 +98,7 @@ Chrome 151 / Fedora 43 / GPU Intel:
 Os 4 segmentos gravados costurados num único `<video>` via `SourceBuffer`:
 
 | Medida | Resultado |
-|---|---|
+| --- | --- |
 | Anexar 4 segmentos (79s, ~9 MB) | **109 ms** |
 | `buffered` | **uma faixa única `[0, 79.06]`** - sem emenda entre segmentos |
 | Frames decodificados | **1199, com 1 descartado** |

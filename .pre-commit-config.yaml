@@ -43,3 +43,12 @@ repos:
         args: [--enforce-all]
         exclude: ^dwnvr-detect/modelo/rfdetr-n_512x288_int8\.onnx$
       - id: detect-private-key
+
+  # Markdown. As regras estão no .markdownlint-cli2.yaml. O --no-globs faz o
+  # hook olhar só os arquivos do commit, e não o `globs` da config, que é o
+  # repositório inteiro.
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.3
+    hooks:
+      - id: markdownlint-cli2
+        args: [--no-globs, --fix]

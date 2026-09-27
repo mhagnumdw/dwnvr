@@ -23,7 +23,7 @@ limitado**, como exemplo o Orange Pi Zero 3. Ele não é feito *para* um hardwar
      de implementação, o que ficou de fora. Opcional; se não houver o que dizer,
      omita a parte 2 e o `---` junto.
 
-  ```
+  ```text
   feat(web): baixa a imagem do quadro mostrado
 
   Agora dá para salvar como imagem o quadro que está na tela, sem
@@ -52,7 +52,7 @@ Um mesmo fato vive em vários arquivos aqui. Antes de encerrar a tarefa, ache na
 esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo.
 
 | Mexeu em | Confira |
-|---|---|
+| --- | --- |
 | `web/src/`, `web/index.html`, `web/public/` | `make web`, depois commitar `internal/api/dist/` inteiro, assets antigos incluídos (a CI confere) |
 | arquivo em `web/src/{lib,routes,components,vendor}` | §Estrutura do `web/README.md` |
 | rota em `internal/api/server.go`, inclusive entrar/sair do `requireAuth` | `docs/api.md` · `web/src/lib/api.js` (`api` p/ JSON, `mediaURL` p/ URL montada) |

@@ -9,7 +9,7 @@ deliberadamente pequena para que a retenção agisse em minutos em vez de dias.
 ## Consumo
 
 | Processo | CPU | RSS |
-|---|---|---|
+| --- | --- | --- |
 | dwnvr (9 câmeras + retenção ativa) | **4,01% de 1 core** (1,0% dos 4) | **17,1 MB** |
 | go2rtc | 9,33% de 1 core | 22,7 MB |
 
@@ -20,7 +20,7 @@ O binário ARM64 estático tem 6,0 MB.
 ## O que foi verificado
 
 | Verificação | Resultado |
-|---|---|
+| --- | --- |
 | 9 câmeras conectam e gravam | 6× `hev1`, 3× `avc1`, zero erros |
 | Segmento abre em keyframe | `key_frame=1` em `pts=0` em todos |
 | Sem reencode | `hevc/hev1` e `h264/avc1` preservados da câmera |

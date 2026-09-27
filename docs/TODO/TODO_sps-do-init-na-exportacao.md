@@ -19,14 +19,14 @@ MP4 entregue ao usuário carrega o SPS dummy.
 `cam_iota`, janela de 2 min, arquivo baixado e medido com ferramenta externa:
 
 | | |
-|---|---|
+| --- | --- |
 | Container (`mediainfo`) | 2560x1440 |
 | **Frame decodificado** | **640x360** |
 
 ### Alcance: 7 das 9 câmeras
 
 | Câmera | Codec | Container | Frame real | |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | teta, alfa, beta, gama, delta | HEVC | 2560x1440 | 1920x1080 | mente |
 | cam_iota | HEVC | 2560x1440 | 640x360 | mente |
 | cam_epsilon | AVC | 320x180 | 640x360 | mente (ao contrário) |
@@ -51,7 +51,7 @@ Testado: remendar só os 8 bytes de `width`/`height` do `stsd`, sem tocar no
 `hvcC`.
 
 | Leitor | Resultado |
-|---|---|
+| --- | --- |
 | `mediainfo` (lê `stsd`) | 640x360 ✓ |
 | `ffprobe` (lê o `hvcC`) | 2560x1440 ✗ |
 

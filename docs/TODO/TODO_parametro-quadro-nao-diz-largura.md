@@ -9,7 +9,7 @@ de Detecções; a troca é mecânica e cabe em qualquer dia calmo.
 
 ## O nome
 
-```
+```text
 POST /detect?piso=0.20&quadro=480&qualidade=75
 ```
 
@@ -27,7 +27,7 @@ Sugestão: `larguraDoQuadro`, que é como o Go já chama o número
 (`detect.LarguraDoQuadro`). Alternativas: `quadroLargura`, `larguraQuadro`.
 
 | Arquivo | O que muda |
-|---|---|
+| --- | --- |
 | `dwnvr-detect/servidor.py` | a leitura da query em `do_POST`, o cabeçalho do módulo |
 | `dwnvr-detect/README.md` | §O contrato |
 | `internal/detect/sidecar.go` | a montagem da URL em `Olha` |

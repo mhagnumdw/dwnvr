@@ -14,7 +14,7 @@ Convenções que valem para tudo:
 ## Sessão
 
 | Endpoint | O que faz |
-|---|---|
+| --- | --- |
 | `POST /api/login` | abre sessão; devolve cookie assinado (HMAC, sem estado no servidor) |
 | `POST /api/logout` | encerra a sessão |
 | `GET /api/session` | **público**: diz se este dwnvr exige login |
@@ -29,7 +29,7 @@ Todo o resto exige sessão válida.
 ## Câmeras e diagnóstico
 
 | Endpoint | Parâmetros | O que faz |
-|---|---|---|
+| --- | --- | --- |
 | `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs |
 | `POST /api/cameras` | corpo JSON | cadastra ou altera (upsert por id) |
 | `DELETE /api/cameras` | `id`, `recordings=1` | descadastra; com `recordings=1` apaga as gravações junto |
@@ -240,7 +240,7 @@ cgroup, fora do Linux).
 ## Gravações
 
 | Endpoint | Parâmetros | Devolve |
-|---|---|---|
+| --- | --- | --- |
 | `GET /api/rec/days` | `cam` | dias que têm gravação |
 | `GET /api/rec/timeline` | `cam` + intervalo | faixas contíguas (para desenhar) + segmentos (para tocar) |
 | `GET /api/rec/events` | `cam` + intervalo | os instantes em que houve movimento |
@@ -314,7 +314,7 @@ As detecções de objeto de todas as câmeras juntas: é o que a tela de Detecç
 rola.
 
 | Endpoint | Parâmetros | Devolve |
-|---|---|---|
+| --- | --- | --- |
 | `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias` | uma página de detecções, da mais nova para a mais velha |
 | `GET /api/deteccoes/quadro` | `cam`, `t` | o JPEG do quadro que o detector olhou, `immutable` |
 
@@ -380,7 +380,7 @@ servidor. Detecção com `temQuadro` falso responde 404.
 ## Live
 
 | Endpoint | O que faz |
-|---|---|
+| --- | --- |
 | `GET /api/live/*` | proxy do go2rtc, com a credencial ficando no servidor |
 
 O navegador nunca fala com o go2rtc diretamente. Passar pelo proxy resolve duas

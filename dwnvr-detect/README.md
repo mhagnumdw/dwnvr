@@ -72,7 +72,7 @@ docker buildx build --platform linux/amd64 -t dwnvr-detect:amd64 --load dwnvr-de
 
 ## O contrato
 
-```
+```text
 POST /detect?piso=0.20&quadro=480&qualidade=75
                              corpo: o pedaço (.mp4), do frame I ao quadro a olhar
 GET  /health
@@ -114,7 +114,7 @@ olhar o último quadro que sobrou seria olhar outro instante.
 Configuração, por variável de ambiente:
 
 | Variável | O que é | Padrão |
-|---|---|---|
+| --- | --- | --- |
 | `DETECT_MODELO` | o `.onnx` | `/app/modelo.onnx` |
 | `DETECT_THREADS` | threads do modelo e do vídeo | `1` |
 | `DETECT_PORTA` | porta HTTP | `8480` |

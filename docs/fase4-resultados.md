@@ -8,7 +8,7 @@ Orange Pi Zero 3 em 08/08/2026.
 `FROM scratch` com um único arquivo dentro:
 
 | | |
-|---|---|
+| --- | --- |
 | Binário | 7,9 MB |
 | Certificados CA | 222 KB |
 | **Camada comprimida** | **~3 MB** |
@@ -36,7 +36,7 @@ versionada, para que a imagem sempre corresponda ao código-fonte que a gerou.
 ## Medições no Pi, em container
 
 | | CPU | RAM |
-|---|---|---|
+| --- | --- | --- |
 | dwnvr (9 câmeras, container) | **2,82% de 1 core** | **14,1 MB** de 128 MB |
 
 Ligeiramente abaixo do binário nativo (4,0% / 17,1 MB), principalmente porque os
@@ -54,7 +54,7 @@ diretório em `/mnt/storage`.
 
 Confirmado depois de um minuto gravando em container:
 
-```
+```text
 usuario:usuario /mnt/storage/dwnvr/cam_alfa/2026-08-08/1786231487217.mp4
 arquivos de root: 0
 ```

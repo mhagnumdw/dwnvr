@@ -6,7 +6,7 @@ para a tela.
 ## Recomendo virar parâmetro na tela
 
 | Parâmetro | Onde está hoje | Motivo |
-|---|---|---|
+| --- | --- | --- |
 | `storage.minFreeMB` | `dwnvr.yaml` | É do disco, global por natureza. A retenção relê o valor a cada passada (1 min), então vale sem reiniciar, e o Diagnóstico já mostra "mínimo livre". Precisa de teto: um valor perto do tamanho do disco apaga as gravações de todas as câmeras |
 | `defaults.maxDays` | `dwnvr.yaml` | Guardar no máximo N dias é uma escolha que vale para todas as câmeras, e o campo nem aparece no formulário de câmera. A retenção resolve as câmeras a cada passada, então também vale sem reiniciar. Só vale com herança (ver abaixo) |
 | `defaults.detect` | `dwnvr.yaml` | Liga ou desliga a marcação de movimento de todas as câmeras num lugar só. Mudar a detecção não reconecta a câmera. Só vale com herança |
@@ -16,7 +16,7 @@ para a tela.
 ## Não recomendo
 
 | Parâmetro | Onde está hoje | Motivo |
-|---|---|---|
+| --- | --- | --- |
 | `server.listen` | `dwnvr.yaml` | Amarrado à porta publicada no compose. Um erro deixa a própria tela inacessível, sem tela para desfazer |
 | `go2rtc.url`, `go2rtc.username`, `go2rtc.password` | `dwnvr.yaml` | Amarrados ao nome do serviço no compose. Um erro para a gravação de todas as câmeras |
 | `storage.root` | `dwnvr.yaml` | Amarrado ao volume do compose. Mudar deixa as gravações existentes para trás, fora da tela |

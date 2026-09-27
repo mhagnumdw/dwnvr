@@ -9,7 +9,7 @@ verdade](../README.md#instalar-de-verdade), definidos no `.env` por
 os mesmos arquivos ficam em `./config/dwnvr`, `./storage` e `./config/go2rtc`.
 
 | No host (exemplo) | No container | O que é |
-|---|---|---|
+| --- | --- | --- |
 | `/mnt/storage/dwnvr/config/dwnvr/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuração, editada à mão |
 | `/mnt/storage/dwnvr/config/dwnvr/cameras.json` | `/etc/dwnvr/cameras.json` | câmeras, gravado pela tela de cadastro |
 | `/mnt/storage/dwnvr/config/dwnvr/.session-secret` | `/etc/dwnvr/.session-secret` | assina os cookies de sessão (0600) |
@@ -42,7 +42,7 @@ dwnvr`); pela tela de cadastro a mudança vale na hora.
 
 A imagem é `FROM scratch` e contém literalmente isto:
 
-```
+```text
 /dwnvr                          o binário
 /etc/ssl/certs/ca-certificates.crt
 ```
@@ -115,7 +115,7 @@ A tag das duas imagens, dwnvr e dwnvr-detect, vem de `DWNVR_VERSION` no
 reescreve com a versão dela. Os valores possíveis:
 
 | `DWNVR_VERSION` | O que roda |
-|---|---|
+| --- | --- |
 | (ausente) | a versão do compose que está no clone: a última release, depois de um `git pull` |
 | `v0.1.0` | fica nessa versão, mesmo depois de `git pull`; é também como se volta para uma anterior |
 | `main` | cada commit da main, antes de virar versão |

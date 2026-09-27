@@ -13,7 +13,7 @@ prefixo `ffmpeg:` do `url` do produtor. Só que o go2rtc só preenche esse `url`
 com o stream **ocioso**. Com alguém consumindo, uma fonte `ffmpeg:` vira um
 produtor sem `url`, e o que vem é o comando expandido no campo `source`:
 
-```
+```text
 ocioso:  "url": "ffmpeg:virtual?video=testsrc&size=640x360&rate=15#video=h264"
 em uso:  "source": "exec:ffmpeg -hide_banner ... -f rtsp rtsp://127.0.0.1:8554/..."
 ```

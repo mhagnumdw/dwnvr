@@ -32,7 +32,7 @@ Há ainda um terceiro arquivo que o dwnvr **só lê pela API, nunca abre**: o
 Tudo que é política de gravação é **por câmera**, não global:
 
 | Campo | O que decide |
-|---|---|
+| --- | --- |
 | stream do go2rtc | qual fonte gravar - a de alta ou a de baixa resolução |
 | `audio` | `none`, `flac` ou `aac` - ver abaixo |
 | `quotaMB` | quanto disco aquela câmera pode ocupar |
@@ -65,7 +65,7 @@ do detector de objetos, opcional - ver abaixo.
 são 300 marcas por hora, não 50:
 
 | nível | marcas/hora por câmera | pega |
-|---|---|---|
+| --- | --- | --- |
 | 1 - muito baixa | 6 | 2,8% |
 | 2 - baixa | 12 | 9,2% |
 | 3 - média | 25 | 22,3% |
@@ -147,7 +147,7 @@ uma câmera de 900 kbps isso são ~7 MB de folga, desprezível contra uma cota r
 O modo de áudio é escolhido por câmera e vira um filtro de codec na URL:
 
 | Modo | CPU | Disco | Mexe no go2rtc? |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `none` | zero | zero | não |
 | `flac` | **+0,65% de 1 core** | **+260 kbps** (~2,8 GB/dia) | não |
 | `aac` | ~10% de 1 core | ~64 kbps (~0,7 GB/dia) | sim, exige `ffmpeg:cam#audio=aac` |

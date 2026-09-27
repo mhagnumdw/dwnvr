@@ -36,7 +36,7 @@ Ao alterar algo em `web/`, rode `npm run build` **antes** de commitar.
 
 ## Estrutura
 
-```
+```text
 src/lib/         api, estado (runes), rota e estado na URL, formatadores,
                  player MSE, miniaturas, captura de quadro, ícones das
                  famílias de objeto, disposição e desenho das caixas,

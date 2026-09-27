@@ -43,7 +43,7 @@ A rede de segurança funciona - libera espaço -, mas cobra da fonte errada.
 No extremo, com as vivas já drenadas e o disco ainda apertado, cai em
 `retention.go:147-151`:
 
-```
+```text
 disco abaixo do mínimo livre, mas não há mais nada a evictar
 ```
 
@@ -82,8 +82,8 @@ sem marcar "apagar também as gravações". É exatamente o tipo de destruição
 implícita que o resto do projeto evita de propósito
 (`internal/api/cameras.go`, doc de `handleDeleteCamera`).
 
-A defesa da saída 1 é que ela só age quando a alternativa é apagar gravação viva
-- ou seja, não cria uma destruição nova, só escolhe melhor entre duas que já
+A defesa da saída 1 é que ela só age quando a alternativa é apagar gravação viva -
+ou seja, não cria uma destruição nova, só escolhe melhor entre duas que já
 iam acontecer.
 
 ## Como implementar, se um dia valer

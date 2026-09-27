@@ -7,7 +7,7 @@ isso o áudio é descartado na origem e nada chega ao dwnvr.
 ## Resultado
 
 | | Valor |
-|---|---|
+| --- | --- |
 | Codec de origem | `PCMA/16000` (G.711 A-law, mono) |
 | Codec gravado | `fLaC` 16 kHz mono, caixa `dfLa` com STREAMINFO de 34 bytes |
 | **Custo de CPU** | **+0,65% de um core** por câmera |
@@ -72,7 +72,7 @@ ninguém estava consumindo.
 Medido com a `cam_teste5` do `go2rtc.example.yaml`, que entrega `H264 + PCMA/16000`:
 
 | estado do stream | `medias` no go2rtc |
-|---|---|
+| --- | --- |
 | ocioso | ausente |
 | com consumidor ligado | `["video, recvonly, H264", "audio, recvonly, PCMA/16000"]` |
 

@@ -31,7 +31,7 @@ que a decodificação sai certa apesar do container mentir.
 `cam_iota` depois de trocar para `onvif2`:
 
 | | Valor |
-|---|---|
+| --- | --- |
 | Resolução no container | 2560x1440 |
 | **Resolução decodificada de verdade** | **640x360** |
 | Taxa | 46-55 kbps (contra ~928 kbps em `onvif1`) |
@@ -82,7 +82,7 @@ gravações. Não é o dwnvr perdendo dados: a taxa de frames dos segmentos grav
 é idêntica à da captura feita direto do go2rtc.
 
 | Origem | fps |
-|---|---|
+| --- | --- |
 | Direto do go2rtc | 10,02 |
 | Segmentos do dwnvr | 9,94 · 9,96 · 10,00 · 9,99 |
 

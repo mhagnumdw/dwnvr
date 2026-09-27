@@ -30,7 +30,7 @@ A tela é `web/src/lib/diagnostico-servidor.js`, desenhada pelo
 `CardDiagnostico.svelte`.
 
 | Item | Fonte |
-|---|---|
+| --- | --- |
 | Temperatura de cada zona térmica, a mais quente primeiro | `/sys/class/thermal/thermal_zone*/{temp,type}` |
 | Frequência atual e máxima da CPU, e o governor | `/sys/devices/system/cpu/cpu*/cpufreq/` |
 | Load average e número de núcleos | `/proc/loadavg`, `runtime.NumCPU()` |

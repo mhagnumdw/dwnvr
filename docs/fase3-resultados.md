@@ -6,7 +6,7 @@ com as 9 câmeras gravando, 08/08/2026.
 ## Tamanho
 
 | | cru | gzip |
-|---|---|---|
+| --- | --- | --- |
 | JS (inclui o player de live do go2rtc) | 88,2 kB | **32,6 kB** |
 | CSS | 9,9 kB | 2,7 kB |
 | HTML | 0,5 kB | 0,3 kB |

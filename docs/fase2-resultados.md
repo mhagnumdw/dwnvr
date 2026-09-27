@@ -4,7 +4,7 @@ Validada no Orange Pi Zero 3 com as 9 câmeras gravando, 08/08/2026.
 
 ## Endpoints
 
-```
+```text
 POST /api/login  /api/logout       sessão por cookie assinado
 GET  /api/session                  público: diz se precisa de login
 GET  /api/cameras                  câmeras cadastradas + streams do go2rtc
@@ -22,7 +22,7 @@ GET  /api/live/*                   proxy para o go2rtc
 ## Verificações
 
 | Verificação | Resultado |
-|---|---|
+| --- | --- |
 | `thumb` é mesmo 1 frame | 64 KB, **1 frame**, decodifica 1920x1080 |
 | `seg` realmente pula o init | não abre sozinho (`no tfhd was found`); com o init, abre |
 | `init` cacheável | `Cache-Control: immutable`, 737 bytes |
@@ -54,7 +54,7 @@ duração desse frame. Consequência na exportação: cada segmento era posicion
 exatamente **em cima** do último frame do anterior.
 
 | | Antes | Depois |
-|---|---|---|
+| --- | --- | --- |
 | Regressões de DTS no export | 4 (uma por emenda) | **0** |
 | Erros `Could not find ref` | ~110 | **0** |
 | Duração do export | 184,8s (errada) | igual à soma dos segmentos |
@@ -79,7 +79,7 @@ A pergunta seguinte era se ancorar assim faria o horário derivar do relógio re
 Medido contra os mtimes dos arquivos, que são uma referência independente:
 
 | | |
-|---|---|
+| --- | --- |
 | Mídia acumulada | 316,76s |
 | Parede (mtimes) | 316,72s |
 | Diferença | **+0,01%**, ou ~10s projetados em 24h |
