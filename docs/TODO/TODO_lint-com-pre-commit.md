@@ -9,7 +9,8 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 12 (zizmor), commit 3: o hook.** Os detalhes estão na seção dela.
+**Etapa 13 (gitleaks, com uma regra para senha de câmera).** Os detalhes
+estão na seção dela.
 
 ## Checklist
 
@@ -25,7 +26,7 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 - [x] [Etapa 9 - ESLint com o plugin do Svelte](#etapa-9---eslint-com-o-plugin-do-svelte) - bug e má prática no JavaScript e nos componentes Svelte
 - [x] [Etapa 10 - ruff no dwnvr-detect](#etapa-10---ruff-no-dwnvr-detect) - lint e formatação do Python (o flake8 e o black numa ferramenta só)
 - [x] [Etapa 11 - golangci-lint, segunda leva](#etapa-11---golangci-lint-segunda-leva) - Go mais moderno e idiomático, quase tudo com fix automático
-- [ ] [Etapa 12 - zizmor](#etapa-12---zizmor) - segurança dos workflows: action sem SHA, permissão ampla, credencial exposta
+- [x] [Etapa 12 - zizmor](#etapa-12---zizmor) - segurança dos workflows: action sem SHA, permissão ampla, credencial exposta
 - [ ] [Etapa 13 - gitleaks, com uma regra para senha de câmera](#etapa-13---gitleaks-com-uma-regra-para-senha-de-câmera) - segredo no commit: token, chave e senha de câmera
 - [ ] [Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)](#etapa-14---as-regras-de-commit-do-agentsmd-como-hook-opcional) - Conventional Commits, sem travessão e body obrigatório
 - [ ] [Etapa 15 - Prettier (opcional)](#etapa-15---prettier-opcional) - formatação automática de JavaScript, Svelte e CSS
@@ -341,7 +342,15 @@ o hook acusou os três.
   `.github/zizmor.yml`: a sintaxe `uses: $/...` que ele pede não passa no
   actionlint (rhysd/actionlint#711), e os dois `./` só chamam o
   `imagens.yml` no nível do job, sem checkout antes.
-- [ ] Commit 3: o hook, do `zizmorcore/zizmor-pre-commit`.
+- [x] Commit 3: o hook, do `zizmorcore/zizmor-pre-commit`. Roda offline,
+  aqui e na CI, porque nenhum dos dois tem token do GitHub: ficam de fora os
+  audits que consultam a API, como o de action com vulnerabilidade conhecida.
+  Além dos workflows, ele audita o `.pre-commit-config.yaml`.
+- Na revisão de 27/09: a CI tem token, o `github.token`, só de leitura. Passado
+  como `ZIZMOR_GITHUB_TOKEN`, ele liga lá os audits online
+  (`known-vulnerable-actions`, `impostor-commit`, `ref-confusion` e
+  `stale-action-refs`). Rodados aqui com um token, deram 0. No clone o hook
+  segue offline.
 
 ### Etapa 13 - gitleaks, com uma regra para senha de câmera
 

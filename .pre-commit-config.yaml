@@ -89,6 +89,14 @@ repos:
     hooks:
       - id: actionlint-docker
 
+  # Segurança dos workflows: action sem SHA, permissão ampla, credencial
+  # exposta. As regras estão no .github/zizmor.yml. No clone roda offline; a
+  # CI lhe passa um token, que liga os audits que consultam o GitHub.
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.30.1
+    hooks:
+      - id: zizmor
+
   # Go: bug (errcheck, govet, staticcheck, unused...) e formatação (gofmt e
   # goimports). As regras estão no .golangci.yml. O -full olha o módulo
   # inteiro: o hook comum só olha o que mudou desde o HEAD, e na CI não acharia

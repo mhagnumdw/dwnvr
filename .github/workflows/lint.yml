@@ -75,5 +75,10 @@ jobs:
       - name: instalar o pre-commit
         run: pip install "pre-commit==$(awk '$1 == "pre-commit" { print $2 }' .tool-versions)"
 
+      # Com o token, o zizmor liga os audits que consultam o GitHub (action
+      # com vulnerabilidade conhecida, commit impostor, tag ambígua); sem ele,
+      # roda offline, como no clone. O token só lê o código, que já é público.
       - name: pre-commit
         run: pre-commit run --all-files --show-diff-on-failure --color=always
+        env:
+          ZIZMOR_GITHUB_TOKEN: ${{ github.token }}
