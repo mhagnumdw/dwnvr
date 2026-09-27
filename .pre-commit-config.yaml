@@ -110,3 +110,18 @@ repos:
         entry: go mod tidy
         files: (\.go|^go\.mod|^go\.sum)$
         pass_filenames: false
+
+  # Svelte: os warnings do compilador (acessibilidade, CSS sem uso). Tipo do
+  # JavaScript ele não confere: o web/ não tem jsconfig.json com checkJs. Roda
+  # no web/ inteiro, com o svelte do web/node_modules: em clone novo, antes
+  # rode `npm ci` no web/. O pre-commit instala o svelte-check num ambiente
+  # próprio, e o package.json do web/ não muda.
+  - repo: local
+    hooks:
+      - id: svelte-check
+        name: svelte-check
+        language: node
+        entry: svelte-check --workspace web --fail-on-warnings
+        additional_dependencies: [svelte-check@4.7.6, typescript@6.0.3]
+        files: ^web/(src/|svelte\.config\.js$|vite\.config\.js$)
+        pass_filenames: false

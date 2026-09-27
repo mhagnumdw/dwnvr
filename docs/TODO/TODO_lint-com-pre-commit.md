@@ -9,8 +9,9 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-**Etapa 8 (svelte-check).** O `lint.yml` ganha o `setup-node` e o `npm ci` do
-`web/`. Os detalhes estão na seção dela.
+**Etapa 9 (ESLint com o plugin do Svelte).** A correção pode mudar o
+comportamento da tela: ver rodando antes do commit. Os detalhes estão na seção
+dela.
 
 ## Checklist
 
@@ -22,7 +23,7 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 - [x] [Etapa 5 - hadolint](#etapa-5---hadolint) - boas práticas nos Dockerfiles, com o shellcheck nos `RUN`
 - [x] [Etapa 6 - actionlint](#etapa-6---actionlint) - erro de sintaxe e de expressão nos workflows do GitHub Actions
 - [x] [Etapa 7 - golangci-lint, primeira leva](#etapa-7---golangci-lint-primeira-leva) - bug no Go: erro ignorado, código morto, uso errado da stdlib
-- [ ] [Etapa 8 - svelte-check](#etapa-8---svelte-check) - warnings do compilador do Svelte: acessibilidade e CSS sem uso
+- [x] [Etapa 8 - svelte-check](#etapa-8---svelte-check) - warnings do compilador do Svelte: acessibilidade e CSS sem uso
 - [ ] [Etapa 9 - ESLint com o plugin do Svelte](#etapa-9---eslint-com-o-plugin-do-svelte) - bug e má prática no JavaScript e nos componentes Svelte
 - [ ] [Etapa 10 - ruff no dwnvr-detect](#etapa-10---ruff-no-dwnvr-detect) - lint e formatação do Python (o flake8 e o black numa ferramenta só)
 - [ ] [Etapa 11 - golangci-lint, segunda leva](#etapa-11---golangci-lint-segunda-leva) - Go mais moderno e idiomático, quase tudo com fix automático
@@ -216,8 +217,20 @@ o hook acusou os três.
 - Hook local rodando no `web/`. Nas devDependencies, ele traria o
   `typescript` (peer dele) para o `npm ci` do build da imagem; chamado por
   `npx` com a versão fixada, o build não muda. Preferir o `npx`.
+- Como saiu, em 27/09: nem `npx` nem devDependencies. O hook é `language:
+  node`, com o svelte-check 4.7.6 e o typescript 6.0.3 em
+  `additional_dependencies`: o pre-commit os instala num ambiente próprio, em
+  cache. O typescript fica na 6.x porque o svelte-check aceita `^5 || ^6`, e a
+  mais nova é a 7. O `--fail-on-warnings` faz warning interromper o commit.
+  Conferido com um componente plantado, com `<img>` sem `alt` e CSS sem uso:
+  o hook acusou os dois.
 - O `lint.yml` ganha o `setup-node` e o `npm ci` do `web/`.
 - Commit: `ci: svelte-check no pre-commit`.
+- Na revisão de 27/09: sem `jsconfig.json` com `checkJs`, ele não confere tipo
+  de JavaScript (um `n.toUpperCase()` com `n` numérico passa). Medido com um
+  `jsconfig.json` temporário: 32 erros sem `strict` e 894 com. Os 32 são
+  JSDoc impreciso ou inferência (`alfa = () => 1` vira função sem
+  parâmetro), nenhum bug; o `checkJs` ficou de fora.
 
 ### Etapa 9 - ESLint com o plugin do Svelte
 

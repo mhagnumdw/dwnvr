@@ -51,6 +51,17 @@ jobs:
           go-version: '1.27'
           cache-dependency-path: go.sum
 
+      # O svelte-check usa o svelte do web/node_modules.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # Sem os scripts de instalação dos pacotes: o lint só lê o
+      # node_modules, e nenhum pacote roda código na instalação.
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+        working-directory: web
+
       # Os ambientes dos hooks, que o pre-commit monta na primeira execução.
       # Mudou o .pre-commit-config.yaml, monta de novo. Mudou o Go também: o
       # golangci-lint compilado com um Go mais velho que o do go.mod se recusa
