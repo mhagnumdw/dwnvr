@@ -1,15 +1,44 @@
-# Hooks do pre-commit (https://pre-commit.com). Rodam a cada commit, nos
-# arquivos do commit, e corrigem o que dá para corrigir. Quando um hook corrige
-# algo, o commit é interrompido: confira, dê `git add` e commite de novo.
+# Hooks do prek (https://prek.j178.dev), que lê o formato do pre-commit. Rodam
+# a cada commit, nos arquivos do commit, e corrigem o que dá para corrigir.
+# Quando um hook corrige algo, o commit é interrompido: confira, dê `git add` e
+# commite de novo.
 #
-# Uma vez por clone: `pre-commit install` (a versão está no .tool-versions).
-# Rodar em tudo, como a CI: `pre-commit run --all-files`
+# Uma vez por máquina: `uv tool install prek`. Uma vez por clone:
+# `prek install`. Rodar em tudo, como a CI: `prek run --all-files`
 #
 # A CI roda este mesmo arquivo (.github/workflows/lint.yml) e não corrige
 # nada: se um hook mudaria algum arquivo, o job falha e mostra o diff.
+#
+# O arquivo é só do prek: o pre-commit recusa o `default_language_version` em
+# forma de mapa, e não conhece o `priority`, o `priorities` e o
+# `minimum_prek_version`.
 
 default_install_hook_types: [pre-commit]
 default_stages: [pre-commit]
+
+# A versão que a CI instala. Um prek mais velho que ela se recusa a rodar.
+minimum_prek_version: '0.5.3'
+
+# O Go dos hooks em Go (golangci-lint e betterleaks), que o prek baixa e guarda
+# no cache dele, e não o Go do PATH. Com o asdf, o do PATH é um shim que, na
+# pasta do hook, cai no Go global, e cada chamada ao `go` fica mais lenta. É o
+# Go do go.mod: compilado com um mais velho, o golangci-lint se recusa a rodar.
+# Mudou aqui, o prek monta o ambiente de novo sozinho.
+default_language_version:
+  golang:
+    request: '1.27.1'
+    preference: only-managed
+
+# A ordem dos hooks. Os de mesmo `priority` rodam juntos, e o valor seguinte
+# só começa quando o anterior termina. Primeiro os fixers de texto, de 0 a 3,
+# um por vez, porque mexem nos mesmos arquivos. Depois os formatadores, juntos,
+# cada um no seu tipo de arquivo. Depois o que lê o que eles acabaram de
+# escrever. Por fim, juntos, todos os que só conferem. Todo hook tem o seu, e
+# hook novo entra numa dessas ondas.
+priorities:
+  formatar: 10
+  formatar-depois: 11
+  conferir: 20
 
 # O que é gerado, e por isso nunca editado à mão, fica fora de todo hook. O
 # internal/api/dist/ sai do `npm run build`, e o ci.yml o compara com um build
@@ -23,16 +52,25 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        priority: 0
       - id: end-of-file-fixer
+        priority: 1
       - id: mixed-line-ending
+        priority: 2
         args: [--fix=lf]
       - id: fix-byte-order-marker
+        priority: 3
       - id: check-merge-conflict
+        priority: conferir
       - id: check-case-conflict
+        priority: conferir
       - id: check-yaml
+        priority: conferir
       - id: check-json
+        priority: conferir
         exclude: ^\.vscode/  # JSONC: o VS Code aceita comentário
       - id: check-toml
+        priority: conferir
       # Arquivo acima de 500 KB interrompe o commit: modelo, vídeo ou quadro
       # de câmera entrando sem querer. Quando for de propósito:
       # SKIP=check-added-large-files git commit ... e o arquivo entra no
@@ -40,9 +78,11 @@ repos:
       # só o novo no staged: sem ele, na CI, que não tem staged, o hook não
       # confere nada.
       - id: check-added-large-files
+        priority: conferir
         args: [--enforce-all]
         exclude: ^dwnvr-detect/modelo/rfdetr-n_512x288_int8\.onnx$
       - id: detect-private-key
+        priority: conferir
 
   # Markdown. As regras estão no .markdownlint-cli2.yaml. O --no-globs faz o
   # hook olhar só os arquivos do commit, e não o `globs` da config, que é o
@@ -51,6 +91,7 @@ repos:
     rev: v0.23.3
     hooks:
       - id: markdownlint-cli2
+        priority: formatar
         args: [--no-globs, --fix]
 
   # Link e âncora do Markdown, sem rede. As regras estão no lychee.toml. Roda
@@ -62,6 +103,7 @@ repos:
     rev: lychee-v0.24.2
     hooks:
       - id: lychee-docker
+        priority: conferir
         entry: docker.io/lycheeverse/lychee:0.24.2-alpine
         types: [markdown]
 
@@ -71,6 +113,7 @@ repos:
     rev: v1.38.0
     hooks:
       - id: yamllint
+        priority: conferir
         args: [--strict]
 
   # Dockerfiles, com o shellcheck nos RUN. Roda pela imagem oficial, então
@@ -80,6 +123,7 @@ repos:
     rev: v2.15.1
     hooks:
       - id: hadolint-docker
+        priority: conferir
         entry: ghcr.io/hadolint/hadolint:v2.15.1 hadolint
 
   # Workflows do GitHub Actions: sintaxe, expressões e o shellcheck nos `run:`.
@@ -88,6 +132,7 @@ repos:
     rev: v1.7.12
     hooks:
       - id: actionlint-docker
+        priority: conferir
 
   # Segurança dos workflows: action sem SHA, permissão ampla, credencial
   # exposta. As regras estão no .github/zizmor.yml. No clone roda offline; a
@@ -96,19 +141,23 @@ repos:
     rev: v1.30.1
     hooks:
       - id: zizmor
+        priority: conferir
 
   # Segredo no commit: token, chave e senha de câmera na URL rtsp://. As
-  # regras estão no .betterleaks.toml. O binário é compilado com o Go do PATH.
+  # regras estão no .betterleaks.toml. O binário é compilado com o Go do
+  # default_language_version, acima.
   #
   # O primeiro olha só o staged, e a CI o pula (o SKIP do lint.yml). O
   # segundo, só na CI, olha o histórico inteiro: pega o que entrou sem passar
-  # pelo hook (editor do GitHub, clone sem `pre-commit install`). À mão:
-  # pre-commit run betterleaks-historico --hook-stage manual --all-files
+  # pelo hook (editor do GitHub, clone sem `prek install`). À mão:
+  # prek run betterleaks-historico --stage manual --all-files
   - repo: https://github.com/betterleaks/betterleaks
     rev: v1.8.1
     hooks:
       - id: betterleaks
+        priority: conferir
       - id: betterleaks
+        priority: conferir
         alias: betterleaks-historico
         name: betterleaks no histórico
         entry: betterleaks git --redact --verbose
@@ -117,19 +166,23 @@ repos:
   # Go: bug (errcheck, govet, staticcheck, unused...) e formatação (gofmt e
   # goimports). As regras estão no .golangci.yml. O -full olha o módulo
   # inteiro: o hook comum só olha o que mudou desde o HEAD, e na CI não acharia
-  # nada. Ele é compilado com o Go do PATH.
+  # nada. Ele é compilado com o Go do default_language_version, acima.
   - repo: https://github.com/golangci/golangci-lint
     rev: v2.14.0
     hooks:
       - id: golangci-lint-full
+        priority: conferir
       - id: golangci-lint-fmt
+        priority: formatar
       - id: golangci-lint-config-verify
+        priority: conferir
 
   # go.mod e go.sum de acordo com os imports: dependência que falta entra, a
   # que sobra sai.
   - repo: local
     hooks:
       - id: go-mod-tidy
+        priority: formatar-depois
         name: go mod tidy
         language: system
         entry: go mod tidy
@@ -143,6 +196,7 @@ repos:
   - repo: local
     hooks:
       - id: svelte-check
+        priority: conferir
         name: svelte-check
         language: system
         entry: web/node_modules/.bin/svelte-check --workspace web --fail-on-warnings
@@ -158,6 +212,7 @@ repos:
   - repo: local
     hooks:
       - id: eslint
+        priority: formatar
         name: eslint
         language: system
         entry: web/node_modules/.bin/eslint
@@ -170,5 +225,7 @@ repos:
     rev: v0.16.9
     hooks:
       - id: ruff-check
+        priority: formatar
         args: [--fix]
       - id: ruff-format
+        priority: formatar-depois

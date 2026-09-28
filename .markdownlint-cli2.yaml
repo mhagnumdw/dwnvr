@@ -1,5 +1,5 @@
-# Regras do markdownlint-cli2, lidas pelo hook do pre-commit (e por ele na CI)
-# e pela extensão markdownlint do VS Code.
+# Regras do markdownlint-cli2, lidas pelo hook do prek (e por ele na CI) e
+# pela extensão markdownlint do VS Code.
 
 config:
   default: true

@@ -37,11 +37,12 @@ limitado**, como exemplo o Orange Pi Zero 3. Ele não é feito *para* um hardwar
 
 ## Lint
 
-- Uma vez por clone: `pre-commit install`. A cada commit, os hooks do
+- Uma vez por clone: `prek install` (o prek se instala com
+  `uv tool install prek`). A cada commit, os hooks do
   `.pre-commit-config.yaml` conferem os arquivos e corrigem o que dá; quando
   um hook corrige algo, o commit é interrompido, e basta conferir, dar
   `git add` e commitar de novo.
-- Antes de propor um commit: `pre-commit run --all-files`. A CI
+- Antes de propor um commit: `prek run --all-files`. A CI
   (`.github/workflows/lint.yml`) roda o mesmo arquivo, sem corrigir nada.
 - Nunca `git commit --no-verify`. Regra de lint não se desliga para passar:
   corrija; se não houver como, desligue só naquela linha, com o motivo nela.
@@ -69,7 +70,7 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 | `image:` do go2rtc no `docker-compose.yml` | manter `${GO2RTC_VERSION:-X.Y.Z}` com uma tag testada, nunca sem tag: sem ela, o `--pull always` da atualização traz qualquer versão · §Atualizar do `README.md` · §Trocar de versão do `docs/operacao.md` |
 | comando de atualizar | §Atualizar do `README.md` (a página de cada release aponta para ela) · §Trocar de versão do `docs/operacao.md` |
 | alvo ou variável no `Makefile` | comentário `## alvo:` (o `make help` lê) · §Build do `README.md` · `local.mk.example` |
-| versão de Go ou de Node | `go.mod` · `.tool-versions` (o asdf local) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` e `lint.yml` (`setup-go`/`setup-node`) · §Tecnologias do `README.md` · subiu o Go: `pre-commit clean`, porque o golangci-lint compilado com o Go velho se recusa a rodar |
+| versão de Go ou de Node | `go.mod` · `.tool-versions` (o asdf local) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` e `lint.yml` (`setup-go`/`setup-node`) · §Tecnologias do `README.md` · `default_language_version` do `.pre-commit-config.yaml`, porque o golangci-lint compilado com o Go velho se recusa a rodar |
 | arquivo ou diretório novo na raiz | `.gitignore` se for local. O `.dockerignore` é allowlist invertida (`**` + `!`): o que o build precisar exige um `!` explícito, senão some do contexto |
 | arquivo gerado, que não se edita à mão | `exclude` do `.pre-commit-config.yaml` (hoje `internal/api/dist/` e `CHANGELOG.md`): sem ele, um hook o reescreve e o lint da CI falha |
 | volume, porta, env ou serviço no `docker-compose.yml` | §Experimentar em poucos minutos, §Instalar de verdade e §Detecção de movimento e de objetos do `README.md` · `docker-compose.build.yml` (se for serviço com imagem própria) · `docs/operacao.md` · `go2rtc.url` do `dwnvr.example.yaml` (depende do nome do serviço) |

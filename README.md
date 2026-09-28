@@ -693,7 +693,7 @@ onde ninguém quer instalar toolchain de frontend.
 
 ```sh
 make test        # testes de unidade
-make check       # testes + os lints do pre-commit
+make check       # testes + os lints do prek
 ```
 
 A CI roda isso e mais uma coisa: reconstrói a interface para conferir se o
@@ -712,12 +712,14 @@ o chama, com a versão (ver [Release](#release)).
 
 ### Lint
 
-Os lints rodam pelo [pre-commit](https://pre-commit.com), na versão do
-`.tool-versions`. Uma vez por clone:
+Os lints rodam pelo [prek](https://prek.j178.dev), que lê o formato do
+pre-commit. A versão mínima está no `minimum_prek_version` do
+`.pre-commit-config.yaml`. Uma vez por máquina e uma vez por clone:
 
 ```sh
-pre-commit install            # liga os hooks neste clone
-pre-commit run --all-files    # roda todos, como a CI
+uv tool install prek    # instala o prek
+prek install            # liga os hooks neste clone
+prek run --all-files    # roda todos, como a CI
 ```
 
 A cada commit, os hooks do `.pre-commit-config.yaml` conferem os arquivos do

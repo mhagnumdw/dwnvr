@@ -4,7 +4,7 @@ Levantado em 27/09/2026, na revisão do lint com pre-commit
 ([`TODO_lint-com-pre-commit.md`](TODO_lint-com-pre-commit.md)). O estado de
 cada item foi lido na API do GitHub nesse dia.
 
-O pre-commit já cobre o que dá para conferir sem rede, no commit. O que sobra
+O lint do commit já cobre o que dá para conferir sem rede, no commit. O que sobra
 de segurança precisa de rede ou de uma base de vulnerabilidades atualizada, e
 mora no GitHub: quase tudo é um clique no Settings, sem código para manter.
 
@@ -37,7 +37,7 @@ versão corrigida. Não depende do `dependabot.yml`.
 Settings, na seção de segurança, em Code scanning. A API já detecta as
 linguagens: actions, go, javascript e python. Análise de fluxo de dado
 (entrada da requisição chegando num caminho de arquivo, num comando, numa
-URL), que os linters do pre-commit não fazem. O resultado vai para a aba
+URL), que os linters do commit não fazem. O resultado vai para a aba
 Security, e não segura nada.
 
 ### Private vulnerability reporting
@@ -62,8 +62,8 @@ Hoje o `.github/zizmor.yml` aceita a tag de major nas actions `actions/*` e
 `docker/*`. O padrão do próprio zizmor só libera `actions/*`, `github/*` e
 `dependabot/*`, e as actions da Docker são as que recebem o token com
 `packages: write`, no `imagens.yml`. O mesmo vale para os `rev:` do
-pre-commit, que são tags de repositório de terceiro rodando na máquina de
-quem commita (`pre-commit autoupdate --freeze` os troca por SHA).
+`.pre-commit-config.yaml`, que são tags de repositório de terceiro rodando na
+máquina de quem commita (`prek update --freeze` os troca por SHA).
 
 O pin por SHA foi recusado na Etapa 12 (o zizmor) do lint porque o SHA não diz
 a versão. Com o Dependabot, a versão fica num comentário do lado

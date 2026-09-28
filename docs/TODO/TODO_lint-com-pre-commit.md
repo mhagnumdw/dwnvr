@@ -9,8 +9,8 @@ Uma etapa por vez. Cada uma entra no seu commit (a Etapa 12 em três), e o
 
 ## Próximo passo
 
-Nenhum. O plano terminou em 27/09/2026: as Etapas 1 a 13 entraram, e as
-Etapas 14 a 16, opcionais, foram canceladas.
+Nenhum. O plano terminou em 27/09/2026: as Etapas 1 a 13 e a 17 entraram, e
+as Etapas 14 a 16, opcionais, foram canceladas.
 
 ## Checklist
 
@@ -31,6 +31,7 @@ Etapas 14 a 16, opcionais, foram canceladas.
 - ~~[Etapa 14 - as regras de commit do AGENTS.md como hook (opcional)](#etapa-14---as-regras-de-commit-do-agentsmd-como-hook-opcional) - Conventional Commits, sem travessão e body obrigatório~~ - cancelada em 27/09/2026
 - ~~[Etapa 15 - Prettier (opcional)](#etapa-15---prettier-opcional) - formatação automática de JavaScript, Svelte e CSS~~ - cancelada em 27/09/2026
 - ~~[Etapa 16 - cspell pt-BR (opcional)](#etapa-16---cspell-pt-br-opcional) - ortografia pt-BR nos `.md`~~ - cancelada em 27/09/2026
+- [x] [Etapa 17 - prek no lugar do pre-commit](#etapa-17---prek-no-lugar-do-pre-commit) - os mesmos hooks, com os independentes rodando juntos
 
 ## Por que
 
@@ -431,6 +432,38 @@ o hook acusou os três.
   falsos positivos, porque o dicionário dele é de erro de inglês ("erro" vira
   "error").
 
+### Etapa 17 - prek no lugar do pre-commit
+
+- [prek](https://github.com/j178/prek), que lê o mesmo
+  `.pre-commit-config.yaml`. Entrou depois do fim do plano, pelo tempo
+  medido em 27/09/2026 (prek 0.5.3 contra o pre-commit 4.6.2, com
+  `SKIP=betterleaks` e `--all-files`).
+- Em série, como o pre-commit, o ganho é pouco: os hooks do
+  pre-commit-hooks, que o prek reimplementa em Rust, caem de ~1,3 s para
+  ~0, e o resto do tempo é das ferramentas. O ganho vem do `priority`, que
+  roda juntos os hooks independentes, em quatro ondas: fixers de texto, um
+  por vez; formatadores; o que lê o que eles escreveram; os que só conferem.
+- No clone, 20 núcleos, quente: 9,6 s com o pre-commit, 8,2 s em série e
+  4,0 s com o `priority`. Commit de três arquivos (`.md`, `.go` e
+  `.svelte`): 5,8 s, 5,1 s e 2,9 s. Frio: 91,6 s e 20,9 s.
+- Na CI, job inteiro, na branch de teste `prek`: quente, 67 e 69 s com o
+  pre-commit, 59 e 65 s em série, e 42 e 40 s com o `priority`. Só o passo
+  dos hooks: 28 a 31 s nos dois primeiros e 16 s com o `priority`. Frio: 146,
+  128 e 124 s, quase tudo compilando os hooks em Go.
+- O Go dos hooks em Go é o que o prek baixa (`default_language_version`,
+  `preference: only-managed`). Com o Go do PATH, o prek usava o shim do
+  asdf, que na pasta do hook cai no Go global: com o global no 1.24, o
+  golangci-lint nem compilava, e com o Go certo o `golangci-lint-fmt` levava
+  1,8 s em vez de 0,5 s. O pre-commit já baixava o próprio Go, porque ignora
+  shim. Mudar a versão lá monta o ambiente de novo, sem `cache clean`.
+- A versão do prek fica no `minimum_prek_version`, e a CI instala
+  exatamente ela, pelo pip. O pre-commit sai do `.tool-versions`: não há
+  plugin do prek no índice do asdf, e os de terceiro não têm uso. No clone,
+  `uv tool install prek`.
+- O arquivo passa a ser só do prek: o pre-commit ainda roda com ele, mas
+  avisa de cada `priority`.
+- Commit: `ci: prek no lugar do pre-commit, com hooks em paralelo`.
+
 ## Fora do plano
 
 - **Dependabot** com o ecossistema `pre-commit`, para subir os `rev`, e o
@@ -458,6 +491,7 @@ o hook acusou os três.
 | Ferramenta | Versão |
 | --- | --- |
 | pre-commit | 4.6.2 |
+| prek | 0.5.3 |
 | pre-commit-hooks | v6.0.0 |
 | markdownlint-cli2 | v0.23.3 |
 | lychee | lychee-v0.24.2 |

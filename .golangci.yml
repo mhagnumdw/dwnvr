@@ -1,5 +1,5 @@
-# Regras do golangci-lint, lidas pelo hook do pre-commit (e por ele na CI) e
-# pelo editor.
+# Regras do golangci-lint, lidas pelo hook do prek (e por ele na CI) e pelo
+# editor.
 version: "2"
 
 linters:

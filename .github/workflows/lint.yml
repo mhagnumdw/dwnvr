@@ -1,9 +1,9 @@
-# Lint do dwnvr: roda na CI o mesmo .pre-commit-config.yaml do commit local,
-# em todos os arquivos.
+# Lint do dwnvr: roda na CI, com o prek, o mesmo .pre-commit-config.yaml do
+# commit local, em todos os arquivos.
 #
 # Aqui nada é corrigido. Se um hook mudaria algum arquivo, o job falha e o
 # --show-diff-on-failure mostra o diff; a correção se faz no clone, com
-# `pre-commit run --all-files`, e vai num commit.
+# `prek run --all-files`, e vai num commit.
 #
 # Fica fora do ci.yml de propósito: lint vermelho avisa, mas não segura a
 # publicação das imagens, e a release só confere o ci.yml.
@@ -26,9 +26,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  pre-commit:
+  prek:
     runs-on: ubuntu-latest
-    # Leva ~1 min, e ~2 min com o cache frio. Sem isto, um hook travado
+    # Leva ~40 s, e ~2 min com o cache frio. Sem isto, um hook travado
     # prenderia o runner por 6 h.
     timeout-minutes: 15
     permissions:
@@ -44,10 +44,9 @@ jobs:
         with:
           python-version: '3.x'
 
-      # O golangci-lint é compilado pelo pre-commit com este Go, e analisa o
-      # código com ele.
+      # O Go do `go mod tidy`. O golangci-lint e o betterleaks usam o Go que o
+      # prek baixa, o do default_language_version do config.
       - uses: actions/setup-go@v7
-        id: go
         with:
           go-version: '1.27'
           cache-dependency-path: go.sum
@@ -63,25 +62,23 @@ jobs:
       - run: npm ci --no-audit --no-fund --ignore-scripts
         working-directory: web
 
-      # Os ambientes dos hooks, que o pre-commit monta na primeira execução.
-      # Mudou o .pre-commit-config.yaml, monta de novo. Mudou o Go também: o
-      # golangci-lint compilado com um Go mais velho que o do go.mod se recusa
-      # a rodar.
+      # Os ambientes dos hooks, que o prek monta na primeira execução, e o Go
+      # que ele baixa para eles. Mudou o .pre-commit-config.yaml, monta de novo.
       - uses: actions/cache@v6
         with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-go${{ steps.go.outputs.go-version }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          path: ~/.cache/prek
+          key: prek-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('.pre-commit-config.yaml') }}
 
-      # A mesma versão do asdf local.
-      - name: instalar o pre-commit
-        run: pip install "pre-commit==$(awk '$1 == "pre-commit" { print $2 }' .tool-versions)"
+      # A versão do minimum_prek_version do config.
+      - name: instalar o prek
+        run: pip install "prek==$(awk '$1 == "minimum_prek_version:" { gsub(/\047/, "", $2); print $2 }' .pre-commit-config.yaml)"
 
       # O betterleaks olha só o staged, e aqui não há staged. Com o token, o
       # zizmor liga os audits que consultam o GitHub (action com
       # vulnerabilidade conhecida, commit impostor, tag ambígua); sem ele, roda
       # offline, como no clone. O token só lê o código, que já é público.
-      - name: pre-commit
-        run: pre-commit run --all-files --show-diff-on-failure --color=always
+      - name: prek
+        run: prek run --all-files --show-diff-on-failure --color=always
         env:
           SKIP: betterleaks
           ZIZMOR_GITHUB_TOKEN: ${{ github.token }}
@@ -90,4 +87,4 @@ jobs:
       # não passa por aqui.
       - name: betterleaks no histórico
         if: ${{ !cancelled() }}
-        run: pre-commit run betterleaks-historico --hook-stage manual --all-files --color=always
+        run: prek run betterleaks-historico --stage manual --all-files --color=always

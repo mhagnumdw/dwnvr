@@ -1,5 +1,5 @@
 // ESLint do web/: bug e má prática no JavaScript e nos componentes Svelte.
-// Roda pelo pre-commit (.pre-commit-config.yaml); à mão: `npx eslint .`
+// Roda pelo prek (.pre-commit-config.yaml); à mão: `npx eslint .`
 import { defineConfig, globalIgnores } from 'eslint/config';
 import js from '@eslint/js';
 import svelte from 'eslint-plugin-svelte';

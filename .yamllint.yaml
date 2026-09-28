@@ -1,4 +1,4 @@
-# Regras do yamllint, lidas pelo hook do pre-commit (e por ele na CI).
+# Regras do yamllint, lidas pelo hook do prek (e por ele na CI).
 
 extends: default
 

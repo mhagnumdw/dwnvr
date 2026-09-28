@@ -90,7 +90,7 @@ test:
 
 ## check: o que a CI roda
 check: test
-	pre-commit run --all-files
+	prek run --all-files
 
 ## deploy: atualiza o servidor remoto com a imagem que a CI publicou
 #
