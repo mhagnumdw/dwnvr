@@ -125,7 +125,7 @@ func run(log *slog.Logger, cfgPath string) error {
 
 	srv := &http.Server{
 		Addr:    cfg.Server.Listen,
-		Handler: api.New(cfg, st, client, mgr, secret, log).Handler(),
+		Handler: api.New(cfg, st, client, mgr, ret, secret, log).Handler(),
 		// Sem WriteTimeout: exportação e proxy de live são respostas longas por
 		// natureza, e um teto aqui as cortaria no meio.
 		ReadHeaderTimeout: 10 * time.Second,

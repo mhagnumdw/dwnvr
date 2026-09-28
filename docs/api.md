@@ -36,6 +36,7 @@ Todo o resto exige sessão válida.
 | `GET /api/streams/probe` | `src` | diz se um stream entrega áudio, abrindo-o se preciso |
 | `POST /api/go2rtc/restart` | - | reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
 | `GET /api/health` | - | bitrate medido, dias estimados, estado do disco, uptimes e relógio |
+| `POST /api/reconnects/reset` | - | zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
 | `GET /api/health/servidor` | - | a máquina que grava: temperatura, memória, pressão, storage, go2rtc e últimos avisos do log |
 | `DELETE /api/rec` | `cam` | apaga as gravações; serve também câmera já removida |
 
@@ -90,6 +91,34 @@ nomes.
 
 Cada câmera do `/api/health` diz se a marcação de movimento está ligada
 (`detect`) e quantos onsets ela marcou desde que o dwnvr subiu (`onsets`).
+
+As reconexões de cada câmera do `/api/health` contam desde `reconnectsSince`:
+a subida do recorder, que é a do dwnvr ou a última vez em que a câmera foi
+reiniciada por mudança de configuração, ou o último
+`POST /api/reconnects/reset`. `reconnectsInWindow` são as que caíram dentro das
+últimas `reconnectsWindowHours` horas, que vem na raiz da resposta e mora em
+`recorder.JanelaDeReconexoes` (`internal/recorder/parametros.go`).
+`lastReconnectAt` é a mais recente, e `disconnectedAt`, que só vem com
+`connected: false`, é quando a conexão caiu:
+
+```json
+"reconnects": 24,
+"reconnectsSince": "2026-09-28T08:37:02-03:00",
+"reconnectsInWindow": 24,
+"lastReconnectAt": "2026-09-28T13:58:12-03:00"
+```
+
+Os avisos da tela com "desde quando" saem também do `disk.belowMinSince`, que a
+retenção marca na primeira passada com o disco abaixo do mínimo, e do `go2rtc`,
+que só aparece enquanto o go2rtc não responde ao dwnvr. Ele é marcado na
+primeira falha de transporte, e qualquer resposta HTTP, mesmo um erro, o apaga:
+
+```json
+"go2rtc": {
+  "error": "dial tcp 127.0.0.1:1984: connect: connection refused",
+  "since": "2026-09-28T13:58:12-03:00"
+}
+```
 
 Com o detector de objetos configurado, cada câmera do `/api/health` traz também
 o **funil**: o destino de cada onset, desde que o dwnvr subiu. As fatias fecham

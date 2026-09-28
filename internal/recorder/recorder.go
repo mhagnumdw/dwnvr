@@ -114,6 +114,17 @@ type Status struct {
 	HasAudio    bool      `json:"hasAudio"`
 	Gen         string    `json:"gen,omitempty"`
 
+	// DisconnectedAt é quando a conexão caiu; só vem com Connected falso.
+	DisconnectedAt time.Time `json:"disconnectedAt,omitzero"`
+
+	// ReconnectsSince é o início da contagem do Reconnects: quando o recorder
+	// subiu, ou quando a contagem foi zerada pela tela. ReconnectsInWindow são
+	// as que caíram dentro da JanelaDeReconexoes, e LastReconnectAt a mais
+	// recente de todas.
+	ReconnectsSince    time.Time `json:"reconnectsSince"`
+	ReconnectsInWindow int64     `json:"reconnectsInWindow"`
+	LastReconnectAt    time.Time `json:"lastReconnectAt,omitzero"`
+
 	// Width e Height são a resolução que está sendo gravada, lida do init da
 	// própria conexão - não do que a câmera diz que faz. Ficam zeradas enquanto
 	// a câmera nunca conectou.
@@ -189,10 +200,9 @@ type Recorder struct {
 	idx    *store.Camera
 	log    *slog.Logger
 
-	bytes      atomic.Int64
-	segments   atomic.Int64
-	reconnects atomic.Int64
-	onsets     atomic.Int64
+	bytes    atomic.Int64
+	segments atomic.Int64
+	onsets   atomic.Int64
 
 	// mec é o gatilho de movimento desta câmera. Ele pertence à goroutine da
 	// sessão e só ela o toca - por isso não tem lock nenhum, e por isso a troca
@@ -251,12 +261,25 @@ type Recorder struct {
 	gen         string
 	bitrateKbps float64
 
+	// disconnectedAt é quando a conexão caiu, e só vale com connected falso:
+	// é o "desconectada desde" da tela.
+	disconnectedAt time.Time
+
 	// lastEnd é o fim (em relógio de parede) do último segmento fechado. É a
 	// emenda de onde o próximo parte - ver segmenter.inicioDe.
 	lastEnd int64
 
 	startedAt    time.Time
 	silentLogged bool
+
+	// As reconexões são contadas desde contandoDesde, que nasce com o recorder
+	// e anda quando alguém zera a contagem pela tela. reconexoesRecentes guarda
+	// o instante (ms) das que caíram dentro da JanelaDeReconexoes, e nada além
+	// dela: é podada a cada inserção.
+	reconexoes         int64
+	contandoDesde      time.Time
+	ultimaReconexao    time.Time
+	reconexoesRecentes []int64
 
 	sampleAt    time.Time
 	sampleBytes int64
@@ -283,6 +306,7 @@ func newRecorder(cam config.Camera, client *go2rtc.Client, idx *store.Camera, lo
 		cam: cam, client: client, idx: idx, log: log.With("cam", cam.ID),
 		startedAt: time.Now(),
 	}
+	r.contandoDesde = r.startedAt
 	r.pedeDetect(cam)
 	return r
 }
@@ -519,7 +543,9 @@ func (r *Recorder) Status() Status {
 		Connected: r.connected, ConnectedAt: r.connectedAt,
 		BitrateKbps: r.bitrateKbps,
 		Bytes:       r.bytes.Load(), Segments: r.segments.Load(),
-		Reconnects: r.reconnects.Load(), LastError: r.lastErr,
+		Reconnects: r.reconexoes, LastError: r.lastErr,
+		ReconnectsSince: r.contandoDesde, LastReconnectAt: r.ultimaReconexao,
+		ReconnectsInWindow: r.reconexoesNaJanelaLocked(time.Now()), DisconnectedAt: r.disconnectedAt,
 		Detect: r.cam.Detect != nil && *r.cam.Detect, Onsets: r.onsets.Load(),
 		Funil:      r.funil(),
 		VideoCodec: r.videoCodec, HasAudio: r.hasAudio, Gen: r.gen,
@@ -574,13 +600,59 @@ func (r *Recorder) sampleBitrate(now time.Time) {
 func (r *Recorder) setConnected(v bool, err string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.connected = v
-	if v {
-		r.connectedAt = time.Now()
+	agora := time.Now()
+	switch {
+	case v:
+		r.connectedAt = agora
+		r.disconnectedAt = time.Time{}
+	case r.connected || r.disconnectedAt.IsZero():
+		// Só a transição marca: as tentativas seguintes, que também falham,
+		// não podem empurrar o "desde" para frente.
+		r.disconnectedAt = agora
 	}
+	r.connected = v
 	if err != "" {
 		r.lastErr = err
 	}
+}
+
+// contaReconexao registra uma queda: soma no total, guarda o instante como a
+// última e o acrescenta à janela, que é podada aqui mesmo para não crescer.
+func (r *Recorder) contaReconexao(agora time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.reconexoes++
+	r.ultimaReconexao = agora
+	corte := agora.Add(-JanelaDeReconexoes).UnixMilli()
+	i := 0
+	for i < len(r.reconexoesRecentes) && r.reconexoesRecentes[i] < corte {
+		i++
+	}
+	r.reconexoesRecentes = append(r.reconexoesRecentes[i:], agora.UnixMilli())
+}
+
+// reconexoesNaJanelaLocked conta as reconexões dentro da janela sem podar a
+// lista: roda sob o RLock do Status, e só quem escreve pode mexer nela.
+func (r *Recorder) reconexoesNaJanelaLocked(agora time.Time) int64 {
+	corte := agora.Add(-JanelaDeReconexoes).UnixMilli()
+	var n int64
+	for _, t := range r.reconexoesRecentes {
+		if t >= corte {
+			n++
+		}
+	}
+	return n
+}
+
+// zerarReconexoes recomeça a contagem agora. Não mexe na conexão: só nos
+// números que a tela mostra.
+func (r *Recorder) zerarReconexoes(agora time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.reconexoes = 0
+	r.contandoDesde = agora
+	r.ultimaReconexao = time.Time{}
+	r.reconexoesRecentes = nil
 }
 
 // run mantém a câmera gravando, reconectando com backoff exponencial. Uma
@@ -594,7 +666,7 @@ func (r *Recorder) run(ctx context.Context) {
 		}
 
 		r.setConnected(false, errText(err))
-		r.reconnects.Add(1)
+		r.contaReconexao(time.Now())
 		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 			r.log.Warn("conexão caiu", "erro", err, "reconectando_em", backoff)
 		} else {

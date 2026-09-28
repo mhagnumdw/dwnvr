@@ -42,6 +42,12 @@ export const health = $state({
   // { fila: { agora, cap, pico }, tempos: { analiseMs, esperaMs } }. Nulo sem
   // detector de objetos configurado.
   detector: null,
+  // Horas da janela de reconexões recentes; o número mora no servidor
+  // (recorder.JanelaDeReconexoes). Nulo contra servidor antigo.
+  reconnectsWindowHours: null,
+  // { error, since } enquanto o go2rtc não responde ao dwnvr; nulo quando ele
+  // responde, e também contra servidor antigo.
+  go2rtc: null,
   updatedAt: 0,
 });
 
@@ -201,6 +207,8 @@ export async function loadHealth() {
     health.uptime = data.uptime ?? null;
     health.clock = data.clock ?? null;
     health.detector = data.detector ?? null;
+    health.reconnectsWindowHours = data.reconnectsWindowHours ?? null;
+    health.go2rtc = data.go2rtc ?? null;
     health.updatedAt = Date.now();
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.

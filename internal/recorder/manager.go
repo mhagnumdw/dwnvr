@@ -260,6 +260,16 @@ func (m *Manager) recorders() []*Recorder {
 	return out
 }
 
+// ZerarReconexoes recomeça a contagem de reconexões de todas as câmeras no ar.
+// É o botão da tela de diagnóstico: depois de mexer num enlace, quem administra
+// quer ver se as quedas voltam, sem o histórico antigo misturado.
+func (m *Manager) ZerarReconexoes() {
+	agora := time.Now()
+	for _, r := range m.recorders() {
+		r.zerarReconexoes(agora)
+	}
+}
+
 // Status devolve a saúde de todas as câmeras cadastradas, inclusive as
 // desabilitadas - sumir da tela de diagnóstico é a pior forma de sinalizar que
 // uma câmera parou.

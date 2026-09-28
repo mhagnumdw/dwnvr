@@ -536,6 +536,54 @@ func TestHealthMostraODetectorSoQuandoConfigurado(t *testing.T) {
 	}
 }
 
+// O botão de zerar reconexões da tela de diagnóstico chega nesta rota.
+func TestZerarReconexoesTemRota(t *testing.T) {
+	s, _ := testServer(t)
+	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // o Handler monta o proxy do live com ele
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/reconnects/reset", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// O /api/health diz o tamanho da janela de reconexões, e só fala do go2rtc
+// quando ele não está respondendo.
+func TestHealthJanelaDeReconexoesEGo2rtc(t *testing.T) {
+	health := func(s *Server) map[string]json.RawMessage {
+		rec := httptest.NewRecorder()
+		s.handleHealth(rec, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+		var got map[string]json.RawMessage
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
+		}
+		return got
+	}
+
+	s, _ := testServer(t)
+	got := health(s)
+	if string(got["reconnectsWindowHours"]) != "8" {
+		t.Errorf("reconnectsWindowHours = %s, esperava 8", got["reconnectsWindowHours"])
+	}
+	if _, tem := got["go2rtc"]; tem {
+		t.Error("go2rtc no /api/health sem falha nenhuma")
+	}
+
+	// Porta fechada: a primeira conversa com o go2rtc falha sem resposta.
+	fechado := httptest.NewServer(http.NotFoundHandler())
+	fechado.Close()
+	s.client = go2rtc.New(config.Go2RTC{URL: fechado.URL})
+	_, _ = s.client.Versao(t.Context())
+
+	var g struct {
+		Error string    `json:"error"`
+		Since time.Time `json:"since"`
+	}
+	if err := json.Unmarshal(health(s)["go2rtc"], &g); err != nil || g.Error == "" || g.Since.IsZero() {
+		t.Errorf("go2rtc inacessível e o /api/health diz %+v (%v)", g, err)
+	}
+}
+
 // A aba Detecções depende deste campo para aparecer.
 func TestCamerasDizSeHaDetector(t *testing.T) {
 	temDetector := func(s *Server) bool {

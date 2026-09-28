@@ -1,6 +1,14 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { health, pollHealth, HEALTH_POLL_MS, cameras, build, RELEASES_URL } from '../lib/state.svelte.js';
+  import {
+    health,
+    pollHealth,
+    loadHealth,
+    HEALTH_POLL_MS,
+    cameras,
+    build,
+    RELEASES_URL,
+  } from '../lib/state.svelte.js';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { api } from '../lib/api.js';
   import {
@@ -18,6 +26,7 @@
   import { coletar, comoTexto } from '../lib/navegador.js';
   import { grupos as gruposDoServidor, linhaDoLog } from '../lib/diagnostico-servidor.js';
   import CardDiagnostico from '../components/CardDiagnostico.svelte';
+  import ConfirmDialog from '../components/ConfirmDialog.svelte';
 
   const stop = pollHealth();
   onDestroy(stop);
@@ -112,7 +121,7 @@
       rotulo: 'reconex.',
       valor: (c) => c.reconnects || 0,
       ajuda:
-        'Quantas vezes o dwnvr precisou reabrir a conexão desde que subiu. Número alto indica enlace instável com a câmera.',
+        'Quantas vezes o dwnvr precisou reabrir a conexão desde o início da contagem: a subida do dwnvr, ou o último zerar. Número alto indica enlace instável com a câmera.',
     },
   ];
 
@@ -515,31 +524,89 @@
     };
   });
 
+  // ---- avisos ------------------------------------------------------------
+
+  // "Agora" pelo relógio do servidor, que é quem carimbou os instantes dos
+  // avisos: com o relógio do aparelho errado, "desde 13:58 (12min)" viraria
+  // "(3h12min)". Cai no do aparelho contra servidor antigo, sem o campo.
+  const agora = $derived.by(() => {
+    const lido = Date.parse(health.clock?.now);
+    return isNaN(lido) ? health.updatedAt || Date.now() : lido;
+  });
+
+  const MS_HORA = 3600e3;
+
+  // quando escreve um instante: só a hora se é de hoje, com a data na frente se
+  // não é - "13:58:12" de ontem leria como de hoje.
+  const deHoje = (ms) => new Date(agora).toDateString() === new Date(ms).toDateString();
+  const quando = (ms) => (deHoje(ms) ? hhmmss(ms) : `${ddmm(ms)} ${hhmmss(ms)}`);
+
+  // desde é o "desde quando" de todo aviso que depende de tempo, no formato do
+  // "NÃO ESTÁ GRAVANDO": "desde 13:58:12 (12min)".
+  function desde(iso) {
+    const ms = Date.parse(iso);
+    return `desde ${quando(ms)} (${duracao(agora - ms)})`;
+  }
+
+  const porHora = (v) => v.toLocaleString('pt-BR', { maximumFractionDigits: v < 10 ? 1 : 0 });
+
+  // A mensagem de reconexão diz o total, desde quando ele conta, a taxa, o
+  // recente e a última: "24 vezes" sozinho não diz se é muito.
+  function reconexoes(c) {
+    const inicio = Date.parse(c.reconnectsSince);
+    if (isNaN(inicio)) return `${c.name} já reconectou ${c.reconnects} vezes.`; // servidor antigo
+
+    // Menos de um minuto entre a subida do dwnvr e o início da contagem é a
+    // mesma coisa; depois disso, a contagem foi zerada ou a câmera reiniciada.
+    const subida = health.uptime ? agora - health.uptime.appSeconds * 1000 : NaN;
+    const origem =
+      Math.abs(inicio - subida) < 60e3 ? 'desde que o dwnvr subiu' : `desde ${quando(inicio)}`;
+
+    const contando = agora - inicio;
+    const entre = [duracao(contando)];
+    // Com menos de uma hora de contagem, "por hora" extrapola demais.
+    if (contando >= MS_HORA) entre.push(`~${porHora(c.reconnects / (contando / MS_HORA))} por hora`);
+
+    let texto = `${c.name} reconectou ${c.reconnects} vezes ${origem} (${entre.join(', ')})`;
+    // Antes de a contagem cobrir a janela inteira, o recente é o próprio total.
+    const janela = health.reconnectsWindowHours;
+    if (janela && contando >= janela * MS_HORA) {
+      texto += `, ${c.reconnectsInWindow} nas últimas ${janela}h`;
+    }
+    const ultima = Date.parse(c.lastReconnectAt);
+    if (!isNaN(ultima)) {
+      texto += deHoje(ultima)
+        ? `, a última às ${hhmmss(ultima)}`
+        : `, a última em ${ddmm(ultima)} às ${hhmmss(ultima)}`;
+    }
+    return texto + '.';
+  }
+
   // Avisos que explicam problemas antes de eles virarem mistério - que foi
   // exatamente o que faltou nos NVRs anteriores.
   const avisos = $derived.by(() => {
     const out = [];
     if (disk?.belowMin) {
+      const quandoDisco = disk.belowMinSince ? ` ${desde(disk.belowMinSince)}` : '';
       out.push({
         nivel: 'bad',
-        texto: `Disco abaixo do mínimo livre (${bytes(disk.freeBytes)}). A retenção está apagando gravações antigas de todas as câmeras.`,
+        texto: `Disco abaixo do mínimo livre${quandoDisco}, com ${bytes(disk.freeBytes)} livres. A retenção está apagando gravações antigas de todas as câmeras.`,
       });
     }
     // "Parada" vem antes de "desconectada" porque é a pergunta que importa: uma
     // conexão de pé que não produz segmento nenhum continua sendo gravação
     // perdida, e foi assim que 9 câmeras passaram horas fora sem ninguém notar.
     for (const c of paradas) {
-      const desde = c.lastSegmentAt
-        ? `desde ${hhmmss(new Date(c.lastSegmentAt).getTime())} (${duracao(Date.now() - new Date(c.lastSegmentAt).getTime())})`
-        : 'e não gravou nada desde que o dwnvr subiu';
+      const quandoParou = c.lastSegmentAt ? desde(c.lastSegmentAt) : 'e não gravou nada desde que o dwnvr subiu';
       out.push({
         nivel: 'bad',
-        texto: `${c.name} NÃO ESTÁ GRAVANDO ${desde}${c.lastError ? `: ${c.lastError}` : ''}`,
+        texto: `${c.name} NÃO ESTÁ GRAVANDO ${quandoParou}${c.lastError ? `: ${c.lastError}` : ''}`,
       });
     }
     for (const c of desconectadas) {
       if (c.silent) continue; // já avisado acima, e com mais informação
-      out.push({ nivel: 'bad', texto: `${c.name} desconectada: ${c.lastError || 'motivo desconhecido'}` });
+      const quandoCaiu = c.disconnectedAt ? ` ${desde(c.disconnectedAt)}` : '';
+      out.push({ nivel: 'bad', texto: `${c.name} desconectada${quandoCaiu}: ${c.lastError || 'motivo desconhecido'}` });
     }
     for (const s of cameras.streams) {
       if (s.registered && s.transcoding) {
@@ -558,14 +625,49 @@
         });
       }
       if (c.reconnects > 10) {
-        out.push({ nivel: 'warn', texto: `${c.name} já reconectou ${c.reconnects} vezes.` });
+        out.push({ nivel: 'warn', texto: reconexoes(c) });
       }
     }
-    if (cameras.go2rtcError) {
-      out.push({ nivel: 'bad', texto: `go2rtc inacessível: ${cameras.go2rtcError}` });
+    // Vem do /api/health, relido a cada poucos segundos, e não do
+    // cameras.go2rtcError, que esta tela nunca relê: o go2rtc caindo com ela
+    // aberta tem que aparecer, e sumir quando ele volta.
+    if (health.go2rtc) {
+      out.push({ nivel: 'bad', texto: `go2rtc inacessível ${desde(health.go2rtc.since)}: ${health.go2rtc.error}` });
     }
     return out;
   });
+
+  // O zerar só aparece quando há o que zerar.
+  const temReconexao = $derived(health.cameras.some((c) => c.reconnects > 0));
+
+  // "contando desde" no título só quando todas as câmeras no ar contam do mesmo
+  // ponto - a subida do dwnvr, ou o último zerar. Câmera reiniciada por mudança
+  // de configuração conta do próprio reinício, e aí o desde de cada aviso é o
+  // que vale.
+  const contandoDesde = $derived.by(() => {
+    const inicios = health.cameras.map((c) => Date.parse(c.reconnectsSince)).filter((t) => !isNaN(t) && t > 0);
+    if (!inicios.length) return null;
+    const min = Math.min(...inicios);
+    return Math.max(...inicios) - min < 60e3 ? min : null;
+  });
+
+  let confirmandoZerar = $state(false);
+  let zerando = $state(false);
+  let erroZerar = $state('');
+
+  async function zerarReconexoes() {
+    confirmandoZerar = false;
+    zerando = true;
+    erroZerar = '';
+    try {
+      await api.zerarReconexoes();
+      await loadHealth();
+    } catch (e) {
+      erroZerar = e.message;
+    } finally {
+      zerando = false;
+    }
+  }
 </script>
 
 <div class="page">
@@ -625,15 +727,50 @@
     <div><span class="big mono">{bytes(bytesPorDia)}</span><br /><span class="muted small">por dia</span></div>
   </div>
 
-  {#if avisos.length}
+  <!-- O card existe também sem aviso nenhum, com o "nenhum problema": a área
+       não muda de cara, e o zerar continua à mão para a coluna reconex. -->
+  {#if avisos.length || health.updatedAt}
     <div class="card avisos">
+      <div class="row wrap">
+        <strong>Avisos</strong>
+        {#if avisos.length}<span class="muted small mono">{avisos.length}</span>{/if}
+        <span class="spacer"></span>
+        {#if temReconexao}
+          {#if contandoDesde}
+            <span class="muted small">reconexões contadas desde {quando(contandoDesde)}</span>
+          {/if}
+          <button
+            class="ghost small"
+            title="Zera a contagem de reconexões de todas as câmeras"
+            onclick={() => (confirmandoZerar = true)}
+            disabled={zerando}
+          >
+            zerar reconexões
+          </button>
+        {/if}
+      </div>
+      {#if erroZerar}
+        <p class="row bad"><span class="dot bad"></span>Não foi possível zerar as reconexões: {erroZerar}</p>
+      {/if}
       <!-- eslint-disable-next-line svelte/require-each-key -- só texto, sem estado por linha; e dois avisos podem ter o mesmo texto, o que quebraria a chave -->
       {#each avisos as a}
         <p class="row {a.nivel}"><span class="dot {a.nivel}"></span>{a.texto}</p>
+      {:else}
+        <p class="row ok"><span class="dot ok"></span>Nenhum problema detectado.</p>
       {/each}
     </div>
-  {:else if health.updatedAt}
-    <p class="card ok row"><span class="dot ok"></span>Nenhum problema detectado.</p>
+  {/if}
+
+  {#if confirmandoZerar}
+    <ConfirmDialog
+      title="Zerar a contagem de reconexões?"
+      confirmLabel="zerar"
+      onconfirm={zerarReconexoes}
+      oncancel={() => (confirmandoZerar = false)}
+    >
+      Vale para todas as câmeras: a coluna <strong>reconex.</strong> volta a zero e a contagem recomeça
+      agora. Nenhuma conexão cai. Não tem como desfazer.
+    </ConfirmDialog>
   {/if}
 
   <div class="table card">
@@ -938,7 +1075,7 @@
   .chip.parada { color: var(--bad); border-color: #5c2b2b; }
   .avisos p.warn { color: var(--warn); }
   .avisos .dot { margin-top: 6px; }
-  .card.ok { color: var(--ok); font-size: 13px; gap: 8px; }
+  .avisos p.ok { color: var(--ok); }
 
   /* ---- reconhecimento de objetos ---- */
 
