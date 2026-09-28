@@ -58,7 +58,8 @@ tailscale serve --bg 8080
 
 O dwnvr não precisa saber de nada disso: `web/src/lib/api.js` monta as URLs
 relativas (`api/...`) e o WebSocket do live deriva o esquema de
-`location.protocol`, então `wss://` sai sozinho.
+`location.protocol`, então `wss://` sai sozinho. O cookie de sessão também: o
+serve manda `X-Forwarded-Proto: https`, e com ele o cookie sai `Secure`.
 
 Alternativas, se o Tailscale não servir: proxy reverso com TLS (Caddy resolve o
 certificado sozinho) na frente do `docker-compose.yml`, ou certificado próprio -

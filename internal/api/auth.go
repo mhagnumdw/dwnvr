@@ -87,9 +87,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Expires:  expires,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		// Sem Secure: a instalação típica é HTTP na LAN, e marcar Secure faria
-		// o cookie ser descartado silenciosamente. Quem expuser à internet deve
-		// pôr um proxy TLS na frente.
+		Secure:   viaHTTPS(r),
 	})
 	writeJSON(w, map[string]any{"ok": true})
 }
@@ -97,8 +95,28 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true,
+		Secure: viaHTTPS(r),
 	})
 	writeJSON(w, map[string]any{"ok": true})
+}
+
+// viaHTTPS diz se o navegador fala com o dwnvr por HTTPS, e é o que liga o
+// Secure do cookie de sessão.
+//
+// O dwnvr só serve HTTP, e a instalação típica é HTTP na LAN, onde um cookie
+// Secure seria descartado em silêncio e o login nunca pegaria. O HTTPS vem de
+// um proxy TLS na frente, e o `tailscale serve` e o Caddy avisam pelo
+// X-Forwarded-Proto. Aí o cookie sai Secure e não vaza numa requisição em HTTP
+// para o mesmo endereço.
+//
+// Confiar no header não abre nada, porque ele só decide o Secure: um cliente em
+// HTTP que o forje recebe um cookie que o próprio navegador recusa.
+//
+// Com o proxy e a porta HTTP no mesmo nome de host, depois de um login por
+// HTTPS o navegador não deixa o HTTP gravar um cookie com o mesmo nome. Quem
+// montar assim precisa entrar sempre pelo mesmo endereço.
+func viaHTTPS(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
 // handleSession diz ao frontend se precisa mostrar a tela de login.

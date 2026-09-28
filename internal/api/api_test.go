@@ -701,6 +701,40 @@ func TestRequireAuth(t *testing.T) {
 	}
 }
 
+// O Secure do cookie de sessão só vale atrás de um proxy TLS. Em HTTP puro, o
+// navegador descartaria o cookie e o login nunca pegaria.
+func TestCookieDeSessaoSoESecurePorHTTPS(t *testing.T) {
+	s, _ := testServer(t)
+	s.cfg.Server.Username, s.cfg.Server.Password = "admin", "senha"
+
+	secure := func(h http.HandlerFunc, req *http.Request) bool {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		h(rec, req)
+		c, err := http.ParseSetCookie(rec.Header().Get("Set-Cookie"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c.Secure
+	}
+
+	for proto, quer := range map[string]bool{"": false, "http": false, "https": true, "HTTPS": true} {
+		login := httptest.NewRequest(http.MethodPost, "/api/login",
+			strings.NewReader(`{"username":"admin","password":"senha"}`))
+		logout := httptest.NewRequest(http.MethodPost, "/api/logout", nil)
+		if proto != "" {
+			login.Header.Set("X-Forwarded-Proto", proto)
+			logout.Header.Set("X-Forwarded-Proto", proto)
+		}
+		if got := secure(s.handleLogin, login); got != quer {
+			t.Errorf("login com X-Forwarded-Proto=%q: Secure=%v, esperava %v", proto, got, quer)
+		}
+		if got := secure(s.handleLogout, logout); got != quer {
+			t.Errorf("logout com X-Forwarded-Proto=%q: Secure=%v, esperava %v", proto, got, quer)
+		}
+	}
+}
+
 // O favicon é um SVG com um comentário em cima, e comentário XML não admite
 // hífen duplo. Citar ali dentro o nome de uma variável CSS torna o arquivo
 // malformado - e o sintoma é cruel: o servidor devolve 200, com content-type e

@@ -18,10 +18,10 @@ comando que liga.
 - [ ] Aviso visível no PR do Dependabot em `web/`
 - [x] CodeQL default setup (28/09)
   - [x] olhar se o `internal/api/dist` dá ruído na primeira análise (não deu)
-  - [ ] triagem dos 18 achados de Go da primeira análise
+  - [x] triagem dos 18 achados de Go da primeira análise (28/09)
     - [x] 15 dos 16 `go/path-injection`, com a trava no `newCamera` (28/09)
     - [x] o `go/path-injection` que sobrou, do `g` do init (28/09)
-    - [ ] os 2 `go/cookie-secure-not-set`
+    - [x] os 2 `go/cookie-secure-not-set`, com o `Secure` atrás de proxy TLS (28/09)
 - [x] Private vulnerability reporting, com `SECURITY.md` (28/09)
 - [x] Ruleset na `main` bloqueando force push e deleção (28/09)
 - [ ] `dependabot.yml`
@@ -70,8 +70,12 @@ e python. O `internal/api/dist`, JavaScript minificado e versionado, não deu
 ruído. Em Go foram 18 achados, todos abertos na aba Security:
 
 - **2 `go/cookie-secure-not-set`** (`internal/api/auth.go`, linhas 83 e 98):
-  o cookie de sessão sem `Secure`. É de propósito, porque o dwnvr roda em HTTP
-  na LAN, e já tem comentário no código. O gosec tinha achado o mesmo.
+  o cookie de sessão sem `Secure`. Era de propósito, porque o dwnvr roda em
+  HTTP na LAN, onde um cookie `Secure` seria descartado. Mas atrás de um proxy
+  TLS o cookie podia vazar numa requisição em HTTP para o mesmo endereço. Agora
+  ele sai `Secure` quando o proxy manda `X-Forwarded-Proto: https`, o que o
+  `tailscale serve` e o Caddy fazem, e em HTTP na LAN continua como era. O
+  gosec tinha achado o mesmo.
 - **16 `go/path-injection`** (`internal/store/store.go`, 10;
   `internal/api/recordings.go`, 5; `internal/api/deteccoes.go`, 1): parâmetro
   da requisição chegando em caminho de arquivo. Todos lidos em 28/09, e nenhum
@@ -89,11 +93,9 @@ ruído. Em Go foram 18 achados, todos abertos na aba Security:
   `handleInit`. Esse fechou com o `validGen` reescrito como regexp, a forma
   que o CodeQL reconhece, aceitando exatamente o que o loop aceitava.
 
-Para os que sobram: confirmar a validação, e então fechar o alerta como falso
-positivo, com o motivo (`PATCH .../code-scanning/alerts/<n>` com
-`state=dismissed` e `dismissed_reason`), ou reescrever a validação num
-formato que o CodeQL reconheça. Se sobrar algum real, ele vira correção, e
-não só alerta fechado.
+Os 18 fecharam com correção no código, e nenhum precisou ser dispensado como
+falso positivo. Cada correção foi conferida antes com o CodeQL 2.27.1 rodado
+local, na mesma suíte do default setup.
 
 ### `dependabot.yml`
 
