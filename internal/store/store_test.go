@@ -541,6 +541,27 @@ func TestPurgeSemNadaGravadoNaoFalha(t *testing.T) {
 	}
 }
 
+// O ID vira um diretório logo abaixo do storage. Um que desse o próprio
+// storage, ou o que há acima dele, faria o Purge apagar tudo o que há lá.
+func TestCameraRecusaIDQueNaoEhNomeDeDiretorio(t *testing.T) {
+	s := New(t.TempDir())
+	for _, id := range []string{"", ".", "..", "../fora", "a/b", "a/..", "/etc"} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("Camera(%q) aceitou um ID que não é nome de diretório", id)
+				}
+			}()
+			s.Camera(id)
+		}()
+	}
+	for _, id := range []string{"sala", "cam..1", "..."} {
+		if got := s.Camera(id).Dir(); got != filepath.Join(s.Root(), id) {
+			t.Errorf("Camera(%q).Dir() = %q", id, got)
+		}
+	}
+}
+
 func TestOrphansIgnoraCamerasCadastradas(t *testing.T) {
 	s := New(t.TempDir())
 	base := baseTime()

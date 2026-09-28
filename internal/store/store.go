@@ -153,9 +153,25 @@ func New(root string) *Store {
 
 func (s *Store) Root() string { return s.root }
 
+// newCamera é o único ponto em que o ID de uma câmera vira caminho no disco.
+//
+// Quem chama já conferiu o ID: o cadastro e a leitura do cameras.json passam
+// por config.ValidateCameraID, a API só aceita câmera cadastrada e os órfãos
+// saem de um ReadDir. Esta é a última trava, e mora no store porque só ele sabe
+// que {root}/{cam} tem de ser um diretório logo abaixo do storage: com "", "."
+// ou "..", o Join daria o próprio storage ou o diretório acima dele, e um Purge
+// apagaria tudo o que houvesse lá. Chegar aqui com um desses é bug de quem
+// chamou, não entrada de usuário - por isso o panic.
+//
+// O IsLocal sozinho não basta, porque aceita "." e "a/..", que dão o próprio
+// storage. Mas ele fica: é a checagem que o CodeQL reconhece, e sem ela o
+// go/path-injection volta a apontar cada acesso a disco do store.
 func newCamera(root, id string) *Camera {
-	return &Camera{ID: id, root: filepath.Join(root, id), days: map[string]*DaySummary{},
-		quadrosBytes: map[string]int64{}}
+	if filepath.IsLocal(id) && filepath.Base(id) == id && id != "." {
+		return &Camera{ID: id, root: filepath.Join(root, id), days: map[string]*DaySummary{},
+			quadrosBytes: map[string]int64{}}
+	}
+	panic(fmt.Sprintf("store: id de câmera %q não é um nome de diretório", id))
 }
 
 // Camera devolve (criando se preciso) o índice de uma câmera.

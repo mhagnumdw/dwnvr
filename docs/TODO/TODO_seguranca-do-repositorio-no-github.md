@@ -19,6 +19,9 @@ comando que liga.
 - [x] CodeQL default setup (28/09)
   - [x] olhar se o `internal/api/dist` dá ruído na primeira análise (não deu)
   - [ ] triagem dos 18 achados de Go da primeira análise
+    - [x] 15 dos 16 `go/path-injection`, com a trava no `newCamera` (28/09)
+    - [ ] o `go/path-injection` que sobrou, do `g` do init
+    - [ ] os 2 `go/cookie-secure-not-set`
 - [x] Private vulnerability reporting, com `SECURITY.md` (28/09)
 - [x] Ruleset na `main` bloqueando force push e deleção (28/09)
 - [ ] `dependabot.yml`
@@ -69,15 +72,23 @@ ruído. Em Go foram 18 achados, todos abertos na aba Security:
 - **2 `go/cookie-secure-not-set`** (`internal/api/auth.go`, linhas 83 e 98):
   o cookie de sessão sem `Secure`. É de propósito, porque o dwnvr roda em HTTP
   na LAN, e já tem comentário no código. O gosec tinha achado o mesmo.
-- **16 `go/path-injection`** (`internal/store/store.go`, 11;
+- **16 `go/path-injection`** (`internal/store/store.go`, 10;
   `internal/api/recordings.go`, 5; `internal/api/deteccoes.go`, 1): parâmetro
-  da requisição chegando em caminho de arquivo. Nos três pontos lidos, a
-  entrada é validada antes: `cam` só passa se for câmera cadastrada
-  (`knownCamera`), `g` só se for hexadecimal (`validGen`) e `t` passa pelo
-  `ParseInt`. O CodeQL não reconhece essas validações como sanitizer. Parece
-  falso positivo, mas os outros 13 não foram lidos.
+  da requisição chegando em caminho de arquivo. Todos lidos em 28/09, e nenhum
+  explorável. O ID de câmera na URL só passa se for de câmera cadastrada
+  (`knownCamera`) ou, na remoção de gravação órfã, se for um nome saído do
+  `ReadDir`; o do cadastro passa pelo `ValidateCameraID`; `g` só se for
+  hexadecimal (`validGen`); e `t` passa pelo `ParseInt`. O CodeQL não
+  reconhece essas validações como sanitizer.
 
-Para cada um: confirmar a validação, e então fechar o alerta como falso
+  Mas o store aceitava qualquer ID, e com `""`, `"."` ou `".."` o `Purge`
+  apagaria o storage inteiro, ou o que há acima dele. A trava foi para o
+  `newCamera`, o único ponto em que o ID vira caminho, com o
+  `filepath.IsLocal`, que o CodeQL reconhece. Rodado local, o CodeQL 2.27.1
+  reproduziu os 16 achados e, com a trava, deixou só o do `g`, no
+  `handleInit`.
+
+Para os que sobram: confirmar a validação, e então fechar o alerta como falso
 positivo, com o motivo (`PATCH .../code-scanning/alerts/<n>` com
 `state=dismissed` e `dismissed_reason`), ou reescrever a validação num
 formato que o CodeQL reconheça. Se sobrar algum real, ele vira correção, e
