@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -556,20 +557,24 @@ func (s *Server) rangeParams(r *http.Request) (from, to int64, err error) {
 	return from, to, nil
 }
 
+// genPattern é o hash truncado que nomeia o init: hexadecimal minúsculo, de até
+// 32 caracteres.
+var genPattern = regexp.MustCompile(`^[0-9a-f]{1,32}$`)
+
 // validGen recusa qualquer coisa que não seja o hash hexadecimal esperado: a
 // geração vira nome de arquivo, e aceitar caminho aqui abriria travessia de
 // diretório.
+//
+// A conferência é um regexp, e não um loop pelos caracteres, porque é a forma
+// que o CodeQL reconhece como sanitizer: com o loop, o go/path-injection
+// apontava o ServeFile do handleInit mesmo com o g já validado. O pacote regexp
+// já entra no binário pelo yaml, então não custa nada a mais.
 func validGen(gen string) error {
 	if gen == "" {
 		return errors.New("parâmetro g obrigatório")
 	}
-	if len(gen) > 32 {
+	if !genPattern.MatchString(gen) {
 		return errors.New("parâmetro g inválido")
-	}
-	for _, c := range gen {
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
-			return errors.New("parâmetro g inválido")
-		}
 	}
 	return nil
 }

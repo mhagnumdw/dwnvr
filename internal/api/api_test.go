@@ -431,9 +431,10 @@ func TestCameraDesconhecidaEhRecusada(t *testing.T) {
 }
 
 func TestValidGen(t *testing.T) {
-	validos := []string{"aabbcc", "0123456789abcdef"}
+	validos := []string{"aabbcc", "0123456789abcdef", "0123456789abcdef0123456789abcdef"}
 	invalidos := []string{"", "../../etc/passwd", "AABBCC", "aa-bb", "g123",
-		"aabbccddeeff00112233445566778899aa"}
+		"aabbccddeeff00112233445566778899aa", "0123456789abcdef0123456789abcdef0",
+		"aabbcc\n"}
 
 	for _, g := range validos {
 		if err := validGen(g); err != nil {

@@ -20,7 +20,7 @@ comando que liga.
   - [x] olhar se o `internal/api/dist` dá ruído na primeira análise (não deu)
   - [ ] triagem dos 18 achados de Go da primeira análise
     - [x] 15 dos 16 `go/path-injection`, com a trava no `newCamera` (28/09)
-    - [ ] o `go/path-injection` que sobrou, do `g` do init
+    - [x] o `go/path-injection` que sobrou, do `g` do init (28/09)
     - [ ] os 2 `go/cookie-secure-not-set`
 - [x] Private vulnerability reporting, com `SECURITY.md` (28/09)
 - [x] Ruleset na `main` bloqueando force push e deleção (28/09)
@@ -86,7 +86,8 @@ ruído. Em Go foram 18 achados, todos abertos na aba Security:
   `newCamera`, o único ponto em que o ID vira caminho, com o
   `filepath.IsLocal`, que o CodeQL reconhece. Rodado local, o CodeQL 2.27.1
   reproduziu os 16 achados e, com a trava, deixou só o do `g`, no
-  `handleInit`.
+  `handleInit`. Esse fechou com o `validGen` reescrito como regexp, a forma
+  que o CodeQL reconhece, aceitando exatamente o que o loop aceitava.
 
 Para os que sobram: confirmar a validação, e então fechar o alerta como falso
 positivo, com o motivo (`PATCH .../code-scanning/alerts/<n>` com
