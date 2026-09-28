@@ -20,6 +20,12 @@ Aqui ficam as respostas longas.
   energia e go2rtc que emudece sem avisar
 - [api.md](api.md) - referência dos endpoints HTTP
 
+## Para manter o repositório
+
+- [github.md](github.md) - o que está ligado no GitHub (Dependabot, secret
+  scanning, token dos workflows), o comando de cada coisa e o que fazer com o
+  PR do Dependabot
+
 ## Medições e investigações
 
 Documentos datados, que registram como cada premissa foi verificada. Não são
