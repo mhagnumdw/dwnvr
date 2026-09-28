@@ -433,10 +433,16 @@ o hook acusou os três.
 
 ## Fora do plano
 
-- **Dependabot** com o ecossistema `pre-commit`, para subir os `rev`: depois
-  que as etapas assentarem.
-- **govulncheck**: vulnerabilidade nas dependências e na stdlib do Go. Não é
-  lint; cabe num job semanal.
+- **Dependabot** com o ecossistema `pre-commit`, para subir os `rev`, e o
+  **govulncheck**, semanal: estão no
+  [`TODO_seguranca-do-repositorio-no-github.md`](TODO_seguranca-do-repositorio-no-github.md),
+  com o resto do que é segurança e precisa de rede.
+- **A versão do Go e do Node lida de arquivo** no `ci.yml` e no `lint.yml`
+  (`go-version-file: go.mod`, `node-version-file: .tool-versions`), levantada
+  na revisão de 27/09 e descartada: fixaria a CI no patch do clone (Go
+  1.27.1), enquanto o `Dockerfile` compila a imagem com o último patch
+  (`golang:1.27-alpine`, `node:24-alpine`). O `1.27` e o `24` de hoje
+  acompanham a imagem, que é o que se publica.
 - **lychee online**, semanal, abrindo issue: hoje os links externos respondem
   todos, fora o `http://localhost:8080/` do README, que é o endereço do
   próprio dwnvr e ficaria de fora.
