@@ -11,6 +11,10 @@ go test ./... -count=1 -cover
 `internal/retention` sai com **0,0%**: não existe `retention_test.go`, e nenhum
 teste de outro pacote o chama. O total do Go, no mesmo dia, era 63,0%.
 
+Em 28/09/2026 entrou um `retention_test.go`, mas só para o "desde" do aviso de
+disco abaixo do mínimo (`TestAbaixoDoMinimoDesde`). A política continua sem
+teste.
+
 ## Por que importa
 
 A seção Testes do README diz que os testes "cobrem o que quebra em silêncio:

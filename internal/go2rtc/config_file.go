@@ -52,7 +52,7 @@ func (c *Client) Arquivo(ctx context.Context) ([]byte, error) {
 	}
 	c.auth(req)
 
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (c *Client) Reiniciar(ctx context.Context) error {
 	}
 	c.auth(req)
 
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return err
 	}

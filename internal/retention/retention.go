@@ -16,6 +16,7 @@ package retention
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
@@ -35,6 +36,12 @@ type Manager struct {
 	// podem ser cadastradas, alteradas e removidas com o dwnvr no ar, e uma
 	// cota nova que só valesse após reiniciar seria uma armadilha.
 	cameras func() []config.Camera
+
+	// abaixoDesde é quando a passada viu o disco abaixo do mínimo pela
+	// primeira vez; zero enquanto ele está acima. É o "desde" do aviso da tela
+	// de diagnóstico, com a precisão de uma passada.
+	mu          sync.Mutex
+	abaixoDesde time.Time
 }
 
 func New(cfg *config.Config, st *store.Store, cameras func() []config.Camera, log *slog.Logger) *Manager {
@@ -126,11 +133,33 @@ func (m *Manager) enforceMaxDays(cam config.Camera) error {
 	return nil
 }
 
+// AbaixoDoMinimoDesde diz desde quando o disco está abaixo do mínimo livre, ou
+// zero se ele não está.
+func (m *Manager) AbaixoDoMinimoDesde() time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.abaixoDesde
+}
+
+// anotaDisco guarda a transição do disco: só a primeira passada abaixo do
+// mínimo marca o instante, e a primeira acima o apaga.
+func (m *Manager) anotaDisco(abaixo bool, agora time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	switch {
+	case !abaixo:
+		m.abaixoDesde = time.Time{}
+	case m.abaixoDesde.IsZero():
+		m.abaixoDesde = agora
+	}
+}
+
 // enforceFreeSpace é a rede de segurança global: evicta o dia mais antigo de
 // qualquer câmera até o disco voltar ao mínimo aceitável.
 func (m *Manager) enforceFreeSpace() error {
 	minFree := m.cfg.Storage.MinFreeMB << 20
 	if minFree <= 0 {
+		m.anotaDisco(false, time.Now())
 		return nil
 	}
 
@@ -139,6 +168,7 @@ func (m *Manager) enforceFreeSpace() error {
 		if err != nil {
 			return err
 		}
+		m.anotaDisco(free < minFree, time.Now())
 		if free >= minFree {
 			return nil
 		}

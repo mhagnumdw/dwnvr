@@ -8,11 +8,13 @@ package go2rtc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,6 +27,42 @@ type Client struct {
 	Username string
 	Password string
 	HTTP     *http.Client
+
+	// inacessivelDesde é a primeira falha de transporte seguida: o go2rtc não
+	// respondeu nada, nem um erro HTTP. Qualquer resposta a apaga. Os recorders
+	// reabrem o stream a cada poucos segundos quando caem, então o instante sai
+	// preciso sem sonda própria. inacessivelErro é a falha mais recente.
+	mu               sync.Mutex
+	inacessivelDesde time.Time
+	inacessivelErro  string
+}
+
+// Inacessivel diz desde quando o go2rtc não responde, e por quê. Zero quando a
+// última conversa com ele teve resposta.
+func (c *Client) Inacessivel() (desde time.Time, erro string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.inacessivelDesde, c.inacessivelErro
+}
+
+// do faz a requisição e anota se o go2rtc respondeu. Cancelamento de quem
+// chamou não conta: é o dwnvr desistindo, não o go2rtc sumindo.
+func (c *Client) do(req *http.Request) (*http.Response, error) {
+	resp, err := c.HTTP.Do(req)
+	if err != nil && errors.Is(req.Context().Err(), context.Canceled) {
+		return resp, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	switch {
+	case err == nil:
+		c.inacessivelDesde, c.inacessivelErro = time.Time{}, ""
+	case c.inacessivelDesde.IsZero():
+		c.inacessivelDesde, c.inacessivelErro = time.Now(), err.Error()
+	default:
+		c.inacessivelErro = err.Error()
+	}
+	return resp, err
 }
 
 func New(cfg config.Go2RTC) *Client {
@@ -92,7 +130,7 @@ func (c *Client) OpenStream(ctx context.Context, cam, audio string, idle time.Du
 	}
 	c.auth(req)
 
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -220,7 +258,7 @@ func (c *Client) Streams(ctx context.Context) (map[string]Stream, error) {
 	}
 	c.auth(req)
 
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +288,7 @@ func (c *Client) Versao(ctx context.Context) (string, error) {
 	}
 	c.auth(req)
 
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return "", err
 	}

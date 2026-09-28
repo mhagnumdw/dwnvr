@@ -26,6 +26,9 @@ type Server struct {
 	mgr    *recorder.Manager
 	log    *slog.Logger
 	secret []byte
+	// ret diz desde quando o disco está abaixo do mínimo. Pode ser nil nos
+	// testes, e aí o aviso sai sem o "desde".
+	ret *retention.Manager
 	// Quando este processo subiu. É a referência do uptime da aplicação, que a
 	// tela de diagnóstico compara com o da máquina para distinguir "só o dwnvr
 	// reiniciou" de "a máquina reiniciou".
@@ -41,9 +44,9 @@ type Server struct {
 }
 
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
-	mgr *recorder.Manager, secret []byte, log *slog.Logger) *Server {
+	mgr *recorder.Manager, ret *retention.Manager, secret []byte, log *slog.Logger) *Server {
 
-	return &Server{cfg: cfg, store: st, client: client, mgr: mgr,
+	return &Server{cfg: cfg, store: st, client: client, mgr: mgr, ret: ret,
 		secret: secret, log: log, startedAt: time.Now()}
 }
 
@@ -90,6 +93,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/streams/probe", s.requireAuth(s.handleProbeStream))
 	mux.HandleFunc("POST /api/go2rtc/restart", s.requireAuth(s.handleReiniciarGo2rtc))
 	mux.HandleFunc("GET /api/health", s.requireAuth(s.handleHealth))
+	mux.HandleFunc("POST /api/reconnects/reset", s.requireAuth(s.handleZerarReconexoes))
 	mux.HandleFunc("GET /api/health/servidor", s.requireAuth(s.handleDiagnosticoServidor))
 	mux.HandleFunc("DELETE /api/rec", s.requireAuth(s.handleDeleteRecordings))
 	mux.HandleFunc("GET /api/rec/days", s.requireAuth(s.handleDays))
@@ -232,6 +236,14 @@ func (s *Server) handleReiniciarGo2rtc(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]bool{"reiniciado": true})
 }
 
+// handleZerarReconexoes recomeça a contagem de reconexões de todas as câmeras.
+// Não derruba conexão nenhuma: só os números da tela voltam a zero.
+func (s *Server) handleZerarReconexoes(w http.ResponseWriter, r *http.Request) {
+	s.mgr.ZerarReconexoes()
+	s.log.Info("reconexões zeradas pela interface")
+	writeJSON(w, map[string]bool{"zeradas": true})
+}
+
 // handleVersion diz qual código está rodando.
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, buildinfo.Get())
@@ -247,13 +259,22 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		for _, c := range s.mgr.Status() {
 			used += c.DiskBytes
 		}
-		resp["disk"] = map[string]any{
+		disk := map[string]any{
 			"freeBytes":  free,
 			"totalBytes": total,
 			"dwnvrBytes": used,
 			"minFreeMB":  s.cfg.Storage.MinFreeMB,
 			"belowMin":   free < s.cfg.Storage.MinFreeMB<<20,
 		}
+		// O "desde" vem da retenção, que mede o disco a cada passada. Logo
+		// depois de o disco cruzar o mínimo ela ainda não passou, e o aviso sai
+		// sem ele por até um minuto.
+		if s.ret != nil {
+			if desde := s.ret.AbaixoDoMinimoDesde(); !desde.IsZero() {
+				disk["belowMinSince"] = desde
+			}
+		}
+		resp["disk"] = disk
 	}
 
 	// Segundos, e não um instante ISO: o relógio do navegador e o do servidor
@@ -290,6 +311,19 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		relogio["zone"] = nome
 	}
 	resp["clock"] = relogio
+
+	// O tamanho da janela vai junto para a tela escrever "nas últimas 8h" sem
+	// repetir o número.
+	resp["reconnectsWindowHours"] = recorder.JanelaDeReconexoes.Hours()
+
+	// Vem aqui, e não só no /api/cameras, porque este é o endpoint que a tela
+	// de diagnóstico relê a cada poucos segundos: o go2rtc caindo com ela
+	// aberta precisa aparecer, e sumir quando ele volta.
+	if s.client != nil {
+		if desde, erro := s.client.Inacessivel(); !desde.IsZero() {
+			resp["go2rtc"] = map[string]any{"error": erro, "since": desde}
+		}
+	}
 
 	writeJSON(w, resp)
 }
