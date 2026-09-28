@@ -590,7 +590,7 @@
       const quandoDisco = disk.belowMinSince ? ` ${desde(disk.belowMinSince)}` : '';
       out.push({
         nivel: 'bad',
-        texto: `Disco abaixo do mínimo livre${quandoDisco}, com ${bytes(disk.freeBytes)} livres. A retenção está apagando gravações antigas de todas as câmeras.`,
+        texto: `Disco abaixo do mínimo livre (${bytesDeMB(disk.minFreeMB)})${quandoDisco}: restam ${bytes(disk.freeBytes)}. A retenção está apagando gravações antigas de todas as câmeras.`,
       });
     }
     // "Parada" vem antes de "desconectada" porque é a pergunta que importa: uma
@@ -610,9 +610,12 @@
     }
     for (const s of cameras.streams) {
       if (s.registered && s.transcoding) {
+        // O stream do go2rtc tem o nome do id da câmera; o aviso usa o nome de
+        // exibição, como todos os outros.
+        const nome = cameras.list.find((c) => c.id === s.name)?.name ?? s.name;
         out.push({
           nivel: 'warn',
-          texto: `${s.name} usa uma fonte ffmpeg no go2rtc, ou seja, há transcodificação consumindo CPU.`,
+          texto: `${nome} usa uma fonte ffmpeg no go2rtc, ou seja, há transcodificação consumindo CPU.`,
         });
       }
     }
