@@ -1,6 +1,7 @@
 # dwnvr <!-- omit in toc -->
 
 [![CI](https://github.com/mhagnumdw/dwnvr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mhagnumdw/dwnvr/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/mhagnumdw/dwnvr/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/mhagnumdw/dwnvr/actions/workflows/github-code-scanning/codeql)
 [![Release](https://img.shields.io/github/v/release/mhagnumdw/dwnvr)](https://github.com/mhagnumdw/dwnvr/releases)
 ![Plataformas](https://img.shields.io/badge/linux-amd64%20%7C%20arm64-blue)
 [![Go](https://img.shields.io/github/go-mod/go-version/mhagnumdw/dwnvr)](go.mod)

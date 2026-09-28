@@ -1,4 +1,4 @@
-# O repositório no GitHub
+# O repositório no GitHub <!-- omit in toc -->
 
 A configuração do repositório que não mora em arquivo: o que está ligado no
 Settings, o comando que liga cada coisa e o que fazer com o que ela produz. O
@@ -16,13 +16,27 @@ REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 Ligar de novo o que já está ligado não muda nada, então qualquer comando daqui
 pode ser rodado outra vez para conferir.
 
+- [Conferir o estado](#conferir-o-estado)
+- [Secret scanning e push protection](#secret-scanning-e-push-protection)
+- [Token dos workflows só com leitura](#token-dos-workflows-só-com-leitura)
+- [Dependabot alerts e security updates](#dependabot-alerts-e-security-updates)
+  - [PR do Dependabot em `web/`](#pr-do-dependabot-em-web)
+  - [PR do Dependabot em `dwnvr-detect/`](#pr-do-dependabot-em-dwnvr-detect)
+- [CodeQL](#codeql)
+- [Private vulnerability reporting](#private-vulnerability-reporting)
+- [Ruleset na `main`](#ruleset-na-main)
+
 ## Conferir o estado
 
 ```sh
-gh api repos/$REPO --jq '.security_and_analysis'     # secret scanning e security updates
-gh api repos/$REPO/vulnerability-alerts -i | head -1 # 204 = Dependabot alerts ligado, 404 = desligado
-gh api repos/$REPO/actions/permissions/workflow      # token dos workflows
+gh api repos/$REPO --jq '.security_and_analysis'             # secret scanning e security updates
+gh api repos/$REPO/vulnerability-alerts -i | head -1         # 204 = Dependabot alerts ligado, 404 = desligado
+gh api repos/$REPO/actions/permissions/workflow              # token dos workflows
 gh api "repos/$REPO/dependabot/alerts?state=open" --jq 'length'
+gh api repos/$REPO/code-scanning/default-setup --jq '.state' # configured = CodeQL ligado
+gh api "repos/$REPO/code-scanning/alerts?state=open" --jq 'length'
+gh api repos/$REPO/private-vulnerability-reporting
+gh api repos/$REPO/rules/branches/main --jq '.[].type'       # deletion, non_fast_forward
 ```
 
 ## Secret scanning e push protection
@@ -103,3 +117,50 @@ Se o pacote é um dos três do `requirements.in`, o pin é trocado lá antes, e
 vale o que diz o comentário do arquivo: outro runtime é outro número, e a
 entrega precisa ser conferida de novo. O PR do Dependabot fica para fechar à
 mão.
+
+## CodeQL
+
+Ligado em 28/09/2026, no default setup, que dispensa workflow no repositório:
+o GitHub escolhe as linguagens (actions, go, javascript-typescript e python) e
+roda a análise a cada push na `main`, em todo PR e uma vez por semana. É
+análise de fluxo de dado, como a entrada da requisição chegando num caminho de
+arquivo ou num comando, que os linters do commit não fazem. O achado vai para
+a aba Security, em Code scanning, e não segura merge nem push.
+
+```sh
+gh api -X PATCH repos/$REPO/code-scanning/default-setup -f state=configured
+```
+
+Para desligar, o mesmo com `-f state=not-configured`.
+
+## Private vulnerability reporting
+
+Ligado em 28/09/2026. Dá a quem achar uma falha um formulário privado na aba
+Security, em vez de uma issue pública; o [`SECURITY.md`](../SECURITY.md) aponta
+para ele.
+
+```sh
+gh api -X PUT repos/$REPO/private-vulnerability-reporting
+```
+
+Para desligar, o mesmo com `-X DELETE`.
+
+## Ruleset na `main`
+
+Criado em 28/09/2026. Recusa apagar a `main` e recusa o push que reescreve o
+histórico dela (`git push --force`). Não exige PR nem check: o commit direto e
+o push comum continuam, inclusive o da release, que empurra o commit da versão
+junto com a tag.
+
+```sh
+gh api -X POST repos/$REPO/rulesets --input - <<'EOF'
+{"name":"main","target":"branch","enforcement":"active",
+ "conditions":{"ref_name":{"include":["~DEFAULT_BRANCH"],"exclude":[]}},
+ "rules":[{"type":"deletion"},{"type":"non_fast_forward"}]}
+EOF
+```
+
+O `POST` cria um ruleset novo a cada vez que roda. Para mudar o que existe, o
+id sai de `gh api repos/$REPO/rulesets` e vai em
+`gh api -X PUT repos/$REPO/rulesets/<id>`, com o mesmo JSON; para apagar, em
+`-X DELETE`.

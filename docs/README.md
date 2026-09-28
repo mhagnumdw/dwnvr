@@ -22,9 +22,9 @@ Aqui ficam as respostas longas.
 
 ## Para manter o repositório
 
-- [github.md](github.md) - o que está ligado no GitHub (Dependabot, secret
-  scanning, token dos workflows), o comando de cada coisa e o que fazer com o
-  PR do Dependabot
+- [github.md](github.md) - o que está ligado no GitHub (Dependabot, CodeQL,
+  secret scanning, ruleset na `main`), o comando de cada coisa e o que fazer
+  com o PR do Dependabot
 
 ## Medições e investigações
 

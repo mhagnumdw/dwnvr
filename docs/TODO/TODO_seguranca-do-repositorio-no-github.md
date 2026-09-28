@@ -16,9 +16,11 @@ comando que liga.
 
 - [x] Dependabot alerts e security updates (28/09)
 - [ ] Aviso visível no PR do Dependabot em `web/`
-- [ ] CodeQL default setup
-- [ ] Private vulnerability reporting, com `SECURITY.md`
-- [ ] Ruleset na `main` bloqueando force push e deleção
+- [x] CodeQL default setup (28/09)
+  - [x] olhar se o `internal/api/dist` dá ruído na primeira análise (não deu)
+  - [ ] triagem dos 18 achados de Go da primeira análise
+- [x] Private vulnerability reporting, com `SECURITY.md` (28/09)
+- [x] Ruleset na `main` bloqueando force push e deleção (28/09)
 - [ ] `dependabot.yml`
   - [ ] conferir se o `docker-compose` lê a tag do go2rtc
   - [ ] conferir se o `pre-commit` aceita o config do prek
@@ -58,31 +60,28 @@ por uma anotação `::error title=...::`, que aparece no resumo do PR, e aponta
 para o [`github.md`](../github.md#pr-do-dependabot-em-web), onde estão os
 comandos.
 
-### CodeQL default setup
+### Triagem dos 18 achados de Go do CodeQL
 
-Settings, na seção de segurança, em Code scanning. A API já detecta as
-linguagens: actions, go, javascript-typescript e python. Análise de fluxo de dado
-(entrada da requisição chegando num caminho de arquivo, num comando, numa
-URL), que os linters do commit não fazem. O resultado vai para a aba
-Security, e não segura nada.
+A primeira análise, em 28/09, deu 0 achados em actions, javascript-typescript
+e python. O `internal/api/dist`, JavaScript minificado e versionado, não deu
+ruído. Em Go foram 18 achados, todos abertos na aba Security:
 
-O build de Go funciona sem passo extra, porque o `internal/api/dist` que o
-`go:embed` pede está versionado. O mesmo `dist` é JavaScript minificado, e o
-CodeQL vai analisá-lo junto com o `web/src`: olhar a primeira análise. Se der
-ruído, o default setup não exclui caminho, e a saída é o advanced setup (um
-workflow com `paths-ignore`).
+- **2 `go/cookie-secure-not-set`** (`internal/api/auth.go`, linhas 83 e 98):
+  o cookie de sessão sem `Secure`. É de propósito, porque o dwnvr roda em HTTP
+  na LAN, e já tem comentário no código. O gosec tinha achado o mesmo.
+- **16 `go/path-injection`** (`internal/store/store.go`, 11;
+  `internal/api/recordings.go`, 5; `internal/api/deteccoes.go`, 1): parâmetro
+  da requisição chegando em caminho de arquivo. Nos três pontos lidos, a
+  entrada é validada antes: `cam` só passa se for câmera cadastrada
+  (`knownCamera`), `g` só se for hexadecimal (`validGen`) e `t` passa pelo
+  `ParseInt`. O CodeQL não reconhece essas validações como sanitizer. Parece
+  falso positivo, mas os outros 13 não foram lidos.
 
-### Private vulnerability reporting
-
-Settings, na seção de segurança. Dá a quem achar uma falha um canal privado
-para contar, em vez de uma issue pública. Junto, um `SECURITY.md` curto
-dizendo que o canal é esse.
-
-### Ruleset na `main`
-
-Settings > Rules. Bloquear force push e deleção da `main`, sem exigir PR nem
-check: o commit direto continua. Protege o histórico publicado de um
-`push --force` por engano.
+Para cada um: confirmar a validação, e então fechar o alerta como falso
+positivo, com o motivo (`PATCH .../code-scanning/alerts/<n>` com
+`state=dismissed` e `dismissed_reason`), ou reescrever a validação num
+formato que o CodeQL reconheça. Se sobrar algum real, ele vira correção, e
+não só alerta fechado.
 
 ### `dependabot.yml`
 
@@ -183,6 +182,5 @@ vale para todas, inclusive as `actions/*`.
 
 ## Vale a pena agora?
 
-Os cliques (CodeQL, private reporting e ruleset), sim: quase nada para manter.
-O aviso no PR é uma linha no `ci.yml`. O `dependabot.yml`, o build no PR e o
+Os cliques já foram. O aviso no PR é uma linha no `ci.yml`. O `dependabot.yml`, o build no PR e o
 govulncheck são uma etapa cada, e o pin por SHA vem depois do primeiro.
