@@ -15,7 +15,7 @@ comando que liga.
 ## Andamento
 
 - [x] Dependabot alerts e security updates (28/09)
-- [ ] Aviso visível no PR do Dependabot em `web/`
+- [x] Aviso visível no PR do Dependabot em `web/` (28/09)
 - [x] CodeQL default setup (28/09)
   - [x] olhar se o `internal/api/dist` dá ruído na primeira análise (não deu)
   - [x] triagem dos 18 achados de Go da primeira análise (28/09)
@@ -44,24 +44,6 @@ reavaliado: secret scanning e push protection ligados, e o token dos workflows
 só com leitura por padrão, sem poder aprovar PR.
 
 ## Cada item
-
-### Aviso visível no PR do Dependabot em `web/`
-
-Já vale com os security updates ligados. O build da interface é versionado em
-`internal/api/dist`, e o Dependabot não o refaz: o PR que muda uma dependência
-do bundle falha no passo "interface está atualizada?" do `ci.yml`.
-
-O Dependabot não comenta no PR nem abre conversa: do PR dele só se configuram
-label, assignee e mensagem do commit. Uma conversa que segura o merge, como a
-thread do GitLab, só existe no GitHub dentro da regra "exigir PR" de um ruleset,
-que acabaria com o commit direto na `main`. Um workflow que comenta nos PRs do
-Dependabot daria, mas é mais um workflow com permissão de escrita para dizer o
-que o check já diz.
-
-Proposta: o lugar visível é o próprio check que falha. O passo troca o `echo`
-por uma anotação `::error title=...::`, que aparece no resumo do PR, e aponta
-para o [`github.md`](../github.md#pr-do-dependabot-em-web), onde estão os
-comandos.
 
 ### Triagem dos 18 achados de Go do CodeQL
 
@@ -106,7 +88,8 @@ Um PR por mês, agrupado por ecossistema, para subir versão. Por ecossistema:
   (`go.mod`, `golang:1.27-alpine` no `Dockerfile`, `go-version` no `ci.yml` e
   no `lint.yml`) e sobe à mão.
 - **`npm`** (em `/web`): tudo, incluindo o svelte-check e o ESLint. O PR que
-  muda o bundle precisa do build refeito, como no item do aviso.
+  muda o bundle precisa do build refeito, e o `ci.yml` aponta para o
+  [`github.md`](../github.md#pr-do-dependabot-em-web) quando falta.
 - **`pip`** (em `/dwnvr-detect`): sem atualização de versão
   (`open-pull-requests-limit: 0`, que mantém o security update). As versões do
   `requirements.in` são as que exportaram o `.onnx` e mediram a entrega, e
@@ -193,8 +176,18 @@ vale para todas, inclusive as `actions/*`.
   Dependabot recompila o lock, em vez de trocar linha, e daria ao `pip` um PR
   que funciona. Muda como o detector de objetos é empacotado, para resolver um
   PR que hoje se resolve com um comando.
+- **Renovate no lugar do Dependabot**, avaliado em 28/09 e deixado de lado
+  por enquanto. Ele faria melhor quatro coisas daqui: um texto fixo no corpo
+  do PR por pacote (`prBodyNotes`), recompilar o `requirements.txt` do
+  `uv pip compile`, subir a versão do Go nos quatro lugares num PR só e ler
+  qualquer formato de tag por regex manager. Nenhum dos dois refaz o
+  `internal/api/dist`: o app hospedado do Renovate não roda comando depois do
+  update. Custa um app de terceiro com escrita no repositório, inclusive nos
+  workflows, e depende dos Dependabot alerts do mesmo jeito. Voltar a olhar
+  se o primeiro run do `dependabot.yml` não ler a tag do go2rtc no compose ou
+  recusar o config do prek; a troca é apagar um arquivo e criar outro.
 
 ## Vale a pena agora?
 
-Os cliques já foram. O aviso no PR é uma linha no `ci.yml`. O `dependabot.yml`, o build no PR e o
+Os cliques e o aviso no PR já foram. O build no PR, o `dependabot.yml` e o
 govulncheck são uma etapa cada, e o pin por SHA vem depois do primeiro.

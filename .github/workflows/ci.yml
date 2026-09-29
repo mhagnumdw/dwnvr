@@ -45,12 +45,17 @@ jobs:
       # código em web/. Esquecer o build produz um binário que compila e sobe
       # normalmente, mas serve a tela antiga - falha silenciosa que só
       # apareceria em produção.
+      #
+      # Este passo reprova o PR do Dependabot em web/ sempre que a dependência
+      # entra no bundle, porque ele não refaz o build. Por isso a falha sai
+      # como anotação, que aparece no resumo do PR, e aponta para o
+      # docs/github.md.
       - name: interface está atualizada?
         run: |
           (cd web && npm ci --no-audit --no-fund && npm run build)
           if ! git diff --quiet internal/api/dist; then
-            echo "internal/api/dist está desatualizado."
-            echo "Rode 'npm run build' em web/ e faça commit do resultado."
+            doc="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/main/docs/github.md#pr-do-dependabot-em-web"
+            echo "::error title=internal/api/dist desatualizado::Rode 'make web' e faça commit do internal/api/dist. Em PR do Dependabot, veja $doc"
             git diff --stat internal/api/dist
             exit 1
           fi

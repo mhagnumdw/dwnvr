@@ -87,7 +87,11 @@ Para desligar, os mesmos dois com `-X DELETE`, na ordem inversa.
 
 O build da interface é versionado em `internal/api/dist`, e o Dependabot não o
 refaz. Se a dependência entra no bundle, o PR falha no passo "interface está
-atualizada?" do `ci.yml`, e só entra com um commit do build refeito:
+atualizada?" do `ci.yml`, com uma anotação no resumo do PR que aponta para
+cá. O aviso é o próprio check porque o Dependabot não comenta no PR, e uma
+conversa que segura o merge só existe com um ruleset exigindo PR, o que
+acabaria com o commit direto na `main`. O PR só entra com um commit do build
+refeito:
 
 ```sh
 gh pr checkout <número>
