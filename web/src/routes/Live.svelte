@@ -4,6 +4,8 @@
   import { cameras, loadCameras } from '../lib/state.svelte.js';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { mediaURL } from '../lib/api.js';
+  import { baixarQuadro } from '../lib/captura.js';
+  import { dayKey, hhmmss } from '../lib/format.js';
   import SemCameras from '../components/SemCameras.svelte';
 
   const STORAGE_KEY = 'dwnvr.live.selection';
@@ -115,6 +117,44 @@
     else el.requestFullscreen?.().catch(() => {});
   }
 
+  // --- o menu do ⋮ de cada tile -----------------------------------------------
+
+  // Um aberto por vez, pela câmera dele. Fica DENTRO do tile, e não num
+  // `position: fixed` como o das Detecções: em tela cheia o navegador só mostra
+  // o elemento que foi para a tela cheia, e um menu fora dele sumiria ali.
+  let menu = $state(null);
+  // O <video-stream> de cada câmera, para a captura achar o <video> dele. Não
+  // precisa ser reativo: só é lido no clique.
+  const players = {};
+  // Falha de captura por câmera, mostrada no próprio tile por alguns segundos.
+  const capturaErro = $state({});
+  const avisoTimer = {};
+
+  function foraDoMenu(e) {
+    if (menu && !e.target.closest?.('.opcoes')) menu = null;
+  }
+
+  function tecla(e) {
+    if (e.key === 'Escape') menu = null;
+  }
+
+  // O quadro é o que está na tela, e o nome leva a hora do clique: no live os
+  // dois diferem só pela latência do stream. Mesma convenção das Gravações
+  // (cam_AAAA-MM-DD_HH-MM-SS), para imagem de live e de gravação ficarem lado a
+  // lado na pasta.
+  async function capturar(cam) {
+    menu = null;
+    const d = new Date();
+    const nome = `${cam}_${dayKey(d)}_${hhmmss(d.getTime()).replaceAll(':', '-')}.jpg`;
+    try {
+      await baixarQuadro(players[cam]?.video, nome);
+    } catch (e) {
+      capturaErro[cam] = e.message;
+      clearTimeout(avisoTimer[cam]);
+      avisoTimer[cam] = setTimeout(() => delete capturaErro[cam], 5000);
+    }
+  }
+
   // Estes dois são os ÚNICOS que gravam no localStorage, e é de propósito: o
   // que vai para lá é o que o usuário escolheu clicando, nunca o que veio de um
   // link. É o que impede o `#live?view=3` de alguém de virar o seu padrão.
@@ -188,7 +228,12 @@
   });
 </script>
 
-<svelte:window onresize={medir} onorientationchange={medir} />
+<svelte:window
+  onresize={medir}
+  onorientationchange={medir}
+  onpointerdown={foraDoMenu}
+  onkeydown={tecla}
+/>
 
 <div class="page">
   <div class="row wrap">
@@ -270,11 +315,44 @@
               node.mode = 'webrtc,mse';
               node.src = mediaURL.liveWS(c.id);
               hideNativeControls(node);
+              players[c.id] = node;
               // Ao desmontar, o custom element fecha a conexão sozinho no
-              // disconnectedCallback - nada a limpar aqui.
+              // disconnectedCallback - nada a limpar aqui além da referência.
+              return () => delete players[c.id];
             }}
           ></video-stream>
           <span class="name">{c.name}</span>
+
+          {#if capturaErro[c.id]}<span class="badge">{capturaErro[c.id]}</span>{/if}
+
+          <!-- O duplo clique do tile é a tela cheia: dois toques rápidos no ⋮
+               ou no menu não podem virar isso. -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="opcoes" ondblclick={(e) => e.stopPropagation()}>
+            <button
+              class="mais"
+              onclick={() => (menu = menu === c.id ? null : c.id)}
+              aria-label="opções da câmera {c.name}"
+              aria-haspopup="menu"
+              aria-expanded={menu === c.id}
+            ><span aria-hidden="true">⋮</span></button>
+
+            {#if menu === c.id}
+              <!-- Links de verdade, e não botões que trocam o hash: assim o
+                   clique do meio e o "abrir em nova aba" também funcionam. -->
+              <div class="menu" role="menu">
+                <a role="menuitem" href="#rec?cam={encodeURIComponent(c.id)}">Ver gravações</a>
+                {#if cameras.detector}
+                  <a role="menuitem" href="#detection?cams={encodeURIComponent(c.id)}">
+                    Ver detecções
+                  </a>
+                {/if}
+                <button class="ghost" role="menuitem" onclick={() => capturar(c.id)}>
+                  Baixar imagem agora
+                </button>
+              </div>
+            {/if}
+          </div>
         </div>
       {/each}
     </div>
@@ -372,5 +450,112 @@
     padding: 2px 8px;
     font-size: 12px;
     pointer-events: none;
+  }
+
+  /* O player do go2rtc escreve o modo (loading, RTC, MSE) no canto de cima à
+     direita, que é o lugar do ⋮: o texto anda para a esquerda dele, sem tocar
+     no arquivo copiado. */
+  .tile :global(video-stream .info) { padding-right: 44px; }
+
+  /* Embaixo à direita: em cima à esquerda o player do go2rtc escreve os erros
+     dele, e embaixo à esquerda está o nome. */
+  .badge {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    max-width: calc(100% - 120px);
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid #5c2b2b;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 12px;
+    color: var(--bad);
+    pointer-events: none;
+  }
+
+  /* --- o ⋮: mesma medida e mesmo desenho do das miniaturas das Detecções --- */
+
+  /* Sem caixa própria: o ⋮ e o menu se posicionam contra o tile, e é isso que
+     deixa a altura do menu ser medida pela do tile. O div existe só para
+     segurar o duplo clique. */
+  .opcoes { display: contents; }
+
+  .mais {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    min-height: 0;
+    width: 40px;
+    height: 36px;
+    padding: 4px 4px 0 0;
+    border: 0;
+    background: none;
+  }
+
+  .mais span {
+    display: block;
+    width: 22px;
+    height: 20px;
+    border-radius: 6px;
+    background: rgba(13, 17, 23, 0.8);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+    color: var(--fg);
+  }
+
+  .mais:focus-visible { outline: none; }
+  .mais:focus-visible span,
+  .mais[aria-expanded='true'] span { outline: 2px solid var(--accent); }
+
+  /* Com mouse o ⋮ aparece só sobre o tile, e fica enquanto o menu dele está
+     aberto. No toque não há hover: ele fica sempre à vista. */
+  @media (hover: hover) {
+    .mais { opacity: 0; }
+    .tile:hover .mais,
+    .mais:focus-visible,
+    .mais[aria-expanded='true'] { opacity: 1; }
+    .tile:hover .mais span { background: rgba(13, 17, 23, 0.95); }
+  }
+
+  /* Dentro do tile, que corta o que passa da borda: num tile muito baixo o
+     menu rola em vez de sumir pela metade. */
+  .menu {
+    position: absolute;
+    top: 30px;
+    right: 4px;
+    z-index: 1;
+    max-height: calc(100% - 38px);
+    overflow-y: auto;
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .menu a,
+  .menu button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 6px;
+    color: var(--fg);
+    font-size: 14px;
+    text-align: left;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  @media (hover: hover) {
+    .menu a:hover,
+    .menu button:hover { background: var(--panel-2); }
   }
 </style>
