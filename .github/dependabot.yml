@@ -47,6 +47,11 @@ updates:
     commit-message:
       prefix: build
       include: scope
+    ignore:
+      # O svelte-check só aceita TypeScript 5 e 6 (peerDependencies). Tirar
+      # quando uma versão dele aceitar o 7.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
     groups:
       npm:
         patterns: ["*"]
@@ -90,19 +95,10 @@ updates:
       docker:
         patterns: ["*"]
 
-  # O go2rtc. O PR é só proposta: a versão nova entra depois de testada, como
-  # pede o AGENTS.md.
-  - package-ecosystem: docker-compose
-    directory: /
-    schedule:
-      interval: monthly
-    cooldown:
-      default-days: 7
-    commit-message:
-      prefix: build
-      include: scope
-
   # Os `rev` do .pre-commit-config.yaml, que é o config do prek.
+  #
+  # Sem docker-compose: o Dependabot não lê imagem com `${VAR:-...}` na tag, e
+  # o go2rtc do docker-compose.yml sobe à mão.
   - package-ecosystem: pre-commit
     directory: /
     schedule:
@@ -112,6 +108,13 @@ updates:
     commit-message:
       prefix: build
       include: scope
+    ignore:
+      # O lychee que roda é a imagem fixada no `entry` do hook, que o
+      # Dependabot não lê; o `rev` só traz a definição do hook. E o `rev` com
+      # prefixo (lychee-v0.24.2) derruba o run: o Dependabot só tira o `v` do
+      # começo e compara a versão nova com nil. O lychee sobe à mão, no `rev`
+      # e no `entry` juntos.
+      - dependency-name: https://github.com/lycheeverse/lychee
     groups:
       pre-commit:
         patterns: ["*"]

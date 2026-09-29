@@ -24,23 +24,28 @@ comando que liga.
     - [x] os 2 `go/cookie-secure-not-set`, com o `Secure` atrás de proxy TLS (28/09)
 - [x] Private vulnerability reporting, com `SECURITY.md` (28/09)
 - [x] Ruleset na `main` bloqueando force push e deleção (28/09)
-- [ ] `dependabot.yml`
-  - [x] arquivo escrito e validado pelo schema e pelo zizmor (29/09)
-  - [ ] push, e o primeiro run sem erro no badge do Dependabot
-  - [ ] conferir se o `docker-compose` lê a tag do go2rtc
-  - [ ] conferir se o `pre-commit` aceita o config do prek
-  - [ ] conferir o prefixo do commit no primeiro PR
+- [x] `dependabot.yml` (29/09)
+  - [x] arquivo escrito e validado pelo schema e pelo zizmor
+  - [x] push e primeiro run: PRs #8 (npm) e #9 (docker) abertos
+  - [x] `docker-compose` não lê a tag do go2rtc: entrada tirada
+  - [x] `pre-commit` aceita o config do prek; o lychee derruba o run e foi
+    ignorado
+  - [x] prefixo `build(deps):` e `build(deps-dev):` nos PRs
+  - [x] TypeScript 7 barrado pela CI no PR #8: major ignorado
+  - [ ] o run seguinte sem erro, com o badge verde
 - [x] Build da imagem, sem push, no PR (29/09)
-- [ ] govulncheck semanal no binário publicado
-  - [x] workflow escrito, e o comando testado local (29/09): limpo na
-    `latest`, e num binário de Go 1.22.0 acusa 30 falhas e sai com código 3
-  - [ ] push, e o primeiro run pelo `workflow_dispatch`
+  - [x] falhou nos dois jobs no PR #9 (`metadata-action` com o HEAD solto) e
+    foi corrigido em `669585f`
+  - [ ] o PR #9, depois do rebase, construindo as duas imagens
+- [x] govulncheck semanal no binário publicado (29/09): o primeiro run, pelo
+  `workflow_dispatch`, deu limpo na `latest`
+- [ ] Alerta do `torch` (PR #6): decidir
 - [ ] Decidir de novo o pin por SHA (depois do `dependabot.yml`)
 
 Em 27/09, nenhuma vulnerabilidade conhecida: govulncheck, `npm audit` e
-`pip-audit` no `dwnvr-detect/requirements.txt` deram 0. Em 28/09, ao ligar, o
-Dependabot também deu 0 alerts. Os itens são para o dia em que aparecer uma, e
-não para uma que já exista.
+`pip-audit` no `dwnvr-detect/requirements.txt` deram 0. Em 28/09, logo ao
+ligar, o Dependabot deu 0 alerts, mas minutos depois abriu 1, o do `torch`,
+num arquivo que não tinha sido auditado (item próprio abaixo).
 
 ## Já estava ligado
 
@@ -94,7 +99,8 @@ disso). Por ecossistema:
 - **`gomod`**: tudo. Não mexe na versão do Go, que está em vários lugares
   (a linha "versão de Go ou de Node" das Repercussões do `AGENTS.md`) e sobe
   à mão.
-- **`npm`** (em `/web`): tudo, incluindo o svelte-check e o ESLint. O PR que
+- **`npm`** (em `/web`): tudo menos o major do TypeScript, que o svelte-check
+  4.7.6 ainda não aceita (o PR #8 falhou no `npm ci`). O PR que
   muda o bundle precisa do build refeito, e o `ci.yml` aponta para o
   [`github.md`](../github.md#pr-do-dependabot-em-web) quando falta.
 - **`pip`** (em `/dwnvr-detect`): sem atualização de versão
@@ -111,12 +117,16 @@ disso). Por ecossistema:
   `node:24-alpine` também com `ignore` de minor e major: a tag deles já flutua
   no patch, e trocar de versão é trocar nos outros lugares junto. O
   `ghcr.io/astral-sh/uv`, tudo.
-- **`docker-compose`**: o go2rtc. A tag é `${GO2RTC_VERSION:-1.9.14}`, e falta
-  conferir se o Dependabot lê a interpolação. O PR dele é só proposta: a
-  versão nova só entra depois de testada, como pede o `AGENTS.md`.
-- **`pre-commit`**: os `rev` do `.pre-commit-config.yaml`. O arquivo é só do
-  prek, e o próprio pre-commit o recusa (o `default_language_version`); falta
-  conferir se o parser do Dependabot também recusa.
+- **`docker-compose`**: tirado depois do primeiro run, em 29/09. O
+  Dependabot não lê imagem com `${VAR:-...}` na tag: só enxergou as `:dev` do
+  `docker-compose.build.yml`, sem erro. O go2rtc sobe à mão.
+- **`pre-commit`**: os `rev` do `.pre-commit-config.yaml`. O parser aceitou o
+  config do prek, que o próprio pre-commit recusa. O lychee fica de fora: o
+  Dependabot só tira o `v` do começo do `rev` (`current_version`, no
+  `update_checker.rb` do pre-commit), e com `lychee-v0.24.2` compara a versão
+  nova com nil e derruba o run. Congelar por SHA contornaria, mas o PR ainda
+  enganaria: o lychee que roda é a imagem do `entry`, e o `rev` só traz a
+  definição do hook, que no `lychee-v0.24.2` ainda aponta a imagem 0.23.0.
 
 O Dependabot só dá security update para `github-actions`, `gomod`, `npm` e
 `pip`. Para `docker`, `docker-compose` e `pre-commit` ele só sobe versão, e
@@ -128,24 +138,18 @@ no grupo Other das notas da release (o `cliff.toml` agrupa por prefixo). O
 Dependabot tenta descobrir sozinho se o repositório usa Conventional Commits;
 o primeiro PR de segurança mostra se descobriu.
 
-### govulncheck semanal no binário publicado
+### Alerta do `torch`
 
-Um workflow com `schedule` e `workflow_dispatch`. Ele só acusa a
-vulnerabilidade cujo código o dwnvr chama, então quase não tem ruído, e olha
-também a stdlib do Go que compilou: o Dependabot olha o `go.mod`, e não a
-versão do Go.
+Aberto em 28/09 pelo Dependabot, que abriu junto o PR #6 (`torch` 2.11.0 para
+2.13.0): GHSA-rrmf-rvhw-rf47, severidade baixa, corrupção de memória no
+`torch.jit.script`, que pede ataque local. Está no
+`dwnvr-detect/modelo/requirements.txt`, que não entra na imagem: ele guarda as
+versões que geraram o `.onnx` publicado, para gerar o modelo de novo. Subir o
+pin muda o que o arquivo diz.
 
-Rodar no fonte (`govulncheck ./...`) com o `setup-go` na `1.27` analisa o
-patch mais novo do dia, e daria limpo mesmo quando o binário da release foi
-compilado com um patch mais velho que tem a falha. O que roda nas casas é o
-binário da última imagem publicada: ele é que vai para o
-`govulncheck -mode=binary`. Quando acusar algo da stdlib, a correção é uma
-release nova, porque a tag `golang:1.27-alpine` flutua sozinha e o patch só
-entra num build novo.
-
-Escrito em 29/09 no `.github/workflows/govulncheck.yml`, e o uso no
-[`github.md`](../github.md#govulncheck-semanal). Olha só a `latest`: a `main`
-é refeita a cada push, com o patch do Go do dia.
+Proposta: fechar o alerta como `tolerable_risk`, com esse motivo, e fechar o
+PR. A alternativa é mergear o PR e trocar o comentário do arquivo, que deixa
+de registrar a versão da exportação.
 
 ### Pin por SHA, depois do `dependabot.yml`
 
@@ -189,10 +193,11 @@ vale para todas, inclusive as `actions/*`.
   update. Custa um app de terceiro com escrita no repositório, inclusive nos
   workflows, e depende dos Dependabot alerts do mesmo jeito. Voltar a olhar
   se o primeiro run do `dependabot.yml` não ler a tag do go2rtc no compose ou
-  recusar o config do prek; a troca é apagar um arquivo e criar outro.
+  recusar o config do prek; a troca é apagar um arquivo e criar outro. Em
+  29/09, o compose não leu, e o config do prek passou. O Renovate também
+  leria a tag do lychee no `entry`, por regex.
 
 ## Vale a pena agora?
 
-Os cliques, o aviso e o build no PR já foram. O `dependabot.yml` e o
-govulncheck estão escritos e entram no ar com o push; o pin por SHA vem depois
-do primeiro run do Dependabot.
+Quase tudo já foi. Falta decidir o alerta do `torch` e o pin por SHA, que já
+pode ser decidido: o Dependabot está no ar.
