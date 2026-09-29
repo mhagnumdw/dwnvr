@@ -126,9 +126,16 @@
   // O <video-stream> de cada câmera, para a captura achar o <video> dele. Não
   // precisa ser reativo: só é lido no clique.
   const players = {};
-  // Falha de captura por câmera, mostrada no próprio tile por alguns segundos.
-  const capturaErro = $state({});
+  // Falha de captura ou de PiP por câmera, mostrada no próprio tile por alguns
+  // segundos.
+  const avisos = $state({});
   const avisoTimer = {};
+
+  function avisar(cam, texto) {
+    avisos[cam] = texto;
+    clearTimeout(avisoTimer[cam]);
+    avisoTimer[cam] = setTimeout(() => delete avisos[cam], 5000);
+  }
 
   function foraDoMenu(e) {
     if (menu && !e.target.closest?.('.opcoes')) menu = null;
@@ -149,10 +156,59 @@
     try {
       await baixarQuadro(players[cam]?.video, nome);
     } catch (e) {
-      capturaErro[cam] = e.message;
-      clearTimeout(avisoTimer[cam]);
-      avisoTimer[cam] = setTimeout(() => delete capturaErro[cam], 5000);
+      avisar(cam, e.message);
     }
+  }
+
+  // --- picture-in-picture ------------------------------------------------------
+
+  // O Firefox não tem a API (tem só o botão dele, desenhado sobre o vídeo): lá
+  // o botão nem aparece.
+  const PIP = document.pictureInPictureEnabled === true;
+  // A câmera que está na janela flutuante. O navegador deixa uma por vez.
+  let pipCam = $state(null);
+
+  async function alternarPip(cam) {
+    const video = players[cam]?.video;
+    try {
+      if (document.pictureInPictureElement === video) await document.exitPictureInPicture();
+      else await video.requestPictureInPicture();
+    } catch {
+      // O motivo comum é o vídeo ainda não ter começado: sem a primeira imagem
+      // o navegador recusa a janela.
+      avisar(cam, 'o vídeo ainda não começou');
+    }
+  }
+
+  // O player do go2rtc derruba a conexão 5 s depois de a aba ficar oculta, e
+  // aba oculta é justamente o caso de uso do PiP: minimizar o navegador
+  // congelaria a janelinha. O corte passa pelo `disconnectedCallback` da
+  // instância, então é ali que se segura a câmera que está no PiP - sem mexer
+  // no arquivo copiado. Quando o tile sai da tela de verdade (trocar de rota,
+  // desmarcar a câmera), o navegador chama o do protótipo, e a conexão fecha
+  // como sempre.
+  //
+  // As outras câmeras continuam sendo cortadas: com a aba oculta, só a do PiP
+  // segue puxando vídeo.
+  function manterNoPip(node, cam) {
+    const desligar = node.disconnectedCallback.bind(node);
+    node.disconnectedCallback = () => {
+      if (node.isConnected && document.pictureInPictureElement === node.video) return;
+      desligar();
+    };
+    // Os eventos saem do <video>, que nasce depois e não os propaga para cima:
+    // escutar na fase de captura do <video-stream> os pega mesmo assim.
+    node.addEventListener('enterpictureinpicture', () => (pipCam = cam), true);
+    node.addEventListener(
+      'leavepictureinpicture',
+      () => {
+        if (pipCam === cam) pipCam = null;
+        // Fechar o PiP com a aba ainda oculta aplica o corte que foi segurado.
+        // Ao voltar para a aba, o próprio player reconecta.
+        if (document.hidden) desligar();
+      },
+      true,
+    );
   }
 
   // Estes dois são os ÚNICOS que gravam no localStorage, e é de propósito: o
@@ -315,15 +371,38 @@
               node.mode = 'webrtc,mse';
               node.src = mediaURL.liveWS(c.id);
               hideNativeControls(node);
+              if (PIP) manterNoPip(node, c.id);
               players[c.id] = node;
               // Ao desmontar, o custom element fecha a conexão sozinho no
               // disconnectedCallback - nada a limpar aqui além da referência.
               return () => delete players[c.id];
             }}
           ></video-stream>
-          <span class="name">{c.name}</span>
+          <!-- O duplo clique do tile é a tela cheia: dois toques rápidos no
+               botão do PiP não podem virar isso. -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="rotulo" ondblclick={(e) => e.stopPropagation()}>
+            <span class="name">{c.name}</span>
+            {#if PIP}
+              <button
+                class="pip"
+                class:on={pipCam === c.id}
+                onclick={() => alternarPip(c.id)}
+                aria-label="{pipCam === c.id ? 'fechar' : 'abrir'} {c.name} em janela flutuante"
+                aria-pressed={pipCam === c.id}
+                title={pipCam === c.id ? 'fechar a janela flutuante' : 'abrir em janela flutuante'}
+              >
+                <!-- A janela grande com a pequena no canto: o desenho que os
+                     sistemas usam para PiP. -->
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="14" rx="2" class="moldura" />
+                  <rect x="12" y="12" width="7" height="5" rx="1" class="janela" />
+                </svg>
+              </button>
+            {/if}
+          </div>
 
-          {#if capturaErro[c.id]}<span class="badge">{capturaErro[c.id]}</span>{/if}
+          {#if avisos[c.id]}<span class="badge">{avisos[c.id]}</span>{/if}
 
           <!-- O duplo clique do tile é a tela cheia: dois toques rápidos no ⋮
                ou no menu não podem virar isso. -->
@@ -441,15 +520,65 @@
     object-fit: contain;
   }
 
-  .name {
+  /* Nome e botão do PiP juntos no canto de baixo à esquerda. */
+  .rotulo {
     position: absolute;
     left: 8px;
     bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: calc(100% - 16px);
+  }
+
+  .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     background: rgba(0, 0, 0, 0.6);
     border-radius: 6px;
     padding: 2px 8px;
     font-size: 12px;
     pointer-events: none;
+  }
+
+  /* Mesma altura e mesmo fundo do ⋮, para os dois controles do tile serem da
+     mesma família. */
+  .pip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    min-height: 0;
+    width: 26px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: rgba(13, 17, 23, 0.8);
+    color: var(--fg);
+  }
+
+  .pip svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+  }
+
+  .pip .moldura { fill: none; stroke: currentColor; stroke-width: 2; }
+  .pip .janela { fill: currentColor; }
+
+  .pip:focus-visible { outline: 2px solid var(--accent); }
+  .pip.on { color: var(--accent); outline: 2px solid var(--accent); }
+
+  /* Como o ⋮: com mouse aparece só sobre o tile, e fica enquanto a câmera está
+     no PiP; no toque fica sempre à vista. */
+  @media (hover: hover) {
+    .pip { opacity: 0; }
+    .tile:hover .pip,
+    .pip:focus-visible,
+    .pip.on { opacity: 1; }
+    .tile:hover .pip { background: rgba(13, 17, 23, 0.95); }
   }
 
   /* O player do go2rtc escreve o modo (loading, RTC, MSE) no canto de cima à
