@@ -76,7 +76,12 @@ jobs:
       # context: git tira o sha e as labels do checkout, pelo mesmo motivo do
       # commit acima. O latest só nasce de release: com o default da action
       # (latest=auto) ele apareceria sozinho em qualquer tag semver.
+      #
+      # Sem publicar, tag e label não servem, e o pull request nem teria como
+      # calcular: o checkout é do merge commit, com o HEAD solto, e o
+      # `context: git` falha com "Cannot infer ref from detached HEAD".
       - id: meta
+        if: inputs.push
         uses: docker/metadata-action@v6
         with:
           context: git
@@ -133,7 +138,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Pulado sem publicar, como no image-dwnvr-recorder.
       - id: meta
+        if: inputs.push
         uses: docker/metadata-action@v6
         with:
           context: git
