@@ -709,7 +709,8 @@ endpoints HTTP.
 
 O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push na
 main e em pull request. As imagens saem do `.github/workflows/imagens.yml`,
-que ele chama depois dos testes: na main, com a tag `main`. A release também
+que ele chama depois dos testes: na main, com a tag `main`; em pull request,
+só para conferir que as duas imagens constroem, sem publicar. A release também
 o chama, com a versão (ver [Release](#release)).
 
 ### Lint

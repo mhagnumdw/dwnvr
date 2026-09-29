@@ -3,6 +3,7 @@
 # O job `test` roda em todo push na main e em todo pull request. Fora de pull
 # request, o `imagens` roda depois dele e publica no GHCR as imagens
 # multi-arch do dwnvr e do detector de objetos, opcional, com a tag `main`.
+# Em pull request, o `imagens-pr` constrói as mesmas imagens sem publicar.
 # Quem as constrói é o imagens.yml, que a release também chama; a tag de
 # versão e o `latest` só saem da release.
 
@@ -69,3 +70,16 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+  # O PR que sobe a imagem base, ou que quebra o build dentro do Dockerfile,
+  # passaria verde sem isto, e a falha só apareceria no push na main. Sem
+  # `packages: write`, o token deste job não publica nem por engano.
+  imagens-pr:
+    needs: test
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/imagens.yml
+    with:
+      ref: ${{ github.sha }}
+      push: false
+    permissions:
+      contents: read

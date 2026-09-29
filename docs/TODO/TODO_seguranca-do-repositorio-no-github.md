@@ -28,7 +28,7 @@ comando que liga.
   - [ ] conferir se o `docker-compose` lê a tag do go2rtc
   - [ ] conferir se o `pre-commit` aceita o config do prek
   - [ ] conferir o prefixo do commit no primeiro PR
-- [ ] Build da imagem, sem push, no PR que mexe em Dockerfile
+- [x] Build da imagem, sem push, no PR (29/09)
 - [ ] govulncheck semanal no binário publicado
 - [ ] Decidir de novo o pin por SHA (depois do `dependabot.yml`)
 
@@ -121,13 +121,6 @@ no grupo Other das notas da release (o `cliff.toml` agrupa por prefixo). O
 Dependabot tenta descobrir sozinho se o repositório usa Conventional Commits;
 o primeiro PR de segurança mostra se descobriu.
 
-### Build da imagem, sem push, no PR que mexe em Dockerfile
-
-O `imagens` do `ci.yml` não roda em PR, para não publicar. Então um PR do
-Dependabot que sobe a imagem base passa na CI sem que a imagem tenha sido
-construída, e a quebra só aparece no push na `main`. Um build sem push no PR
-que toca `Dockerfile`, `dwnvr-detect/` ou o `imagens.yml` fecha esse buraco.
-
 ### govulncheck semanal no binário publicado
 
 Um workflow com `schedule` e `workflow_dispatch`. Ele só acusa a
@@ -189,5 +182,5 @@ vale para todas, inclusive as `actions/*`.
 
 ## Vale a pena agora?
 
-Os cliques e o aviso no PR já foram. O build no PR, o `dependabot.yml` e o
+Os cliques, o aviso e o build no PR já foram. O `dependabot.yml` e o
 govulncheck são uma etapa cada, e o pin por SHA vem depois do primeiro.

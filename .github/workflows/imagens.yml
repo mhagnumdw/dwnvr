@@ -10,6 +10,12 @@
 # Tags de cada chamada:
 #   push na main   main, sha-xxxxxxx
 #   release        vX.Y.Z, latest, main, sha-xxxxxxx
+#   pull request   nenhuma: constrói as duas imagens e não publica
+#
+# Os jobs não declaram `permissions`: herdam as de quem chama. Um workflow
+# chamado não pode pedir mais do que recebeu, e o pull request, que não
+# publica, chama com `contents: read` só. Quem publica passa também
+# `packages: write`.
 
 name: imagens
 
@@ -24,6 +30,10 @@ on:
         description: acrescenta as tags latest e vX.Y.Z (o próprio ref)
         type: boolean
         default: false
+      push:
+        description: publica no GHCR; false só confere que as imagens constroem
+        type: boolean
+        default: true
 
 env:
   IMAGE_DWNVR_RECORDER: ghcr.io/${{ github.repository }}
@@ -32,9 +42,6 @@ env:
 jobs:
   image-dwnvr-recorder:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -44,7 +51,8 @@ jobs:
           persist-credentials: false  # nada aqui faz push
       - uses: docker/setup-buildx-action@v4
 
-      - uses: docker/login-action@v4
+      - if: inputs.push
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -90,11 +98,13 @@ jobs:
           # Duas arquiteturas por enquanto: aarch64 (Orange Pi, Raspberry Pi) e
           # x86_64. Outras entram quando houver quem as use.
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ inputs.push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # O pull request lê o cache da main e não grava: o dele só serviria
+          # a ele mesmo e empurraria o da main para fora da cota.
           cache-from: type=gha,scope=dwnvr-recorder
-          cache-to: type=gha,scope=dwnvr-recorder,mode=max
+          cache-to: ${{ inputs.push && 'type=gha,scope=dwnvr-recorder,mode=max' || '' }}
 
   # O detector de objetos, em dwnvr-detect/. Mesmo molde do
   # `image-dwnvr-recorder`: o Dockerfile dele também não executa nada da
@@ -104,9 +114,6 @@ jobs:
   # escolher as duas imagens.
   image-dwnvr-detect:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -119,7 +126,8 @@ jobs:
           persist-credentials: false  # nada aqui faz push
       - uses: docker/setup-buildx-action@v4
 
-      - uses: docker/login-action@v4
+      - if: inputs.push
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -141,8 +149,8 @@ jobs:
         with:
           context: dwnvr-detect
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ inputs.push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=dwnvr-detect
-          cache-to: type=gha,scope=dwnvr-detect,mode=max
+          cache-to: ${{ inputs.push && 'type=gha,scope=dwnvr-detect,mode=max' || '' }}
