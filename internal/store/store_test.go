@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/mhagnumdw/dwnvr/internal/fmp4"
 )
 
 // baseTime é um instante fixo às 12h locais, longe da meia-noite, para que os
@@ -357,6 +359,58 @@ func TestScanReconciliaEntradaSemArquivo(t *testing.T) {
 	}
 	if got := c2.TotalBytes(); got != 1_000 {
 		t.Errorf("TotalBytes=%d, esperava 1000 (a entrada fantasma foi descartada?)", got)
+	}
+}
+
+// Uma queda de energia deixa, por câmera, o mesmo par: um segmento indexado
+// com a duração cheia e o arquivo de zero byte (o índice tem Sync, o vídeo
+// não), e o arquivo seguinte, também de zero byte, sem linha no índice. Visto
+// na instalação real em 08, 12, 14, 18 e 20/09/2026. Nenhum dos dois pode
+// sobrar: a timeline desenharia um trecho que não toca.
+func TestScanDescartaSegmentoDeZeroByte(t *testing.T) {
+	root := t.TempDir()
+	c := New(root).Camera("cam_teste")
+	base := baseTime()
+
+	bom := entryAt(base, 36_000, 1_000)
+	writeSegmentFile(t, c, bom)
+	vazio := entryAt(base.Add(36*time.Second), 36_000, 5_000)
+	if err := c.Append(bom); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Append(vazio); err != nil {
+		t.Fatal(err)
+	}
+	vazio.Size = 0
+	writeSegmentFile(t, c, vazio)
+	orfao := entryAt(base.Add(72*time.Second), 0, 0)
+	writeSegmentFile(t, c, orfao)
+
+	// O probe de verdade: um arquivo vazio não dá erro nele, e sai uma Entry
+	// toda zerada.
+	probe := func(path string) (Entry, error) {
+		info, err := fmp4.ProbeSegment(path)
+		if err != nil {
+			return Entry{}, err
+		}
+		return Entry{DurMs: info.DurationMs, Gen: info.Gen}, nil
+	}
+	c2 := New(root).Camera("cam_teste")
+	if err := c2.Scan(true, probe); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := c2.LoadDay(base.Format(DayLayout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].StartMs != bom.StartMs {
+		t.Fatalf("índice ficou com %v, esperava só o segmento bom", entries)
+	}
+	for _, e := range []Entry{vazio, orfao} {
+		if _, err := os.Stat(c2.SegmentPath(e.StartMs)); !os.IsNotExist(err) {
+			t.Errorf("o arquivo de zero byte em %d ficou no disco (err=%v)", e.StartMs, err)
+		}
 	}
 }
 

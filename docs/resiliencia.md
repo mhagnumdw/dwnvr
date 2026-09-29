@@ -15,6 +15,14 @@ coisas deixa um arquivo órfão, que a reconciliação do boot reincorpora sonda
 o arquivo. A ordem inversa deixaria o índice apontando para algo que nunca
 existiu.
 
+Num corte de energia de verdade, a ordem não basta: a linha do índice tem
+`Sync` e o vídeo não, então o disco pode ficar com a linha e um arquivo de zero
+byte. Por isso a reconciliação apaga todo segmento de zero byte, e a linha dele
+sai do índice. Órfão sem init ou sem fragmento também não entra. Segmento sem
+vídeo vira buraco na timeline, e não um trecho que não toca. Um `Sync` por
+segmento evitaria a perda, mas seria um fsync por câmera a cada 30 s num HD
+USB, para salvar meio minuto de vídeo.
+
 Só o dia mais recente é reconciliado: é onde mora o estrago de uma queda, e
 conferir só ele evita varrer centenas de milhares de arquivos a cada boot.
 

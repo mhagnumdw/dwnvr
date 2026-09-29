@@ -729,6 +729,19 @@ func (c *Camera) reconcile(day string, list []Entry, probe func(string) (Entry, 
 		onDisk[ms] = info.Size()
 	}
 
+	// Segmento de zero byte é gravação que não houve: a queda levou o vídeo
+	// antes de ele sair do page cache, mas a linha do índice, que tem Sync, já
+	// estava no disco. Sai daqui como um arquivo que sumiu, senão a timeline
+	// desenha um trecho que o player não toca. Apagar é seguro porque o Scan
+	// roda na subida, antes de o recorder abrir qualquer segmento; se falhar,
+	// sem linha no índice a retenção o leva junto com o dia.
+	for ms, size := range onDisk {
+		if size == 0 {
+			_ = os.Remove(c.SegmentPath(ms))
+			delete(onDisk, ms)
+		}
+	}
+
 	var kept []Entry
 	indexed := map[int64]bool{}
 	changed := false
@@ -756,6 +769,13 @@ func (c *Camera) reconcile(day string, list []Entry, probe func(string) (Entry, 
 		e, err := probe(c.SegmentPath(ms))
 		if err != nil {
 			continue // ilegível: deixa quieto, a retenção acaba levando
+		}
+		if e.Gen == "" || e.DurMs == 0 {
+			// Legível, mas sem init ou sem fragmento: não há o que tocar, e a
+			// geração vazia cortaria a faixa que o player emenda. Recusar zero
+			// só vale aqui, com a Entry recém-saída do probe: numa linha
+			// antiga do índice, zero é campo que ainda não existia.
+			continue
 		}
 		e.StartMs = ms
 		kept = append(kept, e)
