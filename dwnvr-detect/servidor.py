@@ -7,11 +7,11 @@ quadro dele. Nada mais: sem estado, sem fila, sem decidir o que vira marca.
 Isso tudo é do dwnvr, que é Go puro e não pode carregar decodificador de vídeo
 nem runtime de modelo.
 
-  POST /detect?piso=0.20&quadro=480&qualidade=75
-                            corpo: o pedaço (.mp4)   -> {"achados": [...], ...}
-  GET  /health                                       -> o modelo carregado
+  POST /detect?piso=0.20&larguraDoQuadro=480&qualidade=75
+                        corpo: o pedaço (.mp4)   -> {"achados": [...], ...}
+  GET  /health                                   -> o modelo carregado
 
-Com `quadro`, e havendo achado, a resposta traz também o quadro olhado em
+Com `larguraDoQuadro`, e havendo achado, a resposta traz também o quadro olhado em
 JPEG, reduzido àquela largura e em base64. É a miniatura da tela de Detecções:
 o quadro sai daqui porque aqui ele já está decodificado - o dwnvr não tem como
 decodificar vídeo -, e a caixa, que vai em fração, cai no lugar certo sobre
@@ -277,10 +277,10 @@ class Atendente(http.server.BaseHTTPRequestHandler):
         consulta = urllib.parse.parse_qs(url.query)
         try:
             piso = float(consulta.get("piso", [PISO_PADRAO])[0])
-            largura_quadro = min(MAIOR_QUADRO, int(consulta.get("quadro", [0])[0]))
+            largura_quadro = min(MAIOR_QUADRO, int(consulta.get("larguraDoQuadro", [0])[0]))
             qualidade = min(100, max(1, int(consulta.get("qualidade", [75])[0])))
         except ValueError:
-            return self._responde(400, {"erro": "piso, quadro ou qualidade ilegível"})
+            return self._responde(400, {"erro": "piso, larguraDoQuadro ou qualidade ilegível"})
         tamanho = int(self.headers.get("Content-Length") or 0)
         if tamanho <= 0 or tamanho > MAIOR_PEDACO:
             return self._responde(413 if tamanho > 0 else 400, {"erro": f"pedaço de {tamanho} bytes"})

@@ -58,7 +58,7 @@ const maiorResposta = 4 << 20
 
 func (s *sidecar) Olha(ctx context.Context, p Pedaco) (Visao, error) {
 	url := s.url + "/detect?piso=" + strconv.FormatFloat(PisoDoDetector, 'f', -1, 64) +
-		"&quadro=" + strconv.Itoa(LarguraDoQuadro) + "&qualidade=" + strconv.Itoa(QualidadeDoQuadro)
+		"&larguraDoQuadro=" + strconv.Itoa(LarguraDoQuadro) + "&qualidade=" + strconv.Itoa(QualidadeDoQuadro)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(p.Fmp4))
 	if err != nil {
 		return Visao{}, err

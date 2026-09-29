@@ -159,7 +159,7 @@ quadro. Não tem fila, não tem memória e não decide o que vira marca. Detalhe
 de build, modelo e licença em [`dwnvr-detect/README.md`](../dwnvr-detect/README.md).
 
 ```text
-POST /detect?piso=0.2&quadro=480&qualidade=75
+POST /detect?piso=0.2&larguraDoQuadro=480&qualidade=75
                           Content-Type: video/mp4, corpo: o pedaço
 GET  /health              só o HEALTHCHECK do Docker; o dwnvr não chama
 ```
@@ -188,9 +188,9 @@ GET  /health              só o HEALTHCHECK do Docker; o dwnvr não chama
 
 - **`caixa` é `[x1, y1, x2, y2]` em fração do quadro**, e não em pixels: é a
   única forma que continua valendo quando a resolução da câmera muda.
-- **`quadro` é o quadro olhado em JPEG**, na largura que o `quadro=` pediu, e
-  só vem quando houve achado - quadro de onset sem objeto ninguém vê. É a
-  miniatura da tela de Detecções. Ele sai daqui porque aqui ele já está
+- **`quadro` é o quadro olhado em JPEG**, na largura que o `larguraDoQuadro=`
+  pediu, e só vem quando houve achado - quadro de onset sem objeto ninguém
+  vê. É a miniatura da tela de Detecções. Ele sai daqui porque aqui ele já está
   decodificado, e a caixa, sendo fração, cai no lugar certo sobre ele em
   qualquer tamanho. Medido em quadros reais: 13,8 KB a 480 px com qualidade
   75, e ~11 ms para encodar. O dwnvr o grava em `quadros/{dia}/{instanteMs}.jpg`, ver

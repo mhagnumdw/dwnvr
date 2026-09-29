@@ -73,8 +73,8 @@ docker buildx build --platform linux/amd64 -t dwnvr-detect:amd64 --load dwnvr-de
 ## O contrato
 
 ```text
-POST /detect?piso=0.20&quadro=480&qualidade=75
-                             corpo: o pedaço (.mp4), do frame I ao quadro a olhar
+POST /detect?piso=0.20&larguraDoQuadro=480&qualidade=75
+                                      corpo: o pedaço (.mp4), do frame I ao quadro a olhar
 GET  /health
 ```
 
@@ -100,7 +100,7 @@ GET  /health
 }
 ```
 
-Com `quadro=<largura>`, e havendo achado, a resposta traz também o quadro
+Com `larguraDoQuadro=<largura>`, e havendo achado, a resposta traz também o quadro
 olhado em JPEG, reduzido àquela largura, em base64. É a miniatura da tela de
 Detecções: o quadro sai daqui porque aqui ele já está decodificado. Sem o
 parâmetro, ou sem achado, o campo não vem.
