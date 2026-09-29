@@ -23,6 +23,11 @@ a mais por segundo. Quem enfileira é o dwnvr. O `/health` não entra
 nessa vez: responde na hora mesmo com uma detecção rodando, senão o
 healthcheck do Docker, que espera 4 s, desiste no meio de uma olhada de 3,6 s.
 
+Olhada que passa de `PRAZO_DA_OLHADA_S` é tratada como travada: o processo
+sai com erro, e o `restart: unless-stopped` do compose o sobe de novo. Sem
+isso, uma inferência presa deixaria o processo vivo, o `/health` respondendo
+e nenhuma marca de objeto até alguém reiniciar o container à mão.
+
 O preparo (`prepara`) é o mesmo que calibrou o int8: o `modelo/exporta.py` o
 importa daqui. Se os dois divergissem, o modelo rodaria sobre uma faixa
 numérica diferente da que foi calibrada.
@@ -68,6 +73,12 @@ MAIOR_PEDACO = 16 << 20
 #: Maior largura aceita para o quadro de volta. Acima disso o JPEG custaria
 #: mais banda e mais tempo do que qualquer tela usa; o dwnvr pede 480.
 MAIOR_QUADRO = 1920
+
+#: Acima disto a olhada está travada, não lenta: uma leva ~6,5 s num núcleo de
+#: um Orange Pi Zero 3. Fica abaixo dos 60 s que o dwnvr espera
+#: (`PrazoDaOlhadaMs`) para o container já estar de pé de novo quando a fila
+#: dele, depois da pausa de 30 s, mandar a próxima.
+PRAZO_DA_OLHADA_S = 50
 
 #: Normalização do ImageNet, a do treino do RF-DETR.
 IMAGENET_MEDIA = (0.485, 0.456, 0.406)
@@ -229,6 +240,18 @@ class Modelo:
 # ------------------------------------------------------------------ o HTTP
 
 
+def olhada_travada():
+    """Sai do processo inteiro. `os._exit`, e não `sys.exit`: este roda na
+    thread do timer, e o `sys.exit` encerraria só ela, com a olhada presa na
+    outra."""
+    print(
+        f"olhada passou de {PRAZO_DA_OLHADA_S} s: travada, saindo para o Docker reiniciar",
+        file=sys.stderr,
+        flush=True,
+    )
+    os._exit(1)
+
+
 class Atendente(http.server.BaseHTTPRequestHandler):
     modelo: Modelo  # posto no main
     vez = threading.Lock()  # uma detecção de cada vez
@@ -264,25 +287,31 @@ class Atendente(http.server.BaseHTTPRequestHandler):
         corpo = self.rfile.read(tamanho)
 
         with self.vez:
-            t0 = time.perf_counter()
+            vigia = threading.Timer(PRAZO_DA_OLHADA_S, olhada_travada)
+            vigia.daemon = True
+            vigia.start()
             try:
-                n, img = ultimo_quadro(corpo)
-            except PedacoRuim as ex:
-                return self._responde(422, {"erro": f"pedaço não decodifica: {ex}"})
-            t1 = time.perf_counter()
-            achados, tempos = self.modelo.olha(img, piso)
-            tempos["decodifica"] = round((t1 - t0) * 1000, 1)
-
-            # Só com achado: quadro de onset sem objeto ninguém vê, e são a
-            # maior parte das olhadas. Falhar em encodar não perde a detecção.
-            quadro = None
-            if achados and largura_quadro > 0:
-                t2 = time.perf_counter()
+                t0 = time.perf_counter()
                 try:
-                    quadro = base64.b64encode(jpeg_do_quadro(img, largura_quadro, qualidade)).decode()
-                    tempos["quadro"] = round((time.perf_counter() - t2) * 1000, 1)
-                except av.error.FFmpegError as ex:
-                    print(f"quadro não encodou: {ex}", file=sys.stderr, flush=True)
+                    n, img = ultimo_quadro(corpo)
+                except PedacoRuim as ex:
+                    return self._responde(422, {"erro": f"pedaço não decodifica: {ex}"})
+                t1 = time.perf_counter()
+                achados, tempos = self.modelo.olha(img, piso)
+                tempos["decodifica"] = round((t1 - t0) * 1000, 1)
+
+                # Só com achado: quadro de onset sem objeto ninguém vê, e são a
+                # maior parte das olhadas. Falhar em encodar não perde a detecção.
+                quadro = None
+                if achados and largura_quadro > 0:
+                    t2 = time.perf_counter()
+                    try:
+                        quadro = base64.b64encode(jpeg_do_quadro(img, largura_quadro, qualidade)).decode()
+                        tempos["quadro"] = round((time.perf_counter() - t2) * 1000, 1)
+                    except av.error.FFmpegError as ex:
+                        print(f"quadro não encodou: {ex}", file=sys.stderr, flush=True)
+            finally:
+                vigia.cancel()
 
         resposta = {
             "achados": achados,

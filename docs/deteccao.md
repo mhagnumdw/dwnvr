@@ -330,8 +330,11 @@ marcas de objeto se perdem.
 - Quando ele volta, a fila retoma sozinha. Pedaço olhado com atraso marca no
   instante do onset, então a hora na timeline sai certa.
 
-**Ponto fraco:** o Docker não reinicia um container travado que não morreu
-(ver [`TODO_sidecar-travado-sem-restart.md`](TODO/TODO_sidecar-travado-sem-restart.md)).
+O Docker só reinicia um container cujo processo terminou, e uma inferência
+presa deixaria o processo vivo e o `/health` respondendo. Por isso o próprio
+dwnvr-detect sai com erro quando uma olhada passa de 50 s, e o
+`restart: unless-stopped` do compose o sobe de novo: do lado do dwnvr, isso é
+um detector que caiu aos 50 s, antes do timeout de 60 s.
 
 ## Os limites do modelo
 
