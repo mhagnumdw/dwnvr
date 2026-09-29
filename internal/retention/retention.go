@@ -106,9 +106,17 @@ func (m *Manager) enforceQuota(cam config.Camera) error {
 	if err != nil {
 		return err
 	}
-	m.log.Info("cota excedida, evictando",
-		"cam", cam.ID,
-		"usado_mb", total>>20, "cota_mb", cam.QuotaMB, "liberado_mb", freed>>20)
+	// Câmera cheia apaga o excedente de cada minuto, para sempre: é o regime
+	// normal, e em Info seria uma linha por câmera por minuto. Em KB porque o
+	// excedente de um minuto é um ou dois segmentos, e em MB daria zero.
+	attrs := []any{"cam", cam.ID,
+		"usado_mb", total >> 20, "cota_mb", cam.QuotaMB, "liberado_kb", freed >> 10}
+	if freed < want {
+		m.log.Warn("cota excedida, mas não havia gravação suficiente para apagar",
+			append(attrs, "faltou_kb", (want-freed)>>10)...)
+		return nil
+	}
+	m.log.Debug("cota excedida, evictando", attrs...)
 	return nil
 }
 
