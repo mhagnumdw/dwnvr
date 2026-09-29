@@ -1,12 +1,12 @@
-# As dependências do exporta.py, nas versões que geraram o .onnx publicado.
+# As dependências do exporta.py, nas versões que refazem o .onnx publicado.
 # Não vão para a imagem: servem só para gerar o modelo de novo.
 #
-# O torch pode ser o de CPU, que é bem menor que o de CUDA:
-#
-#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+# O torch é o do PyPI, que é o build de CUDA (~5 GB), mesmo sem GPU: só ele
+# refaz o .onnx publicado byte a byte. O de CPU é bem menor e dá um int8 de mesma
+# qualidade, mas outro arquivo (ver o README).
 rfdetr==1.10.1
-torch==2.11.0
-torchvision==0.26.0
+torch==2.13.0
+torchvision==0.28.0
 transformers==5.16.1
 supervision==0.30.2
 onnx==1.22.0

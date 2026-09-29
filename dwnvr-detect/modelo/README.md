@@ -6,7 +6,7 @@ arquivo pronto e nunca roda nada daqui.
 
 - `rfdetr-n_512x288_int8.onnx` - o modelo publicado (~30 MB)
 - `exporta.py` - gera o `.onnx` de novo, a partir dos pesos públicos
-- `requirements.txt` - as versões que geraram o publicado
+- `requirements.txt` - as versões que refazem o publicado
 - `LICENSE-RF-DETR` - a licença dos pesos
 
 ## De onde ele vem
@@ -49,13 +49,27 @@ o processo chega a ~3 GB de RAM:
 ```sh
 cd dwnvr-detect/modelo
 python3.12 -m venv .venv
-.venv/bin/pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+.venv/bin/pip install -r requirements.txt
 .venv/bin/python exporta.py --imagens ~/calibracao
 ```
 
 A pasta `--imagens` tem `.jpg` ou `.png`, de qualquer resolução. O script
 grava o fp32 e o int8 nesta pasta, por cima do publicado. O fp32 fica fora do
 git e do build da imagem.
+
+Com os quadros da calibração do publicado, o int8 sai idêntico a ele byte a
+byte:
+
+```text
+926bc9a61fe63ea8624e18859300a7c5a1768108d556c9bad9492620d3913e29  rfdetr-n_512x288_int8.onnx
+```
+
+Isso exige o `torch` do PyPI, que é o build de CUDA (~5 GB de pacotes), mesmo
+sem GPU. O de CPU (`--extra-index-url https://download.pytorch.org/whl/cpu`) é
+bem menor e dá um int8 de mesma qualidade, mas outro arquivo: o fp32 dele
+difere no último bit de um tensor, e a quantização amplifica isso em ~17% dos
+achados trocados no piso 0,20. Contra o fp32, os dois int8 empatam (ver
+[`TODO_recalibrar-modelo-com-imagens-publicas.md`](../../docs/TODO/TODO_recalibrar-modelo-com-imagens-publicas.md)).
 
 O preparo das imagens, que estica até 512x288 e normaliza pelo ImageNet, não é
 uma cópia: o `exporta.py` importa o `prepara` do `servidor.py`. Assim a
