@@ -31,6 +31,37 @@ com objeto e metade sem.
 Fontes possíveis: vídeos públicos de câmera de segurança (YouTube, com a
 licença de cada um conferida) e datasets abertos de vigilância.
 
+## Fontes candidatas (29/09)
+
+Duas fontes, as duas CC-BY (redistribuir pode, creditando o autor). Nenhum
+quadro foi extraído ainda.
+
+- **[MEVA](https://mevadata.org/)**, CC-BY-4.0: CCTV de verdade, 28 câmeras
+  num centro de treinamento (escola, hospital, prédio administrativo, ponto de
+  ônibus), 3.956 clipes de 5 min em 1920x1072 (algumas câmeras montadas em pé,
+  1072x1920). Bucket S3 público, baixa por HTTPS sem conta (ver o
+  [README dos dados](https://mevadata.org/resources/README-meva-kf1-data.html)).
+  Dia rico, com pessoas e carros. Noite só numa janela: 23:55 de 11/03/2018,
+  26 câmeras, as externas em IR. O clipe olhado estava vazio.
+- **[Techpro Security Products](https://www.youtube.com/channel/UCTxUcrHzrqkrob-L9JjJ3mQ)**,
+  canal de um fabricante no YouTube: 83 vídeos "Day / Night IR Demo", todos
+  marcados CC-BY (conferido um a um). Cada vídeo é uma câmera diferente, com
+  uma pessoa andando de dia e à noite em IR, de 480x360 a 4K. Defeitos: quase
+  todos no mesmo depósito, logo e texto por cima de todo quadro, e abertura,
+  encerramento e trechos "REPLAY / digitally zoomed" que precisam ficar de fora.
+
+Como ficaria a amostra:
+
+| | com objeto | sem objeto |
+| --- | --- | --- |
+| **dia** | MEVA + Techpro | MEVA + Techpro |
+| **noite (IR)** | Techpro | MEVA 23:55 + Techpro |
+
+Falta decidir: versionar os quadros extraídos ou só a lista (vídeo + instante).
+A recomendação é versionar os quadros: o YouTube pode re-encodar um vídeo, e o
+mesmo instante passa a dar outro pixel, o que quebra a reprodução byte a byte.
+Os quadros terão pessoas, o que a licença permite.
+
 ## Antes de trocar o publicado
 
 - Medir o int8 novo contra o atual e contra o fp32, nos mesmos quadros e fora
