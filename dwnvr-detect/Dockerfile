@@ -11,7 +11,7 @@
 
 # O uv num stage próprio, e não num `COPY --from=ghcr.io/astral-sh/uv`: esse
 # atalho traz o binário da arquitetura de DESTINO, que não roda aqui.
-FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.10.4 AS uv
+FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.12.20 AS uv
 
 # Pacotes. O Go faz cross-compile; o Python não compila, mas o uv baixa os
 # wheels (pacotes já compilados) de outra arquitetura sem executá-los.
@@ -21,7 +21,7 @@ FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.10.4 AS uv
 # --only-binary     recusa código-fonte, que exigiria compilar - e compilar
 #                   para arm64 aqui seria emular
 # --python-version  a da imagem final, e não a deste stage
-FROM --platform=$BUILDPLATFORM python:3.12.12-slim-trixie AS pacotes
+FROM --platform=$BUILDPLATFORM python:3.12.13-slim-trixie AS pacotes
 ARG TARGETARCH
 COPY --from=uv /uv /usr/local/bin/uv
 COPY requirements.txt /tmp/
@@ -40,7 +40,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
       --only-binary :all: --require-hashes -r /tmp/requirements.txt
 
 # Imagem final: só COPY.
-FROM python:3.12.12-slim-trixie
+FROM python:3.12.13-slim-trixie
 
 COPY --from=pacotes /opt/pacotes /opt/pacotes
 COPY servidor.py /app/
