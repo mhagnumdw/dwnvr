@@ -3,7 +3,9 @@ package detect
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net/url"
 	"sync"
 	"time"
 )
@@ -47,9 +49,13 @@ type Fila struct {
 	// naFila é quantos pedaços de cada câmera esperam a vez. O que está sendo
 	// olhado já saiu da fila: olhando é a câmera dele, "" com o detector
 	// parado.
-	naFila   map[string]int
-	olhando  string
-	foraDoAr bool
+	naFila  map[string]int
+	olhando string
+
+	// foraDesde é a primeira olhada seguida em que o detector não respondeu,
+	// zero com ele no ar; foraErro, o erro da mais recente. Protegidos pelo mu.
+	foraDesde time.Time
+	foraErro  string
 
 	// O que a tela de Diagnóstico mostra da fila: o maior tamanho que ela já
 	// teve, e os tempos das últimas olhadas. Protegidos pelo mu.
@@ -93,6 +99,16 @@ type EstadoDaFila struct {
 		AnaliseMs int64 `json:"analiseMs"`
 		EsperaMs  int64 `json:"esperaMs"`
 	} `json:"tempos"`
+	// ForaDoAr só vem enquanto o detector não responde. É o aviso da tela de
+	// Diagnóstico: com ele fora, as câmeras seguem gravando e marcando
+	// movimento, e a falta das marcas de objeto não se nota de outro jeito.
+	ForaDoAr *ForaDoAr `json:"foraDoAr,omitempty"`
+}
+
+// ForaDoAr é desde quando o detector não responde, e por quê.
+type ForaDoAr struct {
+	Desde time.Time `json:"desde"`
+	Erro  string    `json:"erro"`
 }
 
 // CameraNaFila é o que uma câmera tem na fila agora. Esperando nunca passa de
@@ -189,6 +205,9 @@ func (f *Fila) Estado() EstadoDaFila {
 		e.Fila.Cameras[f.olhando] = l
 	}
 	e.Tempos.AnaliseMs, e.Tempos.EsperaMs = f.analise.ms(), f.demora.ms()
+	if !f.foraDesde.IsZero() {
+		e.ForaDoAr = &ForaDoAr{Desde: f.foraDesde, Erro: f.foraErro}
+	}
 	return e
 }
 
@@ -230,6 +249,20 @@ func (f *Fila) Roda(ctx context.Context) {
 	}
 }
 
+// motivo é a falha como a tela de Diagnóstico a mostra. Sem o `Post "<url>":`
+// que o http.Client põe na frente, igual em toda falha e comprido demais para
+// o aviso; e o prazo esgotado dito com o prazo, e não como "context deadline
+// exceeded". O log continua com o erro inteiro.
+func (f *Fila) motivo(err error) string {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Sprintf("não respondeu em %d s", int(f.prazo.Seconds()))
+	}
+	if ue, ok := errors.AsType[*url.Error](err); ok {
+		return ue.Err.Error()
+	}
+	return err.Error()
+}
+
 // proximo tira o pedaço mais antigo da fila, esperando se ela estiver vazia.
 func (f *Fila) proximo(ctx context.Context) (Pedaco, bool) {
 	for {
@@ -259,10 +292,20 @@ func (f *Fila) proximo(ctx context.Context) (Pedaco, bool) {
 // volta - como o aviso de câmera parada. Uma linha por olhada falha seriam
 // centenas por hora dizendo a mesma coisa.
 func (f *Fila) anotaEstado(fora bool, err error) {
-	if fora == f.foraDoAr {
+	f.mu.Lock()
+	estava := !f.foraDesde.IsZero()
+	switch {
+	case !fora:
+		f.foraDesde, f.foraErro = time.Time{}, ""
+	case !estava:
+		f.foraDesde, f.foraErro = time.Now(), f.motivo(err)
+	default:
+		f.foraErro = f.motivo(err)
+	}
+	f.mu.Unlock()
+	if fora == estava {
 		return
 	}
-	f.foraDoAr = fora
 	if fora {
 		f.log.Error("detector de objetos fora do ar: as câmeras seguem gravando e marcando movimento",
 			"detector", f.det.Nome(), "erro", err)

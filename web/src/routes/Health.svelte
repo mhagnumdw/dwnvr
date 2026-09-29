@@ -637,6 +637,16 @@
     if (health.go2rtc) {
       out.push({ nivel: 'bad', texto: `go2rtc inacessível ${desde(health.go2rtc.since)}: ${health.go2rtc.error}` });
     }
+    // Com o detector de objetos fora, a gravação e as marcas de movimento
+    // seguem normais: sem este aviso, a falta das marcas de objeto só se nota
+    // depois, na timeline, e as marcas desse intervalo não voltam.
+    if (detector?.foraDoAr) {
+      const f = detector.foraDoAr;
+      out.push({
+        nivel: 'bad',
+        texto: `Detector de objetos inacessível ${desde(f.desde)}: ${f.erro}. As câmeras seguem gravando e marcando movimento, mas nenhuma marca de objeto é criada enquanto isso.`,
+      });
+    }
     return out;
   });
 

@@ -326,7 +326,8 @@ marcas de objeto se perdem.
   descartado, e fica como movimento.
 - O log diz **uma** linha quando o detector sai do ar e **uma** quando volta, e
   o Diagnóstico separa "o detector não respondeu" de "vídeo corrompido vindo da
-  câmera".
+  câmera". Enquanto ele está fora, os Avisos do Diagnóstico dizem desde quando
+  e por quê (o `foraDoAr` do `/api/health`, ver [`api.md`](api.md)).
 - Quando ele volta, a fila retoma sozinha. Pedaço olhado com atraso marca no
   instante do onset, então a hora na timeline sai certa.
 

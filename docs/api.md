@@ -187,6 +187,18 @@ responder - só as que ele respondeu -, e `esperaMs` quanto o pedaço esperou a
 vez antes. Zero antes da primeira olhada. Sem detector configurado, o campo
 não vem.
 
+Enquanto o detector não responde, o `detector` traz também `foraDoAr`, com a
+primeira olhada seguida que falhou e o motivo da mais recente. A primeira
+olhada que ele responde o apaga. Pedaço recusado (vídeo corrompido) não conta:
+é o detector no ar dizendo não.
+
+```json
+"foraDoAr": {
+  "desde": "2026-09-29T14:02:10-03:00",
+  "erro": "dial tcp 172.18.0.3:8480: connect: connection refused"
+}
+```
+
 `DELETE /api/rec` aceitar câmera já removida é deliberado: descadastrar sem
 apagar deixa gravações órfãs, e sem esse endpoint não haveria como recuperar o
 espaço pela interface.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -152,7 +153,7 @@ func TestFilaNaoPausaPorPedacoRecusado(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("a fila pausou depois de um pedaço recusado")
 	}
-	if f.foraDoAr {
+	if f.Estado().ForaDoAr != nil {
 		t.Error("pedaço recusado marcou o detector como fora do ar")
 	}
 }
@@ -222,5 +223,64 @@ func TestFilaGuardaPicoETempos(t *testing.T) {
 	}
 	if e.Tempos.EsperaMs < 30 {
 		t.Errorf("espera %d ms, esperado ao menos 30", e.Tempos.EsperaMs)
+	}
+}
+
+// TestFilaDizDesdeQuandoEstaForaDoAr: o aviso da tela de Diagnóstico. O
+// "desde" fica na primeira falha seguida, o erro é o da mais recente, e tudo
+// some na primeira olhada que o detector responde.
+func TestFilaDizDesdeQuandoEstaForaDoAr(t *testing.T) {
+	d := &detectorDeTeste{solta: make(chan error, 10)}
+	entregues := make(chan Olhada, 10)
+	f := novaFila(d, func(o Olhada) { entregues <- o }, mudo(), 1, time.Minute, time.Millisecond)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go f.Roda(ctx)
+
+	// A olhada é entregue antes de o estado ser anotado: espera o erro dela
+	// aparecer, ou o aviso sumir.
+	olha := func(err error) {
+		t.Helper()
+		d.solta <- err
+		f.Oferece(pedacoDe("a"))
+		<-entregues
+		espera(t, func() bool {
+			e := f.Estado().ForaDoAr
+			if err == nil {
+				return e == nil
+			}
+			return e != nil && e.Erro == err.Error()
+		})
+	}
+
+	if f.Estado().ForaDoAr != nil {
+		t.Fatal("fila nova já diz que o detector está fora do ar")
+	}
+	olha(errors.New("connection refused"))
+	primeira := f.Estado().ForaDoAr
+	olha(errors.New("no such host"))
+	if e := f.Estado().ForaDoAr; !e.Desde.Equal(primeira.Desde) {
+		t.Errorf("desde %v, esperava o da primeira falha (%v)", e.Desde, primeira.Desde)
+	}
+	olha(nil)
+}
+
+// O aviso mostra o motivo sem a URL que o http.Client põe na frente, e o prazo
+// esgotado dito com o prazo.
+func TestFilaMotivoDaFalha(t *testing.T) {
+	f := novaFila(&detectorDeTeste{}, func(Olhada) {}, mudo(), 1, time.Minute, time.Millisecond)
+	recusada := errors.New("dial tcp 172.18.0.3:8480: connect: connection refused")
+	tests := []struct {
+		err  error
+		want string
+	}{
+		{&url.Error{Op: "Post", URL: "http://dwnvr-detect:8480/detect?piso=0.2", Err: recusada}, recusada.Error()},
+		{&url.Error{Op: "Post", URL: "http://dwnvr-detect:8480/detect", Err: context.DeadlineExceeded}, "não respondeu em 60 s"},
+		{errors.New("sidecar respondeu HTTP 500: falhou"), "sidecar respondeu HTTP 500: falhou"},
+	}
+	for _, tt := range tests {
+		if got := f.motivo(tt.err); got != tt.want {
+			t.Errorf("motivo(%v) = %q, esperava %q", tt.err, got, tt.want)
+		}
 	}
 }
