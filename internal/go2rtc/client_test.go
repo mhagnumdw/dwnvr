@@ -92,6 +92,35 @@ func TestStreamsDecodificaRespostaReal(t *testing.T) {
 	}
 }
 
+// Com o stream em uso, o go2rtc troca a fonte ffmpeg: ou exec: pelo comando que
+// está rodando, em `source`, e deixa `url` nulo. Os produtores abaixo são
+// recortes do /api/streams do go2rtc 1.9.14, ociosos e em uso.
+func TestTranscodingComStreamEmUso(t *testing.T) {
+	tests := []struct {
+		nome, json string
+		want       bool
+	}{
+		{"ffmpeg: ocioso", `{"url": "ffmpeg:virtual?video=testsrc&size=320x180&rate=10#video=h264"}`, true},
+		{"ffmpeg: em uso", `{"url": null, "source": "exec:ffmpeg -hide_banner -v error -re -f lavfi -i testsrc -c:v libx264 -f rtsp rtsp://127.0.0.1:8554/a817"}`, true},
+		{"exec:ffmpeg ocioso", `{"url": "exec:ffmpeg -hide_banner -re -f lavfi -i testsrc -c:v libx264 -f rtsp {output}"}`, true},
+		{"exec:ffmpeg em uso", `{"url": null, "source": "exec:ffmpeg -hide_banner -re -f lavfi -i testsrc -c:v libx264 -f rtsp rtsp://127.0.0.1:8554/7ef1"}`, true},
+		{"exec: com caminho do ffmpeg", `{"url": "exec:/usr/bin/ffmpeg -i rtsp://cam/1 -c:v libx264 -f rtsp {output}"}`, true},
+		{"exec: de outro programa", `{"url": "exec:gst-launch-1.0 videotestsrc ! x264enc ! rtspclientsink location={output}"}`, false},
+		{"rtsp em uso", `{"url": "rtsp://admin:senha@192.168.0.61:554/onvif1", "format_name": "rtsp"}`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.nome, func(t *testing.T) {
+			var p Producer
+			if err := json.Unmarshal([]byte(tt.json), &p); err != nil {
+				t.Fatal(err)
+			}
+			if got := p.Transcoding(); got != tt.want {
+				t.Errorf("Transcoding() = %v, esperava %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // A URL de captura é o único lugar onde o modo de áudio vira comportamento, e
 // é isso que torna a escolha por câmera possível sem mais nenhuma mudança.
 func TestStreamURLPorModoDeAudio(t *testing.T) {

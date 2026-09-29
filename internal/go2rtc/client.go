@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -207,7 +208,11 @@ type Stream struct {
 }
 
 type Producer struct {
-	URL string `json:"url"`
+	// URL é a fonte como escrita no go2rtc.yaml, mas só com o stream ocioso.
+	// Com alguém consumindo, uma fonte ffmpeg: ou exec: vem com URL vazia e o
+	// comando que está rodando em Source. RTSP em uso mantém a URL.
+	URL    string `json:"url"`
+	Source string `json:"source"`
 
 	// Medias vem como texto livre, uma linha por trilha, no formato
 	// "<tipo>, <direção>, <codec>" - por exemplo "audio, recvonly, PCMA/16000".
@@ -218,7 +223,24 @@ type Producer struct {
 // Transcoding indica que a fonte é um ffmpeg, ou seja, que há transcodificação
 // acontecendo - informação que vale a pena mostrar no diagnóstico, já que o
 // objetivo declarado é não transcodificar vídeo.
-func (p Producer) Transcoding() bool { return strings.HasPrefix(p.URL, "ffmpeg:") }
+//
+// Conta tanto o ffmpeg: quanto o exec: que roda um ffmpeg, porque o go2rtc
+// traduz o primeiro no segundo: é ele que aparece em Source com o stream em
+// uso, e o custo de CPU é o mesmo quando o usuário o escreve à mão.
+func (p Producer) Transcoding() bool {
+	for _, s := range []string{p.URL, p.Source} {
+		if strings.HasPrefix(s, "ffmpeg:") {
+			return true
+		}
+		if cmd, ok := strings.CutPrefix(s, "exec:"); ok {
+			prog, _, _ := strings.Cut(cmd, " ")
+			if path.Base(prog) == "ffmpeg" {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // HasAudio diz se o produtor entrega alguma trilha de áudio. É o que permite à
 // tela de cadastro só oferecer áudio nas câmeras que de fato o têm.

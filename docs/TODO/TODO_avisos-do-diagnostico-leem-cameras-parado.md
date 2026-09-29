@@ -37,6 +37,6 @@ configurado no `recorder.Status` e deixar de cruzar com o `cameras.list`.
 Para a transcodificação, que depende de consultar o go2rtc, as opções são:
 recarregar o `cameras` junto do polling do Diagnóstico, ou levar o `transcoding`
 por câmera para o `/api/health`. A segunda custa uma chamada ao `/api/streams`
-do go2rtc a cada leitura da saúde, e deve ser medida antes. Conferir também o
-[TODO do chip ffmpeg](TODO_chip-ffmpeg-some-com-stream-em-uso.md), que mexe no
-mesmo `Transcoding()`.
+do go2rtc a cada leitura da saúde, e deve ser medida antes. O `Transcoding()`
+já lê o `source` do produtor, então acerta com a câmera gravando, que é o caso
+do Diagnóstico.
