@@ -15,7 +15,8 @@ comando que liga.
 ## Andamento
 
 - [x] Dependabot alerts e security updates (28/09)
-- [x] Aviso visível no PR do Dependabot em `web/` (28/09)
+- [x] Aviso visível no PR do Dependabot em `web/` (28/09); a anotação
+  apareceu no PR #10, o do `svelte`, em 29/09
 - [x] CodeQL default setup (28/09)
   - [x] olhar se o `internal/api/dist` dá ruído na primeira análise (não deu)
   - [x] triagem dos 18 achados de Go da primeira análise (28/09)
@@ -32,14 +33,16 @@ comando que liga.
     ignorado
   - [x] prefixo `build(deps):` e `build(deps-dev):` nos PRs
   - [x] TypeScript 7 barrado pela CI no PR #8: major ignorado
-  - [ ] o run seguinte sem erro, com o badge verde
+  - [x] o run seguinte sem erro, com o badge verde
 - [x] Build da imagem, sem push, no PR (29/09)
   - [x] falhou nos dois jobs no PR #9 (`metadata-action` com o HEAD solto) e
     foi corrigido em `669585f`
-  - [ ] o PR #9, depois do rebase, construindo as duas imagens
+  - [x] o PR #9, depois do rebase, construindo as duas imagens
 - [x] govulncheck semanal no binário publicado (29/09): o primeiro run, pelo
   `workflow_dispatch`, deu limpo na `latest`
-- [ ] Alerta do `torch` (PR #6): decidir
+- [ ] Alerta do `torch`: o PR #6 foi fechado em 29/09, sem mergear, e o
+  `torch` subiu para 2.13.0 em `15a180d`, com o `torchvision` junto; falta o
+  push e conferir que o alerta fechou sozinho
 - [ ] Decidir de novo o pin por SHA (depois do `dependabot.yml`)
 
 Em 27/09, nenhuma vulnerabilidade conhecida: govulncheck, `npm audit` e
@@ -145,11 +148,16 @@ Aberto em 28/09 pelo Dependabot, que abriu junto o PR #6 (`torch` 2.11.0 para
 `torch.jit.script`, que pede ataque local. Está no
 `dwnvr-detect/modelo/requirements.txt`, que não entra na imagem: ele guarda as
 versões que geraram o `.onnx` publicado, para gerar o modelo de novo. Subir o
-pin muda o que o arquivo diz.
+pin parecia mudar o que o arquivo diz.
 
-Proposta: fechar o alerta como `tolerable_risk`, com esse motivo, e fechar o
-PR. A alternativa é mergear o PR e trocar o comentário do arquivo, que deixa
-de registrar a versão da exportação.
+O PR foi fechado em 29/09, sem mergear: ele subia só o `torch`, e o
+`torchvision` 0.26.0 exige `torch==2.11.0`, o que quebraria o `pip install`.
+
+Em vez de dispensar o alerta, o `torch` subiu para 2.13.0 em `15a180d`, com o
+`torchvision` para 0.28.0. Subir o pin não muda o que o arquivo diz: com os
+quadros da calibração original, o `torch` 2.13.0 do PyPI refaz o int8
+publicado byte a byte. As medições estão no
+[`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO_recalibrar-modelo-com-imagens-publicas.md).
 
 ### Pin por SHA, depois do `dependabot.yml`
 
@@ -199,5 +207,6 @@ vale para todas, inclusive as `actions/*`.
 
 ## Vale a pena agora?
 
-Quase tudo já foi. Falta decidir o alerta do `torch` e o pin por SHA, que já
-pode ser decidido: o Dependabot está no ar.
+Quase tudo já foi. Falta conferir que o alerta do `torch` fechou, depois do
+push, e decidir o pin por SHA, que já pode ser decidido: o Dependabot está no
+ar.
