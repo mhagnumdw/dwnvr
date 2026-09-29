@@ -25,6 +25,8 @@ comando que liga.
 - [x] Private vulnerability reporting, com `SECURITY.md` (28/09)
 - [x] Ruleset na `main` bloqueando force push e deleção (28/09)
 - [ ] `dependabot.yml`
+  - [x] arquivo escrito e validado pelo schema e pelo zizmor (29/09)
+  - [ ] push, e o primeiro run sem erro no badge do Dependabot
   - [ ] conferir se o `docker-compose` lê a tag do go2rtc
   - [ ] conferir se o `pre-commit` aceita o config do prek
   - [ ] conferir o prefixo do commit no primeiro PR
@@ -81,12 +83,14 @@ local, na mesma suíte do default setup.
 
 ### `dependabot.yml`
 
-Um PR por mês, agrupado por ecossistema, para subir versão. Por ecossistema:
+Um PR por mês, agrupado por ecossistema, para subir versão, com `cooldown` de
+7 dias (o zizmor exige: release comprometida costuma ser retirada antes
+disso). Por ecossistema:
 
 - **`github-actions`**: tudo.
-- **`gomod`**: tudo. Não mexe na versão do Go, que está em quatro lugares
-  (`go.mod`, `golang:1.27-alpine` no `Dockerfile`, `go-version` no `ci.yml` e
-  no `lint.yml`) e sobe à mão.
+- **`gomod`**: tudo. Não mexe na versão do Go, que está em vários lugares
+  (a linha "versão de Go ou de Node" das Repercussões do `AGENTS.md`) e sobe
+  à mão.
 - **`npm`** (em `/web`): tudo, incluindo o svelte-check e o ESLint. O PR que
   muda o bundle precisa do build refeito, e o `ci.yml` aponta para o
   [`github.md`](../github.md#pr-do-dependabot-em-web) quando falta.
@@ -172,7 +176,7 @@ vale para todas, inclusive as `actions/*`.
 - **Renovate no lugar do Dependabot**, avaliado em 28/09 e deixado de lado
   por enquanto. Ele faria melhor quatro coisas daqui: um texto fixo no corpo
   do PR por pacote (`prBodyNotes`), recompilar o `requirements.txt` do
-  `uv pip compile`, subir a versão do Go nos quatro lugares num PR só e ler
+  `uv pip compile`, subir a versão do Go em todos os lugares num PR só e ler
   qualquer formato de tag por regex manager. Nenhum dos dois refaz o
   `internal/api/dist`: o app hospedado do Renovate não roda comando depois do
   update. Custa um app de terceiro com escrita no repositório, inclusive nos

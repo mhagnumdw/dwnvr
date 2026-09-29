@@ -1,0 +1,117 @@
+# Atualização de versão pelo Dependabot: um PR por mês e por ecossistema.
+#
+# O security update não depende deste arquivo e chega fora do calendário,
+# quando sai uma correção. O que fazer com cada PR está no docs/github.md.
+#
+# O cooldown espera a versão ter 7 dias antes de propor: release comprometida
+# costuma ser retirada antes disso. Não atrasa o security update.
+#
+# `build(deps):` é o prefixo que o cliff.toml põe em CI/Build nas notas da
+# release; sem ele, o "Bump ..." padrão cai em Other.
+
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      gomod:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      npm:
+        patterns: ["*"]
+
+  # Só security update. As versões do requirements.in são as que exportaram o
+  # .onnx e mediram a entrega, e trocar uma exige conferir de novo. E o
+  # Dependabot troca a linha do requirements.txt em vez de recompilar com o
+  # uv, o que quebra o arquivo; o PR dele serve de aviso.
+  - package-ecosystem: pip
+    directory: /dwnvr-detect
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: build
+      include: scope
+
+  - package-ecosystem: docker
+    directories: [/, /dwnvr-detect]
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+    ignore:
+      # Só patch: o requirements.txt é compilado para o Python 3.12.
+      - dependency-name: python
+        update-types: [version-update:semver-minor, version-update:semver-major]
+      # A tag já flutua no patch (1.27-alpine, 24-alpine). Subir de versão é
+      # trocar em todos os lugares da linha "versão de Go ou de Node" das
+      # Repercussões do AGENTS.md, e o Dependabot só mexeria no Dockerfile.
+      - dependency-name: golang
+        update-types: [version-update:semver-minor, version-update:semver-major]
+      - dependency-name: node
+        update-types: [version-update:semver-minor, version-update:semver-major]
+    groups:
+      docker:
+        patterns: ["*"]
+
+  # O go2rtc. O PR é só proposta: a versão nova entra depois de testada, como
+  # pede o AGENTS.md.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+
+  # Os `rev` do .pre-commit-config.yaml, que é o config do prek.
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      pre-commit:
+        patterns: ["*"]

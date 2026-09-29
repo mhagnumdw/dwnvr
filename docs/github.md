@@ -74,7 +74,7 @@ corrigida, quando ela existe. Não depende de `dependabot.yml`, e não sobe
 versão por outro motivo.
 
 A imagem Docker não entra: o Dependabot não tem alert nem security update para
-`docker`, só atualização de versão, que depende do `dependabot.yml`.
+`docker`, só atualização de versão.
 
 ```sh
 gh api -X PUT repos/$REPO/vulnerability-alerts       # alerts; vem primeiro
@@ -82,6 +82,11 @@ gh api -X PUT repos/$REPO/automated-security-fixes   # security updates
 ```
 
 Para desligar, os mesmos dois com `-X DELETE`, na ordem inversa.
+
+A atualização de versão, um PR por mês e por ecossistema, vem do
+[`.github/dependabot.yml`](../.github/dependabot.yml), que diz no próprio
+arquivo o porquê de cada regra. O badge do Dependabot no README fica vermelho
+quando um run dele falha, como ao não conseguir ler um arquivo.
 
 ### PR do Dependabot em `web/`
 
