@@ -40,9 +40,9 @@ comando que liga.
   - [x] o PR #9, depois do rebase, construindo as duas imagens
 - [x] govulncheck semanal no binário publicado (29/09): o primeiro run, pelo
   `workflow_dispatch`, deu limpo na `latest`
-- [ ] Alerta do `torch`: o PR #6 foi fechado em 29/09, sem mergear, e o
-  `torch` subiu para 2.13.0 em `15a180d`, com o `torchvision` junto; falta o
-  push e conferir que o alerta fechou sozinho
+- [x] Alerta do `torch` (29/09): o PR #6 foi fechado sem mergear, o `torch`
+  subiu para 2.13.0 em `15a180d`, com o `torchvision` junto, e o alerta, que
+  não fechou sozinho, foi dispensado como `inaccurate`
 - [ ] Decidir de novo o pin por SHA (depois do `dependabot.yml`)
 
 Em 27/09, nenhuma vulnerabilidade conhecida: govulncheck, `npm audit` e
@@ -153,11 +153,16 @@ pin parecia mudar o que o arquivo diz.
 O PR foi fechado em 29/09, sem mergear: ele subia só o `torch`, e o
 `torchvision` 0.26.0 exige `torch==2.11.0`, o que quebraria o `pip install`.
 
-Em vez de dispensar o alerta, o `torch` subiu para 2.13.0 em `15a180d`, com o
-`torchvision` para 0.28.0. Subir o pin não muda o que o arquivo diz: com os
-quadros da calibração original, o `torch` 2.13.0 do PyPI refaz o int8
-publicado byte a byte. As medições estão no
+O `torch` subiu para 2.13.0 em `15a180d`, com o `torchvision` para 0.28.0.
+Subir o pin não muda o que o arquivo diz: com os quadros da calibração
+original, o `torch` 2.13.0 do PyPI refaz o int8 publicado byte a byte. As
+medições estão no
 [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO_recalibrar-modelo-com-imagens-publicas.md).
+
+Depois do push o alerta não fechou, e foi dispensado à mão em 29/09, como
+`inaccurate`, com o comentário "o torch 2.13.0 está na main desde 15a180d". A
+causa é um snapshot velho do dependency graph, explicada no
+[`github.md`](../github.md#alert-que-não-fecha-depois-da-correção).
 
 ### Pin por SHA, depois do `dependabot.yml`
 
@@ -207,6 +212,5 @@ vale para todas, inclusive as `actions/*`.
 
 ## Vale a pena agora?
 
-Quase tudo já foi. Falta conferir que o alerta do `torch` fechou, depois do
-push, e decidir o pin por SHA, que já pode ser decidido: o Dependabot está no
-ar.
+Quase tudo já foi. Falta decidir o pin por SHA, que já pode ser decidido: o
+Dependabot está no ar.

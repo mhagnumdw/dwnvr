@@ -22,6 +22,7 @@ pode ser rodado outra vez para conferir.
 - [Dependabot alerts e security updates](#dependabot-alerts-e-security-updates)
   - [PR do Dependabot em `web/`](#pr-do-dependabot-em-web)
   - [PR do Dependabot em `dwnvr-detect/`](#pr-do-dependabot-em-dwnvr-detect)
+  - [Alert que não fecha depois da correção](#alert-que-não-fecha-depois-da-correção)
 - [CodeQL](#codeql)
 - [Private vulnerability reporting](#private-vulnerability-reporting)
 - [Ruleset na `main`](#ruleset-na-main)
@@ -127,6 +128,28 @@ Se o pacote é um dos três do `requirements.in`, o pin é trocado lá antes, e
 vale o que diz o comentário do arquivo: outro runtime é outro número, e a
 entrega precisa ser conferida de novo. O PR do Dependabot fica para fechar à
 mão.
+
+### Alert que não fecha depois da correção
+
+O Dependabot manda as dependências ao dependency graph em snapshots por pasta,
+no workflow "Dependency Graph", e cada snapshot só é trocado por outro de mesmo
+correlator. A leitura de `/dwnvr-detect` desce até `modelo/` e leva o
+`modelo/requirements.txt` junto; um push que só mexe em `modelo/` refaz apenas
+o snapshot de `/dwnvr-detect/modelo`. O de `/dwnvr-detect` fica com a versão
+velha, e o alert continua aberto com o arquivo já corrigido. Foi o que
+aconteceu com o `torch` em 29/09/2026.
+
+Para conferir, o dependency graph lista duas versões do mesmo pacote no mesmo
+arquivo:
+
+```sh
+gh api repos/$REPO/dependency-graph/sbom \
+  --jq '.sbom.packages[] | select(.name == "<pacote>") | .versionInfo'
+```
+
+Com a correção na `main`, o alert é dispensado à mão como `inaccurate`, com o
+commit da correção no comentário. Commit vazio para forçar a leitura não vale
+a sujeira no histórico.
 
 ## CodeQL
 
