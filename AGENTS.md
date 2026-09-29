@@ -75,6 +75,7 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 | arquivo gerado, que não se edita à mão | `exclude` do `.pre-commit-config.yaml` (hoje `internal/api/dist/` e `CHANGELOG.md`): sem ele, um hook o reescreve e o lint da CI falha |
 | volume, porta, env ou serviço no `docker-compose.yml` | §Experimentar em poucos minutos, §Instalar de verdade e §Detecção de movimento e de objetos do `README.md` · `docker-compose.build.yml` (se for serviço com imagem própria) · `docs/operacao.md` · `go2rtc.url` do `dwnvr.example.yaml` (depende do nome do serviço) |
 | caminho interno (`/etc/dwnvr`, `/storage`) | `Dockerfile` (`VOLUME`, `CMD`, `HEALTHCHECK`) · `docker-compose.yml` · `storage.root` do `dwnvr.example.yaml` · `README.md` |
+| caminho do binário na imagem (`/dwnvr`) | `Dockerfile` (`ENTRYPOINT`, `HEALTHCHECK`) · `docker cp` do `.github/workflows/govulncheck.yml` · §govulncheck semanal do `docs/github.md` |
 | flag em `cmd/dwnvr/main.go` | `CMD` e `HEALTHCHECK` do `Dockerfile` (`-config`, `-healthcheck`) · `docs/operacao.md` |
 | documento novo em `docs/` | índice `docs/README.md` · §Documentação do `README.md`. `docs/TODO/` não tem índice por arquivo |
 | renomear ou mover arquivo | links relativos nos `.md` · `README.md` e `docs/` citam `.go`/`.svelte` por caminho · árvore §Estrutura do projeto |

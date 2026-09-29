@@ -1,0 +1,60 @@
+# govulncheck no binário da última release, uma vez por semana.
+#
+# O govulncheck é a ferramenta oficial do Go para achar falha de segurança já
+# conhecida. Ele lê, de dentro do binário, a versão do Go e as dependências com
+# que foi compilado, e cruza com a base pública de falhas do Go
+# (https://vuln.go.dev). Não para em "essa versão tem falha": confere se o
+# dwnvr chama de fato a função afetada, e só acusa quando chama. Por isso quase
+# não dá alarme falso.
+#
+# O Dependabot olha o go.mod, e não a versão do Go que compilou o binário; o
+# govulncheck olha as duas.
+#
+# Roda no binário publicado, e não no fonte: no fonte, com o Go mais novo do
+# dia, daria limpo mesmo quando a release foi compilada com um patch que tem a
+# falha. Se acusar algo da stdlib, a correção é uma release nova, porque a tag
+# golang:1.27-alpine do Dockerfile só pega o patch novo num build novo.
+#
+# Falhar é o aviso: o GitHub manda e-mail quando um workflow agendado falha.
+
+name: govulncheck
+
+on:
+  schedule:
+    - cron: '17 9 * * 1'  # segunda, 09:17 UTC
+  workflow_dispatch:
+
+# Nenhum job recebe token com permissão, a não ser que peça.
+permissions: {}
+
+env:
+  # Trocada à mão. A base de falhas vem da rede a cada run, então uma versão
+  # mais velha do govulncheck ainda enxerga as falhas novas.
+  GOVULNCHECK_VERSION: v1.8.0
+
+jobs:
+  latest:
+    runs-on: ubuntu-latest
+    # A imagem é pública, e nada aqui lê o repositório.
+    permissions: {}
+    steps:
+      # O Go aqui só compila o govulncheck; a versão que importa é a que está
+      # gravada no binário.
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+
+      - run: go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION"
+
+      - name: binário da imagem latest
+        run: |
+          imagem="ghcr.io/$GITHUB_REPOSITORY:latest"
+          docker pull -q "$imagem"
+          id=$(docker create "$imagem")
+          docker cp -q "$id:/dwnvr" ./dwnvr
+          docker rm "$id" > /dev/null
+          go version ./dwnvr
+
+      - run: |
+          "$(go env GOPATH)/bin/govulncheck" -mode=binary ./dwnvr

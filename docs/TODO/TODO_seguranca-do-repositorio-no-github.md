@@ -32,6 +32,9 @@ comando que liga.
   - [ ] conferir o prefixo do commit no primeiro PR
 - [x] Build da imagem, sem push, no PR (29/09)
 - [ ] govulncheck semanal no binário publicado
+  - [x] workflow escrito, e o comando testado local (29/09): limpo na
+    `latest`, e num binário de Go 1.22.0 acusa 30 falhas e sai com código 3
+  - [ ] push, e o primeiro run pelo `workflow_dispatch`
 - [ ] Decidir de novo o pin por SHA (depois do `dependabot.yml`)
 
 Em 27/09, nenhuma vulnerabilidade conhecida: govulncheck, `npm audit` e
@@ -140,6 +143,10 @@ binário da última imagem publicada: ele é que vai para o
 release nova, porque a tag `golang:1.27-alpine` flutua sozinha e o patch só
 entra num build novo.
 
+Escrito em 29/09 no `.github/workflows/govulncheck.yml`, e o uso no
+[`github.md`](../github.md#govulncheck-semanal). Olha só a `latest`: a `main`
+é refeita a cada push, com o patch do Go do dia.
+
 ### Pin por SHA, depois do `dependabot.yml`
 
 Hoje o `.github/zizmor.yml` aceita a tag de major nas actions `actions/*` e
@@ -187,4 +194,5 @@ vale para todas, inclusive as `actions/*`.
 ## Vale a pena agora?
 
 Os cliques, o aviso e o build no PR já foram. O `dependabot.yml` e o
-govulncheck são uma etapa cada, e o pin por SHA vem depois do primeiro.
+govulncheck estão escritos e entram no ar com o push; o pin por SHA vem depois
+do primeiro run do Dependabot.

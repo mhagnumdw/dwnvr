@@ -25,6 +25,7 @@ pode ser rodado outra vez para conferir.
 - [CodeQL](#codeql)
 - [Private vulnerability reporting](#private-vulnerability-reporting)
 - [Ruleset na `main`](#ruleset-na-main)
+- [govulncheck semanal](#govulncheck-semanal)
 
 ## Conferir o estado
 
@@ -173,3 +174,28 @@ O `POST` cria um ruleset novo a cada vez que roda. Para mudar o que existe, o
 id sai de `gh api repos/$REPO/rulesets` e vai em
 `gh api -X PUT repos/$REPO/rulesets/<id>`, com o mesmo JSON; para apagar, em
 `-X DELETE`.
+
+## govulncheck semanal
+
+O [`.github/workflows/govulncheck.yml`](../.github/workflows/govulncheck.yml)
+roda toda segunda no binário da imagem `latest`, que é o que roda nas casas. Ele
+falha quando o binário tem falha conhecida em código que o dwnvr chama, da
+stdlib do Go ou de dependência, e o GitHub manda e-mail. O cabeçalho do arquivo
+diz por que é no binário, e não no fonte.
+
+```sh
+gh workflow run govulncheck.yml   # rodar agora, sem esperar a segunda
+```
+
+Em repositório público, o GitHub desliga o workflow agendado depois de 60 dias
+sem commit; `gh workflow enable govulncheck.yml` religa.
+
+O mesmo teste local, sem o GitHub:
+
+```sh
+go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+docker pull -q ghcr.io/$REPO:latest
+id=$(docker create ghcr.io/$REPO:latest)
+docker cp -q "$id:/dwnvr" ./dwnvr && docker rm "$id"
+"$(go env GOPATH)/bin/govulncheck" -mode=binary ./dwnvr
+```
