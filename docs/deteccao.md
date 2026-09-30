@@ -300,14 +300,15 @@ câmeras no nível 4 são 500 olhadas por hora, não 50. Tomando o Orange Pi Zer
 | --- | --- |
 | marca de movimento (sem detector) | desprezível: uma conta O(1) por quadro, sem alocar |
 | GOP guardado, por câmera com detecção | dois buffers, na prática ~230 KB; no máximo 8 MB |
-| uma olhada | ~6,5 s de um núcleo com `DETECT_THREADS=1`, ~3,6 s com 2 (por ~10% a mais de CPU no total) |
+| uma olhada | ~6,5 s de um núcleo com `DETECT_THREADS=1`, ~3,6 s com 2 (por ~10% a mais de CPU no total). Sem a variável, ele usa 2 numa placa de 4 núcleos |
 | nível 4, por câmera | ~9% de um núcleo, contínuo |
 | o container `dwnvr-detect` | ~230 MB, com picos de ~250 MB durante as olhadas, e o modelo carregado mesmo sem câmera nenhuma |
 
 O nível 5 dobra o custo do 4, e com muitas câmeras numa placa de quatro
 núcleos deixa de caber ao lado da gravação. É por isso que o padrão é o 4, e
-que o compose limita o `dwnvr-detect` a 2 CPUs e 400 MB: o detector nunca toma
-a máquina de quem grava.
+que o `dwnvr-detect` usa no máximo metade dos núcleos da máquina, até 4
+threads, com teto de 400 MB no compose: o detector de objetos nunca toma a
+máquina de quem grava.
 
 ## Quando o dwnvr-detect cai
 

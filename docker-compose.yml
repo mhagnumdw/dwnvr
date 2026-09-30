@@ -123,14 +123,13 @@ services:
     # Sem porta publicada: só o dwnvr fala com ele, pela rede do compose.
 
     environment:
-      # Com 2 threads, uma olhada cai de ~6,5 s para ~3,6 s num Orange Pi
-      # Zero 3, por ~10% a mais de CPU no total. Com 1, baixe o `cpus` para 1.
-      - DETECT_THREADS=2
+      # Sem DETECT_THREADS no .env, o detector de objetos usa metade dos
+      # núcleos da máquina, até 4 threads. Para outro número, ponha no .env,
+      # como por exemplo DETECT_THREADS=2.
+      - DETECT_THREADS=${DETECT_THREADS:-auto}
 
-    # O teto de CPU é o que impede o detector de tomar a máquina de quem grava.
-    # O de memória cobre o pico de uma olhada (~250 MB) com folga.
+    # O teto de memória cobre o pico de uma olhada (~250 MB) com folga.
     deploy:
       resources:
         limits:
-          cpus: "2"
           memory: 400M

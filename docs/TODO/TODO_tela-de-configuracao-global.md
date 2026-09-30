@@ -11,7 +11,7 @@ para a tela.
 | `defaults.maxDays` | `dwnvr.yaml` | Guardar no máximo N dias é uma escolha que vale para todas as câmeras, e o campo nem aparece no formulário de câmera. A retenção resolve as câmeras a cada passada, então também vale sem reiniciar. Só vale com herança (ver abaixo) |
 | `defaults.detect` | `dwnvr.yaml` | Liga ou desliga a marcação de movimento de todas as câmeras num lugar só. Mudar a detecção não reconecta a câmera. Só vale com herança |
 | `defaults.detectSensibilidade` | `dwnvr.yaml` | O mesmo nível em todas as câmeras é o caso comum, e hoje ele exige editar câmera por câmera: levar dez câmeras a outro nível custa dez edições. Mudar não reconecta a câmera. Só vale com herança |
-| `DETECT_THREADS` | env do `dwnvr-detect` | É o único ajuste de custo x espera do detector de objetos, é global (um container atende todas as câmeras) e depende do hardware: num Orange Pi Zero 3, de 1 para 2 threads a olhada cai de ~6,5 s para ~3,6 s, por ~10% a mais de CPU. O Diagnóstico mostra o efeito em um ou dois minutos ("analisar leva X s", das últimas 20 olhadas). Mora em outro container, ver a seção própria abaixo |
+| `DETECT_THREADS` | env do `dwnvr-detect` | É o único ajuste de custo x espera do detector de objetos, é global (um container atende todas as câmeras) e depende do hardware: num Orange Pi Zero 3, de 1 para 2 threads a olhada cai de ~6,5 s para ~3,6 s, por ~10% a mais de CPU. Sem a variável, ele já escolhe o número pelos núcleos da máquina; a tela serviria para fugir disso. O Diagnóstico mostra o efeito em um ou dois minutos ("analisar leva X s", das últimas 20 olhadas). Mora em outro container, ver a seção própria abaixo |
 
 ## Não recomendo
 
@@ -86,12 +86,11 @@ seção de padrões enganaria quem usa.
   o sidecar se reiniciar com o número novo: fica alguns segundos sem olhar, e a
   gravação não é afetada. A olhada que falhar nesse meio cai na pausa de 30 s da
   fila (`PausaDepoisDeFalhaMs`).
-- **O limite é o `cpus` do compose, que a tela não muda.** Acima dele, threads
-  brigando por núcleo são piores que menos threads. O `/health` teria que
-  informar o limite de CPU do container, e a tela limitaria o campo a ele. Com
-  o `cpus: "2"` do compose padrão, o campo teria só 1 e 2. Ver também
-  [`TODO_detect-threads-auto.md`](TODO_detect-threads-auto.md), que resolve o
-  mesmo problema sem tela.
+- **O teto é o de CPU do container, se houver um.** O compose padrão não põe
+  `cpus`, e o `auto` já usa metade dos núcleos, até 4. Mas quem puser um teto
+  à mão não pode passar dele: acima do teto, threads brigando por núcleo são
+  piores que menos threads. O `/health` teria que informar o teto, e a tela
+  limitaria o campo a ele.
 
 ## Onde os valores ficam gravados
 
@@ -137,6 +136,6 @@ tabela de repercussões do `AGENTS.md`.
 na API de câmeras e no significado do `cameras.json`, e sem ela a tela não se
 paga.
 
-O critério para reabrir: mudar a detecção de todas as câmeras virar rotina, ou
-o dwnvr ir para o hardware de outra pessoa, onde ninguém mediu o
-`DETECT_THREADS` certo.
+O critério para reabrir: mudar a detecção de todas as câmeras virar rotina. O
+hardware de outra pessoa deixou de ser motivo: sem o `DETECT_THREADS`, o
+número de threads se ajusta à máquina.

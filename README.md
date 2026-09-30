@@ -313,6 +313,10 @@ docker compose up -d && docker compose restart dwnvr
 >   && podman-compose --in-pod false restart dwnvr
 > ```
 
+O detector de objetos usa metade dos núcleos da máquina, até 4 threads, e
+deixa a outra metade para a gravação. Para outro número, ponha no `.env`, como
+por exemplo `DETECT_THREADS=2`, e rode o `up -d` de novo.
+
 ## Atualizar
 
 Atualiza o dwnvr para a última versão - e, junto, o `dwnvr-detect`, se

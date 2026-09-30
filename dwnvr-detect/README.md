@@ -56,7 +56,8 @@ Detalhes em [`modelo/README.md`](modelo/README.md).
 ## O custo
 
 Num Orange Pi Zero 3, uma olhada leva ~6,5 s com `DETECT_THREADS=1` e ~3,6 s
-com 2, por ~10% a mais de CPU no total. O container ocupa ~230 MB, com picos
+com 2, por ~10% a mais de CPU no total. Sem a variável, ele roda lá com 2
+threads: a metade dos 4 núcleos da placa. O container ocupa ~230 MB, com picos
 de ~250 MB. Quantas olhadas por hora ele faz depende de quantas câmeras têm a
 detecção ligada e do nível de sensibilidade de cada uma: ver
 `docs/configuracao.md`.
@@ -116,8 +117,26 @@ Configuração, por variável de ambiente:
 | Variável | O que é | Padrão |
 | --- | --- | --- |
 | `DETECT_MODELO` | o `.onnx` | `/app/modelo.onnx` |
-| `DETECT_THREADS` | threads do modelo e do vídeo | `1` |
+| `DETECT_THREADS` | threads do modelo e do vídeo | `auto` |
 | `DETECT_PORTA` | porta HTTP | `8480` |
+
+O `auto` é metade dos núcleos que o container enxerga, até 4, e nunca acima
+do teto de CPU do container, se alguém puser um (o `docker-compose.yml` do
+dwnvr não põe). A outra metade fica para a gravação. O número escolhido, e de
+onde ele saiu, vai na primeira linha do log:
+
+```text
+dwnvr-detect: modelo.onnx, entrada 512x288, 2 thread(s) (auto: metade de 4 núcleos), porta 8480
+```
+
+Um número a partir de 1 passa por cima do `auto`, e vale como veio. Não o
+ponha acima do teto de CPU do container: com `cpus: 2`, 4 threads deixam a
+olhada tão lenta quanto 1, gastando o dobro. O `0` é recusado, porque é o
+automático do onnxruntime, que conta os núcleos da máquina e não os do
+container.
+
+Com o `docker-compose.yml` do dwnvr, o número vai no `.env` ao lado dele, como
+por exemplo `DETECT_THREADS=2`, e vale no próximo `docker compose up -d`.
 
 A porta não é a 8555 porque essa é a do WebRTC do go2rtc.
 

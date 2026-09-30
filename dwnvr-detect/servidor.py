@@ -35,10 +35,12 @@ numérica diferente da que foi calibrada.
 Configuração por variável de ambiente:
 
   DETECT_MODELO   o .onnx                       (/app/modelo.onnx)
-  DETECT_THREADS  threads do modelo e do vídeo  (1)
+  DETECT_THREADS  threads do modelo e do vídeo  (auto)
   DETECT_PORTA    porta HTTP                    (8480)
 
-A porta não é a 8555 de propósito: é a do WebRTC do go2rtc, que roda ao lado.
+`auto` é metade dos núcleos que o container enxerga, até 4, e nunca acima do
+teto de CPU dele: ver `threads_do_auto`. A porta não é a 8555 de propósito: é
+a do WebRTC do go2rtc, que roda ao lado.
 """
 
 from __future__ import annotations
@@ -60,8 +62,13 @@ import numpy as np
 import onnxruntime as ort
 
 MODELO = os.environ.get("DETECT_MODELO", "/app/modelo.onnx")
-THREADS = int(os.environ.get("DETECT_THREADS", "1"))
 PORTA = int(os.environ.get("DETECT_PORTA", "8480"))
+
+#: Teto do `DETECT_THREADS=auto`. Medido só no modelo, num i7 de notebook: de
+#: 2 para 4 threads a olhada fica 1,7x mais rápida por 15 a 19% a mais de CPU,
+#: a mesma troca de 1 para 2; de 4 para 6, só 1,2 a 1,3x. E o trabalho não
+#: cresce com a máquina: são as olhadas que as câmeras pedem.
+TETO_DO_AUTO = 4
 
 #: O piso de quem não disser outro. O dwnvr diz: é o `PisoDoDetector` dele.
 PISO_PADRAO = 0.20
@@ -114,17 +121,83 @@ class PedacoRuim(Exception):
     seria olhar outro instante, e isso é pior que não olhar."""
 
 
+# ------------------------------------------------------------------ as threads
+
+
+def teto_do_container() -> float | None:
+    """Quantos núcleos o container pode usar - o `cpus` do compose -, ou None
+    sem teto.
+
+    Vem do `cpu.max` do cgroup v2: "quota período", ou "max período" sem teto.
+    O caminho do cgroup vem do /proc/self/cgroup ("0::/caminho"), que dentro
+    de um container com namespace de cgroup próprio é só "/". O cgroup v1, de
+    kernel antigo, não é lido: o compose não põe teto, e quem puser um à mão
+    num host desses diz o número em DETECT_THREADS.
+    """
+    try:
+        with open("/proc/self/cgroup") as f:
+            caminho = next(linha[3:].strip() for linha in f if linha.startswith("0::"))
+        with open(os.path.join("/sys/fs/cgroup", caminho.lstrip("/"), "cpu.max")) as f:
+            quota, periodo = f.read().split()
+        return None if quota == "max" else int(quota) / int(periodo)
+    except (OSError, StopIteration, ValueError):
+        return None
+
+
+def threads_do_auto() -> tuple[int, str]:
+    """Metade dos núcleos que o container enxerga, até TETO_DO_AUTO, e nunca
+    acima do teto de CPU do container. Devolve (threads, de onde saiu).
+
+    Metade, e não todos: a outra metade fica para o dwnvr e o go2rtc, que não
+    podem perder segmento. O detector de objetos não usa mais núcleos do que
+    threads, e é isso que o impede de tomar a máquina de quem grava.
+
+    Os núcleos vêm do `sched_getaffinity`, que respeita o `cpuset`, e NUNCA do
+    `os.cpu_count()`, que conta os da máquina e não os do container. A imagem
+    é Python 3.12, sem `os.process_cpu_count()`. Núcleo lógico conta como
+    núcleo, e com hyper-threading a metade acerta: 4 threads em 2 núcleos
+    físicos rendem só 8% a mais que 2, por 85% a mais de CPU.
+
+    O teto do container manda porque thread acima dele é pior que thread a
+    menos: com `cpus: 2`, 4 threads deixam a olhada tão lenta quanto 1 thread,
+    gastando o dobro de CPU. Teto fracionado arredonda para baixo.
+    """
+    nucleos = len(os.sched_getaffinity(0))
+    n, origem = nucleos // 2, f"metade de {nucleos} núcleo{'s' if nucleos > 1 else ''}"
+    if n > TETO_DO_AUTO:
+        n, origem = TETO_DO_AUTO, f"{nucleos} núcleos, até {TETO_DO_AUTO}"
+    teto = teto_do_container()
+    if teto is not None and teto < n:
+        n, origem = int(teto), f"teto de CPU do container, {teto:g}"
+    return max(1, n), origem
+
+
+def threads() -> tuple[int, str]:
+    """O DETECT_THREADS: `auto`, que vale quando ele não vem, ou um número a
+    partir de 1. Devolve (threads, de onde saiu)."""
+    valor = os.environ.get("DETECT_THREADS", "").strip().lower() or "auto"
+    if valor == "auto":
+        n, origem = threads_do_auto()
+        return n, f"auto: {origem}"
+    if valor.isdecimal() and int(valor) >= 1:
+        return int(valor), "DETECT_THREADS"
+    # O 0 também é recusado: é o automático do onnxruntime, que conta os
+    # núcleos físicos da MÁQUINA e ignora o container. Com `cpus: 2`, numa
+    # máquina de 14 núcleos físicos, a olhada ficou 16x mais lenta.
+    sys.exit(f"DETECT_THREADS={valor!r}: use auto ou um número a partir de 1")
+
+
 # ------------------------------------------------------------------ o vídeo
 
 
-def ultimo_quadro(fmp4: bytes) -> tuple[int, np.ndarray]:
+def ultimo_quadro(fmp4: bytes, threads: int) -> tuple[int, np.ndarray]:
     """Decodifica o pedaço inteiro e devolve (quadros decodificados, o último
     em RGB). O pedaço começa num frame I, então decodifica sozinho."""
     n, ultimo = 0, None
     try:
         with av.open(io.BytesIO(fmp4), format="mp4") as c:
             st = c.streams.video[0]
-            st.codec_context.thread_count = THREADS
+            st.codec_context.thread_count = threads
             for fr in c.decode(st):
                 n, ultimo = n + 1, fr
     except (av.error.FFmpegError, IndexError) as ex:
@@ -196,18 +269,19 @@ def prepara(img: np.ndarray, ah: int, aw: int) -> np.ndarray:
 
 
 class Modelo:
-    def __init__(self, caminho: str):
+    def __init__(self, caminho: str, threads: int):
         ort.disable_telemetry_events()
         o = ort.SessionOptions()
         # O onnxruntime não obedece OMP_NUM_THREADS nem o limite de CPU do
         # container: o número de threads dele é este, e só este.
-        o.intra_op_num_threads = THREADS
+        o.intra_op_num_threads = threads
         o.inter_op_num_threads = 1
         self.sessao = ort.InferenceSession(caminho, o, providers=["CPUExecutionProvider"])
         entrada = self.sessao.get_inputs()[0]
         self.entrada = entrada.name
         _, _, self.ah, self.aw = entrada.shape
         self.nome = os.path.basename(caminho)
+        self.threads = threads
 
     def olha(self, img: np.ndarray, piso: float) -> tuple[list, dict]:
         t0 = time.perf_counter()
@@ -268,7 +342,7 @@ class Atendente(http.server.BaseHTTPRequestHandler):
         if self.path != "/health":
             return self._responde(404, {"erro": "não existe"})
         m = self.modelo
-        self._responde(200, {"modelo": m.nome, "entrada": f"{m.aw}x{m.ah}", "threads": THREADS})
+        self._responde(200, {"modelo": m.nome, "entrada": f"{m.aw}x{m.ah}", "threads": m.threads})
 
     def do_POST(self):
         url = urllib.parse.urlsplit(self.path)
@@ -293,7 +367,7 @@ class Atendente(http.server.BaseHTTPRequestHandler):
             try:
                 t0 = time.perf_counter()
                 try:
-                    n, img = ultimo_quadro(corpo)
+                    n, img = ultimo_quadro(corpo, self.modelo.threads)
                 except PedacoRuim as ex:
                     return self._responde(422, {"erro": f"pedaço não decodifica: {ex}"})
                 t1 = time.perf_counter()
@@ -340,10 +414,11 @@ class Servidor(http.server.ThreadingHTTPServer):
 
 
 def main():
-    Atendente.modelo = Modelo(MODELO)
+    n, origem = threads()
+    Atendente.modelo = Modelo(MODELO, n)
     m = Atendente.modelo
     print(
-        f"dwnvr-detect: {m.nome}, entrada {m.aw}x{m.ah}, {THREADS} thread(s), porta {PORTA}",
+        f"dwnvr-detect: {m.nome}, entrada {m.aw}x{m.ah}, {n} thread(s) ({origem}), porta {PORTA}",
         file=sys.stderr,
         flush=True,
     )
