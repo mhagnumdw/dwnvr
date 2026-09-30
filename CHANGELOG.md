@@ -2,6 +2,32 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.3.0](https://github.com/mhagnumdw/dwnvr/compare/v0.2.0...v0.3.0) (2026-09-30)
+
+### Added
+
+- feat(detect): escolhe as threads pelos núcleos da máquina ([841db69b](https://github.com/mhagnumdw/dwnvr/commit/841db69b8bd27949f3ba88c544e3e6886abbe422))
+- feat(web): aviso de detector de objetos fora do ar no Diagnóstico ([11addd61](https://github.com/mhagnumdw/dwnvr/commit/11addd6147a49b2a4ff06a9c6059977ca3531258))
+
+### Fixed
+
+- fix(detect): sai na hora com o docker stop ([6a75587d](https://github.com/mhagnumdw/dwnvr/commit/6a75587d9836554b64a390943e3ab33dcf014ff1))
+- fix(web): avisos do Diagnóstico acompanham o go2rtc sem recarregar ([cc335062](https://github.com/mhagnumdw/dwnvr/commit/cc3350627b7c28dcf0dfd26ec60b31b57f185aed))
+- fix(api): dois saves de câmera ao mesmo tempo não se atropelam ([0b2e05f8](https://github.com/mhagnumdw/dwnvr/commit/0b2e05f8e5f0a0a57115855789aae7189553e73b))
+- fix(recorder): troca de nome ou cota não corre com a gravação ([65818e86](https://github.com/mhagnumdw/dwnvr/commit/65818e8623b9936a68e5df444846ca6feecb0fdd))
+- fix(store): segmento vazio da queda de energia sai da linha do tempo ([4ba56c10](https://github.com/mhagnumdw/dwnvr/commit/4ba56c105e5bfefda82d10a366e41569925ed08d))
+- fix(detect): reinicia sozinho quando uma olhada trava ([84871755](https://github.com/mhagnumdw/dwnvr/commit/84871755e03c48aa1bc0dd1210dff965953ffad6))
+- fix(go2rtc): chip ffmpeg não some com o stream em uso ([afb0719b](https://github.com/mhagnumdw/dwnvr/commit/afb0719bbf11bb02823f32ee8b64dee4dba69679))
+- fix(retention): log da cota em KB e fora do Info ([03103364](https://github.com/mhagnumdw/dwnvr/commit/031033646914bab1e0eca90bc9be4c95fbda94b1))
+
+### Changed
+
+- refactor(detect): parâmetro quadro vira larguraDoQuadro ([66387bfe](https://github.com/mhagnumdw/dwnvr/commit/66387bfecfe60dc7f824580c2edf19c6f0e4d7ab))
+
+### CI/Build
+
+- ci: testes rodam com o detector de corrida ([259808a4](https://github.com/mhagnumdw/dwnvr/commit/259808a4a16d3a65d0c2b65db5c2a8da3b044689))
+
 ## [v0.2.0](https://github.com/mhagnumdw/dwnvr/compare/v0.1.0...v0.2.0) (2026-09-29)
 
 ### Added
