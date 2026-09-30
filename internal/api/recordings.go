@@ -44,6 +44,13 @@ func (s *Server) handleDays(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeleteRecordings(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("cam")
 
+	// Até o fim, Purge incluído: um save da mesma câmera no meio subiria um
+	// recorder gravando no diretório que está sendo apagado, e o Pause, ao
+	// terminar, subiria outro. Vale também para a câmera já removida, que um
+	// save pode cadastrar de novo com o mesmo ID.
+	s.cadastro.Lock()
+	defer s.cadastro.Unlock()
+
 	if s.knownCamera(id) {
 		// Pause é obrigatório: purgar com o recorder no ar deixaria o segmento
 		// aberto escrevendo num inode já desvinculado e indexaria um arquivo que

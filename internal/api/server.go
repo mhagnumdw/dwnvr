@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -41,6 +42,14 @@ type Server struct {
 	// escrevendo toca o erroEscrita.
 	escrevendo  atomic.Bool
 	erroEscrita string
+	// cadastro enfileira quem mexe no ciclo de vida das câmeras: salvar,
+	// remover e apagar gravações. Cada um lê a lista, grava o cameras.json e
+	// para ou sobe recorder, e dois ao mesmo tempo - duas abas, dois aparelhos -
+	// perdiam a alteração um do outro no arquivo e deixavam um recorder órfão
+	// gravando fora do mapa do Manager. A corrida é entre goroutines deste
+	// processo, o único que escreve ali: por isso um mutex, e não um arquivo de
+	// lock, que só teria serventia entre processos.
+	cadastro sync.Mutex
 }
 
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,

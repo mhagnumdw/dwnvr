@@ -42,6 +42,11 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Só daqui para baixo: a consulta ao go2rtc acima pode levar até 10 s, e
+	// segurar o cadastro nela faria o save de outra câmera esperar à toa.
+	s.cadastro.Lock()
+	defer s.cadastro.Unlock()
+
 	cams := s.mgr.Cameras()
 	found := false
 	for i := range cams {
@@ -76,6 +81,12 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 // parâmetro, o material fica em disco e passa a aparecer na listagem de órfãos.
 func (s *Server) handleDeleteCamera(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
+
+	// Até o fim, Purge incluído: um save da mesma câmera logo depois do Remove
+	// subiria um recorder gravando no diretório que está sendo apagado.
+	s.cadastro.Lock()
+	defer s.cadastro.Unlock()
+
 	if !s.knownCamera(id) {
 		writeError(w, http.StatusNotFound, "câmera não cadastrada")
 		return

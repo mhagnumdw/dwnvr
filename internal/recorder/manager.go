@@ -29,6 +29,11 @@ type running struct {
 // alterar e remover câmeras sem reiniciar o processo - cadastrar uma câmera e
 // ter de reiniciar o serviço para ela começar a gravar seria um jeito ruim de
 // perder gravação.
+//
+// Set, Remove e Pause decidem e depois agem, e não se enfileiram entre si:
+// dois em paralelo na mesma câmera sobem dois recorders, e um fica gravando
+// fora do mapa. Quem os chama de goroutines diferentes enfileira por fora - a
+// API faz isso com o Server.cadastro.
 type Manager struct {
 	cfg    *config.Config
 	client *go2rtc.Client
