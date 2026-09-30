@@ -51,6 +51,7 @@ import http.server
 import io
 import json
 import os
+import signal
 import socket
 import sys
 import threading
@@ -326,6 +327,17 @@ def olhada_travada():
     os._exit(1)
 
 
+def parada_pedida(*_):
+    """Sai na hora com o SIGTERM do `docker stop`. Não há estado a salvar: a
+    olhada em curso só falha, e o dwnvr já trata olhada que falhou.
+
+    Sem isto o sinal não faz nada. No container este processo é o PID 1, e o
+    PID 1 ignora todo sinal que não tem tratamento: o Docker esperava o
+    timeout de 10 s e matava com SIGKILL, em todo restart e em todo `up -d`
+    que recria o container."""
+    os._exit(0)
+
+
 class Atendente(http.server.BaseHTTPRequestHandler):
     modelo: Modelo  # posto no main
     vez = threading.Lock()  # uma detecção de cada vez
@@ -414,6 +426,10 @@ class Servidor(http.server.ThreadingHTTPServer):
 
 
 def main():
+    # Logo no começo, antes do modelo, que leva uns segundos para carregar numa
+    # placa fraca. Só os imports, que vêm antes daqui, ficam sem ele: um
+    # `docker stop` no primeiro meio segundo ainda espera os 10 s.
+    signal.signal(signal.SIGTERM, parada_pedida)
     n, origem = threads()
     Atendente.modelo = Modelo(MODELO, n)
     m = Atendente.modelo
