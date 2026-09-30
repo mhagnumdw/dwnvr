@@ -195,6 +195,9 @@ type Funil struct {
 
 // Recorder grava uma câmera.
 type Recorder struct {
+	// cam é trocado com a câmera no ar, quando o Manager recebe uma mudança que
+	// não exige reconectar (nome, cota, detecção). Por isso só se lê sob o mu,
+	// ou pela cópia que camera() devolve.
 	cam    config.Camera
 	client *go2rtc.Client
 	idx    *store.Camera
@@ -311,6 +314,21 @@ func newRecorder(cam config.Camera, client *go2rtc.Client, idx *store.Camera, lo
 	return r
 }
 
+// camera devolve uma cópia da câmera corrente. Quem precisa dela fora do mu -
+// a sessão, que ainda vai esperar o go2rtc responder - trabalha com a cópia.
+func (r *Recorder) camera() config.Camera {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.cam
+}
+
+// trocaCamera põe a câmera nova no lugar da antiga, com o recorder no ar.
+func (r *Recorder) trocaCamera(cam config.Camera) {
+	r.mu.Lock()
+	r.cam = cam
+	r.mu.Unlock()
+}
+
 // pedeDetect avisa o laço de gravação que a detecção desta câmera mudou.
 func (r *Recorder) pedeDetect(cam config.Camera) {
 	a := detectDe(cam)
@@ -366,7 +384,7 @@ func (r *Recorder) movimento(instanteMs int64, keyframe bool, moof, mdat []byte)
 	}
 	v := r.mec.Quadro(instanteMs, len(mdat), keyframe)
 	if r.recorte == nil && r.pedacos != nil {
-		r.recorte = detect.NovoRecortador(r.cam.ID)
+		r.recorte = detect.NovoRecortador(r.camera().ID)
 		r.recorte.Init(r.initAtual)
 	}
 	if r.recorte != nil {
@@ -693,15 +711,19 @@ func errText(err error) string {
 
 // session é uma conexão inteira ao go2rtc, do moov ao fim do stream.
 func (r *Recorder) session(ctx context.Context) error {
-	body, err := r.client.OpenStream(ctx, r.cam.ID, r.cam.Audio,
-		time.Duration(r.cam.StallSeconds)*time.Second)
+	// A cópia é tirada uma vez, na conexão: o que ela usa (áudio, stall,
+	// duração do segmento) só muda reconectando, e o mu não pode ficar preso
+	// enquanto o go2rtc demora a responder.
+	cam := r.camera()
+	body, err := r.client.OpenStream(ctx, cam.ID, cam.Audio,
+		time.Duration(cam.StallSeconds)*time.Second)
 	if err != nil {
 		return err
 	}
 	defer body.Close()
 
 	seg := &segmenter{
-		rec: r, segDur: time.Duration(r.cam.SegmentSeconds) * time.Second,
+		rec: r, segDur: time.Duration(cam.SegmentSeconds) * time.Second,
 		relogio: relogio{balde: relogioBalde.Milliseconds()},
 	}
 	defer seg.close()

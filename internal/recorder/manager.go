@@ -113,10 +113,8 @@ func (m *Manager) Set(raw config.Camera) {
 	// Reiniciar só quando algo que o recorder usa de fato mudou: trocar o nome
 	// de exibição não deveria abrir um buraco na gravação.
 	if old != nil {
-		if !recordingParamsChanged(old.rec.cam, cam) {
-			m.mu.Lock()
-			old.rec.cam = cam
-			m.mu.Unlock()
+		if !recordingParamsChanged(old.rec.camera(), cam) {
+			old.rec.trocaCamera(cam)
 			// A detecção muda em pleno voo: o laço de gravação troca o gatilho
 			// no próximo quadro. Reconectar para mudar a sensibilidade abriria
 			// um buraco na gravação por uma coisa que não depende da conexão.
@@ -325,13 +323,11 @@ func (m *Manager) Detector() *detect.EstadoDaFila {
 		return nil
 	}
 	e := m.fila.Estado()
-	m.mu.RLock()
-	for _, r := range m.recs {
-		if d := r.rec.cam.Detect; d != nil && *d {
+	for _, r := range m.recorders() {
+		if d := r.camera().Detect; d != nil && *d {
 			e.Fila.Cap += detect.PedacosPorCamera
 		}
 	}
-	m.mu.RUnlock()
 	return &e
 }
 
