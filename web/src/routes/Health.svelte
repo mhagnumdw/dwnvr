@@ -5,7 +5,6 @@
     pollHealth,
     loadHealth,
     HEALTH_POLL_MS,
-    cameras,
     build,
     RELEASES_URL,
   } from '../lib/state.svelte.js';
@@ -608,23 +607,24 @@
       const quandoCaiu = c.disconnectedAt ? ` ${desde(c.disconnectedAt)}` : '';
       out.push({ nivel: 'bad', texto: `${c.name} desconectada${quandoCaiu}: ${c.lastError || 'motivo desconhecido'}` });
     }
-    for (const s of cameras.streams) {
-      if (s.registered && s.transcoding) {
-        // O stream do go2rtc tem o nome do id da câmera; o aviso usa o nome de
-        // exibição, como todos os outros.
-        const nome = cameras.list.find((c) => c.id === s.name)?.name ?? s.name;
+    // Os dois avisos de configuração também vêm do /api/health, e não da lista
+    // de câmeras, que esta tela nunca relê: o go2rtc.yaml editado e o go2rtc
+    // reiniciado por fora apareceriam só depois de passar pela tela Câmeras.
+    for (const c of health.cameras) {
+      if (c.transcoding) {
         out.push({
           nivel: 'warn',
-          texto: `${nome} usa uma fonte ffmpeg no go2rtc, ou seja, há transcodificação consumindo CPU.`,
+          texto: `${c.name} usa uma fonte ffmpeg no go2rtc, ou seja, há transcodificação consumindo CPU.`,
         });
       }
     }
     for (const c of health.cameras) {
-      const cfg = cameras.list.find((x) => x.id === c.id);
-      if (cfg && cfg.audio !== 'none' && !c.hasAudio) {
+      // O audio só vem de câmera com recorder: a desabilitada não tem trilha a
+      // cobrar.
+      if (c.audio && c.audio !== 'none' && !c.hasAudio) {
         out.push({
           nivel: 'warn',
-          texto: `${c.name} está configurada com áudio ${cfg.audio}, mas o stream não entrega trilha de áudio.`,
+          texto: `${c.name} está configurada com áudio ${c.audio}, mas o stream não entrega trilha de áudio.`,
         });
       }
       if (c.reconnects > 10) {

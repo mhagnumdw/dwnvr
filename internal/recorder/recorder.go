@@ -114,6 +114,15 @@ type Status struct {
 	HasAudio    bool      `json:"hasAudio"`
 	Gen         string    `json:"gen,omitempty"`
 
+	// Audio é o áudio configurado, para a tela cruzar com o HasAudio sem
+	// depender da lista de câmeras, que ela não relê. Vazio em câmera sem
+	// recorder: sem conexão, não há trilha a cobrar.
+	Audio string `json:"audio,omitempty"`
+	// Transcoding diz se o go2rtc transcodifica a fonte desta câmera. É olhado
+	// uma vez por conexão: a fonte só muda com o go2rtc reiniciando, e aí todo
+	// recorder reconecta.
+	Transcoding bool `json:"transcoding"`
+
 	// DisconnectedAt é quando a conexão caiu; só vem com Connected falso.
 	DisconnectedAt time.Time `json:"disconnectedAt,omitzero"`
 
@@ -261,6 +270,7 @@ type Recorder struct {
 	width       uint16
 	height      uint16
 	hasAudio    bool
+	transcoding bool
 	gen         string
 	bitrateKbps float64
 
@@ -567,6 +577,7 @@ func (r *Recorder) Status() Status {
 		Detect: r.cam.Detect != nil && *r.cam.Detect, Onsets: r.onsets.Load(),
 		Funil:      r.funil(),
 		VideoCodec: r.videoCodec, HasAudio: r.hasAudio, Gen: r.gen,
+		Audio: r.cam.Audio, Transcoding: r.transcoding,
 		Width: r.width, Height: r.height,
 		QuotaMB: r.cam.QuotaMB, DiskBytes: disk,
 		Silent: time.Since(r.lastActivityLocked()) > r.silenceLimitLocked(),
@@ -613,6 +624,24 @@ func (r *Recorder) sampleBitrate(now time.Time) {
 		}
 	}
 	r.sampleAt, r.sampleBytes = now, total
+}
+
+// olhaTranscodificacao pergunta ao go2rtc se a fonte da câmera passa por um
+// ffmpeg. É chamada com a câmera recém-conectada, que é quando o produtor dela
+// está no ar e o Transcoding() enxerga o comando. Falhar deixa o valor da
+// conexão anterior: o aviso do go2rtc fora do ar já é outro.
+func (r *Recorder) olhaTranscodificacao(ctx context.Context, id string) {
+	streams, err := r.client.Streams(ctx)
+	if err != nil {
+		return
+	}
+	t := false
+	for _, p := range streams[id].Producers {
+		t = t || p.Transcoding()
+	}
+	r.mu.Lock()
+	r.transcoding = t
+	r.mu.Unlock()
 }
 
 func (r *Recorder) setConnected(v bool, err string) {
@@ -804,6 +833,9 @@ func (r *Recorder) session(ctx context.Context) error {
 			r.videoCodec, r.hasAudio, r.gen = vt.Codec, mv.HasAudio(), gen
 			r.mu.Unlock()
 			r.setConnected(true, "")
+			// À parte: a consulta ao go2rtc não pode atrasar o primeiro
+			// segmento.
+			go r.olhaTranscodificacao(ctx, cam.ID)
 			r.log.Info("conectado", "codec", vt.Codec, "audio", mv.HasAudio(),
 				"resolucao_no_init", fmt.Sprintf("%dx%d", vt.Width, vt.Height),
 				"gen", gen, "init_bytes", len(seg.init))

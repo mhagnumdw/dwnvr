@@ -35,7 +35,7 @@ Todo o resto exige sessão válida.
 | `DELETE /api/cameras` | `id`, `recordings=1` | descadastra; com `recordings=1` apaga as gravações junto |
 | `GET /api/streams/probe` | `src` | diz se um stream entrega áudio, abrindo-o se preciso |
 | `POST /api/go2rtc/restart` | - | reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
-| `GET /api/health` | - | bitrate medido, dias estimados, estado do disco, uptimes e relógio |
+| `GET /api/health` | - | bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes e relógio |
 | `POST /api/reconnects/reset` | - | zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
 | `GET /api/health/servidor` | - | a máquina que grava: temperatura, memória, pressão, storage, go2rtc e últimos avisos do log |
 | `DELETE /api/rec` | `cam` | apaga as gravações; serve também câmera já removida |
@@ -91,6 +91,12 @@ nomes.
 
 Cada câmera do `/api/health` diz se a marcação de movimento está ligada
 (`detect`) e quantos onsets ela marcou desde que o dwnvr subiu (`onsets`).
+
+Cada câmera com recorder traz também o `audio` configurado, ao lado do
+`hasAudio` que a conexão achou, e o `transcoding`: se o go2rtc passa a fonte
+dela por um ffmpeg. O `transcoding` é consultado ao go2rtc uma vez por conexão,
+e não a cada leitura da saúde: a fonte só muda com o go2rtc reiniciando, o que
+reconecta todas as câmeras. Câmera desabilitada vem sem `audio`.
 
 As reconexões de cada câmera do `/api/health` contam desde `reconnectsSince`:
 a subida do recorder, que é a do dwnvr ou a última vez em que a câmera foi
