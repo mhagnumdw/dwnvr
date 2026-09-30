@@ -34,7 +34,12 @@ jobs:
           cache-dependency-path: go.sum
 
       # O vet e a formatação ficam no lint.yml, pelo golangci-lint.
-      - run: go test ./... -count=1
+      #
+      # O -race é o que dá valor aos testes de concorrência (os `*NaoCorre`): sem
+      # ele, uma corrida de dados passa verde. Ele exige CGO, mas só aqui,
+      # para compilar os testes; o binário que vai para a imagem continua
+      # estático, sem C.
+      - run: go test ./... -count=1 -race
 
       - uses: actions/setup-node@v7
         with:

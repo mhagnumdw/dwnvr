@@ -695,9 +695,12 @@ onde ninguém quer instalar toolchain de frontend.
 ### Testes
 
 ```sh
-make test        # testes de unidade
+make test        # testes de unidade, com o detector de corrida
 make check       # testes + os lints do prek
 ```
+
+O detector de corrida (`-race`) exige um compilador C na máquina que roda os
+testes. Só nela: o binário do dwnvr continua sem C.
 
 A CI roda isso e mais uma coisa: reconstrói a interface para conferir se o
 `internal/api/dist` versionado ainda corresponde a `web/`. Fica fora do `make

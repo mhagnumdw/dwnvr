@@ -84,9 +84,9 @@ image:
 	docker buildx build --platform linux/amd64,linux/arm64 \
 		$(BUILDARGS) -t dwnvr:$(VERSION) --load .
 
-## test: testes de unidade
+## test: testes de unidade, com o detector de corrida (precisa de um compilador C)
 test:
-	go test ./... -count=1
+	go test ./... -count=1 -race
 
 ## check: o que a CI roda
 check: test
