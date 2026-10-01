@@ -1,6 +1,7 @@
 # dwnvr <!-- omit in toc -->
 
 [![CI](https://github.com/mhagnumdw/dwnvr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mhagnumdw/dwnvr/actions/workflows/ci.yml)
+[![Cobertura](https://codecov.io/gh/mhagnumdw/dwnvr/graph/badge.svg)](https://app.codecov.io/gh/mhagnumdw/dwnvr)
 [![CodeQL](https://github.com/mhagnumdw/dwnvr/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/mhagnumdw/dwnvr/actions/workflows/github-code-scanning/codeql)
 [![Dependabot](https://github.com/mhagnumdw/dwnvr/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/mhagnumdw/dwnvr/actions/workflows/dependabot/dependabot-updates)
 [![Release](https://img.shields.io/github/v/release/mhagnumdw/dwnvr)](https://github.com/mhagnumdw/dwnvr/releases)
@@ -714,6 +715,21 @@ Os testes vivem ao lado do código que exercitam, em `internal/*/*_test.go`, e
 cobrem o que quebra em silêncio: a leitura de caixas fMP4, a reescrita do
 `tfdt`, o corte em keyframe, a reconciliação de órfãos, a retenção e os
 endpoints HTTP.
+
+A cobertura dos testes é o badge no topo deste README. Quem a mede é o
+`.github/workflows/cobertura.yml`, a cada push na main e em pull request, onde
+o Codecov comenta o que o PR muda nela. O relatório linha a linha fica no
+[Codecov](https://app.codecov.io/gh/mhagnumdw/dwnvr). A mesma medida, local:
+
+```sh
+go test ./... -count=1 -cover                        # por pacote
+go test ./... -count=1 -coverprofile=/tmp/cobertura.out
+go tool cover -func=/tmp/cobertura.out | tail -n1    # o total
+go tool cover -html=/tmp/cobertura.out               # as linhas, no navegador
+```
+
+O total local sai por instrução, e o do Codecov por linha, então os dois
+diferem um pouco.
 
 O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push na
 main e em pull request. As imagens saem do `.github/workflows/imagens.yml`,

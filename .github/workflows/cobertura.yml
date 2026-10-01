@@ -1,0 +1,61 @@
+# Cobertura dos testes do Go, publicada no Codecov: é o número do badge no
+# README, o relatório linha a linha em https://app.codecov.io/gh/mhagnumdw/dwnvr
+# e, em pull request, o comentário do app do Codecov com o que o PR muda na
+# cobertura. O que ele faz com o relatório está no .github/codecov.yml.
+#
+# Fica fora do ci.yml de propósito, como o lint.yml: o Codecov fora do ar
+# deixaria a CI vermelha, e a release só sai com o ci.yml verde. Os testes
+# rodam de novo aqui, sem o -race, que é cobrança do ci.yml; levam segundos.
+#
+# Sem token: o upload se autentica por OIDC, com a identidade do próprio run.
+# Num repositório público o token guardado não protegeria nada além disso, e
+# seria um segredo a mais para guardar e girar. Em PR de fork não há OIDC, e a
+# action cai sozinha no upload sem token, que o Codecov aceita de fork.
+
+name: cobertura
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Nenhum job recebe token com permissão, a não ser que peça.
+permissions: {}
+
+# Um push novo no mesmo PR cancela o run do anterior, que já não vale. Na
+# main, cada push termina o seu.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  codecov:
+    # O PR do Dependabot só troca versão: o comentário de cobertura nele seria
+    # ruído, um por PR, todo mês. O autor do PR, e não o github.actor, que
+    # muda para quem dispara o re-run.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read  # ler o código
+      id-token: write  # o OIDC do upload, no lugar do token
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # nada aqui faz push
+
+      # O Go do go.mod, e não um número a mais para lembrar de subir.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - run: go test ./... -count=1 -coverprofile=coverage.out
+
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
+        with:
+          use_oidc: true
+          files: coverage.out
+          disable_search: true  # só o arquivo acima, sem varrer o repositório
+          fail_ci_if_error: true  # sem isto, upload recusado passa verde e o badge congela

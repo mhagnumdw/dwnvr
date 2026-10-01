@@ -27,6 +27,7 @@ pode ser rodado outra vez para conferir.
 - [Private vulnerability reporting](#private-vulnerability-reporting)
 - [Ruleset na `main`](#ruleset-na-main)
 - [govulncheck semanal](#govulncheck-semanal)
+- [Codecov](#codecov)
 
 ## Conferir o estado
 
@@ -222,3 +223,30 @@ id=$(docker create ghcr.io/$REPO:latest)
 docker cp -q "$id:/dwnvr" ./dwnvr && docker rm "$id"
 "$(go env GOPATH)/bin/govulncheck" -mode=binary ./dwnvr
 ```
+
+## Codecov
+
+O badge de cobertura do README vem do [Codecov](https://app.codecov.io/gh/mhagnumdw/dwnvr),
+que recebe o relatório do [`.github/workflows/cobertura.yml`](../.github/workflows/cobertura.yml)
+a cada push na `main` e em cada pull request, menos os do Dependabot. O que ele
+faz com o relatório está no [`.github/codecov.yml`](../.github/codecov.yml).
+
+Não há token nem secret: o upload se autentica por OIDC, e o Codecov confere
+que o run é deste repositório. O primeiro upload ativa o repositório no
+Codecov; se ele for recusado, entrar com o GitHub em app.codecov.io e
+habilitar o repositório lá.
+
+O comentário no PR e o status com o número em cada commit são do app do
+Codecov, instalado em 01/10/2026 em <https://github.com/apps/codecov>, com
+acesso só ao dwnvr (Only select repositories). Ele pede escrita em status,
+checks e pull requests, que é por onde comenta. Sem o app, o upload e o badge
+continuam, e só o comentário e o status somem. O acesso se revê em
+<https://github.com/settings/installations>.
+
+```sh
+curl -s https://api.codecov.io/api/v2/github/mhagnumdw/repos/dwnvr/ | jq '{activated, totals: .totals.coverage}'
+gh workflow run cobertura.yml   # mandar de novo, sem esperar um push
+```
+
+Se o Codecov sair do ar, o `cobertura` fica vermelho e o badge para no último
+número; a CI, as imagens e a release não dependem dele.

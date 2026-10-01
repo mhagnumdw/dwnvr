@@ -1,0 +1,15 @@
+# Config do Codecov, que ele lê sozinho deste caminho. O upload sai do
+# .github/workflows/cobertura.yml, e o status e o comentário no PR saem do app
+# do Codecov instalado no repositório (ver docs/github.md).
+#
+# A cobertura é para olhar, não para segurar: o commit ou o PR que a baixa
+# ganha o número no status, mas não fica vermelho. O comentário no PR fica no
+# padrão do Codecov.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
