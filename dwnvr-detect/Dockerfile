@@ -11,7 +11,7 @@
 
 # O uv num stage próprio, e não num `COPY --from=ghcr.io/astral-sh/uv`: esse
 # atalho traz o binário da arquitetura de DESTINO, que não roda aqui.
-FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.12.20 AS uv
+FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.12.21 AS uv
 
 # Pacotes. O Go faz cross-compile; o Python não compila, mas o uv baixa os
 # wheels (pacotes já compilados) de outra arquitetura sem executá-los.
