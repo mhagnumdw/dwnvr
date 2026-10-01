@@ -15,8 +15,8 @@ falta para o dwnvr se defender sozinho.
 > Encher o disco é pior que perder gravação antiga, então esse limite ignora as
 > cotas individuais e evicta o segmento mais antigo **de todo o sistema**.
 
-E `retention.go:129-130` repete: "evicta o dia mais antigo de **qualquer**
-câmera". Mas a implementação (`retention.go:170-181`) é:
+E o comentário do `enforceFreeSpace` repete: "evicta o dia mais antigo de
+**qualquer** câmera". Mas a implementação (`oldestDay`, no mesmo arquivo) é:
 
 ```go
 func (m *Manager) oldestDay() (cam, day string, ok bool) {
@@ -40,8 +40,8 @@ removida no mês passado com 20 GB preservados.
 A rede de segurança funciona - libera espaço -, mas cobra da fonte errada.
 **Perde-se gravação viva enquanto 20 GB de vídeo morto ficam intocados.**
 
-No extremo, com as vivas já drenadas e o disco ainda apertado, cai em
-`retention.go:147-151`:
+No extremo, com as vivas já drenadas e o disco ainda apertado, cai no aviso
+do `enforceFreeSpace`:
 
 ```text
 disco abaixo do mínimo livre, mas não há mais nada a evictar
@@ -103,8 +103,9 @@ tamanho dos arquivos de índice em vez de fazer walk pelos segmentos.
    parte, para que a tela de Diagnóstico pare de creditar esse espaço a
    "outros".
 
-Estimativa: ~30 linhas mais um `retention_test.go`, que hoje não existe - o
-pacote não tem teste nenhum, então esse é o custo real escondido.
+Estimativa: ~30 linhas mais o teste delas. O `retention_test.go` já simula o
+disco (`discoDe`) e o relógio desde 01/10/2026, então o teste da órfã é mais
+um caso ali: um diretório de câmera fora do `cameras` e o disco apertado.
 
 ## Vale a pena?
 

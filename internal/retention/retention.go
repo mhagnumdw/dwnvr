@@ -37,6 +37,12 @@ type Manager struct {
 	// cota nova que só valesse após reiniciar seria uma armadilha.
 	cameras func() []config.Camera
 
+	// agora e livre são o relógio e a leitura do disco livre. Só os testes os
+	// trocam: com eles, dá para envelhecer um dia ou apertar o disco sem
+	// esperar nem encher um disco de verdade.
+	agora func() time.Time
+	livre func(path string) (int64, error)
+
 	// abaixoDesde é quando a passada viu o disco abaixo do mínimo pela
 	// primeira vez; zero enquanto ele está acima. É o "desde" do aviso da tela
 	// de diagnóstico, com a precisão de uma passada.
@@ -45,7 +51,8 @@ type Manager struct {
 }
 
 func New(cfg *config.Config, st *store.Store, cameras func() []config.Camera, log *slog.Logger) *Manager {
-	return &Manager{cfg: cfg, store: st, cameras: cameras, log: log}
+	return &Manager{cfg: cfg, store: st, cameras: cameras, log: log,
+		agora: time.Now, livre: FreeBytes}
 }
 
 // resolved devolve a configuração corrente com os padrões já aplicados.
@@ -125,7 +132,7 @@ func (m *Manager) enforceMaxDays(cam config.Camera) error {
 		return nil
 	}
 	idx := m.store.Camera(cam.ID)
-	cutoff := time.Now().AddDate(0, 0, -cam.MaxDays).Format(store.DayLayout)
+	cutoff := m.agora().AddDate(0, 0, -cam.MaxDays).Format(store.DayLayout)
 
 	for _, d := range idx.Days() {
 		if d.Day >= cutoff {
@@ -167,16 +174,16 @@ func (m *Manager) anotaDisco(abaixo bool, agora time.Time) {
 func (m *Manager) enforceFreeSpace() error {
 	minFree := m.cfg.Storage.MinFreeMB << 20
 	if minFree <= 0 {
-		m.anotaDisco(false, time.Now())
+		m.anotaDisco(false, m.agora())
 		return nil
 	}
 
 	for {
-		free, err := FreeBytes(m.store.Root())
+		free, err := m.livre(m.store.Root())
 		if err != nil {
 			return err
 		}
-		m.anotaDisco(free < minFree, time.Now())
+		m.anotaDisco(free < minFree, m.agora())
 		if free >= minFree {
 			return nil
 		}
