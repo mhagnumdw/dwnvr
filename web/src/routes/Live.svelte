@@ -10,6 +10,7 @@
 
   const STORAGE_KEY = 'dwnvr.live.selection';
   const LAYOUT_KEY = 'dwnvr.live.layout';
+  const SEMPRE_KEY = 'dwnvr.live.sempreLigadas';
 
   const COLUNAS = [1, 2, 3];
   // 'fit' é só mais um modo ao lado das colunas: como um exclui o outro por
@@ -20,6 +21,11 @@
   // encaixe desconta antes de dividir o que sobra entre os tiles.
   const GAP = 8;
   const PROPORCAO = 16 / 9;
+
+  // Quanto tempo um tile rolado para fora da tela segue ligado antes do corte.
+  // Longa de propósito: voltar para onde se estava há pouco não pode custar a
+  // espera por um keyframe. Ver `soNaTela`.
+  const CARENCIA_ROLAGEM_MS = 30_000;
 
   // Lida uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
@@ -203,12 +209,91 @@
       'leavepictureinpicture',
       () => {
         if (pipCam === cam) pipCam = null;
-        // Fechar o PiP com a aba ainda oculta aplica o corte que foi segurado.
-        // Ao voltar para a aba, o próprio player reconecta.
-        if (document.hidden) desligar();
+        // Fechar o PiP com a aba ainda oculta, ou com o tile rolado para fora
+        // da tela, aplica o corte que foi segurado. A volta é do próprio
+        // player (aba) ou do `soNaTela` (rolagem).
+        if (document.hidden || (!sempreLigadas && foraDaTela.has(node))) desligar();
       },
       true,
     );
+  }
+
+  // --- só decodifica o que está na tela ----------------------------------------
+
+  // Com a grade mais alta que a janela (1× no celular), o tile rolado para fora
+  // seguiria puxando e decodificando vídeo que ninguém vê. O player do go2rtc
+  // tem isso embutido (`visibilityThreshold`), mas o observer dele nasce no
+  // primeiro `connectedCallback`, que já rodou quando o `{@attach}` chega - a
+  // opção passada ali não teria efeito. Por isso o observer é daqui.
+  //
+  // O corte espera a `CARENCIA_ROLAGEM_MS` e passa pelo `disconnectedCallback`
+  // da instância, que traz a guarda do PiP e mais a carência própria do player
+  // (`DISCONNECT_TIMEOUT`) - descontada aqui, para o total ser o parâmetro. A
+  // aba oculta não passa por aqui e segue com os 5 s do player. Só o tile que
+  // some por inteiro é cortado: tile cortado pela metade segue ligado.
+  //
+  // Um Set comum, e não WeakSet, porque o tamanho importa: é ele que decide
+  // se o botão "manter ligadas" aparece.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- quem a tela lê é o `quantasFora`
+  const foraDaTela = new Set();
+  const corte = new WeakMap();
+  let quantasFora = $state(0);
+
+  // Opt-in de quem prefere não esperar o keyframe ao rolar, e aceita pagar em
+  // bateria. Do aparelho, como o layout: vai no localStorage, nunca na URL.
+  let sempreLigadas = $state(localStorage.getItem(SEMPRE_KEY) === '1');
+
+  function agendarCorte(node) {
+    clearTimeout(corte.get(node));
+    const espera = Math.max(0, CARENCIA_ROLAGEM_MS - node.DISCONNECT_TIMEOUT);
+    corte.set(node, setTimeout(() => node.disconnectedCallback(), espera));
+  }
+
+  const observador = new IntersectionObserver((entradas) => {
+    for (const { target: node, isIntersecting } of entradas) {
+      clearTimeout(corte.get(node));
+      if (isIntersecting) {
+        foraDaTela.delete(node);
+        node.connectedCallback();
+      } else {
+        foraDaTela.add(node);
+        if (!sempreLigadas) agendarCorte(node);
+      }
+    }
+    quantasFora = foraDaTela.size;
+  });
+
+  // Ao voltar de uma aba oculta, o player religa chamando o
+  // `connectedCallback` da instância - de todos os tiles, inclusive os fora da
+  // tela, que o observer não revisita porque nada mudou para ele. A guarda é
+  // aqui.
+  function soNaTela(node) {
+    const ligar = node.connectedCallback.bind(node);
+    node.connectedCallback = () => {
+      if (sempreLigadas || !foraDaTela.has(node)) ligar();
+    };
+    observador.observe(node);
+    return () => {
+      clearTimeout(corte.get(node));
+      observador.unobserve(node);
+      foraDaTela.delete(node);
+      quantasFora = foraDaTela.size;
+    };
+  }
+
+  // Ligar religa na hora quem já foi cortado; desligar dá aos que estão fora
+  // a mesma carência de quem acabou de sair da tela.
+  function alternarSempre() {
+    sempreLigadas = !sempreLigadas;
+    localStorage.setItem(SEMPRE_KEY, sempreLigadas ? '1' : '0');
+    for (const node of foraDaTela) {
+      if (sempreLigadas) {
+        clearTimeout(corte.get(node));
+        node.connectedCallback();
+      } else {
+        agendarCorte(node);
+      }
+    }
   }
 
   // Estes dois são os ÚNICOS que gravam no localStorage, e é de propósito: o
@@ -323,6 +408,29 @@
       {/each}
     </div>
 
+    <!-- Só aparece quando há o que manter: com tudo à vista - o encaixar,
+         ou poucas câmeras - não há tile fora da tela para cortar. -->
+    {#if quantasFora > 0}
+      <button
+        class="ghost sempre"
+        class:on={sempreLigadas}
+        aria-pressed={sempreLigadas}
+        aria-label="manter ligadas as câmeras fora da tela"
+        title={sempreLigadas
+          ? 'câmeras fora da tela seguem ligadas (gasta mais bateria)'
+          : `câmeras fora da tela desligam após ${CARENCIA_ROLAGEM_MS / 1000} s`}
+        onclick={alternarSempre}
+      >
+        <!-- A tela com o vídeo escapando por baixo dela: "toca fora da área
+             visível". O recorte em volta do ▶ é da cor do fundo. -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2.5" y="2.5" width="15" height="11" rx="1.6" class="moldura" />
+          <path d="M5 17h4M5 20.5h3" class="rastro" />
+          <path d="M12.6 11.4 23.2 17.3 12.6 23.2z" class="play" />
+        </svg>
+      </button>
+    {/if}
+
     <span class="spacer"></span>
     {#if selected.size > 4}
       <span class="chip" title="cada stream é decodificado pelo seu aparelho, não pelo servidor">
@@ -372,10 +480,15 @@
               node.src = mediaURL.liveWS(c.id);
               hideNativeControls(node);
               if (PIP) manterNoPip(node, c.id);
+              const largar = soNaTela(node);
               players[c.id] = node;
               // Ao desmontar, o custom element fecha a conexão sozinho no
-              // disconnectedCallback - nada a limpar aqui além da referência.
-              return () => delete players[c.id];
+              // disconnectedCallback - nada a limpar aqui além da referência
+              // e do observer.
+              return () => {
+                largar();
+                delete players[c.id];
+              };
             }}
           ></video-stream>
           <!-- O duplo clique do tile é a tela cheia: dois toques rápidos no
@@ -467,6 +580,25 @@
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
+  }
+
+  .sempre { padding: 8px 11px; }
+  .sempre.on { border-color: var(--accent); }
+  .sempre svg { display: block; width: 20px; height: 20px; }
+  .sempre .moldura { fill: none; stroke: currentColor; stroke-width: 1.8; }
+  .sempre .rastro {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-dasharray: 1.5 2.5;
+  }
+  .sempre .play {
+    fill: var(--accent);
+    stroke: var(--bg);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    paint-order: stroke;
   }
 
   .selecao { display: grid; gap: 10px; }
