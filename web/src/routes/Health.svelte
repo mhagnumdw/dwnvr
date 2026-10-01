@@ -19,6 +19,7 @@
     hhmmss,
     ddmm,
     relogioDeFuso,
+    gravadoSeHouverBuraco,
   } from '../lib/format.js';
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
   import SemCameras from '../components/SemCameras.svelte';
@@ -72,7 +73,10 @@
   // atributo inteiro assim, e um title vazio deixaria a célula com sublinhado
   // de dica sem dica nenhuma.
   function desdeTitulo(c) {
-    return c.oldestSegmentAt ? `Desde ${ddmm(new Date(c.oldestSegmentAt).getTime())}` : undefined;
+    if (!c.oldestSegmentAt) return undefined;
+    const desde = `Desde ${ddmm(new Date(c.oldestSegmentAt).getTime())}`;
+    const gravado = gravadoSeHouverBuraco(retidoMs(c), c.recordedMs);
+    return gravado ? `${desde}. ${duracao(retidoMs(c) - gravado)} sem gravar.` : desde;
   }
 
   // Cada coluna sabe extrair o valor que a ordena; assim o cabeçalho e a
@@ -820,7 +824,15 @@
         <!-- Uso e cota juntos, como no chip da tela de Câmeras: o número
              sozinho não diz se é muito ou pouco para esta câmera. -->
         <span class="mono">{bytes(c.diskBytes)} de {bytesDeMB(c.quotaMB)}</span>
-        <span class="mono" title={desdeTitulo(c)}>{duracao(retidoMs(c))}</span>
+        <!-- O gravado vai em linha própria, e só com buraco: na câmera sem
+             falha a célula fica como sempre foi, e a linha a mais é o próprio
+             sinal de que algo faltou. -->
+        <span class="mono" title={desdeTitulo(c)}>
+          {duracao(retidoMs(c))}
+          {#if gravadoSeHouverBuraco(retidoMs(c), c.recordedMs)}
+            <br /><span class="muted small">{duracao(c.recordedMs)} grav.</span>
+          {/if}
+        </span>
         <span class="mono">{dias(c.retainDays)}</span>
         <span class="mono">{c.reconnects}</span>
       </div>

@@ -141,8 +141,8 @@ func TestResumoBateComOsMetodosSeparados(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 
-	if bytes, oldest, newest := c.Resumo(); bytes != 0 || oldest != 0 || newest != 0 {
-		t.Errorf("câmera sem gravação devia dar tudo 0, veio %d/%d/%d", bytes, oldest, newest)
+	if bytes, oldest, newest, gravado := c.Resumo(); bytes != 0 || oldest != 0 || newest != 0 || gravado != 0 {
+		t.Errorf("câmera sem gravação devia dar tudo 0, veio %d/%d/%d/%d", bytes, oldest, newest, gravado)
 	}
 
 	// Dias fora de ordem, como o mapa de resumos entrega: os extremos têm que
@@ -153,7 +153,7 @@ func TestResumoBateComOsMetodosSeparados(t *testing.T) {
 		}
 	}
 
-	bytes, oldest, newest := c.Resumo()
+	bytes, oldest, newest, gravado := c.Resumo()
 	if want := c.TotalBytes(); bytes != want {
 		t.Errorf("bytes=%d, TotalBytes diz %d", bytes, want)
 	}
@@ -164,6 +164,82 @@ func TestResumoBateComOsMetodosSeparados(t *testing.T) {
 	// span cobrir a gravação inteira.
 	if want := base.AddDate(0, 0, 2).UnixMilli() + 60_000; newest != want {
 		t.Errorf("newest=%d, esperava %d", newest, want)
+	}
+	// Três segmentos de um minuto em três dias: o span é de dois dias, mas o
+	// vídeo que existe são três minutos. A diferença é o buraco.
+	if gravado != 3*60_000 {
+		t.Errorf("gravado=%d, esperava %d", gravado, 3*60_000)
+	}
+}
+
+// somaPorLoadDay é o tempo gravado pelo caminho caro, lendo o índice de cada
+// dia do disco: a referência contra a qual o acumulado em memória se confere.
+func somaPorLoadDay(t *testing.T, c *Camera) int64 {
+	t.Helper()
+	var n int64
+	for _, d := range c.Days() {
+		list, err := c.LoadDay(d.Day)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range list {
+			n += e.DurMs
+		}
+	}
+	return n
+}
+
+// O DurMs do resumo é mantido em memória, segmento a segmento, para que o
+// /api/health não precise ler os índices. Se algum caminho que altera o índice
+// deixar de passar pelo mergeLocked, os dois divergem em silêncio - e a tela
+// passa a mostrar buraco onde não há, ou esconder o que há. Este teste confere
+// o acumulado contra o disco depois de cada um desses caminhos.
+func TestDurMsBateComOIndice(t *testing.T) {
+	root := t.TempDir()
+	c := New(root).Camera("cam_teste")
+	base := baseTime()
+
+	confere := func(c *Camera, quando string) {
+		t.Helper()
+		_, _, _, gravado := c.Resumo()
+		if want := somaPorLoadDay(t, c); gravado != want {
+			t.Errorf("%s: gravado=%d, o índice soma %d", quando, gravado, want)
+		}
+	}
+
+	// Durações desiguais, como na vida real: o corte é por keyframe e a
+	// reconexão encurta o segmento. Dois dias, com um buraco entre eles.
+	duracoes := []int64{60_000, 58_400, 61_200, 12_300, 60_000}
+	for d := range 2 {
+		for i, dur := range duracoes {
+			e := entryAt(base.AddDate(0, 0, d).Add(time.Duration(i)*time.Minute), dur, 1_000_000)
+			writeSegmentFile(t, c, e)
+			if err := c.Append(e); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	confere(c, "após Append")
+
+	c2 := New(root).Camera("cam_teste")
+	if err := c2.Scan(false, nil); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	confere(c2, "após Scan")
+
+	// Evicção parcial: o dia mais antigo perde dois segmentos e é recontado.
+	if _, err := c2.EvictOldest(1_500_000); err != nil {
+		t.Fatal(err)
+	}
+	confere(c2, "após EvictOldest parcial")
+
+	// Evicção do dia inteiro restante: o resumo some pelo DropDay.
+	if _, err := c2.EvictOldest(3_000_000); err != nil {
+		t.Fatal(err)
+	}
+	confere(c2, "após EvictOldest do dia inteiro")
+	if _, _, _, gravado := c2.Resumo(); gravado == 0 {
+		t.Error("o segundo dia não devia ter sido tocado")
 	}
 }
 

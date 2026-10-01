@@ -79,7 +79,9 @@ const (
 // O viés que sobra é honesto e é o mesmo do "retido": câmera que ficou dias
 // fora do ar tem esse tempo contado no span, o que dilui a densidade e infla a
 // estimativa. Os dois números erram juntos, na mesma direção, o que é
-// preferível a divergirem.
+// preferível a divergirem. O RecordedMs daria a densidade sem esse viés, e
+// ficou de fora de propósito: com ele, a estimativa passaria a encostar no
+// tempo gravado, e não no retido, quando a cota enche.
 //
 // Sem histórico que dê medida - câmera nova, que é justamente quando a
 // estimativa mais serve para escolher a cota - cai na taxa instantânea. Sem
@@ -156,6 +158,12 @@ type Status struct {
 	// ser enviado em segundos, não incomoda aqui: são segundos de erro contra
 	// dias de medida.
 	OldestSegmentAt time.Time `json:"oldestSegmentAt,omitzero"`
+
+	// RecordedMs é a soma das durações dos segmentos em disco: quanto vídeo
+	// existe de fato desde OldestSegmentAt. A distância entre os dois são os
+	// buracos de gravação (câmera fora do ar, queda de energia), que o
+	// OldestSegmentAt sozinho não deixa ver.
+	RecordedMs int64 `json:"recordedMs,omitempty"`
 
 	// Detect e Onsets respondem "o gatilho de movimento está vivo nesta
 	// câmera?". Sem eles a única forma de saber é abrir o arquivo de eventos
@@ -565,7 +573,7 @@ func (r *Recorder) Status() Status {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	disk, oldest, newest := r.idx.Resumo()
+	disk, oldest, newest, gravado := r.idx.Resumo()
 	st := Status{
 		ID: r.cam.ID, Name: r.cam.Name, Enabled: r.cam.Enabled,
 		Connected: r.connected, ConnectedAt: r.connectedAt,
@@ -579,7 +587,7 @@ func (r *Recorder) Status() Status {
 		VideoCodec: r.videoCodec, HasAudio: r.hasAudio, Gen: r.gen,
 		Audio: r.cam.Audio, Transcoding: r.transcoding,
 		Width: r.width, Height: r.height,
-		QuotaMB: r.cam.QuotaMB, DiskBytes: disk,
+		QuotaMB: r.cam.QuotaMB, DiskBytes: disk, RecordedMs: gravado,
 		Silent: time.Since(r.lastActivityLocked()) > r.silenceLimitLocked(),
 	}
 	if r.lastEnd > 0 {

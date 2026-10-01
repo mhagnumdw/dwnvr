@@ -121,6 +121,11 @@ type DaySummary struct {
 	Bytes   int64  `json:"bytes"`
 	FirstMs int64  `json:"firstMs"`
 	LastMs  int64  `json:"lastMs"`
+
+	// DurMs é a soma das durações dos segmentos do dia: o vídeo que existe de
+	// fato. LastMs - FirstMs não dá isto, porque cobre também o tempo em que a
+	// câmera ficou fora do ar.
+	DurMs int64 `json:"durMs"`
 }
 
 // Camera é o índice de uma câmera. Os métodos são seguros para uso concorrente:
@@ -330,6 +335,7 @@ func (c *Camera) mergeLocked(day string, e Entry) {
 	}
 	s.Count++
 	s.Bytes += e.Size
+	s.DurMs += e.DurMs
 	if e.StartMs < s.FirstMs {
 		s.FirstMs = e.StartMs
 	}
@@ -469,18 +475,21 @@ func (c *Camera) OldestMs() int64 {
 }
 
 // Resumo devolve, numa passada só, o que a tela precisa para descrever a cota:
-// quanto a câmera ocupa e as duas pontas do histórico em disco.
+// quanto a câmera ocupa, as duas pontas do histórico em disco e quanto vídeo
+// existe de fato entre elas. O que falta de `newestMs - oldestMs` para chegar
+// a recordedMs são os buracos de gravação.
 //
 // Existe por economia: OldestMs e TotalBytes fazem exatamente estas somas, mas
 // quem monta o Status precisa das duas ao mesmo tempo, e chamá-las em sequência
 // custava dois RLock e duas varreduras do mapa a cada leitura do /api/health -
 // vezes o número de câmeras. Os dois métodos separados continuam existindo para
 // quem quer só um dos números (a retenção, o Purge).
-func (c *Camera) Resumo() (bytes, oldestMs, newestMs int64) {
+func (c *Camera) Resumo() (bytes, oldestMs, newestMs, recordedMs int64) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, s := range c.days {
 		bytes += s.Bytes
+		recordedMs += s.DurMs
 		// FirstMs zerado seria um resumo sem segmento algum, que não deve
 		// existir - mas se existisse, puxaria o mínimo para zero e apagaria a
 		// informação de todas as outras. Mesma razão do lado do LastMs.
@@ -491,7 +500,7 @@ func (c *Camera) Resumo() (bytes, oldestMs, newestMs int64) {
 			newestMs = s.LastMs
 		}
 	}
-	return bytes, oldestMs, newestMs
+	return bytes, oldestMs, newestMs, recordedMs
 }
 
 // TotalBytes é tudo o que a câmera ocupa: o vídeo mais os quadros das

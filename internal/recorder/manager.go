@@ -298,10 +298,10 @@ func (m *Manager) Status() []Status {
 		// disco: o passado dela precisa aparecer na tela igual ao das outras,
 		// senão desabilitar uma câmera dá a impressão de ter apagado tudo.
 		idx := m.store.Camera(cam.ID)
-		disk, oldest, newest := idx.Resumo()
+		disk, oldest, newest, gravado := idx.Resumo()
 		st := Status{
 			ID: cam.ID, Name: cam.Name, Enabled: cam.Enabled,
-			QuotaMB: cam.QuotaMB, DiskBytes: disk,
+			QuotaMB: cam.QuotaMB, DiskBytes: disk, RecordedMs: gravado,
 		}
 		var span int64
 		if oldest > 0 {

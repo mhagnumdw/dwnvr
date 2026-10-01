@@ -118,6 +118,22 @@ export function duracao(ms) {
   return `${d} ${d === 1 ? 'dia' : 'dias'}${h ? ` ${h}h` : ''}`;
 }
 
+// BURACO_MINIMO_MS é a falta a partir da qual o "gravado" aparece ao lado do
+// "retido". Abaixo disso a diferença existe sempre e não é buraco: o segmento
+// que está sendo gravado agora ainda não entrou no índice, e cada reconexão
+// perde alguns segundos. Uma hora fica muito acima desse ruído e bem abaixo de
+// qualquer queda que valha a pena enxergar.
+export const BURACO_MINIMO_MS = 3600000;
+
+// gravadoSeHouverBuraco devolve o vídeo que existe de fato (o recordedMs do
+// /api/health) quando ele fica abaixo do retido por mais que BURACO_MINIMO_MS,
+// e 0 quando não: câmera sem falha mostra só o retido, como sempre mostrou.
+// O retido entra pronto porque cada tela já o calcula para si.
+export function gravadoSeHouverBuraco(retidoMs, recordedMs) {
+  if (!retidoMs || !recordedMs) return 0;
+  return retidoMs - recordedMs > BURACO_MINIMO_MS ? recordedMs : 0;
+}
+
 // dias converte a estimativa de retenção em algo compreensível. "20 GB" não
 // diz nada a ninguém; "≈ 8 dias 5h" diz tudo.
 export function dias(n) {

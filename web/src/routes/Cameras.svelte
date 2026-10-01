@@ -10,7 +10,16 @@
   } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
-  import { dias, kbps, bytes, bytesDeMB, resolucao, ddmm, duracao } from '../lib/format.js';
+  import {
+    dias,
+    kbps,
+    bytes,
+    bytesDeMB,
+    resolucao,
+    ddmm,
+    duracao,
+    gravadoSeHouverBuraco,
+  } from '../lib/format.js';
   import { AJUDA_RETIDO, AJUDA_CABEM, AJUDA_SENSIBILIDADE, NIVEIS } from '../lib/ajudas.js';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
@@ -312,8 +321,10 @@
                resto do texto, e não caberia no chip sem empurrar os outros. -->
           {#if st?.oldestSegmentAt}
             {@const desde = new Date(st.oldestSegmentAt)}
+            {@const retido = Date.now() - desde.getTime()}
+            {@const gravado = gravadoSeHouverBuraco(retido, st.recordedMs)}
             <span class="chip retido" title="{AJUDA_RETIDO} Desde {ddmm(desde.getTime())}">
-              retido: {duracao(Date.now() - desde.getTime())}
+              retido: {duracao(retido)}{#if gravado} · gravado {duracao(gravado)}{/if}
             </span>
           {/if}
           {#if st?.retainDays}
