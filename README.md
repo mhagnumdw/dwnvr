@@ -494,6 +494,7 @@ movimento.
 | [`docs/api.md`](docs/api.md) | referência dos endpoints HTTP |
 | [`web/README.md`](web/README.md) | desenvolver a interface |
 | [`docs/github.md`](docs/github.md) | o que está ligado no GitHub e o PR do Dependabot |
+| [`docs/plano-testes-e2e.md`](docs/plano-testes-e2e.md) | o plano dos testes ponta a ponta, com Playwright, em etapas |
 | [`docs/README.md`](docs/README.md) | índice completo, incluindo as medições datadas |
 | [`CHANGELOG.md`](CHANGELOG.md) | o que mudou em cada versão |
 
