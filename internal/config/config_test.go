@@ -172,6 +172,42 @@ defaults:
 	}
 }
 
+// TestSemArquivoSobeComOsPadroes: o primeiro uso não exige escrever nada. Sem
+// dwnvr.yaml e sem cameras.json o dwnvr sobe com os padrões, sem aviso.
+func TestSemArquivoSobeComOsPadroes(t *testing.T) {
+	cfg, avisos, err := Load(filepath.Join(t.TempDir(), "dwnvr.yaml"))
+	if err != nil || len(avisos) > 0 {
+		t.Fatalf("erro %v, avisos %+v", err, avisos)
+	}
+	if cfg.Defaults != defaults().Defaults {
+		t.Errorf("defaults %+v, esperava os do código", cfg.Defaults)
+	}
+	cams, avisos, err := cfg.LoadCameras()
+	if err != nil || len(cams) > 0 || len(avisos) > 0 {
+		t.Errorf("cameras.json ausente: câmeras %v, avisos %+v, erro %v", cams, avisos, err)
+	}
+}
+
+// TestCamerasIlegivelRecusa: um cameras.json que não é JSON não tem campo para
+// voltar ao padrão. Subir sem câmera nenhuma esconderia o problema.
+func TestCamerasIlegivelRecusa(t *testing.T) {
+	if _, _, err := carrega(t, "", `[{"id":"cam_a",`); err == nil {
+		t.Error("cameras.json quebrado aceito no boot")
+	}
+}
+
+// TestAvisoTextoDizOQueUsar: é a frase que a API devolve à tela quando recusa.
+func TestAvisoTextoDizOQueUsar(t *testing.T) {
+	cfg := defaults()
+	_, avisos := cfg.ConfereCamera(Camera{ID: "cam_a", QuotaMB: 5})
+	if len(avisos) != 1 {
+		t.Fatalf("avisos %+v, esperava 1", avisos)
+	}
+	if got, quer := avisos[0].Texto(), "quotaMB 5 fora do aceito: use 100 MB ou mais"; got != quer {
+		t.Errorf("%q, esperava %q", got, quer)
+	}
+}
+
 // TestStorageRootVazioRecusa: sem saber onde gravar, não há padrão seguro.
 func TestStorageRootVazioRecusa(t *testing.T) {
 	if _, _, err := carrega(t, "storage:\n  root: \"\"\n", ""); err == nil {
