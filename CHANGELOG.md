@@ -2,6 +2,26 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.4.0](https://github.com/mhagnumdw/dwnvr/compare/v0.3.0...v0.4.0) (2026-10-02)
+
+### Added
+
+- feat(web): mostra o tempo gravado quando a câmera teve buraco ([cd8bd27a](https://github.com/mhagnumdw/dwnvr/commit/cd8bd27ac20dc376009a4c58003d33b980187ecd))
+- feat(web): câmeras fora da tela param de puxar vídeo no Ao Vivo ([f0aa0c58](https://github.com/mhagnumdw/dwnvr/commit/f0aa0c5881419fb842669debf3b355b79cadf2e7))
+
+### Docs
+
+- docs(github): registra o merge commit desligado no repositório ([04480d87](https://github.com/mhagnumdw/dwnvr/commit/04480d87fc3456942c3c1c425f1ab383a902ebfa))
+- docs(todo): remove os TODOs já concluídos ([6ccafa1f](https://github.com/mhagnumdw/dwnvr/commit/6ccafa1ffc1ff169ae448d9ec76e297f1eb69f32))
+
+### CI/Build
+
+- ci: cobertura dos testes no Codecov, com badge no README ([8a9e4213](https://github.com/mhagnumdw/dwnvr/commit/8a9e421311302e548c2b447c4a2a62bf7db2216b))
+
+### Other
+
+- test(retention): a política de apagar gravação ganha testes ([1a73fa34](https://github.com/mhagnumdw/dwnvr/commit/1a73fa34a1a81adff68f9c0488389ea4aca08c30))
+
 ## [v0.3.0](https://github.com/mhagnumdw/dwnvr/compare/v0.2.0...v0.3.0) (2026-09-30)
 
 ### Added
