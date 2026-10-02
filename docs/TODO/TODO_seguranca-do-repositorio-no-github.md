@@ -1,8 +1,7 @@
 # TODO - segurança do repositório no GitHub
 
-Levantado em 27/09/2026, na revisão do lint com pre-commit
-([`TODO_lint-com-pre-commit.md`](TODO_lint-com-pre-commit.md)). O estado de
-cada item foi lido na API do GitHub nesse dia, e reavaliado em 28/09 contra o
+Levantado em 27/09/2026, na revisão do lint com pre-commit. O estado de cada
+item foi lido na API do GitHub nesse dia, e reavaliado em 28/09 contra o
 repositório e a documentação do Dependabot.
 
 O lint do commit já cobre o que dá para conferir sem rede, no commit. O que sobra
