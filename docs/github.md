@@ -26,6 +26,7 @@ pode ser rodado outra vez para conferir.
 - [CodeQL](#codeql)
 - [Private vulnerability reporting](#private-vulnerability-reporting)
 - [Ruleset na `main`](#ruleset-na-main)
+- [Merge do PR sem merge commit](#merge-do-pr-sem-merge-commit)
 - [govulncheck semanal](#govulncheck-semanal)
 - [Codecov](#codecov)
 
@@ -40,6 +41,7 @@ gh api repos/$REPO/code-scanning/default-setup --jq '.state' # configured = Code
 gh api "repos/$REPO/code-scanning/alerts?state=open" --jq 'length'
 gh api repos/$REPO/private-vulnerability-reporting
 gh api repos/$REPO/rules/branches/main --jq '.[].type'       # deletion, non_fast_forward
+gh api repos/$REPO --jq '.allow_merge_commit'                # false
 ```
 
 ## Secret scanning e push protection
@@ -198,6 +200,17 @@ O `POST` cria um ruleset novo a cada vez que roda. Para mudar o que existe, o
 id sai de `gh api repos/$REPO/rulesets` e vai em
 `gh api -X PUT repos/$REPO/rulesets/<id>`, com o mesmo JSON; para apagar, em
 `-X DELETE`.
+
+## Merge do PR sem merge commit
+
+Desligado em 01/10/2026. O botão de merge do PR oferece só squash e rebase: o
+AGENTS.md diz que a `main` não aceita merge commit, e o "Allow merge commits"
+ligado deixava a opção a um clique. O GitHub exige ao menos uma das três
+ligada.
+
+```sh
+gh repo edit $REPO --enable-merge-commit=false
+```
 
 ## govulncheck semanal
 
