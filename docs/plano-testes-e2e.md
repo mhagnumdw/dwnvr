@@ -68,7 +68,8 @@ plano. O plano é vivo.
 
 Primeiro um spike, e depois a própria Etapa 1, os dois em 02/10/2026, num
 container Linux x86_64 (o da sessão do Claude Code na web), com o go2rtc 1.9.14
-e o dwnvr deste repositório.
+e o dwnvr deste repositório. Por fim, a Etapa 1 na CI do GitHub, no PR que a
+trouxe.
 
 ### O spike <!-- omit in toc -->
 
@@ -95,7 +96,7 @@ O código do spike não entrou no repositório: o que valeu dele virou a Etapa 1
 | --- | --- |
 | O navegador do Playwright 1.63 | Chrome for Testing 153 (revisão 1243). O teste-sentinela (`e2e/testes/codecs.spec.ts`) confirma H.264 por MSE, com e sem FLAC, por WebCodecs e por WebRTC |
 | Anotações do vídeo (`show`) | Funcionam: no alto à esquerda, o arquivo, o teste e o passo; à direita, cada ação, com o cursor desenhado onde clicou. No celular, a fonte padrão da ação (24 px) cobria o passo, e ela caiu para 13 px |
-| `extends` com `!override` no compose | O serviço `dwnvr` de produção, mesmo com o `depends_on`, serve de base: as instâncias herdam o teto de 128 MB, o usuário e a dependência do go2rtc, e trocam porta, volume e fuso (Compose 5.3 local; a versão da CI está na seção dela, abaixo) |
+| `extends` com `!override` no compose | O serviço `dwnvr` de produção, mesmo com o `depends_on`, serve de base: as instâncias herdam o teto de 128 MB, o usuário e a dependência do go2rtc, e trocam porta, volume e fuso (Compose 5.3 local, e o do runner da CI, abaixo) |
 | Subida do ambiente | 9 s com a imagem já construída, todas as instâncias saudáveis: o healthcheck da imagem, com o intervalo trocado para 1 s no compose |
 | A suíte | 19 testes (1 de preparação e 9 em cada projeto) em ~45 s com 3 workers; mais de 100 execuções seguidas sem falha depois da correção abaixo |
 | O relógio queimado, primeira versão | Errou por 2 s em 4 de 6 rodadas. A culpa era da própria faixa: o `date +%s` trunca o segundo, e o ffmpeg ainda leva uma fração de segundo até o primeiro quadro, então a faixa andava até ~1,5 s atrás do relógio de parede |
@@ -105,6 +106,20 @@ O código do spike não entrou no repositório: o que valeu dele virou a Etapa 1
 | CPU e memória dos containers durante a suíte | go2rtc ~14% de um núcleo, codificando a câmera relógio; cada dwnvr ~4% e de 7 a 26 MiB, em linha com o README. Quem pesa é o lado do navegador, com o Chrome e a gravação dos vídeos: a carga da máquina chegou a 5,8 em 4 núcleos |
 | tmpfs como disco de gravação | Não serve: o que se escreve num tmpfs conta na memória do container, e um `dd` de 100 MB num container com teto de 64 MB foi morto pelo kernel. Com o teto de 128 MB do dwnvr, a instância cairia. As gravações do e2e moram em pastas |
 | `docker build` dentro do container da sessão web | Falha: o proxy de TLS daquele ambiente não é confiado de dentro do build (o `go mod download` recusa o certificado). Para iterar lá, a imagem foi montada com o binário compilado fora; na CI do GitHub, e no notebook, o build é o do `Dockerfile` |
+
+### Na CI do GitHub <!-- omit in toc -->
+
+O PR [#16](https://github.com/mhagnumdw/dwnvr/pull/16), num runner
+`ubuntu-24.04` (4 vCPU), sem cache nenhum:
+
+| O quê | Resultado |
+| --- | --- |
+| O job inteiro | 1 min 53 s, do checkout ao upload do relatório |
+| O navegador | 26 s para o `playwright install --with-deps --only-shell`: as dependências do sistema, o Chrome Headless Shell 153 (114 MiB) e o ffmpeg do vídeo |
+| `make e2e-up` | 33 s: o go2rtc do Docker Hub sem 429, o `docker build` do `Dockerfile` (22 s, 12 deles no `go build`) e os cinco containers saudáveis 6 s depois de subir. O `extends` com `!override` funcionou no Compose do runner como no local |
+| A suíte | 19 de 19 em 42 s com 3 workers, de primeira, quase o mesmo tempo do container local (~45 s). A preparação esperou 15 s pelos dois primeiros trechos da `cam_relogio`, que só começa a gravar com a subida |
+| O relatório | O artifact `relatorio-e2e` tem 20 arquivos e 4 MB: o relatório, o log do ambiente e um vídeo por teste que abre página |
+| O lint | O golangci-lint desce no `e2e/node_modules` pelo `./...`, e o `flatted` do npm traz um pacote Go, como já acontecia no `web/`. O `.golangci.yml` passou a ignorar qualquer `node_modules` |
 
 ## Conceitos do Playwright usados aqui
 
@@ -577,9 +592,9 @@ verdes no notebook e na CI, e o relatório traz o vídeo de cada um.
 
 - [x] `make e2e-up && make e2e` passa (no container da sessão web, com a
   imagem montada fora; ver [O que já foi verificado](#o-que-já-foi-verificado)).
-- [ ] O workflow passa num PR, e o `relatorio-e2e` abre com o vídeo de cada
-  teste.
-- [ ] `prek run --all-files` passa, com os hooks novos.
+- [x] O workflow passa num PR, e o `relatorio-e2e` sai com o vídeo de cada
+  teste (ver [Na CI do GitHub](#o-que-já-foi-verificado)).
+- [x] `prek run --all-files` passa, com os hooks novos.
 
 ### Etapa 2 - Gravação e reprodução
 
@@ -1037,10 +1052,13 @@ custar mais do que vale em cada PR.
   Playwright confere as três promessas de lá: a `cam_teste1` em "Disponíveis no
   go2rtc", o Ao vivo mostrando, e o trecho nas Gravações em ~30 s. Pega o
   README que deixou de ser verdade e a imagem publicada quebrada.
-- Caches: o navegador do Playwright (`~/.cache/ms-playwright`, pela versão), a
-  imagem do dwnvr (`type=gha`, lendo o mesmo escopo do
-  [`imagens.yml`](../.github/workflows/imagens.yml), sem gravar) e o histórico
-  semeado (pelo hash da `semente`).
+- Caches, se o tempo do job pesar: a imagem do dwnvr (`type=gha`, lendo o
+  mesmo escopo do [`imagens.yml`](../.github/workflows/imagens.yml), sem
+  gravar) e o histórico semeado (pelo hash da `semente`). O navegador fica sem
+  cache, como a [documentação do Playwright](https://playwright.dev/docs/ci#caching-browsers)
+  recomenda: restaurar leva quase o mesmo que baixar, e as dependências do
+  sistema não entram em cache. No
+  primeiro PR, o build da imagem levou 22 s e o navegador 26 s.
 - `failOnFlakyTests: true` na CI, quando a suíte estiver estável.
 - A decisão de exigir o e2e: no PR, pelo ruleset da `main`, e na release, com o
   passo "CI verde neste commit" do
@@ -1105,12 +1123,12 @@ As linhas das Repercussões:
 | Rodar em Linux arm64: runner `-arm`, ou Docker num Mac com chip M | Ali o Playwright usa o Chromium sem H.264. O e2e roda em x86_64; no Mac, o Playwright roda nativo contra o compose |
 | H.265 não toca no Chrome do Linux | Os testes de H.265 conferem a gravação e a mensagem de "não reproduz"; tocar H.265 fica para a Etapa 12 |
 | `localhost` é contexto seguro, e a rede de casa não | O projeto `lan`, com o `--host-resolver-rules` |
-| Limite de pedidos do Docker Hub (429) | Aconteceu no container da sessão web, e o `mirror.gcr.io` como `registry-mirrors` do Docker resolveu, sem mudar o compose. Se acontecer na CI: o mesmo go2rtc existe no GHCR (`docker tag` com o nome do Docker Hub, conferindo o digest), e o login no Docker Hub só se ainda faltar |
-| CPU do runner (4 vCPU): go2rtc codificando, Chrome decodificando e o vídeo do teste sendo gravado | Câmeras em 640x360 com `superfast`; o go2rtc codifica cada stream uma vez para todas as instâncias. Medido na Etapa 1: o servidor quase não pesa, e o lado do navegador sim (carga de 5,8 em 4 núcleos com 3 workers). Câmera nova, ou worker a mais, mede de novo |
+| Limite de pedidos do Docker Hub (429) | Aconteceu no container da sessão web, e o `mirror.gcr.io` como `registry-mirrors` do Docker resolveu, sem mudar o compose. Na CI, o primeiro PR puxou tudo do Docker Hub sem 429. Se acontecer lá: o mesmo go2rtc existe no GHCR (`docker tag` com o nome do Docker Hub, conferindo o digest), e o login no Docker Hub só se ainda faltar |
+| CPU do runner (4 vCPU): go2rtc codificando, Chrome decodificando e o vídeo do teste sendo gravado | Câmeras em 640x360 com `superfast`; o go2rtc codifica cada stream uma vez para todas as instâncias. Medido na Etapa 1: o servidor quase não pesa, e o lado do navegador sim (carga de 5,8 em 4 núcleos com 3 workers). No runner de 4 vCPU, a suíte levou o mesmo tempo que no container local. Câmera nova, ou worker a mais, mede de novo |
 | A meia-noite no meio de um teste de "hoje" | Os testes de hoje toleram um trecho do dia anterior; a rodada agendada fica longe da meia-noite de Fortaleza |
 | A escrita na URL tem piso de 1 s | Sempre `await expect(page).toHaveURL(...)`, que espera; nunca ler a URL no instante seguinte ao gesto |
 | As telas releem em ciclo (5 s no Diagnóstico, 10 a 60 s nas Gravações, 20 s nas Detecções) | Prazo de asserção que cobre o ciclo. O relógio falso que adianta timers (`page.clock.install`) só em tela sem mídia |
-| Os vídeos pesam no artifact | Retenção de 14 dias, e o vídeo do tamanho da viewport, com teto de 1366 de largura. Na Etapa 1, o relatório com o vídeo de todos os testes deu ~10 MB |
+| Os vídeos pesam no artifact | Retenção de 14 dias, e o vídeo do tamanho da viewport, com teto de 1366 de largura. Na CI da Etapa 1, o artifact com o vídeo dos 18 testes que abrem página deu 4 MB |
 | O disco de gravação em tmpfs, para o teste de disco cheio | O que se escreve num tmpfs conta na memória do container, e o teto de 128 MB do dwnvr derrubaria a instância. As gravações moram em pastas, e o disco "cheio" é um `minFreeMB` acima do espaço livre de qualquer máquina |
 | Arquivo acima de 500 KB barrado no commit | O clipe real como asset de release, e os snapshots pequenos ou no `exclude` com o motivo |
 | `dwnvr.yaml`, `cameras.json` e `go2rtc.yaml` ignorados pelo `.gitignore` em qualquer pasta | Os modelos do e2e com outro nome, montados com o nome que o container espera |
