@@ -68,14 +68,16 @@ func run(log *slog.Logger, cfgPath string) error {
 	b := buildinfo.Get()
 	log.Info("dwnvr iniciando", "versao", b.Version, "commit", b.Commit, "build", b.Date)
 
-	cfg, err := config.Load(cfgPath)
+	cfg, avisos, err := config.Load(cfgPath)
 	if err != nil {
 		return err
 	}
-	cams, err := cfg.LoadCameras()
+	avisaConfig(log, cfgPath, avisos)
+	cams, avisos, err := cfg.LoadCameras()
 	if err != nil {
 		return err
 	}
+	avisaConfig(log, cfg.CamerasPath(), avisos)
 	if len(cams) == 0 {
 		log.Warn("nenhuma câmera cadastrada", "arquivo", cfg.CamerasPath())
 	}
@@ -177,10 +179,26 @@ func prepareStorage(log *slog.Logger, cfg *config.Config) error {
 	return nil
 }
 
+// avisaConfig loga cada valor fora da faixa que o boot trocou pelo padrão. Em
+// WARN de propósito: além do docker logs, a linha aparece na tela de
+// Diagnóstico, que é onde quem instalou vai olhar.
+func avisaConfig(log *slog.Logger, arquivo string, avisos []config.Aviso) {
+	for _, a := range avisos {
+		attrs := []any{"arquivo", arquivo}
+		if a.Camera != "" {
+			attrs = append(attrs, "cam", a.Camera)
+		}
+		attrs = append(attrs, "campo", a.Campo, "valor", a.Valor,
+			"aceito", a.Aceito, "usando", a.Usando)
+		log.Warn("valor fora do aceito na configuração; vale o padrão até ser corrigido", attrs...)
+	}
+}
+
 // healthcheck consulta a instância local e devolve o código de saída para o
 // HEALTHCHECK do Docker.
 func healthcheck(cfgPath string) int {
-	cfg, err := config.Load(cfgPath)
+	// Os avisos são do processo principal, que já os logou ao subir.
+	cfg, _, err := config.Load(cfgPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "healthcheck: configuração ilegível:", err)
 		return 1

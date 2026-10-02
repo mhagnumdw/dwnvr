@@ -5,14 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
-	"github.com/mhagnumdw/dwnvr/internal/detect"
 )
-
-// minQuotaMB é o mesmo piso que o formulário da web cobra no campo de cota.
-const minQuotaMB = 100
 
 // handleSaveCamera cadastra ou altera uma câmera.
 //
@@ -27,7 +24,7 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateCamera(cam); err != nil {
+	if err := validateCamera(s.cfg, cam); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -142,48 +139,21 @@ func (s *Server) handleDeleteCamera(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "recordingsDeleted": true, "freedBytes": freed})
 }
 
-func validateCamera(cam config.Camera) error {
+// validateCamera recusa a câmera com qualquer campo fora da faixa. A régua é a
+// mesma do boot (config.ConfereCamera), mas aqui o desfecho é outro: na frente
+// da tela há alguém para ler a mensagem e corrigir na hora, então em vez de
+// trocar pelo padrão em silêncio, a API devolve o que está errado.
+func validateCamera(cfg *config.Config, cam config.Camera) error {
 	if err := config.ValidateCameraID(cam.ID); err != nil {
 		return err
 	}
-	if cam.Audio != "" {
-		if err := config.ValidAudio(cam.Audio); err != nil {
-			return err
-		}
+	_, avisos := cfg.ConfereCamera(cam)
+	if len(avisos) == 0 {
+		return nil
 	}
-	// Zero é "usar o default". Acima disso vale o mesmo piso que a tela cobra:
-	// uma cota de poucos MB não guarda nem um segmento, e a câmera passaria a
-	// vida apagando o que acabou de gravar.
-	if cam.QuotaMB < 0 {
-		return errors.New("cota não pode ser negativa")
+	textos := make([]string, len(avisos))
+	for i, a := range avisos {
+		textos[i] = a.Texto()
 	}
-	if cam.QuotaMB > 0 && cam.QuotaMB < minQuotaMB {
-		return fmt.Errorf("cota mínima é de %d MB", minQuotaMB)
-	}
-	if cam.SegmentSeconds < 0 || cam.SegmentSeconds > 3600 {
-		return errors.New("duração de segmento fora do intervalo aceito")
-	}
-	if cam.MaxDays < 0 {
-		return errors.New("idade máxima não pode ser negativa")
-	}
-	// Zero é "usar o default"; negativo ou absurdo desligaria na prática a
-	// vigilância que impede a câmera de parar de gravar em silêncio.
-	if cam.StallSeconds < 0 || cam.StallSeconds > 3600 {
-		return errors.New("limiar de inatividade fora do intervalo aceito")
-	}
-	// Vazio e zero são "usar o default", e o Resolve cuida deles. O que veio
-	// preenchido tem que ser um mecanismo que existe e um nível que existe.
-	if cam.DetectMecanismo != "" || cam.DetectSensibilidade != 0 {
-		mec, nivel := cam.DetectMecanismo, cam.DetectSensibilidade
-		if mec == "" {
-			mec = detect.MecanismoPadrao
-		}
-		if nivel == 0 {
-			nivel = detect.NivelPadrao
-		}
-		if err := config.ValidDetect(mec, nivel); err != nil {
-			return err
-		}
-	}
-	return nil
+	return errors.New(strings.Join(textos, "; "))
 }

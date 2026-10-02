@@ -36,7 +36,9 @@ docker inspect dwnvr --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{
 ```
 
 **Alterar o `cameras.json` na mão exige reiniciar** (`docker compose restart
-dwnvr`); pela tela de cadastro a mudança vale na hora.
+dwnvr`); pela tela de cadastro a mudança vale na hora. Um valor fora da faixa
+não impede o boot: vale o padrão, e o aviso aparece na tela de Diagnóstico -
+ver [Valor fora da faixa](configuracao.md#valor-fora-da-faixa).
 
 ## Inspecionar um container sem shell
 

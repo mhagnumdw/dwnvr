@@ -169,8 +169,10 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// "padrao" é uma câmera vazia com os defaults aplicados: o formulário de
-	// câmera nova parte dela, para seguir o defaults do dwnvr.yaml.
-	resp := map[string]any{"cameras": cams, "padrao": s.cfg.Resolve(config.Camera{})}
+	// câmera nova parte dela, para seguir o defaults do dwnvr.yaml. "faixas"
+	// dá o min/max dos inputs, para a tela cobrar a mesma régua da API.
+	resp := map[string]any{"cameras": cams, "padrao": s.cfg.Resolve(config.Camera{}),
+		"faixas": config.FaixasDaCamera}
 
 	// A interface só mostra a aba Detecções com o detector de objetos
 	// configurado: sem ele não há detecção nenhuma para listar. Vai aqui, e

@@ -5,6 +5,7 @@ CPU e em disco.
 
 - [Os dois arquivos](#os-dois-arquivos)
 - [Política por câmera](#política-por-câmera)
+- [Valor fora da faixa](#valor-fora-da-faixa)
 - [Retenção](#retenção)
 - [Áudio](#áudio)
 
@@ -31,17 +32,17 @@ Há ainda um terceiro arquivo que o dwnvr **só lê pela API, nunca abre**: o
 
 Tudo que é política de gravação é **por câmera**, não global:
 
-| Campo | O que decide |
-| --- | --- |
-| stream do go2rtc | qual fonte gravar - a de alta ou a de baixa resolução |
-| `audio` | `none`, `flac` ou `aac` - ver abaixo |
-| `quotaMB` | quanto disco aquela câmera pode ocupar |
-| `segmentSeconds` | duração alvo de cada segmento |
-| `maxDays` | idade máxima, opcional |
-| `stallSeconds` | tolerância antes de considerar o stream morto |
-| `detect` | marcar movimento na timeline - ver abaixo |
-| `detectMecanismo` | `kleinberg-p` ou `periodico` |
-| `detectSensibilidade` | de 1 a 5, e é o custo em CPU |
+| Campo | O que decide | Aceito |
+| --- | --- | --- |
+| stream do go2rtc | qual fonte gravar - a de alta ou a de baixa resolução | |
+| `audio` | o áudio gravado - ver abaixo | `none`, `flac` ou `aac` |
+| `quotaMB` | quanto disco aquela câmera pode ocupar | 100 ou mais |
+| `segmentSeconds` | duração alvo de cada segmento | de 10 a 300 |
+| `maxDays` | idade máxima, opcional | 0 (sem limite) ou mais |
+| `stallSeconds` | tolerância antes de considerar o stream morto | de 1 a 3600 |
+| `detect` | marcar movimento na timeline - ver abaixo | |
+| `detectMecanismo` | quem decide disparar | `kleinberg-p` ou `periodico` |
+| `detectSensibilidade` | o nível, que é o custo em CPU | de 1 a 5 |
 
 Ser por câmera não é preciosismo: numa instalação real as câmeras não são
 iguais. A do portão merece alta resolução e cota grande; a do corredor não. E o
@@ -50,6 +51,37 @@ uma câmera em wi-fi ruim precisa de mais tolerância que uma no cabo.
 
 Os valores de `defaults` no `dwnvr.yaml` valem para qualquer câmera que não
 defina o campo.
+
+## Valor fora da faixa
+
+Um número fora da faixa **não impede o dwnvr de subir**. Gravar com o padrão é
+melhor que não gravar nada, e uma câmera com um valor ruim não pode deixar as
+outras paradas. No boot, cada valor assim:
+
+- passa a valer o padrão: o de `defaults` para a câmera, o do código para o
+  `dwnvr.yaml`;
+- vira um aviso no log, que aparece também na tela de Diagnóstico, com o campo,
+  o valor escrito, o que é aceito e o que ficou valendo:
+
+  ```text
+  valor fora do aceito na configuração; vale o padrão até ser corrigido
+  arquivo=/etc/dwnvr/cameras.json cam=cam_portao campo=quotaMB valor=5
+  aceito="100 MB ou mais" usando=10240
+  ```
+
+No `cameras.json`, zero e campo ausente são "usar o padrão" e nunca dão aviso.
+No `dwnvr.yaml` o zero é inválido, porque ali o padrão é o próprio valor. As
+exceções são o `maxDays`, onde zero é "sem limite", e o `storage.minFreeMB`,
+onde zero desliga a trava global de disco.
+
+O que continua impedindo o boot é o que não tem padrão seguro: um arquivo que
+não se consegue ler, o `storage.root` vazio e o ID de câmera que viraria um
+caminho fora do diretório de gravações.
+
+A tela de Câmeras e a API usam as mesmas faixas, mas lá o valor ruim é
+**recusado** em vez de trocado, porque há alguém na frente da tela para ler a
+mensagem e corrigir na hora. As faixas moram em
+[`internal/config/parametros.go`](../internal/config/parametros.go).
 
 ## Marcação de movimento
 

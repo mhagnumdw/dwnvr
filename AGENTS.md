@@ -61,8 +61,8 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 | `.go` novo em `internal/api/` | árvore §Estrutura do projeto do `README.md` |
 | campo em `internal/config/config.go` | `dwnvr.example.yaml` (com comentário) · `docs/configuracao.md` · §Configuração do `README.md` |
 | default em `config.defaults()` | o número está repetido à mão em `dwnvr.example.yaml` · `docs/configuracao.md` · `web/src/routes/Cameras.svelte` (`audio`, `quotaMB`, `segmentSeconds`, `maxDays`, e no fallback do `padrao`: `detect`, `detectMecanismo`, `detectSensibilidade`) |
-| campo em `config.Camera` | `config.Resolve` · validação em `internal/api/cameras.go` · `Cameras.svelte` · §Política por câmera do `docs/configuracao.md` |
-| limite em `internal/api/cameras.go` (`minQuotaMB`, faixas) | `min`/`max`/`step` do input em `Cameras.svelte` - divergem hoje: `docs/TODO/TODO_limites-numericos-so-valem-na-api.md` |
+| campo em `config.Camera` | `config.Resolve` · `config.ConfereCamera` (a régua da API e do boot) · `Cameras.svelte` · §Política por câmera do `docs/configuracao.md` |
+| faixa em `internal/config/parametros.go` | campo com input na tela entra em `FaixasDaCamera`, de onde o `Cameras.svelte` lê o `min`/`max` · coluna Aceito da §Política por câmera do `docs/configuracao.md` · comentário do campo no `dwnvr.example.yaml` · `faixas` do `docs/api.md` |
 | caminho ou `DayLayout` em `internal/store/store.go` | `docs/arquitetura.md` · `docs/operacao.md` · §Conferir por fora da interface do `README.md` |
 | campo em `store.Entry` | índice append-only: a leitura tolera zero em linha antiga · `internal/retention/retention.go` · `internal/api/recordings.go` |
 | variável de `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/imagens.yml` (`build-args`) · `GET /api/version` |
