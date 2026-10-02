@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -17,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/logbuf"
 )
 
@@ -25,9 +27,9 @@ import (
 // gravando?", com "a máquina tem fôlego para gravar?".
 //
 // É um endpoint à parte, e não mais campos do /api/health, porque custa mais: um
-// teste de escrita com fsync no storage e uma ida ao go2rtc. O /api/health é
-// relido em ciclo por quem só veio ver as câmeras; este só roda com o card
-// aberto.
+// teste de escrita com fsync no storage e uma ida ao go2rtc e ao detector de
+// objetos. O /api/health é relido em ciclo por quem só veio ver as câmeras;
+// este só roda com o card aberto.
 //
 // Tudo sai de /proc e /sys, sem exec: a imagem é FROM scratch e não há binário
 // nenhum para chamar. Cada campo é opcional e some quando a fonte não existe -
@@ -39,16 +41,44 @@ type fontes struct{ proc, sys string }
 var fontesDoSistema = fontes{proc: "/proc", sys: "/sys"}
 
 type servidorInfo struct {
-	Maquina maquinaInfo        `json:"maquina"`
-	Memoria *memoriaInfo       `json:"memoria,omitempty"`
-	Pressao map[string]pressao `json:"pressao,omitempty"`
-	Storage storageInfo        `json:"storage"`
-	Go2RTC  go2rtcInfo         `json:"go2rtc"`
-	Log     *logInfo           `json:"log,omitempty"`
+	ColetadoEm coleta             `json:"coletadoEm"`
+	Maquina    maquinaInfo        `json:"maquina"`
+	Processo   processoInfo       `json:"processo"`
+	Memoria    *memoriaInfo       `json:"memoria,omitempty"`
+	Pressao    map[string]pressao `json:"pressao,omitempty"`
+	Storage    storageInfo        `json:"storage"`
+	Go2RTC     go2rtcInfo         `json:"go2rtc"`
+	// Detector some sem `detector.url`: quem não usa a detecção de objetos
+	// não paga nem a ida até ele.
+	Detector *detectorInfo `json:"detector,omitempty"`
+	Log      *logInfo      `json:"log,omitempty"`
+}
+
+// coleta é o instante da leitura no relógio do servidor, com o fuso dele. Vai
+// com o fuso, e não só o instante, pelo mesmo motivo do `clock` do
+// /api/health: a pergunta é a hora de LÁ, e convertida para o fuso do
+// navegador ela esconderia um servidor com fuso ou NTP errado.
+type coleta struct {
+	Em            string `json:"em"`
+	Sigla         string `json:"sigla"`
+	OffsetSeconds int    `json:"offsetSeconds"`
+	// Zona é o nome IANA ("America/Sao_Paulo"), quando o servidor sabe.
+	Zona string `json:"zona,omitempty"`
 }
 
 type maquinaInfo struct {
-	Nucleos int `json:"nucleos"`
+	// Placa vem do device tree, que só existe em ARM ("OrangePi Zero3");
+	// Processador, do /proc/cpuinfo, que só traz nome no x86. Um ou outro
+	// costuma faltar, e o que falta some.
+	Placa       string `json:"placa,omitempty"`
+	Processador string `json:"processador,omitempty"`
+	// Kernel é o do host mesmo dentro do container, que não tem kernel
+	// próprio.
+	Kernel  string `json:"kernel,omitempty"`
+	Nucleos int    `json:"nucleos"`
+	// NucleosLiberados é o teto de CPU do container (cgroup), em núcleos: 1.5
+	// é um núcleo e meio. Some sem teto.
+	NucleosLiberados float64 `json:"nucleosLiberados,omitempty"`
 	// Carga é o load average de 1, 5 e 15 minutos.
 	Carga    []float64 `json:"carga,omitempty"`
 	Sensores []sensor  `json:"sensores,omitempty"`
@@ -115,6 +145,18 @@ type go2rtcInfo struct {
 	Ms     int64  `json:"ms"`
 	Versao string `json:"versao,omitempty"`
 	Erro   string `json:"erro,omitempty"`
+	// URL é o endereço que o dwnvr usa de fato, sem usuário e senha.
+	URL string `json:"url,omitempty"`
+}
+
+type detectorInfo struct {
+	OK      bool   `json:"ok"`
+	Ms      int64  `json:"ms"`
+	Modelo  string `json:"modelo,omitempty"`
+	Entrada string `json:"entrada,omitempty"`
+	Threads int    `json:"threads,omitempty"`
+	Erro    string `json:"erro,omitempty"`
+	URL     string `json:"url"`
 }
 
 type logInfo struct {
@@ -133,19 +175,26 @@ type recentes interface {
 
 func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Request) {
 	f := fontesDoSistema
+	agora := time.Now()
+	sigla, offset := agora.Zone()
 	resp := servidorInfo{
-		Maquina: coletarMaquina(f),
-		Memoria: coletarMemoria(f),
-		Pressao: coletarPressao(f),
-		Storage: coletarMontagem(f, s.cfg.Storage.Root),
+		ColetadoEm: coleta{Em: agora.Format(time.RFC3339), Sigla: sigla, OffsetSeconds: offset, Zona: zonaLocal()},
+		Maquina:    coletarMaquina(f),
+		Processo:   coletarProcesso(f, s.startedAt),
+		Memoria:    coletarMemoria(f),
+		Pressao:    coletarPressao(f),
+		Storage:    coletarMontagem(f, s.cfg.Storage.Root),
 	}
 
-	// As duas sondas esperam por fora - disco e rede - e juntas podem somar
-	// alguns segundos num servidor ruim. Em paralelo, a tela espera a pior das
-	// duas, não a soma.
+	// As sondas esperam por fora - disco e rede - e juntas podem somar alguns
+	// segundos num servidor ruim. Em paralelo, a tela espera a pior delas, não
+	// a soma.
 	var wg sync.WaitGroup
 	wg.Go(func() { resp.Storage.Escrita = s.testarEscrita() })
 	wg.Go(func() { resp.Go2RTC = s.sondarGo2RTC(r.Context()) })
+	if s.cfg.Detector.URL != "" {
+		wg.Go(func() { resp.Detector = s.sondarDetector(r.Context()) })
+	}
 	wg.Wait()
 
 	if h, ok := s.log.Handler().(recentes); ok {
@@ -159,7 +208,14 @@ func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Reques
 // ---- máquina ---------------------------------------------------------------
 
 func coletarMaquina(f fontes) maquinaInfo {
-	m := maquinaInfo{Nucleos: runtime.NumCPU()}
+	m := maquinaInfo{
+		// O device tree termina o texto com um NUL, que o TrimSpace não tira.
+		Placa:            strings.TrimRight(lerTexto(filepath.Join(f.proc, "device-tree/model")), "\x00"),
+		Processador:      lerProcessador(f.proc),
+		Kernel:           lerTexto(filepath.Join(f.proc, "sys/kernel/osrelease")),
+		Nucleos:          runtime.NumCPU(),
+		NucleosLiberados: nucleosDoCgroup(f),
+	}
 	if b, err := os.ReadFile(filepath.Join(f.proc, "loadavg")); err == nil {
 		m.Carga = lerCarga(string(b))
 	}
@@ -178,6 +234,24 @@ func coletarMaquina(f fontes) maquinaInfo {
 		}
 	}
 	return m
+}
+
+// lerProcessador devolve o "model name" do primeiro núcleo. No ARM de 64 bits
+// o campo não existe - só códigos como "CPU part : 0xd03" -, e aí quem
+// identifica a máquina é a placa.
+func lerProcessador(proc string) string {
+	b, err := os.ReadFile(filepath.Join(proc, "cpuinfo"))
+	if err != nil {
+		return ""
+	}
+	sc := bufio.NewScanner(bytes.NewReader(b))
+	for sc.Scan() {
+		chave, valor, ok := strings.Cut(sc.Text(), ":")
+		if ok && strings.TrimSpace(chave) == "model name" {
+			return strings.TrimSpace(valor)
+		}
+	}
+	return ""
 }
 
 // lerCarga lê "0.52 0.40 0.31 1/123 4567".
@@ -294,22 +368,29 @@ func lerCampo(b []byte, nome string) (int64, bool) {
 	return 0, false
 }
 
-// limiteDoCgroup devolve o teto de memória do cgroup deste processo, ou 0 sem
-// teto. No cgroup v2 o caminho vem do /proc/self/cgroup ("0::/caminho"); dentro
-// de um container com namespace de cgroup próprio ele é "/", e o arquivo está
-// na raiz de /sys/fs/cgroup. O v1 fica como plano B para kernel antigo.
-func limiteDoCgroup(f fontes) int64 {
-	if b, err := os.ReadFile(filepath.Join(f.proc, "self/cgroup")); err == nil {
-		for l := range strings.SplitSeq(string(b), "\n") {
-			caminho, ok := strings.CutPrefix(l, "0::")
-			if !ok {
-				continue
-			}
-			if v := lerTexto(filepath.Join(f.sys, "fs/cgroup", caminho, "memory.max")); v != "" && v != "max" {
-				n, _ := strconv.ParseInt(v, 10, 64)
-				return n
-			}
+// doCgroup lê um arquivo do cgroup v2 deste processo. O caminho vem do
+// /proc/self/cgroup ("0::/caminho"); dentro de um container com namespace de
+// cgroup próprio ele é "/", e o arquivo está na raiz de /sys/fs/cgroup. Vazio
+// sem cgroup v2 ou sem o arquivo.
+func doCgroup(f fontes, nome string) string {
+	b, err := os.ReadFile(filepath.Join(f.proc, "self/cgroup"))
+	if err != nil {
+		return ""
+	}
+	for l := range strings.SplitSeq(string(b), "\n") {
+		if caminho, ok := strings.CutPrefix(l, "0::"); ok {
+			return lerTexto(filepath.Join(f.sys, "fs/cgroup", caminho, nome))
 		}
+	}
+	return ""
+}
+
+// limiteDoCgroup devolve o teto de memória do cgroup deste processo, ou 0 sem
+// teto. O v1 fica como plano B para kernel antigo.
+func limiteDoCgroup(f fontes) int64 {
+	if v := doCgroup(f, "memory.max"); v != "" && v != "max" {
+		n, _ := strconv.ParseInt(v, 10, 64)
+		return n
 	}
 	// No v1, "sem limite" é um número enorme (PAGE_COUNTER_MAX em bytes), e
 	// não uma palavra. Acima de 1 PiB, trata-se como sem limite.
@@ -317,6 +398,25 @@ func limiteDoCgroup(f fontes) int64 {
 		return n
 	}
 	return 0
+}
+
+// nucleosDoCgroup devolve o teto de CPU do container em núcleos, ou 0 sem
+// teto. O cpu.max do v2 é "<cota> <período>" em microssegundos, ou "max
+// <período>" sem teto: o `--cpus 1.5` do Docker vira "150000 100000". No v1, a
+// cota é -1 sem teto.
+func nucleosDoCgroup(f fontes) float64 {
+	var cota, periodo int64
+	if campos := strings.Fields(doCgroup(f, "cpu.max")); len(campos) == 2 {
+		cota, _ = strconv.ParseInt(campos[0], 10, 64)
+		periodo, _ = strconv.ParseInt(campos[1], 10, 64)
+	} else {
+		cota = lerInt(filepath.Join(f.sys, "fs/cgroup/cpu/cpu.cfs_quota_us"))
+		periodo = lerInt(filepath.Join(f.sys, "fs/cgroup/cpu/cpu.cfs_period_us"))
+	}
+	if cota <= 0 || periodo <= 0 {
+		return 0
+	}
+	return float64(cota) / float64(periodo)
 }
 
 // ---- pressão ---------------------------------------------------------------
@@ -571,7 +671,7 @@ func (s *Server) sondarGo2RTC(ctx context.Context) go2rtcInfo {
 	}
 	inicio := time.Now()
 	v, err := s.client.Versao(ctx)
-	info := go2rtcInfo{Ms: time.Since(inicio).Milliseconds()}
+	info := go2rtcInfo{Ms: time.Since(inicio).Milliseconds(), URL: semCredencial(s.client.BaseURL)}
 	if err != nil {
 		// Mesma exposição do go2rtcError do /api/cameras: o erro de rede é
 		// o diagnóstico, e a URL nele não traz senha (o cliente usa Basic
@@ -583,7 +683,37 @@ func (s *Server) sondarGo2RTC(ctx context.Context) go2rtcInfo {
 	return info
 }
 
+// ---- detector de objetos ---------------------------------------------------
+
+// sondarDetector pergunta ao detector de objetos qual modelo ele carregou. A
+// fila do /api/health já mostra o detector fora do ar, mas só quando alguma
+// câmera manda olhar: sem movimento em câmera nenhuma, a queda passa
+// despercebida. Esta pergunta responde a qualquer hora.
+func (s *Server) sondarDetector(ctx context.Context) *detectorInfo {
+	inicio := time.Now()
+	saude, err := detect.SaudeDoSidecar(ctx, s.cfg.Detector.URL)
+	info := &detectorInfo{Ms: time.Since(inicio).Milliseconds(), URL: semCredencial(s.cfg.Detector.URL)}
+	if err != nil {
+		info.Erro = err.Error()
+		return info
+	}
+	info.OK, info.Modelo, info.Entrada, info.Threads = true, saude.Modelo, saude.Entrada, saude.Threads
+	return info
+}
+
 // ---- utilidades ------------------------------------------------------------
+
+// semCredencial tira o "usuario:senha@" de uma URL antes de ela ir para a
+// tela. O dwnvr manda a credencial do go2rtc por cabeçalho, mas nada impede
+// alguém de escrevê-la direto na URL do dwnvr.yaml.
+func semCredencial(u string) string {
+	p, err := url.Parse(u)
+	if err != nil {
+		return ""
+	}
+	p.User = nil
+	return p.String()
+}
 
 func lerTexto(caminho string) string {
 	b, err := os.ReadFile(caminho)

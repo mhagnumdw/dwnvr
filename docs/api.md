@@ -37,7 +37,7 @@ Todo o resto exige sessão válida.
 | `POST /api/go2rtc/restart` | - | reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
 | `GET /api/health` | - | bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes e relógio |
 | `POST /api/reconnects/reset` | - | zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
-| `GET /api/health/servidor` | - | a máquina que grava: temperatura, memória, pressão, storage, go2rtc e últimos avisos do log |
+| `GET /api/health/servidor` | - | a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos e últimos avisos do log |
 | `DELETE /api/rec` | `cam` | apaga as gravações; serve também câmera já removida |
 
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
@@ -237,17 +237,28 @@ Buenos Aires e outros.
 
 O `GET /api/health/servidor` é o card "Este servidor" do Diagnóstico. Fica fora
 do `/api/health` porque custa mais: a cada chamada ele grava, sincroniza com
-`fsync` e apaga 4 KB no `storage.root`, e pergunta a versão ao go2rtc. A tela só
-o chama com o card aberto, de 15 em 15 segundos. Tudo sai de `/proc` e `/sys`,
-e cada campo some quando a fonte não existe (kernel sem PSI, sistema sem
-cgroup, fora do Linux).
+`fsync` e apaga 4 KB no `storage.root`, pergunta a versão ao go2rtc e, com
+`detector.url` configurado, chama o `GET /health` do detector de objetos. A
+tela só o chama com o card aberto, de 15 em 15 segundos. Tudo sai de `/proc` e
+`/sys`, e cada campo some quando a fonte não existe (kernel sem PSI, sistema
+sem cgroup, fora do Linux).
 
 ```json
 {
+  "coletadoEm": {
+    "em": "2026-10-02T17:45:12-03:00", "sigla": "-03",
+    "offsetSeconds": -10800, "zona": "America/Sao_Paulo"
+  },
   "maquina": {
-    "nucleos": 4, "carga": [3.1, 2.05, 1.5],
+    "placa": "OrangePi Zero3", "kernel": "6.12.58-current-sunxi64",
+    "nucleos": 4, "nucleosLiberados": 1.5, "carga": [3.1, 2.05, 1.5],
     "sensores": [{ "nome": "cpu_thermal", "celsius": 84.3 }],
     "mhz": 1008, "mhzMax": 1512, "governor": "ondemand"
+  },
+  "processo": {
+    "cpuMs": 811550, "vivoMs": 18585000, "memoriaBytes": 33980416,
+    "goroutines": 112, "arquivosAbertos": 34, "limiteDeArquivos": 524287,
+    "uid": 1000, "gid": 1000, "go": "go1.27.1", "arquitetura": "linux/arm64"
   },
   "memoria": {
     "totalBytes": 1036640256, "disponivelBytes": 209715200,
@@ -264,7 +275,11 @@ cgroup, fora do Linux).
     "opcoes": "rw,relatime", "somenteLeitura": false,
     "escrita": { "ok": true, "ms": 12 }
   },
-  "go2rtc": { "ok": true, "ms": 4, "versao": "1.9.9" },
+  "go2rtc": { "ok": true, "ms": 4, "versao": "1.9.9", "url": "http://go2rtc:1984" },
+  "detector": {
+    "ok": true, "ms": 128, "modelo": "modelo.onnx", "entrada": "512x288",
+    "threads": 2, "url": "http://dwnvr-detect:8480"
+  },
   "log": {
     "total": 37,
     "linhas": [{ "em": "2026-09-22T18:37:12-03:00", "nivel": "WARN", "texto": "conexão caiu cam=garagem erro=EOF" }]
@@ -272,6 +287,24 @@ cgroup, fora do Linux).
 }
 ```
 
+- `coletadoEm` é o instante da leitura no relógio do servidor, com o fuso dele,
+  como o `clock` do `/api/health`: a tela o mostra na hora de lá, sem converter.
+  `zona` some quando o servidor não sabe o nome IANA.
+- `placa` vem do device tree e só existe em ARM; `processador` vem do
+  `/proc/cpuinfo` e só tem nome no x86. `kernel` é o do host, mesmo dentro do
+  container.
+- `nucleosLiberados` é o teto de CPU do container, em núcleos (`--cpus 1.5`), e
+  some quando não há teto.
+- `processo` é o próprio dwnvr. `cpuMs` é o tempo de CPU gasto desde que ele
+  subiu, e `vivoMs`, há quanto tempo está no ar: a porcentagem sai da diferença
+  entre duas leituras, e quem guarda a leitura anterior é a tela, não o
+  servidor. `memoriaBytes` é a memória física do processo (`VmRSS`), que é o
+  que bate contra o `limiteBytes`. O `memory.current` do cgroup não serve para
+  isso: soma o cache dos vídeos gravados, que o kernel devolve quando precisa.
+- `detector` só vem com `detector.url` configurado. Responde mesmo sem
+  movimento em câmera nenhuma, ao contrário do `foraDoAr` do `/api/health`, que
+  só aparece depois de uma olhada falhar.
+- As `url` vêm sem usuário e senha.
 - `pressao` é o PSI do kernel: a porcentagem do tempo em que alguma tarefa
   (`some`) ou todas (`full`) ficaram paradas esperando CPU, memória ou disco,
   em média de 10, 60 e 300 segundos.

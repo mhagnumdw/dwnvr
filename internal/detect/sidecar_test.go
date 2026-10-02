@@ -102,3 +102,32 @@ func TestSidecarObedeceOPrazo(t *testing.T) {
 		t.Errorf("esperou %v por um sidecar mudo", d)
 	}
 }
+
+func TestSaudeDoSidecar(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/health" {
+			t.Errorf("%s %s, esperado GET /health", r.Method, r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"modelo": "modelo.onnx", "entrada": "512x288", "threads": 2}`)
+	}))
+	defer srv.Close()
+	s, err := SaudeDoSidecar(t.Context(), srv.URL+"/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s != (Saude{Modelo: "modelo.onnx", Entrada: "512x288", Threads: 2}) {
+		t.Errorf("saúde %+v", s)
+	}
+}
+
+// Fora do ar, o erro vem sem o `Get "<url>":` na frente: a tela mostra o
+// endereço numa linha à parte.
+func TestSaudeDoSidecarForaDoAr(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	url := srv.URL
+	srv.Close()
+	_, err := SaudeDoSidecar(t.Context(), url)
+	if err == nil || strings.Contains(err.Error(), "/health") {
+		t.Errorf("erro %v, esperado só a falha de rede", err)
+	}
+}

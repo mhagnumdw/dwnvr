@@ -7,7 +7,7 @@
 // que trabalha perto do teto no dia a dia, e um card vermelho à toa ensina a
 // ignorar o vermelho.
 
-import { bytes } from './format.js';
+import { bytes, duracao, relogioDeFuso } from './format.js';
 
 // Acima disso a maioria dos SoCs ARM começa a reduzir a frequência para
 // esfriar, e o Orange Pi Zero 3 chega lá sem dissipador.
@@ -20,12 +20,23 @@ const PRESSAO_ALTA = { cpu: 50, memoria: 10, io: 25 };
 // Um fsync de 4 KB acima disso é disco sofrendo.
 const ESCRITA_LENTA_MS = 1000;
 
+// Fração do teto - memória do container, arquivos abertos - a partir da qual o
+// processo está a um susto de bater nele.
+const PERTO_DO_TETO = 0.9;
+
 function num(v, casas = 0) {
   return v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 }
 
 function maquina(m) {
-  const itens = [{ rotulo: 'núcleos', valor: String(m.nucleos) }];
+  const itens = [];
+  if (m.placa) itens.push({ rotulo: 'placa', valor: m.placa });
+  if (m.processador) itens.push({ rotulo: 'processador', valor: m.processador });
+  if (m.kernel) itens.push({ rotulo: 'kernel', valor: m.kernel });
+  // O teto do container vai junto dos núcleos, e não numa linha à parte: é ele
+  // que diz quantos o dwnvr enxerga de fato.
+  const liberados = m.nucleosLiberados ? ` (o container pode usar ${num(m.nucleosLiberados, m.nucleosLiberados % 1 ? 1 : 0)})` : '';
+  itens.push({ rotulo: 'núcleos', valor: `${m.nucleos}${liberados}` });
   if (m.carga) {
     // Carga acima do número de núcleos é fila: tem processo esperando CPU.
     itens.push({
@@ -49,7 +60,44 @@ function maquina(m) {
   return itens;
 }
 
-function memoria(m) {
+// processo é o dwnvr visto por ele mesmo. `anterior` é a leitura de antes, da
+// qual sai a CPU de agora; sem ela, vale a média desde que o dwnvr subiu.
+function processo(p, nucleos, limiteBytes, anterior) {
+  const itens = [];
+  if (p.cpuMs != null && p.vivoMs > 0) {
+    // Leitura de antes da última subida do dwnvr não serve: o tempo de CPU
+    // recomeçou do zero.
+    const a = anterior?.cpuMs != null && p.vivoMs > anterior.vivoMs && p.cpuMs >= anterior.cpuMs ? anterior : null;
+    const usado = a ? (p.cpuMs - a.cpuMs) / (p.vivoMs - a.vivoMs) : p.cpuMs / p.vivoMs;
+    const quando = a ? `últimos ${duracao(p.vivoMs - a.vivoMs)}` : 'média desde que subiu';
+    // Em fração da máquina inteira, e não de um núcleo, para comparar direto
+    // com a carga e a pressão ao lado.
+    itens.push({ rotulo: 'CPU', valor: `${num((usado / nucleos) * 100, 1)}% da máquina (${quando})` });
+  }
+  if (p.memoriaBytes) {
+    itens.push({
+      rotulo: 'memória',
+      valor: limiteBytes ? `${bytes(p.memoriaBytes)} de ${bytes(limiteBytes)} do limite` : bytes(p.memoriaBytes),
+      alerta: limiteBytes > 0 && p.memoriaBytes >= limiteBytes * PERTO_DO_TETO,
+    });
+  }
+  itens.push({ rotulo: 'goroutines', valor: num(p.goroutines) });
+  if (p.arquivosAbertos) {
+    const l = p.limiteDeArquivos;
+    itens.push({
+      rotulo: 'arquivos abertos',
+      valor: l ? `${num(p.arquivosAbertos)} de ${num(l)}` : num(p.arquivosAbertos),
+      alerta: l > 0 && p.arquivosAbertos >= l * PERTO_DO_TETO,
+    });
+  }
+  if (p.uid != null) itens.push({ rotulo: 'usuário e grupo', valor: `${p.uid}:${p.gid ?? '?'}` });
+  itens.push({ rotulo: 'binário', valor: `Go ${p.go.replace(/^go/, '')} · ${p.arquitetura}` });
+  return itens;
+}
+
+// O limite do container vai na linha de memória do processo, que é quem bate
+// nele; aqui ele só aparece se essa linha faltar.
+function memoria(m, limiteNoProcesso) {
   const livre = m.totalBytes ? m.disponivelBytes / m.totalBytes : 1;
   const itens = [
     {
@@ -69,7 +117,7 @@ function memoria(m) {
   } else {
     itens.push({ rotulo: 'swap', valor: 'nenhuma' });
   }
-  if (m.limiteBytes) itens.push({ rotulo: 'limite do container', valor: bytes(m.limiteBytes) });
+  if (m.limiteBytes && !limiteNoProcesso) itens.push({ rotulo: 'limite do container', valor: bytes(m.limiteBytes) });
   if (m.oomKills != null) {
     itens.push({
       rotulo: 'processos encerrados por falta de memória (OOM kill)',
@@ -119,21 +167,58 @@ function go2rtc(g) {
     { rotulo: 'responde', valor: g.ok ? `sim, em ${num(g.ms)} ms` : `não: ${g.erro}`, alerta: !g.ok },
   ];
   if (g.versao) itens.push({ rotulo: 'versão', valor: g.versao });
+  if (g.url) itens.push({ rotulo: 'endereço', valor: g.url });
+  return itens;
+}
+
+function detector(d) {
+  const itens = [
+    { rotulo: 'responde', valor: d.ok ? `sim, em ${num(d.ms)} ms` : `não: ${d.erro}`, alerta: !d.ok },
+  ];
+  if (d.modelo) itens.push({ rotulo: 'modelo', valor: d.entrada ? `${d.modelo}, entrada ${d.entrada}` : d.modelo });
+  if (d.threads) itens.push({ rotulo: 'threads', valor: String(d.threads) });
+  itens.push({ rotulo: 'endereço', valor: d.url });
   return itens;
 }
 
 // grupos monta o card. Grupo sem fonte - kernel sem PSI, servidor fora do
-// Linux - some em vez de aparecer vazio.
-export function grupos(info) {
+// Linux, instalação sem detector de objetos - some em vez de aparecer vazio.
+// `anterior` é a leitura de antes, para a CPU do processo.
+export function grupos(info, anterior) {
+  const limite = info.memoria?.limiteBytes;
   const out = [{ titulo: 'Máquina', itens: maquina(info.maquina) }];
-  if (info.memoria) out.push({ titulo: 'Memória', itens: memoria(info.memoria) });
+  // Servidor anterior a este campo não manda o processo.
+  if (info.processo) {
+    out.push({
+      titulo: 'Processo do dwnvr',
+      itens: processo(info.processo, info.maquina.nucleos, limite, anterior?.processo),
+    });
+  }
+  if (info.memoria) {
+    out.push({ titulo: 'Memória', itens: memoria(info.memoria, info.processo?.memoriaBytes > 0) });
+  }
   if (info.pressao) {
     const itens = pressao(info.pressao);
     if (itens.length) out.push({ titulo: 'Pressão (último minuto)', itens });
   }
   out.push({ titulo: 'Armazenamento', itens: storage(info.storage) });
   out.push({ titulo: 'go2rtc', itens: go2rtc(info.go2rtc) });
+  if (info.detector) out.push({ titulo: 'Detector de objetos', itens: detector(info.detector) });
   return out;
+}
+
+// coletadoEm diz quando o servidor fez a leitura, no relógio e no fuso DELE,
+// como o "horário do servidor" da faixa do topo: convertido para o fuso de quem
+// lê, esconderia um servidor com fuso errado. Servidor anterior a este campo
+// não manda nada.
+//
+// Os espaços de dentro da data e do fuso são inquebráveis: sem caber numa
+// linha, no celular, a quebra cai entre a hora e o fuso, e não no meio de um.
+export function coletadoEm(c) {
+  const lido = Date.parse(c?.em);
+  if (isNaN(lido)) return '';
+  const inteiro = (s) => s.replaceAll(' ', ' ');
+  return `${inteiro(`Coletado em ${relogioDeFuso(lido, c.offsetSeconds)}`)} ${inteiro(c.zona || c.sigla)}`;
 }
 
 // linhaDoLog formata como o docker logs mostraria, com a hora local de quem lê.

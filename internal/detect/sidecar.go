@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // sidecar é o Detector que manda o pedaço ao container `dwnvr-detect` por
@@ -84,4 +86,49 @@ func (s *sidecar) Olha(ctx context.Context, p Pedaco) (Visao, error) {
 		r.Achados = []Achado{} // olhada sem nada é resultado, não falta dele
 	}
 	return Visao{Achados: r.Achados, Quadro: r.Quadro}, nil
+}
+
+// Saude é o que o GET /health do sidecar devolve: o modelo carregado, o
+// tamanho em que ele olha o quadro e quantas threads usa.
+type Saude struct {
+	Modelo  string `json:"modelo"`
+	Entrada string `json:"entrada"`
+	Threads int    `json:"threads"`
+}
+
+// prazoDaSaude é curto porque quem espera é uma tela aberta. O sidecar
+// responde o /health na hora mesmo no meio de uma olhada; passar disso já é o
+// diagnóstico.
+const prazoDaSaude = 3 * time.Second
+
+// SaudeDoSidecar pergunta ao sidecar em `url` se ele está no ar e com qual
+// modelo. Serve à tela de Diagnóstico; a fila não usa, porque descobre a queda
+// na própria olhada. O erro vem sem o `Get "<url>":` que o http.Client põe na
+// frente, porque a tela já mostra o endereço ao lado.
+func SaudeDoSidecar(ctx context.Context, url string) (Saude, error) {
+	ctx, cancel := context.WithTimeout(ctx, prazoDaSaude)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(url, "/")+"/health", nil)
+	if err != nil {
+		return Saude{}, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return Saude{}, fmt.Errorf("não respondeu em %d s", int(prazoDaSaude.Seconds()))
+		}
+		if ue, ok := errors.AsType[*neturl.Error](err); ok {
+			return Saude{}, ue.Err
+		}
+		return Saude{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return Saude{}, fmt.Errorf("sidecar respondeu HTTP %d em /health", resp.StatusCode)
+	}
+	var s Saude
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&s); err != nil {
+		return Saude{}, fmt.Errorf("resposta do /health ilegível: %w", err)
+	}
+	return s, nil
 }

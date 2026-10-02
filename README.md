@@ -546,7 +546,8 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── recordings.go   dias, timeline, init, segmentos, thumbnail, HLS, exportação
 │   │   ├── deteccoes.go    as detecções de todas as câmeras, paginadas, e o quadro de cada uma
 │   │   ├── live.go         proxy do go2rtc, com a credencial ficando no servidor
-│   │   ├── diagnostico_servidor.go  a máquina que grava, para o Diagnóstico: temperatura, memória, storage, go2rtc
+│   │   ├── diagnostico_servidor.go  a máquina que grava, para o Diagnóstico: temperatura, memória, storage, go2rtc, detector
+│   │   ├── diagnostico_processo.go  o próprio dwnvr, para o Diagnóstico: CPU, memória, arquivos abertos, UID
 │   │   ├── web.go          serve a SPA embutida
 │   │   └── dist/           build da interface, versionado (ver web/README.md)
 │   ├── buildinfo/          versão, commit e data injetados no build

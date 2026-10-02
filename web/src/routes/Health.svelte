@@ -24,7 +24,7 @@
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
   import SemCameras from '../components/SemCameras.svelte';
   import { coletar, comoTexto } from '../lib/navegador.js';
-  import { grupos as gruposDoServidor, linhaDoLog } from '../lib/diagnostico-servidor.js';
+  import { grupos as gruposDoServidor, linhaDoLog, coletadoEm } from '../lib/diagnostico-servidor.js';
   import CardDiagnostico from '../components/CardDiagnostico.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
 
@@ -241,11 +241,16 @@
   //
   // Mesmo trato do navegador: fechado, e só pergunta ao servidor com o card
   // aberto. A leitura custa um teste de escrita no storage e uma ida ao
-  // go2rtc, então o ritmo é mais lento que o do resto da tela - temperatura e
-  // pressão mudam em dezenas de segundos, não em 5.
+  // go2rtc e ao detector de objetos, então o ritmo é mais lento que o do resto
+  // da tela - temperatura e pressão mudam em dezenas de segundos, não em 5.
+  //
+  // A leitura de antes fica guardada porque a CPU do dwnvr sai da diferença
+  // entre as duas. Fechar o card esquece ambas: reaberto uma hora depois, a
+  // conta seria a média dessa hora, e não a de agora.
   const SERVIDOR_POLL_MS = 15000;
   let servidorAberto = $state(false);
   let servidor = $state(null);
+  let servidorAnterior = $state(null);
   let erroServidor = $state('');
 
   $effect(() => {
@@ -258,7 +263,7 @@
       if (document.hidden) return;
       try {
         const r = await api.servidor();
-        if (vivo) (servidor = r), (erroServidor = '');
+        if (vivo) (servidorAnterior = servidor), (servidor = r), (erroServidor = '');
       } catch (e) {
         if (vivo) erroServidor = e.message;
       }
@@ -270,14 +275,20 @@
       vivo = false;
       clearInterval(id);
       document.removeEventListener('visibilitychange', ler);
+      servidor = servidorAnterior = null;
     };
   });
 
-  const gruposServidor = $derived(servidor ? gruposDoServidor(servidor) : []);
+  const gruposServidor = $derived(servidor ? gruposDoServidor(servidor, servidorAnterior) : []);
   const logServidor = $derived(servidor?.log);
+  const coletadoServidor = $derived(servidor ? coletadoEm(servidor.coletadoEm) : '');
 
+  // O "copiar" leva a hora da coleta, e não a de quando se tocou no botão: o
+  // texto descreve aquela leitura. Os espaços inquebráveis do subtítulo voltam
+  // a ser espaço comum no texto colado.
   function textoDoServidor() {
-    const cabecalho = [`dwnvr ${build.version || '?'} - diagnóstico do servidor`, new Date().toString()];
+    const coletado = coletadoServidor.replaceAll(' ', ' ');
+    const cabecalho = [`dwnvr ${build.version || '?'} - diagnóstico do servidor`, coletado || new Date().toString()];
     const log = logServidor?.linhas.length
       ? [`[Últimos avisos e erros do log: ${logServidor.linhas.length} de ${logServidor.total}]`, ...logServidor.linhas.map(linhaDoLog)]
       : [];
@@ -1032,7 +1043,7 @@
   <!-- Este servidor: a máquina que grava, vista de dentro. Responde "a
        máquina tem fôlego para gravar?", que a tabela de câmeras acima não
        responde - ela só mostra a consequência. -->
-  <CardDiagnostico titulo="Este servidor" grupos={gruposServidor} bind:aberto={servidorAberto} texto={textoDoServidor}>
+  <CardDiagnostico titulo="Este servidor" subtitulo={coletadoServidor} grupos={gruposServidor} bind:aberto={servidorAberto} texto={textoDoServidor}>
     {#if logServidor}
       <section class="log">
         <p class="titulo muted">

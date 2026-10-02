@@ -6,9 +6,11 @@
   //
   // `texto` devolve o que o "copiar" leva. `children` entra depois dos grupos,
   // para o que não cabe em rótulo e valor - as linhas do log, por exemplo.
+  // `subtitulo`, opcional, vai embaixo do título com o card aberto - o "Coletado
+  // em" do servidor, por exemplo.
   import { copiar } from '../lib/navegador.js';
 
-  let { titulo, grupos, aberto = $bindable(false), texto, children } = $props();
+  let { titulo, subtitulo = '', grupos, aberto = $bindable(false), texto, children } = $props();
 
   let copiado = $state('');
 
@@ -30,9 +32,12 @@
     </button>
     {#if aberto && grupos.length}
       {#if copiado}<span class="muted small">{copiado}</span>{/if}
-      <button onclick={aoCopiar}>copiar</button>
+      <button class="copiar" onclick={aoCopiar}>copiar</button>
     {/if}
   </div>
+  <!-- Fora do botão: dentro dele, a segunda linha mudaria a altura do
+       cabeçalho e o título pularia ao abrir. -->
+  {#if aberto && subtitulo}<p class="subtitulo muted small mono">{subtitulo}</p>{/if}
   {#if aberto && grupos.length}
     <div class="grupos">
       {#each grupos as g (g.titulo)}
@@ -79,6 +84,12 @@
     text-align: left;
   }
   .abrir:hover:not(:disabled) { border-color: transparent; }
+  /* A mesma margem do cabeçalho: sem ela, o "copiar" que aparece ao abrir
+     deixaria a linha 16px mais alta, e o título desceria. */
+  .copiar { margin: -8px 0; }
+  /* Alinhado com o título, depois da seta (12px) e do vão (8px), e puxado
+     para perto dele. */
+  .subtitulo { margin: -6px 0 0; padding-left: 20px; }
   .seta-card { width: 12px; font-size: 12px; color: var(--dim); }
   .item { display: flex; gap: 10px; justify-content: space-between; }
   dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
