@@ -219,6 +219,28 @@ repos:
         args: [--fix, --no-warn-ignored, --max-warnings=0]
         files: ^web/(src/.*\.(js|svelte)|[^/]+\.js)$
 
+  # Os testes ponta a ponta (e2e/): os tipos do TypeScript, e o ESLint com o
+  # plugin do Playwright, que cobra as regras do docs/plano-testes-e2e.md
+  # (nada de espera fixa, nada de teste pulado). As regras estão no
+  # e2e/eslint.config.mjs. Os dois vêm das devDependencies do e2e/: em clone
+  # novo, antes rode `npm ci` no e2e/, como no web/.
+  - repo: local
+    hooks:
+      - id: eslint-e2e
+        priority: formatar
+        name: eslint (e2e)
+        language: system
+        entry: e2e/node_modules/.bin/eslint
+        args: [--fix, --no-warn-ignored, --max-warnings=0]
+        files: ^e2e/((testes|apoio)/.*\.ts|[^/]+\.(ts|mjs))$
+      - id: tsc-e2e
+        priority: conferir
+        name: tsc (e2e)
+        language: system
+        entry: e2e/node_modules/.bin/tsc -p e2e
+        files: ^e2e/((testes|apoio)/.*\.ts|[^/]+\.ts|tsconfig\.json)$
+        pass_filenames: false
+
   # Python do dwnvr-detect: lint e formatação, o flake8 e o black numa
   # ferramenta só. As regras estão no dwnvr-detect/ruff.toml.
   - repo: https://github.com/astral-sh/ruff-pre-commit

@@ -494,6 +494,7 @@ movimento.
 | [`docs/api.md`](docs/api.md) | referência dos endpoints HTTP |
 | [`web/README.md`](web/README.md) | desenvolver a interface |
 | [`docs/github.md`](docs/github.md) | o que está ligado no GitHub e o PR do Dependabot |
+| [`docs/plano-testes-e2e.md`](docs/plano-testes-e2e.md) | o plano dos testes ponta a ponta, com Playwright, em etapas |
 | [`docs/README.md`](docs/README.md) | índice completo, incluindo as medições datadas |
 | [`CHANGELOG.md`](CHANGELOG.md) | o que mudou em cada versão |
 
@@ -566,6 +567,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   └── store/              layout em disco e índice NDJSON
 ├── dwnvr-detect/           o detector de objetos, opcional, num container à parte (ver dwnvr-detect/README.md)
 ├── web/                    interface Svelte 5 + Vite (ver web/README.md)
+├── e2e/                    testes ponta a ponta com Playwright, e o ambiente deles (ver docs/plano-testes-e2e.md)
 ├── docs/                   documentação longa (ver docs/README.md)
 ├── CHANGELOG.md            o que mudou em cada versão, gerado na release
 ├── cliff.toml              o formato do CHANGELOG.md e das notas de cada release (git-cliff)
@@ -730,6 +732,25 @@ go tool cover -html=/tmp/cobertura.out               # as linhas, no navegador
 
 O total local sai por instrução, e o do Codecov por linha, então os dois
 diferem um pouco.
+
+Os testes ponta a ponta, em `e2e/`, sobem em containers o go2rtc com câmeras
+sintéticas e o dwnvr construído do seu clone, e o
+[Playwright](https://playwright.dev) dirige um navegador de verdade contra
+eles, no tamanho de um desktop e no de um celular, gravando o vídeo de cada
+teste. Precisam de Docker e de Node:
+
+```sh
+cd e2e && npm ci && npx playwright install --with-deps chromium && cd ..  # uma vez
+make e2e-up          # sobe o ambiente; ele fica no ar entre uma rodada e outra
+make e2e             # roda os testes
+make e2e-ui          # o modo UI do Playwright: escolher teste, ver passo a passo
+make e2e-relatorio   # o relatório, com o vídeo e o trace de cada teste
+make e2e-down        # derruba e apaga o estado
+```
+
+Na CI eles rodam no `.github/workflows/e2e.yml`, e o relatório sai como
+artifact. O desenho, as regras e as próximas etapas estão em
+[`docs/plano-testes-e2e.md`](docs/plano-testes-e2e.md).
 
 O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push na
 main e em pull request. As imagens saem do `.github/workflows/imagens.yml`,

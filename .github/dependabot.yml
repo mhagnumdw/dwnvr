@@ -56,6 +56,27 @@ updates:
       npm:
         patterns: ["*"]
 
+  # Os testes ponta a ponta. O PR que sobe o @playwright/test troca também o
+  # navegador que ele baixa: o e2e/testes/codecs.spec.ts diz, no próprio PR,
+  # se o navegador novo ainda toca H.264.
+  - package-ecosystem: npm
+    directory: /e2e
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+    ignore:
+      # O typescript-eslint só aceita TypeScript abaixo do 6.1
+      # (peerDependencies). Tirar quando uma versão dele aceitar o 7.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+    groups:
+      e2e:
+        patterns: ["*"]
+
   # Só security update. As versões do requirements.in são as que exportaram o
   # .onnx e mediram a entrega, e trocar uma exige conferir de novo. E o
   # Dependabot troca a linha do requirements.txt em vez de recompilar com o

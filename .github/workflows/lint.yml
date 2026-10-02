@@ -51,16 +51,21 @@ jobs:
           go-version: '1.27'
           cache-dependency-path: go.sum
 
-      # O svelte-check e o ESLint vêm do web/node_modules.
+      # O svelte-check e o ESLint vêm do web/node_modules; o tsc e o ESLint
+      # dos testes ponta a ponta, do e2e/node_modules.
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: |
+            web/package-lock.json
+            e2e/package-lock.json
       # Sem os scripts de instalação dos pacotes: o lint só lê o
       # node_modules, e nenhum pacote roda código na instalação.
       - run: npm ci --no-audit --no-fund --ignore-scripts
         working-directory: web
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+        working-directory: e2e
 
       # Os ambientes dos hooks, que o prek monta na primeira execução, e o Go
       # que ele baixa para eles. Mudou o .pre-commit-config.yaml, monta de novo.

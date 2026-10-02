@@ -47,6 +47,15 @@ limitado**, como exemplo o Orange Pi Zero 3. Ele não é feito *para* um hardwar
 - Nunca `git commit --no-verify`. Regra de lint não se desliga para passar:
   corrija; se não houver como, desligue só naquela linha, com o motivo nela.
 
+## Testes
+
+- Teste que falha às vezes não ganha `retries`, `skip`, `fixme` nem espera
+  fixa para passar: ganha a correção, ou um arquivo em `docs/TODO/` com o que
+  se sabe. Vale também para os agentes do Playwright, cujo healer marca
+  `fixme` no que não consegue consertar.
+- Os ponta a ponta (`e2e/`) rodam contra o ambiente do `make e2e-up`. O
+  desenho, as regras e as próximas etapas estão em `docs/plano-testes-e2e.md`.
+
 ## Repercussões
 
 Um mesmo fato vive em vários arquivos aqui. Antes de encerrar a tarefa, ache na
@@ -71,10 +80,13 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 | `image:` do go2rtc no `docker-compose.yml` | manter `${GO2RTC_VERSION:-X.Y.Z}` com uma tag testada, nunca sem tag: sem ela, o `--pull always` da atualização traz qualquer versão · §Atualizar do `README.md` · §Trocar de versão do `docs/operacao.md` |
 | comando de atualizar | §Atualizar do `README.md` (a página de cada release aponta para ela) · §Trocar de versão do `docs/operacao.md` |
 | alvo ou variável no `Makefile` | comentário `## alvo:` (o `make help` lê) · §Build do `README.md` · `local.mk.example` |
-| versão de Go ou de Node | `go.mod` · `.tool-versions` (o asdf local) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` e `lint.yml` (`setup-go`/`setup-node`) · §Tecnologias do `README.md` · `default_language_version` do `.pre-commit-config.yaml`, porque o golangci-lint compilado com o Go velho se recusa a rodar |
+| versão de Go ou de Node | `go.mod` · `.tool-versions` (o asdf local) · `Dockerfile` (`golang:`/`node:`) · `ci.yml`, `lint.yml` e `e2e.yml` (`setup-go`/`setup-node`) · §Tecnologias do `README.md` · `default_language_version` do `.pre-commit-config.yaml`, porque o golangci-lint compilado com o Go velho se recusa a rodar |
 | arquivo ou diretório novo na raiz | `.gitignore` se for local. O `.dockerignore` é allowlist invertida (`**` + `!`): o que o build precisar exige um `!` explícito, senão some do contexto |
 | arquivo gerado, que não se edita à mão | `exclude` do `.pre-commit-config.yaml` (hoje `internal/api/dist/` e `CHANGELOG.md`): sem ele, um hook o reescreve e o lint da CI falha |
-| volume, porta, env ou serviço no `docker-compose.yml` | §Experimentar em poucos minutos, §Instalar de verdade e §Detecção de movimento e de objetos do `README.md` · `docker-compose.build.yml` (se for serviço com imagem própria) · `docs/operacao.md` · `go2rtc.url` do `dwnvr.example.yaml` (depende do nome do serviço) |
+| volume, porta, env ou serviço no `docker-compose.yml` | §Experimentar em poucos minutos, §Instalar de verdade e §Detecção de movimento e de objetos do `README.md` · `docker-compose.build.yml` (se for serviço com imagem própria) · `docs/operacao.md` · `go2rtc.url` do `dwnvr.example.yaml` (depende do nome do serviço) · `e2e/ambiente/compose.yml`, que herda os serviços `dwnvr` e `go2rtc` pelo nome, com `extends`, e troca porta, volume e env com `!override` |
+| texto, rótulo ou `aria-label` visível em `web/src/` | os testes em `e2e/testes/`, que acham o elemento pelo que a pessoa lê (`git grep` do texto antigo no `e2e/`) |
+| porta publicada no `e2e/ambiente/compose.yml` | `e2e/apoio/instancias.ts` |
+| versão do `@playwright/test` no `e2e/package.json` | o navegador muda junto: a suíte inteira, com o `e2e/testes/codecs.spec.ts` dizendo se o novo ainda toca H.264 |
 | caminho interno (`/etc/dwnvr`, `/storage`) | `Dockerfile` (`VOLUME`, `CMD`, `HEALTHCHECK`) · `docker-compose.yml` · `storage.root` do `dwnvr.example.yaml` · `README.md` |
 | caminho do binário na imagem (`/dwnvr`) | `Dockerfile` (`ENTRYPOINT`, `HEALTHCHECK`) · `docker cp` do `.github/workflows/govulncheck.yml` · §govulncheck semanal do `docs/github.md` |
 | flag em `cmd/dwnvr/main.go` | `CMD` e `HEALTHCHECK` do `Dockerfile` (`-config`, `-healthcheck`) · `docs/operacao.md` |

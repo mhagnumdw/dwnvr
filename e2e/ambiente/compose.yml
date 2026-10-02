@@ -1,0 +1,101 @@
+# O ambiente dos testes ponta a ponta: o go2rtc com as câmeras sintéticas e as
+# instâncias do dwnvr construídas deste clone. Sobe com `make e2e-up`, desce
+# com `make e2e-down`. O desenho está em docs/plano-testes-e2e.md.
+#
+# Os serviços herdam os do docker-compose.yml da raiz com `extends`: a versão
+# do go2rtc, o teto de memória do dwnvr e o usuário do container são os da
+# instalação de verdade, sem uma cópia que envelheça. Daqui só mudam a imagem
+# do dwnvr (a do clone), as portas, os volumes, o fuso e o `restart`.
+#
+# Instâncias do dwnvr (portas no host):
+#   dwnvr-gravando  18080  grava a cam_relogio desde a subida; os testes só a leem
+#   dwnvr-w0..w2    18081  uma por worker do Playwright, zerada pelo teste que
+#                   a 18083  muda estado (ver e2e/apoio/fixtures.ts)
+
+name: dwnvr-e2e
+
+x-dwnvr: &dwnvr
+  extends:
+    file: ../../docker-compose.yml
+    service: dwnvr
+  image: dwnvr:e2e
+  # Quem constrói a imagem é o dwnvr-gravando; as outras instâncias usam a
+  # mesma, e nunca a procuram num registry.
+  pull_policy: never
+  restart: "no"
+  environment: !override
+    # O mesmo fuso do timezoneId do playwright.config.ts: a timeline vira o dia
+    # na hora local, e o relógio queimado no vídeo é desenhado nela.
+    - TZ=America/Fortaleza
+  # O HEALTHCHECK da imagem pergunta a cada 30 s, e o `up --wait` esperaria
+  # isso tudo para cada instância. Aqui ele pergunta a cada segundo; o comando
+  # continua o da imagem.
+  healthcheck:
+    interval: 1s
+    timeout: 3s
+    retries: 30
+
+services:
+  go2rtc:
+    extends:
+      file: ../../docker-compose.yml
+      service: go2rtc
+    container_name: dwnvr-e2e-go2rtc
+    restart: "no"
+    environment:
+      - TZ=America/Fortaleza
+    ports: !override
+      - "11984:1984"
+      - "18555:8555/tcp"
+      - "18555:8555/udp"
+    volumes: !override
+      - ./go2rtc.e2e.yaml:/config/go2rtc.yaml:ro
+      - ./cameras:/cameras:ro
+
+  dwnvr-gravando:
+    <<: *dwnvr
+    pull_policy: build
+    build:
+      context: ../..
+      # A identificação do build, que o `make e2e-up` passa como o Makefile faz
+      # nas imagens: é ela que o /api/version e o Diagnóstico mostram.
+      args:
+        - VERSION
+        - COMMIT
+        - DATE
+    container_name: dwnvr-e2e-gravando
+    ports: !override
+      - "18080:8080"
+    volumes: !override
+      - ../.estado/gravando/config:/etc/dwnvr
+      - ../.estado/gravando/storage:/storage
+
+  dwnvr-w0:
+    <<: *dwnvr
+    container_name: dwnvr-e2e-w0
+    depends_on: [go2rtc, dwnvr-gravando]
+    ports: !override
+      - "18081:8080"
+    volumes: !override
+      - ../.estado/w0/config:/etc/dwnvr
+      - ../.estado/w0/storage:/storage
+
+  dwnvr-w1:
+    <<: *dwnvr
+    container_name: dwnvr-e2e-w1
+    depends_on: [go2rtc, dwnvr-gravando]
+    ports: !override
+      - "18082:8080"
+    volumes: !override
+      - ../.estado/w1/config:/etc/dwnvr
+      - ../.estado/w1/storage:/storage
+
+  dwnvr-w2:
+    <<: *dwnvr
+    container_name: dwnvr-e2e-w2
+    depends_on: [go2rtc, dwnvr-gravando]
+    ports: !override
+      - "18083:8080"
+    volumes: !override
+      - ../.estado/w2/config:/etc/dwnvr
+      - ../.estado/w2/storage:/storage

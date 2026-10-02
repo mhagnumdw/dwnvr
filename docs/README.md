@@ -25,6 +25,9 @@ Aqui ficam as respostas longas.
 - [github.md](github.md) - o que está ligado no GitHub (Dependabot, CodeQL,
   secret scanning, ruleset na `main`), o comando de cada coisa e o que fazer
   com o PR do Dependabot
+- [plano-testes-e2e.md](plano-testes-e2e.md) - o plano dos testes ponta a
+  ponta com Playwright: o ambiente com câmeras sintéticas, as etapas da mais
+  vital para a menos, e o que um spike já verificou
 
 ## Medições e investigações
 

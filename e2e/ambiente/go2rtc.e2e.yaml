@@ -1,0 +1,27 @@
+# As câmeras dos testes ponta a ponta. O compose monta este arquivo como o
+# /config/go2rtc.yaml do go2rtc. Ele não se chama go2rtc.yaml porque o
+# .gitignore ignora esse nome em qualquer pasta: o de verdade leva senha.
+#
+# As câmeras são sintéticas, desenhadas pelo ffmpeg da imagem do go2rtc. O
+# go2rtc só liga o ffmpeg de uma câmera enquanto alguém a consome, e liga uma
+# vez só para todos: as instâncias do dwnvr que gravam a mesma câmera custam
+# um codificador. Ver docs/plano-testes-e2e.md, §As câmeras sintéticas.
+
+streams:
+  # O oráculo dos testes: a hora de parede queimada no vídeo. 640x360, 15 fps,
+  # keyframe a cada 2 s. Ver cameras/relogio.sh.
+  cam_relogio: exec:/cameras/relogio.sh {output}
+
+api:
+  listen: ":1984"
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  # No Ao vivo a mídia vai direto do navegador para cá. O compose publica esta
+  # porta como 18555 no host, e o candidato abaixo é o endereço que o
+  # navegador alcança de fora do container.
+  listen: ":8555"
+  candidates:
+    - 127.0.0.1:18555
