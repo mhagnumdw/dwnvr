@@ -139,6 +139,13 @@ Três limites, nesta ordem:
 O terceiro existe porque a soma das cotas erra fácil: cada câmera tem uma taxa
 diferente, e encher o disco é pior que perder gravação antiga.
 
+Gravação de câmera removida sem marcar "apagar também as gravações" não entra
+em nenhum dos três, nem no disco livre mínimo: o dwnvr não apaga sozinho o que o
+usuário preservou, mesmo que a alternativa seja apagar gravação de câmera no
+ar. Ela aparece em **Gravações de câmeras removidas**, na tela Câmeras, de onde se apaga,
+e o Diagnóstico a mostra à parte na barra do disco. Com o disco apertado, o
+aviso da retenção no log traz o total dela em `orfas_mb`.
+
 A cota é aplicada a cada minuto, então o pico real é `cota + taxa × 60s` - com
 uma câmera de 900 kbps isso são ~7 MB de folga, desprezível contra uma cota real.
 

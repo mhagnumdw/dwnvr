@@ -10,7 +10,14 @@
 // O terceiro existe porque a soma das cotas erra fácil: com 9 câmeras cada uma
 // tem uma taxa diferente, e basta o usuário superestimar para o disco encher.
 // Encher o disco é pior que perder gravação antiga, então esse limite ignora as
-// cotas individuais e evicta o segmento mais antigo de todo o sistema.
+// cotas individuais e evicta o dia mais antigo entre as câmeras cadastradas.
+//
+// Gravação de câmera removida (órfã) não entra em nenhum dos três, nem no
+// terceiro, e é de propósito: quem remove a câmera sem marcar "apagar também
+// as gravações" as preservou, e o dwnvr não apaga sozinho o que o usuário
+// guardou - nem quando a alternativa é apagar gravação de câmera no ar. O que
+// ele faz é não esconder: os avisos do disco dizem quanto há em órfãs e onde
+// apagá-las, e a tela de Diagnóstico as mostra à parte.
 package retention
 
 import (
@@ -170,12 +177,26 @@ func (m *Manager) anotaDisco(abaixo bool, agora time.Time) {
 }
 
 // enforceFreeSpace é a rede de segurança global: evicta o dia mais antigo de
-// qualquer câmera até o disco voltar ao mínimo aceitável.
+// qualquer câmera cadastrada até o disco voltar ao mínimo aceitável.
 func (m *Manager) enforceFreeSpace() error {
 	minFree := m.cfg.Storage.MinFreeMB << 20
 	if minFree <= 0 {
 		m.anotaDisco(false, m.agora())
 		return nil
+	}
+
+	// Lido uma vez, e só com o disco já abaixo do mínimo: com o disco folgado,
+	// que é o normal, a passada não varre o storage atrás de órfãs.
+	orfas := int64(-1)
+	semCamera := func(attrs []any) []any {
+		if orfas < 0 {
+			orfas = m.orfasBytes()
+		}
+		if orfas == 0 {
+			return attrs
+		}
+		return append(attrs, "orfas_mb", orfas>>20,
+			"apagar_em", "Câmeras > Gravações de câmeras removidas")
 	}
 
 	for {
@@ -190,8 +211,14 @@ func (m *Manager) enforceFreeSpace() error {
 
 		cam, day, ok := m.oldestDay()
 		if !ok {
-			m.log.Warn("disco abaixo do mínimo livre, mas não há mais nada a evictar",
-				"livre_mb", free>>20, "minimo_mb", m.cfg.Storage.MinFreeMB)
+			attrs := semCamera([]any{"livre_mb", free >> 20, "minimo_mb", m.cfg.Storage.MinFreeMB})
+			msg := "disco abaixo do mínimo livre, mas não há mais nada a evictar"
+			if orfas > 0 {
+				// A frase antiga seria falsa: há gravação ali, só que de câmera
+				// removida, que a retenção não apaga.
+				msg = "disco abaixo do mínimo livre, e só restam gravações de câmeras removidas, que a retenção não apaga"
+			}
+			m.log.Warn(msg, attrs...)
 			return nil
 		}
 
@@ -200,8 +227,8 @@ func (m *Manager) enforceFreeSpace() error {
 			return err
 		}
 		m.log.Warn("disco abaixo do mínimo livre, evictando o dia mais antigo",
-			"livre_mb", free>>20, "minimo_mb", m.cfg.Storage.MinFreeMB,
-			"cam", cam, "dia", day, "liberado_mb", freed>>20)
+			semCamera([]any{"livre_mb", free >> 20, "minimo_mb", m.cfg.Storage.MinFreeMB,
+				"cam", cam, "dia", day, "liberado_mb", freed >> 20})...)
 
 		if freed == 0 {
 			// Nada foi liberado: sem isto o laço giraria para sempre quando o
@@ -211,7 +238,22 @@ func (m *Manager) enforceFreeSpace() error {
 	}
 }
 
-// oldestDay encontra o dia mais antigo entre todas as câmeras.
+// orfasBytes soma o que há em disco de câmeras removidas. Só serve ao aviso:
+// uma falha na varredura vira zero, e o aviso sai sem o campo.
+func (m *Manager) orfasBytes() int64 {
+	registered := map[string]bool{}
+	for _, c := range m.cameras() {
+		registered[c.ID] = true
+	}
+	total, err := m.store.OrphanBytes(registered)
+	if err != nil {
+		m.log.Error("listando gravações órfãs", "erro", err)
+		return 0
+	}
+	return total
+}
+
+// oldestDay encontra o dia mais antigo entre as câmeras cadastradas.
 func (m *Manager) oldestDay() (cam, day string, ok bool) {
 	for _, c := range m.resolved() {
 		days := m.store.Camera(c.ID).Days()

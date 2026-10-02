@@ -584,6 +584,34 @@ func TestHealthJanelaDeReconexoesEGo2rtc(t *testing.T) {
 	}
 }
 
+// Gravação de câmera removida é do dwnvr, mas vai num campo à parte: somada ao
+// dwnvrBytes ela sumiria do aviso, e fora de tudo a tela a creditaria a outros
+// programas.
+func TestHealthMostraAsOrfasAParte(t *testing.T) {
+	s, cam := testServer(t)
+	base := time.Date(2026, 9, 3, 12, 0, 0, 0, time.Local)
+	seed(t, cam, base, [2]int64{0, 30_000})
+	seed(t, s.store.Camera("cam_velha"), base, [2]int64{0, 30_000}, [2]int64{30_000, 30_000})
+
+	rec := httptest.NewRecorder()
+	s.handleHealth(rec, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+	var got struct {
+		Disk struct {
+			DwnvrBytes  int64  `json:"dwnvrBytes"`
+			OrphanBytes *int64 `json:"orphanBytes"`
+		} `json:"disk"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
+	}
+	if got.Disk.OrphanBytes == nil || *got.Disk.OrphanBytes != 2000 {
+		t.Errorf("orphanBytes = %v, esperava 2000", got.Disk.OrphanBytes)
+	}
+	if got.Disk.DwnvrBytes != 1000 {
+		t.Errorf("dwnvrBytes = %d, esperava só os 1000 da câmera cadastrada", got.Disk.DwnvrBytes)
+	}
+}
+
 // A aba Detecções depende deste campo para aparecer.
 func TestCamerasDizSeHaDetector(t *testing.T) {
 	temDetector := func(s *Server) bool {

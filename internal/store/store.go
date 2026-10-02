@@ -1082,6 +1082,19 @@ func (s *Store) Orphans(registered map[string]bool) ([]OrphanInfo, error) {
 	return out, nil
 }
 
+// OrphanBytes soma o tamanho de tudo o que Orphans lista.
+func (s *Store) OrphanBytes(registered map[string]bool) (int64, error) {
+	orphans, err := s.Orphans(registered)
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	for _, o := range orphans {
+		total += o.Bytes
+	}
+	return total, nil
+}
+
 // ParseSegmentName extrai o início em ms do nome de um arquivo de segmento.
 func ParseSegmentName(name string) (int64, error) {
 	if !strings.HasSuffix(name, ".mp4") {

@@ -53,10 +53,15 @@
       sigla: c.zone ? c.abbr : undefined,
     };
   });
-  const usadoPeloDwnvr = $derived(disk ? disk.dwnvrBytes / disk.totalBytes : 0);
-  const usadoPorOutros = $derived(
-    disk ? (disk.totalBytes - disk.freeBytes - disk.dwnvrBytes) / disk.totalBytes : 0,
+  // As órfãs saem da conta de "outros": são gravação do dwnvr, só que de câmera
+  // removida, e nenhum limite da retenção as apaga.
+  const orfasBytes = $derived(disk?.orphanBytes ?? 0);
+  const outrosBytes = $derived(
+    disk ? disk.totalBytes - disk.freeBytes - disk.dwnvrBytes - orfasBytes : 0,
   );
+  const usadoPeloDwnvr = $derived(disk ? disk.dwnvrBytes / disk.totalBytes : 0);
+  const usadoPorOrfas = $derived(disk ? orfasBytes / disk.totalBytes : 0);
+  const usadoPorOutros = $derived(disk ? outrosBytes / disk.totalBytes : 0);
 
   // retidoMs é a retenção real: do segmento mais antigo em disco até agora.
   //
@@ -724,14 +729,26 @@
         <span class="muted small mono">{bytes(disk.freeBytes)} livres de {bytes(disk.totalBytes)}</span>
       </div>
 
-      <div class="meter" title="azul: gravações do dwnvr; cinza: outros dados">
+      <div
+        class="meter"
+        title="azul: gravações do dwnvr; amarelo: gravações de câmeras removidas; cinza: outros dados"
+      >
         <span class="seg dwnvr" style:width="{usadoPeloDwnvr * 100}%"></span>
+        <span class="seg orfas" class:visivel={orfasBytes > 0} style:width="{usadoPorOrfas * 100}%"
+        ></span>
         <span class="seg outros" style:width="{usadoPorOutros * 100}%"></span>
       </div>
 
       <div class="row wrap small muted legend">
         <span><i class="dwnvr"></i> dwnvr: {bytes(disk.dwnvrBytes)}</span>
-        <span><i class="outros"></i> outros: {bytes(disk.totalBytes - disk.freeBytes - disk.dwnvrBytes)}</span>
+        <!-- Só com órfã: a legenda permanente sugeriria que sobrar gravação sem
+             câmera é o normal. Quem apaga é a tela de Câmeras, não a retenção. -->
+        {#if orfasBytes > 0}
+          <span title="Gravações de câmeras removidas. A retenção não as apaga; apague em Câmeras.">
+            <i class="orfas"></i> câmeras removidas: {bytes(orfasBytes)}
+          </span>
+        {/if}
+        <span><i class="outros"></i> outros: {bytes(outrosBytes)}</span>
         <span class="spacer"></span>
         <span>mínimo livre: {bytesDeMB(disk.minFreeMB)}</span>
       </div>
@@ -1085,11 +1102,16 @@
     background: #1b1f24;
   }
   .seg.dwnvr { background: var(--accent); }
+  .seg.orfas { background: var(--warn); }
+  /* Órfã de poucos MB num disco de centenas de GB daria um trecho de 0px: o
+     amarelo da legenda não teria par na barra. */
+  .seg.orfas.visivel { min-width: 4px; }
   .seg.outros { background: #3d444d; }
 
   .legend { gap: 14px; }
   .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: -1px; }
   .legend i.dwnvr { background: var(--accent); }
+  .legend i.orfas { background: var(--warn); }
   .legend i.outros { background: #3d444d; }
 
   .totais { justify-content: space-around; text-align: center; gap: 18px; }

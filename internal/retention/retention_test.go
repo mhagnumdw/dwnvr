@@ -1,10 +1,12 @@
 package retention
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -253,6 +255,38 @@ func TestDiscoQueNaoVoltaApagaTudoEPara(t *testing.T) {
 	confereDias(t, st, "cam_a")
 	if got := m.AbaixoDoMinimoDesde(); !got.Equal(agoraFixo) {
 		t.Errorf("aviso de disco desde %v, esperava %v", got, agoraFixo)
+	}
+}
+
+// Gravação de câmera removida não sai nem com o disco apertado: quem paga é a
+// câmera no ar, e os avisos dizem quanto há em órfãs. No fim, com as cadastradas
+// drenadas, o aviso não pode dizer que não sobrou nada.
+func TestDiscoApertadoNaoApagaOrfaMasAvisa(t *testing.T) {
+	cams := []config.Camera{{ID: "cam_a", QuotaMB: 100}}
+	m, st := novoManager(t, 5, &cams)
+	var log bytes.Buffer
+	m.log = slog.New(slog.NewTextHandler(&log, nil))
+	grava(t, st, "cam_velha", diaAtras(5), 3, mb)
+	for _, d := range []int{1, 0} {
+		grava(t, st, "cam_a", diaAtras(d), 1, mb)
+	}
+	m.livre = func(string) (int64, error) { return mb, nil }
+
+	if err := m.Enforce(); err != nil {
+		t.Fatal(err)
+	}
+	confereDias(t, st, "cam_a")
+	confereDias(t, st, "cam_velha", dia(5))
+
+	saida := log.String()
+	if got := strings.Count(saida, "orfas_mb=3"); got != 3 {
+		t.Errorf("orfas_mb=3 em %d avisos, esperava nos 3 (2 dias evictados e o fim):\n%s", got, saida)
+	}
+	if strings.Contains(saida, "não há mais nada a evictar") {
+		t.Errorf("o aviso disse que não sobrou nada, com 3 MB de órfã:\n%s", saida)
+	}
+	if !strings.Contains(saida, "só restam gravações de câmeras removidas") {
+		t.Errorf("faltou o aviso de que só restam órfãs:\n%s", saida)
 	}
 }
 

@@ -450,10 +450,10 @@
        gravação órfã é o estado normal, e não é. -->
   {#if cameras.orphans.length}
     <div class="card orfas">
-      <h3>Gravações sem câmera</h3>
+      <h3>Gravações de câmeras removidas</h3>
       <p class="muted small">
-        Material de câmeras que já foram removidas. Ele não conta na cota de ninguém, não abre
-        na tela de Gravações e a retenção não o alcança - só sai do disco por aqui.
+        Não contam na cota de ninguém, não abrem na tela de Gravações e a retenção não as
+        alcança, nem com o disco cheio - só saem do disco por aqui.
       </p>
 
       {#each cameras.orphans as o (o.id)}
@@ -634,7 +634,7 @@
 
     {#if !apagarGravacoes}
       Sem marcar, os arquivos ficam em disco e passam a aparecer aqui em
-      <strong>Gravações sem câmera</strong>, de onde dá para apagá-los depois.
+      <strong>Gravações de câmeras removidas</strong>, de onde dá para apagá-los depois.
     {/if}
   </ConfirmDialog>
 {/if}

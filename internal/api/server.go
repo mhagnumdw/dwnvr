@@ -275,6 +275,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 			"minFreeMB":  s.cfg.Storage.MinFreeMB,
 			"belowMin":   free < s.cfg.Storage.MinFreeMB<<20,
 		}
+		// As órfãs vão à parte, e não somadas ao dwnvrBytes: são do dwnvr, mas
+		// nenhum limite da retenção as alcança, e é isso que a tela precisa
+		// dizer. Fora da conta, elas apareceriam como espaço de outros
+		// programas. Sem órfã, a varredura é um ReadDir do storage.
+		if orfas, err := s.store.OrphanBytes(s.registeredIDs()); err != nil {
+			s.log.Error("listando gravações órfãs", "erro", err)
+		} else {
+			disk["orphanBytes"] = orfas
+		}
 		// O "desde" vem da retenção, que mede o disco a cada passada. Logo
 		// depois de o disco cruzar o mínimo ela ainda não passou, e o aviso sai
 		// sem ele por até um minuto.

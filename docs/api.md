@@ -114,6 +114,11 @@ reiniciada por mudança de configuração, ou o último
 "lastReconnectAt": "2026-09-28T13:58:12-03:00"
 ```
 
+O `disk.dwnvrBytes` soma só as câmeras cadastradas. O que sobrou em disco de
+câmeras removidas vem à parte, em `disk.orphanBytes`, porque nenhum limite da
+retenção o alcança: somado ao primeiro, sumiria do aviso; fora dos dois, a tela
+o creditaria a outros programas.
+
 Os avisos da tela com "desde quando" saem também do `disk.belowMinSince`, que a
 retenção marca na primeira passada com o disco abaixo do mínimo, e do `go2rtc`,
 que só aparece enquanto o go2rtc não responde ao dwnvr. Ele é marcado na
