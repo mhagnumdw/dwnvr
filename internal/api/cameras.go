@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
@@ -58,6 +59,20 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 	}
 	if !found {
 		cams = append(cams, cam)
+
+		// Câmera nova pode não ser nova no disco: uma removida sem apagar as
+		// gravações e cadastrada de novo com o mesmo ID. O índice dela é lido
+		// aqui, antes do Set subir o recorder - ver store.Load.
+		inicio := time.Now()
+		idx, err := s.store.Load(cam.ID)
+		if err != nil {
+			s.fail(w, "lendo o índice da câmera", err)
+			return
+		}
+		if dias := idx.Days(); len(dias) > 0 {
+			s.log.Info("índice carregado", "cam", cam.ID, "dias", len(dias),
+				"mb", idx.TotalBytes()>>20, "em", time.Since(inicio).Round(time.Millisecond))
+		}
 	}
 
 	if err := s.cfg.SaveCameras(cams); err != nil {

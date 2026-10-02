@@ -27,7 +27,6 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/api"
 	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
 	"github.com/mhagnumdw/dwnvr/internal/config"
-	"github.com/mhagnumdw/dwnvr/internal/fmp4"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/logbuf"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
@@ -93,8 +92,8 @@ func run(log *slog.Logger, cfgPath string) error {
 	// varrer centenas de milhares de arquivos a cada boot.
 	start := time.Now()
 	for _, cam := range cams {
-		idx := st.Camera(cam.ID)
-		if err := idx.Scan(true, probeSegment); err != nil {
+		idx, err := st.Load(cam.ID)
+		if err != nil {
 			return fmt.Errorf("lendo índice de %s: %w", cam.ID, err)
 		}
 		days := idx.Days()
@@ -176,27 +175,6 @@ func prepareStorage(log *slog.Logger, cfg *config.Config) error {
 			"livre_mb", free>>20, "minimo_mb", cfg.Storage.MinFreeMB)
 	}
 	return nil
-}
-
-// probeSegment reconstrói a entrada de índice de um segmento órfão - gravado
-// por completo, mas cuja linha de índice não chegou a ser escrita antes de uma
-// queda.
-func probeSegment(path string) (store.Entry, error) {
-	info, err := fmp4.ProbeSegment(path)
-	if err != nil {
-		return store.Entry{}, err
-	}
-	fi, err := os.Stat(path)
-	if err != nil {
-		return store.Entry{}, err
-	}
-	return store.Entry{
-		DurMs:     info.DurationMs,
-		Size:      fi.Size(),
-		Gen:       info.Gen,
-		InitSize:  info.InitSize,
-		FirstFrag: info.FirstFragSize,
-	}, nil
 }
 
 // healthcheck consulta a instância local e devolve o código de saída para o

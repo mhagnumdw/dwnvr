@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
+	"github.com/mhagnumdw/dwnvr/internal/store"
 )
 
 // comGo2RTC troca o Manager do testServer por um que grava de verdade contra
@@ -130,5 +132,32 @@ func TestSavesConcorrentesNaoPerdemAlteracaoNoArquivo(t *testing.T) {
 				t.Fatalf("rodada %d: %s no arquivo com nome %q, esperava %q", i, id, nomes[id], want)
 			}
 		}
+	}
+}
+
+// Câmera removida sem apagar as gravações, dwnvr reiniciado e a câmera
+// cadastrada de novo com o mesmo ID. O índice só era lido no boot, e só das
+// cadastradas: o recadastro começava vazio, e as gravações antigas sumiam de
+// Gravações, das órfãs e da cota até o reinício seguinte.
+func TestRecadastroLeAsGravacoesQueJaEstaoNoDisco(t *testing.T) {
+	s, _ := testServer(t)
+	comGo2RTC(t, s)
+
+	// O que ficou da vida anterior: outro Store sobre o mesmo storage, como o
+	// processo que rodava antes do reinício.
+	antes := store.New(s.store.Root()).Camera("cam_a")
+	inicio := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
+	seed(t, antes, inicio, [2]int64{0, 30000})
+	if err := antes.EnsureDirs(inicio.Format(store.DayLayout)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(antes.SegmentPath(inicio.UnixMilli()), make([]byte, 1000), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	saveCamera(t, s, config.Camera{ID: "cam_a", Name: "A", Enabled: true})
+
+	if got := s.store.Camera("cam_a").TotalBytes(); got != 1000 {
+		t.Errorf("índice de cam_a com %d bytes depois do recadastro, esperava 1000", got)
 	}
 }

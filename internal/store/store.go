@@ -27,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mhagnumdw/dwnvr/internal/fmp4"
 )
 
 // DayLayout é o formato do diretório e do arquivo de índice de um dia.
@@ -200,6 +202,65 @@ func (s *Store) Forget(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.cams, id)
+}
+
+// Load devolve o índice de uma câmera, lendo-o do disco se ele ainda não estiver
+// em memória.
+//
+// É a entrada de toda câmera cadastrada: o boot passa por aqui, e o cadastro de
+// uma câmera nova também. Sem a segunda, recadastrar com o mesmo ID uma câmera
+// removida antes de um reinício começava com o índice vazio, e as gravações dela
+// ficavam fora de Gravações, das órfãs e da cota até o reinício seguinte - que
+// as devolvia de uma vez.
+//
+// Câmera já em memória volta como está: ou foi lida aqui, ou é uma removida sem
+// apagar no mesmo processo, cujo índice continua valendo.
+//
+// O Scan confere o último dia e apaga os segmentos de zero byte, o que só é
+// seguro com o recorder da câmera parado. Quem chama garante isso: no boot ele
+// ainda não subiu, e no cadastro o Load vem antes do Manager.Set.
+func (s *Store) Load(id string) (*Camera, error) {
+	s.mu.Lock()
+	c, ok := s.cams[id]
+	s.mu.Unlock()
+	if ok {
+		return c, nil
+	}
+
+	c = newCamera(s.root, id)
+	if err := c.Scan(true, ProbeSegment); err != nil {
+		return nil, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Alguém pode ter posto a câmera no mapa durante o Scan; a dele fica.
+	if atual, ok := s.cams[id]; ok {
+		return atual, nil
+	}
+	s.cams[id] = c
+	return c, nil
+}
+
+// ProbeSegment reconstrói a entrada de índice de um segmento órfão - gravado
+// por completo, mas cuja linha de índice não chegou a ser escrita antes de uma
+// queda.
+func ProbeSegment(path string) (Entry, error) {
+	info, err := fmp4.ProbeSegment(path)
+	if err != nil {
+		return Entry{}, err
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return Entry{}, err
+	}
+	return Entry{
+		DurMs:     info.DurationMs,
+		Size:      fi.Size(),
+		Gen:       info.Gen,
+		InitSize:  info.InitSize,
+		FirstFrag: info.FirstFragSize,
+	}, nil
 }
 
 // --- caminhos ---------------------------------------------------------------
@@ -742,7 +803,7 @@ func (c *Camera) reconcile(day string, list []Entry, probe func(string) (Entry, 
 	// antes de ele sair do page cache, mas a linha do índice, que tem Sync, já
 	// estava no disco. Sai daqui como um arquivo que sumiu, senão a timeline
 	// desenha um trecho que o player não toca. Apagar é seguro porque o Scan
-	// roda na subida, antes de o recorder abrir qualquer segmento; se falhar,
+	// roda antes de o recorder da câmera abrir qualquer segmento (ver Load); se falhar,
 	// sem linha no índice a retenção o leva junto com o dia.
 	for ms, size := range onDisk {
 		if size == 0 {
