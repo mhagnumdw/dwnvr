@@ -20,6 +20,8 @@ header = """
 # (### Added/Fixed/...) + bullets. A primeira versão não tem com o que comparar,
 # e listar o histórico inteiro dela daria centenas de linhas: no lugar dos
 # grupos entra um texto curto.
+# A linha em branco final separa esta release da anterior; só é emitida se houver release
+# anterior, para o arquivo não terminar com 2 linhas em branco (o prettier reclama).
 body = """
 {% if version -%}
     ## [{{ version }}]({% if previous.version %}<REPO>/compare/{{ previous.version }}...{{ version }}{% else %}<REPO>/tree/{{ version }}{% endif %}) ({{ timestamp | date(format="%Y-%m-%d") }})
@@ -35,7 +37,8 @@ body = """
 {% endfor %}\
 {% else %}
 Primeira versão com número. Até aqui o dwnvr saía só como `latest`, a cada commit; daqui em diante cada versão tem nome, notas e imagens próprias, e a interface avisa quando sai uma nova.
-{% endif %}\n
+{% endif %}\
+{% if previous.version %}\n{% endif %}
 """
 trim = true
 # Rodam só sobre a release recém-gerada (as que já estão abaixo do header ficam
