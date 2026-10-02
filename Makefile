@@ -32,7 +32,8 @@ BUILDARGS = --build-arg VERSION=$(VERSION) \
 	--build-arg COMMIT=$(COMMIT) \
 	--build-arg DATE=$(DATE)
 
-.PHONY: all web build test check image image-arm64 image-amd64 deploy deploy-wip help
+.PHONY: all web build test check image image-arm64 image-amd64 deploy deploy-wip help \
+	e2e-up e2e e2e-ui e2e-relatorio e2e-down
 
 # Guarda usada pelos dois deploys.
 EXIGE_HOST = @test -n "$(DEPLOY_HOST)" || { echo "defina DEPLOY_HOST no local.mk (veja local.mk.example) ou passe na linha de comando: make deploy DEPLOY_HOST=usuario@servidor"; exit 1; }
@@ -91,6 +92,52 @@ test:
 ## check: o que a CI roda
 check: test
 	prek run --all-files
+
+# --- testes ponta a ponta (e2e/, ver docs/plano-testes-e2e.md) ---------------
+#
+# O ambiente é um compose à parte: o go2rtc com as câmeras sintéticas e as
+# instâncias do dwnvr construídas deste clone. Ele fica no ar entre uma
+# rodada e outra, porque subir é a parte lenta: `make e2e-up` uma vez,
+# `make e2e` quantas quiser.
+E2E_COMPOSE    = docker compose -f e2e/ambiente/compose.yml
+E2E_INSTANCIAS = gravando w0 w1 w2
+
+## e2e-up: sobe do zero o ambiente dos testes ponta a ponta, com o dwnvr deste clone
+#
+# O estado de cada instância (config e gravações) mora em e2e/.estado, e
+# recomeça a cada subida. O container grava com o seu usuário, como na
+# instalação de verdade, para os arquivos serem seus e o e2e-down conseguir
+# apagá-los. Só a dwnvr-gravando nasce com câmera: as outras são dos testes.
+e2e-up:
+	$(E2E_COMPOSE) down --remove-orphans
+	rm -rf e2e/.estado
+	for i in $(E2E_INSTANCIAS); do \
+		mkdir -p e2e/.estado/$$i/config e2e/.estado/$$i/storage && \
+		cp e2e/ambiente/dwnvr/dwnvr.e2e.yaml e2e/.estado/$$i/config/dwnvr.yaml || exit 1; \
+	done
+	cp e2e/ambiente/dwnvr/gravando.cameras.json e2e/.estado/gravando/config/cameras.json
+	DWNVR_UID=$$(id -u) DWNVR_GID=$$(id -g) \
+		VERSION=$(VERSION) COMMIT=$(COMMIT) DATE=$(DATE) \
+		$(E2E_COMPOSE) up -d --build --wait
+
+## e2e: roda os testes ponta a ponta, com vídeo (o ambiente do e2e-up no ar)
+#
+# E2E_ARGS vai direto para o Playwright: make e2e E2E_ARGS="--project=celular"
+e2e:
+	cd e2e && npx playwright test $(E2E_ARGS)
+
+## e2e-ui: o modo UI do Playwright, para escolher teste e ver passo a passo
+e2e-ui:
+	cd e2e && npx playwright test --ui
+
+## e2e-relatorio: abre o relatório da última rodada, com o vídeo e o trace de cada teste
+e2e-relatorio:
+	cd e2e && npx playwright show-report
+
+## e2e-down: derruba o ambiente dos testes ponta a ponta e apaga o estado
+e2e-down:
+	$(E2E_COMPOSE) down --remove-orphans
+	rm -rf e2e/.estado
 
 ## deploy: atualiza o servidor remoto com a imagem que a CI publicou
 #

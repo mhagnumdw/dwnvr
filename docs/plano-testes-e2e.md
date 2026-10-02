@@ -1,8 +1,9 @@
 # Plano: testes ponta a ponta com Playwright <!-- omit in toc -->
 
-**Status: plano.** Nada daqui está implementado ainda. Escrito em 02/10/2026,
-depois de um spike que provou, rodando, as premissas de maior risco (ver
-[O que já foi verificado](#o-que-já-foi-verificado)).
+**Status: a [Etapa 1](#etapa-1---fundação) está implementada (`e2e/`); o
+resto é plano.** Escrito em 02/10/2026, depois de um spike que provou, rodando,
+as premissas de maior risco, e revisto no mesmo dia com o que a Etapa 1
+mostrou (ver [O que já foi verificado](#o-que-já-foi-verificado)).
 
 Os testes de unidade do Go (`make test`) cobrem o que quebra em silêncio dentro
 do servidor: a leitura de caixas fMP4, o corte em keyframe, a retenção, os
@@ -65,10 +66,13 @@ plano. O plano é vivo.
 
 ## O que já foi verificado
 
-Em 02/10/2026, num container Linux x86_64 (o da sessão do Claude Code na web),
-com o go2rtc 1.9.14, o dwnvr deste commit e o Playwright dirigindo o navegador.
-O código do spike não entrou no repositório; o que importa dele está
-reproduzido nas seções abaixo, já validado.
+Primeiro um spike, e depois a própria Etapa 1, os dois em 02/10/2026, num
+container Linux x86_64 (o da sessão do Claude Code na web), com o go2rtc 1.9.14
+e o dwnvr deste repositório.
+
+### O spike <!-- omit in toc -->
+
+O código do spike não entrou no repositório: o que valeu dele virou a Etapa 1.
 
 | O quê | Resultado |
 | --- | --- |
@@ -83,12 +87,24 @@ reproduzido nas seções abaixo, já validado.
 | Celular (Pixel 7 emulado) | Navegação inferior visível e a superior oculta, sem rolagem horizontal. Tocar na timeline pula para o instante tocado. A pinça de dois dedos, por eventos de toque pelo CDP, dá zoom, e o `zoom=` aparece na URL |
 | Endereço de LAN (`http://servidor-lan:8080`, resolvido para a própria máquina pelo Chrome) | Contexto não seguro e sem WebCodecs, como na rede de casa; o H.264 por MSE continua tocando |
 | go2rtc que emudece (`docker compose pause go2rtc`) | Aos 15 s o dwnvr derruba a conexão ("go2rtc não enviou nada por 15s") e conta 1 reconexão; depois do `unpause`, volta sozinho em menos de 5 s |
-| Imagens | O Docker Hub respondeu `429 Too Many Requests` naquele ambiente; o mesmo go2rtc 1.9.14 veio do `ghcr.io/alexxit/go2rtc` sem problema. A imagem do go2rtc traz ffmpeg 8.0.1 com `drawtext`, `geq` e `realtime`, as fontes Droid e o bash |
+| Imagens | O Docker Hub respondeu `429 Too Many Requests` naquele ambiente; o mesmo go2rtc 1.9.14 veio do `ghcr.io/alexxit/go2rtc` sem problema, e depois o `mirror.gcr.io`, como `registry-mirrors` do Docker, resolveu para todas as imagens. A imagem do go2rtc traz ffmpeg 8.0.1 com `drawtext`, `geq` e `realtime`, as fontes Droid e o bash 5.3 |
 
-Ainda não verificado, e por isso é o primeiro passo da
-[Etapa 1](#etapa-1---fundação): o Playwright 1.63 inteiro (o spike usou a
-biblioteca da 1.56 apontada para o binário do Chrome for Testing) e as
-anotações desenhadas no vídeo.
+### A Etapa 1, com o Playwright 1.63 <!-- omit in toc -->
+
+| O quê | Resultado |
+| --- | --- |
+| O navegador do Playwright 1.63 | Chrome for Testing 153 (revisão 1243). O teste-sentinela (`e2e/testes/codecs.spec.ts`) confirma H.264 por MSE, com e sem FLAC, por WebCodecs e por WebRTC |
+| Anotações do vídeo (`show`) | Funcionam: no alto à esquerda, o arquivo, o teste e o passo; à direita, cada ação, com o cursor desenhado onde clicou. No celular, a fonte padrão da ação (24 px) cobria o passo, e ela caiu para 13 px |
+| `extends` com `!override` no compose | O serviço `dwnvr` de produção, mesmo com o `depends_on`, serve de base: as instâncias herdam o teto de 128 MB, o usuário e a dependência do go2rtc, e trocam porta, volume e fuso (Compose 5.3 local; a versão da CI está na seção dela, abaixo) |
+| Subida do ambiente | 9 s com a imagem já construída, todas as instâncias saudáveis: o healthcheck da imagem, com o intervalo trocado para 1 s no compose |
+| A suíte | 19 testes (1 de preparação e 9 em cada projeto) em ~45 s com 3 workers; mais de 100 execuções seguidas sem falha depois da correção abaixo |
+| O relógio queimado, primeira versão | Errou por 2 s em 4 de 6 rodadas. A culpa era da própria faixa: o `date +%s` trunca o segundo, e o ffmpeg ainda leva uma fração de segundo até o primeiro quadro, então a faixa andava até ~1,5 s atrás do relógio de parede |
+| O relógio queimado, corrigido | Com o instante de partida em microssegundos (`$EPOCHREALTIME` do bash), diferença de 0 s entre a tela e o quadro em 20 de 20 rodadas; o atraso do Ao vivo mediu 0 a 1 s |
+| Headless shell contra o Chrome inteiro (`channel: 'chromium'`) | Os dois passam tudo; o Chrome inteiro levou ~20% a mais. Fica o headless shell, o padrão |
+| Quanto custa o vídeo | 37 testes em 42 s sem vídeo e em 55 s com: ~30% a mais de tempo. O relatório com os vídeos de todos ficou em ~10 MB |
+| CPU e memória dos containers durante a suíte | go2rtc ~14% de um núcleo, codificando a câmera relógio; cada dwnvr ~4% e de 7 a 26 MiB, em linha com o README. Quem pesa é o lado do navegador, com o Chrome e a gravação dos vídeos: a carga da máquina chegou a 5,8 em 4 núcleos |
+| tmpfs como disco de gravação | Não serve: o que se escreve num tmpfs conta na memória do container, e um `dd` de 100 MB num container com teto de 64 MB foi morto pelo kernel. Com o teto de 128 MB do dwnvr, a instância cairia. As gravações do e2e moram em pastas |
+| `docker build` dentro do container da sessão web | Falha: o proxy de TLS daquele ambiente não é confiado de dentro do build (o `go mod download` recusa o certificado). Para iterar lá, a imagem foi montada com o binário compilado fora; na CI do GitHub, e no notebook, o build é o do `Dockerfile` |
 
 ## Conceitos do Playwright usados aqui
 
@@ -153,7 +169,7 @@ flowchart LR
     subgraph falhas["perfil falhas"]
         go2rtcF["go2rtc-falhas"]
         dwnvrF["dwnvr-falhas"]
-        disco["dwnvr-disco<br>disco de 256 MB"]
+        disco["dwnvr-disco<br>mínimo livre impossível"]
     end
 
     pw --> gravando & historico & w & login & dwnvrF & disco
@@ -210,75 +226,46 @@ vídeo do teste, e numa faixa de 20 blocos no topo, para o teste ler. O bloco
 *i* é branco quando o bit *i* do instante em segundos (epoch) é 1, e a faixa
 inteira guarda o epoch módulo 2^20, que só se repete a cada ~12 dias.
 
-O script abaixo é o que rodou no spike, dentro da imagem oficial do go2rtc:
+O script é o [`e2e/ambiente/cameras/relogio.sh`](../e2e/ambiente/cameras/relogio.sh),
+e roda dentro da imagem oficial do go2rtc: o ffmpeg, o bash e a fonte são os de
+lá. A faixa parte do instante em que o script começou, com os microssegundos
+(`$EPOCHREALTIME`). A primeira versão usava o `date +%s`, que trunca o
+segundo, e errava por até 2 s; ver [O que já foi verificado](#o-que-já-foi-verificado).
 
-```sh
-#!/usr/bin/env bash
-# e2e/ambiente/cameras/relogio.sh: o go2rtc o chama com
-#   cam_relogio: exec:/cameras/relogio.sh {output}
-set -euo pipefail
-saida="$1"
-e0=$(date +%s)
-fonte=/usr/share/fonts/droid/DroidSansMono.ttf
-hora='%{localtime\:%H\\\:%M\\\:%S}'
-grafo="color=c=black:s=640x24:r=15,format=yuv420p,geq=lum='255*mod(floor(($e0+T)/pow(2,floor(X/32))),2)':cb=128:cr=128[faixa];testsrc2=size=640x360:rate=15,format=yuv420p[fundo];[fundo][faixa]overlay=0:0,drawtext=fontfile=$fonte:text='$hora':x=10:y=40:fontsize=40:fontcolor=white:box=1:boxcolor=black@0.7,realtime[v]"
-exec ffmpeg -hide_banner -loglevel error -filter_complex "$grafo" -map '[v]' \
-  -c:v libx264 -g 30 -profile:v high -preset superfast -tune zerolatency -pix_fmt yuv420p \
-  -rtsp_transport tcp -f rtsp "$saida"
-```
-
-A leitura é feita no próprio navegador: o `<video>` das Gravações é alimentado
-por MSE com bytes da mesma origem, então o canvas não fica marcado e os pixels
-podem ser lidos (é o mesmo motivo pelo qual a captura de imagem funciona; ver
+A leitura, no [`e2e/apoio/relogio.ts`](../e2e/apoio/relogio.ts), é feita no
+próprio navegador: o `<video>` das Gravações é alimentado por MSE com bytes da
+mesma origem, então o canvas não fica marcado e os pixels podem ser lidos (é o
+mesmo motivo pelo qual a captura de imagem funciona; ver
 `web/src/lib/captura.js`). No Ao vivo, o vídeo do WebRTC também se lê assim.
-
-```ts
-// e2e/apoio/relogio.ts (esboço): o instante, em segundos módulo 2^20,
-// queimado no quadro que o <video> mostra agora.
-export async function relogioDoVideo(video: Locator): Promise<number> {
-  return video.evaluate((v: HTMLVideoElement) => {
-    const c = document.createElement('canvas');
-    c.width = v.videoWidth;
-    c.height = v.videoHeight;
-    const g = c.getContext('2d')!;
-    g.drawImage(v, 0, 0);
-    const escala = v.videoWidth / 640; // a faixa foi desenhada em 640 px
-    let valor = 0;
-    for (let i = 0; i < 20; i++) {
-      const [r, gr, b] = g.getImageData((32 * i + 16) * escala, 12 * escala, 1, 1).data;
-      if ((r + gr + b) / 3 > 127) valor |= 1 << i;
-    }
-    return valor;
-  });
-}
-```
 
 O que se compara com isso é o instante da tela, convertido no próprio
 navegador, que está no fuso do teste: o dia vem do `day=` da URL e a hora do
 relógio das Gravações. A volta do módulo e a tolerância (1 s na reprodução)
-ficam no apoio, e não em cada teste.
+ficam no apoio, e não em cada teste. A faixa anda uma fração de segundo atrás
+do relógio de parede, o tempo que o ffmpeg leva até o primeiro quadro; por
+isso o atraso do Ao vivo que ela mede é um piso, e não o atraso inteiro.
 
 ### As instâncias do dwnvr
 
 | Instância | Porta | Estado | Para quê |
 | --- | --- | --- | --- |
-| `dwnvr-gravando` | 18080 | `cam_relogio` e `cam_audio` (com FLAC) cadastradas desde a subida, gravando em segmentos de 10 s | Todo teste que só lê uma gravação recente ou o Ao vivo |
+| `dwnvr-gravando` | 18080 | A `cam_relogio` cadastrada desde a subida, gravando em segmentos de 10 s; a `cam_audio`, com FLAC, entra na Etapa 2 | Todo teste que só lê uma gravação recente ou o Ao vivo |
 | `dwnvr-w0`, `w1`, `w2` | 18081 a 18083 | Do worker de mesmo `parallelIndex`, zerado pela fixture | Tudo o que cadastra, edita, remove ou apaga |
 | `dwnvr-historico` | 18085 | Dias passados pré-gerados, câmeras desabilitadas, `detector.url` apontado para um endereço que não existe | Calendário, buracos, troca de geração, trecho corrompido, a virada da meia-noite, detecções antigas, snapshots |
 | `dwnvr-login` | 18090 | Com `server.username` e `server.password` | Login e sessão |
 | `dwnvr-falhas` | 18095 | Com o seu `go2rtc-falhas`, no perfil `falhas` | Pausar, parar e reiniciar o go2rtc; matar o dwnvr |
-| `dwnvr-disco` | 18096 | Disco de 256 MB e `minFreeMB` de 240, no perfil `falhas` | Disco abaixo do mínimo e a retenção apagando de verdade |
+| `dwnvr-disco` | 18096 | `minFreeMB` acima do espaço livre de qualquer máquina, no perfil `falhas` | Disco abaixo do mínimo e a retenção apagando de verdade |
 | `dwnvr-deteccao` | 18097 | Com o `dwnvr-detect`, no perfil `detect` | O detector de objetos |
 
-O `/storage` das instâncias que só gravam do zero é um tmpfs de tamanho fixo.
-Além de sumir no `down`, ele deixa o "disco cheio" reproduzível: a retenção
-mede o espaço livre do sistema de arquivos onde grava, e num tmpfs de 256 MB o
-mínimo livre estoura em minutos, sem encher o disco do runner. Duas não podem
-ser tmpfs, porque o conteúdo de um tmpfs some quando o container para: a
-`dwnvr-historico`, que sobe com o que a semente escreveu, e a `dwnvr-falhas`,
-cuja queda de energia precisa que o disco sobreviva ao reinício. Essas duas, e o
-`/etc/dwnvr` de todas, são pastas em `e2e/.estado/`, montadas a cada
-`make e2e-up` a partir dos modelos versionados.
+O `/storage` e o `/etc/dwnvr` de cada instância são pastas em `e2e/.estado/`,
+recriadas a cada `make e2e-up` a partir dos modelos versionados, e gravadas com
+o seu usuário, como na instalação de verdade. A primeira versão deste plano
+punha as gravações num tmpfs, para o "disco cheio" ser reproduzível; não
+serve, porque o que se escreve num tmpfs conta na memória do container, e o
+teto de 128 MB do dwnvr o derrubaria (verificado). O disco cheio vem do outro
+lado: a `dwnvr-disco` pede um mínimo livre maior que o disco de qualquer
+máquina, e a retenção, que mede o espaço livre de verdade, passa a apagar na
+primeira passada.
 
 Os modelos não podem se chamar `dwnvr.yaml`, `cameras.json` nem `go2rtc.yaml`:
 o [`.gitignore`](../.gitignore) ignora esses nomes em qualquer pasta, de
@@ -342,7 +329,7 @@ nunca entra numa tela que toca vídeo.
 | O go2rtc fora do ar | `docker compose stop go2rtc-falhas` | "go2rtc inacessível desde …" no Diagnóstico e "Não foi possível falar com o go2rtc" em Câmeras; somem sem recarregar quando ele volta |
 | Queda de energia (ver [`resiliencia.md`](resiliencia.md#recuperação-de-queda)) | `docker compose kill -s KILL dwnvr-falhas`, um arquivo de zero byte no dia corrente, e `start` | O trecho órfão volta para a timeline, o de zero byte some, e só o tempo fora do ar vira buraco |
 | Câmera que cai e volta | A `cam_instavel` | Passadas 10 reconexões, o aviso com a taxa por hora e "a última às …" |
-| Disco abaixo do mínimo | A `dwnvr-disco` grava a `cam_relogio_hd` até passar dos 16 MB que separam o tamanho do tmpfs do mínimo livre | "Disco abaixo do mínimo livre … A retenção está apagando gravações antigas de todas as câmeras", e o começo da timeline anda para a frente a cada passada da retenção |
+| Disco abaixo do mínimo | A `dwnvr-disco`, com um `minFreeMB` maior que o disco, grava a `cam_relogio` | "Disco abaixo do mínimo livre … A retenção está apagando gravações antigas de todas as câmeras", e o começo da timeline anda para a frente a cada passada da retenção |
 | O detector de objetos fora do ar | `docker compose stop dwnvr-detect` | "Detector de objetos inacessível desde …", com as câmeras gravando |
 | O `go2rtc.yaml` editado com tudo no ar | O teste acrescenta uma câmera no arquivo montado do `go2rtc-falhas` | O aviso com a câmera "nova", o "reiniciar go2rtc" e a câmera aparecendo para cadastrar |
 
@@ -353,37 +340,43 @@ garantir que dois deles nunca mexam no mesmo go2rtc ao mesmo tempo.
 
 ## Estrutura de arquivos
 
+O que já existe, desde a Etapa 1, e o que cada etapa acrescenta (marcado com
+o número dela):
+
 ```text
 e2e/
-├── package.json             @playwright/test fixado, typescript, eslint
+├── package.json             @playwright/test fixado, typescript, eslint e o plugin do Playwright
 ├── package-lock.json
 ├── playwright.config.ts     projetos, vídeo, trace, relatórios
 ├── tsconfig.json
-├── eslint.config.js
+├── eslint.config.mjs        cobra como erro a espera fixa e o teste pulado
 ├── ambiente/
-│   ├── compose.yml          go2rtc e as instâncias do dwnvr; perfis falhas e detect
+│   ├── compose.yml          o go2rtc e as instâncias do dwnvr; perfis falhas (3) e detect (9)
 │   ├── go2rtc.e2e.yaml      as câmeras sintéticas
-│   ├── cameras/             relogio.sh, instavel.sh, movimento.sh
-│   └── dwnvr/               o dwnvr.yaml de cada instância (gravando.dwnvr.yaml, ...)
-├── semente/                 o gerador dos dias passados (Go, package main)
+│   ├── cameras/             relogio.sh; instavel.sh (3), movimento.sh (9)
+│   └── dwnvr/               dwnvr.e2e.yaml de todas e gravando.cameras.json
+├── semente/                 o gerador dos dias passados, em Go (2)
 ├── apoio/
-│   ├── fixtures.ts          test.extend: instância do worker, instâncias de leitura
+│   ├── fixtures.ts          test.extend: a instância do worker (limpa) e a de leitura (gravando)
+│   ├── instancias.ts        a porta de cada instância
 │   ├── api.ts               preparar estado pela API pública: cadastrar, zerar, esperar trecho
-│   ├── relogio.ts           ler o relógio queimado de um <video> ou de uma imagem
-│   ├── timeline.ts          tocar num instante do canvas, arrastar, pinçar pelo CDP
-│   └── docker.ts            pausar, parar e reiniciar serviço do compose
+│   ├── relogio.ts           ler o relógio queimado de um <video>
+│   ├── layout.ts            o que a interface promete de layout em cada largura
+│   ├── timeline.ts          tocar num instante do canvas, arrastar, pinçar pelo CDP (2)
+│   └── docker.ts            pausar, parar e reiniciar serviço do compose (3)
 └── testes/
     ├── ambiente.setup.ts
-    ├── fumaca.spec.ts
-    ├── gravacoes/
-    ├── diagnostico/
-    ├── cameras/
-    ├── aovivo/
-    ├── login/
-    ├── retencao/
-    ├── responsivo/
-    ├── deteccao/
-    └── leveza/
+    ├── codecs.spec.ts       o teste-sentinela do navegador
+    ├── fumaca.spec.ts       as abas, a versão, e cada tela cabendo na largura
+    ├── gravacoes/           relogio.spec.ts
+    ├── aovivo/              relogio.spec.ts
+    ├── cameras/             cadastro.spec.ts
+    ├── diagnostico/         (3)
+    ├── login/               (6)
+    ├── retencao/            (7)
+    ├── responsivo/          (8)
+    ├── deteccao/            (9)
+    └── leveza/              (10)
 ```
 
 Um pacote próprio, e não dentro do `web/`: o `web/` é a aplicação, e o
@@ -399,62 +392,25 @@ passam a vê-la, o que é bom: ela quebra junto com o formato.
 
 ## Configuração do Playwright
 
-O esboço do essencial. Os projetos da matriz de resoluções e os de `lan`,
-`falhas` e `visual` entram nas etapas deles.
+O arquivo é o [`e2e/playwright.config.ts`](../e2e/playwright.config.ts). O
+essencial dele:
 
-```ts
-// e2e/playwright.config.ts (esboço)
-import { defineConfig, devices } from '@playwright/test';
+- **Projetos:** `ambiente` (a preparação, de que os outros dependem),
+  `desktop` (1366x768) e `celular` (o `Pixel 7` do Playwright, 412x839, com
+  toque). Os da matriz de resoluções e os de `lan`, `falhas` e `visual` entram
+  nas etapas deles.
+- **Vídeo:** sempre ligado, do tamanho da viewport, com o teste, o passo e cada
+  ação desenhados nele, e a fonte menor no celular.
+- **Trace e screenshot:** só do que falhou.
+- **Tempo:** 90 s por teste e 15 s por asserção, porque um trecho só fecha a
+  cada 10 s.
+- **Workers:** 3, um por instância `dwnvr-w0` a `w2`.
+- **Fuso e idioma:** `America/Fortaleza`, o mesmo dos containers, e `pt-BR`.
+- **CI:** um `retry`, `forbidOnly`, e o relator do GitHub, que põe a falha
+  como anotação no PR.
 
-const CI = !!process.env.CI;
-
-// O vídeo do tamanho da viewport: sem `size`, o Playwright o encolhe para
-// caber em 800x800, e o texto da tela fica ilegível no vídeo de um desktop.
-const video = (width: number, height: number) => ({
-  mode: 'on' as const,
-  size: { width, height },
-  show: {
-    actions: { position: 'top-right' as const },
-    test: { level: 'step' as const, position: 'top-left' as const },
-  },
-});
-
-export default defineConfig({
-  testDir: './testes',
-  // Vídeo leva tempo: um trecho só fecha a cada 10 s.
-  timeout: 90_000,
-  expect: { timeout: 15_000 },
-  // Um worker por instância dwnvr-w0..w2: o parallelIndex escolhe a dele.
-  workers: 3,
-  retries: CI ? 1 : 0,
-  forbidOnly: CI,
-  reporter: CI ? [['github'], ['html', { open: 'never' }]] : [['list'], ['html', { open: 'never' }]],
-  use: {
-    locale: 'pt-BR',
-    // O mesmo fuso dos containers: a timeline vira o dia na hora local.
-    timezoneId: 'America/Fortaleza',
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-  },
-  projects: [
-    { name: 'ambiente', testMatch: /ambiente\.setup\.ts/ },
-    {
-      name: 'desktop',
-      dependencies: ['ambiente'],
-      grepInvert: /@visual|@responsivo|@so-celular/,
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 768 }, video: video(1366, 768) },
-    },
-    {
-      name: 'celular',
-      dependencies: ['ambiente'],
-      grepInvert: /@visual|@responsivo|@so-desktop/,
-      use: { ...devices['Pixel 7'], video: video(412, 839) },
-    },
-  ],
-});
-```
-
-As tags dizem onde cada teste roda:
+As tags dizem onde cada teste roda. Nenhuma está em uso ainda; elas entram com
+os primeiros testes de cada tipo:
 
 | Tag | Quer dizer |
 | --- | --- |
@@ -467,74 +423,20 @@ As tags dizem onde cada teste roda:
 
 ## Como um teste fica
 
-A fixture escolhe a instância do worker e entrega o estado pronto. O teste
-fica com o que importa: o que a pessoa faz e o que ela vê.
+A fixture escolhe a instância e entrega o estado pronto; o teste fica com o que
+importa: o que a pessoa faz e o que ela vê. Os dois exemplos para copiar:
 
-```ts
-// e2e/apoio/fixtures.ts (esboço)
-import { test as base, expect, type APIRequestContext } from '@playwright/test';
-import { zerar } from './api';
+- [`e2e/apoio/fixtures.ts`](../e2e/apoio/fixtures.ts): a `gravando`, só de
+  leitura, e a `limpa`, a instância do worker zerada pela API pública antes do
+  teste.
+- [`e2e/testes/gravacoes/relogio.spec.ts`](../e2e/testes/gravacoes/relogio.spec.ts):
+  passos com `test.step`, que aparecem no relatório e no vídeo; espera só por
+  asserção (`expect.poll`, `toHaveURL`); e o número medido anotado no
+  relatório (`test.info().annotations`), para a variação ficar à vista entre
+  uma rodada e outra.
 
-type Instancia = { baseURL: string; api: APIRequestContext };
-
-export const test = base.extend<{ limpa: Instancia }, { doWorker: Instancia; gravando: Instancia }>({
-  // Um dwnvr por worker. O parallelIndex vai de 0 a workers-1 e continua o
-  // mesmo quando um worker morre e outro assume o lugar.
-  doWorker: [
-    async ({ playwright }, use, workerInfo) => {
-      const baseURL = `http://localhost:${18081 + workerInfo.parallelIndex}`;
-      const api = await playwright.request.newContext({ baseURL });
-      await use({ baseURL, api });
-      await api.dispose();
-    },
-    { scope: 'worker' },
-  ],
-
-  // O que muda estado começa do zero: sem câmera, sem órfã, sem gravação.
-  // Zerar é pela API pública, como uma pessoa faria pela tela.
-  limpa: async ({ doWorker }, use) => {
-    await zerar(doWorker.api);
-    await use(doWorker);
-  },
-
-  // Só leitura: a instância que grava a cam_relogio desde que o ambiente subiu.
-  gravando: [
-    async ({ playwright }, use) => {
-      const baseURL = 'http://localhost:18080';
-      const api = await playwright.request.newContext({ baseURL });
-      await use({ baseURL, api });
-      await api.dispose();
-    },
-    { scope: 'worker' },
-  ],
-});
-
-export { expect };
-```
-
-```ts
-// e2e/testes/gravacoes/relogio.spec.ts (esboço)
-import { test, expect } from '../../apoio/fixtures';
-import { relogioDoVideo, instanteDaTela, mesmoSegundo } from '../../apoio/relogio';
-
-test('o quadro na tela é o instante que a tela diz', { tag: '@vital' }, async ({ page, gravando }) => {
-  await page.goto(`${gravando.baseURL}/#rec?cam=cam_relogio`);
-  const video = page.locator('.stage video');
-
-  await test.step('toca o trecho mais recente, sem aviso de erro', async () => {
-    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.5);
-    await expect(page.locator('.avisos .bad')).toHaveCount(0);
-  });
-
-  await test.step('o relógio queimado no vídeo bate com o relógio da tela', async () => {
-    await page.getByRole('button', { name: 'tocar ou pausar' }).click();
-    const tela = await instanteDaTela(page);
-    expect(mesmoSegundo(tela, await relogioDoVideo(video), 1)).toBe(true);
-  });
-});
-```
-
-E o gesto que nenhum clique simula, a pinça de dois dedos, que o spike validou:
+E o gesto que nenhum clique simula, a pinça de dois dedos, que o spike validou
+e que entra na Etapa 2:
 
 ```ts
 // e2e/apoio/timeline.ts (esboço): os toques saem do próprio Chrome, pelo
@@ -565,10 +467,13 @@ cd e2e && npm ci && npx playwright install --with-deps chromium && cd ..
 make e2e-up          # sobe o ambiente, com o dwnvr construído do seu clone
 make e2e             # roda tudo, com vídeo
 make e2e-ui          # o modo UI: escolher teste, ver passo a passo, rodar de novo
-make e2e-falhas      # os testes de injeção de falha, num worker só
 make e2e-relatorio   # abre o relatório HTML, com o vídeo e o trace de cada teste
 make e2e-down        # derruba e apaga o estado
+make e2e-falhas      # (Etapa 3) os testes de injeção de falha, num worker só
 ```
+
+Um argumento a mais vai direto para o Playwright:
+`make e2e E2E_ARGS="--project=celular"`.
 
 O `make e2e-up` fica no ar entre uma rodada e outra: subir é a parte lenta.
 Dentro de `e2e/`, os comandos do Playwright que mais ajudam no começo:
@@ -615,127 +520,66 @@ inteira, e pode vir antes se as telas no celular forem a dor do momento.
 **Objetivo:** o ambiente sobe com um comando, os primeiros testes vitais rodam
 verdes no notebook e na CI, e o relatório traz o vídeo de cada um.
 
+**Feita.** O que entrou, e onde mudou em relação ao plano:
+
 #### Entregas
 
-- `e2e/` com `package.json` (`@playwright/test` em versão exata, `typescript`,
-  `@types/node`), `tsconfig.json` e o `playwright.config.ts` com `desktop` e
+- [`e2e/`](../e2e/), com o `@playwright/test` em versão exata, o TypeScript e o
+  ESLint com o plugin do Playwright; o `playwright.config.ts` com `desktop` e
   `celular`.
-- `e2e/ambiente/compose.yml` com o `go2rtc`, a `dwnvr-gravando` e a
-  `dwnvr-w0` a `w2`; o `go2rtc.e2e.yaml` com `cam_relogio`, `cam_audio` e
-  `cam_morta`; o `cameras/relogio.sh`.
-- `e2e/apoio/` com `fixtures.ts`, `api.ts` (cadastrar, zerar, esperar trecho) e
-  `relogio.ts`.
-- O projeto de preparação `ambiente.setup.ts`.
+- O ambiente: o `compose.yml` com o `go2rtc`, a `dwnvr-gravando` e a
+  `dwnvr-w0` a `w2`, herdando o compose de produção com `extends`; o
+  `go2rtc.e2e.yaml` só com a `cam_relogio` (as outras câmeras entram com os
+  testes que as usam); o `cameras/relogio.sh`. As gravações em pasta, e não em
+  tmpfs (ver [O que já foi verificado](#o-que-já-foi-verificado)).
+- Os apoios: `fixtures.ts`, `instancias.ts`, `api.ts`, `relogio.ts` e
+  `layout.ts`, este para os testes seguirem sem `if`, como o plugin do
+  Playwright cobra.
 - No `Makefile`, os alvos `e2e-up`, `e2e`, `e2e-ui`, `e2e-relatorio` e
-  `e2e-down`, cada um com o seu comentário `## alvo:`. O `e2e-up` cria
-  `e2e/.estado/`, copia os modelos, passa `DWNVR_UID` e `DWNVR_GID` da sua
-  máquina e sobe com `docker compose up -d --build --wait`, que espera o
-  `HEALTHCHECK` do dwnvr: o healthcheck da imagem passa a ser testado de graça.
-- O workflow `.github/workflows/e2e.yml` (esboço abaixo).
-- `e2e/.gitignore` com `test-results/`, `playwright-report/`, `blob-report/` e
-  `.estado/`.
-- Os hooks do e2e no [`.pre-commit-config.yaml`](../.pre-commit-config.yaml):
-  ESLint e `tsc --noEmit` no `e2e/`, como os do `web/`.
-- O `npm` de `/e2e` no [`.github/dependabot.yml`](../.github/dependabot.yml).
-- As linhas novas nas Repercussões do `AGENTS.md`, e a seção dos testes ponta a
-  ponta no §[Testes](../README.md#testes) do `README.md` (ver
-  [Integração com o repositório](#integração-com-o-repositório)).
-
-```yaml
-# .github/workflows/e2e.yml (esboço)
-name: e2e
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-  schedule:
-    - cron: '23 6 * * *'  # 03:23 em Fortaleza: a suíte completa, com os @lento
-  workflow_dispatch:
-
-# Nenhum job recebe token com permissão, a não ser que peça.
-permissions: {}
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-jobs:
-  playwright:
-    # x86_64 de propósito: no Linux arm64 o Playwright usa o Chromium sem H.264.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    permissions:
-      contents: read  # ler o código
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false  # nada aqui faz push
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: e2e/package-lock.json
-      - run: npm ci --no-audit --no-fund
-        working-directory: e2e
-      # Só o headless shell; se a Etapa 1 escolher o channel: 'chromium', o
-      # --only-shell sai.
-      - name: navegador do Playwright
-        run: npx playwright install --with-deps --only-shell chromium
-        working-directory: e2e
-      - name: ambiente
-        run: make e2e-up
-      # Nunca ${{ }} dentro de run: o filtro vai por variável de ambiente.
-      - name: testes
-        env:
-          FILTRO: ${{ github.event_name == 'schedule' && 'todos' || 'sem-lentos' }}
-        run: make e2e E2E_FILTRO="$FILTRO"
-      - name: logs do ambiente
-        if: ${{ !cancelled() }}
-        run: docker compose -f e2e/ambiente/compose.yml logs --no-color --timestamps > e2e/playwright-report/ambiente.log
-      - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
-        with:
-          name: relatorio-e2e
-          path: e2e/playwright-report/
-          retention-days: 14
-```
-
-O artifact `relatorio-e2e` é o relatório HTML inteiro, com o vídeo e o trace
-de cada teste dentro: baixar, descompactar e abrir o `index.html`. Na Etapa 11
-entram os caches (do navegador, da imagem do dwnvr e do histórico semeado).
+  `e2e-down`. O `e2e-up` recria `e2e/.estado/`, passa `DWNVR_UID` e
+  `DWNVR_GID` da sua máquina e a versão do build, e sobe com
+  `docker compose up -d --build --wait`, que espera o `HEALTHCHECK` da imagem:
+  ele passa a ser testado de graça.
+- O workflow [`.github/workflows/e2e.yml`](../.github/workflows/e2e.yml): um
+  job em `ubuntu-24.04`, e o relatório HTML, com o vídeo e o trace de cada
+  teste e o log dos containers, como o artifact `relatorio-e2e` (14 dias).
+  Para ver: baixar, descompactar e abrir o `index.html`. A rodada agendada e os
+  caches ficam para a Etapa 11, quando houver `@lento` e o build pesar.
+- Os hooks `eslint-e2e` e `tsc-e2e` no `.pre-commit-config.yaml`, com o
+  `npm ci` do `e2e/` no `lint.yml`; o `npm` de `/e2e` no Dependabot; as
+  linhas nas Repercussões e a seção Testes do `AGENTS.md`; os testes ponta a
+  ponta no §[Testes](../README.md#testes) do README; e as saídas no
+  `.gitignore`.
 
 #### Cenários
 
-- [ ] **Primeiro, conferir as premissas no Playwright 1.63**, num teste-sentinela
-  (`testes/codecs.spec.ts`) que fica para sempre: `MediaSource.isTypeSupported`
-  verdadeiro para `video/mp4; codecs="avc1.640029"`, `VideoDecoder` definido em
-  `localhost`, H.264 na lista do `RTCRtpReceiver.getCapabilities('video')`. Se
+- [x] O teste-sentinela (`testes/codecs.spec.ts`), que fica para sempre: H.264
+  por MSE, com e sem FLAC, por WebCodecs em `localhost` e por WebRTC. Se
   falhar, a mensagem diz o provável motivo (Linux arm64, Playwright antigo).
   É ele que avisa primeiro quando uma atualização do Playwright mudar o
   navegador.
-- [ ] Medir quanto o vídeo com anotações custa: a fumaça com e sem vídeo, o
-  tempo e a CPU. Escolher entre o headless shell (o padrão) e o
-  `channel: 'chromium'` (o Chrome inteiro em modo headless, mais fiel), e anotar
-  aqui o porquê.
-- [ ] Fumaça: a interface abre, as abas aparecem, e o Diagnóstico mostra a
-  versão que o `/api/version` informa.
-- [ ] O quadro na tela é o instante que a tela diz (o relógio queimado, 1 s de
+- [x] O custo do vídeo com anotações (~30% de tempo) e a escolha do headless
+  shell, que é o padrão, em vez do Chrome inteiro (~20% mais lento, e sem
+  diferença nos resultados).
+- [x] Fumaça: a interface abre, as abas aparecem (sem Detecções, sem detector),
+  e o Diagnóstico mostra a versão que o `/api/version` informa.
+- [x] O quadro na tela é o instante que a tela diz (o relógio queimado, 1 s de
   tolerância).
-- [ ] O Ao vivo mostra a `cam_relogio`, e o atraso medido pelo relógio queimado
-  fica abaixo de 3 s.
-- [ ] Responsivo básico, nos dois projetos: nenhuma das telas rola na
-  horizontal, e a navegação fica embaixo no celular e em cima no desktop.
+- [x] O Ao vivo negocia WebRTC e mostra a `cam_relogio` com menos de 3 s de
+  atraso.
+- [x] Responsivo básico, nos dois projetos: nenhuma das quatro telas rola na
+  horizontal, e a navegação fica embaixo no celular e no topo no desktop.
+- [x] Fora do plano da Etapa 1, para exercitar a instância do worker: o
+  primeiro cenário da [Etapa 4](#etapa-4---cadastro-de-câmeras), cadastrar
+  pela tela começa a gravar.
 
 #### Pronto quando
 
-- `make e2e-up && make e2e` passa no notebook.
-- O workflow passa num PR, e o `relatorio-e2e` abre com o vídeo de cada teste.
-- `prek run --all-files` passa, com os hooks novos.
+- [x] `make e2e-up && make e2e` passa (no container da sessão web, com a
+  imagem montada fora; ver [O que já foi verificado](#o-que-já-foi-verificado)).
+- [ ] O workflow passa num PR, e o `relatorio-e2e` abre com o vídeo de cada
+  teste.
+- [ ] `prek run --all-files` passa, com os hooks novos.
 
 ### Etapa 2 - Gravação e reprodução
 
@@ -895,12 +739,16 @@ o texto da tela promete, e nunca apaga vídeo sem ninguém pedir.
   sem o link.
 - [ ] "Disponíveis no go2rtc" lista os streams em ordem alfabética, com os
   chips `áudio` e `ffmpeg`, e o botão de atualizar pergunta de novo.
-- [ ] Cadastrar pelo clique: o formulário "Cadastrar *id*" vem com o nome
-  derivado ("cam_relogio" vira "Relogio") e os padrões do servidor; salvar
-  fecha o formulário, o card aparece, o ponto fica verde e o stream sai de
-  "Disponíveis".
-- [ ] A gravação começa na hora: o primeiro trecho entra no índice, e o chip de
-  resolução mostra 640x360.
+- [x] Cadastrar pelo clique: o formulário "Cadastrar *id*" vem com o nome
+  derivado ("cam_relogio" vira "Relogio"); salvar fecha o formulário, o card
+  aparece, o ponto fica verde e o stream sai de "Disponíveis". Feito na Etapa
+  1 ([`cadastro.spec.ts`](../e2e/testes/cameras/cadastro.spec.ts)). Os números
+  do formulário (segmento de 30 s, cota de 10240 MB) não vêm do `defaults` do
+  `dwnvr.yaml`, só os da detecção; o
+  [TODO da configuração global](TODO/TODO_tela-de-configuracao-global.md) já
+  registra isso, e o teste não fixa esses números para não travar a correção.
+- [x] A gravação começa na hora: o primeiro trecho entra no índice, e o chip de
+  resolução mostra 640×360. Feito na Etapa 1, no mesmo teste.
 - [ ] Validação: cota abaixo de 100 MB não salva, e a recusa da API aparece na
   caixa de erro.
 - [ ] Trocar só o nome não reconecta a câmera; trocar a duração do segmento
@@ -1227,24 +1075,28 @@ O que muda fora do `e2e/`, e em que etapa:
 
 | Onde | O quê | Etapa |
 | --- | --- | --- |
-| `Makefile` | Os alvos `e2e-*`, com o comentário `## alvo:`; e o §[Build](../README.md#build) do `README.md` e o `local.mk.example`, como pedem as Repercussões | 1 |
-| `.pre-commit-config.yaml` | ESLint e `tsc --noEmit` no `e2e/`. Snapshot de pixels acima de 500 KB entra no `exclude` do `check-added-large-files`, com o motivo, ou fica menor (`scale: 'css'`) | 1 e 8 |
-| `.github/dependabot.yml` | O `npm` de `/e2e`, num grupo próprio: o PR do Playwright pode pedir snapshot novo | 1 |
-| `.github/workflows/e2e.yml` | Novo | 1 e 11 |
-| `README.md` | Os testes ponta a ponta no §Testes | 1 |
+| `Makefile` | Os alvos `e2e-up`, `e2e`, `e2e-ui`, `e2e-relatorio` e `e2e-down`, com o comentário `## alvo:`. No `README.md` eles ficaram no §[Testes](../README.md#testes), ao lado do `make test`; o `local.mk.example` não mudou, porque nada ali é da máquina (o `E2E_ARGS` é de cada rodada) | 1, feito |
+| `.pre-commit-config.yaml` | ESLint e `tsc --noEmit` no `e2e/` (feito). Snapshot de pixels acima de 500 KB entra no `exclude` do `check-added-large-files`, com o motivo, ou fica menor (`scale: 'css'`) | 1 e 8 |
+| `.github/workflows/lint.yml` | O `npm ci` do `e2e/`, para os dois hooks acharem o `node_modules` | 1, feito |
+| `.github/dependabot.yml` | O `npm` de `/e2e`, num grupo próprio: o PR que sobe o Playwright troca o navegador, e o `codecs.spec.ts` responde no próprio PR | 1, feito |
+| `.github/workflows/e2e.yml` | Novo: sobe o ambiente, roda a suíte e publica o relatório. A rodada agendada e os projetos a mais ficam para a Etapa 11 | 1 (feito) e 11 |
+| `.gitignore` | O que o Playwright e o ambiente geram: `node_modules`, relatórios e o `e2e/.estado/` | 1, feito |
+| `README.md` | Os testes ponta a ponta no §Testes, e o `e2e/` na árvore da §Estrutura do projeto | 1, feito |
 | `docs/github.md` | O workflow e o que fazer quando ele falha | 11 |
-| `AGENTS.md` | As linhas abaixo nas Repercussões, e uma regra: nenhum agente pula, desliga ou marca `fixme` em teste para ficar verde | 1 |
+| `AGENTS.md` | A seção Testes, com a regra de que nenhum agente pula, desliga ou marca `fixme` em teste para ficar verde, e as linhas abaixo nas Repercussões | 1, feito |
 
-As linhas novas das Repercussões, como proposta:
+As linhas das Repercussões:
 
-| Mexeu em | Confira |
-| --- | --- |
-| texto, rótulo ou `aria-label` em `web/src/` | os testes em `e2e/testes/` que acham o elemento por ele (`git grep` do texto antigo) |
-| layout ou quebra de largura em `web/src/` | os snapshots do `e2e/` (`make e2e-visual`, e `--update-snapshots` se a mudança for de propósito) |
-| `image:` do go2rtc no `docker-compose.yml` | nada, se o compose do e2e herdar o serviço; se for cópia, a mesma versão no `e2e/ambiente/compose.yml` |
-| versão do Playwright no `e2e/package.json` | a tag da imagem `mcr.microsoft.com/playwright` no `Makefile`, e os snapshots de pixels: navegador novo muda pixel |
-| formato em disco em `internal/store/` ou `internal/fmp4/` | o `e2e/semente`, que compila junto e precisa gerar o mesmo formato |
-| versão de Node | também o `setup-node` do `e2e.yml` (a linha que já existe ganha esse lugar) |
+| Mexeu em | Confira | Situação |
+| --- | --- | --- |
+| texto, rótulo ou `aria-label` visível em `web/src/` | os testes em `e2e/testes/`, que acham o elemento pelo que a pessoa lê | Entrou na Etapa 1 |
+| porta publicada no `e2e/ambiente/compose.yml` | `e2e/apoio/instancias.ts` | Entrou na Etapa 1 |
+| volume, porta, env ou serviço no `docker-compose.yml` | a linha que já existe ganhou o `e2e/ambiente/compose.yml`, que herda os serviços pelo nome | Entrou na Etapa 1 |
+| `image:` do go2rtc no `docker-compose.yml` | nada: o compose do e2e herda o serviço, com a imagem | Não precisou de linha |
+| versão do `@playwright/test` no `e2e/package.json` | a suíte inteira, com o `codecs.spec.ts`; e, a partir da Etapa 8, a tag da imagem `mcr.microsoft.com/playwright` e os snapshots de pixels, porque navegador novo muda pixel | Entrou na Etapa 1; a parte dos snapshots, na 8 |
+| versão de Node | também o `setup-node` do `e2e.yml` | Entrou na Etapa 1, na linha que já existe |
+| layout ou quebra de largura em `web/src/` | os snapshots do `e2e/` (`make e2e-visual`, e `--update-snapshots` se a mudança for de propósito) | Etapa 8 |
+| formato em disco em `internal/store/` ou `internal/fmp4/` | o `e2e/semente`, que compila junto e precisa gerar o mesmo formato | Etapa 2 |
 
 ## Riscos e armadilhas
 
@@ -1253,12 +1105,13 @@ As linhas novas das Repercussões, como proposta:
 | Rodar em Linux arm64: runner `-arm`, ou Docker num Mac com chip M | Ali o Playwright usa o Chromium sem H.264. O e2e roda em x86_64; no Mac, o Playwright roda nativo contra o compose |
 | H.265 não toca no Chrome do Linux | Os testes de H.265 conferem a gravação e a mensagem de "não reproduz"; tocar H.265 fica para a Etapa 12 |
 | `localhost` é contexto seguro, e a rede de casa não | O projeto `lan`, com o `--host-resolver-rules` |
-| Limite de pedidos do Docker Hub (429) | O mesmo go2rtc existe no GHCR: puxar de lá e dar `docker tag` com o nome do Docker Hub, conferindo o digest, sem mudar o compose. Login no Docker Hub só se ainda faltar |
-| CPU do runner (4 vCPU): go2rtc codificando, Chrome decodificando e o vídeo do teste sendo gravado | Câmeras em 640x360 com `superfast`; o go2rtc codifica cada stream uma vez para todas as instâncias. Medir na Etapa 1 e ajustar os workers |
+| Limite de pedidos do Docker Hub (429) | Aconteceu no container da sessão web, e o `mirror.gcr.io` como `registry-mirrors` do Docker resolveu, sem mudar o compose. Se acontecer na CI: o mesmo go2rtc existe no GHCR (`docker tag` com o nome do Docker Hub, conferindo o digest), e o login no Docker Hub só se ainda faltar |
+| CPU do runner (4 vCPU): go2rtc codificando, Chrome decodificando e o vídeo do teste sendo gravado | Câmeras em 640x360 com `superfast`; o go2rtc codifica cada stream uma vez para todas as instâncias. Medido na Etapa 1: o servidor quase não pesa, e o lado do navegador sim (carga de 5,8 em 4 núcleos com 3 workers). Câmera nova, ou worker a mais, mede de novo |
 | A meia-noite no meio de um teste de "hoje" | Os testes de hoje toleram um trecho do dia anterior; a rodada agendada fica longe da meia-noite de Fortaleza |
 | A escrita na URL tem piso de 1 s | Sempre `await expect(page).toHaveURL(...)`, que espera; nunca ler a URL no instante seguinte ao gesto |
 | As telas releem em ciclo (5 s no Diagnóstico, 10 a 60 s nas Gravações, 20 s nas Detecções) | Prazo de asserção que cobre o ciclo. O relógio falso que adianta timers (`page.clock.install`) só em tela sem mídia |
-| Os vídeos pesam no artifact | Retenção de 14 dias, e o vídeo do tamanho da viewport, com teto de 1366 de largura |
+| Os vídeos pesam no artifact | Retenção de 14 dias, e o vídeo do tamanho da viewport, com teto de 1366 de largura. Na Etapa 1, o relatório com o vídeo de todos os testes deu ~10 MB |
+| O disco de gravação em tmpfs, para o teste de disco cheio | O que se escreve num tmpfs conta na memória do container, e o teto de 128 MB do dwnvr derrubaria a instância. As gravações moram em pastas, e o disco "cheio" é um `minFreeMB` acima do espaço livre de qualquer máquina |
 | Arquivo acima de 500 KB barrado no commit | O clipe real como asset de release, e os snapshots pequenos ou no `exclude` com o motivo |
 | `dwnvr.yaml`, `cameras.json` e `go2rtc.yaml` ignorados pelo `.gitignore` em qualquer pasta | Os modelos do e2e com outro nome, montados com o nome que o container espera |
 | O healer dos agentes do Playwright marca `test.fixme()` quando não consegue consertar | A regra no `AGENTS.md`, e revisão humana do que ele mudou |
@@ -1280,9 +1133,11 @@ As linhas novas das Repercussões, como proposta:
    merge, na `main`.
 2. Instalar uma vez o que falta: Docker com Compose v2, Go e Node das versões do
    [`.tool-versions`](../.tool-versions), e o prek, que o repositório já usa.
-3. Pedir ao Claude Code: "implemente a Etapa 1 do `docs/plano-testes-e2e.md`".
-   Cada etapa tem entregas, cenários e critério de pronto para virar um PR
-   sozinha.
+3. A Etapa 1 está pronta: `make e2e-up && make e2e` roda a suíte (o
+   [§Como rodar](#como-rodar) tem os passos de uma vez por máquina). Para
+   seguir, pedir ao Claude Code: "implemente a Etapa 2 do
+   `docs/plano-testes-e2e.md`". Cada etapa tem entregas, cenários e critério de
+   pronto para virar um PR sozinha.
 4. A cada etapa pronta, marcar as caixas dela no mesmo PR e anotar aqui o que
    mudou do plano.
 5. Opcional: `npx playwright init-agents --loop=claude` cria em

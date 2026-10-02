@@ -1,0 +1,81 @@
+# Testes ponta a ponta, com o Playwright dirigindo um navegador de verdade
+# contra o go2rtc e o dwnvr construído deste commit (e2e/, e o plano em
+# docs/plano-testes-e2e.md).
+#
+# Todo teste grava o vídeo da tela, e o relatório HTML sai como artifact, com o
+# vídeo e o trace de cada teste dentro: baixar o relatorio-e2e, descompactar e
+# abrir o index.html. O ambiente.log traz o log dos containers.
+#
+# Fica fora do ci.yml de propósito, como o lint.yml: por enquanto o e2e
+# avisa, mas não segura a publicação das imagens, e a release só confere o
+# ci.yml. Quando ele se provar estável, passa a exigir (ver o plano).
+
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Nenhum job recebe token com permissão, a não ser que peça.
+permissions: {}
+
+# Um push novo no mesmo PR cancela o run do anterior, que já não vale. Na
+# main, cada push termina o seu.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  playwright:
+    # x86_64 de propósito: no Linux arm64 o Playwright usa o Chromium sem
+    # H.264, e nem as Gravações nem o Ao vivo tocariam.
+    runs-on: ubuntu-24.04
+    # O build da imagem leva uns 2 min, o ambiente sobe em segundos e a suíte
+    # roda em ~1 min. Sem isto, um teste travado prenderia o runner por 6 h.
+    timeout-minutes: 30
+    permissions:
+      contents: read  # ler o código
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # nada aqui faz push
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+        working-directory: e2e
+
+      # Só o headless shell, que é o que o Playwright usa sem janela: o Chrome
+      # for Testing, com H.264.
+      - name: navegador do Playwright
+        run: npx playwright install --with-deps --only-shell chromium
+        working-directory: e2e
+
+      # Constrói a imagem do dwnvr pelo Dockerfile de verdade e sobe o go2rtc
+      # com as câmeras sintéticas.
+      - name: ambiente
+        run: make e2e-up
+
+      - name: testes
+        run: make e2e
+
+      # Junto do relatório, para ir no mesmo artifact. A pasta pode não existir
+      # se o ambiente nem subiu, e aí o log é a única coisa que explica.
+      - name: log do ambiente
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p e2e/playwright-report
+          docker compose -f e2e/ambiente/compose.yml logs --no-color --timestamps > e2e/playwright-report/ambiente.log 2>&1
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: relatorio-e2e
+          path: e2e/playwright-report/
+          retention-days: 14
