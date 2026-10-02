@@ -180,73 +180,152 @@ func defaults() Config {
 
 // Load lê o dwnvr.yaml. Um arquivo ausente não é erro: o dwnvr sobe com os
 // padrões, o que torna o primeiro uso trivial.
-func Load(path string) (*Config, error) {
+//
+// Só é erro o que impede o dwnvr de funcionar: o arquivo ilegível e o
+// storage.root vazio. Um valor fora da faixa volta ao padrão do código e vira
+// Aviso, porque gravar com o padrão é melhor que não gravar nada.
+func Load(path string) (*Config, []Aviso, error) {
 	cfg := defaults()
 	cfg.dir = filepath.Dir(path)
 
 	b, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		return &cfg, cfg.validate()
+		return &cfg, nil, nil
 	case err != nil:
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := yaml.Unmarshal(b, &cfg); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+		return nil, nil, fmt.Errorf("%s: %w", path, err)
 	}
-	return &cfg, cfg.validate()
+	if cfg.Storage.Root == "" {
+		return nil, nil, errors.New("storage.root não pode ser vazio")
+	}
+	return &cfg, cfg.confere(), nil
 }
 
-func (c *Config) validate() error {
-	if c.Storage.Root == "" {
-		return errors.New("storage.root não pode ser vazio")
-	}
-	if c.Defaults.SegmentSeconds <= 0 {
-		return errors.New("defaults.segmentSeconds precisa ser positivo")
-	}
-	// Zero não desliga a vigilância: desligá-la é reintroduzir a perda
-	// silenciosa de gravação. Quem precisa de mais folga aumenta o número.
-	if c.Defaults.StallSeconds <= 0 {
-		return errors.New("defaults.stallSeconds precisa ser positivo")
-	}
-	if err := ValidAudio(c.Defaults.Audio); err != nil {
-		return fmt.Errorf("defaults.audio: %w", err)
-	}
-	if err := ValidDetect(c.Defaults.DetectMecanismo, c.Defaults.DetectSensibilidade); err != nil {
-		return fmt.Errorf("defaults: %w", err)
-	}
-	return nil
+// Aviso é um valor fora da faixa encontrado num arquivo de configuração. Ele
+// não impede o dwnvr de subir: o campo passa a valer o padrão, e o aviso diz o
+// que estava escrito, o que é aceito e o que ficou valendo no lugar.
+type Aviso struct {
+	Camera string // vazio quando o valor veio do dwnvr.yaml
+	Campo  string // como está escrito no arquivo: "quotaMB", "defaults.quotaMB"
+	Valor  any
+	Aceito string // a recomendação: "de 10 a 300 s"
+	Usando any    // o que passou a valer no lugar
 }
 
-// ValidDetect confere o mecanismo e o nível de sensibilidade. O `detect.Novo`
-// cai no padrão diante de um valor estranho, para que uma câmera nunca fique
-// sem gatilho em silêncio - mas o que veio do usuário é recusado na entrada,
-// que é onde ele ainda pode corrigir.
-func ValidDetect(mecanismo string, sensibilidade int) error {
-	if _, ok := detect.Mecanismos[mecanismo]; !ok {
-		nomes := make([]string, 0, len(detect.Mecanismos))
-		for n := range detect.Mecanismos {
-			nomes = append(nomes, n)
-		}
-		sort.Strings(nomes)
-		return fmt.Errorf("detectMecanismo %q inválido (use %s)",
-			mecanismo, strings.Join(nomes, " ou "))
-	}
-	if sensibilidade < detect.NivelMin || sensibilidade > detect.NivelMax {
-		return fmt.Errorf("detectSensibilidade %d fora da faixa de %d a %d",
-			sensibilidade, detect.NivelMin, detect.NivelMax)
-	}
-	return nil
+// Texto é a frase para quem pode corrigir na hora; a API recusa com ela.
+func (a Aviso) Texto() string {
+	return fmt.Sprintf("%s %v fora do aceito: use %s", a.Campo, a.Valor, a.Aceito)
 }
 
-func ValidAudio(mode string) error {
+// confere troca pelo padrão do código todo valor de defaults e de storage fora
+// da faixa. Aqui o zero não é "usar o padrão" como na câmera: o padrão é o
+// próprio valor, então um zero escrito é tão inválido quanto um negativo.
+func (c *Config) confere() []Aviso {
+	p := defaults()
+	var av []Aviso
+	confereFaixa(&av, Aviso{Campo: "storage.minFreeMB"}, &c.Storage.MinFreeMB,
+		FaixaMinFreeMB, p.Storage.MinFreeMB, p.Storage.MinFreeMB)
+
+	d, pd := &c.Defaults, p.Defaults
+	confereFaixa(&av, Aviso{Campo: "defaults.segmentSeconds"}, &d.SegmentSeconds,
+		FaixaSegmentSeconds, pd.SegmentSeconds, pd.SegmentSeconds)
+	confereFaixa(&av, Aviso{Campo: "defaults.quotaMB"}, &d.QuotaMB, FaixaQuotaMB, pd.QuotaMB, pd.QuotaMB)
+	confereFaixa(&av, Aviso{Campo: "defaults.maxDays"}, &d.MaxDays, FaixaMaxDays, pd.MaxDays, pd.MaxDays)
+	confereFaixa(&av, Aviso{Campo: "defaults.stallSeconds"}, &d.StallSeconds,
+		FaixaStallSeconds, pd.StallSeconds, pd.StallSeconds)
+	if !audioValido(d.Audio) {
+		av = append(av, Aviso{Campo: "defaults.audio", Valor: d.Audio,
+			Aceito: audiosAceitos, Usando: pd.Audio})
+		d.Audio = pd.Audio
+	}
+	if _, ok := detect.Mecanismos[d.DetectMecanismo]; !ok {
+		av = append(av, Aviso{Campo: "defaults.detectMecanismo", Valor: d.DetectMecanismo,
+			Aceito: mecanismosAceitos(), Usando: pd.DetectMecanismo})
+		d.DetectMecanismo = pd.DetectMecanismo
+	}
+	confereFaixa(&av, Aviso{Campo: "defaults.detectSensibilidade"}, &d.DetectSensibilidade,
+		faixaSensibilidade, pd.DetectSensibilidade, pd.DetectSensibilidade)
+	return av
+}
+
+// ConfereCamera devolve a câmera com cada campo fora da faixa zerado, que é o
+// "usar o padrão" do Resolve, e um Aviso por campo trocado. É a régua das duas
+// portas: a API recusa se houver aviso, o boot sobe com a câmera corrigida.
+//
+// O ID não passa por aqui: ele vira nome de diretório, e não há padrão que o
+// substitua. Ver ValidateCameraID.
+func (c *Config) ConfereCamera(cam Camera) (Camera, []Aviso) {
+	var av []Aviso
+	base := func(campo string) Aviso { return Aviso{Camera: cam.ID, Campo: campo} }
+
+	// Zero em qualquer campo é "usar o padrão", e por isso nunca é inválido.
+	if cam.QuotaMB != 0 {
+		confereFaixa(&av, base("quotaMB"), &cam.QuotaMB, FaixaQuotaMB, 0, c.Defaults.QuotaMB)
+	}
+	if cam.SegmentSeconds != 0 {
+		confereFaixa(&av, base("segmentSeconds"), &cam.SegmentSeconds,
+			FaixaSegmentSeconds, 0, c.Defaults.SegmentSeconds)
+	}
+	if cam.MaxDays != 0 {
+		confereFaixa(&av, base("maxDays"), &cam.MaxDays, FaixaMaxDays, 0, c.Defaults.MaxDays)
+	}
+	if cam.StallSeconds != 0 {
+		confereFaixa(&av, base("stallSeconds"), &cam.StallSeconds,
+			FaixaStallSeconds, 0, c.Defaults.StallSeconds)
+	}
+	if cam.Audio != "" && !audioValido(cam.Audio) {
+		a := base("audio")
+		a.Valor, a.Aceito, a.Usando = cam.Audio, audiosAceitos, c.Defaults.Audio
+		av = append(av, a)
+		cam.Audio = ""
+	}
+	if _, ok := detect.Mecanismos[cam.DetectMecanismo]; cam.DetectMecanismo != "" && !ok {
+		a := base("detectMecanismo")
+		a.Valor, a.Aceito, a.Usando = cam.DetectMecanismo, mecanismosAceitos(), c.Defaults.DetectMecanismo
+		av = append(av, a)
+		cam.DetectMecanismo = ""
+	}
+	if cam.DetectSensibilidade != 0 {
+		confereFaixa(&av, base("detectSensibilidade"), &cam.DetectSensibilidade,
+			faixaSensibilidade, 0, c.Defaults.DetectSensibilidade)
+	}
+	return cam, av
+}
+
+// confereFaixa confere um campo numérico. Fora da faixa, o valor é trocado por
+// `troca` e vira um Aviso que conta o que passou a valer, `usando`. Na câmera
+// os dois diferem (a troca é o zero, e quem vale é o default); no dwnvr.yaml
+// são o mesmo número.
+func confereFaixa[T int | int64](av *[]Aviso, a Aviso, v *T, f Faixa, troca, usando T) {
+	if f.Contem(int64(*v)) {
+		return
+	}
+	a.Valor, a.Aceito, a.Usando = *v, f.String(), usando
+	*av = append(*av, a)
+	*v = troca
+}
+
+const audiosAceitos = "none, flac ou aac"
+
+func audioValido(mode string) bool {
 	switch mode {
 	case AudioNone, AudioFLAC, AudioAAC:
-		return nil
-	default:
-		return fmt.Errorf("modo %q inválido (use none, flac ou aac)", mode)
+		return true
 	}
+	return false
+}
+
+func mecanismosAceitos() string {
+	nomes := make([]string, 0, len(detect.Mecanismos))
+	for n := range detect.Mecanismos {
+		nomes = append(nomes, n)
+	}
+	sort.Strings(nomes)
+	return strings.Join(nomes, " ou ")
 }
 
 // CamerasPath é o caminho do cameras.json, ao lado do dwnvr.yaml.
@@ -287,36 +366,35 @@ func (c *Config) Resolve(cam Camera) Camera {
 }
 
 // LoadCameras lê o cameras.json. Ausente significa "nenhuma câmera cadastrada".
-func (c *Config) LoadCameras() ([]Camera, error) {
+//
+// Só o ID inválido impede o boot, porque ele vira nome de diretório no disco.
+// Qualquer outro campo fora da faixa passa a usar o padrão e vira Aviso: um
+// número ruim numa câmera não pode deixar todas sem gravar. O arquivo não é
+// reescrito aqui; o próximo save pela tela grava a câmera já corrigida, que é
+// a que está rodando.
+func (c *Config) LoadCameras() ([]Camera, []Aviso, error) {
 	b, err := os.ReadFile(c.CamerasPath())
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var cams []Camera
 	if err := json.Unmarshal(b, &cams); err != nil {
-		return nil, fmt.Errorf("%s: %w", c.CamerasPath(), err)
+		return nil, nil, fmt.Errorf("%s: %w", c.CamerasPath(), err)
 	}
-	for i, cam := range cams {
-		if err := ValidateCameraID(cam.ID); err != nil {
-			return nil, fmt.Errorf("câmera #%d: %w", i, err)
+	var avisos []Aviso
+	for i := range cams {
+		if err := ValidateCameraID(cams[i].ID); err != nil {
+			return nil, nil, fmt.Errorf("câmera #%d: %w", i, err)
 		}
-		if cam.Audio != "" {
-			if err := ValidAudio(cam.Audio); err != nil {
-				return nil, fmt.Errorf("câmera %q: %w", cam.ID, err)
-			}
-		}
-		if cam.DetectMecanismo != "" || cam.DetectSensibilidade != 0 {
-			r := c.Resolve(cam)
-			if err := ValidDetect(r.DetectMecanismo, r.DetectSensibilidade); err != nil {
-				return nil, fmt.Errorf("câmera %q: %w", cam.ID, err)
-			}
-		}
+		var av []Aviso
+		cams[i], av = c.ConfereCamera(cams[i])
+		avisos = append(avisos, av...)
 	}
-	return cams, nil
+	return cams, avisos, nil
 }
 
 // SaveCameras grava o cameras.json de forma atômica (arquivo temporário no

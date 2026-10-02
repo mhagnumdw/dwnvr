@@ -63,9 +63,22 @@ e não como "não tem áudio".
 
 O `GET /api/cameras` traz também o `padrao`: uma câmera vazia com os `defaults`
 do `dwnvr.yaml` aplicados. É dele que o formulário de câmera nova parte, e não
-de números repetidos na interface. E traz o `detector`: `true` quando o
-detector de objetos está configurado. Sem ele, a interface esconde a aba
-Detecções.
+de números repetidos na interface. Traz as `faixas` dos campos numéricos da
+câmera, a mesma régua com que o `POST /api/cameras` recusa, de onde saem o
+`min` e o `max` dos inputs; sem teto, o `max` não vem:
+
+```json
+"faixas": {
+  "quotaMB": { "min": 100 },
+  "segmentSeconds": { "min": 10, "max": 300 },
+  "maxDays": { "min": 0 },
+  "stallSeconds": { "min": 1, "max": 3600 },
+  "detectSensibilidade": { "min": 1, "max": 5 }
+}
+```
+
+E traz o `detector`: `true` quando o detector de objetos está configurado. Sem
+ele, a interface esconde a aba Detecções.
 
 O go2rtc só lê o `go2rtc.yaml` quando sobe. Quando o arquivo diz uma coisa e o
 go2rtc em execução faz outra, o `GET /api/cameras` traz `go2rtcConfigFile`, e a

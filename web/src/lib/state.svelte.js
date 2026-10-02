@@ -20,6 +20,10 @@ export const cameras = $state({
   orphans: [],
   // Câmera vazia com os defaults do servidor, de onde nasce o cadastro novo.
   padrao: null,
+  // { campo: { min, max } } dos campos numéricos: a mesma régua com que a API
+  // recusa, para o min/max dos inputs não repetir número à mão. Sem teto, o
+  // max não vem.
+  faixas: null,
   // Se o detector de objetos está configurado. Sem ele não há aba Detecções.
   // Nulo até a primeira resposta: "ainda não sei" é diferente de "não tem".
   detector: null,
@@ -186,6 +190,7 @@ export async function loadCameras() {
     cameras.streams = data.streams ?? [];
     cameras.orphans = data.orphans ?? [];
     cameras.padrao = data.padrao ?? null;
+    cameras.faixas = data.faixas ?? null;
     cameras.detector = data.detector === true;
     cameras.go2rtcError = data.go2rtcError ?? null;
     cameras.go2rtcConfigFile = data.go2rtcConfigFile ?? null;

@@ -148,7 +148,7 @@
   const isToday = $derived(day === dayKey());
 
   // O ritmo vem da câmera selecionada: `segmentSeconds` é configurado por
-  // câmera (10s a 600s no cadastro), e um segmento só entra na timeline depois
+  // câmera (10s a 300s no cadastro), e um segmento só entra na timeline depois
   // de fechar. Perguntar uma vez por segmento é o passo natural - quem gravou
   // em pedaços de 10s vê gravação nova em ~20s, e quem gravou em pedaços de
   // 2 min não paga oito consultas do dia inteiro para cada uma que muda algo.

@@ -119,7 +119,7 @@ func TestSavesConcorrentesNaoPerdemAlteracaoNoArquivo(t *testing.T) {
 		}
 		wg.Wait()
 
-		cams, err := s.cfg.LoadCameras()
+		cams, _, err := s.cfg.LoadCameras()
 		if err != nil {
 			t.Fatal(err)
 		}

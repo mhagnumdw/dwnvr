@@ -39,6 +39,10 @@ storage:
   # Onde o dwnvr escreve - o caminho que o processo enxerga. Em container é um
   # caminho de dentro dele, e quem escolhe o disco do host é o volume do
   # docker-compose.yml.
+  #
+  # É o único campo que impede o dwnvr de subir quando vazio. Um número fora da
+  # faixa, aqui ou em `defaults`, volta ao padrão e vira aviso no log e na tela
+  # de Diagnóstico, com o que é aceito.
   root: /storage
 
   # Rede de segurança global. Quando o disco livre cai abaixo disto, o dwnvr
@@ -55,12 +59,12 @@ defaults:
   # Segmento aberto ainda não está no índice: este número é o teto do que se
   # perde numa queda de energia. Também é o tamanho do arquivo que o player
   # baixa inteiro a cada seek. Aumentar troca essas duas coisas por menos
-  # arquivos em disco.
+  # arquivos em disco. Aceito: de 10 a 300.
   segmentSeconds: 30
 
   # Cota em disco por câmera. Ao estourar, os segmentos mais antigos daquela
   # câmera são apagados (ring buffer). A tela de cadastro traduz este número
-  # em "≈ N dias" usando a taxa medida de cada câmera.
+  # em "≈ N dias" usando a taxa medida de cada câmera. Mínimo: 100.
   quotaMB: 10240
 
   # Idade máxima em dias, opcional. 0 = sem limite, quem manda é a cota.
@@ -80,7 +84,8 @@ defaults:
   # o que recupera - o go2rtc derruba o produtor morto quando o último
   # consumidor sai e abre uma sessão RTSP nova na reconexão.
   #
-  # Aumente num enlace ruim; não pode ser 0, que seria desligar a proteção.
+  # Aumente num enlace ruim; aceito de 1 a 3600. Zero não desliga a proteção:
+  # volta ao padrão.
   stallSeconds: 15
 
   # --- marcação de movimento na timeline ---

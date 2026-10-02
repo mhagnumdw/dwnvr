@@ -29,7 +29,7 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 	// Config carregada a partir de um dwnvr.yaml inexistente num diretório
 	// temporário. O caminho importa: é dele que sai o CamerasPath, e um Config
 	// zerado faria o SaveCameras despejar um cameras.json no diretório do pacote.
-	cfg, err := config.Load(filepath.Join(t.TempDir(), "dwnvr.yaml"))
+	cfg, _, err := config.Load(filepath.Join(t.TempDir(), "dwnvr.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,20 +448,48 @@ func TestValidGen(t *testing.T) {
 	}
 }
 
+// configPadrao é a config de quem não escreveu dwnvr.yaml nenhum.
+func configPadrao(t *testing.T) *config.Config {
+	t.Helper()
+	cfg, _, err := config.Load(filepath.Join(t.TempDir(), "dwnvr.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
 func TestValidateCameraCota(t *testing.T) {
 	// O zero é o caso que separa "não informei" de "informei um valor ruim":
 	// ele tem que continuar passando para o Resolve aplicar o default.
-	validas := []int64{0, minQuotaMB, minQuotaMB + 1, 20480}
-	invalidas := []int64{-1, 1, minQuotaMB - 1}
+	piso := config.FaixaQuotaMB.Min
+	validas := []int64{0, piso, piso + 1, 20480}
+	invalidas := []int64{-1, 1, piso - 1}
 
+	cfg := configPadrao(t)
 	for _, q := range validas {
-		if err := validateCamera(config.Camera{ID: "cam_teste", QuotaMB: q}); err != nil {
+		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", QuotaMB: q}); err != nil {
 			t.Errorf("quotaMB=%d recusada: %v", q, err)
 		}
 	}
 	for _, q := range invalidas {
-		if err := validateCamera(config.Camera{ID: "cam_teste", QuotaMB: q}); err == nil {
+		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", QuotaMB: q}); err == nil {
 			t.Errorf("quotaMB=%d aceita, deveria recusar", q)
+		}
+	}
+}
+
+// TestValidateCameraSegmento: a API cobra a mesma faixa que a tela, de 10 a
+// 300 s. Antes ela aceitava até 3600.
+func TestValidateCameraSegmento(t *testing.T) {
+	cfg := configPadrao(t)
+	for _, seg := range []int{0, 10, 30, 300} {
+		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", SegmentSeconds: seg}); err != nil {
+			t.Errorf("segmentSeconds=%d recusado: %v", seg, err)
+		}
+	}
+	for _, seg := range []int{-1, 5, 301, 600, 3600} {
+		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", SegmentSeconds: seg}); err == nil {
+			t.Errorf("segmentSeconds=%d aceito, deveria recusar", seg)
 		}
 	}
 }
@@ -479,20 +507,22 @@ func TestValidateCameraDetect(t *testing.T) {
 		{ID: "cam_teste", DetectSensibilidade: 6},
 		{ID: "cam_teste", DetectMecanismo: "periodico", DetectSensibilidade: 9},
 	}
+	cfg := configPadrao(t)
 	for _, c := range validas {
-		if err := validateCamera(c); err != nil {
+		if err := validateCamera(cfg, c); err != nil {
 			t.Errorf("%q nível %d recusada: %v", c.DetectMecanismo, c.DetectSensibilidade, err)
 		}
 	}
 	for _, c := range invalidas {
-		if err := validateCamera(c); err == nil {
+		if err := validateCamera(cfg, c); err == nil {
 			t.Errorf("%q nível %d aceita, deveria recusar", c.DetectMecanismo, c.DetectSensibilidade)
 		}
 	}
 }
 
 // O formulário de câmera nova parte do "padrao", e não de números repetidos à
-// mão na interface: é assim que ele segue o defaults do dwnvr.yaml.
+// mão na interface: é assim que ele segue o defaults do dwnvr.yaml. As
+// "faixas" fazem o mesmo pelo min/max dos inputs.
 func TestCamerasTrazOPadrao(t *testing.T) {
 	s, _ := testServer(t)
 	s.cfg.Defaults.DetectMecanismo, s.cfg.Defaults.DetectSensibilidade = "periodico", 2
@@ -501,7 +531,8 @@ func TestCamerasTrazOPadrao(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.handleCameras(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
 	var got struct {
-		Padrao config.Camera `json:"padrao"`
+		Padrao config.Camera                     `json:"padrao"`
+		Faixas map[string]map[string]json.Number `json:"faixas"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
@@ -509,6 +540,16 @@ func TestCamerasTrazOPadrao(t *testing.T) {
 	p := got.Padrao
 	if p.Detect == nil || *p.Detect || p.DetectMecanismo != "periodico" || p.DetectSensibilidade != 2 {
 		t.Errorf("padrao %+v: esperava detect false, periodico, nível 2", p)
+	}
+
+	// O min/max dos inputs vem daqui. Sem teto, o max some, e o input da tela
+	// fica sem max em vez de travar em zero.
+	seg, cota := got.Faixas["segmentSeconds"], got.Faixas["quotaMB"]
+	if seg["min"] != "10" || seg["max"] != "300" {
+		t.Errorf("faixas.segmentSeconds %v: esperava min 10, max 300", seg)
+	}
+	if _, tem := cota["max"]; cota["min"] != "100" || tem {
+		t.Errorf("faixas.quotaMB %v: esperava min 100 e sem max", cota)
 	}
 }
 

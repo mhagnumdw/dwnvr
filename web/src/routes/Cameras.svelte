@@ -33,6 +33,7 @@
   let error = $state('');
 
   const novos = $derived(cameras.streams.filter((s) => !s.registered));
+  const faixas = $derived(cameras.faixas);
 
   // Reinício do go2rtc: ele só lê o go2rtc.yaml quando sobe.
   let confirmandoReinicio = $state(false);
@@ -538,8 +539,9 @@
         Cota em disco (MB)
         <!-- step=1 porque no input nativo o step também é a régua de validação:
              com step=100 o browser recusava 20480 (20 GiB), que é exatamente o
-             tipo de número que se digita numa cota. -->
-        <input type="number" bind:value={editing.quotaMB} min="100" step="1" required />
+             tipo de número que se digita numa cota. O min vem da API: sem
+             resposta, o input fica sem ele e quem recusa é o servidor. -->
+        <input type="number" bind:value={editing.quotaMB} min={faixas?.quotaMB?.min} step="1" required />
         <!-- O campo é em MB porque é assim que a cota é guardada, mas quem digita
              20480 quer saber que isso são 20 GB. -->
         <small class="muted">
@@ -554,7 +556,13 @@
 
       <label>
         Duração do segmento (s)
-        <input type="number" bind:value={editing.segmentSeconds} min="10" max="600" step="10" />
+        <input
+          type="number"
+          bind:value={editing.segmentSeconds}
+          min={faixas?.segmentSeconds?.min}
+          max={faixas?.segmentSeconds?.max}
+          step="10"
+        />
         <small class="muted">o corte real espera o próximo keyframe</small>
       </label>
 
