@@ -15,7 +15,7 @@
   import DeteccaoFolha from '../components/DeteccaoFolha.svelte';
   import { api, mediaURL } from '../lib/api.js';
   import { cameras, loadCameras } from '../lib/state.svelte.js';
-  import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
+  import { paramsAtuais, escrever, linkGravacoes } from '../lib/rota.svelte.js';
   import { FAMILIAS, familia, iconeURL } from '../lib/icones.js';
   import { CAIXA_FOLGA_PX } from '../lib/caixas.js';
   import { hhmmss, ddmm, dayKey, parseDay } from '../lib/format.js';
@@ -52,7 +52,7 @@
 
   // A altura do menu do ⋮, para abrir para cima quando não cabe embaixo. E
   // quanto tempo o "desfazer" fica na tela depois de ocultar uma câmera.
-  const MENU_PX = 100;
+  const MENU_PX = 140;
   const DESFAZER_MS = 6000;
 
   const ORDEM_FAMILIAS = Object.keys(FAMILIAS);
@@ -108,8 +108,9 @@
   // "ir para" novo.
   let geracao = 0;
 
-  // O ao vivo só abre para câmera que ainda está no cadastro: uma detecção
-  // antiga pode citar uma câmera removida desde então.
+  // O ao vivo e Gravações só abrem para câmera que ainda está no cadastro: uma
+  // detecção antiga pode citar uma câmera removida desde então, e as duas telas
+  // trocariam o id desconhecido por outra câmera.
   const existe = (cam) => cameras.list.some((c) => c.id === cam);
 
   const chave = (d) => `${d.cam}|${d.instanteMs}`;
@@ -507,7 +508,7 @@
   // O menu do ⋮ de uma miniatura. Um só, fora da grade e em `position: fixed`:
   // a miniatura corta o que passa da borda dela, e a linha pode sair do DOM
   // no meio da rolagem. Por isso mesmo ele fecha quando a tela rola.
-  let menu = $state(null); // { k, cam, x, y, paraCima }
+  let menu = $state(null); // { k, cam, instanteMs, x, y, paraCima }
   let menuEl = $state(null);
 
   function abreMenu(d, ev) {
@@ -520,6 +521,7 @@
     menu = {
       k: chave(d),
       cam: d.cam,
+      instanteMs: d.instanteMs,
       x: window.innerWidth - r.right,
       y: paraCima ? window.innerHeight - r.top : r.bottom,
       paraCima,
@@ -885,6 +887,14 @@
         onclick={() => (menu = null)}
       >
         Ir para o ao vivo de <strong>{nomes[menu.cam] ?? menu.cam}</strong>
+      </a>
+      <a
+        class="item"
+        role="menuitem"
+        href={linkGravacoes(menu.cam, menu.instanteMs)}
+        onclick={() => (menu = null)}
+      >
+        Abrir em Gravações
       </a>
     {/if}
     <button class="ghost" role="menuitem" onclick={() => ocultaCamera(menu.cam)}>

@@ -13,7 +13,8 @@
   import { Player } from '../lib/player.svelte.js';
   import { dispoe, desenha } from '../lib/caixas.js';
   import { familia, iconeDa, iconeURL, NOME_DA_CLASSE } from '../lib/icones.js';
-  import { hhmmss, ddmm, dayKey } from '../lib/format.js';
+  import { hhmmss, ddmm } from '../lib/format.js';
+  import { linkGravacoes } from '../lib/rota.svelte.js';
 
   // O trecho: um pouco antes do onset, para ver o objeto entrar, e o bastante
   // depois para ver o que ele fez. Os mesmos números do mock aprovado.
@@ -76,9 +77,7 @@
   // e a camada de Gravações acha esse quadro em `quadroMs` de cada marca.
   const marcas = $derived(det.objetos.map((o) => ({ ...o, quadroMs: det.quadroMs })));
 
-  const link = $derived(
-    `#rec?cam=${encodeURIComponent(det.cam)}&day=${dayKey(new Date(det.instanteMs))}&t=${hhmmss(det.instanteMs)}`,
-  );
+  const link = $derived(linkGravacoes(det.cam, det.instanteMs));
 
   const score = (v) => v.toFixed(2).replace('.', ',');
 

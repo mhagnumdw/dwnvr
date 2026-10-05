@@ -10,6 +10,8 @@
 // lado do servidor. O `internal/api/web.go` só serve arquivo, e um `/rec` real
 // exigiria devolver o index.html para todo caminho que não existe.
 
+import { dayKey, hhmmss } from './format.js';
+
 export const ROTA_PADRAO = 'live';
 
 // Piso entre duas escritas na barra de endereços. O instante do player muda
@@ -118,3 +120,10 @@ addEventListener('hashchange', () => {
   rota.id = partes(location.hash).id;
   rota.hash = location.hash;
 });
+
+// linkGravacoes leva a Gravações já na câmera e no instante de uma detecção. É
+// o mesmo link no modal e no menu do ⋮ da tela Detecções.
+export function linkGravacoes(cam, instanteMs) {
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- data de leitura única, ninguém a observa
+  return `#rec?cam=${encodeURIComponent(cam)}&day=${dayKey(new Date(instanteMs))}&t=${hhmmss(instanteMs)}`;
+}
