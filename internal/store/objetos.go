@@ -93,6 +93,20 @@ func (c *Camera) ObjetosDoDia(day string) ([]Evento, error) {
 	return m.objetos, nil
 }
 
+// esqueceObjetos solta da memória as marcas de um dia apagado, ou de todos com
+// day vazio. Sem isso, o dia levado pela retenção ficava memorizado até o
+// processo reiniciar: ele sai do Days(), e o ObjetosDoDia, que é quem percebe o
+// arquivo sumido, nunca mais é chamado para ele.
+func (c *Camera) esqueceObjetos(day string) {
+	c.memo.mu.Lock()
+	defer c.memo.mu.Unlock()
+	if day == "" {
+		c.memo.dias = nil
+		return
+	}
+	delete(c.memo.dias, day)
+}
+
 // leObjetos lê as marcas de objeto do arquivo a partir de `desde`, e devolve
 // até onde leu. A última linha sem '\n' fica para a próxima vez: é a que o
 // recorder pode estar no meio de escrever.

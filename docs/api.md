@@ -468,7 +468,7 @@ O servidor memoriza as marcas de objeto de cada dia já lido, sem os onsets:
 dia passado é lido do disco uma vez só, e do dia corrente só o pedaço que o
 arquivo cresceu. Medido com 11 dias de uma instalação real, nove câmeras e 7.987
 detecções: 0,85 MB em memória, e uma página de 60 em 0,2 ms depois da primeira
-leitura.
+leitura. O dia sai da memória quando a retenção o apaga.
 
 **`/api/deteccoes/quadro`** serve o arquivo como ele está no disco, sem
 redimensionar nem reencodar: `t` é o `instanteMs` da detecção. Ele nunca muda

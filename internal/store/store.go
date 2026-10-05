@@ -900,6 +900,7 @@ func (c *Camera) DropDay(day string) (freed int64, err error) {
 	delete(c.days, day)
 	delete(c.quadrosBytes, day)
 	c.mu.Unlock()
+	c.esqueceObjetos(day)
 	return freed, nil
 }
 
@@ -923,6 +924,7 @@ func (c *Camera) Purge() (freed int64, err error) {
 	c.mu.Lock()
 	c.days = map[string]*DaySummary{}
 	c.mu.Unlock()
+	c.esqueceObjetos("")
 	return freed, nil
 }
 

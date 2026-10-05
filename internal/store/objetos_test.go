@@ -3,6 +3,7 @@ package store
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func appendObjeto(t *testing.T, c *Camera, instanteMs int64, familia string) {
@@ -138,5 +139,41 @@ func TestObjetosDoDiaPercebeARegravacao(t *testing.T) {
 	}
 	if got, _ := c.ObjetosDoDia(dia); len(got) != 0 {
 		t.Errorf("o dia apagado continuou na memória: %v", instantes(got))
+	}
+}
+
+// O dia apagado pela retenção sai da memória na hora, e não só no reinício: ele
+// some do Days(), e o ObjetosDoDia nunca mais é chamado para ele.
+func TestObjetosDoDiaSoltaODiaApagado(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	ontem := base.AddDate(0, 0, -1)
+	for _, d := range []time.Time{ontem, base} {
+		e := entryAt(d, 30_000, 1000)
+		writeSegmentFile(t, c, e)
+		if err := c.Append(e); err != nil {
+			t.Fatal(err)
+		}
+		appendObjeto(t, c, d.UnixMilli(), "pessoa")
+		if _, err := c.ObjetosDoDia(d.Format(DayLayout)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := c.DropDay(ontem.Format(DayLayout)); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := c.memo.dias[ontem.Format(DayLayout)]; ok {
+		t.Error("o dia apagado pelo DropDay continuou na memória")
+	}
+	if _, ok := c.memo.dias[base.Format(DayLayout)]; !ok {
+		t.Error("o DropDay soltou também o dia que ficou")
+	}
+
+	if _, err := c.Purge(); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.memo.dias) != 0 {
+		t.Errorf("o Purge deixou %d dia(s) na memória", len(c.memo.dias))
 	}
 }
