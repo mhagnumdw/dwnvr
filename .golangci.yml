@@ -23,9 +23,10 @@ linters:
     presets:
       - std-error-handling
       - common-false-positives
-    # O ./... também desce aqui: o flatted, do npm, traz um pacote Go.
+    # O ./... também desce nos node_modules (o do web/ e o do e2e/): o
+    # flatted, do npm, traz um pacote Go.
     paths:
-      - web/node_modules
+      - (^|/)node_modules/
     rules:
       # Nos testes a requisição vai para um httptest local: context ali é
       # ruído.

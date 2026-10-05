@@ -1,0 +1,22 @@
+# O dwnvr.yaml de cada instância do dwnvr dos testes ponta a ponta. O
+# `make e2e-up` copia este arquivo para o /etc/dwnvr de cada uma. Ele não se
+# chama dwnvr.yaml porque o .gitignore ignora esse nome em qualquer pasta: o
+# de verdade pode levar senha.
+
+server:
+  listen: ":8080"
+
+go2rtc:
+  url: http://go2rtc:1984
+
+storage:
+  root: /storage
+  # O padrão, 2048, é rede de segurança de instalação de verdade. Aqui o disco
+  # é o da máquina que roda os testes, e a retenção só não pode disparar sem
+  # que um teste peça.
+  minFreeMB: 100
+
+defaults:
+  # O menor que a tela de cadastro aceita: o primeiro trecho entra no índice
+  # em ~12 s, e os testes esperam menos.
+  segmentSeconds: 10
