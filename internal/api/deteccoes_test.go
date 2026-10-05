@@ -166,6 +166,43 @@ func TestPaginaDeDeteccoesRecusaParametroRuim(t *testing.T) {
 	}
 }
 
+// O calendário só oferece dia com detecção do filtro: o dia que só gravou
+// fica de fora, e o filtro de câmera e de família tira o dia que esvaziou.
+func TestDiasDeDeteccao(t *testing.T) {
+	s, hoje := cenarioDeDeteccoes(t)
+	anteontem := hoje.AddDate(0, 0, -2)
+	seed(t, s.store.Camera("cam_teste"), anteontem, [2]int64{0, 30_000}) // gravou, nada detectou
+
+	ontem := hoje.AddDate(0, 0, -1).Format(store.DayLayout)
+	dia := hoje.Format(store.DayLayout)
+	for q, want := range map[string][]string{
+		"":                                   {ontem, dia},
+		"familias=animal":                    {dia},
+		"cams=cam_b&familias=veiculo":        {ontem},
+		"cams=cam_b&familias=animal,veiculo": {ontem, dia},
+	} {
+		rec := httptest.NewRecorder()
+		s.handleDiasDeDeteccao(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?"+q, nil))
+		var out struct {
+			Dias []string `json:"dias"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || out.Dias == nil {
+			t.Fatalf("%s: resposta ilegível ou sem lista: %s", q, rec.Body.String())
+		}
+		if !iguais(out.Dias, want) {
+			t.Errorf("%s: %v, esperado %v", q, out.Dias, want)
+		}
+	}
+
+	for _, q := range []string{"cams=../etc", "familias=fantasma"} {
+		rec := httptest.NewRecorder()
+		s.handleDiasDeDeteccao(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?"+q, nil))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: HTTP %d, esperado 400", q, rec.Code)
+		}
+	}
+}
+
 // O quadro vai como está no disco, cacheável para sempre; a detecção sem
 // quadro é 404, e a tela mostra o quadro vazio.
 func TestQuadroDaDeteccao(t *testing.T) {

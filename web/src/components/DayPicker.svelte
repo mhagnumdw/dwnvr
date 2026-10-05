@@ -1,5 +1,6 @@
 <!--
-  Seletor de dia das gravações.
+  Seletor de dia: das gravações, ou das detecções. `oQue` é o material que os
+  dias marcados têm, e só muda o que o leitor de tela anuncia.
 
   Existe porque o `<input type="date">` nativo não sabe marcar quais dias têm
   material - e é essa marcação, não a escolha da data, que resolve a navegação
@@ -14,7 +15,7 @@
   import { tick } from 'svelte';
   import { dayKey, parseDay } from '../lib/format.js';
 
-  let { value = dayKey(), days = [], onchange = () => {} } = $props();
+  let { value = dayKey(), days = [], oQue = 'gravação', onchange = () => {} } = $props();
 
   let aberto = $state(false);
   let raizEl = $state(null);
@@ -190,7 +191,7 @@
         // célula: trinta botões anunciando "não pressionado" é ruído. Em modo
         // permissivo "com gravação" seria mentira - ali ninguém sabe.
         rotulo: `${d} de ${MESES[viewMonth]} de ${viewYear}`
-          + (permissivo ? '' : gravado ? ', com gravação' : ', sem gravação')
+          + (permissivo ? '' : `, ${gravado ? 'com' : 'sem'} ${oQue}`)
           + (chave === value ? ', selecionado' : ''),
       });
     }
@@ -266,7 +267,7 @@
       bind:this={popoverEl}
       style="--desloc: {desloc}px"
       role="dialog"
-      aria-label="calendário de gravações"
+      aria-label="calendário: dias com {oQue}"
     >
       <div class="header">
         <button

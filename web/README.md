@@ -46,7 +46,8 @@ src/routes/      as cinco telas + login; a de Detecções é chunk à parte e s�
                  aparece com o detector de objetos configurado
 src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  horário digitado, modal e confirmação,
-                 o estado de "nenhuma câmera cadastrada", seletor de dia,
+                 o estado de "nenhuma câmera cadastrada", seletor de dia e as
+                 setas de dia anterior e próximo,
                  caixas do detector sobre o vídeo (chunk à parte), a folha
                  que abre uma detecção com o quadro e o trecho gravado,
                  o card fechável de diagnóstico com o "copiar"

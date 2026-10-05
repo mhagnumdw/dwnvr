@@ -116,6 +116,15 @@ export const api = {
     if (familias?.length) q.set('familias', familias.join(','));
     return request('deteccoes?' + q);
   },
+
+  // Os dias com pelo menos uma detecção do filtro, em ordem crescente: é o que
+  // o calendário da tela de Detecções deixa escolher.
+  diasDeDeteccao: ({ cams, familias }) => {
+    const q = new URLSearchParams();
+    if (cams?.length) q.set('cams', cams.join(','));
+    if (familias?.length) q.set('familias', familias.join(','));
+    return request('deteccoes/dias?' + q);
+  },
 };
 
 // URLs de mídia são montadas, não buscadas: vão direto num <video>, num <img>

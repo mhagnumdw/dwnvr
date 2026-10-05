@@ -10,7 +10,7 @@
   // a posição de cada linha se calcula sem medir nada, e a barra de rolagem
   // tem o tamanho certo desde o primeiro quadro.
   import { onMount, tick } from 'svelte';
-  import DayPicker from '../components/DayPicker.svelte';
+  import NavDia from '../components/NavDia.svelte';
   import Relogio from '../components/Relogio.svelte';
   import DeteccaoFolha from '../components/DeteccaoFolha.svelte';
   import { api, mediaURL } from '../lib/api.js';
@@ -241,10 +241,47 @@
       // Mais de 200 no intervalo: as mais novas ficaram de fora, e a rolagem
       // para cima as busca como faria depois de um "ir para".
       if (!r.fim) fimAcima = false;
+      registraDia(dayKey(new Date(r.deteccoes[0].instanteMs)));
       if (a) await restaura(a);
     } catch {
       // A próxima rodada tenta de novo; um soluço da rede não vira aviso.
     }
+  }
+
+  // --- os dias do calendário -------------------------------------------------
+
+  // Os dias com detecção do filtro, para o calendário e as setas. Vazia é o
+  // modo permissivo do seletor: até a resposta chegar, ou se ela falhar, todo
+  // dia até hoje vale.
+  let diasComDeteccao = $state.raw([]);
+  // Segura a primeira consulta até a câmera da URL ser resolvida: antes disso o
+  // filtro é "todas", e a consulta sairia à toa - e, com o disco frio, é a mais
+  // cara da tela.
+  let camerasResolvidas = $state(false);
+
+  $effect(() => {
+    if (camerasResolvidas) carregaDias(filtro);
+  });
+
+  async function carregaDias(f) {
+    if (!f) {
+      diasComDeteccao = [];
+      return;
+    }
+    try {
+      const r = await api.diasDeDeteccao(f);
+      if (f === filtro) diasComDeteccao = r.dias;
+    } catch {
+      if (f === filtro) diasComDeteccao = [];
+    }
+  }
+
+  // Hoje estreando no calendário com a tela aberta: a detecção nova já diz o
+  // dia, sem reler a lista. Em modo permissivo a lista fica vazia - um dia só a
+  // tiraria do "tudo liberado".
+  function registraDia(dia) {
+    if (!diasComDeteccao.length || diasComDeteccao.includes(dia)) return;
+    diasComDeteccao = [...diasComDeteccao, dia].sort();
   }
 
   // Religar busca na hora: esperar a rodada seguinte pareceria que não pegou.
@@ -386,7 +423,10 @@
     }
     return null;
   });
-  const topoMs = $derived(noTopo?.det.instanteMs ?? alvo ?? Date.now());
+  // Sem detecção à vista, vale o "ir para" - menos 1 ms, porque ele é o limite
+  // exclusivo da busca: ir para o dia 29 busca antes da meia-noite do dia 30, e
+  // mostrar o próprio limite fazia a barra piscar o dia 30 até a resposta chegar.
+  const topoMs = $derived(noTopo?.det.instanteMs ?? (alvo != null ? alvo - 1 : Date.now()));
 
   // O cabeçalho da hora gruda enquanto as miniaturas dela passam. É um só,
   // fora da grade, porque o de dentro vai embora com a linha dele.
@@ -629,6 +669,7 @@
     (async () => {
       if (!cameras.list.length) await loadCameras();
       camsMarcadas = idsDaURL('cams', cameras.list.map((c) => c.id));
+      camerasResolvidas = true;
       recomeca();
     })();
 
@@ -656,7 +697,7 @@
 <div class="tela" style:--cab-h="{cabH}px" style:--barra-h="{barraH}px">
   <div class="barra" bind:this={barraEl}>
     <div class="quando">
-      <DayPicker value={diaTopo} onchange={irParaDia} />
+      <NavDia value={diaTopo} days={diasComDeteccao} oQue="detecção" onchange={irParaDia} />
       <Relogio ms={topoMs} onir={irParaHora} />
     </div>
 
@@ -726,8 +767,9 @@
         class="ghost"
         onclick={() => (camerasAbertas = !camerasAbertas)}
         aria-expanded={camerasAbertas}
+        aria-label="câmeras ({nMarcadas})"
       >
-        ☰ câmeras ({nMarcadas})
+        ☰ <span class="rotulo">câmeras</span> ({nMarcadas})
       </button>
       {#if camerasAbertas}
         <div class="popover">

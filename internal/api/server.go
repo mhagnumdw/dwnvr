@@ -117,6 +117,7 @@ func (s *Server) Handler() http.Handler {
 	// Detecções de objeto, de todas as câmeras juntas: a tela de Detecções.
 	mux.HandleFunc("GET /api/deteccoes", s.requireAuth(s.handleDeteccoes))
 	mux.HandleFunc("GET /api/deteccoes/quadro", s.requireAuth(s.handleQuadroDaDeteccao))
+	mux.HandleFunc("GET /api/deteccoes/dias", s.requireAuth(s.handleDiasDeDeteccao))
 
 	// Live: sinalização e mídia ficam com o go2rtc; o dwnvr só faz proxy.
 	mux.Handle("/api/live/", s.requireAuthHandler(s.liveProxy()))

@@ -11,7 +11,7 @@
   import Timeline from '../components/Timeline.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
   import SemCameras from '../components/SemCameras.svelte';
-  import DayPicker from '../components/DayPicker.svelte';
+  import NavDia from '../components/NavDia.svelte';
   import Relogio from '../components/Relogio.svelte';
 
   const player = new Player();
@@ -70,16 +70,6 @@
       import('../components/Caixas.svelte').then((m) => (Caixas = m.default));
     }
   });
-  // As setas andam pelo que EXISTE, pulando os buracos do histórico. Sem lista
-  // - câmera nova, ou a consulta que falhou - elas voltam a andar de um em um
-  // dia até hoje, que é o comportamento antigo: não saber onde há gravação não
-  // pode virar não poder navegar.
-  const podeRecuarDia = $derived(
-    daysList.length ? daysList.some((d) => d < day) : true,
-  );
-  const podeAvancarDia = $derived(
-    daysList.length ? daysList.some((d) => d > day) : day < dayKey(),
-  );
   // Segura a escrita na URL até a câmera ter sido resolvida contra o cadastro.
   let montado = $state(false);
   // A duração escolhida sobrevive ao recarregamento, como o layout do Ao Vivo.
@@ -492,22 +482,6 @@
     }
   }
 
-  function shiftDay(n) {
-    if (daysList.length) {
-      if (n < 0) {
-        const anterior = daysList.filter((d) => d < day).at(-1);
-        if (anterior) day = anterior;
-      } else if (n > 0) {
-        const proximo = daysList.find((d) => d > day);
-        if (proximo) day = proximo;
-      }
-    } else {
-      const d = parseDay(day);
-      d.setDate(d.getDate() + n);
-      day = dayKey(d);
-    }
-  }
-
   // O `from` enviado é o início REAL do primeiro segmento, não o instante do
   // cursor. O conjunto de segmentos é o mesmo - o anterior termina exatamente
   // nesse instante e o teste do servidor é `>`, então ele continua de fora - e
@@ -566,25 +540,7 @@
         </button>
       </div>
 
-      <div class="row daynav">
-        <button
-          class="ghost"
-          onclick={() => shiftDay(-1)}
-          disabled={!podeRecuarDia}
-          aria-label="dia anterior"
-        >
-          ‹
-        </button>
-        <DayPicker value={day} days={daysList} onchange={(d) => (day = d)} />
-        <button
-          class="ghost"
-          onclick={() => shiftDay(1)}
-          disabled={!podeAvancarDia}
-          aria-label="próximo dia"
-        >
-          ›
-        </button>
-      </div>
+      <NavDia value={day} days={daysList} onchange={(d) => (day = d)} />
 
       <span class="spacer"></span>
       <span class="muted small mono">
@@ -727,8 +683,8 @@
   }
 
   .bar select { max-width: 45vw; }
-  .daynav, .camnav { gap: 4px; }
-  .daynav button, .camnav button { padding: 9px 12px; }
+  .camnav { gap: 4px; }
+  .camnav button { padding: 9px 12px; }
 
   .stage {
     position: relative;
