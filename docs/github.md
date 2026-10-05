@@ -2,8 +2,8 @@
 
 A configuração do repositório que não mora em arquivo: o que está ligado no
 Settings, o comando que liga cada coisa e o que fazer com o que ela produz. O
-que ainda falta ligar está em
-[`TODO/TODO_seguranca-do-repositorio-no-github.md`](TODO/TODO_seguranca-do-repositorio-no-github.md);
+que ainda falta está em
+[`TODO/TODO_seguranca-o-que-sobrou.md`](TODO/TODO_seguranca-o-que-sobrou.md);
 quando um item de lá é feito, ele passa para cá.
 
 Os comandos usam o [`gh`](https://cli.github.com), autenticado com permissão de
@@ -23,6 +23,8 @@ pode ser rodado outra vez para conferir.
   - [PR do Dependabot em `web/`](#pr-do-dependabot-em-web)
   - [PR do Dependabot em `dwnvr-detect/`](#pr-do-dependabot-em-dwnvr-detect)
   - [Alert que não fecha depois da correção](#alert-que-não-fecha-depois-da-correção)
+- [`dependabot.yml`](#dependabotyml)
+- [Pin por SHA](#pin-por-sha)
 - [CodeQL](#codeql)
 - [Private vulnerability reporting](#private-vulnerability-reporting)
 - [Ruleset na `main`](#ruleset-na-main)
@@ -153,6 +155,54 @@ gh api repos/$REPO/dependency-graph/sbom \
 Com a correção na `main`, o alert é dispensado à mão como `inaccurate`, com o
 commit da correção no comentário. Commit vazio para forçar a leitura não vale
 a sujeira no histórico.
+
+## `dependabot.yml`
+
+Um PR por mês, agrupado por ecossistema, com `cooldown` de 7 dias (o zizmor
+exige: release comprometida costuma ser retirada antes disso). A mensagem do
+commit sai `build(deps): ...`, por `commit-message`, para não cair no grupo
+Other das notas da release (o `cliff.toml` agrupa por prefixo). Por
+ecossistema:
+
+- **`github-actions`** e **`gomod`**: tudo. O `gomod` não mexe na versão do Go,
+  que está em vários lugares (a linha "versão de Go ou de Node" das
+  Repercussões do `AGENTS.md`) e sobe à mão.
+- **`npm`** (em `/web`): tudo menos o major do TypeScript, que o svelte-check
+  4.7.6 ainda não aceita (o PR #8 falhou no `npm ci`).
+- **`pip`** (em `/dwnvr-detect`): sem atualização de versão
+  (`open-pull-requests-limit: 0`, que mantém o security update). As versões do
+  `requirements.in` são as que exportaram o `.onnx` e mediram a entrega, e
+  trocar uma exige conferir de novo.
+- **`docker`** (os dois Dockerfiles): o `python:3.12.12-slim-trixie` só no
+  patch, porque o `requirements.txt` é compilado para o 3.12. O
+  `golang:1.27-alpine` e o `node:24-alpine` também só no patch: a tag deles já
+  flutua, e trocar de versão é trocar nos outros lugares junto. O
+  `ghcr.io/astral-sh/uv`, tudo.
+- **`pre-commit`**: os `rev` do `.pre-commit-config.yaml`, menos o lychee. O
+  Dependabot só tira o `v` do começo do `rev`, e com `lychee-v0.24.2` ele
+  derruba o run; e o lychee que roda é a imagem do `entry`, não o `rev`.
+- **`docker-compose`**: fora. O Dependabot não lê imagem com `${VAR:-...}` na
+  tag, então o go2rtc sobe à mão.
+
+O Dependabot só dá security update para `github-actions`, `gomod`, `npm` e
+`pip`. Para `docker` e `pre-commit` ele só sobe versão, e depende deste
+arquivo.
+
+## Pin por SHA
+
+Toda action dos workflows vai por SHA, com a versão num comentário
+(`@<sha>  # v5.1.0`), e o Dependabot atualiza os dois juntos. Uma tag pode ser
+movida para outro código; o SHA não. As actions da Docker recebem o token com
+`packages: write` no `imagens.yml`, e foram o motivo de tirar a exceção que o
+`.github/zizmor.yml` abria para `actions/*` e `docker/*`.
+
+A opção `sha_pinning_required` do repositório recusa rodar workflow com action
+fora de SHA, e vale para todas. Ligar depois de a `main` já estar pinada:
+
+```sh
+gh api -X PUT repos/$REPO/actions/permissions -F enabled=true -f allowed_actions=all -F sha_pinning_required=true
+gh api repos/$REPO/actions/permissions --jq '.sha_pinning_required'   # true
+```
 
 ## CodeQL
 

@@ -2,13 +2,9 @@
 rules:
   unpinned-uses:
     config:
-      # Uma tag pode ser movida para outro código; o SHA não. As actions do
-      # GitHub e da Docker ficam na tag de major, que se lê e recebe correção
-      # sozinha. As de terceiro, onde tag movida já virou ataque, vão por SHA,
-      # com a versão num comentário.
+      # Uma tag pode ser movida para outro código; o SHA não. Toda action vai
+      # por SHA, com a versão num comentário, que o Dependabot atualiza junto.
       policies:
-        actions/*: ref-pin
-        docker/*: ref-pin
         "*": hash-pin
   # O `uses: $/...` não passa no actionlint, que ainda não o conhece
   # (rhysd/actionlint#711). E aqui o `./` só chama o imagens.yml no nível do
