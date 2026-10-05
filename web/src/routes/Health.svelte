@@ -6,7 +6,9 @@
     loadHealth,
     HEALTH_POLL_MS,
     build,
+    REPO_URL,
     RELEASES_URL,
+    ISSUES_URL,
   } from '../lib/state.svelte.js';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { api } from '../lib/api.js';
@@ -27,6 +29,7 @@
   import { grupos as gruposDoServidor, linhaDoLog, coletadoEm } from '../lib/diagnostico-servidor.js';
   import CardDiagnostico from '../components/CardDiagnostico.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
+  import MarcaGitHub from '../components/MarcaGitHub.svelte';
 
   const stop = pollHealth();
   onDestroy(stop);
@@ -1074,16 +1077,27 @@
 
   <!-- Único lugar onde a versão em uso aparece fora da tela de login, e por
        isso é onde se procura versão: a nova, quando há, entra ao lado dela,
-       além da pílula do header. -->
-  {#if build.version}
-    <p class="muted small">
-      dwnvr <span class="mono">{build.version}</span>{#if compiladoEm}{' · '}compilado em {compiladoEm}{/if}{#if build.nova}{' · '}<a
-          href={RELEASES_URL}
-          target="_blank"
-          rel="noopener">{build.nova} disponível</a
-        >{/if}
+       além da pílula do header. Os links valem mesmo sem versão - build
+       antigo não a traz, e o repositório continua no mesmo endereço. -->
+  <div class="card sobre">
+    <p class="row wrap versao">
+      <strong>dwnvr</strong>
+      {#if build.version}
+        <span class="muted small"
+          ><span class="mono">{build.version}</span>{#if compiladoEm}{' · '}compilado em {compiladoEm}{/if}{#if build.nova}{' · '}<a
+              href={RELEASES_URL}
+              target="_blank"
+              rel="noopener">{build.nova} disponível</a
+            >{/if}</span
+        >
+      {/if}
     </p>
-  {/if}
+    <div class="links">
+      <a href={REPO_URL} target="_blank" rel="noopener"><MarcaGitHub />Código no GitHub</a>
+      <a href={RELEASES_URL} target="_blank" rel="noopener">Notas de versão</a>
+      <a href={ISSUES_URL} target="_blank" rel="noopener">Reportar problema</a>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -1127,6 +1141,30 @@
 
   .totais { justify-content: space-around; text-align: center; gap: 18px; }
   .big { font-size: 22px; font-weight: 600; }
+
+  /* ---- sobre ---- */
+
+  .sobre .versao { margin: 0; gap: 4px 8px; }
+
+  /* Com cara de botão, e não de link solto numa frase: são destinos, e no
+     celular o dedo precisa de alvo. */
+  .sobre .links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sobre .links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--fg);
+    text-decoration: none;
+    font-size: 13px;
+  }
+  @media (hover: hover) {
+    .sobre .links a:hover { border-color: var(--accent); }
+  }
 
   .avisos p { margin: 0; gap: 8px; align-items: flex-start; font-size: 13px; }
   .avisos p.bad { color: var(--bad); }

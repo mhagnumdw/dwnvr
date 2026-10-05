@@ -1,6 +1,7 @@
 <script>
   import { api } from '../lib/api.js';
-  import { build } from '../lib/state.svelte.js';
+  import { build, REPO_URL } from '../lib/state.svelte.js';
+  import MarcaGitHub from '../components/MarcaGitHub.svelte';
 
   let { onSuccess } = $props();
 
@@ -83,10 +84,11 @@
   </form>
 
   <!-- Antes de entrar já dá para saber qual dwnvr é este - útil quando há um
-       de teste e um de verdade na mesma rede. -->
-  {#if build.version}
-    <p class="muted small ver">{build.version}</p>
-  {/if}
+       de teste e um de verdade na mesma rede - e de onde ele vem. -->
+  <p class="small ver">
+    {#if build.version}<span class="mono">{build.version}</span> ·{/if}
+    <a href={REPO_URL} target="_blank" rel="noopener"><MarcaGitHub tamanho={13} />GitHub</a>
+  </p>
 </div>
 
 <style>
@@ -103,7 +105,22 @@
   }
 
   .ver {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     color: var(--dim);
+  }
+
+  /* Discreto como a versão ao lado: é rodapé, não chamada. */
+  .ver a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: inherit;
+  }
+
+  .ver a:hover {
+    color: var(--fg);
   }
 
   form {

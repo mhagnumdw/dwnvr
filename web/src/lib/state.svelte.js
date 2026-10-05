@@ -71,7 +71,9 @@ export const build = $state({
 // para fora, não ganha goroutine nem config, e numa rede sem internet a
 // consulta só falha em silêncio.
 const RELEASE_API = 'https://api.github.com/repos/mhagnumdw/dwnvr/releases/latest';
-export const RELEASES_URL = 'https://github.com/mhagnumdw/dwnvr/releases';
+export const REPO_URL = 'https://github.com/mhagnumdw/dwnvr';
+export const RELEASES_URL = `${REPO_URL}/releases`;
+export const ISSUES_URL = `${REPO_URL}/issues`;
 // A resposta fica guardada por este tempo, inclusive o "ainda não há release":
 // sem isso, cada aba aberta gastaria uma requisição.
 const RELEASE_CACHE = 'dwnvr.release';
