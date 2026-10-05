@@ -52,7 +52,7 @@
 
   // A altura do menu do ⋮, para abrir para cima quando não cabe embaixo. E
   // quanto tempo o "desfazer" fica na tela depois de ocultar uma câmera.
-  const MENU_PX = 60;
+  const MENU_PX = 100;
   const DESFAZER_MS = 6000;
 
   const ORDEM_FAMILIAS = Object.keys(FAMILIAS);
@@ -107,6 +107,10 @@
   // Invalida a resposta de uma busca que já não descreve a tela: filtro novo,
   // "ir para" novo.
   let geracao = 0;
+
+  // O ao vivo só abre para câmera que ainda está no cadastro: uma detecção
+  // antiga pode citar uma câmera removida desde então.
+  const existe = (cam) => cameras.list.some((c) => c.id === cam);
 
   const chave = (d) => `${d.cam}|${d.instanteMs}`;
 
@@ -873,6 +877,16 @@
     style:top={menu.paraCima ? null : `${menu.y + 4}px`}
     style:bottom={menu.paraCima ? `${menu.y + 4}px` : null}
   >
+    {#if existe(menu.cam)}
+      <a
+        class="item"
+        role="menuitem"
+        href="#live?cams={encodeURIComponent(menu.cam)}"
+        onclick={() => (menu = null)}
+      >
+        Ir para o ao vivo de <strong>{nomes[menu.cam] ?? menu.cam}</strong>
+      </a>
+    {/if}
     <button class="ghost" role="menuitem" onclick={() => ocultaCamera(menu.cam)}>
       Ocultar a câmera <strong>{nomes[menu.cam] ?? menu.cam}</strong>
     </button>
@@ -1176,7 +1190,8 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
 
-  .menu button {
+  .menu button,
+  .menu .item {
     display: block;
     width: 100%;
     border: 0;
@@ -1186,8 +1201,16 @@
     text-overflow: ellipsis;
   }
 
+  .menu .item {
+    box-sizing: border-box;
+    padding: 8px 10px;
+    color: inherit;
+    text-decoration: none;
+  }
+
   @media (hover: hover) {
-    .menu button:hover { background: var(--panel-2); }
+    .menu button:hover,
+    .menu .item:hover { background: var(--panel-2); }
   }
 
   .aviso {
