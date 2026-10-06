@@ -2,6 +2,32 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.5.0](https://github.com/mhagnumdw/dwnvr/compare/v0.4.0...v0.5.0) (2026-10-06)
+
+### Added
+
+- feat(web): leva ao repositório no GitHub pelo Diagnóstico e pelo login ([16b0bc94](https://github.com/mhagnumdw/dwnvr/commit/16b0bc94c76b6af552c48c40e86450c7ba4a38de))
+- feat(web): limita o calendário de Detecções aos dias com detecção ([220348c3](https://github.com/mhagnumdw/dwnvr/commit/220348c36f1ce0f5d27bbbaa073508560384b6a7))
+- feat(web): abre a detecção em Gravações pelo menu ([a111d850](https://github.com/mhagnumdw/dwnvr/commit/a111d850b672111844234f30f40392f5fff0112f))
+- feat(web): leva da detecção para o ao vivo da câmera ([5f016e42](https://github.com/mhagnumdw/dwnvr/commit/5f016e42e08e462f878a51b23b97f9cfc7286f96))
+- feat(config): valor fora da faixa não impede mais o dwnvr de subir ([#17](https://github.com/mhagnumdw/dwnvr/pull/17)) ([7cf97399](https://github.com/mhagnumdw/dwnvr/commit/7cf97399dd2a9468ef10edbb486a985e10ca459f))
+- feat(diagnostico): mostra no Diagnóstico o próprio dwnvr e o detector de objetos ([c6d5aae1](https://github.com/mhagnumdw/dwnvr/commit/c6d5aae1637135be61775f8a42b853cb2f39eff8))
+- feat(retention): mostra e avisa quanto há em gravações de câmeras removidas ([a8922dd0](https://github.com/mhagnumdw/dwnvr/commit/a8922dd06a3acba71eed32c905db0aa826789930))
+
+### Fixed
+
+- fix(web): câmeras do Ao vivo voltam em 1 s depois do segundo plano ([b28f288b](https://github.com/mhagnumdw/dwnvr/commit/b28f288bfd7937eb15f567be11fe91897237be7e))
+- fix(store): solta da memória as detecções de um dia apagado ([663ba94b](https://github.com/mhagnumdw/dwnvr/commit/663ba94bc3c527cf4fec162024922de31c2ed82d))
+- fix(store): recadastro com o mesmo ID lê as gravações que já estão no disco ([c2030b81](https://github.com/mhagnumdw/dwnvr/commit/c2030b8110948221de203208fa7f13f2608ba8c8))
+- fix(changelog): não termina o CHANGELOG.md com 2 linhas em branco ([85831eaa](https://github.com/mhagnumdw/dwnvr/commit/85831eaa7c85a3766dc5479f93e21993f4d33569))
+
+### CI/Build
+
+- build(actions): fixa as actions por SHA e fecha o TODO de segurança ([30f8c36f](https://github.com/mhagnumdw/dwnvr/commit/30f8c36f464769114dba06824a1bfa753cdea486))
+- build(deps): bump astral-sh/uv ([#13](https://github.com/mhagnumdw/dwnvr/pull/13)) ([649490af](https://github.com/mhagnumdw/dwnvr/commit/649490afe09743cbae09b20880b6b074b079b422))
+- build(deps-dev): bump @sveltejs/vite-plugin-svelte ([#12](https://github.com/mhagnumdw/dwnvr/pull/12)) ([8efcce04](https://github.com/mhagnumdw/dwnvr/commit/8efcce0461d2e53a0e3fc8a9c9059cdb11911318))
+- build(deps): bump devalue from 5.9.2 to 5.9.4 in /web ([#15](https://github.com/mhagnumdw/dwnvr/pull/15)) ([a784e51a](https://github.com/mhagnumdw/dwnvr/commit/a784e51a71a7bccd96ee2ac45f74fb3e1ec427eb))
+
 ## [v0.4.0](https://github.com/mhagnumdw/dwnvr/compare/v0.3.0...v0.4.0) (2026-10-02)
 
 ### Added
