@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"image/png"
 	"io"
 	"log/slog"
 	"net/http"
@@ -908,5 +909,61 @@ func TestIndexApontaParaOFavicon(t *testing.T) {
 	}
 	if !strings.Contains(string(b), `href="/favicon.svg"`) {
 		t.Error("index.html não referencia /favicon.svg")
+	}
+}
+
+// O manifest é o que faz o navegador oferecer "Instalar app", e ele falha em
+// silêncio: com um ícone faltando ou de tamanho errado, a tela segue igual e a
+// opção some do menu. Este teste confere o que o Chrome exige: JSON válido,
+// servido como JSON, com os ícones declarados embutidos e no tamanho dito. O
+// nome é manifest.json, e não .webmanifest, porque a tabela de tipos do Go não
+// conhece essa extensão e a imagem não tem /etc/mime.types: sairia text/plain.
+func TestManifestDoAppInstalavel(t *testing.T) {
+	s, _ := testServer(t)
+	rec := httptest.NewRecorder()
+	s.webHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/manifest.json", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("manifest.json: status %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("manifest.json servido como %q", ct)
+	}
+
+	var m struct {
+		Name     string
+		StartURL string `json:"start_url"`
+		Display  string
+		Icons    []struct{ Src, Sizes, Purpose string }
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil {
+		t.Fatalf("manifest.json não é JSON válido: %v", err)
+	}
+	if m.Name == "" || m.StartURL == "" || m.Display != "standalone" {
+		t.Errorf("faltam name, start_url ou display standalone: %+v", m)
+	}
+
+	tamanhos := map[string]bool{}
+	for _, ic := range m.Icons {
+		b, err := dist.ReadFile("dist/" + ic.Src)
+		if err != nil {
+			t.Errorf("ícone %s não está embutido: %v", ic.Src, err)
+			continue
+		}
+		cfg, err := png.DecodeConfig(bytes.NewReader(b))
+		if err != nil {
+			t.Errorf("ícone %s não é PNG: %v", ic.Src, err)
+			continue
+		}
+		if got := fmt.Sprintf("%dx%d", cfg.Width, cfg.Height); got != ic.Sizes {
+			t.Errorf("ícone %s declara %s e tem %s", ic.Src, ic.Sizes, got)
+		}
+		if ic.Purpose == "" {
+			tamanhos[ic.Sizes] = true
+		}
+	}
+	for _, quer := range []string{"192x192", "512x512"} {
+		if !tamanhos[quer] {
+			t.Errorf("falta ícone %s de uso geral, que o Chrome exige para instalar", quer)
+		}
 	}
 }

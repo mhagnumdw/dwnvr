@@ -95,6 +95,34 @@ biblioteca custaria ~110 kB gzip, mais do que o aplicativo inteiro. Em troca,
 ganhamos controle exato sobre a janela de buffer e sobre os buracos de
 gravação, que o índice já conhece.
 
+**Instalável como app, sem service worker.** O `public/manifest.json` e os
+ícones fazem o Chrome oferecer "Instalar app" e o iPhone abrir o atalho da tela
+de início sem barra de endereço. Para isso o endereço precisa ser `https://`;
+em `http://` o Android só cria um atalho que abre numa aba. Não há service
+worker: instalar não exige um, e ele traria o risco de servir a versão velha da
+tela depois de uma atualização. Para quem não instala, o custo é o manifest,
+menos de 1 kB; os ícones só baixam na instalação.
+
+Os PNGs saem do `favicon.svg`. Os de uso geral (`icon-192`, `icon-512`) são o
+desenho como está, com a placa arredondada. O maskable e o `apple-touch-icon`
+levam a placa até a borda, porque quem recorta é o sistema (círculo, gota ou o
+canto do iPhone); a lente ocupa 64% da largura e cabe na zona segura de 80%.
+Para regerar, com ImageMagick, pngquant e oxipng (a densidade é 96 dpi vezes o
+tamanho desejado sobre os 64 px do SVG). O pngquant troca as cores RGBA
+completas por uma paleta: corta ~70% do tamanho, e a diferença fica em torno
+de 68 dB de PSNR, invisível mesmo ampliada.
+
+```sh
+cd web/public
+sed 's/ rx="14"//' favicon.svg > /tmp/cheio.svg
+magick -background none -density 288 favicon.svg -strip icon-192.png
+magick -background none -density 768 favicon.svg -strip icon-512.png
+magick -density 768 /tmp/cheio.svg -alpha off -strip icon-maskable-512.png
+magick -density 270 /tmp/cheio.svg -alpha off -strip apple-touch-icon.png
+pngquant --quality=90-100 --speed 1 --strip --ext .png --force icon-*.png apple-touch-icon.png
+oxipng -q -o max -Z --strip all icon-*.png apple-touch-icon.png
+```
+
 **Player de live copiado do go2rtc**, não escrito. No live o formato é do
 go2rtc e o problema já está resolvido - inclusive para H265, que é o caso
 difícil desta instalação. Ver [`src/vendor/README.md`](src/vendor/README.md).
