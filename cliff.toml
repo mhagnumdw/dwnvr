@@ -17,9 +17,11 @@ header = """
 
 """
 # Uma seção por release: "## [vX.Y.Z](link do compare) (AAAA-MM-DD)" + grupos
-# (### Added/Fixed/...) + bullets. A primeira versão não tem com o que comparar,
-# e listar o histórico inteiro dela daria centenas de linhas: no lugar dos
-# grupos entra um texto curto.
+# (### Added/Fixed/...) + bullets. Antes dos grupos, só quando algum commit tem
+# `!`, vem "### Pede ação ao atualizar", com o rodapé BREAKING CHANGE: de cada
+# um: o assunto do commit diz o que mudou, e o rodapé diz o que fazer.
+# A primeira versão não tem com o que comparar, e listar o histórico inteiro
+# dela daria centenas de linhas: no lugar dos grupos entra um texto curto.
 # A linha em branco final separa esta release da anterior; só é emitida se houver release
 # anterior, para o arquivo não terminar com 2 linhas em branco (o prettier reclama).
 body = """
@@ -29,6 +31,12 @@ body = """
     ## Unreleased
 {% endif -%}
 {% if previous.version or not version %}\
+{% for commit in commits | filter(attribute="breaking", value=true) %}\
+{% if loop.first %}
+    ### Pede ação ao atualizar
+{% endif %}
+        - {{ commit.breaking_description | split(pat="\n") | join(sep=" ") | trim | upper_first }} ([{{ commit.id | truncate(length=8, end="") }}](<REPO>/commit/{{ commit.id }}))
+{% endfor %}\
 {% for group, commits in commits | group_by(attribute="group") %}
     ### {{ group | striptags | trim | upper_first }}
     {% for commit in commits %}

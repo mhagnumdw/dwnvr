@@ -783,5 +783,10 @@ git cliff --unreleased --tag vX.Y.Z   # prévia do que entra no CHANGELOG.md
 git cliff --bumped-version            # a próxima versão sugerida
 ```
 
+Mudança que pede ação de quem atualiza, como uma porta que deixa de abrir, vai
+com `!` no tipo (`fix(compose)!: ...`) e um rodapé `BREAKING CHANGE:` no corpo,
+dizendo o que fazer. O texto do rodapé abre as notas da versão, numa seção
+**Pede ação ao atualizar**, antes dos grupos. O `!` sobe o minor, como o `feat`.
+
 O formato das notas mora no `cliff.toml`. O `CHANGELOG.md` não se edita à mão:
 a release o reescreve.
