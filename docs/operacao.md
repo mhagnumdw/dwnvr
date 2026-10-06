@@ -151,6 +151,11 @@ próprio container. Use `host.docker.internal` (com `extra_hosts:
 host-gateway`), o nome do serviço se os dois estiverem na mesma rede, ou
 `network_mode: host`.
 
+**A interface do go2rtc não abre de outra máquina.** É de propósito: o compose
+publica a 1984 e a 8554 só para o próprio servidor, porque o go2rtc não pede
+senha por padrão. Use um túnel ssh, ou abra com senha - ver [Abrir o go2rtc
+para a rede](../README.md#abrir-o-go2rtc-para-a-rede-).
+
 **A tela está velha depois de atualizar.** A interface é embutida no binário, e o
 navegador cacheia os assets - que têm hash no nome justamente para isso não
 acontecer. Se persistir, é sinal de que o binário foi construído sem rodar

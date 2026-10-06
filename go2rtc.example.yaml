@@ -130,10 +130,22 @@ streams:
 api:
   # De onde o dwnvr lê a lista de streams e por onde ele consome o fMP4.
   listen: ":1984"
+  # O compose a publica só para o próprio servidor. Se você a abrir para a
+  # rede, para usar a interface web do go2rtc de outra máquina, ponha senha
+  # aqui e a mesma em go2rtc.username e go2rtc.password do dwnvr.yaml, senão
+  # o dwnvr deixa de alcançar o go2rtc. Ver "Abrir o go2rtc para a rede" no
+  # README.
+  # username: admin
+  # password: troque-me
 
 rtsp:
-  # Servidor RTSP do go2rtc. O dwnvr não usa; fica para outros clientes.
+  # Servidor RTSP do go2rtc. O dwnvr não usa; fica para outros clientes, como
+  # o VLC. Também publicado só para o próprio servidor; se você o abrir para a
+  # rede, ponha senha. Os exec:ffmpeg acima publicam aqui de dentro do
+  # container e não precisam dela.
   listen: ":8554"
+  # username: admin
+  # password: troque-me
 
 webrtc:
   # No "Ao vivo" só a sinalização passa pelo dwnvr - a mídia WebRTC vai direto

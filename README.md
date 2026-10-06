@@ -403,6 +403,37 @@ que você edita o `docker-compose.yml`:
 Com o arquivo editado, o `git pull` da atualização pode conflitar: guarde a
 edição com `git stash` antes e devolva com `git stash pop` depois.
 
+### Abrir o go2rtc para a rede <!-- omit in toc -->
+
+A interface web do go2rtc (porta 1984) e o RTSP dele (porta 8554) abrem só no
+próprio servidor: `http://localhost:1984` funciona lá, e de outra máquina não.
+O dwnvr não precisa de mais que isso, porque fala com o go2rtc pela rede do
+compose. E nenhum dos dois pede senha por padrão: aberto para a rede, qualquer
+aparelho da sua Wi-Fi leria a configuração do go2rtc, com as senhas das
+câmeras, e assistiria as câmeras sem passar pelo login do dwnvr.
+
+Para usar a interface de outra máquina só de vez em quando, um túnel ssh
+basta, sem abrir nada:
+
+```sh
+ssh -L 1984:localhost:1984 <usuário>@<ip-da-máquina>
+# e abra http://localhost:1984 na sua máquina
+```
+
+Para abrir de vez, como para um app de RTSP no celular, ponha a senha antes:
+
+1. no `go2rtc.yaml`, `username` e `password` na seção `api:`, na `rtsp:` ou
+   nas duas - os comentários do
+   [`go2rtc.example.yaml`](go2rtc.example.yaml) mostram onde;
+2. se pôs na `api:`, a mesma em `go2rtc.username` e `go2rtc.password` do
+   `dwnvr.yaml`. Sem ela, o dwnvr deixa de alcançar o go2rtc;
+3. no `.env`, `GO2RTC_API_PORT=1984`, `GO2RTC_RTSP_PORT=8554` ou as duas;
+4. `docker compose up -d`, que recria o go2rtc com as portas novas, e
+   `docker compose restart dwnvr`, para ele ler o `dwnvr.yaml`.
+
+O app de RTSP passa a pedir o usuário e a senha na URL:
+`rtsp://usuario:senha@<ip-da-máquina>:8554/<stream>`.
+
 ### Conferir as gravações por fora da interface <!-- omit in toc -->
 
 As gravações ficam no diretório do `DWNVR_STORAGE_DIR` - no teste rápido,
