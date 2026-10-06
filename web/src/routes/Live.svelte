@@ -3,7 +3,7 @@
   import '../vendor/video-stream.js';
   import { cameras, loadCameras } from '../lib/state.svelte.js';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
-  import { mediaURL } from '../lib/api.js';
+  import { api, mediaURL } from '../lib/api.js';
   import { baixarQuadro } from '../lib/captura.js';
   import { dayKey, hhmmss } from '../lib/format.js';
   import SemCameras from '../components/SemCameras.svelte';
@@ -26,6 +26,15 @@
   // Longa de propósito: voltar para onde se estava há pouco não pode custar a
   // espera por um keyframe. Ver `soNaTela`.
   const CARENCIA_ROLAGEM_MS = 30_000;
+
+  // Intervalo mínimo entre uma tentativa de conexão e a seguinte, crescendo a
+  // cada falha seguida e voltando ao primeiro quando o vídeo toca. O player do
+  // go2rtc usa 15 s fixos. Ver `religarRapido`.
+  const RELIGAR_MS = [500, 1000, 2000, 5000];
+
+  // Quanto cada sondagem do servidor espera antes de desistir, ao voltar de
+  // uma aba oculta. Ver `esperarRede`.
+  const SONDA_MS = 2000;
 
   // Lida uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
@@ -216,6 +225,88 @@
       },
       true,
     );
+  }
+
+  // --- religar rápido -----------------------------------------------------------
+
+  // Medido no celular (Android, Chrome, captura do chrome://net-export): com a
+  // aba oculta o Android corta a rede do Chrome, e uma conexão aberta nesse
+  // meio-tempo perde o SYN. O TCP só o reenvia em 1, 3, 7, 15, 31 e 63 s, e a
+  // capturada abriu aos 64 s. Pior: o Chrome só deixa um WebSocket por vez em
+  // "conectando" para o mesmo servidor, e as 9 câmeras que tentaram ao voltar
+  // ficaram na fila atrás dela, sem nem começar o próprio TCP. O player do
+  // go2rtc religa sozinho com a aba oculta (WebRTC que cai, o `onclose`), e é
+  // daí que vinham os ~17 s de tela preta.
+  //
+  // Daí as três peças:
+  // - com a aba oculta, nenhuma câmera abre conexão - só a do PiP, que é vista;
+  // - ao voltar, nenhuma tenta antes de o servidor responder a um `fetch`
+  //   (`esperarRede`): logo na volta a rede ainda está suspensa, e as 9
+  //   tentativas falhavam em menos de 50 ms, caindo nos 15 s do player;
+  // - quando uma conexão cai de verdade, a próxima tentativa sai logo, no
+  //   lugar desses 15 s fixos.
+
+  // A espera em curso ao voltar de uma aba oculta, ou null quando não há.
+  let rede = null;
+
+  function aoMudarVisibilidade() {
+    if (document.hidden || rede) return;
+    rede = esperarRede().finally(() => (rede = null));
+  }
+
+  // Na fase de captura da `window`, para valer antes do listener que cada
+  // player põe no `document` e que é quem religa as câmeras.
+  onMount(() => {
+    window.addEventListener('visibilitychange', aoMudarVisibilidade, true);
+    return () => window.removeEventListener('visibilitychange', aoMudarVisibilidade, true);
+  });
+
+  // Qualquer resposta serve, até um erro HTTP: o que importa é o servidor ter
+  // sido alcançado. Desiste se a aba voltar a ficar oculta.
+  async function esperarRede() {
+    for (let i = 0; !document.hidden; i++) {
+      try {
+        await api.ping(SONDA_MS);
+        return;
+      } catch {
+        await new Promise((r) => setTimeout(r, RELIGAR_MS[Math.min(i, RELIGAR_MS.length - 1)]));
+      }
+    }
+  }
+
+  // O `onconnect` é por onde o player abre toda conexão. Com a aba oculta ele
+  // não faz nada: ao voltar, o próprio player chama o `connectedCallback`, que
+  // passa por aqui de novo. Enquanto a espera da volta corre, ele só agenda:
+  // quando ela acaba, a câmera conecta se ainda deve - aba visível e tile na
+  // tela, a mesma regra do `soNaTela`.
+  //
+  // O player só lê o `RECONNECT_TIMEOUT` no `onclose`, para agendar a próxima
+  // tentativa: trocar o valor logo antes, na instância, basta - sem mexer no
+  // arquivo copiado. A conta de quanto esperar continua sendo a dele, a partir
+  // do início da tentativa que falhou. A sequência só volta ao começo quando o
+  // vídeo toca, e não quando a conexão abre: um servidor que aceita e derruba
+  // logo em seguida ficaria sendo tentado a cada meio segundo.
+  function religarRapido(node) {
+    const conectar = node.onconnect.bind(node);
+    node.onconnect = () => {
+      if (document.hidden && document.pictureInPictureElement !== node.video) return false;
+      if (!rede) return conectar();
+      rede.then(() => {
+        if (!document.hidden && node.isConnected && (sempreLigadas || !foraDaTela.has(node))) conectar();
+      });
+      return false;
+    };
+    let falhas = 0;
+    const fechou = node.onclose.bind(node);
+    node.onclose = () => {
+      node.RECONNECT_TIMEOUT = RELIGAR_MS[Math.min(falhas, RELIGAR_MS.length - 1)];
+      const religando = fechou();
+      if (religando) falhas++;
+      return religando;
+    };
+    // O `playing` sai do <video>, que não o propaga: só a fase de captura o
+    // pega aqui, como em `manterNoPip`.
+    node.addEventListener('playing', () => (falhas = 0), true);
   }
 
   // --- só decodifica o que está na tela ----------------------------------------
@@ -477,6 +568,8 @@
           <video-stream
             {@attach (node) => {
               node.mode = 'webrtc,mse';
+              // Antes do `src`, que já abre a primeira conexão.
+              religarRapido(node);
               node.src = mediaURL.liveWS(c.id);
               hideNativeControls(node);
               if (PIP) manterNoPip(node, c.id);

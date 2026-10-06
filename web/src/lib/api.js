@@ -38,6 +38,10 @@ export const api = {
   // tela de login, onde ainda não há sessão para expirar.
   version: () => fetch('api/version').then((r) => r.json()),
 
+  // Só para saber se o servidor é alcançável: o corpo não importa, e qualquer
+  // resposta, até um erro HTTP, conta. Ver `esperarRede` no Ao vivo.
+  ping: (ms) => fetch('api/version', { cache: 'no-store', signal: AbortSignal.timeout(ms) }),
+
   login: async (username, password) => {
     const res = await fetch('api/login', {
       method: 'POST',
