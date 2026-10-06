@@ -495,11 +495,15 @@ servidor. Detecção com `temQuadro` falso responde 404.
 
 | Endpoint | O que faz |
 | --- | --- |
-| `GET /api/live/*` | proxy do go2rtc, com a credencial ficando no servidor |
+| `GET /api/live/ws?src=` | proxy do websocket do go2rtc (`/api/ws`), com a credencial ficando no servidor |
 
 O navegador nunca fala com o go2rtc diretamente. Passar pelo proxy resolve duas
 coisas de uma vez: a senha da API do go2rtc não vai para o cliente, e o live
 respeita a mesma sessão do resto da interface.
+
+Só o websocket do player passa. O resto da API do go2rtc - configuração,
+restart, streams - não é alcançável por aqui; o que o dwnvr precisa dela, ele
+pede do lado do servidor.
 
 ## Por que a interface não exige sessão
 

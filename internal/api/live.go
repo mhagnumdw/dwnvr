@@ -4,10 +4,9 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 )
 
-// liveProxy repassa ao go2rtc as requisições de visualização ao vivo.
+// liveProxy repassa ao go2rtc a sinalização da visualização ao vivo.
 //
 // O dwnvr não toca na mídia do live: a sinalização WebRTC e o fMP4 do MSE
 // passam direto para o go2rtc, que já resolve isso muito bem. O proxy existe
@@ -20,6 +19,10 @@ import (
 // No WebRTC apenas a sinalização atravessa aqui; a mídia vai direto do
 // navegador ao go2rtc pela UDP 8555, então o proxy não entra no caminho dos
 // pacotes de vídeo.
+//
+// Só o websocket do player passa, sempre para o /api/ws do go2rtc: a API dele
+// tem config e restart, e a sessão do dwnvr não deve alcançar nada além do que
+// a tela usa.
 func (s *Server) liveProxy() http.Handler {
 	target, err := url.Parse(s.client.BaseURL)
 	if err != nil {
@@ -32,8 +35,7 @@ func (s *Server) liveProxy() http.Handler {
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
 			// /api/live/ws?src=X  ->  /api/ws?src=X
-			pr.Out.URL.Path = "/api/" + strings.TrimPrefix(
-				pr.In.URL.Path, "/api/live/")
+			pr.Out.URL.Path = "/api/ws"
 			pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 
 			if s.client.Username != "" || s.client.Password != "" {

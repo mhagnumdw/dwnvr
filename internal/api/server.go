@@ -119,8 +119,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/deteccoes/quadro", s.requireAuth(s.handleQuadroDaDeteccao))
 	mux.HandleFunc("GET /api/deteccoes/dias", s.requireAuth(s.handleDiasDeDeteccao))
 
-	// Live: sinalização e mídia ficam com o go2rtc; o dwnvr só faz proxy.
-	mux.Handle("/api/live/", s.requireAuthHandler(s.liveProxy()))
+	// Live: sinalização e mídia ficam com o go2rtc; o dwnvr só faz proxy do
+	// websocket do player, e o resto da API do go2rtc fica de fora.
+	mux.Handle("GET /api/live/ws", s.requireAuthHandler(s.liveProxy()))
 
 	// A interface é servida SEM autenticação, de propósito: são só HTML, CSS e
 	// JS, sem nenhum dado das câmeras. Protegê-la impediria o navegador de
