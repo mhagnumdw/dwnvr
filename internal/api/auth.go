@@ -15,6 +15,12 @@ import (
 const (
 	sessionCookie = "dwnvr_session"
 	sessionTTL    = 30 * 24 * time.Hour
+
+	// Faltando menos que isto para vencer, a sessão em uso ganha um cookie
+	// novo, com o prazo inteiro. Assim os 30 dias contam da última vez que a
+	// tela falou com o dwnvr, e não do login: quem usa o app instalado não é
+	// mandado de volta para a tela de login a cada mês.
+	sessionRenew = sessionTTL / 2
 )
 
 // O token de sessão é "<expiraEmUnix>.<hmac>". Não há estado no servidor: a
@@ -27,20 +33,57 @@ func (s *Server) signToken(expires int64) string {
 	return payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-func (s *Server) validToken(tok string) bool {
+// tokenExpires devolve até quando um token vale, e ok=false se ele estiver
+// vencido, malformado ou com assinatura que não bate.
+func (s *Server) tokenExpires(tok string) (expires int64, ok bool) {
 	payload, sig, ok := strings.Cut(tok, ".")
 	if !ok {
-		return false
+		return 0, false
 	}
 	expires, err := strconv.ParseInt(payload, 10, 64)
 	if err != nil || time.Now().Unix() > expires {
-		return false
+		return 0, false
 	}
 
 	mac := hmac.New(sha256.New, s.secret)
 	mac.Write([]byte(payload))
 	want := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return hmac.Equal([]byte(sig), []byte(want))
+	if !hmac.Equal([]byte(sig), []byte(want)) {
+		return 0, false
+	}
+	return expires, true
+}
+
+// validSession diz se a requisição traz uma sessão válida. Se ela já passou da
+// metade do prazo, a resposta leva um cookie novo (ver sessionRenew).
+//
+// Não cria estado no servidor: renovar é só assinar outro prazo.
+func (s *Server) validSession(w http.ResponseWriter, r *http.Request) bool {
+	c, err := r.Cookie(sessionCookie)
+	if err != nil {
+		return false
+	}
+	expires, ok := s.tokenExpires(c.Value)
+	if !ok {
+		return false
+	}
+	if time.Until(time.Unix(expires, 0)) < sessionRenew {
+		s.setSessionCookie(w, r)
+	}
+	return true
+}
+
+func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request) {
+	expires := time.Now().Add(sessionTTL)
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookie,
+		Value:    s.signToken(expires.Unix()),
+		Path:     "/",
+		Expires:  expires,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   viaHTTPS(r),
+	})
 }
 
 // requireAuth embrulha um handler exigindo sessão válida.
@@ -50,8 +93,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		c, err := r.Cookie(sessionCookie)
-		if err != nil || !s.validToken(c.Value) {
+		if !s.validSession(w, r) {
 			writeError(w, http.StatusUnauthorized, "não autenticado")
 			return
 		}
@@ -79,16 +121,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expires := time.Now().Add(sessionTTL)
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookie,
-		Value:    s.signToken(expires.Unix()),
-		Path:     "/",
-		Expires:  expires,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   viaHTTPS(r),
-	})
+	s.setSessionCookie(w, r)
 	writeJSON(w, map[string]any{"ok": true})
 }
 
@@ -119,14 +152,10 @@ func viaHTTPS(r *http.Request) bool {
 	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
-// handleSession diz ao frontend se precisa mostrar a tela de login.
+// handleSession diz ao frontend se precisa mostrar a tela de login. É a
+// primeira chamada quando a tela abre, e por isso também renova a sessão.
 func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
-	authed := !s.cfg.Server.AuthEnabled()
-	if !authed {
-		if c, err := r.Cookie(sessionCookie); err == nil && s.validToken(c.Value) {
-			authed = true
-		}
-	}
+	authed := !s.cfg.Server.AuthEnabled() || s.validSession(w, r)
 	writeJSON(w, map[string]any{
 		"authRequired":  s.cfg.Server.AuthEnabled(),
 		"authenticated": authed,

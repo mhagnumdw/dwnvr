@@ -26,6 +26,12 @@ deploy - um `curl` responde se o dwnvr subiu com o código novo, sem cookie.
 
 Todo o resto exige sessão válida.
 
+A sessão vale 30 dias e se renova com o uso: quando falta menos da metade do
+prazo, qualquer resposta autenticada, e também a do `/api/session`, traz um
+cookie novo com os 30 dias inteiros. Na prática, os 30 dias contam da última
+vez que a tela falou com o dwnvr. Continua sem estado no servidor: renovar é só
+assinar outro prazo.
+
 ## Câmeras e diagnóstico
 
 | Endpoint | Parâmetros | O que faz |

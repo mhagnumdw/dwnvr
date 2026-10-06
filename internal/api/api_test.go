@@ -710,31 +710,35 @@ func TestRangeParams(t *testing.T) {
 
 func TestTokenDeSessao(t *testing.T) {
 	s, _ := testServer(t)
+	vale := func(tok string) bool {
+		_, ok := s.tokenExpires(tok)
+		return ok
+	}
 
 	valido := s.signToken(time.Now().Add(time.Hour).Unix())
-	if !s.validToken(valido) {
+	if !vale(valido) {
 		t.Error("token recém-assinado foi recusado")
 	}
 
-	if s.validToken(s.signToken(time.Now().Add(-time.Hour).Unix())) {
+	if vale(s.signToken(time.Now().Add(-time.Hour).Unix())) {
 		t.Error("token expirado foi aceito")
 	}
 
 	// Esticar o prazo tem que invalidar: o HMAC cobre o payload, então a
 	// assinatura deixa de bater.
 	_, sig, _ := strings.Cut(valido, ".")
-	if s.validToken("99999999999." + sig) {
+	if vale("99999999999." + sig) {
 		t.Error("prazo esticado foi aceito")
 	}
 
 	// Assinatura de outro segredo não pode valer.
 	outro := &Server{secret: []byte("outro-segredo-de-32-bytes!!!!!!!")}
-	if s.validToken(outro.signToken(time.Now().Add(time.Hour).Unix())) {
+	if vale(outro.signToken(time.Now().Add(time.Hour).Unix())) {
 		t.Error("token assinado com outro segredo foi aceito")
 	}
 
 	for _, ruim := range []string{"", "semponto", "abc.def", ".", "123."} {
-		if s.validToken(ruim) {
+		if vale(ruim) {
 			t.Errorf("token malformado %q foi aceito", ruim)
 		}
 	}
@@ -767,6 +771,73 @@ func TestRequireAuth(t *testing.T) {
 	h(rec, req)
 	if !chamou {
 		t.Error("cookie válido deveria ter passado")
+	}
+}
+
+// A sessão em uso se renova: passada a metade do prazo, a resposta traz um
+// cookie novo com o prazo inteiro. Antes disso, nada de Set-Cookie, para não
+// regravar o cookie a cada requisição. Vale nas rotas protegidas e no
+// /api/session, que é o que a tela chama ao abrir.
+func TestSessaoSeRenovaComOUso(t *testing.T) {
+	s, _ := testServer(t)
+	s.cfg.Server.Username, s.cfg.Server.Password = "admin", "senha"
+	protegida := s.requireAuth(func(w http.ResponseWriter, r *http.Request) {})
+
+	for _, rota := range []struct {
+		nome string
+		h    http.HandlerFunc
+	}{{"requireAuth", protegida}, {"/api/session", s.handleSession}} {
+		for _, caso := range []struct {
+			falta  time.Duration
+			renova bool
+		}{
+			{sessionTTL - time.Hour, false},
+			{sessionRenew + time.Hour, false},
+			{sessionRenew - time.Hour, true},
+			{time.Hour, true},
+		} {
+			req := httptest.NewRequest(http.MethodGet, "/x", nil)
+			req.Header.Set("X-Forwarded-Proto", "https")
+			req.AddCookie(&http.Cookie{Name: sessionCookie,
+				Value: s.signToken(time.Now().Add(caso.falta).Unix())})
+			rec := httptest.NewRecorder()
+			rota.h(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s, faltando %v: status %d", rota.nome, caso.falta, rec.Code)
+			}
+			setCookie := rec.Header().Get("Set-Cookie")
+			if !caso.renova {
+				if setCookie != "" {
+					t.Errorf("%s, faltando %v: renovou cedo demais: %s", rota.nome, caso.falta, setCookie)
+				}
+				continue
+			}
+			c, err := http.ParseSetCookie(setCookie)
+			if err != nil {
+				t.Fatalf("%s, faltando %v: sem cookie novo (%v)", rota.nome, caso.falta, err)
+			}
+			expires, ok := s.tokenExpires(c.Value)
+			if !ok {
+				t.Fatalf("%s, faltando %v: cookie novo com token inválido", rota.nome, caso.falta)
+			}
+			if falta := time.Until(time.Unix(expires, 0)); falta < sessionTTL-time.Minute {
+				t.Errorf("%s: o cookie novo vale só %v, esperava o prazo inteiro", rota.nome, falta)
+			}
+			if !c.Secure || !c.HttpOnly || c.Path != "/" {
+				t.Errorf("%s: cookie novo perdeu atributos: %+v", rota.nome, c)
+			}
+		}
+	}
+
+	// Sessão vencida não renova: o login continua sendo o único caminho.
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookie,
+		Value: s.signToken(time.Now().Add(-time.Hour).Unix())})
+	rec := httptest.NewRecorder()
+	protegida(rec, req)
+	if rec.Code != http.StatusUnauthorized || rec.Header().Get("Set-Cookie") != "" {
+		t.Errorf("sessão vencida: status %d, Set-Cookie %q", rec.Code, rec.Header().Get("Set-Cookie"))
 	}
 }
 
