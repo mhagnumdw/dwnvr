@@ -45,7 +45,7 @@ export async function baixarQuadro(video, nome, porCima) {
   // lugares do que parece: a Web Share API é [SecureContext], então num dwnvr
   // servido em http:// nem `navigator.canShare` chega a ser definido, e o
   // celular baixa igual ao desktop. Não é defeito, é o endereço; ver
-  // docs/TODO/TODO_compartilhar-exige-contexto-seguro.md.
+  // docs/acesso-remoto.md.
   if (navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });

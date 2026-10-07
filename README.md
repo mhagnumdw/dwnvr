@@ -46,6 +46,8 @@ Com a detecção desligada, o dwnvr custa o mesmo que uma versão sem ela.
 - [Instalar de verdade](#instalar-de-verdade)
 - [Detecção de movimento e de objetos](#detecção-de-movimento-e-de-objetos)
 - [Atualizar](#atualizar)
+- [Acesso remoto](#acesso-remoto)
+- [A tela como app, no celular e no computador](#a-tela-como-app-no-celular-e-no-computador)
 - [Casos específicos](#casos-específicos)
 - [Como funciona](#como-funciona)
 - [Configuração](#configuração)
@@ -361,6 +363,34 @@ versão do dwnvr, e só muda quando o compose muda. Para usar outra, ponha
 `GO2RTC_VERSION` no `.env`, como `GO2RTC_VERSION=1.9.14`, com uma das
 [tags do go2rtc](https://hub.docker.com/r/alexxit/go2rtc/tags).
 
+## Acesso remoto
+
+Para abrir o dwnvr fora de casa, pelo celular ou por outro computador, sem
+abrir porta no roteador nem expor o servidor na internet, o caminho é o
+[Tailscale](https://tailscale.com): uma VPN, gratuita para uso pessoal, que de
+quebra dá ao dwnvr um endereço `https://` com certificado válido. Dá também
+para dar acesso à família, cada pessoa com a própria conta e só ao dwnvr.
+
+No dwnvr não há nada para configurar. O passo a passo, do servidor a cada
+dispositivo, está em [`docs/acesso-remoto.md`](docs/acesso-remoto.md).
+
+## A tela como app, no celular e no computador
+
+Isto não instala nada no servidor: é a tela do dwnvr, a que você abre no
+navegador, virando um app no dispositivo de quem assiste. Ela ganha um ícone na
+tela inicial e abre em janela própria, sem a barra de endereço do navegador. É
+o que se chama de PWA.
+
+- **Android e computador:** no Chrome, menu ⋮ > **Instalar app**. No
+  computador, também pelo ícone de instalar na barra de endereço.
+- **iPhone:** no Safari, compartilhar > **Adicionar à Tela de Início**. Ainda
+  não testado.
+
+O navegador só oferece instalar quando o endereço é `https://`. Pelo
+`http://<ip-da-máquina>:8080` da rede de casa, o Chrome do Android cria só um
+atalho, que abre numa aba comum. O `https://` vem do
+[acesso remoto](#acesso-remoto), que vale também dentro de casa.
+
 ## Casos específicos
 
 ### Com Podman <!-- omit in toc -->
@@ -519,6 +549,7 @@ movimento.
 | --- | --- |
 | [`docs/operacao.md`](docs/operacao.md) | o dia a dia: arquivos, logs, container sem shell |
 | [`docs/configuracao.md`](docs/configuracao.md) | os dois arquivos, política por câmera, retenção, áudio |
+| [`docs/acesso-remoto.md`](docs/acesso-remoto.md) | `https://` de qualquer lugar, app instalável e acesso da família, sem expor o servidor |
 | [`docs/arquitetura.md`](docs/arquitetura.md) | o formato em disco e por que ele é assim |
 | [`docs/deteccao.md`](docs/deteccao.md) | a detecção de movimento e de objetos: o fluxo, o custo e os limites |
 | [`docs/resiliencia.md`](docs/resiliencia.md) | queda de energia e o go2rtc que emudece sem avisar |

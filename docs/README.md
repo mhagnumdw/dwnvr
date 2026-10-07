@@ -9,6 +9,9 @@ Aqui ficam as respostas longas.
   logs, como inspecionar um container sem shell
 - [configuracao.md](configuracao.md) - os dois arquivos de configuração, a
   política por câmera, retenção e o custo de cada modo de áudio
+- [acesso-remoto.md](acesso-remoto.md) - o dwnvr em `https://` de qualquer
+  lugar e instalável como app, pelo Tailscale, sem expor o servidor; dar
+  acesso a outras pessoas
 
 ## Para entender
 
