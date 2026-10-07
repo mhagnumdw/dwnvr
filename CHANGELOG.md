@@ -2,6 +2,28 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.6.0](https://github.com/mhagnumdw/dwnvr/compare/v0.5.0...v0.6.0) (2026-10-07)
+
+### Pede ação ao atualizar
+
+- A interface web do go2rtc e o RTSP deixam de abrir de outra máquina. Para voltar a abrir, ponha senha no go2rtc.yaml e GO2RTC_API_PORT=1984 e/ou GO2RTC_RTSP_PORT=8554 no .env, como em [Abrir o go2rtc para a rede](https://github.com/mhagnumdw/dwnvr#abrir-o-go2rtc-para-a-rede-). ([801d37bd](https://github.com/mhagnumdw/dwnvr/commit/801d37bd682c46504efbdcdd32c93ebbe50e4033))
+
+### Added
+
+- feat(web): dwnvr instalável como app ([3f8f9e6c](https://github.com/mhagnumdw/dwnvr/commit/3f8f9e6ccb5000be6dcd0d4194721e43fc19b114))
+- feat(api): sessão se renova com o uso ([5f289c5b](https://github.com/mhagnumdw/dwnvr/commit/5f289c5b265ed90674df5d51f2a986dd70e291a6))
+- feat(changelog): abre as notas com o que pede ação ao atualizar ([c43b5eda](https://github.com/mhagnumdw/dwnvr/commit/c43b5eda0e52cdc7e1252b4fa76c4a3d5b11ed45))
+
+### Fixed
+
+- fix(compose)!: API e RTSP do go2rtc só abrem no próprio servidor ([801d37bd](https://github.com/mhagnumdw/dwnvr/commit/801d37bd682c46504efbdcdd32c93ebbe50e4033))
+- fix(api): o proxy do ao vivo só repassa o websocket do player ([832d90b5](https://github.com/mhagnumdw/dwnvr/commit/832d90b5e8b33034215b263281df91b8f8888411))
+
+### Docs
+
+- docs: regra para marcar mudança incompatível no commit ([b667ea3c](https://github.com/mhagnumdw/dwnvr/commit/b667ea3caed31e5621d378664b84fc3275e61f1e))
+- docs: guia de acesso remoto pelo Tailscale ([6709ff5f](https://github.com/mhagnumdw/dwnvr/commit/6709ff5f7569320cc7a0619d3f2c2ed84ff6a62a))
+
 ## [v0.5.0](https://github.com/mhagnumdw/dwnvr/compare/v0.4.0...v0.5.0) (2026-10-06)
 
 ### Added
