@@ -158,6 +158,12 @@ sudo chown -R "$(id -u):$(id -g)" "$DWNVR_DIR"
 
 cp dwnvr.example.yaml  "$DWNVR_DIR/config/dwnvr/dwnvr.yaml"
 cp go2rtc.example.yaml "$DWNVR_DIR/config/go2rtc/go2rtc.yaml"
+
+# A senha de login do dwnvr e as senhas das câmeras vão ficar nestes arquivos
+# do jeito que você as escrever: só o seu usuário lê e escreve neles, nem o
+# seu grupo nem os outros.
+chmod 600 "$DWNVR_DIR/config/dwnvr/dwnvr.yaml"
+chmod 600 "$DWNVR_DIR/config/go2rtc/go2rtc.yaml"
 ```
 
 Ficará assim:
@@ -176,6 +182,12 @@ tem a sua subpasta em `config/` de propósito: cada container enxerga só a
 própria. As URLs RTSP, com usuário e senha, não ficam visíveis para o dwnvr, e
 o segredo de sessão e a senha de login do dwnvr não ficam visíveis para o
 go2rtc.
+
+O `chmod 600` não tira o acesso dos containers: o dwnvr roda com o seu
+usuário, o do `DWNVR_UID` do passo 3, e o go2rtc roda como root no Docker e
+com o seu usuário no Podman. Quando a interface web do go2rtc salva o
+`go2rtc.yaml`, a permissão continua a mesma. Se você instalou antes de estes
+`chmod` entrarem aqui, rode os dois agora.
 
 ### 3. O `.env` <!-- omit in toc -->
 
