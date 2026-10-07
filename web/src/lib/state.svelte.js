@@ -5,6 +5,7 @@
 // de câmeras e saúde - e que seria desperdício buscar de novo a cada navegação.
 
 import { api } from './api.js';
+import { AVISOS_POLL_MS } from './avisos.js';
 
 export const session = $state({
   authRequired: false,
@@ -114,6 +115,7 @@ export async function logout() {
   health.clock = null;
   health.detector = null;
   health.updatedAt = 0;
+  healthPedidoEm = 0;
 }
 
 export async function loadBuild() {
@@ -206,7 +208,12 @@ export async function loadCameras() {
   }
 }
 
+// Quando a última leitura da saúde começou, de qualquer tela. É o que o sino
+// do header consulta para não repetir uma leitura recente, ou uma em curso.
+let healthPedidoEm = 0;
+
 export async function loadHealth() {
+  healthPedidoEm = Date.now();
   try {
     const data = await api.health();
     health.cameras = data.cameras ?? [];
@@ -233,4 +240,24 @@ export function pollHealth(intervalMs = HEALTH_POLL_MS) {
   loadHealth();
   const id = setInterval(loadHealth, intervalMs);
   return () => clearInterval(id);
+}
+
+// vigiarAvisos mantém o sino do header em dia nas telas que não releem a saúde
+// por conta própria. Só lê quando a última leitura, de quem quer que seja, tem
+// mais de AVISOS_POLL_MS: em Diagnóstico e Câmeras, que releem a cada
+// HEALTH_POLL_MS, não sai requisição nenhuma daqui. O tique é curto para que,
+// saindo de uma dessas telas, o dado não fique quase o dobro do prazo sem ser
+// relido; o tique em si não custa nada. Com a aba oculta não lê, e ao voltar
+// lê na hora se o dado estiver velho.
+export function vigiarAvisos() {
+  const talvez = () => {
+    if (!document.hidden && Date.now() - healthPedidoEm >= AVISOS_POLL_MS) loadHealth();
+  };
+  talvez();
+  const id = setInterval(talvez, HEALTH_POLL_MS);
+  document.addEventListener('visibilitychange', talvez);
+  return () => {
+    clearInterval(id);
+    document.removeEventListener('visibilitychange', talvez);
+  };
 }

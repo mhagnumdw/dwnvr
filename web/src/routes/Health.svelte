@@ -24,6 +24,7 @@
     gravadoSeHouverBuraco,
   } from '../lib/format.js';
   import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
+  import { avisosDe, agoraDoServidor, quando } from '../lib/avisos.js';
   import SemCameras from '../components/SemCameras.svelte';
   import { coletar, comoTexto } from '../lib/navegador.js';
   import { grupos as gruposDoServidor, linhaDoLog, coletadoEm } from '../lib/diagnostico-servidor.js';
@@ -300,8 +301,6 @@
 
   const totalKbps = $derived(health.cameras.reduce((a, c) => a + (c.bitrateKbps || 0), 0));
   const bytesPorDia = $derived(((totalKbps * 1000) / 8) * 86400);
-  const desconectadas = $derived(health.cameras.filter((c) => c.enabled && !c.connected));
-  const paradas = $derived(health.cameras.filter((c) => c.enabled && c.silent));
 
   // ---- reconhecimento de objetos ----------------------------------------
   //
@@ -548,130 +547,10 @@
 
   // ---- avisos ------------------------------------------------------------
 
-  // "Agora" pelo relógio do servidor, que é quem carimbou os instantes dos
-  // avisos: com o relógio do aparelho errado, "desde 13:58 (12min)" viraria
-  // "(3h12min)". Cai no do aparelho contra servidor antigo, sem o campo.
-  const agora = $derived.by(() => {
-    const lido = Date.parse(health.clock?.now);
-    return isNaN(lido) ? health.updatedAt || Date.now() : lido;
-  });
-
-  const MS_HORA = 3600e3;
-
-  // quando escreve um instante: só a hora se é de hoje, com a data na frente se
-  // não é - "13:58:12" de ontem leria como de hoje.
-  const deHoje = (ms) => new Date(agora).toDateString() === new Date(ms).toDateString();
-  const quando = (ms) => (deHoje(ms) ? hhmmss(ms) : `${ddmm(ms)} ${hhmmss(ms)}`);
-
-  // desde é o "desde quando" de todo aviso que depende de tempo, no formato do
-  // "NÃO ESTÁ GRAVANDO": "desde 13:58:12 (12min)".
-  function desde(iso) {
-    const ms = Date.parse(iso);
-    return `desde ${quando(ms)} (${duracao(agora - ms)})`;
-  }
-
-  const porHora = (v) => v.toLocaleString('pt-BR', { maximumFractionDigits: v < 10 ? 1 : 0 });
-
-  // A mensagem de reconexão diz o total, desde quando ele conta, a taxa, o
-  // recente e a última: "24 vezes" sozinho não diz se é muito.
-  function reconexoes(c) {
-    const inicio = Date.parse(c.reconnectsSince);
-    if (isNaN(inicio)) return `${c.name} já reconectou ${c.reconnects} vezes.`; // servidor antigo
-
-    // Menos de um minuto entre a subida do dwnvr e o início da contagem é a
-    // mesma coisa; depois disso, a contagem foi zerada ou a câmera reiniciada.
-    const subida = health.uptime ? agora - health.uptime.appSeconds * 1000 : NaN;
-    const origem =
-      Math.abs(inicio - subida) < 60e3 ? 'desde que o dwnvr subiu' : `desde ${quando(inicio)}`;
-
-    const contando = agora - inicio;
-    const entre = [duracao(contando)];
-    // Com menos de uma hora de contagem, "por hora" extrapola demais.
-    if (contando >= MS_HORA) entre.push(`~${porHora(c.reconnects / (contando / MS_HORA))} por hora`);
-
-    let texto = `${c.name} reconectou ${c.reconnects} vezes ${origem} (${entre.join(', ')})`;
-    // Antes de a contagem cobrir a janela inteira, o recente é o próprio total.
-    const janela = health.reconnectsWindowHours;
-    if (janela && contando >= janela * MS_HORA) {
-      texto += `, ${c.reconnectsInWindow} nas últimas ${janela}h`;
-    }
-    const ultima = Date.parse(c.lastReconnectAt);
-    if (!isNaN(ultima)) {
-      texto += deHoje(ultima)
-        ? `, a última às ${hhmmss(ultima)}`
-        : `, a última em ${ddmm(ultima)} às ${hhmmss(ultima)}`;
-    }
-    return texto + '.';
-  }
-
-  // Avisos que explicam problemas antes de eles virarem mistério - que foi
-  // exatamente o que faltou nos NVRs anteriores.
-  const avisos = $derived.by(() => {
-    const out = [];
-    if (disk?.belowMin) {
-      const quandoDisco = disk.belowMinSince ? ` ${desde(disk.belowMinSince)}` : '';
-      out.push({
-        nivel: 'bad',
-        texto: `Disco abaixo do mínimo livre (${bytesDeMB(disk.minFreeMB)})${quandoDisco}: restam ${bytes(disk.freeBytes)}. A retenção está apagando gravações antigas de todas as câmeras.`,
-      });
-    }
-    // "Parada" vem antes de "desconectada" porque é a pergunta que importa: uma
-    // conexão de pé que não produz segmento nenhum continua sendo gravação
-    // perdida, e foi assim que 9 câmeras passaram horas fora sem ninguém notar.
-    for (const c of paradas) {
-      const quandoParou = c.lastSegmentAt ? desde(c.lastSegmentAt) : 'e não gravou nada desde que o dwnvr subiu';
-      out.push({
-        nivel: 'bad',
-        texto: `${c.name} NÃO ESTÁ GRAVANDO ${quandoParou}${c.lastError ? `: ${c.lastError}` : ''}`,
-      });
-    }
-    for (const c of desconectadas) {
-      if (c.silent) continue; // já avisado acima, e com mais informação
-      const quandoCaiu = c.disconnectedAt ? ` ${desde(c.disconnectedAt)}` : '';
-      out.push({ nivel: 'bad', texto: `${c.name} desconectada${quandoCaiu}: ${c.lastError || 'motivo desconhecido'}` });
-    }
-    // Os dois avisos de configuração também vêm do /api/health, e não da lista
-    // de câmeras, que esta tela nunca relê: o go2rtc.yaml editado e o go2rtc
-    // reiniciado por fora apareceriam só depois de passar pela tela Câmeras.
-    for (const c of health.cameras) {
-      if (c.transcoding) {
-        out.push({
-          nivel: 'warn',
-          texto: `${c.name} usa uma fonte ffmpeg no go2rtc, ou seja, há transcodificação consumindo CPU.`,
-        });
-      }
-    }
-    for (const c of health.cameras) {
-      // O audio só vem de câmera com recorder: a desabilitada não tem trilha a
-      // cobrar.
-      if (c.audio && c.audio !== 'none' && !c.hasAudio) {
-        out.push({
-          nivel: 'warn',
-          texto: `${c.name} está configurada com áudio ${c.audio}, mas o stream não entrega trilha de áudio.`,
-        });
-      }
-      if (c.reconnects > 10) {
-        out.push({ nivel: 'warn', texto: reconexoes(c) });
-      }
-    }
-    // Vem do /api/health, relido a cada poucos segundos, e não do
-    // cameras.go2rtcError, que esta tela nunca relê: o go2rtc caindo com ela
-    // aberta tem que aparecer, e sumir quando ele volta.
-    if (health.go2rtc) {
-      out.push({ nivel: 'bad', texto: `go2rtc inacessível ${desde(health.go2rtc.since)}: ${health.go2rtc.error}` });
-    }
-    // Com o detector de objetos fora, a gravação e as marcas de movimento
-    // seguem normais: sem este aviso, a falta das marcas de objeto só se nota
-    // depois, na timeline, e as marcas desse intervalo não voltam.
-    if (detector?.foraDoAr) {
-      const f = detector.foraDoAr;
-      out.push({
-        nivel: 'bad',
-        texto: `Detector de objetos inacessível ${desde(f.desde)}: ${f.erro}. As câmeras seguem gravando e marcando movimento, mas nenhuma marca de objeto é criada enquanto isso.`,
-      });
-    }
-    return out;
-  });
+  // A lista mora em lib/avisos.js, que o sino do header também usa: os dois
+  // contam com a mesma regra.
+  const agora = $derived(agoraDoServidor(health));
+  const avisos = $derived(avisosDe(health));
 
   // O zerar só aparece quando há o que zerar.
   const temReconexao = $derived(health.cameras.some((c) => c.reconnects > 0));
@@ -785,7 +664,7 @@
         <span class="spacer"></span>
         {#if temReconexao}
           {#if contandoDesde}
-            <span class="muted small">reconexões contadas desde {quando(contandoDesde)}</span>
+            <span class="muted small">reconexões contadas desde {quando(contandoDesde, agora)}</span>
           {/if}
           <button
             class="ghost small"

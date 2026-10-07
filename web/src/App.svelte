@@ -3,16 +3,19 @@
   import {
     session,
     cameras,
+    health,
     build,
     checkSession,
     loadCameras,
     loadBuild,
     checarNovaVersao,
+    vigiarAvisos,
     logout,
     RELEASES_URL,
   } from './lib/state.svelte.js';
   import { rota, ROTA_PADRAO } from './lib/rota.svelte.js';
   import { setUnauthorizedHandler } from './lib/api.js';
+  import { avisosDe, resumoDosAvisos } from './lib/avisos.js';
   import Login from './routes/Login.svelte';
   import Live from './routes/Live.svelte';
   import Recordings from './routes/Recordings.svelte';
@@ -76,6 +79,17 @@
     }
   });
 
+  // O sino do header: os mesmos avisos do card da tela Diagnóstico, contados
+  // pela mesma função. Só vigia com a sessão aberta - sem ela não há header.
+  const logado = $derived(session.checked && (!session.authRequired || session.authenticated));
+  $effect(() => {
+    if (logado) return vigiarAvisos();
+  });
+  const sino = $derived(resumoDosAvisos(avisosDe(health)));
+  const sinoTitulo = $derived(
+    `${sino.total} ${sino.total === 1 ? 'aviso' : 'avisos'} no Diagnóstico`,
+  );
+
   // Clicar na aba em que já se está não pode reiniciar a tela. Antes o href era
   // igual ao hash e o navegador nem disparava evento; agora o hash carrega o
   // estado (`#rec?cam=x&t=…`), e o mesmo clique viraria uma navegação para o
@@ -133,6 +147,31 @@
       {/each}
     </nav>
     <div class="acoes">
+      <!-- Some sem aviso: um sino apagado sempre à vista ensinaria a não
+           olhar para ele. A cor da bolha é a do pior aviso. -->
+      {#if sino.total}
+        <a
+          class="sino {sino.nivel}"
+          href="#health"
+          title={sinoTitulo}
+          aria-label={sinoTitulo}
+          onclick={(e) => navegar(e, 'health')}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9" />
+            <path d="M10.3 19.5a1.9 1.9 0 0 0 3.4 0" />
+          </svg>
+          <span class="bolha">{sino.total}</span>
+        </a>
+      {/if}
       <!-- Leva às releases, e não direto à versão nova: quem pulou algumas
            precisa ler as notas de todas desde a sua. -->
       {#if build.nova}
@@ -255,6 +294,52 @@
   .nova:hover {
     background: rgba(47, 129, 247, 0.2);
   }
+
+  /* Sino e não pílula: é o menor dos alertas, 34px como a pílula e o Sair ao
+     lado, e o desenho já diz "tem notificação" sem texto. O desenho é SVG
+     inline, e não emoji: o emoji muda a cada sistema e não aceita cor. */
+  .sino {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    color: var(--fg);
+  }
+
+  /* Só amarelos: o sino recua, e só a bolha chama. */
+  .sino.warn { color: var(--dim); }
+
+  .sino svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  @media (hover: hover) {
+    .sino:hover { background: var(--panel-2); }
+  }
+
+  /* A borda da cor do header separa a bolha do desenho do sino. */
+  .bolha {
+    position: absolute;
+    top: -2px;
+    left: 18px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    box-sizing: content-box;
+    border: 2px solid var(--panel);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sino.bad .bolha { background: var(--bad); color: #fff; }
+  .sino.warn .bolha { background: var(--warn); color: #1b1300; }
 
   .sair {
     min-height: 34px;

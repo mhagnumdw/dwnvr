@@ -41,7 +41,8 @@ src/lib/         api, estado (runes), rota e estado na URL, formatadores,
                  player MSE, miniaturas, captura de quadro, ícones das
                  famílias de objeto, disposição e desenho das caixas,
                  diagnóstico do navegador de quem está olhando e do
-                 servidor que grava
+                 servidor que grava, avisos do diagnóstico (o card e o
+                 sino do header)
 src/routes/      as cinco telas + login; a de Detecções é chunk à parte e só
                  aparece com o detector de objetos configurado
 src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
