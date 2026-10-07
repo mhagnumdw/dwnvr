@@ -41,7 +41,19 @@ limitado**, como exemplo o Orange Pi Zero 3. Ele não é feito *para* um hardwar
   seção "Pede ação ao atualizar" das notas da release (`cliff.toml`).
   - O rodapé diz o que fazer, e não o que mudou, porque isso o assunto já diz.
     Escreva para o usuário final e num parágrafo só. Ele fica no fim da
-    mensagem, depois da parte 2, junto do `Co-Authored-By`.
+    mensagem, depois da parte 2, num parágrafo próprio, logo antes do
+    `Co-Authored-By` e separado dele por uma linha em branco. No mesmo
+    parágrafo, o git deixa de reconhecer o `Co-Authored-By`: o nome
+    `BREAKING CHANGE` tem espaço e, para o git, não é trailer.
+
+    ```text
+    (parte 2)
+
+    BREAKING CHANGE: Depois de atualizar, todos os aparelhos voltam uma vez para a tela de login. Tenha a senha à mão.
+
+    Co-Authored-By: ...
+    ```
+
   - Ao propor um commit que mexe em algum destes itens, diga no chat se ele é
     incompatível e por quê, mesmo quando a resposta for "não":
     campo ou default em `internal/config/config.go` (renomear, remover ou
