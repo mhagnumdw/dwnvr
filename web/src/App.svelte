@@ -55,6 +55,15 @@
     abas.find((r) => r.id === rota.id) ?? ROUTES.find((r) => r.id === ROTA_PADRAO),
   );
 
+  // A tela no título, para a aba e o histórico dizerem onde se está. No login
+  // e enquanto a tela não se decide fica só a marca: um "Ao vivo" de passagem
+  // antes de "Detecções" seria mentira por um instante.
+  const titulo = $derived(
+    !session.checked || (session.authRequired && !session.authenticated) || esperando
+      ? 'dwnvr'
+      : `dwnvr · ${route.label}`,
+  );
+
   // As telas em chunk à parte, já baixadas: id -> componente.
   let carregadas = $state({});
   const Tela = $derived(esperando ? null : (route.component ?? carregadas[route.id]));
@@ -99,6 +108,10 @@
     saindo = false;
   }
 </script>
+
+<svelte:head>
+  <title>{titulo}</title>
+</svelte:head>
 
 {#if !session.checked}
   <div class="boot">carregando…</div>
