@@ -26,7 +26,9 @@ type Server struct {
 	client *go2rtc.Client
 	mgr    *recorder.Manager
 	log    *slog.Logger
-	secret []byte
+	// sessionKey assina os cookies de sessão. Sai do .session-secret e da
+	// credencial do dwnvr.yaml (ver deriveSessionKey).
+	sessionKey []byte
 	// ret diz desde quando o disco está abaixo do mínimo. Pode ser nil nos
 	// testes, e aí o aviso sai sem o "desde".
 	ret *retention.Manager
@@ -55,8 +57,9 @@ type Server struct {
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 	mgr *recorder.Manager, ret *retention.Manager, secret []byte, log *slog.Logger) *Server {
 
+	key := deriveSessionKey(secret, cfg.Server.Username, cfg.Server.Password)
 	return &Server{cfg: cfg, store: st, client: client, mgr: mgr, ret: ret,
-		secret: secret, log: log, startedAt: time.Now()}
+		sessionKey: key, log: log, startedAt: time.Now()}
 }
 
 // knownCamera evita que um ID arbitrário vindo da URL vire caminho no disco.

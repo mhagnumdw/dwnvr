@@ -32,6 +32,12 @@ cookie novo com os 30 dias inteiros. Na prática, os 30 dias contam da última
 vez que a tela falou com o dwnvr. Continua sem estado no servidor: renovar é só
 assinar outro prazo.
 
+Trocar o usuário ou a senha no `dwnvr.yaml` e reiniciar derruba todas as
+sessões: a chave que assina o cookie sai do `.session-secret` junto com a
+credencial, e o cookie emitido antes deixa de bater. Para derrubar sem trocar a
+senha, ver [Trocar a senha e derrubar as
+sessões](operacao.md#trocar-a-senha-e-derrubar-as-sessões).
+
 ## Câmeras e diagnóstico
 
 | Endpoint | Parâmetros | O que faz |

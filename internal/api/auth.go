@@ -23,12 +23,25 @@ const (
 	sessionRenew = sessionTTL / 2
 )
 
+// deriveSessionKey tira do .session-secret a chave que assina os cookies,
+// junto com o usuário e a senha do dwnvr.yaml. Trocar um dos dois e reiniciar
+// muda a chave, e todo cookie emitido antes deixa de bater com a assinatura:
+// quem estava logado volta para a tela de login. Sem isso, trocar a senha não
+// tiraria ninguém, e a sessão em uso, que se renova, não venceria nunca.
+//
+// Reiniciar com a mesma credencial dá a mesma chave e não derruba ninguém.
+func deriveSessionKey(secret []byte, username, password string) []byte {
+	mac := hmac.New(sha256.New, secret)
+	mac.Write([]byte(username + "\x00" + password))
+	return mac.Sum(nil)
+}
+
 // O token de sessão é "<expiraEmUnix>.<hmac>". Não há estado no servidor: a
 // assinatura basta para validar, o que evita manter uma tabela de sessões viva
 // num dispositivo com 1,5 GB de RAM.
 func (s *Server) signToken(expires int64) string {
 	payload := strconv.FormatInt(expires, 10)
-	mac := hmac.New(sha256.New, s.secret)
+	mac := hmac.New(sha256.New, s.sessionKey)
 	mac.Write([]byte(payload))
 	return payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
@@ -45,7 +58,7 @@ func (s *Server) tokenExpires(tok string) (expires int64, ok bool) {
 		return 0, false
 	}
 
-	mac := hmac.New(sha256.New, s.secret)
+	mac := hmac.New(sha256.New, s.sessionKey)
 	mac.Write([]byte(payload))
 	want := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 	if !hmac.Equal([]byte(sig), []byte(want)) {

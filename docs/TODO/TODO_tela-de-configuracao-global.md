@@ -20,7 +20,7 @@ para a tela.
 | `server.listen` | `dwnvr.yaml` | Amarrado à porta publicada no compose. Um erro deixa a própria tela inacessível, sem tela para desfazer |
 | `go2rtc.url`, `go2rtc.username`, `go2rtc.password` | `dwnvr.yaml` | Amarrados ao nome do serviço no compose. Um erro para a gravação de todas as câmeras |
 | `storage.root` | `dwnvr.yaml` | Amarrado ao volume do compose. Mudar deixa as gravações existentes para trás, fora da tela |
-| `server.username`, `server.password` | `dwnvr.yaml` | Trocar senha é uma feature com desenho próprio, não um campo. Hoje trocar a senha não derruba sessão aberta: o cookie leva só a validade e a assinatura com o `.session-secret`, e vale até 30 dias depois do login. A tela teria que girar o segredo, pedir a senha atual e impedir que alguém desligue a autenticação por ela |
+| `server.username`, `server.password` | `dwnvr.yaml` | Trocar senha é uma feature com desenho próprio, não um campo. A chave que assina o cookie sai do `.session-secret` junto com a credencial, e é calculada no boot: a tela teria que recalculá-la ao trocar a senha, para derrubar as sessões abertas na hora, pedir a senha atual e impedir que alguém desligue a autenticação por ela |
 | `defaults.quotaMB` | `dwnvr.yaml` | A cota certa depende da taxa de cada câmera, e o formulário de câmera já a traduz em "≈ N dias". Um número único dá dias muito diferentes em cada câmera |
 | `defaults.audio` | `dwnvr.yaml` | Depende de a câmera ter trilha de áudio. O formulário bloqueia flac e aac quando a câmera não entrega áudio, e um padrão global passaria por cima disso |
 | `defaults.segmentSeconds` | `dwnvr.yaml` | Ajuste técnico, não escolha de uso: troca o teto do que se perde numa queda de energia pela quantidade de arquivos. Mudar reconecta a câmera |

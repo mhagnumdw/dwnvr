@@ -40,6 +40,28 @@ dwnvr`); pela tela de cadastro a mudança vale na hora. Um valor fora da faixa
 não impede o boot: vale o padrão, e o aviso aparece na tela de Diagnóstico -
 ver [Valor fora da faixa](configuracao.md#valor-fora-da-faixa).
 
+## Trocar a senha e derrubar as sessões
+
+Quem entra uma vez continua logado: a sessão vale 30 dias e se renova com o
+uso. Para tirar todo mundo, como depois de perder um celular logado, há dois
+caminhos, e os dois pedem reiniciar o dwnvr, que só lê esses arquivos ao subir:
+
+- **Trocar a senha**, ou o usuário, no `dwnvr.yaml`. A assinatura do cookie
+  depende da credencial, então todo cookie emitido antes deixa de valer, e só
+  entra quem souber a senha nova.
+- **Apagar o `.session-secret`**, para tirar todo mundo sem trocar a senha. O
+  dwnvr gera outro ao subir.
+
+```sh
+# Para tirar todo mundo sem trocar a senha:
+rm /mnt/storage/dwnvr/config/dwnvr/.session-secret
+
+# Nos dois caminhos, depois:
+docker compose restart dwnvr
+```
+
+Nos dois casos, quem estava com a tela aberta volta para a tela de login.
+
 ## Inspecionar um container sem shell
 
 A imagem é `FROM scratch` e contém literalmente isto:

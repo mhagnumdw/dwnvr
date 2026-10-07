@@ -44,11 +44,11 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 	mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true})
 
 	s := &Server{
-		cfg:    cfg,
-		store:  st,
-		mgr:    mgr,
-		secret: []byte("segredo-de-teste-com-32-bytes!!!"),
-		log:    log,
+		cfg:        cfg,
+		store:      st,
+		mgr:        mgr,
+		sessionKey: []byte("segredo-de-teste-com-32-bytes!!!"),
+		log:        log,
 	}
 	return s, st.Camera("cam_teste")
 }
@@ -733,7 +733,7 @@ func TestTokenDeSessao(t *testing.T) {
 	}
 
 	// Assinatura de outro segredo não pode valer.
-	outro := &Server{secret: []byte("outro-segredo-de-32-bytes!!!!!!!")}
+	outro := &Server{sessionKey: []byte("outro-segredo-de-32-bytes!!!!!!!")}
 	if vale(outro.signToken(time.Now().Add(time.Hour).Unix())) {
 		t.Error("token assinado com outro segredo foi aceito")
 	}
@@ -741,6 +741,34 @@ func TestTokenDeSessao(t *testing.T) {
 	for _, ruim := range []string{"", "semponto", "abc.def", ".", "123."} {
 		if vale(ruim) {
 			t.Errorf("token malformado %q foi aceito", ruim)
+		}
+	}
+}
+
+// Trocar o usuário ou a senha e reiniciar derruba as sessões abertas, porque a
+// chave que assina o cookie sai do .session-secret junto com a credencial.
+// Reiniciar com a mesma credencial não derruba ninguém. Passa pelo New, que é
+// o caminho do boot.
+func TestTrocarACredencialDerrubaAsSessoes(t *testing.T) {
+	segredo := []byte("segredo-de-teste-com-32-bytes!!!")
+	subir := func(usuario, senha string) *Server {
+		cfg := &config.Config{}
+		cfg.Server.Username, cfg.Server.Password = usuario, senha
+		return New(cfg, nil, nil, nil, nil, segredo, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}
+	cookie := subir("admin", "senha").signToken(time.Now().Add(time.Hour).Unix())
+
+	for _, caso := range []struct {
+		nome           string
+		usuario, senha string
+		vale           bool
+	}{
+		{"mesma credencial", "admin", "senha", true},
+		{"senha nova", "admin", "senha-nova", false},
+		{"usuário novo", "dono", "senha", false},
+	} {
+		if _, ok := subir(caso.usuario, caso.senha).tokenExpires(cookie); ok != caso.vale {
+			t.Errorf("%s: o cookie de antes vale=%v, esperava %v", caso.nome, ok, caso.vale)
 		}
 	}
 }
