@@ -35,6 +35,20 @@ limitado**, como exemplo o Orange Pi Zero 3. Ele não é feito *para* um hardwar
   O nome do arquivo sai de `mediaURL`.
   ```
 
+- Mudança incompatível: quem só atualiza (`git pull` e `docker compose up`),
+  sem mexer em nada, perde algo que funcionava ou precisa agir. O commit leva
+  `!` no tipo (`fix(compose)!:`) e o rodapé `BREAKING CHANGE:`, que vira a
+  seção "Pede ação ao atualizar" das notas da release (`cliff.toml`).
+  - O rodapé diz o que fazer, e não o que mudou, porque isso o assunto já diz.
+    Escreva para o usuário final e num parágrafo só. Ele fica no fim da
+    mensagem, depois da parte 2, junto do `Co-Authored-By`.
+  - Ao propor um commit que mexe em algum destes itens, diga no chat se ele é
+    incompatível e por quê, mesmo quando a resposta for "não":
+    campo ou default em `internal/config/config.go` (renomear, remover ou
+    mudar o default); porta, volume, env ou serviço no `docker-compose.yml`;
+    caminho interno ou `DayLayout` (a gravação antiga continua legível?);
+    flag em `cmd/dwnvr/main.go`; rota ou JSON documentado em `docs/api.md`.
+
 ## Lint
 
 - Uma vez por clone: `prek install` (o prek se instala com
