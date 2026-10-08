@@ -175,6 +175,12 @@
     }
   }
 
+  // O mesmo que desmarcar a câmera na lista: grava a seleção e a URL acompanha.
+  function remover(cam) {
+    menu = null;
+    toggle(cam);
+  }
+
   // --- picture-in-picture ------------------------------------------------------
 
   // O Firefox não tem a API (tem só o botão dele, desenhado sobre o vídeo): lá
@@ -634,6 +640,9 @@
                 {/if}
                 <button class="ghost" role="menuitem" onclick={() => capturar(c.id)}>
                   Baixar imagem agora
+                </button>
+                <button class="ghost" role="menuitem" onclick={() => remover(c.id)}>
+                  Remover da visualização
                 </button>
               </div>
             {/if}
