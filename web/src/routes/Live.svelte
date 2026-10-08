@@ -473,7 +473,7 @@
   onkeydown={tecla}
 />
 
-<div class="page">
+<div class="page" class:fit={modo === 'fit'}>
   <div class="row wrap">
     <button class="ghost" onclick={() => (showPicker = !showPicker)}>
       ☰ câmeras ({selected.size})
@@ -671,6 +671,12 @@
     max-width: 1600px;
     margin: 0 auto;
   }
+
+  /* No encaixar quem limita o tile é a altura da janela, já na conta do
+     `melhorEncaixe`: o teto de largura só tiraria espaço em tela mais alta,
+     como a 16:10 de notebook. Nas colunas fixas o teto fica: lá a altura não
+     entra na conta, e o tile cresceria com a largura até passar da janela. */
+  .page.fit { max-width: none; }
 
   .modos button { padding: 8px 11px; }
   .modos button.on { color: var(--fg); border-color: var(--accent); }
