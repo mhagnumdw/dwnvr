@@ -475,8 +475,14 @@
 
 <div class="page" class:fit={modo === 'fit'}>
   <div class="row wrap">
-    <button class="ghost" onclick={() => (showPicker = !showPicker)}>
-      ☰ câmeras ({selected.size})
+    <button class="ghost cams" onclick={() => (showPicker = !showPicker)}>
+      <!-- Filmadora desenhada à mão, no traço dos ícones ao lado: o ☰ dizia
+           "menu", e o botão abre a lista de câmeras. -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2" y="6" width="13.5" height="12" rx="2" />
+        <path d="M15.5 10.5 22 7v10l-6.5-3.5z" stroke-linejoin="round" />
+      </svg>
+      câmeras ({selected.size})
     </button>
 
     <div class="row modos" role="group" aria-label="layout">
@@ -677,6 +683,19 @@
      como a 16:10 de notebook. Nas colunas fixas o teto fica: lá a altura não
      entra na conta, e o tile cresceria com a largura até passar da janela. */
   .page.fit { max-width: none; }
+
+  /* Ícone, gap e padding medidos para o botão ficar só 4px mais largo que com
+     o ☰: no celular a linha já anda no limite, e o último botão desceria. */
+  .cams { display: inline-flex; align-items: center; gap: 5px; padding: 9px 10px; }
+  .cams svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+  }
 
   .modos button { padding: 8px 11px; }
   .modos button.on { color: var(--fg); border-color: var(--accent); }

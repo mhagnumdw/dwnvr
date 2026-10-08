@@ -585,9 +585,9 @@
     return null;
   }
 
-  // Só desmarca a câmera no filtro desta tela, o mesmo do "☰ câmeras". A lista
-  // não recomeça: as detecções dela saem do que já está carregado e a vista
-  // fica onde estava, que é o ponto de ocultar sem subir até a barra.
+  // Só desmarca a câmera no filtro desta tela, o mesmo do botão "câmeras". A
+  // lista não recomeça: as detecções dela saem do que já está carregado e a
+  // vista fica onde estava, que é o ponto de ocultar sem subir até a barra.
   async function ocultaCamera(cam) {
     menu = null;
     aberto = null;
@@ -769,7 +769,11 @@
         aria-expanded={camerasAbertas}
         aria-label="câmeras ({nMarcadas})"
       >
-        ☰ <span class="rotulo">câmeras</span> ({nMarcadas})
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="1.5" y="4.5" width="9" height="7" rx="1.2" />
+          <path d="M10.5 7 14.5 5v6l-4-2z" stroke-linejoin="round" />
+        </svg>
+        <span class="rotulo">câmeras</span> ({nMarcadas})
       </button>
       {#if camerasAbertas}
         <div class="popover">
@@ -1043,7 +1047,21 @@
     line-height: 1;
   }
 
-  .cams > button { white-space: nowrap; }
+  .cams > button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  .cams > button svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+  }
 
   .popover {
     position: absolute;
