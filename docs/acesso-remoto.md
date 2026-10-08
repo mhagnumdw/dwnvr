@@ -9,6 +9,8 @@ O caminho é o [Tailscale](https://tailscale.com): uma VPN que liga os seus
 dispositivos ao servidor sem abrir porta no roteador, e que emite o certificado
 do `https://`. No dwnvr não há nada para configurar.
 
+> Para o `https://` só dentro de casa, sem o Tailscale, ver [https-na-rede-local.md](https-na-rede-local.md).
+
 - [Por que HTTPS](#por-que-https)
 - [Por que não expor o servidor na internet](#por-que-não-expor-o-servidor-na-internet)
 - [O servidor: Tailscale e `tailscale serve`](#o-servidor-tailscale-e-tailscale-serve)
@@ -289,6 +291,9 @@ Na maioria das casas não compensa. O Android deixa o Tailscale sempre ligado de
 qualquer jeito. Quem ganha é o iPhone, que pode desligar o Tailscale na Wi-Fi
 de casa pelo VPN On Demand. O endereço é o mesmo nos dois caminhos, então
 decidir depois não gera retrabalho.
+
+Sem o Tailscale em lugar nenhum, nem no servidor, o caminho é outro:
+[https-na-rede-local.md](https-na-rede-local.md).
 
 ## Problemas comuns
 

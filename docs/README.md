@@ -12,6 +12,9 @@ Aqui ficam as respostas longas.
 - [acesso-remoto.md](acesso-remoto.md) - o dwnvr em `https://` de qualquer
   lugar e instalável como app, pelo Tailscale, sem expor o servidor; dar
   acesso a outras pessoas
+- [https-na-rede-local.md](https-na-rede-local.md) - o dwnvr em `https://` só
+  na rede de casa, sem o Tailscale: o Caddy na frente e a CA dele em cada
+  aparelho
 
 ## Para entender
 
