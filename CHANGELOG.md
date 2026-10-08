@@ -2,6 +2,33 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.7.0](https://github.com/mhagnumdw/dwnvr/compare/v0.6.0...v0.7.0) (2026-10-08)
+
+### Pede ação ao atualizar
+
+- Depois de atualizar, todos os aparelhos voltam uma vez para a tela de login. Tenha a senha à mão, inclusive para os aparelhos da família. ([316ba992](https://github.com/mhagnumdw/dwnvr/commit/316ba9924bcf8c00df7d5edc1245ffba65e9d9d0))
+
+### Added
+
+- feat(web): botão de câmeras do Ao vivo só com ícone no celular ([3c7cfcfd](https://github.com/mhagnumdw/dwnvr/commit/3c7cfcfd25db7d15c9b2d8d1c3455578e0b5f81d))
+- feat(web): ícone de câmera no botão que abre a lista de câmeras ([435bb7b3](https://github.com/mhagnumdw/dwnvr/commit/435bb7b3203bb54733293ac91612514037d8bc5f))
+- feat(web): remover uma câmera da tela Ao vivo pelo menu dela ([288ce05e](https://github.com/mhagnumdw/dwnvr/commit/288ce05e7775c26f603393d0f630406b21119746))
+- feat(web): sino de avisos no header ([e724728e](https://github.com/mhagnumdw/dwnvr/commit/e724728eb0255cc400f9bcfe4f677bba4faaa853))
+- feat(web): título da aba acompanha a tela ([e56a7b92](https://github.com/mhagnumdw/dwnvr/commit/e56a7b9284435dc6edaec484fcd47e7105de8b5a))
+
+### Fixed
+
+- fix(web): modo encaixar do Ao vivo aproveita toda a tela ([d4ef3e9e](https://github.com/mhagnumdw/dwnvr/commit/d4ef3e9e06cc2ed7787e2f7d5b234431e489202d))
+- fix(api)!: trocar a senha deve derrubar as sessões abertas ([316ba992](https://github.com/mhagnumdw/dwnvr/commit/316ba9924bcf8c00df7d5edc1245ffba65e9d9d0))
+
+### Docs
+
+- docs: HTTPS na rede de casa, sem o Tailscale ([840ccbcd](https://github.com/mhagnumdw/dwnvr/commit/840ccbcdfc1ef835e5fce67cc3afe50da5d9bfec))
+- docs: rodapé BREAKING CHANGE em parágrafo próprio ([dd004246](https://github.com/mhagnumdw/dwnvr/commit/dd00424637269c76ee1d3f33562e8cc53199d58d))
+- docs: TODOs do hash da senha e do limite de tentativas no login ([95ae6878](https://github.com/mhagnumdw/dwnvr/commit/95ae687881c3d7fe71ed6f33fb33046cbb00ffad))
+- docs: TODO de HTTPS na rede local, sem o Tailscale ([d0283a0d](https://github.com/mhagnumdw/dwnvr/commit/d0283a0dc1d056fed3fc21a8cb18a4c9947aa45b))
+- docs: dwnvr.yaml e go2rtc.yaml legíveis só pelo seu usuário ([2f065fce](https://github.com/mhagnumdw/dwnvr/commit/2f065fce4dfbf6ec6f60d1f2803c0afb1ef51148))
+
 ## [v0.6.0](https://github.com/mhagnumdw/dwnvr/compare/v0.5.0...v0.6.0) (2026-10-07)
 
 ### Pede ação ao atualizar
