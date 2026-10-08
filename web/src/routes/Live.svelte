@@ -475,14 +475,18 @@
 
 <div class="page" class:fit={modo === 'fit'}>
   <div class="row wrap">
-    <button class="ghost cams" onclick={() => (showPicker = !showPicker)}>
+    <button
+      class="ghost cams"
+      onclick={() => (showPicker = !showPicker)}
+      aria-label="câmeras ({selected.size})"
+    >
       <!-- Filmadora desenhada à mão, no traço dos ícones ao lado: o ☰ dizia
            "menu", e o botão abre a lista de câmeras. -->
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <rect x="2" y="6" width="13.5" height="12" rx="2" />
         <path d="M15.5 10.5 22 7v10l-6.5-3.5z" stroke-linejoin="round" />
       </svg>
-      câmeras ({selected.size})
+      <span class="texto">câmeras</span> ({selected.size})
     </button>
 
     <div class="row modos" role="group" aria-label="layout">
@@ -684,9 +688,14 @@
      entra na conta, e o tile cresceria com a largura até passar da janela. */
   .page.fit { max-width: none; }
 
-  /* Ícone, gap e padding medidos para o botão ficar só 4px mais largo que com
-     o ☰: no celular a linha já anda no limite, e o último botão desceria. */
+  /* No celular a linha anda no limite e o último botão desceria: lá o botão
+     fica só com o ícone e a contagem, como em Detecções. O nome volta do
+     tablet para cima. */
   .cams { display: inline-flex; align-items: center; gap: 5px; padding: 9px 10px; }
+  .cams .texto { display: none; }
+  @media (min-width: 720px) {
+    .cams .texto { display: inline; }
+  }
   .cams svg {
     display: block;
     width: 16px;
