@@ -12,15 +12,17 @@ senhas sem parar. A
 [§Por que não expor o servidor na internet](../acesso-remoto.md#por-que-não-expor-o-servidor-na-internet)
 já cita isso.
 
-Hoje cada tentativa custa microssegundos ao servidor, porque a senha é
-comparada do jeito que está escrita no `dwnvr.yaml`. Com a senha guardada em
-[hash](TODO_hash-da-senha.md), cada tentativa passaria a custar de 0,3 a 0,8 s
-de CPU num Orange Pi Zero 3 (medido em 07/10/2026, com a gravação e o detector
-de objetos rodando). Sem limite, algumas tentativas em paralelo ocupariam os
-núcleos que a gravação e o detector usam.
+Desde o cadastro de usuários (09/10/2026), cada tentativa custa 0,77 s de CPU
+num Orange Pi Zero 3, a conta da senha em [hash](TODO_hash-da-senha.md),
+inclusive a do dono e a de quem não existe. A fila de uma conta por vez impede
+que tentativas em paralelo ocupem os núcleos que a gravação e o detector de
+objetos usam, mas não limita nada: quem testa senhas sem parar ocupa um núcleo
+o tempo todo, e o login das pessoas de verdade espera atrás.
 
 ## O que já existe
 
+- A fila de uma conta de senha por vez (`internal/usuarios/senha.go`). Protege
+  a CPU, e não limita tentativas.
 - Cada recusa vai para o log, com o usuário tentado e o endereço de origem
   (`tentativa de login recusada`, no `handleLogin` de `internal/api/auth.go`).
 - Atrás do `tailscale serve`, toda conexão chega ao dwnvr pelo mesmo endereço,
@@ -35,5 +37,3 @@ núcleos que a gravação e o detector usam.
   do `X-Forwarded-For`, mas trava também o dono durante um ataque.
 - O que recebe quem passa do limite: `429` com `Retry-After`, ou uma espera
   que cresce a cada recusa.
-- A ordem com o [hash da senha](TODO_hash-da-senha.md), que também vai ser
-  feito: o limite antes, ou o hash já com uma fila de uma verificação por vez.

@@ -21,6 +21,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/store"
+	"github.com/mhagnumdw/dwnvr/internal/usuarios"
 )
 
 func testServer(t *testing.T) (*Server, *store.Camera) {
@@ -43,12 +44,18 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 	mgr := recorder.NewManager(cfg, nil, st, log)
 	mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true})
 
+	cad, _, err := usuarios.Abrir(cfg.UsuariosPath(), cfg.Server.Username)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	s := &Server{
-		cfg:        cfg,
-		store:      st,
-		mgr:        mgr,
-		sessionKey: []byte("segredo-de-teste-com-32-bytes!!!"),
-		log:        log,
+		cfg:           cfg,
+		store:         st,
+		mgr:           mgr,
+		usuarios:      cad,
+		sessionSecret: []byte("segredo-de-teste-com-32-bytes!!!"),
+		log:           log,
 	}
 	return s, st.Camera("cam_teste")
 }
@@ -530,7 +537,7 @@ func TestCamerasTrazOPadrao(t *testing.T) {
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // fora do ar
 
 	rec := httptest.NewRecorder()
-	s.handleCameras(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
+	s.requireAuth(s.handleCameras)(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
 	var got struct {
 		Padrao config.Camera                     `json:"padrao"`
 		Faixas map[string]map[string]json.Number `json:"faixas"`
@@ -658,7 +665,7 @@ func TestHealthMostraAsOrfasAParte(t *testing.T) {
 func TestCamerasDizSeHaDetector(t *testing.T) {
 	temDetector := func(s *Server) bool {
 		rec := httptest.NewRecorder()
-		s.handleCameras(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
+		s.requireAuth(s.handleCameras)(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
 		var got struct {
 			Detector *bool `json:"detector"`
 		}
@@ -703,203 +710,6 @@ func TestRangeParams(t *testing.T) {
 	for _, q := range ruins {
 		if _, _, err := s.rangeParams(httptest.NewRequest(http.MethodGet, "/x?"+q, nil)); err == nil {
 			t.Errorf("%q foi aceito, deveria ser recusado", q)
-		}
-	}
-}
-
-// --- sessão -----------------------------------------------------------------
-
-func TestTokenDeSessao(t *testing.T) {
-	s, _ := testServer(t)
-	vale := func(tok string) bool {
-		_, ok := s.tokenExpires(tok)
-		return ok
-	}
-
-	valido := s.signToken(time.Now().Add(time.Hour).Unix())
-	if !vale(valido) {
-		t.Error("token recém-assinado foi recusado")
-	}
-
-	if vale(s.signToken(time.Now().Add(-time.Hour).Unix())) {
-		t.Error("token expirado foi aceito")
-	}
-
-	// Esticar o prazo tem que invalidar: o HMAC cobre o payload, então a
-	// assinatura deixa de bater.
-	_, sig, _ := strings.Cut(valido, ".")
-	if vale("99999999999." + sig) {
-		t.Error("prazo esticado foi aceito")
-	}
-
-	// Assinatura de outro segredo não pode valer.
-	outro := &Server{sessionKey: []byte("outro-segredo-de-32-bytes!!!!!!!")}
-	if vale(outro.signToken(time.Now().Add(time.Hour).Unix())) {
-		t.Error("token assinado com outro segredo foi aceito")
-	}
-
-	for _, ruim := range []string{"", "semponto", "abc.def", ".", "123."} {
-		if vale(ruim) {
-			t.Errorf("token malformado %q foi aceito", ruim)
-		}
-	}
-}
-
-// Trocar o usuário ou a senha e reiniciar derruba as sessões abertas, porque a
-// chave que assina o cookie sai do .session-secret junto com a credencial.
-// Reiniciar com a mesma credencial não derruba ninguém. Passa pelo New, que é
-// o caminho do boot.
-func TestTrocarACredencialDerrubaAsSessoes(t *testing.T) {
-	segredo := []byte("segredo-de-teste-com-32-bytes!!!")
-	subir := func(usuario, senha string) *Server {
-		cfg := &config.Config{}
-		cfg.Server.Username, cfg.Server.Password = usuario, senha
-		return New(cfg, nil, nil, nil, nil, segredo, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	}
-	cookie := subir("admin", "senha").signToken(time.Now().Add(time.Hour).Unix())
-
-	for _, caso := range []struct {
-		nome           string
-		usuario, senha string
-		vale           bool
-	}{
-		{"mesma credencial", "admin", "senha", true},
-		{"senha nova", "admin", "senha-nova", false},
-		{"usuário novo", "dono", "senha", false},
-	} {
-		if _, ok := subir(caso.usuario, caso.senha).tokenExpires(cookie); ok != caso.vale {
-			t.Errorf("%s: o cookie de antes vale=%v, esperava %v", caso.nome, ok, caso.vale)
-		}
-	}
-}
-
-func TestRequireAuth(t *testing.T) {
-	s, _ := testServer(t)
-	chamou := false
-	h := s.requireAuth(func(w http.ResponseWriter, r *http.Request) { chamou = true })
-
-	// Sem credencial configurada a autenticação fica desligada.
-	rec := httptest.NewRecorder()
-	h(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
-	if !chamou {
-		t.Error("sem credenciais, o handler deveria ter sido chamado")
-	}
-
-	s.cfg.Server.Username, s.cfg.Server.Password = "admin", "senha"
-	chamou = false
-	rec = httptest.NewRecorder()
-	h(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
-	if chamou || rec.Code != http.StatusUnauthorized {
-		t.Errorf("com credenciais, sem cookie: chamou=%v status=%d", chamou, rec.Code)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/x", nil)
-	req.AddCookie(&http.Cookie{Name: sessionCookie,
-		Value: s.signToken(time.Now().Add(time.Hour).Unix())})
-	rec = httptest.NewRecorder()
-	h(rec, req)
-	if !chamou {
-		t.Error("cookie válido deveria ter passado")
-	}
-}
-
-// A sessão em uso se renova: passada a metade do prazo, a resposta traz um
-// cookie novo com o prazo inteiro. Antes disso, nada de Set-Cookie, para não
-// regravar o cookie a cada requisição. Vale nas rotas protegidas e no
-// /api/session, que é o que a tela chama ao abrir.
-func TestSessaoSeRenovaComOUso(t *testing.T) {
-	s, _ := testServer(t)
-	s.cfg.Server.Username, s.cfg.Server.Password = "admin", "senha"
-	protegida := s.requireAuth(func(w http.ResponseWriter, r *http.Request) {})
-
-	for _, rota := range []struct {
-		nome string
-		h    http.HandlerFunc
-	}{{"requireAuth", protegida}, {"/api/session", s.handleSession}} {
-		for _, caso := range []struct {
-			falta  time.Duration
-			renova bool
-		}{
-			{sessionTTL - time.Hour, false},
-			{sessionRenew + time.Hour, false},
-			{sessionRenew - time.Hour, true},
-			{time.Hour, true},
-		} {
-			req := httptest.NewRequest(http.MethodGet, "/x", nil)
-			req.Header.Set("X-Forwarded-Proto", "https")
-			req.AddCookie(&http.Cookie{Name: sessionCookie,
-				Value: s.signToken(time.Now().Add(caso.falta).Unix())})
-			rec := httptest.NewRecorder()
-			rota.h(rec, req)
-
-			if rec.Code != http.StatusOK {
-				t.Fatalf("%s, faltando %v: status %d", rota.nome, caso.falta, rec.Code)
-			}
-			setCookie := rec.Header().Get("Set-Cookie")
-			if !caso.renova {
-				if setCookie != "" {
-					t.Errorf("%s, faltando %v: renovou cedo demais: %s", rota.nome, caso.falta, setCookie)
-				}
-				continue
-			}
-			c, err := http.ParseSetCookie(setCookie)
-			if err != nil {
-				t.Fatalf("%s, faltando %v: sem cookie novo (%v)", rota.nome, caso.falta, err)
-			}
-			expires, ok := s.tokenExpires(c.Value)
-			if !ok {
-				t.Fatalf("%s, faltando %v: cookie novo com token inválido", rota.nome, caso.falta)
-			}
-			if falta := time.Until(time.Unix(expires, 0)); falta < sessionTTL-time.Minute {
-				t.Errorf("%s: o cookie novo vale só %v, esperava o prazo inteiro", rota.nome, falta)
-			}
-			if !c.Secure || !c.HttpOnly || c.Path != "/" {
-				t.Errorf("%s: cookie novo perdeu atributos: %+v", rota.nome, c)
-			}
-		}
-	}
-
-	// Sessão vencida não renova: o login continua sendo o único caminho.
-	req := httptest.NewRequest(http.MethodGet, "/x", nil)
-	req.AddCookie(&http.Cookie{Name: sessionCookie,
-		Value: s.signToken(time.Now().Add(-time.Hour).Unix())})
-	rec := httptest.NewRecorder()
-	protegida(rec, req)
-	if rec.Code != http.StatusUnauthorized || rec.Header().Get("Set-Cookie") != "" {
-		t.Errorf("sessão vencida: status %d, Set-Cookie %q", rec.Code, rec.Header().Get("Set-Cookie"))
-	}
-}
-
-// O Secure do cookie de sessão só vale atrás de um proxy TLS. Em HTTP puro, o
-// navegador descartaria o cookie e o login nunca pegaria.
-func TestCookieDeSessaoSoESecurePorHTTPS(t *testing.T) {
-	s, _ := testServer(t)
-	s.cfg.Server.Username, s.cfg.Server.Password = "admin", "senha"
-
-	secure := func(h http.HandlerFunc, req *http.Request) bool {
-		t.Helper()
-		rec := httptest.NewRecorder()
-		h(rec, req)
-		c, err := http.ParseSetCookie(rec.Header().Get("Set-Cookie"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		return c.Secure
-	}
-
-	for proto, quer := range map[string]bool{"": false, "http": false, "https": true, "HTTPS": true} {
-		login := httptest.NewRequest(http.MethodPost, "/api/login",
-			strings.NewReader(`{"username":"admin","password":"senha"}`))
-		logout := httptest.NewRequest(http.MethodPost, "/api/logout", nil)
-		if proto != "" {
-			login.Header.Set("X-Forwarded-Proto", proto)
-			logout.Header.Set("X-Forwarded-Proto", proto)
-		}
-		if got := secure(s.handleLogin, login); got != quer {
-			t.Errorf("login com X-Forwarded-Proto=%q: Secure=%v, esperava %v", proto, got, quer)
-		}
-		if got := secure(s.handleLogout, logout); got != quer {
-			t.Errorf("logout com X-Forwarded-Proto=%q: Secure=%v, esperava %v", proto, got, quer)
 		}
 	}
 }
