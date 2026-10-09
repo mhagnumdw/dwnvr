@@ -623,8 +623,8 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   └── dwnvr/              o binário: lê a config, sobe um recorder por câmera, serve HTTP
 ├── internal/
 │   ├── api/                servidor HTTP
-│   │   ├── server.go       rotas e o que exige sessão
-│   │   ├── auth.go         sessão por cookie assinado (HMAC), sem estado no servidor
+│   │   ├── server.go       rotas e o papel que cada uma exige
+│   │   ├── auth.go         login e sessão por pessoa, em cookie assinado (HMAC), sem estado no servidor
 │   │   ├── cameras.go      cadastro de câmeras, cruzado com os streams do go2rtc
 │   │   ├── probe.go        descobre se um stream ocioso entrega áudio, com cache
 │   │   ├── recordings.go   dias, timeline, init, segmentos, thumbnail, HLS, exportação
@@ -648,7 +648,8 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   ├── logbuf/             guarda em memória os últimos avisos e erros do log, para o Diagnóstico
 │   ├── recorder/           um recorder por câmera: corta em keyframe e grava
 │   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram
-│   └── store/              layout em disco e índice NDJSON
+│   ├── store/              layout em disco e índice NDJSON
+│   └── usuarios/           o usuarios.json, o papel de cada um e a senha em hash (PBKDF2, uma conta por vez)
 ├── dwnvr-detect/           o detector de objetos, opcional, num container à parte (ver dwnvr-detect/README.md)
 ├── web/                    interface Svelte 5 + Vite (ver web/README.md)
 ├── docs/                   documentação longa (ver docs/README.md)

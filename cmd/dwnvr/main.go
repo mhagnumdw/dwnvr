@@ -32,6 +32,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/retention"
 	"github.com/mhagnumdw/dwnvr/internal/store"
+	"github.com/mhagnumdw/dwnvr/internal/usuarios"
 )
 
 func main() {
@@ -124,9 +125,23 @@ func run(log *slog.Logger, cfgPath string) error {
 			"como_ligar", "defina server.username e server.password em "+cfgPath)
 	}
 
+	// Um usuarios.json ilegível não impede a gravação: só o dono entra até ele
+	// ser corrigido, e a tela não grava por cima.
+	cad, avisosCad, err := usuarios.Abrir(cfg.UsuariosPath(), cfg.Server.Username)
+	if err != nil {
+		log.Error("cadastro de usuários ilegível; só o dono do dwnvr.yaml entra até ser corrigido", "erro", err)
+	}
+	for _, a := range avisosCad {
+		log.Warn("cadastro de usuários: "+a, "arquivo", cfg.UsuariosPath())
+	}
+	if !cfg.Server.AuthEnabled() && cad.Quantos() > 0 {
+		log.Warn("autenticação desligada: os usuários do cadastro foram ignorados",
+			"arquivo", cfg.UsuariosPath(), "usuarios", cad.Quantos())
+	}
+
 	srv := &http.Server{
 		Addr:    cfg.Server.Listen,
-		Handler: api.New(cfg, st, client, mgr, ret, secret, log).Handler(),
+		Handler: api.New(cfg, st, client, mgr, ret, cad, secret, log).Handler(),
 		// Sem WriteTimeout: exportação e proxy de live são respostas longas por
 		// natureza, e um teto aqui as cortaria no meio.
 		ReadHeaderTimeout: 10 * time.Second,
