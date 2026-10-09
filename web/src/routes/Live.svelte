@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import '../vendor/video-stream.js';
-  import { cameras, loadCameras } from '../lib/state.svelte.js';
+  import { cameras, loadCameras, session, sessaoCaiu } from '../lib/state.svelte.js';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
   import { api, mediaURL } from '../lib/api.js';
   import { baixarQuadro } from '../lib/captura.js';
@@ -35,6 +35,14 @@
   // Quanto cada sondagem do servidor espera antes de desistir, ao voltar de
   // uma aba oculta. Ver `esperarRede`.
   const SONDA_MS = 2000;
+
+  // De quanto em quanto tempo a tela confere a sessão com o vídeo à vista, e
+  // quanto cada conferência espera a resposta. Ver `conferirSessao`.
+  const CONFERIR_SESSAO_MS = 60_000;
+  const PRAZO_CONFERENCIA_MS = 10_000;
+  // O tique que decide se está na hora de conferir, e o intervalo entre as
+  // tentativas enquanto a sessão não se confirma.
+  const TIQUE_CONFERENCIA_MS = 5000;
 
   // Lida uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
@@ -256,6 +264,7 @@
   let rede = null;
 
   function aoMudarVisibilidade() {
+    visivel = !document.hidden;
     if (document.hidden || rede) return;
     rede = esperarRede().finally(() => (rede = null));
   }
@@ -308,12 +317,104 @@
       node.RECONNECT_TIMEOUT = RELIGAR_MS[Math.min(falhas, RELIGAR_MS.length - 1)];
       const religando = fechou();
       if (religando) falhas++;
+      // Caiu e não voltou: pode ser a sessão. O websocket recusado não diz o
+      // motivo ao navegador, então quem responde é o /api/session.
+      if (falhas >= 2) conferirSessao();
       return religando;
     };
     // O `playing` sai do <video>, que não o propaga: só a fase de captura o
     // pega aqui, como em `manterNoPip`.
     node.addEventListener('playing', () => (falhas = 0), true);
   }
+
+  // --- a sessão ----------------------------------------------------------------
+
+  // Quem é removido, ou ganha link novo, perde a sessão na hora: o servidor
+  // recusa toda requisição dela e fecha os websockets do ao vivo. Isso basta
+  // para o MSE, cujo vídeo vem por dentro do websocket. O WebRTC não: o player
+  // fecha o websocket assim que o vídeo toca, e a mídia segue direto do go2rtc
+  // pela UDP, onde o dwnvr não alcança. Quem fecha o WebRTC é esta tela, e por
+  // três caminhos:
+  // - o aviso de sessão, um websocket mudo que o servidor fecha ao derrubar a
+  //   pessoa: ao vê-lo fechar, a tela confere a sessão na hora;
+  // - a conferência a cada CONFERIR_SESSAO_MS com o vídeo à vista, que é a
+  //   rede de segurança se o aviso se perder;
+  // - a câmera que caiu e não voltou, em `religarRapido`.
+  // Sessão que não vale leva ao login. Sessão que não se confirma - o dwnvr
+  // não respondeu - para o vídeo até confirmar: na dúvida, fecha.
+
+  // Com o vídeo à vista: aba visível, ou uma câmera no PiP.
+  let visivel = $state(!document.hidden);
+  const ativo = $derived(visivel || pipCam !== null);
+
+  let acessoConfirmado = $state(true);
+  let ultimaConferencia = Date.now();
+  let conferindo = null;
+
+  // fecharTudo corta o vídeo de todas as câmeras na hora. Desmontar o tile
+  // também corta, mas só depois dos 5 s de carência do player, e o WebRTC
+  // seguiria recebendo vídeo nesse meio-tempo.
+  function fecharTudo() {
+    for (const node of Object.values(players)) node.ondisconnect();
+  }
+
+  function conferirSessao() {
+    if (!session.authRequired) return;
+    conferindo ??= (async () => {
+      try {
+        const r = await api.conferirSessao(PRAZO_CONFERENCIA_MS);
+        const s = await r.json();
+        if (!s.authenticated) {
+          fecharTudo();
+          sessaoCaiu();
+        } else acessoConfirmado = true;
+      } catch {
+        fecharTudo();
+        acessoConfirmado = false;
+      } finally {
+        ultimaConferencia = Date.now();
+        conferindo = null;
+      }
+    })();
+  }
+
+  // Enquanto `rede` espera o servidor responder na volta da aba oculta, não
+  // confere: a rede ainda suspensa daria um "não confirmou" falso, e o vídeo
+  // pararia à toa.
+  $effect(() => {
+    if (!session.authRequired || !ativo) return;
+    const id = setInterval(() => {
+      if (rede) return;
+      if (!acessoConfirmado || Date.now() - ultimaConferencia >= CONFERIR_SESSAO_MS) conferirSessao();
+    }, TIQUE_CONFERENCIA_MS);
+    return () => clearInterval(id);
+  });
+
+  // O aviso de sessão fica aberto só com o vídeo à vista. Fechado sem a tela
+  // pedir, confere a sessão e reabre, com a mesma espera crescente das
+  // câmeras.
+  $effect(() => {
+    if (!session.authRequired || !ativo) return;
+    let ws;
+    let timer;
+    let falhas = 0;
+    let vivo = true;
+    const abrir = () => {
+      ws = new WebSocket(mediaURL.avisoDeSessaoWS());
+      ws.onopen = () => (falhas = 0);
+      ws.onclose = () => {
+        if (!vivo) return;
+        conferirSessao();
+        timer = setTimeout(abrir, RELIGAR_MS[Math.min(falhas++, RELIGAR_MS.length - 1)]);
+      };
+    };
+    abrir();
+    return () => {
+      vivo = false;
+      clearTimeout(timer);
+      ws.close();
+    };
+  });
 
   // --- só decodifica o que está na tela ----------------------------------------
 
@@ -561,6 +662,13 @@
     </div>
   {/if}
 
+  {#if !acessoConfirmado}
+    <p class="card small semacesso">
+      Não deu para confirmar o seu acesso com o dwnvr, e o vídeo fica parado até confirmar. Tentando de
+      novo…
+    </p>
+  {/if}
+
   <div class="palco" class:fit={modo === 'fit'} bind:this={palco}>
     <div
       class="grid"
@@ -568,7 +676,7 @@
       style:--cols={modo === 'fit' ? encaixe.cols : modo}
       style:--tile-w="{Math.floor(encaixe.w)}px"
     >
-      {#each visible as c (c.id)}
+      {#each acessoConfirmado ? visible : [] as c (c.id)}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="tile" ondblclick={(e) => fullscreen(e.currentTarget)} title="duplo clique: tela cheia">
           <!-- O componente do go2rtc negocia WebRTC/MSE sozinho. A mídia vai
@@ -586,7 +694,8 @@
               players[c.id] = node;
               // Ao desmontar, o custom element fecha a conexão sozinho no
               // disconnectedCallback - nada a limpar aqui além da referência
-              // e do observer.
+              // e do observer. Quando a sessão cai, quem fecha na hora é o
+              // `fecharTudo`.
               return () => {
                 largar();
                 delete players[c.id];
@@ -667,6 +776,10 @@
 </div>
 
 <style>
+  .semacesso {
+    color: var(--warn);
+  }
+
   .page {
     display: grid;
     gap: 10px;

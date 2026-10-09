@@ -54,7 +54,7 @@ instalar, "app instalado (PWA)".
 Abrir uma porta no roteador, ou publicar o dwnvr por um túnel público (como o
 Tailscale Funnel ou o Cloudflare Tunnel), deixa a tela de login à vista de
 qualquer um. O login do dwnvr passa a ser a única proteção das câmeras, e ele
-não foi feito para isso: é um usuário só, e as tentativas não têm limite.
+não foi feito para isso: as tentativas não têm limite.
 
 Com o Tailscale, o servidor só responde a dispositivos que entraram na VPN. Do
 resto da internet, não há o que encontrar.
@@ -195,8 +195,10 @@ quem recebeu o compartilhamento.
 - `http://servidor.tail1234.ts.net:8080` **não abre**. Se abrir, a policy não
   pegou.
 
-O dwnvr tem um usuário só, então todos entram com o mesmo usuário e a mesma
-senha.
+Cada pessoa entra com o próprio usuário: crie-a na aba **Usuários** do dwnvr e
+mande o link que aparece, para ela definir a senha. O link vale 10 minutos,
+então mande quando ela já estiver com o Tailscale ligado e puder abri-lo na
+hora.
 
 ## Os dispositivos de quem acessa
 
@@ -220,7 +222,7 @@ em quando não precisa entrar de novo.
 ### Android
 
 - **Abrir e entrar:** no Chrome, `https://servidor.tail1234.ts.net`, com o
-  usuário e a senha do dwnvr.
+  próprio usuário e senha no dwnvr.
 - **Instalar:** na mesma página, menu ⋮ > **Instalar app**.
 - **Tailscale sempre ligado:** Configurações > VPN > a engrenagem do Tailscale
   > **VPN sempre ativa** (Always-on VPN). Deixe desligado o "bloquear conexões
@@ -237,7 +239,7 @@ sempre ligado, em casa e fora, e é por ele que o app abre nos dois lugares.
 > Esta seção ainda não foi testada num iPhone.
 
 - **Abrir e entrar:** no Safari, `https://servidor.tail1234.ts.net`, com o
-  usuário e a senha do dwnvr.
+  próprio usuário e senha no dwnvr.
 - **Instalar:** na mesma página, compartilhar > **Adicionar à Tela de
   Início**. Do iOS 26 em diante, "Abrir como app" já vem ligado.
 - **Tailscale sempre ligado:** no app do Tailscale, **VPN On Demand**, ligado

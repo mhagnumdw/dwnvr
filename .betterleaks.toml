@@ -10,12 +10,16 @@ title = "dwnvr"
 
 # As senhas de exemplo do repositório, que não são segredo: "senha" nas URLs
 # rtsp:// do go2rtc.example.yaml e nos testes, "troque-me" no
-# dwnvr.example.yaml. O "admin" só nos testes (`Username, Password = "admin",
-# "senha"` confunde a regra genérica): fora deles, usuário admin com senha
-# admin é o de fábrica de muita câmera, e tem que barrar.
+# dwnvr.example.yaml. O resto só nos testes. O "admin" porque
+# `Username, Password = "admin", "senha"` confunde a regra genérica: fora
+# deles, usuário admin com senha admin é o de fábrica de muita câmera, e tem
+# que barrar. As outras são as do convite, no corpo `{"password": ...}`, que
+# precisam ser diferentes entre si e de tamanhos diferentes ("curta" existe
+# para ser recusada).
 filter = '''
 finding["secret"] in ["senha", "troque-me"] ||
-(finding["secret"] == "admin" && attributes["path"] endsWith "_test.go")
+(attributes["path"] endsWith "_test.go" &&
+  finding["secret"] in ["admin", "curta", "uma senha boa", "outra senha boa"])
 '''
 
 [extend]
