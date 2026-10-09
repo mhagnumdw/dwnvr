@@ -331,6 +331,11 @@ func mecanismosAceitos() string {
 // CamerasPath é o caminho do cameras.json, ao lado do dwnvr.yaml.
 func (c *Config) CamerasPath() string { return filepath.Join(c.dir, "cameras.json") }
 
+// UsuariosPath é onde ficam as pessoas cadastradas pela tela, além do dono do
+// dwnvr.yaml. Fica ao lado do cameras.json, e não no storage, que é só de
+// gravação.
+func (c *Config) UsuariosPath() string { return filepath.Join(c.dir, "usuarios.json") }
+
 // Resolve devolve a câmera com os defaults já aplicados, para que o resto do
 // código nunca precise perguntar "esse zero é intencional?".
 func (c *Config) Resolve(cam Camera) Camera {
@@ -397,18 +402,21 @@ func (c *Config) LoadCameras() ([]Camera, []Aviso, error) {
 	return cams, avisos, nil
 }
 
-// SaveCameras grava o cameras.json de forma atômica (arquivo temporário no
-// mesmo diretório + rename), para que uma queda no meio da escrita nunca deixe
-// um cadastro truncado.
+// SaveCameras grava o cameras.json de forma atômica (ver GravarAtomico).
 func (c *Config) SaveCameras(cams []Camera) error {
 	b, err := json.MarshalIndent(cams, "", "  ")
 	if err != nil {
 		return err
 	}
-	b = append(b, '\n')
+	// O cameras.json precisa ser legível por quem administra a instalação.
+	return GravarAtomico(c.CamerasPath(), append(b, '\n'), 0o644)
+}
 
-	path := c.CamerasPath()
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".cameras-*.json")
+// GravarAtomico grava o arquivo de forma atômica (arquivo temporário no mesmo
+// diretório + rename), para que uma queda no meio da escrita nunca deixe um
+// cadastro truncado.
+func GravarAtomico(path string, b []byte, modo os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*")
 	if err != nil {
 		return err
 	}
@@ -422,9 +430,8 @@ func (c *Config) SaveCameras(cams []Camera) error {
 		tmp.Close()
 		return err
 	}
-	// CreateTemp cria com 0600; o cameras.json precisa ser legível por quem
-	// administra a instalação.
-	if err := tmp.Chmod(0o644); err != nil {
+	// CreateTemp cria com 0600.
+	if err := tmp.Chmod(modo); err != nil {
 		tmp.Close()
 		return err
 	}

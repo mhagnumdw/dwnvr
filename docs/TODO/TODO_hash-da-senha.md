@@ -4,8 +4,14 @@ Registrado em 07/10/2026, com a decisão de fazer numa atividade própria. Aqui
 fica o estudo, para não refazer: o algoritmo, o custo medido, o desenho e o que
 ainda falta decidir.
 
-**Status: não começado.** Os números foram medidos em 07/10/2026; o desenho é
-proposta.
+**Status: em parte feito.** Desde o cadastro de usuários (09/10/2026), o
+contrato do item 1, o valor guardado do item 2, os números do item 4, a conta
+sempre feita do item 5 e a fila do item 7 existem em
+[`internal/usuarios/senha.go`](../../internal/usuarios/senha.go), e guardam a
+senha de quem é cadastrado pela tela. O login do dono já paga a conta inteira,
+para o tempo não dizer quem é o dono. Falta o que é do dono: o
+`server.password` em hash no `dwnvr.yaml` (itens 3, 6 e 9) e a flag
+`-hash-password` (item 8). Os números foram medidos em 07/10/2026.
 
 ## Por quê
 
@@ -26,7 +32,7 @@ E não resolve:
 
 - **Quem copia a pasta inteira** leva o `.session-secret` junto e fabrica o
   cookie sem saber a senha, porque a chave sai do segredo e do valor guardado
-  no yaml (`deriveSessionKey`, em `internal/api/auth.go`).
+  no yaml (`chaveDaSessao`, em `internal/api/auth.go`).
 - **Quem tem root na máquina.**
 - **Tentar senhas pela tela de login.** Isso é o
   [limite de tentativas](TODO_limite-de-tentativas-no-login.md). O hash deixa
@@ -167,7 +173,7 @@ Argon2id deixa de custar a dependência.
    o que o `handleLogin` já garante: comparar sempre os dois campos, para não
    vazar por tempo se o usuário existe. A comparação final é em tempo constante
    (`subtle.ConstantTimeCompare`).
-6. **A sessão continua amarrada à credencial.** O `deriveSessionKey` usa o
+6. **A sessão continua amarrada à credencial.** O `chaveDaSessao` usa o
    valor guardado, que passa a ser o hash: trocar a senha gera outro hash e
    derruba as sessões, como hoje. Gerar outro hash da mesma senha também
    derruba, porque o salt muda.
@@ -205,8 +211,6 @@ Argon2id deixa de custar a dependência.
 - **Ler a senha da entrada padrão** quando ela não é um terminal (scripts,
   `printf %s "$SENHA" | dwnvr -hash-password`), ou só do terminal.
 - **`x/term` ou syscall** para digitar a senha sem mostrar.
-- **A ordem com o limite de tentativas**: o limite antes, ou o hash já com a
-  fila do item 7.
 
 ## O que muda nas docs e nos testes
 
@@ -225,8 +229,9 @@ Argon2id deixa de custar a dependência.
 - **O `chmod 600`** do `dwnvr.yaml` e do `go2rtc.yaml`, no passo 2 do README.
   O go2rtc continua lendo e, ao reescrever o arquivo pela interface web,
   mantém o modo e o dono.
-- **A sessão amarrada à credencial** (`deriveSessionKey`): trocar a senha
-  derruba as sessões abertas.
+- **A sessão amarrada à credencial** (`chaveDaSessao`): trocar a senha
+  derruba as sessões abertas, e desde o cadastro de usuários só as da pessoa
+  que trocou.
 - **A assinatura do cookie fica HMAC-SHA256**, com a chave de 32 bytes do
   `.session-secret`. Forjar um cookie exige acertar a chave ou a assinatura,
   2^256 possibilidades cada; um computador quântico baixaria a busca da chave

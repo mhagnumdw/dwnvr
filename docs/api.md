@@ -15,42 +15,84 @@ Convenções que valem para tudo:
 
 | Endpoint | O que faz |
 | --- | --- |
-| `POST /api/login` | abre sessão; devolve cookie assinado (HMAC, sem estado no servidor) |
+| `POST /api/login` | abre sessão; devolve cookie assinado (HMAC, sem estado no servidor) e quem entrou |
 | `POST /api/logout` | encerra a sessão |
-| `GET /api/session` | **público**: diz se este dwnvr exige login |
+| `GET /api/session` | **público**: diz se este dwnvr exige login e, com sessão, quem está logado |
 | `GET /api/version` | **público**: versão, commit e data do build |
 
 `/api/session` e `/api/version` ficam fora da autenticação pelo mesmo motivo:
 precisam ser visíveis antes de entrar. O `/api/version` é também a sonda de
 deploy - um `curl` responde se o dwnvr subiu com o código novo, sem cookie.
 
-Todo o resto exige sessão válida.
+Todo o resto exige sessão válida, e as rotas marcadas **só admin** exigem
+também o papel de admin.
 
-A sessão vale 30 dias e se renova com o uso: quando falta menos da metade do
+### Quem entra
+
+- **O dono**: o `server.username` e o `server.password` do `dwnvr.yaml`.
+  Sempre admin. A senha dele só se troca no arquivo.
+- **As pessoas do `usuarios.json`**, na pasta de config, cada uma com o papel
+  gravado: `admin` ou `comum`.
+
+O usuário comum vê as câmeras, as gravações e as detecções. O que é da tela
+Câmeras e do diagnóstico do servidor ele recebe como `403`, mesmo sem a aba
+na tela: esconder a aba não é segurança.
+
+Sem credencial no `dwnvr.yaml` a autenticação fica desligada, as pessoas do
+`usuarios.json` são ignoradas, e quem alcança a tela é tratado como admin.
+
+```json
+{
+  "authRequired": true,
+  "authenticated": true,
+  "pessoa": { "usuario": "maria", "nome": "Maria", "papel": "comum", "dono": false }
+}
+```
+
+O `pessoa` só vem com `authenticated: true`; com a autenticação desligada, ele
+vem com `"papel": "admin"` e `"dono": true`, sem `usuario` nem `nome`. O
+`POST /api/login` devolve o mesmo `pessoa`, junto com `"ok": true`.
+
+### O login
+
+Toda tentativa custa uma conta de senha de 0,77 s num Orange Pi Zero 3
+(PBKDF2-SHA256, 600.000 iterações), uma por vez no processo inteiro: algumas
+tentativas simultâneas não ocupam os núcleos da gravação, só esperam a vez. O
+login do dono, cuja senha está em texto no `dwnvr.yaml`, e o de um usuário que
+não existe pagam a mesma conta, para o tempo de resposta não dizer quem
+existe. Não há limite de tentativas
+([TODO](TODO/TODO_limite-de-tentativas-no-login.md)).
+
+### O cookie
+
+O cookie diz de quem é a sessão: `<usuário em base64>.<validade>.<hmac>`. A
+sessão vale 30 dias e se renova com o uso: quando falta menos da metade do
 prazo, qualquer resposta autenticada, e também a do `/api/session`, traz um
 cookie novo com os 30 dias inteiros. Na prática, os 30 dias contam da última
 vez que a tela falou com o dwnvr. Continua sem estado no servidor: renovar é só
 assinar outro prazo.
 
-Trocar o usuário ou a senha no `dwnvr.yaml` e reiniciar derruba todas as
-sessões: a chave que assina o cookie sai do `.session-secret` junto com a
-credencial, e o cookie emitido antes deixa de bater. Para derrubar sem trocar a
-senha, ver [Trocar a senha e derrubar as
+A chave que assina o cookie de cada pessoa sai do `.session-secret` junto com
+o usuário e a senha dela: a do `dwnvr.yaml`, para o dono, ou a guardada no
+`usuarios.json`. Trocar a senha de alguém derruba só as sessões dessa pessoa,
+e o mesmo vale para quem é removido. Para o dono, isso pede reiniciar, porque o
+`dwnvr.yaml` só é lido ao subir. Para derrubar todo mundo de uma vez, ver
+[Trocar a senha e derrubar as
 sessões](operacao.md#trocar-a-senha-e-derrubar-as-sessões).
 
 ## Câmeras e diagnóstico
 
 | Endpoint | Parâmetros | O que faz |
 | --- | --- | --- |
-| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs |
-| `POST /api/cameras` | corpo JSON | cadastra ou altera (upsert por id) |
-| `DELETE /api/cameras` | `id`, `recordings=1` | descadastra; com `recordings=1` apaga as gravações junto |
-| `GET /api/streams/probe` | `src` | diz se um stream entrega áudio, abrindo-o se preciso |
-| `POST /api/go2rtc/restart` | - | reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
-| `GET /api/health` | - | bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes e relógio |
-| `POST /api/reconnects/reset` | - | zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
-| `GET /api/health/servidor` | - | a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos e últimos avisos do log |
-| `DELETE /api/rec` | `cam` | apaga as gravações; serve também câmera já removida |
+| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs; para o usuário comum, só as câmeras e o `detector` |
+| `POST /api/cameras` | corpo JSON | **só admin**: cadastra ou altera (upsert por id) |
+| `DELETE /api/cameras` | `id`, `recordings=1` | **só admin**: descadastra; com `recordings=1` apaga as gravações junto |
+| `GET /api/streams/probe` | `src` | **só admin**: diz se um stream entrega áudio, abrindo-o se preciso |
+| `POST /api/go2rtc/restart` | - | **só admin**: reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
+| `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes e relógio |
+| `POST /api/reconnects/reset` | - | **só admin**: zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
+| `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos e últimos avisos do log |
+| `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
 consumindo: o go2rtc só preenche o `medias` do produtor enquanto existe

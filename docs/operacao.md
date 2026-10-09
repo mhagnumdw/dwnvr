@@ -82,14 +82,15 @@ de fora. Trecho que cruza a meia-noite precisa do índice dos dois dias.
 ## Trocar a senha e derrubar as sessões
 
 Quem entra uma vez continua logado: a sessão vale 30 dias e se renova com o
-uso. Para tirar todo mundo, como depois de perder um celular logado, há dois
-caminhos, e os dois pedem reiniciar o dwnvr, que só lê esses arquivos ao subir:
+uso. A assinatura do cookie de cada pessoa depende da senha dela, então trocar
+a senha de alguém tira só essa pessoa. Há dois caminhos aqui, e os dois pedem
+reiniciar o dwnvr, que só lê esses arquivos ao subir:
 
-- **Trocar a senha**, ou o usuário, no `dwnvr.yaml`. A assinatura do cookie
-  depende da credencial, então todo cookie emitido antes deixa de valer, e só
-  entra quem souber a senha nova.
-- **Apagar o `.session-secret`**, para tirar todo mundo sem trocar a senha. O
-  dwnvr gera outro ao subir.
+- **Trocar a senha**, ou o usuário, do dono no `dwnvr.yaml`. Todo cookie do
+  dono emitido antes deixa de valer, e só entra quem souber a senha nova. Os
+  outros usuários continuam logados.
+- **Apagar o `.session-secret`**, para tirar todo mundo, o dono e os outros
+  usuários, sem trocar senha nenhuma. O dwnvr gera outro ao subir.
 
 ```sh
 # Para tirar todo mundo sem trocar a senha:
@@ -99,7 +100,8 @@ rm /mnt/storage/dwnvr/config/dwnvr/.session-secret
 docker compose restart dwnvr
 ```
 
-Nos dois casos, quem estava com a tela aberta volta para a tela de login.
+Nos dois casos, quem foi tirado e estava com a tela aberta volta para a tela
+de login.
 
 ## Inspecionar um container sem shell
 
