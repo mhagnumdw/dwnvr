@@ -11,6 +11,8 @@
     checarNovaVersao,
     vigiarAvisos,
     logout,
+    ehAdmin,
+    sessaoCaiu,
     RELEASES_URL,
   } from './lib/state.svelte.js';
   import { rota, ROTA_PADRAO } from './lib/rota.svelte.js';
@@ -34,11 +36,32 @@
       carregar: () => import('./routes/Deteccoes.svelte'),
       soComDetector: true,
     },
-    { id: 'cams', label: 'Câmeras', icon: '☰', component: Cameras },
+    // As duas do admin. Esconder a aba não é segurança - a API recusa o comum
+    // com 403 -, é só não mostrar o que ele não pode usar. Usuários vem em
+    // chunk à parte: o comum nunca baixa a tela.
+    { id: 'cams', label: 'Câmeras', icon: '☰', component: Cameras, soAdmin: true },
+    {
+      id: 'usuarios',
+      label: 'Usuários',
+      carregar: () => import('./routes/Usuarios.svelte'),
+      soAdmin: true,
+    },
+    // Para o comum, só "Este navegador" e a versão.
     { id: 'health', label: 'Diagnóstico', icon: '♥', component: Health },
   ];
 
-  const abas = $derived(ROUTES.filter((r) => !r.soComDetector || cameras.detector));
+  const abas = $derived(
+    ROUTES.filter((r) => (!r.soComDetector || cameras.detector) && (!r.soAdmin || ehAdmin())),
+  );
+
+  // O link de convite (`#convite?token=…`) abre a tela de definir a senha, com
+  // ou sem sessão: quem o recebe ainda não tem senha. Chunk à parte, porque só
+  // quem abre um link a usa.
+  const convite = $derived(rota.id === 'convite');
+  let Convite = $state(null);
+  $effect(() => {
+    if (convite && !Convite) import('./routes/Convite.svelte').then((m) => (Convite = m.default));
+  });
 
   // A aba que depende do detector só se decide depois do /api/cameras. Até lá
   // a tela fica em branco: cair na padrão e trocar em seguida montaria e
@@ -46,7 +69,7 @@
   const pedida = $derived(ROUTES.find((r) => r.id === rota.id));
   const esperando = $derived(pedida?.soComDetector && cameras.detector === null);
 
-  // Roteamento por hash: são cinco telas, e um roteador de verdade custaria
+  // Roteamento por hash: são poucas telas, e um roteador de verdade custaria
   // mais bytes que o resto do aplicativo junto. Quem lê e escreve o hash é o
   // `lib/rota.svelte.js`, porque ele carrega também o estado de cada tela.
   // Hash apontando para tela que não existe - erro de digitação, link de uma
@@ -62,7 +85,7 @@
   // e enquanto a tela não se decide fica só a marca: um "Ao vivo" de passagem
   // antes de "Detecções" seria mentira por um instante.
   const titulo = $derived(
-    !session.checked || (session.authRequired && !session.authenticated) || esperando
+    convite || !session.checked || (session.authRequired && !session.authenticated) || esperando
       ? 'dwnvr'
       : `dwnvr · ${route.label}`,
   );
@@ -80,10 +103,11 @@
   });
 
   // O sino do header: os mesmos avisos do card da tela Diagnóstico, contados
-  // pela mesma função. Só vigia com a sessão aberta - sem ela não há header.
+  // pela mesma função. Só vigia com a sessão aberta - sem ela não há header -,
+  // e só para o admin: o comum não tem sino, e a tela dele não relê a saúde.
   const logado = $derived(session.checked && (!session.authRequired || session.authenticated));
   $effect(() => {
-    if (logado) return vigiarAvisos();
+    if (logado && ehAdmin()) return vigiarAvisos();
   });
   const sino = $derived(resumoDosAvisos(avisosDe(health)));
   const sinoTitulo = $derived(
@@ -98,20 +122,40 @@
     if (id === route.id) ev.preventDefault();
   }
 
+  // A versão em uso, buscada no boot. A pergunta ao GitHub por versão nova
+  // espera por ela e pela sessão: só o admin vê a pílula, e o comum não gasta
+  // a consulta.
+  let versao;
+
+  function talvezVersaoNova() {
+    if (ehAdmin()) versao.then(checarNovaVersao);
+  }
+
   onMount(async () => {
-    setUnauthorizedHandler(() => {
-      session.authenticated = false;
-    });
+    setUnauthorizedHandler(sessaoCaiu);
     // Fora do await da sessão: a tela de login também mostra a versão, e não
     // há motivo para uma busca esperar a outra.
-    loadBuild().then(checarNovaVersao);
+    versao = loadBuild();
     await checkSession();
-    if (session.authenticated) loadCameras();
+    if (session.authenticated) {
+      loadCameras();
+      talvezVersaoNova();
+    }
   });
 
-  async function afterLogin() {
+  async function afterLogin(pessoa) {
     session.authenticated = true;
+    session.pessoa = pessoa ?? null;
+    talvezVersaoNova();
     await loadCameras();
+  }
+
+  // Definida a senha pelo link, a pessoa já entra. O link sai do histórico:
+  // voltar não pode reabrir uma tela com o token, que já não vale.
+  function aposConvite(pessoa) {
+    session.checked = true;
+    location.replace(location.pathname + location.search + '#' + ROTA_PADRAO);
+    afterLogin(pessoa);
   }
 
   let saindo = $state(false);
@@ -127,7 +171,9 @@
   <title>{titulo}</title>
 </svelte:head>
 
-{#if !session.checked}
+{#if convite}
+  {#if Convite}<Convite onSuccess={aposConvite} />{:else}<div class="boot">carregando…</div>{/if}
+{:else if !session.checked}
   <div class="boot">carregando…</div>
 {:else if session.authRequired && !session.authenticated}
   <Login onSuccess={afterLogin} />
@@ -174,7 +220,7 @@
       {/if}
       <!-- Leva às releases, e não direto à versão nova: quem pulou algumas
            precisa ler as notas de todas desde a sua. -->
-      {#if build.nova}
+      {#if build.nova && ehAdmin()}
         <a
           class="nova"
           href={RELEASES_URL}
@@ -213,7 +259,27 @@
   <nav class="bottom" style:--abas={abas.length}>
     {#each abas as r (r.id)}
       <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => navegar(e, r.id)}>
-        <span class="icon">{r.icon}</span>
+        <!-- Usuários não tem um caractere que preste em todo sistema: vai
+             desenhado, no tamanho dos outros. -->
+        <span class="icon">
+          {#if r.id === 'usuarios'}
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="9" cy="8" r="3.5" />
+              <path d="M2.5 20c.8-4 3.3-6 6.5-6s5.7 2 6.5 6" />
+              <circle cx="17" cy="9" r="2.6" />
+              <path d="M16 14.2c2.9-.3 5 1.6 5.6 4.8" />
+            </svg>
+          {:else}
+            {r.icon}
+          {/if}
+        </span>
         <span class="label">{r.label}</span>
       </a>
     {/each}
@@ -388,6 +454,15 @@
   .icon {
     font-size: 18px;
     line-height: 1;
+    /* A altura fixa alinha o desenho da aba Usuários com os caracteres. */
+    height: 18px;
+    display: grid;
+    place-items: center;
+  }
+
+  .icon svg {
+    width: 18px;
+    height: 18px;
   }
 
   /* No desktop a navegação sobe: o polegar deixa de ser a restrição e a

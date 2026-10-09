@@ -5,14 +5,18 @@
 
     <SemCameras />              ao vivo, gravações
     <SemCameras link={false} /> no próprio cadastro, onde o link seria circular
+
+  O usuário comum não vê o link: o cadastro é do admin.
 -->
 <script>
+  import { ehAdmin } from '../lib/state.svelte.js';
+
   let { link = true } = $props();
 </script>
 
 <div class="empty">
   <p>Nenhuma câmera cadastrada ainda.</p>
-  {#if link}<a href="#cams">Cadastrar câmera</a>{/if}
+  {#if link && ehAdmin()}<a href="#cams">Cadastrar câmera</a>{/if}
 </div>
 
 <style>

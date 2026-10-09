@@ -12,7 +12,11 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
+	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
 )
@@ -52,7 +56,45 @@ type Usuario struct {
 	// Senha é o valor guardado (ver GerarSenha), nunca a senha. Vazia é
 	// "ainda não definiu": ninguém entra com este usuário.
 	Senha string `json:"senha,omitempty"`
+	// Link é o link de convite em aberto, ou nil. Um por pessoa: gerar outro
+	// substitui este.
+	Link     *Link     `json:"link,omitempty"`
+	CriadoEm time.Time `json:"criadoEm"`
 }
+
+// Link é o que o usuarios.json guarda do link de convite: o SHA-256 do token,
+// nunca o token. Quem ler o arquivo não consegue montar o link.
+type Link struct {
+	TokenSha256 string    `json:"tokenSha256"`
+	VenceEm     time.Time `json:"venceEm"`
+}
+
+// Situacao diz em que pé está a pessoa: "ativo" (tem senha), "linkAberto"
+// (ainda pode definir a senha pelo link) ou "linkVencido" (precisa de outro
+// link para entrar).
+func (u Usuario) Situacao(agora time.Time) string {
+	switch {
+	case u.Link != nil && agora.Before(u.Link.VenceEm):
+		return "linkAberto"
+	case u.Link == nil && u.Senha != "":
+		return "ativo"
+	}
+	return "linkVencido"
+}
+
+// Recusado é o erro do que alguém digitou ou pediu, com a mensagem para ser
+// lida na tela. A API o devolve como 400.
+type Recusado string
+
+func (e Recusado) Error() string { return string(e) }
+
+var (
+	// ErrNaoExiste é a pessoa que não está no cadastro.
+	ErrNaoExiste = errors.New("usuário não encontrado")
+	// ErrLinkInvalido é o link vencido, já usado, substituído por outro ou
+	// inventado: para quem o abre, a saída é a mesma, pedir outro.
+	ErrLinkInvalido = errors.New("link vencido ou já usado: peça outro ao administrador")
+)
 
 var formatoDoUsuario = regexp.MustCompile(`^[a-z0-9._-]+$`)
 
@@ -60,13 +102,40 @@ var formatoDoUsuario = regexp.MustCompile(`^[a-z0-9._-]+$`)
 // até TamanhoMaximoDoUsuario caracteres.
 func ValidarUsuario(u string) error {
 	if u == "" {
-		return errors.New("usuário vazio")
+		return Recusado("usuário vazio")
 	}
 	if len(u) > TamanhoMaximoDoUsuario {
-		return fmt.Errorf("usuário com mais de %d caracteres", TamanhoMaximoDoUsuario)
+		return Recusado(fmt.Sprintf("usuário com mais de %d caracteres", TamanhoMaximoDoUsuario))
 	}
 	if !formatoDoUsuario.MatchString(u) {
-		return errors.New("usuário só aceita letras minúsculas, números, ponto, _ e -")
+		return Recusado("usuário só aceita letras minúsculas, números, ponto, _ e -")
+	}
+	return nil
+}
+
+// ValidarNome confere o nome de exibição e o devolve sem os espaços das pontas.
+func ValidarNome(nome string) (string, error) {
+	nome = strings.TrimSpace(nome)
+	switch {
+	case nome == "":
+		return "", Recusado("nome vazio")
+	case utf8.RuneCountInString(nome) > TamanhoMaximoDoNome:
+		return "", Recusado(fmt.Sprintf("nome com mais de %d caracteres", TamanhoMaximoDoNome))
+	case strings.IndexFunc(nome, unicode.IsControl) >= 0:
+		return "", Recusado("nome com caractere de controle")
+	}
+	return nome, nil
+}
+
+// ValidarSenha confere só o tamanho, em caracteres: sem regra de composição,
+// como pede o NIST SP 800-63B.
+func ValidarSenha(senha string) error {
+	n := utf8.RuneCountInString(senha)
+	switch {
+	case n < SenhaMinima:
+		return Recusado(fmt.Sprintf("a senha precisa de pelo menos %d caracteres", SenhaMinima))
+	case n > SenhaMaxima:
+		return Recusado(fmt.Sprintf("a senha passa de %d caracteres", SenhaMaxima))
 	}
 	return nil
 }
@@ -85,6 +154,10 @@ type Cadastro struct {
 	// fica vazio e Alterar recusa: gravar por cima apagaria quem está no
 	// arquivo.
 	ilegivel error
+
+	// agora é o relógio dos links. Os testes o trocam para vencer um link sem
+	// esperar.
+	agora func() time.Time
 }
 
 // Abrir lê o usuarios.json. Arquivo que não existe é cadastro vazio.
@@ -94,7 +167,7 @@ type Cadastro struct {
 // porque a gravação não pode parar por causa dele: vem o erro, e o cadastro
 // vem vazio e recusa gravar. Só o dono entra até o arquivo ser corrigido.
 func Abrir(caminho, dono string) (c *Cadastro, avisos []string, err error) {
-	c = &Cadastro{caminho: caminho, dono: dono}
+	c = &Cadastro{caminho: caminho, dono: dono, agora: time.Now}
 	b, err := os.ReadFile(caminho)
 	if errors.Is(err, os.ErrNotExist) {
 		return c, nil, nil
@@ -138,14 +211,38 @@ func (c *Cadastro) motivoParaIgnorar(u Usuario, vistos map[string]bool) string {
 func (c *Cadastro) Buscar(usuario string) (Usuario, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	if i := c.indice(&c.arq, usuario); i >= 0 {
+		return c.arq.Usuarios[i], true
+	}
+	return Usuario{}, false
+}
+
+// indice acha a entrada válida da pessoa no arquivo, ou -1.
+func (c *Cadastro) indice(arq *Arquivo, usuario string) int {
 	vistos := map[string]bool{}
-	for _, u := range c.arq.Usuarios {
+	for i, u := range arq.Usuarios {
 		if c.motivoParaIgnorar(u, vistos) == "" && u.Usuario == usuario {
-			return u, true
+			return i
 		}
 		vistos[u.Usuario] = true
 	}
-	return Usuario{}, false
+	return -1
+}
+
+// Listar devolve as pessoas que valem, na ordem do arquivo. A entrada
+// inválida fica de fora, como no Buscar.
+func (c *Cadastro) Listar() []Usuario {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	lista := []Usuario{}
+	vistos := map[string]bool{}
+	for _, u := range c.arq.Usuarios {
+		if c.motivoParaIgnorar(u, vistos) == "" {
+			lista = append(lista, u)
+		}
+		vistos[u.Usuario] = true
+	}
+	return lista
 }
 
 // Dono devolve o que o arquivo guarda do dono.
@@ -173,6 +270,14 @@ func (c *Cadastro) Alterar(f func(*Arquivo) error) error {
 	}
 
 	novo := Arquivo{Dono: c.arq.Dono, Usuarios: append([]Usuario(nil), c.arq.Usuarios...)}
+	// O Link é ponteiro: sem a cópia, f mexeria no da cópia em memória antes
+	// de a gravação dar certo.
+	for i, u := range novo.Usuarios {
+		if u.Link != nil {
+			l := *u.Link
+			novo.Usuarios[i].Link = &l
+		}
+	}
 	if err := f(&novo); err != nil {
 		return err
 	}

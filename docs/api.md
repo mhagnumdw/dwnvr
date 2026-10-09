@@ -18,10 +18,14 @@ Convenções que valem para tudo:
 | `POST /api/login` | abre sessão; devolve cookie assinado (HMAC, sem estado no servidor) e quem entrou |
 | `POST /api/logout` | encerra a sessão |
 | `GET /api/session` | **público**: diz se este dwnvr exige login e, com sessão, quem está logado |
+| `GET /api/session/ws` | o aviso de sessão: websocket mudo que o servidor fecha quando a pessoa é derrubada |
 | `GET /api/version` | **público**: versão, commit e data do build |
+| `POST /api/convite/conferir` | **público**: diz de quem é o link de convite e até quando vale |
+| `POST /api/convite` | **público**: define a senha pelo link de convite e já abre a sessão |
 
 `/api/session` e `/api/version` ficam fora da autenticação pelo mesmo motivo:
-precisam ser visíveis antes de entrar. O `/api/version` é também a sonda de
+precisam ser visíveis antes de entrar. As duas do convite também, porque quem
+abre o link ainda não tem senha (ver [O link de convite](#o-link-de-convite)). O `/api/version` é também a sonda de
 deploy - um `curl` responde se o dwnvr subiu com o código novo, sem cookie.
 
 Todo o resto exige sessão válida, e as rotas marcadas **só admin** exigem
@@ -75,10 +79,61 @@ assinar outro prazo.
 A chave que assina o cookie de cada pessoa sai do `.session-secret` junto com
 o usuário e a senha dela: a do `dwnvr.yaml`, para o dono, ou a guardada no
 `usuarios.json`. Trocar a senha de alguém derruba só as sessões dessa pessoa,
-e o mesmo vale para quem é removido. Para o dono, isso pede reiniciar, porque o
+e o mesmo vale para quem é removido ou ganha link novo, que apaga a senha. Para o dono, isso pede reiniciar, porque o
 `dwnvr.yaml` só é lido ao subir. Para derrubar todo mundo de uma vez, ver
 [Trocar a senha e derrubar as
 sessões](operacao.md#trocar-a-senha-e-derrubar-as-sessões).
+
+### O link de convite
+
+Sem e-mail, quem entra pela primeira vez entra por um link: o admin cria a
+pessoa na tela Usuários, e ela define a própria senha. O link é
+`<endereço>/#convite?token=<token>`, com 32 bytes aleatórios no token. O
+endereço é o pelo qual o admin está acessando. O token fica no fragmento da
+URL, que não sai do navegador, e vai ao servidor no corpo de um POST: não
+aparece em log do dwnvr nem de proxy nenhum. O `usuarios.json` guarda só o
+SHA-256 dele.
+
+O link vale 10 minutos (`usuarios.ValidadeDoLink`) e uma vez só. Cada pessoa
+tem um link por vez: gerar outro invalida o anterior. Vencido, usado,
+substituído ou inventado, a resposta é a mesma, `410`.
+
+```json
+// POST /api/convite/conferir   {"token": "..."}
+{ "usuario": "maria", "nome": "Maria", "linkVenceEmMs": 1791587903000, "senhaMinima": 8, "senhaMaxima": 128 }
+```
+
+O `POST /api/convite` recebe `{"token", "senha"}` e devolve o mesmo
+`{"ok": true, "pessoa": {...}}` do login, com o cookie. A senha vai de 8 a 128
+caracteres, sem regra de composição (NIST SP 800-63B); fora disso, `400` com o
+motivo, e o link continua valendo. A conta da senha espera a mesma fila do
+login.
+
+### A queda de quem é derrubado
+
+Remover a pessoa ou gerar link novo para ela muda a credencial que assina os
+cookies dela, e toda requisição seguinte é recusada. As conexões que já estão
+abertas, e não voltam a apresentar o cookie, o servidor fecha na hora: o
+websocket do ao vivo e o aviso de sessão (`GET /api/session/ws`).
+
+Fechar o websocket do ao vivo corta o vídeo do MSE, que vem por dentro dele. O
+do WebRTC não: o player fecha o websocket da negociação assim que o vídeo toca,
+e a mídia segue direto do go2rtc ao navegador pela UDP, sem passar pelo dwnvr.
+O go2rtc 1.9 não tem rota para derrubar um consumidor; só reiniciá-lo, o que
+pararia todas as câmeras e a gravação. Quem fecha o WebRTC é a tela Ao vivo:
+
+- ao ver o aviso de sessão fechar, ela confere a sessão na hora, e, se não
+  valer, fecha o vídeo e vai para o login;
+- com o vídeo à vista, ela confere a sessão a cada 60 s, a rede de segurança se
+  o aviso se perder;
+- se o dwnvr não responder à conferência, o vídeo para até a sessão se
+  confirmar. Isso vale também quando o dwnvr reinicia: o ao vivo para por
+  alguns segundos, mesmo com o go2rtc no ar.
+
+Medido com o go2rtc 1.9.14 e o Chrome: o consumidor WebRTC sai do go2rtc uns
+40 ms depois de o admin remover a pessoa. Uma tela modificada por quem foi
+removido, que ignore o aviso, segue recebendo o vídeo já aberto até a conexão
+cair, mas não abre outra.
 
 ## Câmeras e diagnóstico
 
@@ -545,6 +600,39 @@ redimensionar nem reencodar: `t` é o `instanteMs` da detecção. Ele nunca muda
 depois de gravado, então vai com `immutable` e rolar de volta não pede nada ao
 servidor. Detecção com `temQuadro` falso responde 404.
 
+## Usuários
+
+Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem com
+`"authRequired": false` e o resto responde `409`.
+
+| Endpoint | O que faz |
+| --- | --- |
+| `GET /api/usuarios` | as pessoas, com a situação de cada uma, e o dono à parte |
+| `POST /api/usuarios` | cria uma pessoa comum, `{"usuario", "nome"}`, e devolve o token do link |
+| `POST /api/usuarios/link` | link novo, `{"usuario"}`: apaga a senha atual e derruba a pessoa na hora |
+| `DELETE /api/usuarios?usuario=` | remove a pessoa e a derruba na hora |
+
+```json
+// GET /api/usuarios
+{
+  "authRequired": true,
+  "dono": { "usuario": "admin", "nome": "admin" },
+  "usuarios": [
+    { "usuario": "maria", "nome": "Maria", "papel": "comum", "situacao": "linkAberto",
+      "linkVenceEmMs": 1791587903000, "criadoEmMs": 1791587303000 }
+  ],
+  "validadeDoLinkMs": 600000,
+  "tamanhoMaximoDoNome": 60,
+  "tamanhoMaximoDoUsuario": 32
+}
+```
+
+A `situacao` é `ativo` (tem senha), `linkAberto` (pode definir a senha pelo
+link) ou `linkVencido` (precisa de outro link). Criar e o link novo devolvem
+`{"usuario": {...}, "token": "..."}`: o token só existe nessa resposta, e a
+tela monta o link com ele. Usuário fora do formato, repetido ou igual ao do
+dono, e nome vazio, são `400` com o motivo; pessoa que não existe é `404`.
+
 ## Live
 
 | Endpoint | O que faz |
@@ -553,7 +641,8 @@ servidor. Detecção com `temQuadro` falso responde 404.
 
 O navegador nunca fala com o go2rtc diretamente. Passar pelo proxy resolve duas
 coisas de uma vez: a senha da API do go2rtc não vai para o cliente, e o live
-respeita a mesma sessão do resto da interface.
+respeita a mesma sessão do resto da interface. Quem é removido tem o websocket
+fechado na hora (ver [A queda de quem é derrubado](#a-queda-de-quem-é-derrubado)).
 
 Só o websocket do player passa. O resto da API do go2rtc - configuração,
 restart, streams - não é alcançável por aqui; o que o dwnvr precisa dela, ele

@@ -10,6 +10,10 @@ server:
   # não travar o primeiro uso - e o dwnvr avisa disso no log. Preencha numa
   # instalação definitiva: sem definir, quem abre a interface enxerga as
   # gravações de todas as câmeras.
+  #
+  # É a conta-dona: sempre administradora, e a senha só se troca aqui. As
+  # outras pessoas você cria na aba Usuários da interface, que as grava no
+  # usuarios.json, ao lado deste arquivo.
   # username: admin
   # password: troque-me
 

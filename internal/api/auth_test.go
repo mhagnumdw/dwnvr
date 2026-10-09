@@ -22,7 +22,13 @@ import (
 func comAutenticacao(t *testing.T, s *Server, gente ...usuarios.Usuario) {
 	t.Helper()
 	s.cfg.Server.Username, s.cfg.Server.Password = "admin", "senha"
-	err := s.usuarios.Alterar(func(a *usuarios.Arquivo) error {
+	// Reaberto com o dono, como no boot: é ele que o cadastro recusa criar.
+	cad, _, err := usuarios.Abrir(s.cfg.UsuariosPath(), "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.usuarios = cad
+	err = s.usuarios.Alterar(func(a *usuarios.Arquivo) error {
 		a.Usuarios = append(a.Usuarios, gente...)
 		return nil
 	})
@@ -220,6 +226,8 @@ func TestPapelPorRota(t *testing.T) {
 		"POST /api/cameras", "DELETE /api/cameras?id=cam_teste", "GET /api/streams/probe?src=x",
 		"POST /api/go2rtc/restart", "GET /api/health", "POST /api/reconnects/reset",
 		"GET /api/health/servidor", "DELETE /api/rec?cam=cam_teste",
+		"GET /api/usuarios", "POST /api/usuarios", "POST /api/usuarios/link",
+		"DELETE /api/usuarios?usuario=maria",
 	}
 	for _, r := range soAdmin {
 		metodo, rota, _ := strings.Cut(r, " ")

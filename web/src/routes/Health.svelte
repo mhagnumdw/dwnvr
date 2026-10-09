@@ -5,6 +5,7 @@
     pollHealth,
     loadHealth,
     HEALTH_POLL_MS,
+    ehAdmin,
     build,
     REPO_URL,
     RELEASES_URL,
@@ -32,8 +33,11 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import MarcaGitHub from '../components/MarcaGitHub.svelte';
 
-  const stop = pollHealth();
-  onDestroy(stop);
+  // O usuário comum vê só "Este navegador" e a versão: a saúde do servidor é
+  // do admin, e a tela dele nem a pede. O papel não muda com a tela aberta -
+  // sair desmonta tudo.
+  const admin = ehAdmin();
+  if (admin) onDestroy(pollHealth());
 
   const disk = $derived(health.disk);
 
@@ -217,13 +221,32 @@
     };
   });
 
+  // A hora do servidor para o comum, que não lê o /api/health: o header Date
+  // de uma resposta qualquer, lido ao abrir o card. { servidor, aqui } em ms.
+  let horaDoHeader = $state(null);
+
+  $effect(() => {
+    if (admin || !navegadorAberto) return;
+    let vivo = true;
+    api
+      .ping(5000)
+      .then((r) => {
+        const servidor = Date.parse(r.headers.get('Date'));
+        if (vivo && !isNaN(servidor)) horaDoHeader = { servidor, aqui: Date.now() };
+      })
+      .catch(() => {});
+    return () => (vivo = false);
+  });
+
   // O relógio do aparelho contra o do servidor. A hora da resposta, pela
-  // latência, chega uns milissegundos atrasada; abaixo de 5s é ruído, e acima
-  // é relógio errado, que faz "agora" apontar para outro ponto da timeline.
+  // latência, chega uns milissegundos atrasada, e a do header Date ainda vem
+  // sem os milissegundos; abaixo de 5s é ruído, e acima é relógio errado, que
+  // faz "agora" apontar para outro ponto da timeline.
   const diferencaRelogio = $derived.by(() => {
-    const lido = Date.parse(health.clock?.now);
-    if (isNaN(lido) || !health.updatedAt) return null;
-    const d = Math.round((health.updatedAt - lido) / 1000);
+    const lido = admin ? Date.parse(health.clock?.now) : horaDoHeader?.servidor;
+    const aqui = admin ? health.updatedAt : horaDoHeader?.aqui;
+    if (!lido || isNaN(lido) || !aqui) return null;
+    const d = Math.round((aqui - lido) / 1000);
     if (Math.abs(d) < 5) return { valor: 'igual ao do servidor' };
     return { valor: `${duracao(Math.abs(d) * 1000)} ${d > 0 ? 'adiantado' : 'atrasado'}`, alerta: true };
   });
@@ -586,363 +609,366 @@
 </script>
 
 <div class="page">
-  <!-- Os dois uptimes ficam lado a lado de propósito: é a comparação entre
-       eles que diagnostica. Iguais, nada reiniciou; só o do dwnvr curto, foi
-       deploy ou queda do processo; os dois curtos, a máquina reiniciou - e aí
-       "reconex. 0" e "não gravou nada desde que o dwnvr subiu", logo abaixo,
-       deixam de ser mistério.
+  {#if admin}
+    <!-- Os dois uptimes ficam lado a lado de propósito: é a comparação entre
+         eles que diagnostica. Iguais, nada reiniciou; só o do dwnvr curto, foi
+         deploy ou queda do processo; os dois curtos, a máquina reiniciou - e aí
+         "reconex. 0" e "não gravou nada desde que o dwnvr subiu", logo abaixo,
+         deixam de ser mistério.
 
-       Some inteira contra servidor antigo, que não responde o campo. -->
-  {#if health.uptime}
-    <div class="card row wrap statusbar small">
-      <span class="dot ok"></span>
-      <span class="muted">dwnvr no ar há</span>
-      <span class="mono">{duracao(health.uptime.appSeconds * 1000)}</span>
-      {#if health.uptime.machineSeconds}
-        <span class="muted">·</span>
-        <span class="muted">máquina há</span>
-        <span class="mono">{duracao(health.uptime.machineSeconds * 1000)}</span>
-      {/if}
-      <!-- Horário do servidor no fuso do servidor, e não no do navegador: é
-           assim que se descobre relógio ou TZ errado na máquina que grava, que
-           é a que carimba o nome dos segmentos. -->
-      {#if relogio}
-        <span class="muted">·</span>
-        <span class="muted">horário do servidor</span>
-        <span class="mono" title={relogio.sigla}>{relogio.quando} {relogio.fuso}</span>
-      {/if}
-    </div>
-  {/if}
-
-  {#if disk}
-    <div class="card">
-      <div class="row wrap">
-        <strong>Disco</strong>
-        <span class="spacer"></span>
-        <span class="muted small mono">{bytes(disk.freeBytes)} livres de {bytes(disk.totalBytes)}</span>
-      </div>
-
-      <div
-        class="meter"
-        title="azul: gravações do dwnvr; amarelo: gravações de câmeras removidas; cinza: outros dados"
-      >
-        <span class="seg dwnvr" style:width="{usadoPeloDwnvr * 100}%"></span>
-        <span class="seg orfas" class:visivel={orfasBytes > 0} style:width="{usadoPorOrfas * 100}%"
-        ></span>
-        <span class="seg outros" style:width="{usadoPorOutros * 100}%"></span>
-      </div>
-
-      <div class="row wrap small muted legend">
-        <span><i class="dwnvr"></i> dwnvr: {bytes(disk.dwnvrBytes)}</span>
-        <!-- Só com órfã: a legenda permanente sugeriria que sobrar gravação sem
-             câmera é o normal. Quem apaga é a tela de Câmeras, não a retenção. -->
-        {#if orfasBytes > 0}
-          <span title="Gravações de câmeras removidas. A retenção não as apaga; apague em Câmeras.">
-            <i class="orfas"></i> câmeras removidas: {bytes(orfasBytes)}
-          </span>
+         Some inteira contra servidor antigo, que não responde o campo. -->
+    {#if health.uptime}
+      <div class="card row wrap statusbar small">
+        <span class="dot ok"></span>
+        <span class="muted">dwnvr no ar há</span>
+        <span class="mono">{duracao(health.uptime.appSeconds * 1000)}</span>
+        {#if health.uptime.machineSeconds}
+          <span class="muted">·</span>
+          <span class="muted">máquina há</span>
+          <span class="mono">{duracao(health.uptime.machineSeconds * 1000)}</span>
         {/if}
-        <span><i class="outros"></i> outros: {bytes(outrosBytes)}</span>
-        <span class="spacer"></span>
-        <span>mínimo livre: {bytesDeMB(disk.minFreeMB)}</span>
-      </div>
-    </div>
-  {/if}
-
-  <div class="card row wrap totais">
-    <div><span class="big mono">{health.cameras.filter((c) => c.connected).length}</span><br /><span class="muted small">conectadas</span></div>
-    <div><span class="big mono">{kbps(totalKbps)}</span><br /><span class="muted small">taxa somada</span></div>
-    <div><span class="big mono">{bytes(bytesPorDia)}</span><br /><span class="muted small">por dia</span></div>
-  </div>
-
-  <!-- O card existe também sem aviso nenhum, com o "nenhum problema": a área
-       não muda de cara, e o zerar continua à mão para a coluna reconex. -->
-  {#if avisos.length || health.updatedAt}
-    <div class="card avisos">
-      <div class="row wrap">
-        <strong>Avisos</strong>
-        {#if avisos.length}<span class="muted small mono">{avisos.length}</span>{/if}
-        <span class="spacer"></span>
-        {#if temReconexao}
-          {#if contandoDesde}
-            <span class="muted small">reconexões contadas desde {quando(contandoDesde, agora)}</span>
-          {/if}
-          <button
-            class="ghost small"
-            title="Zera a contagem de reconexões de todas as câmeras"
-            onclick={() => (confirmandoZerar = true)}
-            disabled={zerando}
-          >
-            zerar reconexões
-          </button>
+        <!-- Horário do servidor no fuso do servidor, e não no do navegador: é
+             assim que se descobre relógio ou TZ errado na máquina que grava, que
+             é a que carimba o nome dos segmentos. -->
+        {#if relogio}
+          <span class="muted">·</span>
+          <span class="muted">horário do servidor</span>
+          <span class="mono" title={relogio.sigla}>{relogio.quando} {relogio.fuso}</span>
         {/if}
       </div>
-      {#if erroZerar}
-        <p class="row bad"><span class="dot bad"></span>Não foi possível zerar as reconexões: {erroZerar}</p>
-      {/if}
-      <!-- eslint-disable-next-line svelte/require-each-key -- só texto, sem estado por linha; e dois avisos podem ter o mesmo texto, o que quebraria a chave -->
-      {#each avisos as a}
-        <p class="row {a.nivel}"><span class="dot {a.nivel}"></span>{a.texto}</p>
-      {:else}
-        <p class="row ok"><span class="dot ok"></span>Nenhum problema detectado.</p>
-      {/each}
-    </div>
-  {/if}
-
-  {#if confirmandoZerar}
-    <ConfirmDialog
-      title="Zerar a contagem de reconexões?"
-      confirmLabel="zerar"
-      onconfirm={zerarReconexoes}
-      oncancel={() => (confirmandoZerar = false)}
-    >
-      Vale para todas as câmeras: a coluna <strong>reconex.</strong> volta a zero e a contagem recomeça
-      agora. Nenhuma conexão cai. Não tem como desfazer.
-    </ConfirmDialog>
-  {/if}
-
-  <!-- A ordenação no celular: o cabeçalho de colunas não existe lá, então cada
-       coluna vira um chip. Mesmo estado e mesma URL do cabeçalho do desktop. -->
-  {#snippet chipsOrdem(cols, o, ordenarPor)}
-    <div class="ordem row wrap small">
-      <span class="muted">ordenar</span>
-      {#each cols as col (col.id)}
-        <button
-          class="chip"
-          class:ativa={o.col === col.id}
-          aria-label="ordenar por {col.rotulo}"
-          title={col.ajuda}
-          onclick={() => ordenarPor(col.id)}
-        >
-          {col.rotulo}{#if o.col === col.id}<span class="seta">{o.asc ? '▲' : '▼'}</span>{/if}
-        </button>
-      {/each}
-    </div>
-  {/snippet}
-
-  <!-- O rótulo de cada valor no cartão do celular, tirado da mesma coluna que
-       nomeia o chip. No desktop some: lá quem nomeia é o cabeçalho. -->
-  {#snippet rotulo(cols, o, id)}
-    <span class="rot-cel" class:ativa={o.col === id}>{cols.find((c) => c.id === id).rotulo}</span>
-  {/snippet}
-
-  <div class="table card">
-    {@render chipsOrdem(colunas, ordem, ordenar)}
-    <div class="thead row small muted">
-      {#each colunas as col (col.id)}
-        <!-- O title fica no botão inteiro, e não só no rótulo: a área de
-             passagem do mouse é a célula do cabeçalho, que é onde a pessoa
-             para para decidir se clica. -->
-        <button
-          class="th"
-          class:ativa={ordem.col === col.id}
-          aria-label="ordenar por {col.rotulo}"
-          title={col.ajuda}
-          onclick={() => ordenar(col.id)}
-        >
-          <span class="rotulo">{col.rotulo}</span>
-          <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
-          <span class="seta">{ordem.col === col.id ? (ordem.asc ? '▲' : '▼') : ''}</span>
-        </button>
-      {/each}
-    </div>
-    {#each linhas as c (c.id)}
-      <div class="trow row">
-        <span class="c-nome row">
-          <span class="dot" class:ok={c.connected && !c.silent} class:bad={c.enabled && (c.silent || !c.connected)}></span>
-          <span class="nome">{c.name}</span>
-          <!-- Conectada mas sem gravar é o estado traiçoeiro: o ponto verde
-               dizia "tudo bem" enquanto a câmera não produzia nada. -->
-          {#if c.silent}<span class="chip parada">não grava</span>
-          {:else if c.lastSegmentAt}<span class="chip">{hhmmss(new Date(c.lastSegmentAt).getTime())}</span>{/if}
-          {#if c.hasAudio}<span class="chip">áudio</span>{/if}
-        </span>
-        <span class="mono">{@render rotulo(colunas, ordem, 'bitrate')}{kbps(c.bitrateKbps)}</span>
-        <!-- Uso e cota juntos, como no chip da tela de Câmeras: o número
-             sozinho não diz se é muito ou pouco para esta câmera. -->
-        <span class="mono">{@render rotulo(colunas, ordem, 'disco')}<span class="inteiro">{bytes(c.diskBytes)}</span>
-          de <span class="inteiro">{bytesDeMB(c.quotaMB)}</span></span>
-        <!-- O gravado vai em linha própria, e só com buraco: na câmera sem
-             falha a célula fica como sempre foi, e a linha a mais é o próprio
-             sinal de que algo faltou. -->
-        <span class="mono" title={desdeTitulo(c)}>
-          {@render rotulo(colunas, ordem, 'retido')}{duracao(retidoMs(c))}
-          {#if gravadoSeHouverBuraco(retidoMs(c), c.recordedMs)}
-            <br /><span class="muted small">{duracao(c.recordedMs)} grav.</span>
-          {/if}
-        </span>
-        <span class="mono">{@render rotulo(colunas, ordem, 'cabem')}{dias(c.retainDays)}</span>
-        <span class="mono">{@render rotulo(colunas, ordem, 'reconex')}{c.reconnects}</span>
-      </div>
-    {/each}
-    {#if !health.cameras.length}
-      <!-- Duas ausências diferentes moravam no mesmo "sem dados ainda": o
-           servidor que ainda não respondeu e a instalação sem câmera nenhuma.
-           `updatedAt` só sai de 0 quando uma leitura volta, e a resposta traz
-           toda câmera cadastrada - inclusive a desabilitada. -->
-      {#if health.updatedAt}
-        <SemCameras />
-      {:else}
-        <p class="empty">sem dados ainda</p>
-      {/if}
     {/if}
-  </div>
 
-  <!-- Reconhecimento de objetos. Some inteiro quando nenhuma câmera tem
-       detector configurado.
-
-       Um card só, e não dois: o funil e a tabela são a mesma coisa vista de
-       longe e de perto. Dois cards sugeriam dois assuntos; o que separa os
-       dois aqui é um risco, não um vão. -->
-  {#if comFunil.length}
-    <div class="card deteccao">
-      <div class="topo">
+    {#if disk}
+      <div class="card">
         <div class="row wrap">
-          <strong>Reconhecimento de objetos</strong>
+          <strong>Disco</strong>
           <span class="spacer"></span>
-          <!-- Os números zeram quando o dwnvr reinicia: sem dizer desde quando
-               eles contam, "12 com objeto" não é muito nem pouco. -->
-          {#if health.uptime}
-            <span class="muted small">desde que o dwnvr subiu, há {duracao(health.uptime.appSeconds * 1000)}</span>
-          {/if}
-          {#if detector}
-            <span
-              class="chip mono"
-              title="marcas esperando a vez agora, e o teto: {detector.fila.porCamera} por câmera com detecção ligada"
-            >
-              fila {detector.fila.agora}/{detector.fila.cap}
-            </span>
-            <span class="chip mono" title="o maior tamanho que a fila já teve desde que o dwnvr subiu">
-              pico {detector.fila.pico}
-            </span>
-          {/if}
+          <span class="muted small mono">{bytes(disk.freeBytes)} livres de {bytes(disk.totalBytes)}</span>
         </div>
 
-        {#if funil}
-          <!-- Uma barra só conta a história inteira: de tudo que as câmeras
-               marcaram, o que foi descartado, o que o detector olhou, o que virou
-               objeto e o que ficou sem resposta. É a única forma desta tela de
-               responder POR QUE uma marca não virou objeto sem precisar de
-               prosa. -->
-          <div class="funil" bind:clientWidth={larguraFunil} title="o que aconteceu com cada marca de movimento">
-            {#each funil.pedacos as p (p.id)}
-              <span
-                class="seg"
-                class:escuro={p.escuro}
-                style:width="{(p.n / funil.total) * 100}%"
-                style:background={p.cor}>{cabe(p) ? p.n : ''}</span>
-            {/each}
-          </div>
+        <div
+          class="meter"
+          title="azul: gravações do dwnvr; amarelo: gravações de câmeras removidas; cinza: outros dados"
+        >
+          <span class="seg dwnvr" style:width="{usadoPeloDwnvr * 100}%"></span>
+          <span class="seg orfas" class:visivel={orfasBytes > 0} style:width="{usadoPorOrfas * 100}%"
+          ></span>
+          <span class="seg outros" style:width="{usadoPorOutros * 100}%"></span>
+        </div>
 
-          <!-- O número acompanha o rótulo quando não coube no pedaço. Assim
-               cada número aparece exatamente uma vez, e nenhum aparece pela
-               metade. -->
-          <div class="row wrap small muted legend">
-            {#each funil.legenda as p (p.id)}
-              <span title={p.ajuda}>
-                <i style:background={p.cor}></i>
-                {p.rotulo}{#if !cabe(p)}{' '}<b class="mono">{p.n}</b>{/if}
-              </span>
-            {/each}
-          </div>
-
-          <div class="row wrap small muted numeros">
-            <span><b class="mono">{funil.total}</b> marcas de movimento</span>
-            <span><b class="mono">{soma.objeto}</b> viraram objeto na timeline</span>
-            <!-- Dois tempos, e não um: analisar é o detector olhando, a espera
-                 é quanto a marca ficou parada na fila antes dele - e é a que
-                 cresce quando o aparelho não dá conta. Zero é "ainda não
-                 olhou nenhuma", e um "0,0s" ali diria que é instantâneo. -->
-            {#if detector?.tempos.analiseMs}
-              <span>analisar leva <b class="mono">{segundos(detector.tempos.analiseMs)}</b> por marca</span>
-              <span>espera de cada marca na fila <b class="mono">{segundos(detector.tempos.esperaMs)}</b></span>
-            {/if}
-          </div>
-
-          {#if naoAnalisadas.length}
-            <p class="small muted quebra">
-              das {funil.perdidas} não analisadas:
-              {#each naoAnalisadas as m, i (m.texto)}{i ? ' · ' : ' '}<b class="mono">{m.n}</b> {m.texto}{/each}
-            </p>
+        <div class="row wrap small muted legend">
+          <span><i class="dwnvr"></i> dwnvr: {bytes(disk.dwnvrBytes)}</span>
+          <!-- Só com órfã: a legenda permanente sugeriria que sobrar gravação sem
+               câmera é o normal. Quem apaga é a tela de Câmeras, não a retenção. -->
+          {#if orfasBytes > 0}
+            <span title="Gravações de câmeras removidas. A retenção não as apaga; apague em Câmeras.">
+              <i class="orfas"></i> câmeras removidas: {bytes(orfasBytes)}
+            </span>
           {/if}
-        {:else}
-          <p class="small muted quebra">nenhuma marca de movimento desde que o dwnvr subiu</p>
-        {/if}
+          <span><i class="outros"></i> outros: {bytes(outrosBytes)}</span>
+          <span class="spacer"></span>
+          <span>mínimo livre: {bytesDeMB(disk.minFreeMB)}</span>
+        </div>
       </div>
+    {/if}
 
-      <div class="tabela">
-        {@render chipsOrdem(colunasDet, ordemDet, ordenarDet)}
-        <div class="thead detgrid row small muted">
-          {#each colunasDet as col (col.id)}
+    <div class="card row wrap totais">
+      <div><span class="big mono">{health.cameras.filter((c) => c.connected).length}</span><br /><span class="muted small">conectadas</span></div>
+      <div><span class="big mono">{kbps(totalKbps)}</span><br /><span class="muted small">taxa somada</span></div>
+      <div><span class="big mono">{bytes(bytesPorDia)}</span><br /><span class="muted small">por dia</span></div>
+    </div>
+
+    <!-- O card existe também sem aviso nenhum, com o "nenhum problema": a área
+         não muda de cara, e o zerar continua à mão para a coluna reconex. -->
+    {#if avisos.length || health.updatedAt}
+      <div class="card avisos">
+        <div class="row wrap">
+          <strong>Avisos</strong>
+          {#if avisos.length}<span class="muted small mono">{avisos.length}</span>{/if}
+          <span class="spacer"></span>
+          {#if temReconexao}
+            {#if contandoDesde}
+              <span class="muted small">reconexões contadas desde {quando(contandoDesde, agora)}</span>
+            {/if}
             <button
-              class="th"
-              class:ativa={ordemDet.col === col.id}
-              aria-label="ordenar por {col.rotulo}"
-              title={col.ajuda}
-              onclick={() => ordenarDet(col.id)}
+              class="ghost small"
+              title="Zera a contagem de reconexões de todas as câmeras"
+              onclick={() => (confirmandoZerar = true)}
+              disabled={zerando}
             >
-              <span class="rotulo">{col.rotulo}</span>
-              <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
-              <span class="seta">{ordemDet.col === col.id ? (ordemDet.asc ? '▲' : '▼') : ''}</span>
+              zerar reconexões
             </button>
-          {/each}
+          {/if}
         </div>
-        {#snippet linhaDet(c)}
-          <div class="trow detgrid row" class:desligada={!c.ligada}>
-            {#if c.ligada}
-              <span class="nome">{c.nome}</span>
-            {:else}
-              <span class="c-desligada row">
-                <span class="nome">{c.nome}</span>
-                <a class="small" href="#cams?editar={encodeURIComponent(c.id)}">ligar</a>
+        {#if erroZerar}
+          <p class="row bad"><span class="dot bad"></span>Não foi possível zerar as reconexões: {erroZerar}</p>
+        {/if}
+        <!-- eslint-disable-next-line svelte/require-each-key -- só texto, sem estado por linha; e dois avisos podem ter o mesmo texto, o que quebraria a chave -->
+        {#each avisos as a}
+          <p class="row {a.nivel}"><span class="dot {a.nivel}"></span>{a.texto}</p>
+        {:else}
+          <p class="row ok"><span class="dot ok"></span>Nenhum problema detectado.</p>
+        {/each}
+      </div>
+    {/if}
+
+    {#if confirmandoZerar}
+      <ConfirmDialog
+        title="Zerar a contagem de reconexões?"
+        confirmLabel="zerar"
+        onconfirm={zerarReconexoes}
+        oncancel={() => (confirmandoZerar = false)}
+      >
+        Vale para todas as câmeras: a coluna <strong>reconex.</strong> volta a zero e a contagem recomeça
+        agora. Nenhuma conexão cai. Não tem como desfazer.
+      </ConfirmDialog>
+    {/if}
+
+    <!-- A ordenação no celular: o cabeçalho de colunas não existe lá, então cada
+         coluna vira um chip. Mesmo estado e mesma URL do cabeçalho do desktop. -->
+    {#snippet chipsOrdem(cols, o, ordenarPor)}
+      <div class="ordem row wrap small">
+        <span class="muted">ordenar</span>
+        {#each cols as col (col.id)}
+          <button
+            class="chip"
+            class:ativa={o.col === col.id}
+            aria-label="ordenar por {col.rotulo}"
+            title={col.ajuda}
+            onclick={() => ordenarPor(col.id)}
+          >
+            {col.rotulo}{#if o.col === col.id}<span class="seta">{o.asc ? '▲' : '▼'}</span>{/if}
+          </button>
+        {/each}
+      </div>
+    {/snippet}
+
+    <!-- O rótulo de cada valor no cartão do celular, tirado da mesma coluna que
+         nomeia o chip. No desktop some: lá quem nomeia é o cabeçalho. -->
+    {#snippet rotulo(cols, o, id)}
+      <span class="rot-cel" class:ativa={o.col === id}>{cols.find((c) => c.id === id).rotulo}</span>
+    {/snippet}
+
+    <div class="table card">
+      {@render chipsOrdem(colunas, ordem, ordenar)}
+      <div class="thead row small muted">
+        {#each colunas as col (col.id)}
+          <!-- O title fica no botão inteiro, e não só no rótulo: a área de
+               passagem do mouse é a célula do cabeçalho, que é onde a pessoa
+               para para decidir se clica. -->
+          <button
+            class="th"
+            class:ativa={ordem.col === col.id}
+            aria-label="ordenar por {col.rotulo}"
+            title={col.ajuda}
+            onclick={() => ordenar(col.id)}
+          >
+            <span class="rotulo">{col.rotulo}</span>
+            <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
+            <span class="seta">{ordem.col === col.id ? (ordem.asc ? '▲' : '▼') : ''}</span>
+          </button>
+        {/each}
+      </div>
+      {#each linhas as c (c.id)}
+        <div class="trow row">
+          <span class="c-nome row">
+            <span class="dot" class:ok={c.connected && !c.silent} class:bad={c.enabled && (c.silent || !c.connected)}></span>
+            <span class="nome">{c.name}</span>
+            <!-- Conectada mas sem gravar é o estado traiçoeiro: o ponto verde
+                 dizia "tudo bem" enquanto a câmera não produzia nada. -->
+            {#if c.silent}<span class="chip parada">não grava</span>
+            {:else if c.lastSegmentAt}<span class="chip">{hhmmss(new Date(c.lastSegmentAt).getTime())}</span>{/if}
+            {#if c.hasAudio}<span class="chip">áudio</span>{/if}
+          </span>
+          <span class="mono">{@render rotulo(colunas, ordem, 'bitrate')}{kbps(c.bitrateKbps)}</span>
+          <!-- Uso e cota juntos, como no chip da tela de Câmeras: o número
+               sozinho não diz se é muito ou pouco para esta câmera. -->
+          <span class="mono">{@render rotulo(colunas, ordem, 'disco')}<span class="inteiro">{bytes(c.diskBytes)}</span>
+            de <span class="inteiro">{bytesDeMB(c.quotaMB)}</span></span>
+          <!-- O gravado vai em linha própria, e só com buraco: na câmera sem
+               falha a célula fica como sempre foi, e a linha a mais é o próprio
+               sinal de que algo faltou. -->
+          <span class="mono" title={desdeTitulo(c)}>
+            {@render rotulo(colunas, ordem, 'retido')}{duracao(retidoMs(c))}
+            {#if gravadoSeHouverBuraco(retidoMs(c), c.recordedMs)}
+              <br /><span class="muted small">{duracao(c.recordedMs)} grav.</span>
+            {/if}
+          </span>
+          <span class="mono">{@render rotulo(colunas, ordem, 'cabem')}{dias(c.retainDays)}</span>
+          <span class="mono">{@render rotulo(colunas, ordem, 'reconex')}{c.reconnects}</span>
+        </div>
+      {/each}
+      {#if !health.cameras.length}
+        <!-- Duas ausências diferentes moravam no mesmo "sem dados ainda": o
+             servidor que ainda não respondeu e a instalação sem câmera nenhuma.
+             `updatedAt` só sai de 0 quando uma leitura volta, e a resposta traz
+             toda câmera cadastrada - inclusive a desabilitada. -->
+        {#if health.updatedAt}
+          <SemCameras />
+        {:else}
+          <p class="empty">sem dados ainda</p>
+        {/if}
+      {/if}
+    </div>
+
+    <!-- Reconhecimento de objetos. Some inteiro quando nenhuma câmera tem
+         detector configurado.
+
+         Um card só, e não dois: o funil e a tabela são a mesma coisa vista de
+         longe e de perto. Dois cards sugeriam dois assuntos; o que separa os
+         dois aqui é um risco, não um vão. -->
+    {#if comFunil.length}
+      <div class="card deteccao">
+        <div class="topo">
+          <div class="row wrap">
+            <strong>Reconhecimento de objetos</strong>
+            <span class="spacer"></span>
+            <!-- Os números zeram quando o dwnvr reinicia: sem dizer desde quando
+                 eles contam, "12 com objeto" não é muito nem pouco. -->
+            {#if health.uptime}
+              <span class="muted small">desde que o dwnvr subiu, há {duracao(health.uptime.appSeconds * 1000)}</span>
+            {/if}
+            {#if detector}
+              <span
+                class="chip mono"
+                title="marcas esperando a vez agora, e o teto: {detector.fila.porCamera} por câmera com detecção ligada"
+              >
+                fila {detector.fila.agora}/{detector.fila.cap}
+              </span>
+              <span class="chip mono" title="o maior tamanho que a fila já teve desde que o dwnvr subiu">
+                pico {detector.fila.pico}
               </span>
             {/if}
-            <span class="mono" class:zero={!c.olhadas}>{@render rotulo(colunasDet, ordemDet, 'olhadas')}{c.olhadas}</span>
-            <span class="mono" class:zero={!c.objeto}>{@render rotulo(colunasDet, ordemDet, 'objeto')}{c.objeto}</span>
-            <!-- Quase tudo com objeto não é bom sinal: costuma ser um objeto
-                 parado dentro do quadro, e aí o reconhecimento está confirmando
-                 sempre a mesma coisa em vez de avisar de algo novo. -->
-            <span class="mono" class:zero={!c.objeto} class:alerta={c.acerto >= 90}>
-              {@render rotulo(colunasDet, ordemDet, 'acerto')}{c.acerto == null ? '-' : c.acerto + '%'}
-            </span>
-            <span class="mono" class:zero={!c.descartado}>{@render rotulo(colunasDet, ordemDet, 'descartadas')}{c.descartado}</span>
-            <span class="mono" class:zero={!c.perdidas} class:alerta={c.perdidas > 0}>{@render rotulo(colunasDet, ordemDet, 'perdidas')}{c.perdidas}</span>
-            <!-- Os lugares da câmera, e não um número: cheio ou vazio se lê
-                 de relance. Âmbar quando todos estão ocupados, que é quando a
-                 próxima marca dela é descartada. O azul fica à esquerda deles,
-                 e separado: a imagem em processamento não está na fila. Sem
-                 detecção a câmera não entra na fila, e lugares vazios ali
-                 diriam que ela está esperando a vez. -->
-            <span class="celula-fila">
-              {#if c.ligada}
-                {#if c.fila.olhando}
-                  <span class="processando" title="o detector está processando uma imagem desta câmera agora"></span>
-                {/if}
+          </div>
+
+          {#if funil}
+            <!-- Uma barra só conta a história inteira: de tudo que as câmeras
+                 marcaram, o que foi descartado, o que o detector olhou, o que virou
+                 objeto e o que ficou sem resposta. É a única forma desta tela de
+                 responder POR QUE uma marca não virou objeto sem precisar de
+                 prosa. -->
+            <div class="funil" bind:clientWidth={larguraFunil} title="o que aconteceu com cada marca de movimento">
+              {#each funil.pedacos as p (p.id)}
                 <span
-                  class="lugares"
-                  class:cheia={c.fila.cheia}
-                  title="{c.fila.esperando} de {c.fila.lugares.length} lugares ocupados"
-                >
-                  {#each c.fila.lugares as l, i (i)}<span class="lugar {l}"></span>{/each}
+                  class="seg"
+                  class:escuro={p.escuro}
+                  style:width="{(p.n / funil.total) * 100}%"
+                  style:background={p.cor}>{cabe(p) ? p.n : ''}</span>
+              {/each}
+            </div>
+
+            <!-- O número acompanha o rótulo quando não coube no pedaço. Assim
+                 cada número aparece exatamente uma vez, e nenhum aparece pela
+                 metade. -->
+            <div class="row wrap small muted legend">
+              {#each funil.legenda as p (p.id)}
+                <span title={p.ajuda}>
+                  <i style:background={p.cor}></i>
+                  {p.rotulo}{#if !cabe(p)}{' '}<b class="mono">{p.n}</b>{/if}
+                </span>
+              {/each}
+            </div>
+
+            <div class="row wrap small muted numeros">
+              <span><b class="mono">{funil.total}</b> marcas de movimento</span>
+              <span><b class="mono">{soma.objeto}</b> viraram objeto na timeline</span>
+              <!-- Dois tempos, e não um: analisar é o detector olhando, a espera
+                   é quanto a marca ficou parada na fila antes dele - e é a que
+                   cresce quando o aparelho não dá conta. Zero é "ainda não
+                   olhou nenhuma", e um "0,0s" ali diria que é instantâneo. -->
+              {#if detector?.tempos.analiseMs}
+                <span>analisar leva <b class="mono">{segundos(detector.tempos.analiseMs)}</b> por marca</span>
+                <span>espera de cada marca na fila <b class="mono">{segundos(detector.tempos.esperaMs)}</b></span>
+              {/if}
+            </div>
+
+            {#if naoAnalisadas.length}
+              <p class="small muted quebra">
+                das {funil.perdidas} não analisadas:
+                {#each naoAnalisadas as m, i (m.texto)}{i ? ' · ' : ' '}<b class="mono">{m.n}</b> {m.texto}{/each}
+              </p>
+            {/if}
+          {:else}
+            <p class="small muted quebra">nenhuma marca de movimento desde que o dwnvr subiu</p>
+          {/if}
+        </div>
+
+        <div class="tabela">
+          {@render chipsOrdem(colunasDet, ordemDet, ordenarDet)}
+          <div class="thead detgrid row small muted">
+            {#each colunasDet as col (col.id)}
+              <button
+                class="th"
+                class:ativa={ordemDet.col === col.id}
+                aria-label="ordenar por {col.rotulo}"
+                title={col.ajuda}
+                onclick={() => ordenarDet(col.id)}
+              >
+                <span class="rotulo">{col.rotulo}</span>
+                <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
+                <span class="seta">{ordemDet.col === col.id ? (ordemDet.asc ? '▲' : '▼') : ''}</span>
+              </button>
+            {/each}
+          </div>
+          {#snippet linhaDet(c)}
+            <div class="trow detgrid row" class:desligada={!c.ligada}>
+              {#if c.ligada}
+                <span class="nome">{c.nome}</span>
+              {:else}
+                <span class="c-desligada row">
+                  <span class="nome">{c.nome}</span>
+                  <a class="small" href="#cams?editar={encodeURIComponent(c.id)}">ligar</a>
                 </span>
               {/if}
-            </span>
+              <span class="mono" class:zero={!c.olhadas}>{@render rotulo(colunasDet, ordemDet, 'olhadas')}{c.olhadas}</span>
+              <span class="mono" class:zero={!c.objeto}>{@render rotulo(colunasDet, ordemDet, 'objeto')}{c.objeto}</span>
+              <!-- Quase tudo com objeto não é bom sinal: costuma ser um objeto
+                   parado dentro do quadro, e aí o reconhecimento está confirmando
+                   sempre a mesma coisa em vez de avisar de algo novo. -->
+              <span class="mono" class:zero={!c.objeto} class:alerta={c.acerto >= 90}>
+                {@render rotulo(colunasDet, ordemDet, 'acerto')}{c.acerto == null ? '-' : c.acerto + '%'}
+              </span>
+              <span class="mono" class:zero={!c.descartado}>{@render rotulo(colunasDet, ordemDet, 'descartadas')}{c.descartado}</span>
+              <span class="mono" class:zero={!c.perdidas} class:alerta={c.perdidas > 0}>{@render rotulo(colunasDet, ordemDet, 'perdidas')}{c.perdidas}</span>
+              <!-- Os lugares da câmera, e não um número: cheio ou vazio se lê
+                   de relance. Âmbar quando todos estão ocupados, que é quando a
+                   próxima marca dela é descartada. O azul fica à esquerda deles,
+                   e separado: a imagem em processamento não está na fila. Sem
+                   detecção a câmera não entra na fila, e lugares vazios ali
+                   diriam que ela está esperando a vez. -->
+              <span class="celula-fila">
+                {#if c.ligada}
+                  {#if c.fila.olhando}
+                    <span class="processando" title="o detector está processando uma imagem desta câmera agora"></span>
+                  {/if}
+                  <span
+                    class="lugares"
+                    class:cheia={c.fila.cheia}
+                    title="{c.fila.esperando} de {c.fila.lugares.length} lugares ocupados"
+                  >
+                    {#each c.fila.lugares as l, i (i)}<span class="lugar {l}"></span>{/each}
+                  </span>
+                {/if}
+              </span>
+            </div>
+          {/snippet}
+          {#each detCams.ligadas as c (c.id)}{@render linhaDet(c)}{/each}
+          {#if detCams.desligadas.length}
+            <div class="grupo small muted">detecção de movimento desligada</div>
+            {#each detCams.desligadas as c (c.id)}{@render linhaDet(c)}{/each}
+          {/if}
+        </div>
+        {#if detector}
+          <div class="row wrap small muted legenda-fila">
+            <span><i class="lugar livre"></i>lugar livre</span>
+            <span><i class="lugar esperando"></i>esperando a vez</span>
+            <span><i class="lugar esperando cheio"></i>lugares cheios: a próxima é descartada</span>
+            <span><i class="processando"></i>imagem sendo processada pelo detector</span>
           </div>
-        {/snippet}
-        {#each detCams.ligadas as c (c.id)}{@render linhaDet(c)}{/each}
-        {#if detCams.desligadas.length}
-          <div class="grupo small muted">detecção de movimento desligada</div>
-          {#each detCams.desligadas as c (c.id)}{@render linhaDet(c)}{/each}
         {/if}
       </div>
-      {#if detector}
-        <div class="row wrap small muted legenda-fila">
-          <span><i class="lugar livre"></i>lugar livre</span>
-          <span><i class="lugar esperando"></i>esperando a vez</span>
-          <span><i class="lugar esperando cheio"></i>lugares cheios: a próxima é descartada</span>
-          <span><i class="processando"></i>imagem sendo processada pelo detector</span>
-        </div>
-      {/if}
-    </div>
+    {/if}
+
   {/if}
 
   <!-- Este navegador: o lado de quem olha, que o servidor não enxerga. O
@@ -950,37 +976,39 @@
        numa conversa em vez de descrever o celular. -->
   <CardDiagnostico titulo="Este navegador" grupos={gruposComRelogio} bind:aberto={navegadorAberto} texto={textoDoNavegador} />
 
-  <!-- Este servidor: a máquina que grava, vista de dentro. Responde "a
-       máquina tem fôlego para gravar?", que a tabela de câmeras acima não
-       responde - ela só mostra a consequência. -->
-  <CardDiagnostico titulo="Este servidor" subtitulo={coletadoServidor} grupos={gruposServidor} bind:aberto={servidorAberto} texto={textoDoServidor}>
-    {#if logServidor}
-      <section class="log">
-        <p class="titulo muted">
-          Últimos avisos e erros do log
-          {#if logServidor.total > logServidor.linhas.length}({logServidor.linhas.length} de {logServidor.total}){/if}
-        </p>
-        {#if logServidor.linhas.length}
-          <ol class="mono small">
-            {#each logServidor.linhas as l, i (i)}
-              <li class:erro={l.nivel === 'ERROR'}>{linhaDoLog(l)}</li>
-            {/each}
-          </ol>
-        {:else}
-          <p class="muted small">Nenhum desde que o dwnvr subiu.</p>
-        {/if}
-      </section>
+  {#if admin}
+    <!-- Este servidor: a máquina que grava, vista de dentro. Responde "a
+         máquina tem fôlego para gravar?", que a tabela de câmeras acima não
+         responde - ela só mostra a consequência. -->
+    <CardDiagnostico titulo="Este servidor" subtitulo={coletadoServidor} grupos={gruposServidor} bind:aberto={servidorAberto} texto={textoDoServidor}>
+      {#if logServidor}
+        <section class="log">
+          <p class="titulo muted">
+            Últimos avisos e erros do log
+            {#if logServidor.total > logServidor.linhas.length}({logServidor.linhas.length} de {logServidor.total}){/if}
+          </p>
+          {#if logServidor.linhas.length}
+            <ol class="mono small">
+              {#each logServidor.linhas as l, i (i)}
+                <li class:erro={l.nivel === 'ERROR'}>{linhaDoLog(l)}</li>
+              {/each}
+            </ol>
+          {:else}
+            <p class="muted small">Nenhum desde que o dwnvr subiu.</p>
+          {/if}
+        </section>
+      {/if}
+    </CardDiagnostico>
+    {#if servidorAberto && erroServidor}
+      <p class="muted small">Não deu para ler o servidor: {erroServidor}</p>
     {/if}
-  </CardDiagnostico>
-  {#if servidorAberto && erroServidor}
-    <p class="muted small">Não deu para ler o servidor: {erroServidor}</p>
-  {/if}
 
-  <!-- O separador vai como expressão porque o Svelte apara o espaço no início
-       de um bloco {#if}, e sem isso sai "5s· última leitura". -->
-  <p class="muted small">
-    Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(Date.now() - health.updatedAt)}{/if}
-  </p>
+    <!-- O separador vai como expressão porque o Svelte apara o espaço no início
+         de um bloco {#if}, e sem isso sai "5s· última leitura". -->
+    <p class="muted small">
+      Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(Date.now() - health.updatedAt)}{/if}
+    </p>
+  {/if}
 
   <!-- Único lugar onde a versão em uso aparece fora da tela de login, e por
        isso é onde se procura versão: a nova, quando há, entra ao lado dela,

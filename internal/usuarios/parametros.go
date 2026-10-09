@@ -1,7 +1,28 @@
 package usuarios
 
+import "time"
+
 // Os números do cadastro de usuários. Trocar um deles é trocar a linha aqui.
 const (
+	// ValidadeDoLink é quanto o link de convite vale depois de gerado. Curta
+	// de propósito: a ideia é gerar o link conversando com a pessoa, que o
+	// abre na hora. Vencido, o admin gera outro.
+	ValidadeDoLink = 10 * time.Minute
+
+	// BytesDoToken é o tamanho do token do link, do crypto/rand: 256 bits não
+	// se adivinham, então o link não precisa de limite de tentativas.
+	BytesDoToken = 32
+
+	// SenhaMinima e SenhaMaxima são os limites da senha, em caracteres, e não
+	// há regra de composição: é o que pede o NIST SP 800-63B. O teto só
+	// existe para o corpo da requisição ter tamanho conhecido; o NIST pede
+	// aceitar pelo menos 64.
+	SenhaMinima = 8
+	SenhaMaxima = 128
+
+	// TamanhoMaximoDoNome é o teto do nome de exibição, em caracteres.
+	TamanhoMaximoDoNome = 60
+
 	// IteracoesPBKDF2 é o custo de cada senha: 600.000 é o número da OWASP
 	// para o PBKDF2-HMAC-SHA256, e dá 0,77 s por login num Orange Pi Zero 3
 	// (medido em 07/10/2026, ver docs/TODO/TODO_hash-da-senha.md). As

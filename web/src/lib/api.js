@@ -53,6 +53,27 @@ export const api = {
 
   logout: () => fetch('api/logout', { method: 'POST' }),
 
+  // A conferência do Ao vivo: o mesmo /api/session, com prazo. A resposta
+  // inteira volta, porque o relógio do servidor vem no header `Date` dela.
+  conferirSessao: (ms) => fetch('api/session', { cache: 'no-store', signal: AbortSignal.timeout(ms) }),
+
+  // Usuários, só do admin. Criar e o link novo devolvem o token do link, que
+  // só existe nessa resposta.
+  usuarios: () => request('usuarios'),
+  criarUsuario: (usuario, nome) =>
+    request('usuarios', { method: 'POST', body: JSON.stringify({ usuario, nome }) }),
+  novoLink: (usuario) =>
+    request('usuarios/link', { method: 'POST', body: JSON.stringify({ usuario }) }),
+  removerUsuario: (usuario) =>
+    request('usuarios?usuario=' + encodeURIComponent(usuario), { method: 'DELETE' }),
+
+  // O link de convite: públicos, com o token no corpo, e não na URL, para ele
+  // não ficar no log de nenhum proxy. Link vencido ou já usado é 410.
+  conferirConvite: (token) =>
+    request('convite/conferir', { method: 'POST', body: JSON.stringify({ token }) }),
+  definirSenha: (token, senha) =>
+    request('convite', { method: 'POST', body: JSON.stringify({ token, senha }) }),
+
   cameras: () => request('cameras'),
   saveCamera: (cam) =>
     request('cameras', { method: 'POST', body: JSON.stringify(cam) }),
@@ -143,9 +164,14 @@ export const mediaURL = {
     `api/rec/export?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`,
   // O live vai para o go2rtc através do proxy do dwnvr, para que a credencial
   // dele nunca chegue ao navegador.
-  liveWS: (cam) => {
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const base = location.pathname.replace(/[^/]*$/, '');
-    return `${proto}//${location.host}${base}api/live/ws?src=${encodeURIComponent(cam)}`;
-  },
+  liveWS: (cam) => `${baseWS()}api/live/ws?src=${encodeURIComponent(cam)}`,
+  // O aviso de sessão: um websocket mudo que o servidor fecha quando a pessoa
+  // é removida ou ganha link novo. Ver `vigiarSessao` no Ao vivo.
+  avisoDeSessaoWS: () => `${baseWS()}api/session/ws`,
 };
+
+function baseWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const base = location.pathname.replace(/[^/]*$/, '');
+  return `${proto}//${location.host}${base}`;
+}

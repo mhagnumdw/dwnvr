@@ -32,6 +32,9 @@ type Server struct {
 	sessionSecret []byte
 	// usuarios são as pessoas do usuarios.json. O dono vem do cfg.
 	usuarios *usuarios.Cadastro
+	// abertas são as conexões que não voltam a apresentar o cookie (o ao vivo
+	// e o aviso de sessão), para derrubar quem é removido. Ver derrubar.go.
+	abertas conexoes
 	// ret diz desde quando o disco está abaixo do mínimo. Pode ser nil nos
 	// testes, e aí o aviso sai sem o "desde".
 	ret *retention.Manager
@@ -95,6 +98,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("POST /api/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/session", s.handleSession)
+	mux.HandleFunc("GET /api/session/ws", s.requireAuth(s.handleAvisoDeSessao))
+
+	// Link de convite: público, porque quem o abre ainda não tem senha. O
+	// token vem no corpo, e só ele dá acesso.
+	mux.HandleFunc("POST /api/convite/conferir", s.handleConferirConvite)
+	mux.HandleFunc("POST /api/convite", s.handleConvite)
+
+	// Usuários: a tela é do admin.
+	mux.HandleFunc("GET /api/usuarios", s.requireAdmin(s.handleUsuarios))
+	mux.HandleFunc("POST /api/usuarios", s.requireAdmin(s.handleCriarUsuario))
+	mux.HandleFunc("POST /api/usuarios/link", s.requireAdmin(s.handleNovoLink))
+	mux.HandleFunc("DELETE /api/usuarios", s.requireAdmin(s.handleRemoverUsuario))
 
 	// Versão fica fora da autenticação pelo mesmo motivo da tela de login:
 	// precisa ser visível antes de entrar. Além disso é a sonda de deploy -
@@ -130,7 +145,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Live: sinalização e mídia ficam com o go2rtc; o dwnvr só faz proxy do
 	// websocket do player, e o resto da API do go2rtc fica de fora.
-	mux.Handle("GET /api/live/ws", s.requireAuthHandler(s.liveProxy()))
+	mux.HandleFunc("GET /api/live/ws", s.requireAuth(s.handleLive(s.liveProxy())))
 
 	// A interface é servida SEM autenticação, de propósito: são só HTML, CSS e
 	// JS, sem nenhum dado das câmeras. Protegê-la impediria o navegador de
@@ -138,10 +153,6 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/", s.webHandler())
 
 	return logRequests(s.log, mux)
-}
-
-func (s *Server) requireAuthHandler(h http.Handler) http.Handler {
-	return s.requireAuth(h.ServeHTTP)
 }
 
 // cameraInfo é a câmera como a tela a vê: o cadastro já com os defaults

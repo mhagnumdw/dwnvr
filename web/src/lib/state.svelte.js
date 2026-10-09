@@ -11,7 +11,23 @@ export const session = $state({
   authRequired: false,
   authenticated: false,
   checked: false,
+  // Quem está logado: { usuario, nome, papel, dono }. Com a autenticação
+  // desligada vem como admin e dono, sem usuário. Nulo sem sessão.
+  pessoa: null,
 });
+
+// ehAdmin decide as abas, o sino e a pílula. Esconder não é segurança - a API
+// recusa o comum com 403 -, é só não mostrar o que ele não pode usar.
+export function ehAdmin() {
+  return session.pessoa?.papel === 'admin';
+}
+
+// sessaoCaiu leva à tela de login: a sessão venceu, a pessoa foi removida ou
+// ganhou link novo. Quem descobre é um 401 da API, ou a conferência do Ao vivo.
+export function sessaoCaiu() {
+  session.authenticated = false;
+  session.pessoa = null;
+}
 
 export const cameras = $state({
   list: [],
@@ -85,6 +101,7 @@ export async function checkSession() {
     const s = await api.session();
     session.authRequired = s.authRequired;
     session.authenticated = s.authenticated;
+    session.pessoa = s.pessoa ?? null;
   } catch {
     session.authenticated = false;
   }
@@ -99,6 +116,7 @@ export async function logout() {
     // aqui ainda é o que o usuário pediu - e o cookie assinado expira sozinho.
   }
   session.authenticated = false;
+  session.pessoa = null;
   // Zera o que já foi carregado: sem isto, quem entrar em seguida vê por um
   // instante as câmeras e o diagnóstico da sessão anterior.
   cameras.list = [];
