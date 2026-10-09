@@ -700,7 +700,33 @@
     </ConfirmDialog>
   {/if}
 
+  <!-- A ordenação no celular: o cabeçalho de colunas não existe lá, então cada
+       coluna vira um chip. Mesmo estado e mesma URL do cabeçalho do desktop. -->
+  {#snippet chipsOrdem(cols, o, ordenarPor)}
+    <div class="ordem row wrap small">
+      <span class="muted">ordenar</span>
+      {#each cols as col (col.id)}
+        <button
+          class="chip"
+          class:ativa={o.col === col.id}
+          aria-label="ordenar por {col.rotulo}"
+          title={col.ajuda}
+          onclick={() => ordenarPor(col.id)}
+        >
+          {col.rotulo}{#if o.col === col.id}<span class="seta">{o.asc ? '▲' : '▼'}</span>{/if}
+        </button>
+      {/each}
+    </div>
+  {/snippet}
+
+  <!-- O rótulo de cada valor no cartão do celular, tirado da mesma coluna que
+       nomeia o chip. No desktop some: lá quem nomeia é o cabeçalho. -->
+  {#snippet rotulo(cols, o, id)}
+    <span class="rot-cel" class:ativa={o.col === id}>{cols.find((c) => c.id === id).rotulo}</span>
+  {/snippet}
+
   <div class="table card">
+    {@render chipsOrdem(colunas, ordem, ordenar)}
     <div class="thead row small muted">
       {#each colunas as col (col.id)}
         <!-- O title fica no botão inteiro, e não só no rótulo: a área de
@@ -730,21 +756,22 @@
           {:else if c.lastSegmentAt}<span class="chip">{hhmmss(new Date(c.lastSegmentAt).getTime())}</span>{/if}
           {#if c.hasAudio}<span class="chip">áudio</span>{/if}
         </span>
-        <span class="mono">{kbps(c.bitrateKbps)}</span>
+        <span class="mono">{@render rotulo(colunas, ordem, 'bitrate')}{kbps(c.bitrateKbps)}</span>
         <!-- Uso e cota juntos, como no chip da tela de Câmeras: o número
              sozinho não diz se é muito ou pouco para esta câmera. -->
-        <span class="mono">{bytes(c.diskBytes)} de {bytesDeMB(c.quotaMB)}</span>
+        <span class="mono">{@render rotulo(colunas, ordem, 'disco')}<span class="inteiro">{bytes(c.diskBytes)}</span>
+          de <span class="inteiro">{bytesDeMB(c.quotaMB)}</span></span>
         <!-- O gravado vai em linha própria, e só com buraco: na câmera sem
              falha a célula fica como sempre foi, e a linha a mais é o próprio
              sinal de que algo faltou. -->
         <span class="mono" title={desdeTitulo(c)}>
-          {duracao(retidoMs(c))}
+          {@render rotulo(colunas, ordem, 'retido')}{duracao(retidoMs(c))}
           {#if gravadoSeHouverBuraco(retidoMs(c), c.recordedMs)}
             <br /><span class="muted small">{duracao(c.recordedMs)} grav.</span>
           {/if}
         </span>
-        <span class="mono">{dias(c.retainDays)}</span>
-        <span class="mono">{c.reconnects}</span>
+        <span class="mono">{@render rotulo(colunas, ordem, 'cabem')}{dias(c.retainDays)}</span>
+        <span class="mono">{@render rotulo(colunas, ordem, 'reconex')}{c.reconnects}</span>
       </div>
     {/each}
     {#if !health.cameras.length}
@@ -843,6 +870,7 @@
       </div>
 
       <div class="tabela">
+        {@render chipsOrdem(colunasDet, ordemDet, ordenarDet)}
         <div class="thead detgrid row small muted">
           {#each colunasDet as col (col.id)}
             <button
@@ -868,16 +896,16 @@
                 <a class="small" href="#cams?editar={encodeURIComponent(c.id)}">ligar</a>
               </span>
             {/if}
-            <span class="mono" class:zero={!c.olhadas}>{c.olhadas}</span>
-            <span class="mono" class:zero={!c.objeto}>{c.objeto}</span>
+            <span class="mono" class:zero={!c.olhadas}>{@render rotulo(colunasDet, ordemDet, 'olhadas')}{c.olhadas}</span>
+            <span class="mono" class:zero={!c.objeto}>{@render rotulo(colunasDet, ordemDet, 'objeto')}{c.objeto}</span>
             <!-- Quase tudo com objeto não é bom sinal: costuma ser um objeto
                  parado dentro do quadro, e aí o reconhecimento está confirmando
                  sempre a mesma coisa em vez de avisar de algo novo. -->
             <span class="mono" class:zero={!c.objeto} class:alerta={c.acerto >= 90}>
-              {c.acerto == null ? '-' : c.acerto + '%'}
+              {@render rotulo(colunasDet, ordemDet, 'acerto')}{c.acerto == null ? '-' : c.acerto + '%'}
             </span>
-            <span class="mono" class:zero={!c.descartado}>{c.descartado}</span>
-            <span class="mono" class:zero={!c.perdidas} class:alerta={c.perdidas > 0}>{c.perdidas}</span>
+            <span class="mono" class:zero={!c.descartado}>{@render rotulo(colunasDet, ordemDet, 'descartadas')}{c.descartado}</span>
+            <span class="mono" class:zero={!c.perdidas} class:alerta={c.perdidas > 0}>{@render rotulo(colunasDet, ordemDet, 'perdidas')}{c.perdidas}</span>
             <!-- Os lugares da câmera, e não um número: cheio ou vazio se lê
                  de relance. Âmbar quando todos estão ocupados, que é quando a
                  próxima marca dela é descartada. O azul fica à esquerda deles,
@@ -1097,26 +1125,34 @@
   .quebra { margin: 0; }
   .quebra b { color: var(--fg); }
 
-  /* Colunas: câmera, olhadas, com objeto, acerto, descartadas, perdidas, na fila.
-     São sete num espaço que já era apertado para seis, então as numéricas vão
-     no mínimo que ainda cabe o cabeçalho, e o card rola de lado no celular. */
-  /* .thead e .trow também são classe, e a regra deles vem depois nesta folha -
-     no empate de especificidade ela ganharia e a grade voltaria a ter as seis
-     colunas da tabela de câmeras. Os dois nomes juntos desempatam. */
-  .thead.detgrid, .trow.detgrid {
-    grid-template-columns:
-      minmax(110px, 1.7fr) repeat(2, minmax(62px, 0.9fr)) minmax(58px, 0.8fr)
-      repeat(2, minmax(68px, 0.9fr)) minmax(56px, 0.8fr);
+  /* No cartão do celular, a fila vai no canto da linha do nome: é o que
+     muda de um instante para outro, e fica à vista sem procurar. */
+  .trow.detgrid > :first-child { grid-column: 1 / 3; grid-row: 1; }
+  .trow.detgrid > .celula-fila { grid-column: 3; grid-row: 1; justify-self: end; align-self: center; }
+
+  @media (min-width: 720px) {
+    /* Colunas: câmera, olhadas, com objeto, acerto, descartadas, perdidas, na
+       fila. São sete num espaço que já era apertado para seis, então as
+       numéricas vão no mínimo que ainda cabe o cabeçalho. */
+    /* .thead e .trow também são classe, e a regra deles vem depois nesta folha -
+       no empate de especificidade ela ganharia e a grade voltaria a ter as seis
+       colunas da tabela de câmeras. Os dois nomes juntos desempatam. */
+    .thead.detgrid, .trow.detgrid {
+      grid-template-columns:
+        minmax(110px, 1.7fr) repeat(2, minmax(62px, 0.9fr)) minmax(58px, 0.8fr)
+        repeat(2, minmax(68px, 0.9fr)) minmax(56px, 0.8fr);
+    }
+    .trow.detgrid > :first-child, .trow.detgrid > .celula-fila { grid-column: auto; grid-row: auto; }
+    /* Números à direita: é assim que se compara uma coluna de olho. O nome fica
+       onde está, à esquerda - e o critério é a POSIÇÃO, não a classe `.nome`,
+       que só as linhas têm: por classe, o "câmera" do cabeçalho ia para a
+       direita sozinho, desalinhado da coluna que ele nomeia. */
+    .detgrid > :not(:first-child) { text-align: right; }
+    /* O cabeçalho é botão, e botão é flex: nele o que alinha não é o text-align
+       e sim o justify-content, senão rótulo e seta ficam colados à esquerda
+       enquanto os números da coluna estão à direita. */
+    .thead.detgrid .th:not(:first-child) { justify-content: flex-end; }
   }
-  /* Números à direita: é assim que se compara uma coluna de olho. O nome fica
-     onde está, à esquerda - e o critério é a POSIÇÃO, não a classe `.nome`,
-     que só as linhas têm: por classe, o "câmera" do cabeçalho ia para a
-     direita sozinho, desalinhado da coluna que ele nomeia. */
-  .detgrid > :not(:first-child) { text-align: right; }
-  /* O cabeçalho é botão, e botão é flex: nele o que alinha não é o text-align
-     e sim o justify-content, senão rótulo e seta ficam colados à esquerda
-     enquanto os números da coluna estão à direita. */
-  .thead.detgrid .th:not(:first-child) { justify-content: flex-end; }
   /* Zero é resposta, mas não é notícia: apagado para a linha que tem número
      saltar dentre as que não têm. */
   .zero { color: #4a5058; }
@@ -1182,19 +1218,51 @@
   .log li.erro { color: var(--bad); }
 
   .table { padding: 0; overflow-x: auto; }
+  /* No celular as duas tabelas não cabem em colunas e rolavam de lado. Cada
+     linha vira um cartão: o nome em cima, e os valores numa grade de três,
+     cada um com o rótulo da coluna em cima dele. A grade é a mesma em todos
+     os cartões, então um valor fica sempre no mesmo lugar - descer o olho
+     pelo "reconex." de cada câmera continua sendo ler uma coluna. Sem
+     cabeçalho, a ordenação vai para os chips. */
   .thead, .trow {
     display: grid;
-    /* Colunas: nome, taxa, disco, retido, cabem, reconex. O disco tem faixa
-       própria porque carrega duas grandezas ("12,91 GB de 20 GB") e no repeat
-       uniforme ele quebrava em duas linhas antes das outras precisarem. */
-    grid-template-columns:
-      minmax(130px, 2fr) minmax(70px, 1fr) minmax(125px, 1.6fr)
-      repeat(2, minmax(80px, 1.1fr)) minmax(60px, 0.8fr);
-    gap: 8px;
-    padding: 9px 12px;
-    align-items: center;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px 10px;
+    padding: 10px 12px;
+    align-items: start;
   }
-  .thead { border-bottom: 1px solid var(--line); }
+  .trow > :first-child { grid-column: 1 / -1; }
+  /* O disco é o valor mais largo ("19,93 GB de 20 GB") e leva a fatia maior;
+     se ainda assim não couber, quebra antes do "de", e não no meio de um
+     número com a unidade. */
+  .table .trow { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.3fr) minmax(0, 1fr); }
+  .inteiro { white-space: nowrap; }
+  .thead { display: none; border-bottom: 1px solid var(--line); }
+  .rot-cel { display: block; font-size: 11px; line-height: 1.3; color: var(--dim); }
+  .rot-cel.ativa { color: var(--accent); }
+  .ordem { gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  /* Chip e não botão cheio: abaixo dos 44px do botão global, porque são
+     sete lado a lado e quebrariam em três linhas. */
+  .ordem .chip { min-height: 32px; padding: 4px 11px; color: var(--dim); }
+  .ordem .chip.ativa { border-color: var(--accent); color: var(--fg); background: #2f81f71f; }
+  .ordem .seta { font-size: 9px; color: var(--accent); }
+
+  @media (min-width: 720px) {
+    .ordem, .rot-cel { display: none; }
+    .thead { display: grid; }
+    .thead, .trow, .table .trow {
+      /* Colunas: nome, taxa, disco, retido, cabem, reconex. O disco tem faixa
+         própria porque carrega duas grandezas ("12,91 GB de 20 GB") e no repeat
+         uniforme ele quebrava em duas linhas antes das outras precisarem. */
+      grid-template-columns:
+        minmax(130px, 2fr) minmax(70px, 1fr) minmax(125px, 1.6fr)
+        repeat(2, minmax(80px, 1.1fr)) minmax(60px, 0.8fr);
+      gap: 8px;
+      padding: 9px 12px;
+      align-items: center;
+    }
+    .trow > :first-child { grid-column: auto; }
+  }
   /* O cabeçalho é botão para funcionar com teclado, mas continua parecendo
      cabeçalho: o estilo global de button não serve aqui. */
   .th {
