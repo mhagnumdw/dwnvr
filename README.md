@@ -498,8 +498,8 @@ find storage -type f
 ffplay "$(find storage/cam_teste1/2* -name '*.mp4' | head -1)"
 ```
 
-O dia a dia - arquivos, logs, container sem shell - está em
-[`docs/operacao.md`](docs/operacao.md).
+Como copiar um trecho da gravação, e o resto do dia a dia - logs, container
+sem shell -, está em [`docs/operacao.md`](docs/operacao.md).
 
 ## Como funciona
 
@@ -568,7 +568,7 @@ movimento.
 
 | Documento | Para quê |
 | --- | --- |
-| [`docs/operacao.md`](docs/operacao.md) | o dia a dia: arquivos, logs, container sem shell |
+| [`docs/operacao.md`](docs/operacao.md) | o dia a dia: arquivos, copiar um trecho da gravação, logs, container sem shell |
 | [`docs/configuracao.md`](docs/configuracao.md) | os dois arquivos, política por câmera, retenção, áudio |
 | [`docs/acesso-remoto.md`](docs/acesso-remoto.md) | `https://` de qualquer lugar, app instalável e acesso da família, sem expor o servidor |
 | [`docs/https-na-rede-local.md`](docs/https-na-rede-local.md) | `https://` só na rede de casa, sem o Tailscale: o Caddy e a CA em cada aparelho |

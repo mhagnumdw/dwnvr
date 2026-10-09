@@ -5,8 +5,9 @@ Aqui ficam as respostas longas.
 
 ## Para operar
 
-- [operacao.md](operacao.md) - o dia a dia: onde ficam os arquivos, como ler
-  logs, como inspecionar um container sem shell
+- [operacao.md](operacao.md) - o dia a dia: onde ficam os arquivos, como
+  copiar um trecho da gravação, como ler logs, como inspecionar um container
+  sem shell
 - [configuracao.md](configuracao.md) - os dois arquivos de configuração, a
   política por câmera, retenção e o custo de cada modo de áudio
 - [acesso-remoto.md](acesso-remoto.md) - o dwnvr em `https://` de qualquer

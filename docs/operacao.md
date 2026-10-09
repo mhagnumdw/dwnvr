@@ -40,6 +40,45 @@ dwnvr`); pela tela de cadastro a mudança vale na hora. Um valor fora da faixa
 não impede o boot: vale o padrão, e o aviso aparece na tela de Diagnóstico -
 ver [Valor fora da faixa](configuracao.md#valor-fora-da-faixa).
 
+## Copiar gravações direto do disco
+
+O jeito mais simples é o botão de exportar da tela de Gravações: ele entrega o
+trecho escolhido num arquivo só. Direto do disco vale para guardar dias
+inteiros, copiar várias câmeras de uma vez, ou quando a interface não está à
+mão. Copiar com o dwnvr rodando não atrapalha a gravação.
+
+No disco, a gravação é uma fila de arquivos `.mp4` de ~30s, e cada um toca
+sozinho. O nome é o início em epoch ms, e a pasta do dia segue o `TZ` do
+`.env`. Os comandos abaixo usam o fuso do host, que costuma ser o mesmo; se
+não for, ponha `TZ=America/Fortaleza` (o do `.env`) na frente do `date`.
+
+```sh
+cd /mnt/storage/dwnvr/recordings/cam_iota/2026-08-08
+
+# a hora de início de cada arquivo
+for f in *.mp4; do echo "$(date -d @${f%???.mp4} +%T)  $f"; done
+```
+
+O último arquivo da pasta de hoje ainda está sendo gravado e corta no meio.
+
+Para copiar só um horário, o índice diz o início (`t`) e a duração (`d`) de
+cada arquivo, então acha também o que começou antes do horário pedido e o
+cobre. Precisa do `jq`:
+
+```sh
+cd /mnt/storage/dwnvr/recordings/cam_iota
+ini=$(date -d '2026-08-08 17:30' +%s000)
+fim=$(date -d '2026-08-08 17:32' +%s000)
+
+mkdir -p ~/trecho
+jq -r --argjson ini "$ini" --argjson fim "$fim" \
+  'select(.t < $fim and .t + .d > $ini) | "\(.t).mp4"' \
+  index/2026-08-08.ndjson | xargs -I{} cp 2026-08-08/{} ~/trecho/
+```
+
+O índice só lista arquivo fechado, então o que ainda está sendo gravado fica
+de fora. Trecho que cruza a meia-noite precisa do índice dos dois dias.
+
 ## Trocar a senha e derrubar as sessões
 
 Quem entra uma vez continua logado: a sessão vale 30 dias e se renova com o
