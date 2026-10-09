@@ -83,7 +83,13 @@ de fora. Trecho que cruza a meia-noite precisa do índice dos dois dias.
 
 Quem entra uma vez continua logado: a sessão vale 30 dias e se renova com o
 uso. A assinatura do cookie de cada pessoa depende da senha dela, então trocar
-a senha de alguém tira só essa pessoa. Há dois caminhos aqui, e os dois pedem
+a senha de alguém tira só essa pessoa.
+
+Para as pessoas criadas na aba **Usuários**, é pela tela, sem reiniciar nada:
+**gerar link novo** apaga a senha dela, e **remover** apaga a pessoa. Nos dois
+casos ela sai na hora de todos os aparelhos, ao vivo aberto inclusive.
+
+Para o dono, e para tirar todo mundo, há dois caminhos, e os dois pedem
 reiniciar o dwnvr, que só lê esses arquivos ao subir:
 
 - **Trocar a senha**, ou o usuário, do dono no `dwnvr.yaml`. Todo cookie do
