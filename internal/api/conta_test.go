@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/mhagnumdw/dwnvr/internal/usuarios"
@@ -150,10 +153,23 @@ func TestNomeEAvatarPelaConta(t *testing.T) {
 	}
 }
 
-// Sem autenticação não há conta: não há quem seja a pessoa.
-func TestSemAutenticacaoNaoHaConta(t *testing.T) {
+// Sem autenticação não há de quem ser a conta nem cadastro: quem alcança a
+// tela é admin, e nada que grave no usuarios.json ou em avatares/ passa.
+func TestSemAutenticacaoNadaSeGrava(t *testing.T) {
 	s, _ := testServer(t)
-	if rec, _ := pedirComo(t, s, "", http.MethodGet, "/api/conta", nil); rec.Code != http.StatusConflict {
-		t.Errorf("conta sem autenticação: status %d, esperava 409", rec.Code)
+	rotas := []string{
+		"GET /api/conta", "POST /api/conta/senha", "POST /api/conta/nome",
+		"PUT /api/conta/avatar", "DELETE /api/conta/avatar",
+		"POST /api/usuarios/link", "DELETE /api/usuarios?usuario=maria",
+		"DELETE /api/usuarios/avatar?usuario=maria",
+	}
+	for _, r := range rotas {
+		metodo, rota, _ := strings.Cut(r, " ")
+		if rec, _ := pedirComo(t, s, "", metodo, rota, map[string]string{}); rec.Code != http.StatusConflict {
+			t.Errorf("%s sem autenticação: status %d, esperava 409", r, rec.Code)
+		}
+	}
+	if _, err := os.Stat(s.cfg.UsuariosPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("o usuarios.json foi gravado sem autenticação: %v", err)
 	}
 }

@@ -105,7 +105,9 @@ func algoritmoDe(guardado string) (Algoritmo, error) {
 	}
 	alg, ok := algoritmos[partes[1]]
 	if !ok {
-		return nil, fmt.Errorf("senha guardada com algoritmo desconhecido %q", partes[1])
+		// Sem citar o que está guardado: estes erros vão para o log, e um
+		// pedaço do valor guardado não tem o que fazer lá.
+		return nil, errors.New("senha guardada com algoritmo desconhecido")
 	}
 	return alg, nil
 }
@@ -153,8 +155,8 @@ func (pbkdf2SHA256) Conferir(senha, guardado string) (bool, error) {
 	}
 	iteracoes, err := strconv.Atoi(texto)
 	if err != nil || iteracoes < IteracoesMinimas || iteracoes > IteracoesMaximas {
-		return false, fmt.Errorf("senha guardada com iterações fora de %d a %d: %q",
-			IteracoesMinimas, IteracoesMaximas, texto)
+		return false, fmt.Errorf("senha guardada com iterações fora de %d a %d",
+			IteracoesMinimas, IteracoesMaximas)
 	}
 	salt, err := b64.DecodeString(partes[3])
 	if err != nil || len(salt) == 0 {

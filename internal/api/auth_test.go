@@ -285,6 +285,31 @@ func TestCamerasEnxutoParaOComum(t *testing.T) {
 	}
 }
 
+// Um valor estragado no usuarios.json (editado à mão, de outra versão) não
+// deixa ninguém entrar, e o log diz o problema sem copiar o valor guardado.
+func TestLoginComSenhaGuardadaEstragada(t *testing.T) {
+	s, _ := testServer(t)
+	var log strings.Builder
+	s.log = slog.New(slog.NewTextHandler(&log, nil))
+	estragada := maria
+	estragada.Senha = "$pbkdf2-sha256$i=99999999999$c2FsdA$aGFzaA"
+	comAutenticacao(t, s, estragada)
+
+	tentativa := "qualquer uma"
+	corpo, _ := json.Marshal(map[string]string{"username": "maria", "password": tentativa})
+	rec := httptest.NewRecorder()
+	s.handleLogin(rec, httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(corpo))))
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status %d, esperava 401", rec.Code)
+	}
+	if !strings.Contains(log.String(), "senha guardada ilegível") {
+		t.Errorf("o log não aponta o valor estragado: %s", log.String())
+	}
+	if strings.Contains(log.String(), "99999999999") {
+		t.Errorf("o log copiou o valor guardado: %s", log.String())
+	}
+}
+
 func TestLogin(t *testing.T) {
 	s, _ := testServer(t)
 	guardada, err := usuarios.GerarSenha(context.Background(), "senha da maria")
