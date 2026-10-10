@@ -248,7 +248,9 @@ aba **Usuários**: o dwnvr gera um link que vale 10 minutos, e cada uma define a
 própria senha por ele. Quem entra assim vê o ao vivo, as gravações e as
 detecções; o cadastro de câmeras, os usuários e o diagnóstico do servidor
 ficam só com você. Esqueceu a senha ou perdeu o celular: gere um link novo para
-a pessoa, e a senha antiga para de valer na hora.
+a pessoa, e a senha antiga para de valer na hora. Pelo avatar, no canto do
+topo, cada um abre a **Minha conta**, onde troca o nome, a foto e, menos você,
+a senha.
 
 ### 6. Subir <!-- omit in toc -->
 
@@ -633,6 +635,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── server.go       rotas e o papel que cada uma exige
 │   │   ├── auth.go         login e sessão por pessoa, em cookie assinado (HMAC), sem estado no servidor
 │   │   ├── usuarios.go     a tela Usuários e o link de convite
+│   │   ├── conta.go        a Minha conta: a própria senha, o nome e a foto, e o serviço das fotos
 │   │   ├── derrubar.go     fecha o ao vivo e o aviso de sessão de quem é removido ou ganha link novo
 │   │   ├── cameras.go      cadastro de câmeras, cruzado com os streams do go2rtc
 │   │   ├── probe.go        descobre se um stream ocioso entrega áudio, com cache
@@ -658,7 +661,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   ├── recorder/           um recorder por câmera: corta em keyframe e grava
 │   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram
 │   ├── store/              layout em disco e índice NDJSON
-│   └── usuarios/           o usuarios.json, o papel de cada um, o link de convite e a senha em hash (PBKDF2, uma conta por vez)
+│   └── usuarios/           o usuarios.json, o papel de cada um, o link de convite, a senha em hash (PBKDF2, uma conta por vez) e a foto
 ├── dwnvr-detect/           o detector de objetos, opcional, num container à parte (ver dwnvr-detect/README.md)
 ├── web/                    interface Svelte 5 + Vite (ver web/README.md)
 ├── docs/                   documentação longa (ver docs/README.md)

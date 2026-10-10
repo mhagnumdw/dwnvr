@@ -98,16 +98,22 @@ func (c *Cadastro) NovoLink(usuario string) (Convite, error) {
 	return Convite{Usuario: u, Token: token}, nil
 }
 
-// Remover apaga a pessoa do cadastro.
+// Remover apaga a pessoa do cadastro, e a foto dela junto.
 func (c *Cadastro) Remover(usuario string) error {
-	return c.Alterar(func(a *Arquivo) error {
+	var avatar string
+	err := c.Alterar(func(a *Arquivo) error {
 		i := c.indice(a, usuario)
 		if i < 0 {
 			return ErrNaoExiste
 		}
+		avatar = a.Usuarios[i].Avatar
 		a.Usuarios = slices.Delete(a.Usuarios, i, i+1)
 		return nil
 	})
+	if err == nil {
+		c.apagarAvatar(avatar)
+	}
+	return err
 }
 
 // porToken acha a pessoa do link, se ele ainda vale.

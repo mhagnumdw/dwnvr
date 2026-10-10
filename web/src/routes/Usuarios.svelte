@@ -11,6 +11,7 @@
   import { copiar } from '../lib/navegador.js';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
+  import Avatar from '../components/Avatar.svelte';
 
   // { authRequired, dono, usuarios, validadeDoLinkMs, tamanhoMaximoDoNome,
   // tamanhoMaximoDoUsuario }, da API.
@@ -114,7 +115,7 @@
   // ---- o ⋮ de cada pessoa ----------------------------------------------------
 
   let menu = $state(null); // o usuário com o menu aberto
-  let confirmando = $state(null); // { acao: 'link' | 'remover', u }
+  let confirmando = $state(null); // { acao: 'link' | 'foto' | 'remover', u }
   let erroAcao = $state('');
 
   function foraDoMenu(e) {
@@ -134,6 +135,7 @@
     confirmando = null;
     try {
       if (acao === 'link') mostrarLink(await api.novoLink(u.usuario));
+      else if (acao === 'foto') await api.tirarAvatarDe(u.usuario);
       else {
         await api.removerUsuario(u.usuario);
         if (gerado?.usuario === u.usuario) gerado = null;
@@ -196,6 +198,7 @@
     <div class="card lista">
       {#if dados.dono}
         <div class="linha">
+          <Avatar pessoa={dados.dono} tamanho={36} />
           <div class="quem">
             <div class="nome">
               <strong>{dados.dono.nome}</strong>
@@ -208,6 +211,7 @@
       {/if}
       {#each dados.usuarios as u (u.usuario)}
         <div class="linha">
+          <Avatar pessoa={u} tamanho={36} />
           <div class="quem">
             <div class="nome"><strong>{u.nome}</strong></div>
             <div class="muted small">@{u.usuario}{u.papel === 'admin' ? ' · administrador' : ''}</div>
@@ -229,6 +233,10 @@
           {#if menu === u.usuario}
             <div class="menu" role="menu">
               <button class="ghost" role="menuitem" onclick={() => pedir('link', u)}>Gerar link novo</button>
+              <!-- O admin não troca a foto de ninguém; só tira uma que não sirva. -->
+              {#if u.avatar}
+                <button class="ghost" role="menuitem" onclick={() => pedir('foto', u)}>Tirar a foto</button>
+              {/if}
               <button class="ghost perigo" role="menuitem" onclick={() => pedir('remover', u)}>Remover</button>
             </div>
           {/if}
@@ -287,6 +295,17 @@
   >
     A senha atual de {confirmando.u.nome} deixa de valer agora, e os aparelhos em que ela entrou saem na
     hora. Ela volta a entrar definindo uma senha nova pelo link.
+  </ConfirmDialog>
+{:else if confirmando?.acao === 'foto'}
+  <ConfirmDialog
+    title="Tirar a foto de {confirmando.u.nome}?"
+    confirmLabel="tirar a foto"
+    danger
+    onconfirm={() => executar('foto', confirmando.u)}
+    oncancel={() => (confirmando = null)}
+  >
+    A foto é apagada, e no lugar dela ficam as iniciais. {confirmando.u.nome} pode pôr outra pela Minha
+    conta.
   </ConfirmDialog>
 {:else if confirmando?.acao === 'remover'}
   <ConfirmDialog

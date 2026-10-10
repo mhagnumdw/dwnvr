@@ -34,6 +34,8 @@ type pessoa struct {
 	Papel   usuarios.Papel `json:"papel"`
 	// Dono é a conta do dwnvr.yaml. A senha dele se troca lá, e não pela tela.
 	Dono bool `json:"dono"`
+	// Avatar é o id da foto (ver GET /api/avatar), ou vazio.
+	Avatar string `json:"avatar,omitempty"`
 
 	// credencial é o que amarra o cookie à senha da pessoa (ver chaveDaSessao):
 	// a senha do dono, ou o valor guardado no usuarios.json.
@@ -50,18 +52,20 @@ var semAutenticacao = pessoa{Papel: usuarios.PapelAdmin, Dono: true}
 // não há credencial para amarrar uma sessão.
 func (s *Server) quem(usuario string) (pessoa, bool) {
 	if usuario == s.cfg.Server.Username {
-		nome := s.usuarios.Dono().Nome
+		dono := s.usuarios.Dono()
+		nome := dono.Nome
 		if nome == "" {
 			nome = usuario
 		}
 		return pessoa{Usuario: usuario, Nome: nome, Papel: usuarios.PapelAdmin, Dono: true,
-			credencial: s.cfg.Server.Password}, true
+			Avatar: dono.Avatar, credencial: s.cfg.Server.Password}, true
 	}
 	u, ok := s.usuarios.Buscar(usuario)
 	if !ok || u.Senha == "" {
 		return pessoa{}, false
 	}
-	return pessoa{Usuario: u.Usuario, Nome: u.Nome, Papel: u.Papel, credencial: u.Senha}, true
+	return pessoa{Usuario: u.Usuario, Nome: u.Nome, Papel: u.Papel, Avatar: u.Avatar,
+		credencial: u.Senha}, true
 }
 
 // chaveDaSessao é a chave que assina os cookies de uma pessoa. Sai do

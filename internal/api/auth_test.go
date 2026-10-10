@@ -227,7 +227,7 @@ func TestPapelPorRota(t *testing.T) {
 		"POST /api/go2rtc/restart", "GET /api/health", "POST /api/reconnects/reset",
 		"GET /api/health/servidor", "DELETE /api/rec?cam=cam_teste",
 		"GET /api/usuarios", "POST /api/usuarios", "POST /api/usuarios/link",
-		"DELETE /api/usuarios?usuario=maria",
+		"DELETE /api/usuarios?usuario=maria", "DELETE /api/usuarios/avatar?usuario=maria",
 	}
 	for _, r := range soAdmin {
 		metodo, rota, _ := strings.Cut(r, " ")

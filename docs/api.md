@@ -49,13 +49,14 @@ Sem credencial no `dwnvr.yaml` a autenticação fica desligada, as pessoas do
 {
   "authRequired": true,
   "authenticated": true,
-  "pessoa": { "usuario": "maria", "nome": "Maria", "papel": "comum", "dono": false }
+  "pessoa": { "usuario": "maria", "nome": "Maria", "papel": "comum", "dono": false, "avatar": "4d1e0b62a7c3f915" }
 }
 ```
 
 O `pessoa` só vem com `authenticated: true`; com a autenticação desligada, ele
 vem com `"papel": "admin"` e `"dono": true`, sem `usuario` nem `nome`. O
-`POST /api/login` devolve o mesmo `pessoa`, junto com `"ok": true`.
+`avatar` é o id da foto (ver [Minha conta](#minha-conta)) e só vem com foto.
+O `POST /api/login` devolve o mesmo `pessoa`, junto com `"ok": true`.
 
 ### O login
 
@@ -79,8 +80,11 @@ assinar outro prazo.
 A chave que assina o cookie de cada pessoa sai do `.session-secret` junto com
 o usuário e a senha dela: a do `dwnvr.yaml`, para o dono, ou a guardada no
 `usuarios.json`. Trocar a senha de alguém derruba só as sessões dessa pessoa,
-e o mesmo vale para quem é removido ou ganha link novo, que apaga a senha. Para o dono, isso pede reiniciar, porque o
-`dwnvr.yaml` só é lido ao subir. Para derrubar todo mundo de uma vez, ver
+e o mesmo vale para quem é removido ou ganha link novo, que apaga a senha. Para
+o dono, isso pede reiniciar, porque o `dwnvr.yaml` só é lido ao subir. Quem
+troca a própria senha pela Minha conta recebe um cookie novo na mesma resposta
+e continua; os outros aparelhos dela voltam para o login. Para derrubar todo
+mundo de uma vez, ver
 [Trocar a senha e derrubar as
 sessões](operacao.md#trocar-a-senha-e-derrubar-as-sessões).
 
@@ -111,8 +115,9 @@ login.
 
 ### A queda de quem é derrubado
 
-Remover a pessoa ou gerar link novo para ela muda a credencial que assina os
-cookies dela, e toda requisição seguinte é recusada. As conexões que já estão
+Remover a pessoa, gerar link novo para ela ou ela trocar a própria senha muda
+a credencial que assina os cookies dela, e toda requisição seguinte é
+recusada. As conexões que já estão
 abertas, e não voltam a apresentar o cookie, o servidor fecha na hora: o
 websocket do ao vivo e o aviso de sessão (`GET /api/session/ws`).
 
@@ -610,16 +615,17 @@ Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem 
 | `GET /api/usuarios` | as pessoas, com a situação de cada uma, e o dono à parte |
 | `POST /api/usuarios` | cria uma pessoa comum, `{"usuario", "nome"}`, e devolve o token do link |
 | `POST /api/usuarios/link` | link novo, `{"usuario"}`: apaga a senha atual e derruba a pessoa na hora |
-| `DELETE /api/usuarios?usuario=` | remove a pessoa e a derruba na hora |
+| `DELETE /api/usuarios?usuario=` | remove a pessoa, e a foto dela, e a derruba na hora |
+| `DELETE /api/usuarios/avatar?usuario=` | tira a foto de alguém; trocar, só a própria pessoa |
 
 ```json
 // GET /api/usuarios
 {
   "authRequired": true,
-  "dono": { "usuario": "admin", "nome": "admin" },
+  "dono": { "usuario": "admin", "nome": "admin", "avatar": "" },
   "usuarios": [
     { "usuario": "maria", "nome": "Maria", "papel": "comum", "situacao": "linkAberto",
-      "linkVenceEmMs": 1791587903000, "criadoEmMs": 1791587303000 }
+      "linkVenceEmMs": 1791587903000, "criadoEmMs": 1791587303000, "avatar": "4d1e0b62a7c3f915" }
   ],
   "validadeDoLinkMs": 600000,
   "tamanhoMaximoDoNome": 60,
@@ -632,6 +638,51 @@ link) ou `linkVencido` (precisa de outro link). Criar e o link novo devolvem
 `{"usuario": {...}, "token": "..."}`: o token só existe nessa resposta, e a
 tela monta o link com ele. Usuário fora do formato, repetido ou igual ao do
 dono, e nome vazio, são `400` com o motivo; pessoa que não existe é `404`.
+
+## Minha conta
+
+O que cada pessoa muda de si mesma, de qualquer papel; ninguém muda o dos
+outros por aqui. Sem autenticação ligada não há de quem ser a conta, e tudo
+responde `409`.
+
+| Endpoint | O que faz |
+| --- | --- |
+| `GET /api/conta` | quem está logado e os números do formulário |
+| `POST /api/conta/senha` | troca a própria senha, `{"atual", "nova"}`; o dono recebe `409` |
+| `POST /api/conta/nome` | troca o próprio nome de exibição, `{"nome"}` |
+| `PUT /api/conta/avatar` | guarda a própria foto: o corpo é o JPEG, já reduzido |
+| `DELETE /api/conta/avatar` | tira a própria foto |
+| `GET /api/avatar?id=` | a foto: a própria, ou qualquer uma para o admin |
+
+```json
+// GET /api/conta
+{
+  "pessoa": { "usuario": "maria", "nome": "Maria", "papel": "comum", "dono": false },
+  "senhaMinima": 8,
+  "senhaMaxima": 128,
+  "tamanhoMaximoDoNome": 60,
+  "avatar": { "lado": 256, "tetoBytes": 32768, "qualidade": 92 }
+}
+```
+
+As rotas que mudam algo devolvem `{"ok": true, "pessoa": {...}}` como ficou,
+para a tela atualizar o header sem perguntar de novo.
+
+**A senha** do dono fica no `dwnvr.yaml`, e se troca lá. Para os outros, a
+troca pede a senha atual e paga duas contas de senha, na mesma fila do login:
+uma para conferir a atual, outra para gerar a nova. Senha atual errada, ou
+nova fora de 8 a 128 caracteres, é `400` com o motivo, e nada cai. Trocada, os
+outros aparelhos da pessoa voltam para o login (ver [O cookie](#o-cookie)).
+
+**A foto** é reduzida no navegador: a original não sai do aparelho. Ele corta
+o quadrado do centro, reduz a até `lado` pixels e gera um JPEG na `qualidade`,
+baixando a qualidade só se passar de `tetoBytes`. O servidor para de ler no
+teto (`413`), decodifica a imagem inteira e recusa com `400` o que não for
+JPEG quadrado de até `lado` pixels. Guarda os bytes como vieram, sem
+comprimir de novo, em `avatares/<id>.jpg` na pasta de config. O id muda a cada
+troca, então o `GET /api/avatar` vai com `Cache-Control: private,
+max-age=31536000, immutable` e `nosniff`: foto nova é URL nova. A foto de
+outra pessoa, para quem não é admin, responde `404`, como a que não existe.
 
 ## Live
 

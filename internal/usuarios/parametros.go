@@ -45,4 +45,23 @@ const (
 
 	// TamanhoMaximoDoUsuario é o teto do nome de login.
 	TamanhoMaximoDoUsuario = 32
+
+	// LadoDoAvatar é o lado, em pixels, do quadrado que o navegador corta e
+	// reduz da foto escolhida. 256 dá nitidez ao maior desenho do avatar na
+	// tela (88 px) em celular de densidade 3.
+	LadoDoAvatar = 256
+
+	// TetoDoAvatar é o maior JPEG aceito, em bytes, já reduzido. Na
+	// QualidadeDoAvatar, as fotos medidas em 09/10/2026 deram de 10 a 23 KB;
+	// ruído puro, o pior caso, deu 29 KB na qualidade 80.
+	TetoDoAvatar = 32 << 10
+
+	// QualidadeDoAvatar é a qualidade do JPEG que o navegador gera, de 0 a
+	// 100. Ele só baixa a qualidade se o resultado passar do TetoDoAvatar.
+	QualidadeDoAvatar = 92
+
+	// BytesDoIdDoAvatar é o tamanho do nome do arquivo do avatar, do
+	// crypto/rand. O nome muda a cada troca e vai na URL, o que deixa o
+	// navegador guardar a imagem para sempre.
+	BytesDoIdDoAvatar = 8
 )

@@ -66,6 +66,19 @@ export const api = {
     request('usuarios/link', { method: 'POST', body: JSON.stringify({ usuario }) }),
   removerUsuario: (usuario) =>
     request('usuarios?usuario=' + encodeURIComponent(usuario), { method: 'DELETE' }),
+  tirarAvatarDe: (usuario) =>
+    request('usuarios/avatar?usuario=' + encodeURIComponent(usuario), { method: 'DELETE' }),
+
+  // Minha conta: cada um muda o que é seu. Tudo devolve { pessoa } como ficou,
+  // para o header se atualizar sem perguntar de novo. A foto vai crua, o JPEG
+  // já reduzido pelo navegador (ver lib/avatar.js).
+  conta: () => request('conta'),
+  trocarSenha: (atual, nova) =>
+    request('conta/senha', { method: 'POST', body: JSON.stringify({ atual, nova }) }),
+  mudarNome: (nome) => request('conta/nome', { method: 'POST', body: JSON.stringify({ nome }) }),
+  enviarAvatar: (jpeg) =>
+    request('conta/avatar', { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: jpeg }),
+  tirarAvatar: () => request('conta/avatar', { method: 'DELETE' }),
 
   // O link de convite: públicos, com o token no corpo, e não na URL, para ele
   // não ficar no log de nenhum proxy. Link vencido ou já usado é 410.
@@ -158,6 +171,9 @@ export const mediaURL = {
   init: (cam, gen) => `api/rec/init?cam=${encodeURIComponent(cam)}&g=${gen}`,
   segment: (cam, t) => `api/rec/seg?cam=${encodeURIComponent(cam)}&t=${t}`,
   thumb: (cam, t) => `api/rec/thumb?cam=${encodeURIComponent(cam)}&t=${t}`,
+  // A foto de alguém, pelo id, que muda a cada troca: o navegador a guarda para
+  // sempre.
+  avatar: (id) => `api/avatar?id=${encodeURIComponent(id)}`,
   // O JPEG que o detector de objetos olhou. `t` é o `instanteMs` da detecção.
   quadro: (cam, t) => `api/deteccoes/quadro?cam=${encodeURIComponent(cam)}&t=${t}`,
   export: (cam, from, to) =>

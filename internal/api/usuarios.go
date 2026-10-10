@@ -19,13 +19,15 @@ type usuarioNaTela struct {
 	Nome     string         `json:"nome"`
 	Papel    usuarios.Papel `json:"papel"`
 	Situacao string         `json:"situacao"`
+	Avatar   string         `json:"avatar,omitempty"`
 	// Só com link em aberto ou vencido.
 	LinkVenceEmMs int64 `json:"linkVenceEmMs,omitempty"`
 	CriadoEmMs    int64 `json:"criadoEmMs,omitempty"`
 }
 
 func naTela(u usuarios.Usuario, agora time.Time) usuarioNaTela {
-	v := usuarioNaTela{Usuario: u.Usuario, Nome: u.Nome, Papel: u.Papel, Situacao: u.Situacao(agora)}
+	v := usuarioNaTela{Usuario: u.Usuario, Nome: u.Nome, Papel: u.Papel, Situacao: u.Situacao(agora),
+		Avatar: u.Avatar}
 	if u.Link != nil {
 		v.LinkVenceEmMs = u.Link.VenceEm.UnixMilli()
 	}
@@ -59,7 +61,7 @@ func (s *Server) recusa(w http.ResponseWriter, what string, err error) {
 	switch {
 	case errors.As(err, &recusado):
 		writeError(w, http.StatusBadRequest, recusado.Error())
-	case errors.Is(err, usuarios.ErrNaoExiste):
+	case errors.Is(err, usuarios.ErrNaoExiste), errors.Is(err, usuarios.ErrSemAvatar):
 		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, usuarios.ErrLinkInvalido):
 		writeError(w, http.StatusGone, err.Error())
@@ -92,7 +94,7 @@ func (s *Server) handleUsuarios(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dono, _ := s.quem(s.cfg.Server.Username)
-	resp["dono"] = map[string]string{"usuario": dono.Usuario, "nome": dono.Nome}
+	resp["dono"] = map[string]string{"usuario": dono.Usuario, "nome": dono.Nome, "avatar": dono.Avatar}
 	agora := time.Now()
 	lista := []usuarioNaTela{}
 	for _, u := range s.usuarios.Listar() {
@@ -159,6 +161,21 @@ func (s *Server) handleRemoverUsuario(w http.ResponseWriter, r *http.Request) {
 	s.derrubarPessoa(usuario, "removido")
 	s.log.Info("usuário removido pela interface", "usuario", usuario, "por", pessoaDe(r).Usuario)
 	writeJSON(w, map[string]bool{"removido": true})
+}
+
+// handleTirarAvatarDe tira a foto de alguém: o admin não troca a foto de
+// ninguém, mas pode tirar uma que não sirva.
+func (s *Server) handleTirarAvatarDe(w http.ResponseWriter, r *http.Request) {
+	if s.semCadastro(w) {
+		return
+	}
+	usuario := r.URL.Query().Get("usuario")
+	if err := s.usuarios.TirarAvatar(usuario); err != nil {
+		s.recusa(w, "tirando a foto", err)
+		return
+	}
+	s.log.Info("foto tirada pela interface", "usuario", usuario, "por", pessoaDe(r).Usuario)
+	writeJSON(w, map[string]bool{"ok": true})
 }
 
 // handleConferirConvite diz de quem é o link, para a tela de definir a senha

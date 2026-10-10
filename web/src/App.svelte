@@ -23,6 +23,7 @@
   import Recordings from './routes/Recordings.svelte';
   import Cameras from './routes/Cameras.svelte';
   import Health from './routes/Health.svelte';
+  import Avatar from './components/Avatar.svelte';
 
   const ROUTES = [
     { id: 'live', label: 'Ao vivo', icon: '◉', component: Live },
@@ -48,11 +49,21 @@
     },
     // Para o comum, só "Este navegador" e a versão.
     { id: 'health', label: 'Diagnóstico', icon: '♥', component: Health },
+    // Sem aba: chega-se pelo avatar do header. Só existe com login, porque sem
+    // ele não há de quem ser a conta.
+    {
+      id: 'conta',
+      label: 'Minha conta',
+      carregar: () => import('./routes/Conta.svelte'),
+      semAba: true,
+    },
   ];
 
-  const abas = $derived(
-    ROUTES.filter((r) => (!r.soComDetector || cameras.detector) && (!r.soAdmin || ehAdmin())),
-  );
+  const podeVer = (r) =>
+    (!r.soComDetector || cameras.detector) &&
+    (!r.soAdmin || ehAdmin()) &&
+    (r.id !== 'conta' || session.authRequired);
+  const abas = $derived(ROUTES.filter((r) => !r.semAba && podeVer(r)));
 
   // O link de convite (`#convite?token=…`) abre a tela de definir a senha, com
   // ou sem sessão: quem o recebe ainda não tem senha. Chunk à parte, porque só
@@ -78,7 +89,7 @@
   // reescrevê-lo custaria um efeito que lê e grava o mesmo estado, e o link
   // segue funcionando exatamente igual do jeito que é.
   const route = $derived(
-    abas.find((r) => r.id === rota.id) ?? ROUTES.find((r) => r.id === ROTA_PADRAO),
+    ROUTES.find((r) => r.id === rota.id && podeVer(r)) ?? ROUTES.find((r) => r.id === ROTA_PADRAO),
   );
 
   // A tela no título, para a aba e o histórico dizerem onde se está. No login
@@ -158,18 +169,31 @@
     afterLogin(pessoa);
   }
 
+  // O menu do avatar: Minha conta e Sair, para os dois papéis. O Sair fica a
+  // um toque a mais, o que dificulta sair por engano.
+  let menuConta = $state(false);
+
+  function foraDoMenu(e) {
+    if (menuConta && !e.target.closest?.('.conta')) menuConta = false;
+  }
+
   let saindo = $state(false);
 
   async function sair() {
     saindo = true;
     await logout();
     saindo = false;
+    menuConta = false;
   }
+
+  const papel = $derived(session.pessoa?.papel === 'admin' ? 'administrador' : 'usuário');
 </script>
 
 <svelte:head>
   <title>{titulo}</title>
 </svelte:head>
+
+<svelte:window onclick={foraDoMenu} onkeydown={(e) => e.key === 'Escape' && (menuConta = false)} />
 
 {#if convite}
   {#if Convite}<Convite onSuccess={aposConvite} />{:else}<div class="boot">carregando…</div>{/if}
@@ -231,12 +255,48 @@
           ↑ {build.nova}
         </a>
       {/if}
-      <!-- Sem autenticação configurada não há sessão para encerrar, e um botão
-           que não faz nada é pior que botão nenhum. -->
-      {#if session.authRequired}
-        <button class="ghost sair" onclick={sair} disabled={saindo}>
-          {saindo ? 'saindo…' : 'Sair'}
-        </button>
+      <!-- Sem autenticação configurada não há de quem ser a conta nem sessão
+           para encerrar, e um botão que não faz nada é pior que botão nenhum.
+           O anel marca o menu aberto, e a Minha conta, que não tem aba. -->
+      {#if session.authRequired && session.pessoa}
+        <div class="conta">
+          <button
+            class="avbtn"
+            class:ativo={menuConta || route.id === 'conta'}
+            onclick={() => (menuConta = !menuConta)}
+            aria-haspopup="menu"
+            aria-expanded={menuConta}
+            aria-label="conta de {session.pessoa.nome}"
+            title={session.pessoa.nome}
+          >
+            <Avatar pessoa={session.pessoa} tamanho={32} />
+          </button>
+          {#if menuConta}
+            <div class="menu-conta" role="menu">
+              <div class="quem">
+                <Avatar pessoa={session.pessoa} tamanho={40} />
+                <div>
+                  <strong>{session.pessoa.nome}</strong>
+                  <span class="muted small">@{session.pessoa.usuario} · {papel}</span>
+                </div>
+              </div>
+              <div class="sep"></div>
+              <a
+                href="#conta"
+                role="menuitem"
+                class:atual={route.id === 'conta'}
+                onclick={(e) => {
+                  navegar(e, 'conta');
+                  menuConta = false;
+                }}>Minha conta</a
+              >
+              <div class="sep"></div>
+              <button role="menuitem" onclick={sair} disabled={saindo}>
+                {saindo ? 'saindo…' : 'Sair'}
+              </button>
+            </div>
+          {/if}
+        </div>
       {/if}
     </div>
   </header>
@@ -329,9 +389,9 @@
     display: none;
   }
 
-  /* Empurradas para a ponta oposta da marca. O Sair, em especial, longe do
-     polegar que navega pelo rodapé: sair por engano custa digitar a senha de
-     novo. */
+  /* Empurradas para a ponta oposta da marca. O avatar, que leva ao Sair,
+     longe do polegar que navega pelo rodapé: sair por engano custa digitar a
+     senha de novo. */
   .acoes {
     margin-left: auto;
     display: flex;
@@ -344,7 +404,7 @@
   .nova {
     display: inline-flex;
     align-items: center;
-    /* A mesma altura do Sair ao lado. */
+    /* A mesma altura do avatar ao lado. */
     min-height: 34px;
     padding: 5px 12px;
     border-radius: 999px;
@@ -361,7 +421,7 @@
     background: rgba(47, 129, 247, 0.2);
   }
 
-  /* Sino e não pílula: é o menor dos alertas, 34px como a pílula e o Sair ao
+  /* Sino e não pílula: é o menor dos alertas, 34px como a pílula e o avatar ao
      lado, e o desenho já diz "tem notificação" sem texto. O desenho é SVG
      inline, e não emoji: o emoji muda a cada sistema e não aceita cor. */
   .sino {
@@ -407,15 +467,94 @@
   .sino.bad .bolha { background: var(--bad); color: #fff; }
   .sino.warn .bolha { background: var(--warn); color: #1b1300; }
 
-  .sair {
-    min-height: 34px;
-    padding: 5px 12px;
-    font-size: 13px;
-    color: var(--dim);
+  /* O menu se prende ao avatar, e não ao header: abre sob ele. */
+  .conta {
+    position: relative;
   }
 
-  .sair:hover:not(:disabled) {
+  /* 34px, como o sino e a pílula ao lado. */
+  .avbtn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 50%;
+    background: none;
+  }
+
+  .avbtn.ativo {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  /* O mesmo desenho do menu do ⋮ das telas Detecções e Usuários. */
+  .menu-conta {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 240px;
+    max-width: calc(100vw - 24px);
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .menu-conta .quem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+  }
+
+  .menu-conta .quem div {
+    min-width: 0;
+  }
+
+  .menu-conta .quem strong,
+  .menu-conta .quem span {
+    display: block;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .menu-conta .sep {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--line);
+  }
+
+  .menu-conta a,
+  .menu-conta button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
     color: var(--fg);
+    font-size: 14px;
+    text-align: left;
+    text-decoration: none;
+  }
+
+  .menu-conta a.atual {
+    color: var(--accent);
+  }
+
+  @media (hover: hover) {
+    .menu-conta a:hover,
+    .menu-conta button:hover:not(:disabled) {
+      background: var(--panel-2);
+    }
   }
 
   main {

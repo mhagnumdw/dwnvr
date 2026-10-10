@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -44,6 +45,8 @@ type Arquivo struct {
 type Dono struct {
 	// Nome de exibição. Vazio é "use o usuário do dwnvr.yaml".
 	Nome string `json:"nome,omitempty"`
+	// Avatar é o id da foto na pasta avatares/, ou vazio (ver TrocarAvatar).
+	Avatar string `json:"avatar,omitempty"`
 }
 
 type Usuario struct {
@@ -58,7 +61,9 @@ type Usuario struct {
 	Senha string `json:"senha,omitempty"`
 	// Link é o link de convite em aberto, ou nil. Um por pessoa: gerar outro
 	// substitui este.
-	Link     *Link     `json:"link,omitempty"`
+	Link *Link `json:"link,omitempty"`
+	// Avatar é o id da foto na pasta avatares/, ou vazio (ver TrocarAvatar).
+	Avatar   string    `json:"avatar,omitempty"`
 	CriadoEm time.Time `json:"criadoEm"`
 }
 
@@ -144,6 +149,8 @@ func ValidarSenha(senha string) error {
 // alteração grava o arquivo inteiro e troca a cópia em memória.
 type Cadastro struct {
 	caminho string
+	// avatares é a pasta das fotos, ao lado do usuarios.json.
+	avatares string
 	// dono é o server.username do dwnvr.yaml: ninguém do arquivo pode ter o
 	// mesmo login.
 	dono string
@@ -167,7 +174,8 @@ type Cadastro struct {
 // porque a gravação não pode parar por causa dele: vem o erro, e o cadastro
 // vem vazio e recusa gravar. Só o dono entra até o arquivo ser corrigido.
 func Abrir(caminho, dono string) (c *Cadastro, avisos []string, err error) {
-	c = &Cadastro{caminho: caminho, dono: dono, agora: time.Now}
+	c = &Cadastro{caminho: caminho, avatares: filepath.Join(filepath.Dir(caminho), "avatares"),
+		dono: dono, agora: time.Now}
 	b, err := os.ReadFile(caminho)
 	if errors.Is(err, os.ErrNotExist) {
 		return c, nil, nil
