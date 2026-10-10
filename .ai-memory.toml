@@ -1,12 +1,13 @@
 # Roteamento do ai-memory para este repositório.
 # Doc oficial: https://github.com/akitaonrails/ai-memory/blob/main/docs/marker-file.md
 #
-# Sem este arquivo o projeto é resolvido pelo BASENAME do diretório, o que
-# significa que mover ou renomear a pasta pode fatiar a memória em dois
-# projetos distintos.
+# Sem `project` declarado, o nome do projeto vem do caminho do remote
+# `upstream` (ou `origin`); só repos sem remote caem no basename do diretório.
+# Declarar `project` fixa o nome, independente de remote ou pasta, e faz todos
+# os worktrees deste repo convergirem para o mesmo project.
 #
-# project_strategy = "repo-root" faz todos os worktrees deste repo convergirem
-# para o mesmo project, em vez de cada worktree virar um project separado.
+# project_strategy = "repo-root" só tem efeito quando o nome não vem de
+# `project` nem de remote; fica como salvaguarda.
 workspace = "default"
 project = "dwnvr"
 project_strategy = "repo-root"
