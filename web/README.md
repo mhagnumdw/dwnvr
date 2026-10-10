@@ -42,11 +42,12 @@ src/lib/         api, estado (runes), rota e estado na URL, formatadores,
                  famílias de objeto, disposição e desenho das caixas,
                  diagnóstico do navegador de quem está olhando e do
                  servidor que grava, avisos do diagnóstico (o card e o
-                 sino do header)
+                 sino do header), a redução da foto da Minha conta
 src/routes/      as telas, o login e a de definir a senha pelo link de
-                 convite; Detecções, Usuários e a do convite são chunk à
-                 parte. Detecções só aparece com o detector de objetos
-                 configurado, e Câmeras e Usuários só para o admin
+                 convite; Detecções, Usuários, Minha conta e a do convite
+                 são chunk à parte. Detecções só aparece com o detector de
+                 objetos configurado, Câmeras e Usuários só para o admin, e
+                 a Minha conta não tem aba: abre pelo avatar do header
 src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  horário digitado, modal e confirmação,
                  o estado de "nenhuma câmera cadastrada", seletor de dia e as
@@ -54,7 +55,8 @@ src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  caixas do detector sobre o vídeo (chunk à parte), a folha
                  que abre uma detecção com o quadro e o trecho gravado,
                  o card fechável de diagnóstico com o "copiar",
-                 o campo de senha com o olho
+                 o campo de senha com o olho, o avatar (a foto ou as
+                 iniciais)
 src/vendor/      player de live do go2rtc (MIT) - ver vendor/README.md
 ```
 
