@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -24,6 +25,10 @@ const (
 	// tela falou com o dwnvr, e não do login: quem usa o app instalado não é
 	// mandado de volta para a tela de login a cada mês.
 	sessionRenew = sessionTTL / 2
+
+	// Teto do X-Forwarded-For copiado para o log (ver encaminhado). Cabe uma
+	// cadeia de proxies inteira; o resto é cortado.
+	encaminhadoMax = 200
 )
 
 // pessoa é quem fez a requisição: o dono, do dwnvr.yaml, ou alguém do
@@ -233,16 +238,24 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		ok = subtle.ConstantTimeCompare([]byte(req.Password), []byte(p.credencial)) == 1
 	}
 	if !existe || !ok {
-		s.log.Warn("tentativa de login recusada", "usuario", req.Username, "de", r.RemoteAddr)
+		s.log.Warn("tentativa de login recusada", "usuario", req.Username, "de", r.RemoteAddr, encaminhado(r))
 		writeError(w, http.StatusUnauthorized, "usuário ou senha inválidos")
 		return
 	}
 
 	s.setSessionCookie(w, r, p)
+	s.log.Info("login aceito", "usuario", p.Usuario, "de", r.RemoteAddr, encaminhado(r))
 	writeJSON(w, map[string]any{"ok": true, "user": p})
 }
 
+// handleLogout apaga o cookie. Só vira log com uma sessão válida: sem ela não
+// há quem nomear, e não havia nada para encerrar.
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie(sessionCookie); err == nil {
+		if p, _, ok := s.tokenPessoa(c.Value); ok {
+			s.log.Info("logout", "usuario", p.Usuario, "de", r.RemoteAddr, encaminhado(r))
+		}
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true,
 		Secure: viaHTTPS(r),
@@ -267,6 +280,26 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 // montar assim precisa entrar sempre pelo mesmo endereço.
 func viaHTTPS(r *http.Request) bool {
 	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+}
+
+// encaminhado é o X-Forwarded-For da requisição, para o log ao lado do "de".
+//
+// Atrás do Caddy ou do `tailscale serve`, o "de" (o RemoteAddr) é o endereço
+// do proxy, igual para todo mundo. Quem chegou de verdade está no
+// X-Forwarded-For, que os dois preenchem.
+//
+// O valor vai como veio, sem decidir se é confiável: quem fala direto com a
+// 8080 pode inventar o header. Por isso ele fica num campo próprio, e o "de"
+// segue sendo a conexão. Sem o header, o atributo sai vazio e o slog o omite.
+func encaminhado(r *http.Request) slog.Attr {
+	v := strings.Join(r.Header.Values("X-Forwarded-For"), ", ")
+	if v == "" {
+		return slog.Attr{}
+	}
+	if len(v) > encaminhadoMax {
+		v = v[:encaminhadoMax] + "…"
+	}
+	return slog.String("encaminhado", v)
 }
 
 // handleSession diz ao frontend se precisa mostrar a tela de login e, com a

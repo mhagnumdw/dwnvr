@@ -244,7 +244,7 @@ func (s *Server) handleConvite(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, "abrindo a sessão de quem acabou de definir a senha", errors.New("pessoa sumiu"))
 		return
 	}
-	s.log.Info("senha definida pelo link", "usuario", u.Usuario, "de", r.RemoteAddr)
+	s.log.Info("senha definida pelo link", "usuario", u.Usuario, "de", r.RemoteAddr, encaminhado(r))
 	s.setSessionCookie(w, r, p)
 	writeJSON(w, map[string]any{"ok": true, "user": p})
 }

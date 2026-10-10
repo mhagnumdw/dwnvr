@@ -470,7 +470,7 @@ func logRequests(log *slog.Logger, next http.Handler) http.Handler {
 		// segmentos, registrar tudo afogaria o journal do servidor.
 		if sw.code >= 400 {
 			log.Warn("requisição recusada", "status", sw.code,
-				"metodo", r.Method, "caminho", r.URL.Path, "de", r.RemoteAddr)
+				"metodo", r.Method, "caminho", r.URL.Path, "de", r.RemoteAddr, encaminhado(r))
 		}
 	})
 }

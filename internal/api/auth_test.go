@@ -365,6 +365,63 @@ func TestLogin(t *testing.T) {
 	}
 }
 
+// O login aceito e o logout viram log com quem e de onde, inclusive o
+// X-Forwarded-For do proxy. Logout sem sessão válida não vira log.
+func TestLoginELogoutVaoProLog(t *testing.T) {
+	s, _ := testServer(t)
+	var log strings.Builder
+	s.log = slog.New(slog.NewTextHandler(&log, nil))
+	comAutenticacao(t, s)
+
+	corpo, _ := json.Marshal(map[string]string{"username": "admin", "password": "senha"})
+	req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(corpo)))
+	req.Header.Set("X-Forwarded-For", "100.64.0.7")
+	rec := httptest.NewRecorder()
+	s.handleLogin(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login: status %d", rec.Code)
+	}
+	if l := log.String(); !strings.Contains(l, `msg="login aceito" usuario=admin de=192.0.2.1:1234 encaminhado=100.64.0.7`) {
+		t.Errorf("log do login: %s", l)
+	}
+	c, err := http.ParseSetCookie(rec.Header().Get("Set-Cookie"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	log.Reset()
+	sair := httptest.NewRequest(http.MethodPost, "/api/logout", nil)
+	sair.AddCookie(c)
+	s.handleLogout(httptest.NewRecorder(), sair)
+	if l := log.String(); !strings.Contains(l, `msg=logout usuario=admin de=192.0.2.1:1234`) || strings.Contains(l, "encaminhado") {
+		t.Errorf("log do logout: %s", l)
+	}
+
+	log.Reset()
+	s.handleLogout(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/logout", nil))
+	if log.Len() != 0 {
+		t.Errorf("logout sem sessão virou log: %s", log.String())
+	}
+}
+
+// O X-Forwarded-For entra no log cortado no teto, para um header inventado
+// não encher a memória da tela de Diagnóstico.
+func TestEncaminhadoCortaNoTeto(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	if a := encaminhado(req); !a.Equal(slog.Attr{}) {
+		t.Errorf("sem o header: %v, esperava vazio", a)
+	}
+	req.Header.Add("X-Forwarded-For", "203.0.113.5")
+	req.Header.Add("X-Forwarded-For", "100.64.0.7")
+	if v := encaminhado(req).Value.String(); v != "203.0.113.5, 100.64.0.7" {
+		t.Errorf("dois headers: %q", v)
+	}
+	req.Header.Set("X-Forwarded-For", strings.Repeat("1", encaminhadoMax+50))
+	if v := encaminhado(req).Value.String(); v != strings.Repeat("1", encaminhadoMax)+"…" {
+		t.Errorf("header longo: %d bytes", len(v))
+	}
+}
+
 // O /api/session diz quem está logado, sem a credencial.
 func TestSessionDizQuemEsta(t *testing.T) {
 	s, _ := testServer(t)

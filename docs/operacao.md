@@ -133,6 +133,7 @@ Isso não impede inspecionar. Quatro caminhos, do mais simples ao mais invasivo:
 ```sh
 docker logs -f dwnvr
 docker logs dwnvr | grep -E 'level=(WARN|ERROR)'
+docker logs dwnvr | grep -E 'msg="(login aceito|tentativa de login recusada)"|msg=logout'
 docker stats --no-stream dwnvr
 docker inspect dwnvr --format '{{.State.Health.Status}}'
 ```

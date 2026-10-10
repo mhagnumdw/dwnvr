@@ -23,8 +23,10 @@ o tempo todo, e o login das pessoas de verdade espera atrás.
 
 - A fila de uma conta de senha por vez (`internal/usuarios/senha.go`). Protege
   a CPU, e não limita tentativas.
-- Cada recusa vai para o log, com o usuário tentado e o endereço de origem
-  (`tentativa de login recusada`, no `handleLogin` de `internal/api/auth.go`).
+- Cada recusa vai para o log, com o usuário tentado, o endereço de origem e o
+  `X-Forwarded-For`, quando veio, no campo `encaminhado` (`tentativa de login
+  recusada`, no `handleLogin` de `internal/api/auth.go`). O campo vai como
+  veio, sem decidir se é confiável.
 - Atrás do `tailscale serve`, toda conexão chega ao dwnvr pelo mesmo endereço,
   o do proxy (a conferir). Um limite por endereço pelo `RemoteAddr` trataria
   todo mundo como uma pessoa só. O endereço real viria do `X-Forwarded-For`,
