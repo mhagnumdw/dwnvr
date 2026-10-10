@@ -18,6 +18,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/retention"
 	"github.com/mhagnumdw/dwnvr/internal/store"
+	"github.com/mhagnumdw/dwnvr/internal/usuarios"
 )
 
 type Server struct {
@@ -26,9 +27,14 @@ type Server struct {
 	client *go2rtc.Client
 	mgr    *recorder.Manager
 	log    *slog.Logger
-	// sessionKey assina os cookies de sessão. Sai do .session-secret e da
-	// credencial do dwnvr.yaml (ver deriveSessionKey).
-	sessionKey []byte
+	// sessionSecret é o conteúdo do .session-secret, de onde sai a chave que
+	// assina os cookies de cada pessoa (ver chaveDaSessao).
+	sessionSecret []byte
+	// usuarios são as pessoas do usuarios.json. O dono vem do cfg.
+	usuarios *usuarios.Cadastro
+	// abertas são as conexões que não voltam a apresentar o cookie (o ao vivo
+	// e o aviso de sessão), para derrubar quem é removido. Ver derrubar.go.
+	abertas conexoes
 	// ret diz desde quando o disco está abaixo do mínimo. Pode ser nil nos
 	// testes, e aí o aviso sai sem o "desde".
 	ret *retention.Manager
@@ -55,11 +61,11 @@ type Server struct {
 }
 
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
-	mgr *recorder.Manager, ret *retention.Manager, secret []byte, log *slog.Logger) *Server {
+	mgr *recorder.Manager, ret *retention.Manager, cad *usuarios.Cadastro, secret []byte,
+	log *slog.Logger) *Server {
 
-	key := deriveSessionKey(secret, cfg.Server.Username, cfg.Server.Password)
 	return &Server{cfg: cfg, store: st, client: client, mgr: mgr, ret: ret,
-		sessionKey: key, log: log, startedAt: time.Now()}
+		usuarios: cad, sessionSecret: secret, log: log, startedAt: time.Now()}
 }
 
 // knownCamera evita que um ID arbitrário vindo da URL vire caminho no disco.
@@ -92,22 +98,46 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("POST /api/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/session", s.handleSession)
+	mux.HandleFunc("GET /api/session/ws", s.requireAuth(s.handleAvisoDeSessao))
+
+	// Link de convite: público, porque quem o abre ainda não tem senha. O
+	// token vem no corpo, e só ele dá acesso.
+	mux.HandleFunc("POST /api/convite/conferir", s.handleConferirConvite)
+	mux.HandleFunc("POST /api/convite", s.handleConvite)
+
+	// Usuários: a tela é do admin.
+	mux.HandleFunc("GET /api/usuarios", s.requireAdmin(s.handleUsuarios))
+	mux.HandleFunc("POST /api/usuarios", s.requireAdmin(s.handleCriarUsuario))
+	mux.HandleFunc("POST /api/usuarios/link", s.requireAdmin(s.handleNovoLink))
+	mux.HandleFunc("DELETE /api/usuarios", s.requireAdmin(s.handleRemoverUsuario))
+	mux.HandleFunc("DELETE /api/usuarios/avatar", s.requireAdmin(s.handleTirarAvatarDe))
+
+	// Minha conta: cada pessoa muda o que é dela, de qualquer papel.
+	mux.HandleFunc("GET /api/conta", s.requireAuth(s.handleConta))
+	mux.HandleFunc("POST /api/conta/senha", s.requireAuth(s.handleTrocarSenha))
+	mux.HandleFunc("POST /api/conta/nome", s.requireAuth(s.handleMudarNome))
+	mux.HandleFunc("PUT /api/conta/avatar", s.requireAuth(s.handleTrocarAvatar))
+	mux.HandleFunc("DELETE /api/conta/avatar", s.requireAuth(s.handleTirarAvatar))
+	mux.HandleFunc("GET /api/avatar", s.requireAuth(s.handleAvatar))
 
 	// Versão fica fora da autenticação pelo mesmo motivo da tela de login:
 	// precisa ser visível antes de entrar. Além disso é a sonda de deploy -
 	// um curl responde se o dwnvr subiu com o código novo, sem cookie.
 	mux.HandleFunc("GET /api/version", s.handleVersion)
 
-	// Gravações
+	// Câmeras e diagnóstico. A lista de câmeras é de todos, e vem enxuta para
+	// o usuário comum; o cadastro e o diagnóstico do servidor, só do admin.
 	mux.HandleFunc("GET /api/cameras", s.requireAuth(s.handleCameras))
-	mux.HandleFunc("POST /api/cameras", s.requireAuth(s.handleSaveCamera))
-	mux.HandleFunc("DELETE /api/cameras", s.requireAuth(s.handleDeleteCamera))
-	mux.HandleFunc("GET /api/streams/probe", s.requireAuth(s.handleProbeStream))
-	mux.HandleFunc("POST /api/go2rtc/restart", s.requireAuth(s.handleReiniciarGo2rtc))
-	mux.HandleFunc("GET /api/health", s.requireAuth(s.handleHealth))
-	mux.HandleFunc("POST /api/reconnects/reset", s.requireAuth(s.handleZerarReconexoes))
-	mux.HandleFunc("GET /api/health/servidor", s.requireAuth(s.handleDiagnosticoServidor))
-	mux.HandleFunc("DELETE /api/rec", s.requireAuth(s.handleDeleteRecordings))
+	mux.HandleFunc("POST /api/cameras", s.requireAdmin(s.handleSaveCamera))
+	mux.HandleFunc("DELETE /api/cameras", s.requireAdmin(s.handleDeleteCamera))
+	mux.HandleFunc("GET /api/streams/probe", s.requireAdmin(s.handleProbeStream))
+	mux.HandleFunc("POST /api/go2rtc/restart", s.requireAdmin(s.handleReiniciarGo2rtc))
+	mux.HandleFunc("GET /api/health", s.requireAdmin(s.handleHealth))
+	mux.HandleFunc("POST /api/reconnects/reset", s.requireAdmin(s.handleZerarReconexoes))
+	mux.HandleFunc("GET /api/health/servidor", s.requireAdmin(s.handleDiagnosticoServidor))
+	mux.HandleFunc("DELETE /api/rec", s.requireAdmin(s.handleDeleteRecordings))
+
+	// Gravações
 	mux.HandleFunc("GET /api/rec/days", s.requireAuth(s.handleDays))
 	mux.HandleFunc("GET /api/rec/timeline", s.requireAuth(s.handleTimeline))
 	mux.HandleFunc("GET /api/rec/events", s.requireAuth(s.handleEvents))
@@ -124,7 +154,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Live: sinalização e mídia ficam com o go2rtc; o dwnvr só faz proxy do
 	// websocket do player, e o resto da API do go2rtc fica de fora.
-	mux.Handle("GET /api/live/ws", s.requireAuthHandler(s.liveProxy()))
+	mux.HandleFunc("GET /api/live/ws", s.requireAuth(s.handleLive(s.liveProxy())))
 
 	// A interface é servida SEM autenticação, de propósito: são só HTML, CSS e
 	// JS, sem nenhum dado das câmeras. Protegê-la impediria o navegador de
@@ -132,10 +162,6 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/", s.webHandler())
 
 	return logRequests(s.log, mux)
-}
-
-func (s *Server) requireAuthHandler(h http.Handler) http.Handler {
-	return s.requireAuth(h.ServeHTTP)
 }
 
 // cameraInfo é a câmera como a tela a vê: o cadastro já com os defaults
@@ -150,13 +176,18 @@ type cameraInfo struct {
 }
 
 // handleCameras lista as câmeras cadastradas, o que o go2rtc oferece e o que
-// sobrou em disco de câmeras já removidas.
+// sobrou em disco de câmeras já removidas. O usuário comum recebe só as
+// câmeras e o detector (ver camerasDoComum).
 //
 // Juntar as três coisas numa resposta só é o que permite à tela de cadastro
 // mostrar apenas streams que existem de verdade, em vez de pedir que o usuário
 // digite um nome e descubra o erro depois - e é onde as gravações órfãs voltam a
 // ser visíveis, já que nenhum outro endpoint enxerga câmera sem cadastro.
 func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
+	if !pessoaDe(r).admin() {
+		s.camerasDoComum(w)
+		return
+	}
 	raw := s.mgr.Cameras()
 	cams := make([]cameraInfo, len(raw))
 	registered := map[string]bool{}
@@ -238,6 +269,19 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		resp["go2rtcConfigFile"] = d
 	}
 	writeJSON(w, resp)
+}
+
+// camerasDoComum é o /api/cameras do usuário comum: as câmeras, sem o caminho
+// no disco, e se há detector de objetos. O resto só serve à tela Câmeras, que
+// é do admin, e o go2rtc nem é consultado: cada abertura da tela custaria duas
+// chamadas a ele.
+func (s *Server) camerasDoComum(w http.ResponseWriter) {
+	raw := s.mgr.Cameras()
+	cams := make([]config.Camera, len(raw))
+	for i, c := range raw {
+		cams[i] = s.cfg.Resolve(c)
+	}
+	writeJSON(w, map[string]any{"cameras": cams, "detector": s.mgr.Detector() != nil})
 }
 
 // handleReiniciarGo2rtc faz o go2rtc reler o go2rtc.yaml. Todas as câmeras

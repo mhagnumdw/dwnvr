@@ -13,6 +13,8 @@ os mesmos arquivos ficam em `./config/dwnvr`, `./storage` e `./config/go2rtc`.
 | `/mnt/storage/dwnvr/config/dwnvr/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuração, editada à mão |
 | `/mnt/storage/dwnvr/config/dwnvr/cameras.json` | `/etc/dwnvr/cameras.json` | câmeras, gravado pela tela de cadastro |
 | `/mnt/storage/dwnvr/config/dwnvr/.session-secret` | `/etc/dwnvr/.session-secret` | assina os cookies de sessão (0600) |
+| `/mnt/storage/dwnvr/config/dwnvr/usuarios.json` | `/etc/dwnvr/usuarios.json` | as pessoas além do dono, gravado pela tela Usuários e pela Minha conta (0600) |
+| `/mnt/storage/dwnvr/config/dwnvr/avatares/` | `/etc/dwnvr/avatares/` | a foto de cada pessoa, um JPEG de até 32 KB |
 | `/mnt/storage/dwnvr/config/go2rtc/go2rtc.yaml` | `/config/go2rtc.yaml`, no container do go2rtc | as câmeras, editado à mão |
 | `/mnt/storage/dwnvr/recordings/` | `/storage/` | gravações, índices, init segments, marcas de movimento e quadros das detecções |
 
@@ -82,14 +84,23 @@ de fora. Trecho que cruza a meia-noite precisa do índice dos dois dias.
 ## Trocar a senha e derrubar as sessões
 
 Quem entra uma vez continua logado: a sessão vale 30 dias e se renova com o
-uso. Para tirar todo mundo, como depois de perder um celular logado, há dois
-caminhos, e os dois pedem reiniciar o dwnvr, que só lê esses arquivos ao subir:
+uso. A assinatura do cookie de cada pessoa depende da senha dela, então trocar
+a senha de alguém tira só essa pessoa.
 
-- **Trocar a senha**, ou o usuário, no `dwnvr.yaml`. A assinatura do cookie
-  depende da credencial, então todo cookie emitido antes deixa de valer, e só
-  entra quem souber a senha nova.
-- **Apagar o `.session-secret`**, para tirar todo mundo sem trocar a senha. O
-  dwnvr gera outro ao subir.
+Para as pessoas criadas na aba **Usuários**, é pela tela, sem reiniciar nada:
+**gerar link novo** apaga a senha dela, e **remover** apaga a pessoa. Nos dois
+casos ela sai na hora de todos os aparelhos, ao vivo aberto inclusive. A
+própria pessoa também troca a senha, na **Minha conta**, pedindo a atual: o
+aparelho em que ela trocou continua, e os outros saem.
+
+Para o dono, e para tirar todo mundo, há dois caminhos, e os dois pedem
+reiniciar o dwnvr, que só lê esses arquivos ao subir:
+
+- **Trocar a senha**, ou o usuário, do dono no `dwnvr.yaml`. Todo cookie do
+  dono emitido antes deixa de valer, e só entra quem souber a senha nova. Os
+  outros usuários continuam logados.
+- **Apagar o `.session-secret`**, para tirar todo mundo, o dono e os outros
+  usuários, sem trocar senha nenhuma. O dwnvr gera outro ao subir.
 
 ```sh
 # Para tirar todo mundo sem trocar a senha:
@@ -99,7 +110,8 @@ rm /mnt/storage/dwnvr/config/dwnvr/.session-secret
 docker compose restart dwnvr
 ```
 
-Nos dois casos, quem estava com a tela aberta volta para a tela de login.
+Nos dois casos, quem foi tirado e estava com a tela aberta volta para a tela
+de login.
 
 ## Inspecionar um container sem shell
 

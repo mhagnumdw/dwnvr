@@ -53,6 +53,40 @@ export const api = {
 
   logout: () => fetch('api/logout', { method: 'POST' }),
 
+  // A conferência do Ao vivo: o mesmo /api/session, com prazo. A resposta
+  // inteira volta, porque o relógio do servidor vem no header `Date` dela.
+  conferirSessao: (ms) => fetch('api/session', { cache: 'no-store', signal: AbortSignal.timeout(ms) }),
+
+  // Usuários, só do admin. Criar e o link novo devolvem o token do link, que
+  // só existe nessa resposta.
+  usuarios: () => request('usuarios'),
+  criarUsuario: (usuario, nome) =>
+    request('usuarios', { method: 'POST', body: JSON.stringify({ usuario, nome }) }),
+  novoLink: (usuario) =>
+    request('usuarios/link', { method: 'POST', body: JSON.stringify({ usuario }) }),
+  removerUsuario: (usuario) =>
+    request('usuarios?usuario=' + encodeURIComponent(usuario), { method: 'DELETE' }),
+  tirarAvatarDe: (usuario) =>
+    request('usuarios/avatar?usuario=' + encodeURIComponent(usuario), { method: 'DELETE' }),
+
+  // Minha conta: cada um muda o que é seu. Tudo devolve { pessoa } como ficou,
+  // para o header se atualizar sem perguntar de novo. A foto vai crua, o JPEG
+  // já reduzido pelo navegador (ver lib/avatar.js).
+  conta: () => request('conta'),
+  trocarSenha: (atual, nova) =>
+    request('conta/senha', { method: 'POST', body: JSON.stringify({ atual, nova }) }),
+  mudarNome: (nome) => request('conta/nome', { method: 'POST', body: JSON.stringify({ nome }) }),
+  enviarAvatar: (jpeg) =>
+    request('conta/avatar', { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: jpeg }),
+  tirarAvatar: () => request('conta/avatar', { method: 'DELETE' }),
+
+  // O link de convite: públicos, com o token no corpo, e não na URL, para ele
+  // não ficar no log de nenhum proxy. Link vencido ou já usado é 410.
+  conferirConvite: (token) =>
+    request('convite/conferir', { method: 'POST', body: JSON.stringify({ token }) }),
+  definirSenha: (token, senha) =>
+    request('convite', { method: 'POST', body: JSON.stringify({ token, senha }) }),
+
   cameras: () => request('cameras'),
   saveCamera: (cam) =>
     request('cameras', { method: 'POST', body: JSON.stringify(cam) }),
@@ -137,15 +171,23 @@ export const mediaURL = {
   init: (cam, gen) => `api/rec/init?cam=${encodeURIComponent(cam)}&g=${gen}`,
   segment: (cam, t) => `api/rec/seg?cam=${encodeURIComponent(cam)}&t=${t}`,
   thumb: (cam, t) => `api/rec/thumb?cam=${encodeURIComponent(cam)}&t=${t}`,
+  // A foto de alguém, pelo id, que muda a cada troca: o navegador a guarda para
+  // sempre.
+  avatar: (id) => `api/avatar?id=${encodeURIComponent(id)}`,
   // O JPEG que o detector de objetos olhou. `t` é o `instanteMs` da detecção.
   quadro: (cam, t) => `api/deteccoes/quadro?cam=${encodeURIComponent(cam)}&t=${t}`,
   export: (cam, from, to) =>
     `api/rec/export?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`,
   // O live vai para o go2rtc através do proxy do dwnvr, para que a credencial
   // dele nunca chegue ao navegador.
-  liveWS: (cam) => {
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const base = location.pathname.replace(/[^/]*$/, '');
-    return `${proto}//${location.host}${base}api/live/ws?src=${encodeURIComponent(cam)}`;
-  },
+  liveWS: (cam) => `${baseWS()}api/live/ws?src=${encodeURIComponent(cam)}`,
+  // O aviso de sessão: um websocket mudo que o servidor fecha quando a pessoa
+  // é removida ou ganha link novo. Ver `vigiarSessao` no Ao vivo.
+  avisoDeSessaoWS: () => `${baseWS()}api/session/ws`,
 };
+
+function baseWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const base = location.pathname.replace(/[^/]*$/, '');
+  return `${proto}//${location.host}${base}`;
+}

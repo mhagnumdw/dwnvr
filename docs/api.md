@@ -15,42 +15,144 @@ Convenções que valem para tudo:
 
 | Endpoint | O que faz |
 | --- | --- |
-| `POST /api/login` | abre sessão; devolve cookie assinado (HMAC, sem estado no servidor) |
+| `POST /api/login` | abre sessão; devolve cookie assinado (HMAC, sem estado no servidor) e quem entrou |
 | `POST /api/logout` | encerra a sessão |
-| `GET /api/session` | **público**: diz se este dwnvr exige login |
+| `GET /api/session` | **público**: diz se este dwnvr exige login e, com sessão, quem está logado |
+| `GET /api/session/ws` | o aviso de sessão: websocket mudo que o servidor fecha quando a pessoa é derrubada |
 | `GET /api/version` | **público**: versão, commit e data do build |
+| `POST /api/convite/conferir` | **público**: diz de quem é o link de convite e até quando vale |
+| `POST /api/convite` | **público**: define a senha pelo link de convite e já abre a sessão |
 
 `/api/session` e `/api/version` ficam fora da autenticação pelo mesmo motivo:
-precisam ser visíveis antes de entrar. O `/api/version` é também a sonda de
+precisam ser visíveis antes de entrar. As duas do convite também, porque quem
+abre o link ainda não tem senha (ver [O link de convite](#o-link-de-convite)). O `/api/version` é também a sonda de
 deploy - um `curl` responde se o dwnvr subiu com o código novo, sem cookie.
 
-Todo o resto exige sessão válida.
+Todo o resto exige sessão válida, e as rotas marcadas **só admin** exigem
+também o papel de admin.
 
-A sessão vale 30 dias e se renova com o uso: quando falta menos da metade do
+### Quem entra
+
+- **O dono**: o `server.username` e o `server.password` do `dwnvr.yaml`.
+  Sempre admin. A senha dele só se troca no arquivo.
+- **As pessoas do `usuarios.json`**, na pasta de config, cada uma com o papel
+  gravado: `admin` ou `comum`.
+
+O usuário comum vê as câmeras, as gravações e as detecções. O que é da tela
+Câmeras e do diagnóstico do servidor ele recebe como `403`, mesmo sem a aba
+na tela: esconder a aba não é segurança.
+
+Sem credencial no `dwnvr.yaml` a autenticação fica desligada, as pessoas do
+`usuarios.json` são ignoradas, e quem alcança a tela é tratado como admin.
+
+```json
+{
+  "authRequired": true,
+  "authenticated": true,
+  "pessoa": { "usuario": "maria", "nome": "Maria", "papel": "comum", "dono": false, "avatar": "4d1e0b62a7c3f915" }
+}
+```
+
+O `pessoa` só vem com `authenticated: true`; com a autenticação desligada, ele
+vem com `"papel": "admin"` e `"dono": true`, sem `usuario` nem `nome`. O
+`avatar` é o id da foto (ver [Minha conta](#minha-conta)) e só vem com foto.
+O `POST /api/login` devolve o mesmo `pessoa`, junto com `"ok": true`.
+
+### O login
+
+Toda tentativa custa uma conta de senha de 0,77 s num Orange Pi Zero 3
+(PBKDF2-SHA256, 600.000 iterações), uma por vez no processo inteiro: algumas
+tentativas simultâneas não ocupam os núcleos da gravação, só esperam a vez. O
+login do dono, cuja senha está em texto no `dwnvr.yaml`, e o de um usuário que
+não existe pagam a mesma conta, para o tempo de resposta não dizer quem
+existe. Não há limite de tentativas
+([TODO](TODO/TODO_limite-de-tentativas-no-login.md)).
+
+### O cookie
+
+O cookie diz de quem é a sessão: `<usuário em base64>.<validade>.<hmac>`. A
+sessão vale 30 dias e se renova com o uso: quando falta menos da metade do
 prazo, qualquer resposta autenticada, e também a do `/api/session`, traz um
 cookie novo com os 30 dias inteiros. Na prática, os 30 dias contam da última
 vez que a tela falou com o dwnvr. Continua sem estado no servidor: renovar é só
 assinar outro prazo.
 
-Trocar o usuário ou a senha no `dwnvr.yaml` e reiniciar derruba todas as
-sessões: a chave que assina o cookie sai do `.session-secret` junto com a
-credencial, e o cookie emitido antes deixa de bater. Para derrubar sem trocar a
-senha, ver [Trocar a senha e derrubar as
+A chave que assina o cookie de cada pessoa sai do `.session-secret` junto com
+o usuário e a senha dela: a do `dwnvr.yaml`, para o dono, ou a guardada no
+`usuarios.json`. Trocar a senha de alguém derruba só as sessões dessa pessoa,
+e o mesmo vale para quem é removido ou ganha link novo, que apaga a senha. Para
+o dono, isso pede reiniciar, porque o `dwnvr.yaml` só é lido ao subir. Quem
+troca a própria senha pela Minha conta recebe um cookie novo na mesma resposta
+e continua; os outros aparelhos dela voltam para o login. Para derrubar todo
+mundo de uma vez, ver
+[Trocar a senha e derrubar as
 sessões](operacao.md#trocar-a-senha-e-derrubar-as-sessões).
+
+### O link de convite
+
+Sem e-mail, quem entra pela primeira vez entra por um link: o admin cria a
+pessoa na tela Usuários, e ela define a própria senha. O link é
+`<endereço>/#convite?token=<token>`, com 32 bytes aleatórios no token. O
+endereço é o pelo qual o admin está acessando. O token fica no fragmento da
+URL, que não sai do navegador, e vai ao servidor no corpo de um POST: não
+aparece em log do dwnvr nem de proxy nenhum. O `usuarios.json` guarda só o
+SHA-256 dele.
+
+O link vale 10 minutos (`usuarios.ValidadeDoLink`) e uma vez só. Cada pessoa
+tem um link por vez: gerar outro invalida o anterior. Vencido, usado,
+substituído ou inventado, a resposta é a mesma, `410`.
+
+```json
+// POST /api/convite/conferir   {"token": "..."}
+{ "usuario": "maria", "nome": "Maria", "linkVenceEmMs": 1791587903000, "senhaMinima": 8, "senhaMaxima": 128 }
+```
+
+O `POST /api/convite` recebe `{"token", "senha"}` e devolve o mesmo
+`{"ok": true, "pessoa": {...}}` do login, com o cookie. A senha vai de 8 a 128
+caracteres, sem regra de composição (NIST SP 800-63B); fora disso, `400` com o
+motivo, e o link continua valendo. A conta da senha espera a mesma fila do
+login.
+
+### A queda de quem é derrubado
+
+Remover a pessoa, gerar link novo para ela ou ela trocar a própria senha muda
+a credencial que assina os cookies dela, e toda requisição seguinte é
+recusada. As conexões que já estão
+abertas, e não voltam a apresentar o cookie, o servidor fecha na hora: o
+websocket do ao vivo e o aviso de sessão (`GET /api/session/ws`).
+
+Fechar o websocket do ao vivo corta o vídeo do MSE, que vem por dentro dele. O
+do WebRTC não: o player fecha o websocket da negociação assim que o vídeo toca,
+e a mídia segue direto do go2rtc ao navegador pela UDP, sem passar pelo dwnvr.
+O go2rtc 1.9 não tem rota para derrubar um consumidor; só reiniciá-lo, o que
+pararia todas as câmeras e a gravação. Quem fecha o WebRTC é a tela Ao vivo:
+
+- ao ver o aviso de sessão fechar, ela confere a sessão na hora, e, se não
+  valer, fecha o vídeo e vai para o login;
+- com o vídeo à vista, ela confere a sessão a cada 60 s, a rede de segurança se
+  o aviso se perder;
+- se o dwnvr não responder à conferência, o vídeo para até a sessão se
+  confirmar. Isso vale também quando o dwnvr reinicia: o ao vivo para por
+  alguns segundos, mesmo com o go2rtc no ar.
+
+Medido com o go2rtc 1.9.14 e o Chrome: o consumidor WebRTC sai do go2rtc uns
+40 ms depois de o admin remover a pessoa. Uma tela modificada por quem foi
+removido, que ignore o aviso, segue recebendo o vídeo já aberto até a conexão
+cair, mas não abre outra.
 
 ## Câmeras e diagnóstico
 
 | Endpoint | Parâmetros | O que faz |
 | --- | --- | --- |
-| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs |
-| `POST /api/cameras` | corpo JSON | cadastra ou altera (upsert por id) |
-| `DELETE /api/cameras` | `id`, `recordings=1` | descadastra; com `recordings=1` apaga as gravações junto |
-| `GET /api/streams/probe` | `src` | diz se um stream entrega áudio, abrindo-o se preciso |
-| `POST /api/go2rtc/restart` | - | reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
-| `GET /api/health` | - | bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes e relógio |
-| `POST /api/reconnects/reset` | - | zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
-| `GET /api/health/servidor` | - | a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos e últimos avisos do log |
-| `DELETE /api/rec` | `cam` | apaga as gravações; serve também câmera já removida |
+| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs; para o usuário comum, só as câmeras e o `detector` |
+| `POST /api/cameras` | corpo JSON | **só admin**: cadastra ou altera (upsert por id) |
+| `DELETE /api/cameras` | `id`, `recordings=1` | **só admin**: descadastra; com `recordings=1` apaga as gravações junto |
+| `GET /api/streams/probe` | `src` | **só admin**: diz se um stream entrega áudio, abrindo-o se preciso |
+| `POST /api/go2rtc/restart` | - | **só admin**: reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
+| `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes e relógio |
+| `POST /api/reconnects/reset` | - | **só admin**: zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
+| `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos e últimos avisos do log |
+| `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
 consumindo: o go2rtc só preenche o `medias` do produtor enquanto existe
@@ -503,6 +605,85 @@ redimensionar nem reencodar: `t` é o `instanteMs` da detecção. Ele nunca muda
 depois de gravado, então vai com `immutable` e rolar de volta não pede nada ao
 servidor. Detecção com `temQuadro` falso responde 404.
 
+## Usuários
+
+Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem com
+`"authRequired": false` e o resto responde `409`.
+
+| Endpoint | O que faz |
+| --- | --- |
+| `GET /api/usuarios` | as pessoas, com a situação de cada uma, e o dono à parte |
+| `POST /api/usuarios` | cria uma pessoa comum, `{"usuario", "nome"}`, e devolve o token do link |
+| `POST /api/usuarios/link` | link novo, `{"usuario"}`: apaga a senha atual e derruba a pessoa na hora |
+| `DELETE /api/usuarios?usuario=` | remove a pessoa, e a foto dela, e a derruba na hora |
+| `DELETE /api/usuarios/avatar?usuario=` | tira a foto de alguém; trocar, só a própria pessoa |
+
+```json
+// GET /api/usuarios
+{
+  "authRequired": true,
+  "dono": { "usuario": "admin", "nome": "admin", "avatar": "" },
+  "usuarios": [
+    { "usuario": "maria", "nome": "Maria", "papel": "comum", "situacao": "linkAberto",
+      "linkVenceEmMs": 1791587903000, "criadoEmMs": 1791587303000, "avatar": "4d1e0b62a7c3f915" }
+  ],
+  "validadeDoLinkMs": 600000,
+  "tamanhoMaximoDoNome": 60,
+  "tamanhoMaximoDoUsuario": 32
+}
+```
+
+A `situacao` é `ativo` (tem senha), `linkAberto` (pode definir a senha pelo
+link) ou `linkVencido` (precisa de outro link). Criar e o link novo devolvem
+`{"usuario": {...}, "token": "..."}`: o token só existe nessa resposta, e a
+tela monta o link com ele. Usuário fora do formato, repetido ou igual ao do
+dono, e nome vazio, são `400` com o motivo; pessoa que não existe é `404`.
+
+## Minha conta
+
+O que cada pessoa muda de si mesma, de qualquer papel; ninguém muda o dos
+outros por aqui. Sem autenticação ligada não há de quem ser a conta, e tudo
+responde `409`.
+
+| Endpoint | O que faz |
+| --- | --- |
+| `GET /api/conta` | quem está logado e os números do formulário |
+| `POST /api/conta/senha` | troca a própria senha, `{"atual", "nova"}`; o dono recebe `409` |
+| `POST /api/conta/nome` | troca o próprio nome de exibição, `{"nome"}` |
+| `PUT /api/conta/avatar` | guarda a própria foto: o corpo é o JPEG, já reduzido |
+| `DELETE /api/conta/avatar` | tira a própria foto |
+| `GET /api/avatar?id=` | a foto: a própria, ou qualquer uma para o admin |
+
+```json
+// GET /api/conta
+{
+  "pessoa": { "usuario": "maria", "nome": "Maria", "papel": "comum", "dono": false },
+  "senhaMinima": 8,
+  "senhaMaxima": 128,
+  "tamanhoMaximoDoNome": 60,
+  "avatar": { "lado": 256, "tetoBytes": 32768, "qualidade": 92 }
+}
+```
+
+As rotas que mudam algo devolvem `{"ok": true, "pessoa": {...}}` como ficou,
+para a tela atualizar o header sem perguntar de novo.
+
+**A senha** do dono fica no `dwnvr.yaml`, e se troca lá. Para os outros, a
+troca pede a senha atual e paga duas contas de senha, na mesma fila do login:
+uma para conferir a atual, outra para gerar a nova. Senha atual errada, ou
+nova fora de 8 a 128 caracteres, é `400` com o motivo, e nada cai. Trocada, os
+outros aparelhos da pessoa voltam para o login (ver [O cookie](#o-cookie)).
+
+**A foto** é reduzida no navegador: a original não sai do aparelho. Ele corta
+o quadrado do centro, reduz a até `lado` pixels e gera um JPEG na `qualidade`,
+baixando a qualidade só se passar de `tetoBytes`. O servidor para de ler no
+teto (`413`), decodifica a imagem inteira e recusa com `400` o que não for
+JPEG quadrado de até `lado` pixels. Guarda os bytes como vieram, sem
+comprimir de novo, em `avatares/<id>.jpg` na pasta de config. O id muda a cada
+troca, então o `GET /api/avatar` vai com `Cache-Control: private,
+max-age=31536000, immutable` e `nosniff`: foto nova é URL nova. A foto de
+outra pessoa, para quem não é admin, responde `404`, como a que não existe.
+
 ## Live
 
 | Endpoint | O que faz |
@@ -511,7 +692,8 @@ servidor. Detecção com `temQuadro` falso responde 404.
 
 O navegador nunca fala com o go2rtc diretamente. Passar pelo proxy resolve duas
 coisas de uma vez: a senha da API do go2rtc não vai para o cliente, e o live
-respeita a mesma sessão do resto da interface.
+respeita a mesma sessão do resto da interface. Quem é removido tem o websocket
+fechado na hora (ver [A queda de quem é derrubado](#a-queda-de-quem-é-derrubado)).
 
 Só o websocket do player passa. O resto da API do go2rtc - configuração,
 restart, streams - não é alcançável por aqui; o que o dwnvr precisa dela, ele
