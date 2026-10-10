@@ -2,6 +2,31 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.8.0](https://github.com/mhagnumdw/dwnvr/compare/v0.7.0...v0.8.0) (2026-10-10)
+
+### Pede ação ao atualizar
+
+- Depois de atualizar, todos os aparelhos voltam uma vez para a tela de login. Tenha a senha à mão. ([d85fd1f5](https://github.com/mhagnumdw/dwnvr/commit/d85fd1f5c883836141de0acc86397e6800577d92))
+
+### Added
+
+- feat: ajustes do cadastro de usuários depois do teste com pessoa real ([1c42d461](https://github.com/mhagnumdw/dwnvr/commit/1c42d461bdcf370ce61173369f82f921ae2210f8))
+- feat: Minha conta, com foto, nome e troca de senha ([7864818f](https://github.com/mhagnumdw/dwnvr/commit/7864818f0c0bf3ffb5387818f08fce5df296f33e))
+- feat: cadastro de usuários pela tela, com link de convite ([3da568b7](https://github.com/mhagnumdw/dwnvr/commit/3da568b7529804f61b1483c5ecdd56bc298f8315))
+- feat(api)!: sessão por pessoa e funções de administrador ([d85fd1f5](https://github.com/mhagnumdw/dwnvr/commit/d85fd1f5c883836141de0acc86397e6800577d92))
+- feat(web): tira o aviso de streams simultâneos do Ao vivo ([f714e3ff](https://github.com/mhagnumdw/dwnvr/commit/f714e3ffbaea46e3b0cdc7c41491b14eb6631d51))
+- feat(web): tabelas do Diagnóstico em cartões no celular ([75aa4e08](https://github.com/mhagnumdw/dwnvr/commit/75aa4e0852c9e48175a21b1377ba8601cf51e7b9))
+
+### Fixed
+
+- fix(api): erro da senha guardada não cita o valor no log ([6cd66c80](https://github.com/mhagnumdw/dwnvr/commit/6cd66c8040ed32baee5237892ea969b60f1325df))
+
+### Docs
+
+- docs: corrige comentário do .ai-memory.toml ([df8f02fa](https://github.com/mhagnumdw/dwnvr/commit/df8f02fae18a9a591c524e11d8a9ed2c3efb1f4e))
+- docs: TODO do log que sobrevive à atualização ([62eb115b](https://github.com/mhagnumdw/dwnvr/commit/62eb115b660919cf55365a5b768fa7f70964100b))
+- docs(operacao): copiar gravações direto do disco ([066b54e3](https://github.com/mhagnumdw/dwnvr/commit/066b54e3f9238df0daa97705404dbdc9a0259601))
+
 ## [v0.7.0](https://github.com/mhagnumdw/dwnvr/compare/v0.6.0...v0.7.0) (2026-10-08)
 
 ### Pede ação ao atualizar
