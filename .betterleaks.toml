@@ -13,13 +13,13 @@ title = "dwnvr"
 # dwnvr.example.yaml. O resto só nos testes. O "admin" porque
 # `Username, Password = "admin", "senha"` confunde a regra genérica: fora
 # deles, usuário admin com senha admin é o de fábrica de muita câmera, e tem
-# que barrar. As outras são as do convite, no corpo `{"password": ...}`, que
-# precisam ser diferentes entre si e de tamanhos diferentes ("curta" existe
-# para ser recusada).
+# que barrar. As outras são as do convite e da troca de senha, no corpo
+# `{"password": ...}`, que precisam ser diferentes entre si e de tamanhos
+# diferentes ("curta" existe para ser recusada).
 filter = '''
 finding["secret"] in ["senha", "troque-me"] ||
 (attributes["path"] endsWith "_test.go" &&
-  finding["secret"] in ["admin", "curta", "uma senha boa", "outra senha boa"])
+  finding["secret"] in ["admin", "curta", "senha errada", "uma senha boa", "outra senha boa"])
 '''
 
 [extend]

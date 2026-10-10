@@ -110,6 +110,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/usuarios", s.requireAdmin(s.handleCriarUsuario))
 	mux.HandleFunc("POST /api/usuarios/link", s.requireAdmin(s.handleNovoLink))
 	mux.HandleFunc("DELETE /api/usuarios", s.requireAdmin(s.handleRemoverUsuario))
+	mux.HandleFunc("DELETE /api/usuarios/avatar", s.requireAdmin(s.handleTirarAvatarDe))
+
+	// Minha conta: cada pessoa muda o que é dela, de qualquer papel.
+	mux.HandleFunc("GET /api/conta", s.requireAuth(s.handleConta))
+	mux.HandleFunc("POST /api/conta/senha", s.requireAuth(s.handleTrocarSenha))
+	mux.HandleFunc("POST /api/conta/nome", s.requireAuth(s.handleMudarNome))
+	mux.HandleFunc("PUT /api/conta/avatar", s.requireAuth(s.handleTrocarAvatar))
+	mux.HandleFunc("DELETE /api/conta/avatar", s.requireAuth(s.handleTirarAvatar))
+	mux.HandleFunc("GET /api/avatar", s.requireAuth(s.handleAvatar))
 
 	// Versão fica fora da autenticação pelo mesmo motivo da tela de login:
 	// precisa ser visível antes de entrar. Além disso é a sonda de deploy -

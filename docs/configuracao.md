@@ -23,9 +23,10 @@ a sua infraestrutura: o dwnvr nunca escreve no `dwnvr.yaml`.
 
 Os dois vivem no mesmo diretório - `/etc/dwnvr` na imagem Docker -, junto com o
 `.session-secret`, que assina os cookies de sessão, e com o `usuarios.json`, as
-pessoas que entram além do dono do `dwnvr.yaml`, que a tela Usuários grava (ver
-[Quem entra](api.md#quem-entra)). O `usuarios.json` é `0600`, como o
-`.session-secret`, porque guarda as senhas, em hash. Se ele ficar ilegível, o
+pessoas que entram além do dono do `dwnvr.yaml`, que a tela Usuários e a Minha
+conta gravam (ver [Quem entra](api.md#quem-entra)). O `usuarios.json` é `0600`,
+como o `.session-secret`, porque guarda as senhas, em hash. A foto de cada
+pessoa fica ao lado, em `avatares/`, um JPEG de até 32 KB por pessoa. Se ele ficar ilegível, o
 dwnvr sobe do mesmo jeito, só o dono entra, e nada é gravado por cima dele até
 ser corrigido.
 
