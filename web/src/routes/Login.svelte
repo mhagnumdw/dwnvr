@@ -53,6 +53,10 @@
     <!-- Espaço reservado sempre: sem isto o formulário salta quando o erro
          aparece, e o botão foge do dedo no meio do toque. -->
     <p class="error small">{error}</p>
+
+    <!-- Não há e-mail para recuperar a senha: o remédio é o admin gerar um
+         link de convite novo, e quem esqueceu precisa saber disso daqui. -->
+    <p class="muted small">Esqueceu a senha? Peça um link novo a quem cuida do dwnvr.</p>
   </form>
 
   <!-- Antes de entrar já dá para saber qual dwnvr é este - útil quando há um
