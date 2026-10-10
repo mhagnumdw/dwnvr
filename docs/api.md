@@ -634,7 +634,9 @@ Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem 
 ```
 
 O `status` é `active` (tem senha), `invitePending` (pode definir a senha pelo
-link) ou `inviteExpired` (precisa de outro link). Criar e o link novo devolvem
+link) ou `inviteExpired` (precisa de outro link). Quem está `active` traz também
+`activeSinceMs`, quando definiu a senha pelo link; trocar a própria senha não o
+muda, e o link novo o apaga. Criar e o link novo devolvem
 `{"user": {...}, "token": "..."}`: o token só existe nessa resposta, e a
 tela monta o link com ele. Usuário fora do formato, repetido ou igual ao do
 dono, e nome vazio, são `400` com o motivo; pessoa que não existe é `404`.

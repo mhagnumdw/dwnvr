@@ -23,6 +23,9 @@ type usuarioNaTela struct {
 	// Só com link em aberto ou vencido.
 	LinkVenceEmMs int64 `json:"inviteExpiresAtMs,omitempty"`
 	CriadoEmMs    int64 `json:"createdAtMs,omitempty"`
+	// Só com a senha definida pelo link, e não em quem a definiu antes de o
+	// campo existir.
+	AtivoDesdeMs int64 `json:"activeSinceMs,omitempty"`
 }
 
 func naTela(u usuarios.Usuario, agora time.Time) usuarioNaTela {
@@ -33,6 +36,9 @@ func naTela(u usuarios.Usuario, agora time.Time) usuarioNaTela {
 	}
 	if !u.CriadoEm.IsZero() {
 		v.CriadoEmMs = u.CriadoEm.UnixMilli()
+	}
+	if !u.AtivoDesde.IsZero() && v.Situacao == "active" {
+		v.AtivoDesdeMs = u.AtivoDesde.UnixMilli()
 	}
 	return v
 }

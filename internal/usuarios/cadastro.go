@@ -65,6 +65,9 @@ type Usuario struct {
 	// Avatar é o id da foto na pasta avatares/, ou vazio (ver TrocarAvatar).
 	Avatar   string    `json:"avatar,omitempty"`
 	CriadoEm time.Time `json:"createdAt"`
+	// AtivoDesde é quando a pessoa definiu a senha pelo link, ou zero enquanto
+	// não definiu. Trocar a própria senha não mexe nele; link novo o zera.
+	AtivoDesde time.Time `json:"activeSince,omitzero"`
 }
 
 // Link é o que o usuarios.json guarda do link de convite: o SHA-256 do token,

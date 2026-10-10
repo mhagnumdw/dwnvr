@@ -110,6 +110,21 @@ function aplica() {
   }
 }
 
+// corrigirRota troca o nome da rota na barra de endereços, quando a tela
+// aberta não é a pedida (ver o App). A query fica: ou já é a que a tela aberta
+// escreveu, ou é lixo inofensivo do link pedido. Sem hashchange e sem mexer em
+// rota.hash, então a tela não remonta.
+export function corrigirRota(id) {
+  rota.id = id;
+  const query = partes(location.hash).query;
+  try {
+    history.replaceState(history.state, '', `#${id}${query ? `?${query}` : ''}`);
+  } catch {
+    // O limite do Safari, como em aplica: a próxima escrita da tela já sai com
+    // o nome certo, porque ela lê rota.id.
+  }
+}
+
 addEventListener('hashchange', () => {
   // A tela que está saindo pode ter deixado uma escrita agendada. Ela descreve a
   // rota antiga, e cair na rota nova seria pura sujeira - `#live?cam=x&day=…`.
