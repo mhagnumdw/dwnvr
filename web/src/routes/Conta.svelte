@@ -85,14 +85,21 @@
 
   let atual = $state('');
   let nova = $state('');
+  // A nova de novo: senha digitada no celular erra fácil, e o erro só
+  // apareceria no próximo login. A conferência é só daqui; a API recebe uma.
+  let repetida = $state('');
   let estadoSenha = $state({ ocupado: false, erro: '', ok: false });
 
   async function trocarSenha(e) {
     e.preventDefault();
+    if (nova !== repetida) {
+      estadoSenha = { ocupado: false, erro: 'a senha nova e a repetida não são iguais', ok: false };
+      return;
+    }
     estadoSenha = { ocupado: true, erro: '', ok: false };
     try {
       atualizar(await api.trocarSenha(atual, nova));
-      atual = nova = '';
+      atual = nova = repetida = '';
       estadoSenha = { ocupado: false, erro: '', ok: true };
     } catch (err) {
       estadoSenha = { ocupado: false, erro: err.message, ok: false };
@@ -116,7 +123,7 @@
             {foto.ocupado ? 'salvando…' : p.avatar ? 'Trocar a foto' : 'Pôr uma foto'}
           </button>
           {#if p.avatar}
-            <button class="ghost" onclick={tirarFoto} disabled={foto.ocupado}>Tirar a foto</button>
+            <button class="ghost" onclick={tirarFoto} disabled={foto.ocupado}>Remover a foto</button>
           {/if}
         </div>
         {#if foto.erro}<span class="small erro">{foto.erro}</span>{/if}
@@ -130,7 +137,13 @@
       <strong>Nome</strong>
       <span class="small muted">Como você aparece na tela, para você e para quem administra.</span>
       <div class="row">
-        <input bind:value={nome} required maxlength={dados.maxNameLength} aria-label="nome" />
+        <input
+          bind:value={nome}
+          required
+          maxlength={dados.maxNameLength}
+          placeholder="João Silva"
+          aria-label="nome"
+        />
         <button type="submit" disabled={!nomeMudou || estadoNome.ocupado}>
           {estadoNome.ocupado ? 'salvando…' : 'Salvar'}
         </button>
@@ -141,7 +154,7 @@
 
     {#if p.owner}
       <div class="card form">
-        <strong>Senha</strong>
+        <strong>Trocar senha</strong>
         <span class="small muted">
           A senha do administrador fica no <code>dwnvr.yaml</code> (<code>server.password</code>), e
           se troca lá.
@@ -149,7 +162,7 @@
       </div>
     {:else}
       <form class="card form" onsubmit={trocarSenha}>
-        <strong>Senha</strong>
+        <strong>Trocar senha</strong>
         <!-- O usuário, escondido, é para o gerenciador de senhas do navegador
              saber de quem é a senha nova. -->
         <input class="oculto" value={p.username} autocomplete="username" readonly tabindex="-1" aria-hidden="true" />
@@ -161,8 +174,14 @@
           minlength={dados.minPasswordLength}
           maxlength={dados.maxPasswordLength}
         />
+        <CampoSenha
+          bind:value={repetida}
+          placeholder="repita a senha nova"
+          autocomplete="new-password"
+          maxlength={dados.maxPasswordLength}
+        />
         <button class="primary" type="submit" disabled={estadoSenha.ocupado}>
-          {estadoSenha.ocupado ? 'trocando…' : 'Trocar a senha'}
+          {estadoSenha.ocupado ? 'trocando…' : 'Trocar senha'}
         </button>
         {#if estadoSenha.erro}<span class="small erro">{estadoSenha.erro}</span>{/if}
         {#if estadoSenha.ok}

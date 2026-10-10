@@ -9,6 +9,7 @@
   import { api } from '../lib/api.js';
   import { session } from '../lib/state.svelte.js';
   import { copiar } from '../lib/navegador.js';
+  import { dataHora } from '../lib/format.js';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import Avatar from '../components/Avatar.svelte';
@@ -206,7 +207,11 @@
             </div>
             <div class="muted small">@{dados.owner.username} · administrador</div>
           </div>
-          <span class="muted small">do dwnvr.yaml</span>
+          {#if voce === dados.owner.username}
+            <a class="small" href="#conta">Minha conta</a>
+          {:else}
+            <span class="muted small">do dwnvr.yaml</span>
+          {/if}
         </div>
       {/if}
       {#each dados.users as u (u.username)}
@@ -214,10 +219,13 @@
           <Avatar pessoa={u} tamanho={36} />
           <div class="quem">
             <div class="nome"><strong>{u.name}</strong></div>
-            <div class="muted small">@{u.username}{u.role === 'admin' ? ' · administrador' : ''}</div>
+            <div class="muted small login">@{u.username}{u.role === 'admin' ? ' · administrador' : ''}</div>
           </div>
           {#if u.status === 'active'}
-            <span class="chip"><span class="dot ok"></span>ativo</span>
+            <span class="chip" class:desde={u.activeSinceMs}>
+              <span class="dot ok"></span>
+              <span>ativo{#if u.activeSinceMs}{' '}desde <span class="quando">{dataHora(u.activeSinceMs)}</span>{/if}</span>
+            </span>
           {:else if u.status === 'invitePending' && u.inviteExpiresAtMs > agora}
             <span class="chip mono"><span class="dot warn"></span>link vence em {falta(u.inviteExpiresAtMs)}</span>
           {:else}
@@ -232,10 +240,14 @@
           >
           {#if menu === u.username}
             <div class="menu" role="menu">
-              <button class="ghost" role="menuitem" onclick={() => pedir('link', u)}>Gerar link novo</button>
+              <!-- Para quem está ativo, o link novo apaga a senha: o rótulo diz
+                   isso. Para quem não definiu, não há senha a redefinir. -->
+              <button class="ghost" role="menuitem" onclick={() => pedir('link', u)}>
+                {u.status === 'active' ? 'Redefinir senha' : 'Gerar link novo'}
+              </button>
               <!-- O admin não troca a foto de ninguém; só tira uma que não sirva. -->
               {#if u.avatar}
-                <button class="ghost" role="menuitem" onclick={() => pedir('foto', u)}>Tirar a foto</button>
+                <button class="ghost" role="menuitem" onclick={() => pedir('foto', u)}>Remover a foto</button>
               {/if}
               <button class="ghost perigo" role="menuitem" onclick={() => pedir('remover', u)}>Remover</button>
             </div>
@@ -254,7 +266,12 @@
       <h3>Novo usuário</h3>
       <label>
         Nome, como aparece na tela
-        <input bind:value={novo.name} required maxlength={dados.maxNameLength} />
+        <input
+          bind:value={novo.name}
+          required
+          maxlength={dados.maxNameLength}
+          placeholder="João Silva"
+        />
       </label>
       <label>
         Usuário, para entrar: letras minúsculas, números, ponto, _ e -
@@ -263,6 +280,7 @@
           required
           maxlength={dados.maxUsernameLength}
           pattern="[a-z0-9._\-]+"
+          placeholder="joao.silva"
           autocapitalize="none"
           autocorrect="off"
           spellcheck="false"
@@ -287,19 +305,19 @@
 
 {#if confirmando?.acao === 'link'}
   <ConfirmDialog
-    title="Gerar link novo para {confirmando.u.name}?"
-    confirmLabel="gerar link novo"
+    title="Redefinir a senha de {confirmando.u.name}?"
+    confirmLabel="redefinir senha"
     danger
     onconfirm={() => executar('link', confirmando.u)}
     oncancel={() => (confirmando = null)}
   >
     A senha atual de {confirmando.u.name} deixa de valer agora, e os aparelhos em que ela entrou saem na
-    hora. Ela volta a entrar definindo uma senha nova pelo link.
+    hora. O dwnvr gera um link novo, e ela volta a entrar definindo uma senha nova por ele.
   </ConfirmDialog>
 {:else if confirmando?.acao === 'foto'}
   <ConfirmDialog
-    title="Tirar a foto de {confirmando.u.name}?"
-    confirmLabel="tirar a foto"
+    title="Remover a foto de {confirmando.u.name}?"
+    confirmLabel="remover a foto"
     danger
     onconfirm={() => executar('foto', confirmando.u)}
     oncancel={() => (confirmando = null)}
@@ -316,7 +334,7 @@
     oncancel={() => (confirmando = null)}
   >
     {confirmando.u.name} sai na hora de todos os aparelhos, e o usuário <strong>@{confirmando.u.username}</strong> fica
-    livre. As gravações não mudam.
+    livre.
   </ConfirmDialog>
 {/if}
 
@@ -381,9 +399,23 @@
     flex: none;
   }
 
+  /* "ativo desde 10/10/2026 14:32" não cabe ao lado do nome no celular: lá o
+     chip quebra antes da data, e o raio deixa de ser de pílula. */
+  .linha .chip.desde {
+    flex: 0 1 auto;
+    white-space: normal;
+    border-radius: 12px;
+  }
+
+  .quando {
+    white-space: nowrap;
+  }
+
+  /* O piso é para o nome não sumir no celular: sem ele, quem cede o espaço é
+     o nome, e não o chip do "ativo desde", que pode quebrar em duas linhas. */
   .quem {
     flex: 1;
-    min-width: 0;
+    min-width: 5em;
     line-height: 1.3;
   }
 
@@ -394,7 +426,8 @@
     min-width: 0;
   }
 
-  .nome strong {
+  .nome strong,
+  .login {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

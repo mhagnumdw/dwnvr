@@ -19,6 +19,9 @@
   let link = $state(null);
   let erroAoConferir = $state('');
   let senha = $state('');
+  // A senha de novo, como na Minha conta: digitada no celular erra fácil, e o
+  // erro só apareceria no primeiro login. A conferência é só daqui.
+  let repetida = $state('');
   let erro = $state('');
   let enviando = $state(false);
 
@@ -33,6 +36,10 @@
 
   async function definir(e) {
     e.preventDefault();
+    if (senha !== repetida) {
+      erro = 'a senha e a repetida não são iguais';
+      return;
+    }
     enviando = true;
     erro = '';
     try {
@@ -72,6 +79,13 @@
           maxlength={link.maxPasswordLength}
         />
       </label>
+      <CampoSenha
+        bind:value={repetida}
+        placeholder="repita a senha nova"
+        autocomplete="new-password"
+        maxlength={link.maxPasswordLength}
+        aria-label="repita a senha nova"
+      />
       <button class="primary" type="submit" disabled={enviando}>
         {enviando ? 'salvando…' : 'Definir a senha e entrar'}
       </button>

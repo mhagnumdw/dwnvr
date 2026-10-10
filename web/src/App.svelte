@@ -15,7 +15,7 @@
     sessaoCaiu,
     RELEASES_URL,
   } from './lib/state.svelte.js';
-  import { rota, ROTA_PADRAO } from './lib/rota.svelte.js';
+  import { rota, ROTA_PADRAO, corrigirRota } from './lib/rota.svelte.js';
   import { setUnauthorizedHandler } from './lib/api.js';
   import { avisosDe, resumoDosAvisos } from './lib/avisos.js';
   import Login from './routes/Login.svelte';
@@ -83,11 +83,9 @@
   // Roteamento por hash: são poucas telas, e um roteador de verdade custaria
   // mais bytes que o resto do aplicativo junto. Quem lê e escreve o hash é o
   // `lib/rota.svelte.js`, porque ele carrega também o estado de cada tela.
-  // Hash apontando para tela que não existe - erro de digitação, link de uma
-  // versão futura, `#detection` num servidor sem detector: a tela padrão
-  // assume. O nome inventado continua na barra de endereços, e é de propósito:
-  // reescrevê-lo custaria um efeito que lê e grava o mesmo estado, e o link
-  // segue funcionando exatamente igual do jeito que é.
+  // Hash apontando para tela que não existe ou que a pessoa não pode ver -
+  // erro de digitação, link de uma versão futura, `#detection` num servidor
+  // sem detector, `#usuarios` aberto pelo viewer: a tela padrão assume.
   const route = $derived(
     ROUTES.find((r) => r.id === rota.id && podeVer(r)) ?? ROUTES.find((r) => r.id === ROTA_PADRAO),
   );
@@ -113,10 +111,19 @@
     }
   });
 
+  const logado = $derived(session.checked && (!session.authRequired || session.authenticated));
+
+  // A barra de endereços diz a tela que está aberta. Quando a padrão assume
+  // (ver route), o estado que ela escreve iria parar debaixo do nome pedido
+  // (`#usuarios?cams=…`). Só depois de a sessão e o detector se decidirem:
+  // antes, até o admin parece um viewer, e perderia o `#usuarios` do recarregar.
+  $effect(() => {
+    if (logado && !convite && !esperando && route.id !== rota.id) corrigirRota(route.id);
+  });
+
   // O sino do header: os mesmos avisos do card da tela Diagnóstico, contados
   // pela mesma função. Só vigia com a sessão aberta - sem ela não há header -,
   // e só para o admin: o viewer não tem sino, e a tela dele não relê a saúde.
-  const logado = $derived(session.checked && (!session.authRequired || session.authenticated));
   $effect(() => {
     if (logado && ehAdmin()) return vigiarAvisos();
   });

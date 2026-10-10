@@ -50,7 +50,7 @@ func TestConviteDoCriarAoLogin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if u.Link != nil || u.Situacao(time.Now()) != "active" {
+	if u.Link != nil || u.Situacao(time.Now()) != "active" || u.AtivoDesde.IsZero() {
 		t.Errorf("depois de definir: %+v", u)
 	}
 	if ok, err := ConferirSenha(context.Background(), "uma senha boa", u.Senha); !ok || err != nil {
@@ -102,6 +102,9 @@ func TestNovoLinkApagaASenhaEOLinkAnterior(t *testing.T) {
 	u, _ := c.Buscar("maria")
 	if u.Senha != "" {
 		t.Error("a senha continuou valendo depois do link novo")
+	}
+	if !u.AtivoDesde.IsZero() {
+		t.Error("o ativo desde continuou depois do link novo")
 	}
 
 	terceiro, _ := c.NovoLink("maria")

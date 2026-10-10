@@ -38,6 +38,13 @@ export function ddmm(ms) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
 }
 
+// dataHora é o instante completo, "10/10/2026 14:32", para o que pode ter
+// acontecido há meses.
+export function dataHora(ms) {
+  const d = new Date(ms);
+  return `${ddmm(ms)}/${d.getFullYear()} ${hhmm(ms)}`;
+}
+
 // relogioDeFuso escreve um instante no fuso de OUTRA máquina: recebe o epoch em
 // milissegundos e o deslocamento daquele fuso em segundos, e devolve
 // "18/08/2026 18:14:57".

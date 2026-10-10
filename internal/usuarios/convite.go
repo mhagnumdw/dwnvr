@@ -88,6 +88,7 @@ func (c *Cadastro) NovoLink(usuario string) (Convite, error) {
 			return ErrNaoExiste
 		}
 		a.Usuarios[i].Senha = ""
+		a.Usuarios[i].AtivoDesde = time.Time{}
 		a.Usuarios[i].Link = link
 		u = a.Usuarios[i]
 		return nil
@@ -170,6 +171,7 @@ func (c *Cadastro) DefinirSenha(ctx context.Context, token, senha string) (Usuar
 			return ErrLinkInvalido
 		}
 		a.Usuarios[i].Senha = guardado
+		a.Usuarios[i].AtivoDesde = c.agora().Truncate(time.Second)
 		a.Usuarios[i].Link = nil
 		u = a.Usuarios[i]
 		return nil
