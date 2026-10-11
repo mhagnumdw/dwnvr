@@ -1,17 +1,22 @@
-<script>
-  import { api } from '../lib/api.js';
-  import { build, REPO_URL } from '../lib/state.svelte.js';
+<script lang="ts">
+  import { api, mensagemDe } from '../lib/api.ts';
+  import type { Pessoa } from '../lib/api.ts';
+  import { build, REPO_URL } from '../lib/state.svelte.ts';
   import MarcaGitHub from '../components/MarcaGitHub.svelte';
   import CampoSenha from '../components/CampoSenha.svelte';
 
-  let { onSuccess } = $props();
+  interface Props {
+    onSuccess: (pessoa: Pessoa) => void;
+  }
+
+  let { onSuccess }: Props = $props();
 
   let username = $state('');
   let password = $state('');
   let error = $state('');
   let busy = $state(false);
 
-  async function submit(e) {
+  async function submit(e: SubmitEvent) {
     e.preventDefault();
     busy = true;
     error = '';
@@ -19,7 +24,7 @@
       const r = await api.login(username, password);
       onSuccess(r.user);
     } catch (err) {
-      error = err.message;
+      error = mensagemDe(err);
       password = '';
     } finally {
       busy = false;

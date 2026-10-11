@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onDestroy } from 'svelte';
   import {
     health,
@@ -10,9 +10,10 @@
     REPO_URL,
     RELEASES_URL,
     ISSUES_URL,
-  } from '../lib/state.svelte.js';
-  import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
-  import { api } from '../lib/api.js';
+  } from '../lib/state.svelte.ts';
+  import { paramsAtuais, escrever } from '../lib/rota.svelte.ts';
+  import { api, mensagemDe } from '../lib/api.ts';
+  import type { CameraNaSaude, Funil, Servidor } from '../lib/api.ts';
   import {
     bytes,
     bytesDeMB,
@@ -23,15 +24,36 @@
     ddmm,
     relogioDeFuso,
     gravadoSeHouverBuraco,
-  } from '../lib/format.js';
-  import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.js';
-  import { avisosDe, agoraDoServidor, quando } from '../lib/avisos.js';
+  } from '../lib/format.ts';
+  import { AJUDA_RETIDO, AJUDA_CABEM } from '../lib/ajudas.ts';
+  import { avisosDe, agoraDoServidor, quando } from '../lib/avisos.ts';
   import SemCameras from '../components/SemCameras.svelte';
-  import { coletar, comoTexto } from '../lib/navegador.js';
-  import { grupos as gruposDoServidor, linhaDoLog, coletadoEm } from '../lib/diagnostico-servidor.js';
+  import { coletar, comoTexto } from '../lib/navegador.ts';
+  import type { GrupoDoCard } from '../lib/navegador.ts';
+  import { grupos as gruposDoServidor, linhaDoLog, coletadoEm } from '../lib/diagnostico-servidor.ts';
   import CardDiagnostico from '../components/CardDiagnostico.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import MarcaGitHub from '../components/MarcaGitHub.svelte';
+
+  // Uma coluna das tabelas: sabe extrair o valor que a ordena. Texto passa
+  // pelo colator; número, pela subtração.
+  interface ColunaBase {
+    id: string;
+    rotulo: string;
+    ajuda?: string;
+  }
+  type Coluna<T> = ColunaBase &
+    ({ texto: true; valor: (c: T) => string } | { texto?: false; valor: (c: T) => number });
+  // Nunca vazia: a primeira é a de quando a URL pede uma que não existe.
+  type Colunas<T> = readonly [Coluna<T>, ...Coluna<T>[]];
+
+  interface Ordem {
+    col: string;
+    asc: boolean;
+  }
+
+  // Câmera com o funil do detector de objetos, que só vem com ele configurado.
+  type ComFunil = CameraNaSaude & { funil: Funil };
 
   // O viewer vê só "Este navegador" e a versão: a saúde do servidor é
   // do admin, e a tela dele nem a pede. O papel não muda com a tela aberta -
@@ -57,7 +79,7 @@
     if (isNaN(lido)) return null;
     return {
       quando: relogioDeFuso(lido, c.offsetSeconds),
-      fuso: c.zone || c.abbr,
+      fuso: c.zone ?? c.abbr,
       sigla: c.zone ? c.abbr : undefined,
     };
   });
@@ -77,7 +99,7 @@
   // mesma resposta serve à tabela ("12 dias 4h") e ao card de câmeras ("desde
   // 31/07"). Câmera que nunca gravou não traz o campo, e o zero vira "-" no
   // duracao() em vez de "0s".
-  function retidoMs(c) {
+  function retidoMs(c: CameraNaSaude) {
     return c.oldestSegmentAt ? Date.now() - new Date(c.oldestSegmentAt).getTime() : 0;
   }
 
@@ -85,7 +107,7 @@
   // DESDE QUANDO, que é por câmera. undefined e não '' porque o Svelte omite o
   // atributo inteiro assim, e um title vazio deixaria a célula com sublinhado
   // de dica sem dica nenhuma.
-  function desdeTitulo(c) {
+  function desdeTitulo(c: CameraNaSaude) {
     if (!c.oldestSegmentAt) return undefined;
     const desde = `Desde ${ddmm(new Date(c.oldestSegmentAt).getTime())}`;
     const gravado = gravadoSeHouverBuraco(retidoMs(c), c.recordedMs);
@@ -98,11 +120,11 @@
   // A ajuda fica aqui junto, e não solta no template, porque é a mesma coisa: o
   // rótulo cabe em uma palavra e nenhuma delas ("retenção", "reconex.") diz
   // sozinha o que está sendo medido.
-  const colunas = [
+  const colunas: Colunas<CameraNaSaude> = [
     {
       id: 'name',
       rotulo: 'câmera',
-      valor: (c) => c.name || '',
+      valor: (c) => c.name,
       texto: true,
       ajuda:
         'Nome da câmera. O ponto mostra o estado: verde gravando, vermelho parada ou desconectada. O horário ao lado é o do último segmento gravado.',
@@ -151,21 +173,21 @@
   const params = paramsAtuais();
   const sortDaURL = params.get('sort');
 
-  let ordem = $state({
-    col: colunas.some((c) => c.id === sortDaURL) ? sortDaURL : 'name',
+  let ordem = $state<Ordem>({
+    col: sortDaURL !== null && colunas.some((c) => c.id === sortDaURL) ? sortDaURL : 'name',
     asc: params.get('dir') !== 'desc',
   });
 
   // De volta para a URL, com o padrão - nome, crescente - ficando de fora: o
   // link não precisa carregar o que já vale sem ele.
-  $effect(() =>
+  $effect(() => {
     escrever({
       sort: ordem.col === 'name' ? null : ordem.col,
       dir: ordem.asc ? null : 'desc',
-    }),
-  );
+    });
+  });
 
-  function ordenar(id) {
+  function ordenar(id: string) {
     if (ordem.col === id) ordem.asc = !ordem.asc;
     else ordem = { col: id, asc: true };
   }
@@ -174,26 +196,24 @@
   // a coluna sabe extrair o valor que a ordena, texto passa pelo colator, e o
   // empate cai SEMPRE no nome - senão a tabela dança a cada leitura de 5 s,
   // que é o que acontece quando meia dúzia de câmeras tem o mesmo zero.
-  function ordena(itens, colunas, ordem, nomeDe) {
+  function ordena<T>(itens: readonly T[], colunas: Colunas<T>, ordem: Ordem, nomeDe: (c: T) => string) {
     const col = colunas.find((c) => c.id === ordem.col) ?? colunas[0];
     const dir = ordem.asc ? 1 : -1;
     // Cópia: a origem é estado global e a tela só quer uma visão dele.
     return [...itens].sort((a, b) => {
-      const va = col.valor(a);
-      const vb = col.valor(b);
-      const d = col.texto ? colator.compare(va, vb) : va - vb;
+      const d = col.texto ? colator.compare(col.valor(a), col.valor(b)) : col.valor(a) - col.valor(b);
       return d ? d * dir : colator.compare(nomeDe(a), nomeDe(b));
     });
   }
 
-  const linhas = $derived(ordena(health.cameras, colunas, ordem, (c) => c.name || ''));
+  const linhas = $derived(ordena(health.cameras, colunas, ordem, (c) => c.name));
 
   // A data vem em ISO/UTC do servidor; aqui interessa a hora local de quem lê.
   // Builds antigos podem não trazê-la, e um "Invalid Date" na tela seria pior
   // que não mostrar nada.
   const compiladoEm = $derived.by(() => {
     const d = new Date(build.date);
-    return build.date && !isNaN(d) ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    return build.date && !isNaN(d.getTime()) ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
   });
 
   // ---- este navegador ---------------------------------------------------
@@ -202,14 +222,20 @@
   // defeito, e quem só veio ver as câmeras não paga por ela. Aberto, coleta de
   // novo quando a janela muda de tamanho - girar o celular muda a área da
   // página, que é justamente um dos números.
-  let navegadorAberto = $state(false);
-  let grupos = $state([]);
+  // Muda pelo `bind:aberto` do card: o tipo vai explícito, senão ele seria
+  // o `false` do valor inicial.
+  let navegadorAberto = $state<boolean>(false);
+  let grupos = $state<GrupoDoCard[]>([]);
 
   $effect(() => {
     if (!navegadorAberto) return;
-    const recoletar = async () => (grupos = await coletar());
+    const recoletar = () => {
+      void coletar().then((g) => {
+        grupos = g;
+      });
+    };
     recoletar();
-    let t;
+    let t: number | undefined;
     const mudou = () => {
       clearTimeout(t);
       t = setTimeout(recoletar, 250);
@@ -223,7 +249,7 @@
 
   // A hora do servidor para o viewer, que não lê o /api/health: o header Date
   // de uma resposta qualquer, lido ao abrir o card. { servidor, aqui } em ms.
-  let horaDoHeader = $state(null);
+  let horaDoHeader = $state<{ servidor: number; aqui: number } | null>(null);
 
   $effect(() => {
     if (admin || !navegadorAberto) return;
@@ -231,19 +257,23 @@
     api
       .ping(5000)
       .then((r) => {
-        const servidor = Date.parse(r.headers.get('Date'));
+        const servidor = Date.parse(r.headers.get('Date') ?? '');
         if (vivo && !isNaN(servidor)) horaDoHeader = { servidor, aqui: Date.now() };
       })
-      .catch(() => {});
-    return () => (vivo = false);
+      .catch(() => {
+        // Sem resposta, a linha do relógio só não aparece.
+      });
+    return () => {
+      vivo = false;
+    };
   });
 
   // O relógio do aparelho contra o do servidor. A hora da resposta, pela
   // latência, chega uns milissegundos atrasada, e a do header Date ainda vem
   // sem os milissegundos; abaixo de 5s é ruído, e acima é relógio errado, que
   // faz "agora" apontar para outro ponto da timeline.
-  const diferencaRelogio = $derived.by(() => {
-    const lido = admin ? Date.parse(health.clock?.now) : horaDoHeader?.servidor;
+  const diferencaRelogio = $derived.by((): { valor: string; alerta?: boolean } | null => {
+    const lido = admin ? (health.clock ? Date.parse(health.clock.now) : NaN) : horaDoHeader?.servidor;
     const aqui = admin ? health.updatedAt : horaDoHeader?.aqui;
     if (!lido || isNaN(lido) || !aqui) return null;
     const d = Math.round((aqui - lido) / 1000);
@@ -275,9 +305,9 @@
   // entre as duas. Fechar o card esquece ambas: reaberto uma hora depois, a
   // conta seria a média dessa hora, e não a de agora.
   const SERVIDOR_POLL_MS = 15000;
-  let servidorAberto = $state(false);
-  let servidor = $state(null);
-  let servidorAnterior = $state(null);
+  let servidorAberto = $state<boolean>(false);
+  let servidor = $state<Servidor | null>(null);
+  let servidorAnterior = $state<Servidor | null>(null);
   let erroServidor = $state('');
 
   $effect(() => {
@@ -290,18 +320,25 @@
       if (document.hidden) return;
       try {
         const r = await api.servidor();
-        if (vivo) (servidorAnterior = servidor), (servidor = r), (erroServidor = '');
+        if (vivo) {
+          servidorAnterior = servidor;
+          servidor = r;
+          erroServidor = '';
+        }
       } catch (e) {
-        if (vivo) erroServidor = e.message;
+        if (vivo) erroServidor = mensagemDe(e);
       }
     };
-    ler();
-    const id = setInterval(ler, SERVIDOR_POLL_MS);
-    document.addEventListener('visibilitychange', ler);
+    const lerJa = () => {
+      void ler();
+    };
+    lerJa();
+    const id = setInterval(lerJa, SERVIDOR_POLL_MS);
+    document.addEventListener('visibilitychange', lerJa);
     return () => {
       vivo = false;
       clearInterval(id);
-      document.removeEventListener('visibilitychange', ler);
+      document.removeEventListener('visibilitychange', lerJa);
       servidor = servidorAnterior = null;
     };
   });
@@ -331,14 +368,36 @@
   // cada câmera, contado desde que o dwnvr subiu. Câmera sem detector não traz o
   // campo, e sem nenhuma câmera com ele a seção inteira some, em vez de
   // aparecer zerada e parecer defeito.
-  const comFunil = $derived(health.cameras.filter((c) => c.funil));
+  const comFunil = $derived(health.cameras.filter((c): c is ComFunil => c.funil !== undefined));
   // A fila, que é uma só para todas as câmeras, e os tempos das últimas
   // olhadas. Some junto com o detector.
   const detector = $derived(health.detector);
 
   // Os pedaços do funil de uma câmera. As fatias fecham a conta com os onsets
   // (ver `Funil` em internal/recorder/recorder.go).
-  function desfechosDe(c) {
+  interface Desfechos {
+    total: number;
+    descartado: number;
+    olhado: number;
+    objeto: number;
+    esperando: number;
+    semVideo: number;
+    recusados: number;
+    falhas: number;
+  }
+
+  const CHAVES_DOS_DESFECHOS = [
+    'total',
+    'descartado',
+    'olhado',
+    'objeto',
+    'esperando',
+    'semVideo',
+    'recusados',
+    'falhas',
+  ] as const satisfies readonly (keyof Desfechos)[];
+
+  function desfechosDe(c: ComFunil): Desfechos {
     const f = c.funil;
     return {
       total: c.onsets,
@@ -370,7 +429,16 @@
   // `sempre` mantém o desfecho na legenda mesmo zerado: "na fila" é estado de
   // agora, e vai de 0 a 1 e volta a cada poucos segundos - sumindo e voltando,
   // a legenda inteira pulava.
-  const DESFECHOS = [
+  interface Desfecho {
+    id: Exclude<keyof Desfechos, 'total' | 'semVideo' | 'recusados' | 'falhas'> | 'perdido';
+    cor: string;
+    escuro: boolean;
+    rotulo: string;
+    ajuda?: string;
+    sempre?: boolean;
+  }
+
+  const DESFECHOS: Desfecho[] = [
     // A fila guarda poucas marcas por câmera: a que chega com a câmera já no
     // limite é descartada - não vai ao detector nem depois -, e fica só como
     // movimento na timeline.
@@ -408,7 +476,7 @@
   // uma folga de cada lado para ele não encostar na divisa. Quando não cabe, o
   // número vai para a legenda em vez de ser cortado ao meio - foi assim que um
   // "9" apareceu como meio risco na tela.
-  function cabe(p) {
+  function cabe(p: { n: number }) {
     if (!larguraFunil || !funil) return false;
     return (p.n / funil.total) * larguraFunil >= String(p.n).length * 8 + 8;
   }
@@ -416,15 +484,15 @@
   // Os tempos do detector em segundos com uma casa, e não pelo `duracao()`:
   // a espera na fila fica quase sempre abaixo de um segundo, e ele a
   // arredondaria para "0s".
-  const segundos = (ms) => `${(ms / 1000).toFixed(1).replace('.', ',')}s`;
+  const segundos = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')}s`;
 
   // A soma das câmeras. O servidor manda por câmera, e o total é conta que a
   // tela faz: é uma soma de poucos números por câmera.
   const soma = $derived.by(() => {
-    const s = { total: 0, descartado: 0, olhado: 0, objeto: 0, esperando: 0, semVideo: 0, recusados: 0, falhas: 0 };
+    const s: Desfechos = { total: 0, descartado: 0, olhado: 0, objeto: 0, esperando: 0, semVideo: 0, recusados: 0, falhas: 0 };
     for (const c of comFunil) {
       const d = desfechosDe(c);
-      for (const k in s) s[k] += d[k];
+      for (const k of CHAVES_DOS_DESFECHOS) s[k] += d[k];
     }
     return s;
   });
@@ -438,7 +506,7 @@
     // uma cor que não está lá, mas o "0" dele diz exatamente isso.
     const todos = DESFECHOS.map((d) => ({ ...d, n: quanto[d.id] }));
     const pedacos = todos.filter((d) => d.n > 0);
-    const legenda = todos.filter((d) => d.n > 0 || d.sempre);
+    const legenda = todos.filter((d) => d.n > 0 || d.sempre === true);
     return { pedacos, legenda, total: soma.total, perdidas };
   });
 
@@ -460,7 +528,7 @@
   // O `??` do acerto não é detalhe: câmera nunca olhada não tem acerto, e sem
   // um valor a ordenação a jogaria em qualquer lugar. -1 põe o "sem dado"
   // antes de todo mundo no crescente.
-  const colunasDet = [
+  const colunasDet: Colunas<LinhaDet> = [
     { id: 'nome', rotulo: 'câmera', valor: (c) => c.nome, texto: true },
     {
       id: 'olhadas',
@@ -512,19 +580,19 @@
   // Chaves próprias na URL (`dsort`/`ddir`): as duas tabelas da tela ordenam
   // sozinhas, e compartilhar `sort` faria uma mexer na outra.
   const sortDetDaURL = params.get('dsort');
-  let ordemDet = $state({
-    col: colunasDet.some((c) => c.id === sortDetDaURL) ? sortDetDaURL : 'nome',
+  let ordemDet = $state<Ordem>({
+    col: sortDetDaURL !== null && colunasDet.some((c) => c.id === sortDetDaURL) ? sortDetDaURL : 'nome',
     asc: params.get('ddir') !== 'desc',
   });
 
-  $effect(() =>
+  $effect(() => {
     escrever({
       dsort: ordemDet.col === 'nome' ? null : ordemDet.col,
       ddir: ordemDet.asc ? null : 'desc',
-    }),
-  );
+    });
+  });
 
-  function ordenarDet(id) {
+  function ordenarDet(id: string) {
     if (ordemDet.col === id) ordemDet.asc = !ordemDet.asc;
     else ordemDet = { col: id, asc: true };
   }
@@ -532,30 +600,34 @@
   // O que uma câmera tem na fila agora: os lugares, ocupados primeiro, e se
   // uma imagem dela está sendo processada. Essa já saiu da fila, então não
   // ocupa lugar - vai à parte. Câmera fora de `cameras` não tem nada.
-  function filaDe(id) {
+  function filaDe(id: string) {
     const n = detector?.fila.porCamera ?? 0;
-    const l = detector?.fila.cameras?.[id] ?? { esperando: 0, olhando: false };
+    const l = detector?.fila.cameras[id] ?? { esperando: 0, olhando: false };
     const lugares = Array.from({ length: Math.max(n, l.esperando) }, (_, i) =>
       i < l.esperando ? 'esperando' : 'livre',
     );
     return { ...l, lugares, cheia: n > 0 && l.esperando >= n };
   }
 
+  // Uma linha da tabela de detecção.
+  function linhaDet(c: ComFunil) {
+    const d = desfechosDe(c);
+    const olhadas = d.olhado + d.objeto;
+    return {
+      id: c.id,
+      nome: c.name || c.id,
+      ...d,
+      olhadas,
+      perdidas: d.semVideo + d.recusados + d.falhas,
+      acerto: olhadas ? Math.round((d.objeto / olhadas) * 100) : null,
+      fila: filaDe(c.id),
+      ligada: c.detect,
+    };
+  }
+  type LinhaDet = ReturnType<typeof linhaDet>;
+
   const detCams = $derived.by(() => {
-    const linhas = comFunil.map((c) => {
-      const d = desfechosDe(c);
-      const olhadas = d.olhado + d.objeto;
-      return {
-        id: c.id,
-        nome: c.name || c.id,
-        ...d,
-        olhadas,
-        perdidas: d.semVideo + d.recusados + d.falhas,
-        acerto: olhadas ? Math.round((d.objeto / olhadas) * 100) : null,
-        fila: filaDe(c.id),
-        ligada: c.detect,
-      };
-    });
+    const linhas = comFunil.map(linhaDet);
     // O servidor manda o funil de toda câmera assim que existe detector, com a
     // detecção de movimento dela ligada ou não. Desligada ela não marca nada, e
     // a linha zerada leria como "não viu nada". Fica na tabela, porque os
@@ -570,7 +642,7 @@
 
   // ---- avisos ------------------------------------------------------------
 
-  // A lista mora em lib/avisos.js, que o sino do header também usa: os dois
+  // A lista mora em lib/avisos.ts, que o sino do header também usa: os dois
   // contam com a mesma regra.
   const agora = $derived(agoraDoServidor(health));
   const avisos = $derived(avisosDe(health));
@@ -601,7 +673,7 @@
       await api.zerarReconexoes();
       await loadHealth();
     } catch (e) {
-      erroZerar = e.message;
+      erroZerar = mensagemDe(e);
     } finally {
       zerando = false;
     }
@@ -726,7 +798,7 @@
 
     <!-- A ordenação no celular: o cabeçalho de colunas não existe lá, então cada
          coluna vira um chip. Mesmo estado e mesma URL do cabeçalho do desktop. -->
-    {#snippet chipsOrdem(cols, o, ordenarPor)}
+    {#snippet chipsOrdem(cols: readonly ColunaBase[], o: Ordem, ordenarPor: (id: string) => void)}
       <div class="ordem row wrap small">
         <span class="muted">ordenar</span>
         {#each cols as col (col.id)}
@@ -735,7 +807,7 @@
             class:ativa={o.col === col.id}
             aria-label="ordenar por {col.rotulo}"
             title={col.ajuda}
-            onclick={() => ordenarPor(col.id)}
+            onclick={() => { ordenarPor(col.id); }}
           >
             {col.rotulo}{#if o.col === col.id}<span class="seta">{o.asc ? '▲' : '▼'}</span>{/if}
           </button>
@@ -745,8 +817,8 @@
 
     <!-- O rótulo de cada valor no cartão do celular, tirado da mesma coluna que
          nomeia o chip. No desktop some: lá quem nomeia é o cabeçalho. -->
-    {#snippet rotulo(cols, o, id)}
-      <span class="rot-cel" class:ativa={o.col === id}>{cols.find((c) => c.id === id).rotulo}</span>
+    {#snippet rotulo(cols: readonly ColunaBase[], o: Ordem, id: string)}
+      <span class="rot-cel" class:ativa={o.col === id}>{cols.find((c) => c.id === id)?.rotulo}</span>
     {/snippet}
 
     <div class="table card">
@@ -761,7 +833,7 @@
             class:ativa={ordem.col === col.id}
             aria-label="ordenar por {col.rotulo}"
             title={col.ajuda}
-            onclick={() => ordenar(col.id)}
+            onclick={() => { ordenar(col.id); }}
           >
             <span class="rotulo">{col.rotulo}</span>
             <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
@@ -902,7 +974,7 @@
                 class:ativa={ordemDet.col === col.id}
                 aria-label="ordenar por {col.rotulo}"
                 title={col.ajuda}
-                onclick={() => ordenarDet(col.id)}
+                onclick={() => { ordenarDet(col.id); }}
               >
                 <span class="rotulo">{col.rotulo}</span>
                 <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
@@ -910,7 +982,7 @@
               </button>
             {/each}
           </div>
-          {#snippet linhaDet(c)}
+          {#snippet linhaDaTabela(c: LinhaDet)}
             <div class="trow detgrid row" class:desligada={!c.ligada}>
               {#if c.ligada}
                 <span class="nome">{c.nome}</span>
@@ -925,8 +997,8 @@
               <!-- Quase tudo com objeto não é bom sinal: costuma ser um objeto
                    parado dentro do quadro, e aí o reconhecimento está confirmando
                    sempre a mesma coisa em vez de avisar de algo novo. -->
-              <span class="mono" class:zero={!c.objeto} class:alerta={c.acerto >= 90}>
-                {@render rotulo(colunasDet, ordemDet, 'acerto')}{c.acerto == null ? '-' : c.acerto + '%'}
+              <span class="mono" class:zero={!c.objeto} class:alerta={c.acerto !== null && c.acerto >= 90}>
+                {@render rotulo(colunasDet, ordemDet, 'acerto')}{c.acerto === null ? '-' : `${c.acerto}%`}
               </span>
               <span class="mono" class:zero={!c.descartado}>{@render rotulo(colunasDet, ordemDet, 'descartadas')}{c.descartado}</span>
               <span class="mono" class:zero={!c.perdidas} class:alerta={c.perdidas > 0}>{@render rotulo(colunasDet, ordemDet, 'perdidas')}{c.perdidas}</span>
@@ -952,10 +1024,10 @@
               </span>
             </div>
           {/snippet}
-          {#each detCams.ligadas as c (c.id)}{@render linhaDet(c)}{/each}
+          {#each detCams.ligadas as c (c.id)}{@render linhaDaTabela(c)}{/each}
           {#if detCams.desligadas.length}
             <div class="grupo small muted">detecção de movimento desligada</div>
-            {#each detCams.desligadas as c (c.id)}{@render linhaDet(c)}{/each}
+            {#each detCams.desligadas as c (c.id)}{@render linhaDaTabela(c)}{/each}
           {/if}
         </div>
         {#if detector}

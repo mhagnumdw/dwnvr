@@ -10,7 +10,7 @@ WORKDIR /src/web
 COPY web/package.json web/package-lock.json* ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
-# O vite.config.js manda o build para ../internal/api/dist, onde o Go o embute.
+# O vite.config.ts manda o build para ../internal/api/dist, onde o Go o embute.
 RUN npm run build
 
 # Binário. Também roda no BUILDPLATFORM e faz cross-compile via GOARCH: compilar

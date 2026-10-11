@@ -7,28 +7,36 @@
 // O caminho preferido é WebCodecs, que decodifica o keyframe direto. Onde ele
 // não existir, um <video> escondido faz o mesmo trabalho.
 
-import { mediaURL } from './api.js';
+import { mediaURL } from './api.ts';
 
-const cache = new Map();
+const cache = new Map<string, Promise<ImageBitmap | null>>();
 const MAX_CACHE = 240; // ~algumas telas de tira; acima disso a RAM do celular sofre
 const MAX_PARALLEL = 3;
 
-let running = 0;
-const queue = [];
+interface Tarefa {
+  fn: () => Promise<ImageBitmap>;
+  resolve: (b: ImageBitmap) => void;
+  reject: (e: unknown) => void;
+}
 
-function schedule(fn) {
-  return new Promise((resolve, reject) => {
+let running = 0;
+const queue: Tarefa[] = [];
+
+function schedule(fn: Tarefa['fn']) {
+  return new Promise<ImageBitmap>((resolve, reject) => {
     queue.push({ fn, resolve, reject });
     drain();
   });
 }
 
 function drain() {
-  while (running < MAX_PARALLEL && queue.length) {
-    const { fn, resolve, reject } = queue.shift();
+  while (running < MAX_PARALLEL) {
+    const tarefa = queue.shift();
+    if (!tarefa) return;
     running++;
-    fn()
-      .then(resolve, reject)
+    void tarefa
+      .fn()
+      .then(tarefa.resolve, tarefa.reject)
       .finally(() => {
         running--;
         drain();
@@ -41,9 +49,10 @@ function drain() {
  * O resultado é memorizado: rolar a tira para frente e para trás não deve
  * rebuscar nem redecodificar nada.
  */
-export function thumbnail(cam, t) {
+export function thumbnail(cam: string, t: number): Promise<ImageBitmap | null> {
   const key = `${cam}@${t}`;
-  if (cache.has(key)) return cache.get(key);
+  const guardada = cache.get(key);
+  if (guardada) return guardada;
 
   const p = schedule(() => decode(mediaURL.thumb(cam, t))).catch(() => null);
   cache.set(key, p);
@@ -51,19 +60,22 @@ export function thumbnail(cam, t) {
   if (cache.size > MAX_CACHE) {
     // Map preserva a ordem de inserção, então a chave mais antiga sai primeiro.
     const oldest = cache.keys().next().value;
-    cache.get(oldest)?.then((b) => b?.close?.());
-    cache.delete(oldest);
+    if (oldest !== undefined) {
+      void cache.get(oldest)?.then((b) => b?.close());
+      cache.delete(oldest);
+    }
   }
   return p;
 }
 
 export function clearThumbnails() {
-  for (const p of cache.values()) p?.then?.((b) => b?.close?.());
+  for (const p of cache.values()) void p.then((b) => b?.close());
   cache.clear();
 }
 
-async function decode(url) {
-  const buf = new Uint8Array(await fetch(url).then((r) => r.arrayBuffer()));
+async function decode(url: string) {
+  const res = await fetch(url);
+  const buf = new Uint8Array(await res.arrayBuffer());
   if (typeof VideoDecoder !== 'undefined') {
     try {
       return await decodeWithWebCodecs(buf);
@@ -77,22 +89,22 @@ async function decode(url) {
 
 // --- WebCodecs --------------------------------------------------------------
 
-const CONFIG_BOX = {
+const CONFIG_BOX: Readonly<Record<string, { codec: string }>> = {
   hvcC: { codec: 'hev1.1.6.L153.B0' },
   avcC: { codec: 'avc1.640029' },
 };
 
-function fourcc(buf, o) {
-  return String.fromCharCode(buf[o], buf[o + 1], buf[o + 2], buf[o + 3]);
+function fourcc(buf: Uint8Array, o: number) {
+  return String.fromCharCode(...buf.subarray(o, o + 4));
 }
 
-async function decodeWithWebCodecs(buf) {
+async function decodeWithWebCodecs(buf: Uint8Array): Promise<ImageBitmap> {
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
   // A caixa de configuração fica aninhada dentro do moov; varrer por assinatura
   // evita descer a árvore inteira só para achar 100 bytes.
-  let description = null;
-  let codec = null;
+  let description: Uint8Array | null = null;
+  let codec: string | null = null;
   for (let i = 0; i + 8 <= buf.length && !description; i++) {
     const cfg = CONFIG_BOX[fourcc(buf, i + 4)];
     if (!cfg) continue;
@@ -102,10 +114,10 @@ async function decodeWithWebCodecs(buf) {
       codec = cfg.codec;
     }
   }
-  if (!description) throw new Error('sem configuração de codec');
+  if (!description || !codec) throw new Error('sem configuração de codec');
 
   // O mdat é caixa de topo, então basta percorrer o nível raiz.
-  let sample = null;
+  let sample: Uint8Array | null = null;
   for (let o = 0; o + 8 <= buf.length; ) {
     const size = dv.getUint32(o);
     if (size < 8) break;
@@ -123,17 +135,18 @@ async function decodeWithWebCodecs(buf) {
   return new Promise((resolve, reject) => {
     let done = false;
     const dec = new VideoDecoder({
-      output: async (frame) => {
-        if (done) return frame.close();
-        done = true;
-        try {
-          resolve(await createImageBitmap(frame));
-        } catch (e) {
-          reject(e);
-        } finally {
+      output: (frame) => {
+        if (done) {
           frame.close();
-          dec.close();
+          return;
         }
+        done = true;
+        void createImageBitmap(frame)
+          .then(resolve, reject)
+          .finally(() => {
+            frame.close();
+            dec.close();
+          });
       },
       error: (e) => {
         if (!done) reject(e);
@@ -141,13 +154,15 @@ async function decodeWithWebCodecs(buf) {
     });
     dec.configure({ codec, description, optimizeForLatency: true });
     dec.decode(new EncodedVideoChunk({ type: 'key', timestamp: 0, data: sample }));
-    dec.flush().catch(() => {});
+    dec.flush().catch(() => {
+      // o erro, se houver, já chegou pelo `error` do decoder
+    });
   });
 }
 
 // --- alternativa com <video> ------------------------------------------------
 
-async function decodeWithVideoElement(buf) {
+async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>) {
   const url = URL.createObjectURL(new Blob([buf], { type: 'video/mp4' }));
   const v = document.createElement('video');
   v.muted = true;
@@ -156,10 +171,10 @@ async function decodeWithVideoElement(buf) {
   v.src = url;
 
   try {
-    await new Promise((res, rej) => {
-      v.addEventListener('loadeddata', res, { once: true });
-      v.addEventListener('error', () => rej(new Error('miniatura ilegível')), { once: true });
-      setTimeout(() => rej(new Error('tempo esgotado')), 8000);
+    await new Promise<void>((res, rej) => {
+      v.addEventListener('loadeddata', () => { res(); }, { once: true });
+      v.addEventListener('error', () => { rej(new Error('miniatura ilegível')); }, { once: true });
+      setTimeout(() => { rej(new Error('tempo esgotado')); }, 8000);
     });
     return await createImageBitmap(v);
   } finally {

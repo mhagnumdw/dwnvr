@@ -8,7 +8,7 @@ antes, estão em [`acesso-remoto.md`](../acesso-remoto.md).
 
 ## O que foi confirmado, pelo código
 
-O player das gravações (`web/src/lib/player.svelte.js`) usa o `MediaSource`
+O player das gravações (`web/src/lib/player.svelte.ts`) usa o `MediaSource`
 direto: `MediaSource.isTypeSupported(mime)` e `new MediaSource()`, no
 `#reset`. No iPhone esse objeto não existe. O Safari do iPhone nunca teve o
 Media Source Extensions; do iOS 17.1 em diante ele tem só o
@@ -21,7 +21,7 @@ não toca nada.
 O ao vivo não tem o problema: o player do go2rtc (`web/src/vendor/video-rtc.js`)
 procura o `ManagedMediaSource` antes do `MediaSource`.
 
-O Diagnóstico ainda engana: `web/src/lib/navegador.js` conta o
+O Diagnóstico ainda engana: `web/src/lib/navegador.ts` conta o
 `ManagedMediaSource` como "MediaSource: sim", e o iPhone aparece capaz de
 tocar o que o player das gravações não consegue.
 

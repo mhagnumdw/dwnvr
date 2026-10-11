@@ -1,6 +1,28 @@
-<script>
-  import { hhmm, hhmmss } from '../lib/format.js';
-  import { familia, iconeDa, desenhaIcone, NOME_DA_CLASSE } from '../lib/icones.js';
+<script lang="ts">
+  import type { ObjetoMarcado, Trecho } from '../lib/api.ts';
+  import { contexto2d } from '../lib/canvas.ts';
+  import { hhmm, hhmmss } from '../lib/format.ts';
+  import { familia, iconeDa, desenhaIcone, NOME_DA_CLASSE } from '../lib/icones.ts';
+  import type { NomeDoIcone } from '../lib/icones.ts';
+
+  interface Props {
+    ranges?: Trecho[];
+    events?: number[];
+    objetos?: ObjetoMarcado[];
+    dayStart?: number;
+    dayEnd?: number;
+    currentMs?: number;
+    onseek?: (ms: number) => void;
+    viewFrom?: number;
+    viewTo?: number;
+  }
+
+  // As marcas de um mesmo instante, que viram UMA marca dividida.
+  interface Grupo {
+    t: number;
+    marcas: ObjetoMarcado[];
+    prioridade: number;
+  }
 
   let {
     ranges = [],       // [[inícioMs, fimMs], …] faixas com gravação
@@ -19,21 +41,21 @@
     dayStart = 0,
     dayEnd = 0,
     currentMs = 0,
-    onseek = () => {},
+    onseek,
     // Janela visível: o único estado que o zoom e o arraste alteram. Sobe para
     // quem chama porque é ela que vai para a URL - o link precisa reproduzir o
     // zoom, não só o instante. Zero nos dois quer dizer "ainda não escolhida", e
     // é o que faz o efeito abaixo ancorar no dia inteiro.
     viewFrom = $bindable(0),
     viewTo = $bindable(0),
-  } = $props();
+  }: Props = $props();
 
-  let canvas;
+  let canvas: HTMLCanvasElement | undefined;
   let width = $state(0);
-  let hoverMs = $state(null);
+  let hoverMs = $state<number | null>(null);
   // A marca sob o ponteiro, quando ele está a um alvo dela: é o que a dica
   // descreve e o que o fio do ponteiro aponta.
-  let hoverGrupo = $state(null);
+  let hoverGrupo = $state<Grupo | null>(null);
 
   const MIN_SPAN = 20_000; // 20s de zoom máximo
 
@@ -109,34 +131,36 @@
   // rua isso é comum -, e o grupo é
   // desenhado como UMA marca dividida, e não como duas que se tampam.
   // Dentro do grupo, a família de mais prioridade vem primeiro.
-  const grupos = $derived.by(() => {
-    const out = [];
+  const grupos = $derived.by((): Grupo[] => {
+    const out: { t: number; marcas: ObjetoMarcado[] }[] = [];
     for (const o of [...objetos].sort((a, b) => a.instanteMs - b.instanteMs)) {
       const ult = out.at(-1);
-      if (ult && ult.t === o.instanteMs) ult.marcas.push(o);
+      if (ult?.t === o.instanteMs) ult.marcas.push(o);
       else out.push({ t: o.instanteMs, marcas: [o] });
     }
-    for (const gr of out) {
+    return out.map((gr) => {
+      const prioridades = gr.marcas.map((m) => familia(m.familia).prioridade);
       gr.marcas.sort((a, b) => familia(a.familia).prioridade - familia(b.familia).prioridade);
-      gr.prioridade = familia(gr.marcas[0].familia).prioridade;
-    }
-    return out;
+      return { ...gr, prioridade: Math.min(...prioridades) };
+    });
   });
 
   const span = $derived(Math.max(1, viewTo - viewFrom));
-  const toX = (ms) => ((ms - viewFrom) / span) * width;
-  const toMs = (x) => viewFrom + (x / Math.max(1, width)) * span;
+  const toX = (ms: number) => ((ms - viewFrom) / span) * width;
+  const toMs = (x: number) => viewFrom + (x / Math.max(1, width)) * span;
 
   // Passo das marcas de hora: escolhido para que os rótulos nunca se toquem,
   // seja num celular de 360px ou num monitor largo.
   const step = $derived.by(() => {
-    const opts = [1e3, 5e3, 15e3, 60e3, 3e5, 9e5, 18e5, 36e5, 108e5, 216e5];
+    const maior = 216e5;
+    const opts = [1e3, 5e3, 15e3, 60e3, 3e5, 9e5, 18e5, 36e5, 108e5, maior];
     const minPx = width < 500 ? 56 : 78;
-    return opts.find((s) => (s / span) * width >= minPx) ?? opts.at(-1);
+    return opts.find((s) => (s / span) * width >= minPx) ?? maior;
   });
 
   $effect(() => {
     // Redesenha sempre que qualquer uma destas mudar.
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
     ranges; events; grupos; viewFrom; viewTo; currentMs; width; hoverMs; alturaCanvas;
     draw();
   });
@@ -153,19 +177,20 @@
   function contaPorColuna() {
     const cols = new Int32Array(Math.max(1, Math.ceil(width)));
     for (let i = limiteInferior(events, viewFrom); i < events.length; i++) {
-      if (events[i] >= viewTo) break;
-      const x = Math.floor(toX(events[i]));
-      if (x >= 0 && x < cols.length) cols[x]++;
+      const e = events[i];
+      if (e === undefined || e >= viewTo) break;
+      const x = Math.floor(toX(e));
+      if (x >= 0 && x < cols.length) cols[x] = (cols[x] ?? 0) + 1;
     }
     return cols;
   }
 
-  function limiteInferior(arr, v) {
+  function limiteInferior(arr: number[], v: number) {
     let lo = 0;
     let hi = arr.length;
     while (lo < hi) {
       const m = (lo + hi) >> 1;
-      if (arr[m] < v) lo = m + 1;
+      if ((arr[m] ?? v) < v) lo = m + 1;
       else hi = m;
     }
     return lo;
@@ -173,7 +198,7 @@
 
   /* O tique de um grupo na linha de objeto. Duas famílias no mesmo instante
    * dividem o tique em faixas, a de mais prioridade no alto. */
-  function tique(g, gr) {
+  function tique(g: CanvasRenderingContext2D, gr: Grupo) {
     const x = toX(gr.t) - TIQUE_PX / 2;
     const h = OBJ_PX / gr.marcas.length;
     gr.marcas.forEach((m, i) => {
@@ -188,11 +213,11 @@
    * todos, então um gato vizinho nunca tira o ícone de uma pessoa. Um grupo de
    * duas famílias pede lugar para os dois ícones lado a lado; sem espaço, tenta
    * ao menos o da família principal. O que não coube continua no tique. */
-  function encaixa(visiveis, lado, porClasse) {
+  function encaixa(visiveis: Grupo[], lado: number, porClasse: boolean) {
     const ordem = [...visiveis].sort((a, b) => a.prioridade - b.prioridade || a.t - b.t);
-    const ocupados = [];
-    const postos = [];
-    const livre = (x0, x1) =>
+    const ocupados: [number, number][] = [];
+    const postos: { nome: NomeDoIcone; x: number; cor: string }[] = [];
+    const livre = (x0: number, x1: number) =>
       ocupados.every(([a, b]) => x1 + ICONE_FOLGA_PX <= a || x0 >= b + ICONE_FOLGA_PX);
     for (const gr of ordem) {
       const tentativas = gr.marcas.length > 1 ? [gr.marcas, gr.marcas.slice(0, 1)] : [gr.marcas];
@@ -211,7 +236,7 @@
     return postos;
   }
 
-  function desenhaObjetos(g) {
+  function desenhaObjetos(g: CanvasRenderingContext2D) {
     g.fillStyle = FUNDO;
     g.fillRect(0, objTop, width, OBJ_PX);
 
@@ -234,13 +259,13 @@
   }
 
   /* A marca a até `alvo` px de x, ou null. No empate, a de mais prioridade. */
-  function grupoPerto(x, alvo) {
-    let melhor = null;
+  function grupoPerto(x: number, alvo: number) {
+    let melhor: Grupo | null = null;
     let dist = Infinity;
     for (const gr of grupos) {
       const d = Math.abs(toX(gr.t) - x);
       if (d > alvo) continue;
-      if (d < dist || (d === dist && gr.prioridade < melhor.prioridade)) {
+      if (d < dist || (d === dist && melhor && gr.prioridade < melhor.prioridade)) {
         melhor = gr;
         dist = d;
       }
@@ -248,7 +273,7 @@
     return melhor;
   }
 
-  function descreve(gr) {
+  function descreve(gr: Grupo) {
     return gr.marcas.map((m) => NOME_DA_CLASSE[m.classe] ?? m.classe).join(' + ');
   }
 
@@ -259,7 +284,7 @@
     canvas.width = width * dpr;
     canvas.height = h * dpr;
 
-    const g = canvas.getContext('2d');
+    const g = contexto2d(canvas);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const barH = BARRA_PX;
@@ -292,9 +317,10 @@
       g.fillRect(0, calorTop, width, CALOR_PX);
       g.fillStyle = CALOR_COR;
       for (let x = 0; x < cols.length; x++) {
-        if (!cols[x]) continue;
+        const c = cols[x];
+        if (!c) continue;
         g.globalAlpha =
-          CALOR_ALFA_MIN + (1 - CALOR_ALFA_MIN) * Math.sqrt(Math.min(1, cols[x] / teto));
+          CALOR_ALFA_MIN + (1 - CALOR_ALFA_MIN) * Math.sqrt(Math.min(1, c / teto));
         g.fillRect(x, calorTop, 1, CALOR_PX);
       }
       g.globalAlpha = 1;
@@ -332,10 +358,18 @@
   // Cada ponteiro guarda também o x inicial: o limiar de arraste precisa do
   // deslocamento acumulado, não do passo do último evento.
   // eslint-disable-next-line svelte/prefer-svelte-reactivity -- estado do gesto, não da tela
-  const pointers = new Map();
+  const pointers = new Map<number, { x: number; x0: number }>();
   let dragged = false;
-  let pinchStart = null;
-  let lastTap = null;     // { t, x } do último toque limpo, para o duplo toque
+  let pinchStart: {
+    dist: number;
+    from: number;
+    to: number;
+    mid: number;
+    anchorMs: number;
+    t: number;
+    moved: boolean;
+  } | null = null;
+  let lastTap: { t: number; x: number } | null = null; // o último toque limpo, para o duplo toque
   let swallowUp = false;  // o up do 2º dedo não pode virar seek
 
   const DOUBLE_TAP_MS = 300;
@@ -348,17 +382,17 @@
   const WHEEL_PX_POR_LINHA = 33;   // Firefox pode mandar o delta em linhas
   const WHEEL_DELTA_MAX_PX = 300;  // um evento isolado nunca salta mais que ~2.5x nem ~¼ da tela
 
-  function localX(ev) {
-    return ev.clientX - canvas.getBoundingClientRect().left;
+  function localX(ev: MouseEvent) {
+    return ev.clientX - (canvas?.getBoundingClientRect().left ?? 0);
   }
 
-  function onPointerDown(ev) {
-    canvas.setPointerCapture(ev.pointerId);
+  function onPointerDown(ev: PointerEvent) {
+    canvas?.setPointerCapture(ev.pointerId);
     const x = localX(ev);
     pointers.set(ev.pointerId, { x, x0: x });
     dragged = false;
-    if (pointers.size === 2) {
-      const [a, b] = [...pointers.values()];
+    const [a, b] = [...pointers.values()];
+    if (pointers.size === 2 && a && b) {
       const mid = (a.x + b.x) / 2;
       pinchStart = {
         dist: Math.abs(a.x - b.x),
@@ -373,7 +407,7 @@
     }
   }
 
-  function onPointerMove(ev) {
+  function onPointerMove(ev: PointerEvent) {
     const p = pointers.get(ev.pointerId);
     if (!p) {
       if (ev.pointerType === 'mouse') {
@@ -387,8 +421,8 @@
     const prev = p.x;
     p.x = x;
 
-    if (pointers.size === 2 && pinchStart) {
-      const [a, b] = [...pointers.values()];
+    const [a, b] = [...pointers.values()];
+    if (pointers.size === 2 && pinchStart && a && b) {
       const dist = Math.max(1, Math.abs(a.x - b.x));
       const mid = (a.x + b.x) / 2;
       if (Math.abs(dist - pinchStart.dist) > 8 || Math.abs(mid - pinchStart.mid) > 8) {
@@ -409,7 +443,7 @@
     pan((-dx / Math.max(1, width)) * span);
   }
 
-  function onPointerUp(ev) {
+  function onPointerUp(ev: PointerEvent) {
     const p = pointers.get(ev.pointerId);
     const x = p ? p.x : localX(ev);
     pointers.delete(ev.pointerId);
@@ -451,10 +485,10 @@
     // Toque que cai numa marca de objeto vai ao instante DELA: acertar o pixel
     // de um tique de 3px com o dedo não pode ser a condição para chegar nele.
     const gr = grupoPerto(x, ev.pointerType === 'mouse' ? ALVO_MOUSE_PX : ALVO_DEDO_PX);
-    onseek(gr ? gr.t : Math.round(toMs(x)));
+    onseek?.(gr ? gr.t : Math.round(toMs(x)));
   }
 
-  function onWheel(ev) {
+  function onWheel(ev: WheelEvent) {
     ev.preventDefault();
     let dx = wheelPx(ev, ev.deltaX);
     let dy = wheelPx(ev, ev.deltaY);
@@ -474,13 +508,13 @@
     zoomTo(toMs(x), span * Math.exp(dy * WHEEL_ZOOM_POR_PX), x / width);
   }
 
-  function wheelPx(ev, d) {
+  function wheelPx(ev: WheelEvent, d: number) {
     if (ev.deltaMode === WheelEvent.DOM_DELTA_LINE) d *= WHEEL_PX_POR_LINHA;
     else if (ev.deltaMode === WheelEvent.DOM_DELTA_PAGE) d *= width;
     return Math.max(-WHEEL_DELTA_MAX_PX, Math.min(WHEEL_DELTA_MAX_PX, d));
   }
 
-  function zoomTo(anchorMs, nextSpan, frac = 0.5) {
+  function zoomTo(anchorMs: number, nextSpan: number, frac = 0.5) {
     const total = dayEnd - dayStart;
     const s = Math.min(total, Math.max(MIN_SPAN, nextSpan));
     viewFrom = anchorMs - frac * s;
@@ -488,7 +522,7 @@
     clamp();
   }
 
-  function pan(deltaMs) {
+  function pan(deltaMs: number) {
     viewFrom += deltaMs;
     viewTo += deltaMs;
     clamp();

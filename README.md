@@ -615,7 +615,7 @@ A primeira compilação leva alguns minutos; as seguintes reaproveitam o cache.
 | **go2rtc** | Fonte dos streams: fala RTSP com as câmeras e entrega fMP4, WebRTC e MJPEG |
 | **fMP4** (MP4 fragmentado) | O formato em disco. É o que o go2rtc já produz, então gravar é copiar bytes |
 | **NDJSON** | O índice das gravações, um arquivo por câmera por dia, append-only |
-| **Svelte 5 + Vite** | A interface, embutida no binário com `go:embed` |
+| **Svelte 5 + TypeScript + Vite** | A interface, embutida no binário com `go:embed` |
 | **MSE** (Media Source Extensions) | Player das gravações, escrito à mão para não carregar [hls.js](https://github.com/video-dev/hls.js/) |
 | **Docker** | Imagem `FROM scratch` multi-arch, para `linux/arm64` e `linux/amd64` |
 | **dwnvr-detect** (opcional) | O detector de objetos: Python, PyAV e onnxruntime rodando o RF-DETR nano (Apache-2.0) a 512x288 em int8 |
@@ -663,7 +663,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   ├── store/              layout em disco e índice NDJSON
 │   └── usuarios/           o usuarios.json, o papel de cada um, o link de convite, a senha em hash (PBKDF2, uma conta por vez) e a foto
 ├── dwnvr-detect/           o detector de objetos, opcional, num container à parte (ver dwnvr-detect/README.md)
-├── web/                    interface Svelte 5 + Vite (ver web/README.md)
+├── web/                    interface Svelte 5 + TypeScript + Vite (ver web/README.md)
 ├── docs/                   documentação longa (ver docs/README.md)
 ├── CHANGELOG.md            o que mudou em cada versão, gerado na release
 ├── cliff.toml              o formato do CHANGELOG.md e das notas de cada release (git-cliff)
@@ -737,7 +737,7 @@ compila:
 pattern ../web/dist: invalid pattern syntax
 ```
 
-Por isso o `vite.config.js` manda o build para `../internal/api/dist`, ao lado
+Por isso o `vite.config.ts` manda o build para `../internal/api/dist`, ao lado
 do `web.go` que o embute. Ao mexer em `web/`, rode `npm run build` **antes** de
 commitar - a CI reprova se os dois divergirem.
 

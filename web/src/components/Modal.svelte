@@ -4,15 +4,23 @@
   snippet, então o mesmo componente serve para o formulário de câmera e para o
   diálogo de confirmação.
 -->
-<script module>
+<script module lang="ts">
   // Pilha de modais abertos. O Esc só pode fechar o de cima: com a confirmação
   // aberta sobre o formulário de edição, uma única tecla fechando os dois
   // jogaria fora o formulário que o usuário ainda estava preenchendo.
-  const stack = [];
+  const stack: object[] = [];
 </script>
 
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    onclose?: () => void;
+    largura?: number | string;
+    reservaRolagem?: boolean;
+    children?: Snippet;
+  }
 
   // `largura` é o teto no desktop: o formulário lê bem em 460px, e a folha de
   // uma detecção mostra um quadro de câmera, que pede mais. Um número vale em
@@ -27,17 +35,19 @@
   // a crescer - e a folha vibra entre os dois estados a cada quadro. Com a
   // reserva a largura não depende da barra e o ciclo não tem por onde começar.
   // No celular a barra flutua sobre o conteúdo e a reserva não ocupa nada.
-  let { onclose = () => {}, largura = 460, reservaRolagem = false, children } = $props();
+  let { onclose, largura = 460, reservaRolagem = false, children }: Props = $props();
   const larguraCSS = $derived(typeof largura === 'number' ? `${largura}px` : largura);
 
   const self = {};
   onMount(() => {
     stack.push(self);
-    return () => stack.splice(stack.indexOf(self), 1);
+    return () => {
+      stack.splice(stack.indexOf(self), 1);
+    };
   });
 
-  function keydown(e) {
-    if (e.key === 'Escape' && stack.at(-1) === self) onclose();
+  function keydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && stack.at(-1) === self) onclose?.();
   }
 </script>
 
@@ -46,7 +56,9 @@
 <div
   class="overlay"
   role="presentation"
-  onclick={(e) => e.target === e.currentTarget && onclose()}
+  onclick={(e) => {
+    if (e.target === e.currentTarget) onclose?.();
+  }}
 >
   <div class="card sheet" class:reserva-rolagem={reservaRolagem} style:--largura={larguraCSS}>{@render children?.()}</div>
 </div>

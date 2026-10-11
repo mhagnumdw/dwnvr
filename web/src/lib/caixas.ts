@@ -3,12 +3,44 @@
 //
 // Em canvas, e não em DOM, por dois motivos: é o MESMO desenho que vai para a
 // imagem baixada - um código só, e a imagem sai igual à tela -, e os ícones das
-// famílias já são path de canvas (icones.js).
+// famílias já são path de canvas (icones.ts).
 //
 // O desenho é o retângulo simples, com o rótulo afastado do objeto e ligado a
 // ele por um traço, para nenhum rótulo cobrir objeto nenhum.
 
-import { familia, iconeDa, desenhaIcone, NOME_DA_CLASSE } from './icones.js';
+import type { Caixa } from './api.ts';
+import { familia, iconeDa, desenhaIcone, NOME_DA_CLASSE } from './icones.ts';
+import type { NomeDoIcone } from './icones.ts';
+
+interface Ponto {
+  x: number;
+  y: number;
+}
+
+interface Retangulo extends Ponto {
+  w: number;
+  h: number;
+}
+
+// O que as caixas leem de uma marca: as do /api/rec/events e as de uma
+// detecção servem.
+export interface MarcaDoDetector {
+  familia: string;
+  classe: string;
+  score: number;
+  caixa?: Caixa;
+}
+
+// Uma caixa disposta, em pixels do quadro mostrado. `rotulo` e `traco` só
+// existem quando foram pedidos e couberam.
+export interface CaixaDisposta<M extends MarcaDoDetector> {
+  marca: M;
+  cor: string;
+  prioridade: number;
+  caixa: Retangulo;
+  rotulo?: Retangulo & { texto: string; icone: NomeDoIcone | null };
+  traco?: { de: Ponto; ate: Ponto };
+}
 
 // --- parâmetros -------------------------------------------------------------
 
@@ -53,28 +85,36 @@ const ESCURO = '#0d1117';
 // e o traço que o liga à caixa. Marca sem `caixa` não entra.
 //
 // `g` só é usado para medir o texto.
-export function dispoe(g, marcas, largura, altura, comRotulo) {
-  const itens = marcas
-    .filter((m) => m.caixa)
-    .map((m) => {
-      const [x1, y1, x2, y2] = m.caixa.map((v) => Math.min(1, Math.max(0, v)));
-      const x = Math.max(0, x1 * largura - CAIXA_FOLGA_PX);
-      const y = Math.max(0, y1 * altura - CAIXA_FOLGA_PX);
-      const xf = Math.min(largura, x2 * largura + CAIXA_FOLGA_PX);
-      const yf = Math.min(altura, y2 * altura + CAIXA_FOLGA_PX);
-      return {
+export function dispoe<M extends MarcaDoDetector>(
+  g: CanvasRenderingContext2D,
+  marcas: readonly M[],
+  largura: number,
+  altura: number,
+  comRotulo: boolean,
+): CaixaDisposta<M>[] {
+  const fracao = (v: number) => Math.min(1, Math.max(0, v));
+  const itens = marcas.flatMap((m): CaixaDisposta<M>[] => {
+    if (!m.caixa) return [];
+    const [x1, y1, x2, y2] = m.caixa;
+    const x = Math.max(0, fracao(x1) * largura - CAIXA_FOLGA_PX);
+    const y = Math.max(0, fracao(y1) * altura - CAIXA_FOLGA_PX);
+    const xf = Math.min(largura, fracao(x2) * largura + CAIXA_FOLGA_PX);
+    const yf = Math.min(altura, fracao(y2) * altura + CAIXA_FOLGA_PX);
+    return [
+      {
         marca: m,
         cor: familia(m.familia).cor,
         prioridade: familia(m.familia).prioridade,
         caixa: { x, y, w: xf - x, h: yf - y },
-      };
-    });
+      },
+    ];
+  });
   if (!comRotulo) return itens;
 
   g.save();
   g.font = FONTE;
   const caixas = itens.map((it) => it.caixa);
-  const postos = [];
+  const postos: Retangulo[] = [];
   // Pela prioridade da família: `pessoa` escolhe lugar primeiro, como já
   // acontece com os ícones da timeline.
   for (const it of [...itens].sort((a, b) => a.prioridade - b.prioridade)) {
@@ -84,8 +124,8 @@ export function dispoe(g, marcas, largura, altura, comRotulo) {
 
     // O lugar mais PERTO da caixa que caiba inteiro no quadro e não cubra
     // caixa nenhuma nem outro rótulo. Não havendo, o mais perto que caiba.
-    let livre = null;
-    let reserva = null;
+    let livre: { r: Retangulo; perto: number } | null = null;
+    let reserva: { r: Retangulo; perto: number } | null = null;
     for (const p of lugares(it.caixa, w, h)) {
       if (p.x < 2 || p.y < 2 || p.x + w > largura - 2 || p.y + h > altura - 2) continue;
       const r = { x: p.x, y: p.y, w, h };
@@ -105,27 +145,28 @@ export function dispoe(g, marcas, largura, altura, comRotulo) {
   // NÃO atravesse outra caixa nem outro rótulo. Atravessar não é proibido, é
   // caro: num quadro apertado ainda tem que sair traço, e sai o menos ruim.
   for (const it of itens) {
-    if (!it.rotulo) continue;
+    const rotulo = it.rotulo;
+    if (!rotulo) continue;
     const estorvos = [
       ...caixas.filter((c) => c !== it.caixa),
-      ...postos.filter((q) => q.x !== it.rotulo.x || q.y !== it.rotulo.y),
+      ...postos.filter((q) => q.x !== rotulo.x || q.y !== rotulo.y),
     ];
-    let melhor = null;
+    let melhor: { de: Ponto; ate: Ponto; custo: number } | null = null;
     for (const ate of encostos(it.caixa)) {
       // A ponta sai da BORDA do rótulo, na direção da caixa: mirando um canto,
       // o traço nasceria solto, no vazio da curvatura.
-      const de = borda(it.rotulo, ate);
+      const de = borda(rotulo, ate);
       const custo = Math.hypot(ate.x - de.x, ate.y - de.y) +
         (estorvos.some((e) => cruza(de, ate, e)) ? 10_000 : 0);
       if (!melhor || custo < melhor.custo) melhor = { de, ate, custo };
     }
-    it.traco = { de: melhor.de, ate: melhor.ate };
+    if (melhor) it.traco = { de: melhor.de, ate: melhor.ate };
   }
   g.restore();
   return itens;
 }
 
-function textoDo(m) {
+function textoDo(m: MarcaDoDetector) {
   const nome = NOME_DA_CLASSE[m.classe] ?? m.classe;
   return `${nome} ${m.score.toFixed(2).replace('.', ',')}`;
 }
@@ -133,8 +174,8 @@ function textoDo(m) {
 // Os lugares onde um rótulo pode ficar: dos quatro lados da caixa, deslizando
 // ao longo do lado e afastando aos poucos. Ao lado, na altura do objeto,
 // costuma ser mais perto do que em cima.
-function lugares(c, w, h) {
-  const out = [];
+function lugares(c: Retangulo, w: number, h: number) {
+  const out: Ponto[] = [];
   for (let passo = 0; passo < 8; passo++) {
     const d = AFASTAMENTO_PX + passo * 12;
     for (const desl of [0, -1, 1, -2, 2]) {
@@ -147,18 +188,18 @@ function lugares(c, w, h) {
   return out;
 }
 
-const sobrepoe = (a, b) =>
+const sobrepoe = (a: Retangulo, b: Retangulo) =>
   a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
 // Distância entre dois retângulos: zero se eles se tocam.
-function distancia(a, b) {
+function distancia(a: Retangulo, b: Retangulo) {
   const dx = Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), 0);
   const dy = Math.max(b.y - (a.y + a.h), a.y - (b.y + b.h), 0);
   return Math.hypot(dx, dy);
 }
 
 // Onde o traço pode encostar na caixa: o meio de cada lado e os quatro cantos.
-const encostos = (r) => [
+const encostos = (r: Retangulo): Ponto[] => [
   { x: r.x + r.w / 2, y: r.y }, { x: r.x + r.w / 2, y: r.y + r.h },
   { x: r.x, y: r.y + r.h / 2 }, { x: r.x + r.w, y: r.y + r.h / 2 },
   { x: r.x, y: r.y }, { x: r.x + r.w, y: r.y },
@@ -166,7 +207,7 @@ const encostos = (r) => [
 ];
 
 // O ponto da borda do retângulo na direção de um alvo.
-function borda(r, alvo) {
+function borda(r: Retangulo, alvo: Ponto): Ponto {
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
   const dx = alvo.x - cx;
@@ -179,15 +220,16 @@ function borda(r, alvo) {
 // O segmento de p a q corta o retângulo? Recorte de Liang-Barsky: o segmento
 // vive em t de 0 a 1, e cada lado do retângulo aperta essa faixa. Sobrou
 // faixa, cruzou.
-function cruza(p, q, r) {
+function cruza(p: Ponto, q: Ponto, r: Retangulo) {
   let t0 = 0;
   let t1 = 1;
   const dx = q.x - p.x;
   const dy = q.y - p.y;
-  for (const [num, den] of [
+  const lados: [num: number, den: number][] = [
     [p.x - r.x, -dx], [r.x + r.w - p.x, dx],
     [p.y - r.y, -dy], [r.y + r.h - p.y, dy],
-  ]) {
+  ];
+  for (const [num, den] of lados) {
     if (den === 0) {
       if (num < 0) return false;
       continue;
@@ -209,7 +251,11 @@ function cruza(p, q, r) {
 // desenha pinta os itens de `dispoe` no contexto, cada um com a opacidade que
 // `alfa(item)` disser. A ordem das camadas é fixa - traços, caixas, rótulos -
 // para um rótulo nunca ficar embaixo do traço de outro.
-export function desenha(g, itens, alfa = () => 1) {
+export function desenha<M extends MarcaDoDetector>(
+  g: CanvasRenderingContext2D,
+  itens: readonly CaixaDisposta<M>[],
+  alfa: (it: CaixaDisposta<M>) => number = () => 1,
+) {
   g.save();
   // A família de menos prioridade primeiro: `pessoa` fica por cima.
   const ordem = [...itens].sort((a, b) => b.prioridade - a.prioridade);
@@ -220,7 +266,8 @@ export function desenha(g, itens, alfa = () => 1) {
     const { de, ate } = it.traco;
     // Um fio escuro por baixo do colorido: o traço de 1 px some tanto no muro
     // claro quanto no cinza da noite sem ele.
-    for (const [largura, cor, opacidade] of [[2.5, '#000', 0.65], [1, it.cor, 1]]) {
+    const fios: [largura: number, cor: string, opacidade: number][] = [[2.5, '#000', 0.65], [1, it.cor, 1]];
+    for (const [largura, cor, opacidade] of fios) {
       g.globalAlpha = alfa(it) * opacidade;
       g.strokeStyle = cor;
       g.lineWidth = largura;
@@ -257,7 +304,8 @@ export function desenha(g, itens, alfa = () => 1) {
     g.globalAlpha = alfa(it);
     const { x, y, w, h, texto, icone } = it.rotulo;
     g.beginPath();
-    if (g.roundRect) g.roundRect(x, y, w, h, ROTULO_RAIO_PX);
+    // Safari anterior ao 16 não tem o roundRect.
+    if (typeof g.roundRect === 'function') g.roundRect(x, y, w, h, ROTULO_RAIO_PX);
     else g.rect(x, y, w, h);
     g.fillStyle = it.cor;
     g.fill();

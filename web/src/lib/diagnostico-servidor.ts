@@ -7,7 +7,9 @@
 // que trabalha perto do teto no dia a dia, e um card vermelho à toa ensina a
 // ignorar o vermelho.
 
-import { bytes, duracao, relogioDeFuso } from './format.js';
+import type { LinhaDoLog, ProcessoDoServidor, RecursoDaPressao, Servidor } from './api.ts';
+import { bytes, duracao, relogioDeFuso } from './format.ts';
+import type { GrupoDoCard, ItemDoCard } from './navegador.ts';
 
 // Acima disso a maioria dos SoCs ARM começa a reduzir a frequência para
 // esfriar, e o Orange Pi Zero 3 chega lá sem dissipador.
@@ -15,7 +17,7 @@ const TEMPERATURA_ALTA = 80;
 
 // PSI, média de 60s, em % do tempo parado esperando o recurso. Memória é o mais
 // sensível: 10% já é o kernel recuperando página no lugar de trabalhar.
-const PRESSAO_ALTA = { cpu: 50, memoria: 10, io: 25 };
+const PRESSAO_ALTA: Readonly<Record<RecursoDaPressao, number>> = { cpu: 50, memoria: 10, io: 25 };
 
 // Um fsync de 4 KB acima disso é disco sofrendo.
 const ESCRITA_LENTA_MS = 1000;
@@ -24,12 +26,12 @@ const ESCRITA_LENTA_MS = 1000;
 // processo está a um susto de bater nele.
 const PERTO_DO_TETO = 0.9;
 
-function num(v, casas = 0) {
+function num(v: number, casas = 0) {
   return v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 }
 
-function maquina(m) {
-  const itens = [];
+function maquina(m: Servidor['maquina']) {
+  const itens: ItemDoCard[] = [];
   if (m.placa) itens.push({ rotulo: 'placa', valor: m.placa });
   if (m.processador) itens.push({ rotulo: 'processador', valor: m.processador });
   if (m.kernel) itens.push({ rotulo: 'kernel', valor: m.kernel });
@@ -42,12 +44,13 @@ function maquina(m) {
     itens.push({
       rotulo: 'carga (1, 5, 15 min)',
       valor: m.carga.map((c) => num(c, 2)).join(' · '),
-      alerta: m.carga[0] > m.nucleos,
+      alerta: (m.carga[0] ?? 0) > m.nucleos,
     });
   }
-  for (const s of m.sensores ?? []) {
+  const sensores = m.sensores ?? [];
+  for (const s of sensores) {
     itens.push({
-      rotulo: m.sensores.length > 1 ? `temperatura (${s.nome})` : 'temperatura',
+      rotulo: sensores.length > 1 ? `temperatura (${s.nome})` : 'temperatura',
       valor: `${num(s.celsius, 1)} °C`,
       alerta: s.celsius >= TEMPERATURA_ALTA,
     });
@@ -62,12 +65,20 @@ function maquina(m) {
 
 // processo é o dwnvr visto por ele mesmo. `anterior` é a leitura de antes, da
 // qual sai a CPU de agora; sem ela, vale a média desde que o dwnvr subiu.
-function processo(p, nucleos, limiteBytes, anterior) {
-  const itens = [];
+function processo(
+  p: ProcessoDoServidor,
+  nucleos: number,
+  limiteBytes: number | undefined,
+  anterior: ProcessoDoServidor | undefined,
+) {
+  const itens: ItemDoCard[] = [];
   if (p.cpuMs != null && p.vivoMs > 0) {
     // Leitura de antes da última subida do dwnvr não serve: o tempo de CPU
     // recomeçou do zero.
-    const a = anterior?.cpuMs != null && p.vivoMs > anterior.vivoMs && p.cpuMs >= anterior.cpuMs ? anterior : null;
+    const a =
+      anterior?.cpuMs != null && p.vivoMs > anterior.vivoMs && p.cpuMs >= anterior.cpuMs
+        ? { cpuMs: anterior.cpuMs, vivoMs: anterior.vivoMs }
+        : null;
     const usado = a ? (p.cpuMs - a.cpuMs) / (p.vivoMs - a.vivoMs) : p.cpuMs / p.vivoMs;
     const quando = a ? `últimos ${duracao(p.vivoMs - a.vivoMs)}` : 'média desde que subiu';
     // Em fração da máquina inteira, e não de um núcleo, para comparar direto
@@ -78,7 +89,7 @@ function processo(p, nucleos, limiteBytes, anterior) {
     itens.push({
       rotulo: 'memória',
       valor: limiteBytes ? `${bytes(p.memoriaBytes)} de ${bytes(limiteBytes)} do limite` : bytes(p.memoriaBytes),
-      alerta: limiteBytes > 0 && p.memoriaBytes >= limiteBytes * PERTO_DO_TETO,
+      alerta: !!limiteBytes && p.memoriaBytes >= limiteBytes * PERTO_DO_TETO,
     });
   }
   itens.push({ rotulo: 'goroutines', valor: num(p.goroutines) });
@@ -87,7 +98,7 @@ function processo(p, nucleos, limiteBytes, anterior) {
     itens.push({
       rotulo: 'arquivos abertos',
       valor: l ? `${num(p.arquivosAbertos)} de ${num(l)}` : num(p.arquivosAbertos),
-      alerta: l > 0 && p.arquivosAbertos >= l * PERTO_DO_TETO,
+      alerta: !!l && p.arquivosAbertos >= l * PERTO_DO_TETO,
     });
   }
   if (p.uid != null) itens.push({ rotulo: 'usuário e grupo', valor: `${p.uid}:${p.gid ?? '?'}` });
@@ -97,9 +108,9 @@ function processo(p, nucleos, limiteBytes, anterior) {
 
 // O limite do container vai na linha de memória do processo, que é quem bate
 // nele; aqui ele só aparece se essa linha faltar.
-function memoria(m, limiteNoProcesso) {
+function memoria(m: NonNullable<Servidor['memoria']>, limiteNoProcesso: boolean) {
   const livre = m.totalBytes ? m.disponivelBytes / m.totalBytes : 1;
-  const itens = [
+  const itens: ItemDoCard[] = [
     {
       rotulo: 'memória disponível',
       valor: `${bytes(m.disponivelBytes)} de ${bytes(m.totalBytes)}`,
@@ -128,22 +139,28 @@ function memoria(m, limiteNoProcesso) {
   return itens;
 }
 
-const RECURSOS = [
+const RECURSOS: [RecursoDaPressao, string][] = [
   ['cpu', 'esperando CPU'],
   ['memoria', 'esperando memória'],
   ['io', 'esperando disco'],
 ];
 
-function pressao(p) {
-  return RECURSOS.filter(([k]) => p[k]?.some).map(([k, rotulo]) => ({
-    rotulo,
-    valor: `${num(p[k].some.avg60, 1)}% do tempo`,
-    alerta: p[k].some.avg60 >= PRESSAO_ALTA[k],
-  }));
+function pressao(p: NonNullable<Servidor['pressao']>): ItemDoCard[] {
+  return RECURSOS.flatMap(([k, rotulo]) => {
+    const some = p[k]?.some;
+    if (!some) return [];
+    return [
+      {
+        rotulo,
+        valor: `${num(some.avg60, 1)}% do tempo`,
+        alerta: some.avg60 >= PRESSAO_ALTA[k],
+      },
+    ];
+  });
 }
 
-function storage(s) {
-  const itens = [{ rotulo: 'caminho', valor: s.caminho }];
+function storage(s: Servidor['storage']) {
+  const itens: ItemDoCard[] = [{ rotulo: 'caminho', valor: s.caminho }];
   if (s.tipo) itens.push({ rotulo: 'sistema de arquivos', valor: s.tipo });
   if (s.origem) itens.push({ rotulo: 'dispositivo', valor: s.origem });
   if (s.opcoes) {
@@ -156,24 +173,24 @@ function storage(s) {
   const e = s.escrita;
   itens.push({
     rotulo: 'teste de escrita',
-    valor: e.ok ? `ok em ${num(e.ms)} ms` : e.erro,
+    valor: e.ok ? `ok em ${num(e.ms)} ms` : (e.erro ?? 'falhou'),
     alerta: !e.ok || e.ms >= ESCRITA_LENTA_MS,
   });
   return itens;
 }
 
-function go2rtc(g) {
-  const itens = [
-    { rotulo: 'responde', valor: g.ok ? `sim, em ${num(g.ms)} ms` : `não: ${g.erro}`, alerta: !g.ok },
+function go2rtc(g: Servidor['go2rtc']) {
+  const itens: ItemDoCard[] = [
+    { rotulo: 'responde', valor: g.ok ? `sim, em ${num(g.ms)} ms` : `não: ${g.erro ?? '?'}`, alerta: !g.ok },
   ];
   if (g.versao) itens.push({ rotulo: 'versão', valor: g.versao });
   if (g.url) itens.push({ rotulo: 'endereço', valor: g.url });
   return itens;
 }
 
-function detector(d) {
-  const itens = [
-    { rotulo: 'responde', valor: d.ok ? `sim, em ${num(d.ms)} ms` : `não: ${d.erro}`, alerta: !d.ok },
+function detector(d: NonNullable<Servidor['detector']>) {
+  const itens: ItemDoCard[] = [
+    { rotulo: 'responde', valor: d.ok ? `sim, em ${num(d.ms)} ms` : `não: ${d.erro ?? '?'}`, alerta: !d.ok },
   ];
   if (d.modelo) itens.push({ rotulo: 'modelo', valor: d.entrada ? `${d.modelo}, entrada ${d.entrada}` : d.modelo });
   if (d.threads) itens.push({ rotulo: 'threads', valor: String(d.threads) });
@@ -184,9 +201,9 @@ function detector(d) {
 // grupos monta o card. Grupo sem fonte - kernel sem PSI, servidor fora do
 // Linux, instalação sem detector de objetos - some em vez de aparecer vazio.
 // `anterior` é a leitura de antes, para a CPU do processo.
-export function grupos(info, anterior) {
+export function grupos(info: Servidor, anterior: Servidor | null): GrupoDoCard[] {
   const limite = info.memoria?.limiteBytes;
-  const out = [{ titulo: 'Máquina', itens: maquina(info.maquina) }];
+  const out: GrupoDoCard[] = [{ titulo: 'Máquina', itens: maquina(info.maquina) }];
   // Servidor anterior a este campo não manda o processo.
   if (info.processo) {
     out.push({
@@ -195,7 +212,7 @@ export function grupos(info, anterior) {
     });
   }
   if (info.memoria) {
-    out.push({ titulo: 'Memória', itens: memoria(info.memoria, info.processo?.memoriaBytes > 0) });
+    out.push({ titulo: 'Memória', itens: memoria(info.memoria, !!info.processo?.memoriaBytes) });
   }
   if (info.pressao) {
     const itens = pressao(info.pressao);
@@ -214,15 +231,16 @@ export function grupos(info, anterior) {
 //
 // Os espaços de dentro da data e do fuso são inquebráveis: sem caber numa
 // linha, no celular, a quebra cai entre a hora e o fuso, e não no meio de um.
-export function coletadoEm(c) {
-  const lido = Date.parse(c?.em);
+export function coletadoEm(c: Servidor['coletadoEm']) {
+  if (!c) return '';
+  const lido = Date.parse(c.em);
   if (isNaN(lido)) return '';
-  const inteiro = (s) => s.replaceAll(' ', ' ');
-  return `${inteiro(`Coletado em ${relogioDeFuso(lido, c.offsetSeconds)}`)} ${inteiro(c.zona || c.sigla)}`;
+  const inteiro = (s: string) => s.replaceAll(' ', ' ');
+  return `${inteiro(`Coletado em ${relogioDeFuso(lido, c.offsetSeconds)}`)} ${inteiro(c.zona ?? c.sigla)}`;
 }
 
 // linhaDoLog formata como o docker logs mostraria, com a hora local de quem lê.
-export function linhaDoLog(l) {
+export function linhaDoLog(l: LinhaDoLog) {
   const hora = new Date(l.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
   return `${hora} ${l.nivel} ${l.texto}`;
 }

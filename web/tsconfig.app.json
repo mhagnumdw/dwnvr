@@ -1,0 +1,14 @@
+// A tela, que roda no navegador. Quem confere é o svelte-check, porque o tsc
+// sozinho não lê .svelte: `npm run check`.
+{
+  "extends": ["@tsconfig/svelte/tsconfig.json", "./tsconfig.base.json"],
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    // O que a tela usa da plataforma, como o Array.findLast. Quem decide a
+    // sintaxe que sai no build é o `build.target` do vite.config.ts.
+    "target": "es2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["svelte", "vite/client"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.svelte"]
+}

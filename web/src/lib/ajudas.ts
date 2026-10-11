@@ -19,16 +19,17 @@ export const AJUDA_CABEM =
 // internal/detect/parametros.go: com dez câmeras no nível 4 são 500 olhadas
 // por hora, não 50.
 //
-// O índice zero não existe: os níveis vão de 1 a 5, e a posição vazia é o que
-// permite indexar direto pelo número escolhido.
+// Os níveis vão de 1 a 5, na ordem: o de número n é o NIVEIS[n - 1], e quem
+// tem só o número pergunta ao nivel().
 export const NIVEIS = [
-  null,
   { rotulo: 'muito baixa', porHora: 6 },
   { rotulo: 'baixa', porHora: 12 },
   { rotulo: 'média', porHora: 25 },
   { rotulo: 'alta', porHora: 50 },
   { rotulo: 'muito alta', porHora: 100 },
 ];
+
+export const nivel = (n: number | undefined) => (n === undefined ? undefined : NIVEIS[n - 1]);
 
 export const AJUDA_SENSIBILIDADE =
   'Quantas vezes por hora, nesta câmera, o dwnvr para para olhar a imagem. Subir o nível pega mais movimento e custa mais CPU.';

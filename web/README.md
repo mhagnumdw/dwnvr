@@ -1,6 +1,6 @@
 # Interface do dwnvr
 
-Quatro telas, em Svelte 5 + Vite, embutidas no binário: **ao vivo**,
+Quatro telas, em Svelte 5 + TypeScript + Vite, embutidas no binário: **ao vivo**,
 **gravações**, **câmeras** e **diagnóstico**. O aplicativo inteiro pesa
 **44,3 kB gzipped**, incluindo o player de live do go2rtc.
 
@@ -11,6 +11,7 @@ isso que mantém a promessa de um binário único.
 npm install
 npm run build       # gera internal/api/dist, depois: go build ./cmd/dwnvr
 npm run dev         # desenvolvimento com recarga instantânea
+npm run check       # confere os tipos; o lint do commit roda o mesmo
 ```
 
 No modo `dev` o Vite faz proxy de `/api` para um dwnvr de verdade, então a tela
@@ -37,12 +38,14 @@ Ao alterar algo em `web/`, rode `npm run build` **antes** de commitar.
 ## Estrutura
 
 ```text
-src/lib/         api, estado (runes), rota e estado na URL, formatadores,
+src/lib/         api e os tipos do JSON dela, estado (runes), rota e
+                 estado na URL, formatadores,
                  player MSE, miniaturas, captura de quadro, ícones das
                  famílias de objeto, disposição e desenho das caixas,
                  diagnóstico do navegador de quem está olhando e do
                  servidor que grava, avisos do diagnóstico (o card e o
-                 sino do header), a redução da foto da Minha conta
+                 sino do header), a redução da foto da Minha conta, o
+                 contexto 2D do canvas
 src/routes/      as telas, o login e a de definir a senha pelo link de
                  convite; Detecções, Usuários, Minha conta e a do convite
                  são chunk à parte. Detecções só aparece com o detector de
@@ -57,10 +60,35 @@ src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  o card fechável de diagnóstico com o "copiar",
                  o campo de senha com o olho, o avatar (a foto ou as
                  iniciais)
-src/vendor/      player de live do go2rtc (MIT) - ver vendor/README.md
+src/vendor/      player de live do go2rtc (MIT), em JavaScript, com os tipos
+                 dele escritos à mão - ver vendor/README.md
 ```
 
 ## Decisões
+
+**TypeScript no rigor máximo.** O `tsconfig.base.json` liga o conjunto do
+`@tsconfig/strictest`: `strict`, `noUncheckedIndexedAccess` (todo `lista[i]`
+pode ser `undefined`), `exactOptionalPropertyTypes` (campo opcional não aceita
+`undefined` escrito) e o resto. O `erasableSyntaxOnly` deixa de fora o que não
+é só tipo apagável - `enum`, `namespace` -, porque o Svelte só apaga os tipos do
+`<script lang="ts">`, sem preprocess. Por isso não há `svelte.config`.
+
+São dois projetos, como no template `svelte-ts` do Vite: o
+`tsconfig.app.json` para a tela, conferido pelo svelte-check, e o
+`tsconfig.node.json` para as configs, que rodam no Node, conferido pelo `tsc`.
+O ESLint usa as regras que leem os tipos (`strictTypeChecked` e
+`stylisticTypeChecked` do typescript-eslint), e o `svelte/block-lang` recusa
+componente sem `lang="ts"`. As exceções estão no `eslint.config.ts`, cada uma
+com o motivo.
+
+O contrato com o servidor fica no fim do `src/lib/api.ts`: o JSON de cada
+resposta, escrito a partir das structs Go de `internal/api`. O TypeScript não
+confere o que chega pela rede, então mudar o JSON de um lado pede mudar o tipo
+do outro.
+
+O TypeScript é o 6, e não o 7: o svelte-check ainda só usa o 7 ao lado do 6,
+com a flag `--tsgo`, e o Dependabot ignora o major até isso mudar (ver
+`.github/dependabot.yml`).
 
 **Mobile-first.** Navegação inferior no celular e superior no desktop. A grade
 ao vivo aceita 1, 2 ou 3 colunas ou "encaixar tudo na tela" - escolha do
@@ -80,7 +108,7 @@ endereços e colar em outra aba reproduz a mesma cena. Segue sendo hash, e não
 caminho de verdade, porque o fragmento nunca sai do navegador - assim o
 `internal/api/web.go`, que só serve arquivo, não precisa de rota nova.
 
-Quem cuida disso é o `src/lib/rota.svelte.js`. Cada tela lê a URL uma vez, ao
+Quem cuida disso é o `src/lib/rota.svelte.ts`. Cada tela lê a URL uma vez, ao
 montar, e um `$effect` escreve de volta o que o estado real diz - `paused` sai
 de `player.playing`, e não de um sinalizador paralelo, para o endereço nunca
 prometer uma reprodução que o navegador bloqueou. As escritas usam

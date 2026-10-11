@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   // A camada das caixas do detector de objetos, por cima do vídeo das gravações.
   //
   // A caixa é de UM quadro - o que o detector olhou, `quadroMs` -, e por isso
@@ -6,21 +6,38 @@
   // quadro, fica acesa ACESA_MS e esmaece. Com o vídeo pausado, a caixa acesa
   // fica acesa, e volta a contar o tempo quando a reprodução volta.
   //
-  // A disposição e o desenho moram em lib/caixas.js, que a captura de quadro
+  // A disposição e o desenho moram em lib/caixas.ts, que a captura de quadro
   // também usa: esta camada só decide QUAIS caixas estão acesas e quanto.
   import { onMount, untrack } from 'svelte';
-  import { dispoe, desenha, ACENDER_MS, ACESA_MS, ESMAECER_MS, POUSO_MS } from '../lib/caixas.js';
+  import type { Caixa } from '../lib/api.ts';
+  import { contexto2d } from '../lib/canvas.ts';
+  import { dispoe, desenha, ACENDER_MS, ACESA_MS, ESMAECER_MS, POUSO_MS } from '../lib/caixas.ts';
+  import type { CaixaDisposta, MarcaDoDetector } from '../lib/caixas.ts';
 
-  let {
-    video,            // o <video> do palco
-    objetos = [],     // as marcas do dia, como o /api/rec/events as entrega
-    currentMs = 0,
-    playing = false,
-    rate = 1,
-    rotulos = true,
-  } = $props();
+  // Uma marca com o instante do quadro olhado, quando houver: as do
+  // /api/rec/events, e os objetos de uma detecção com o `quadroMs` dela.
+  type Marca = MarcaDoDetector & { quadroMs?: number };
 
-  let canvas;
+  interface Props {
+    video: HTMLVideoElement; // o <video> do palco
+    objetos?: Marca[]; // as marcas do dia, como o /api/rec/events as entrega
+    currentMs?: number;
+    playing?: boolean;
+    rate?: number;
+    rotulos?: boolean;
+  }
+
+  // A marca que tem o que acender: a caixa e o quadro olhado.
+  type MarcaAcendivel = Marca & { caixa: Caixa; quadroMs: number };
+
+  interface Acesa {
+    marca: MarcaAcendivel;
+    desde: number;
+  }
+
+  let { video, objetos = [], currentMs = 0, playing = false, rate = 1, rotulos = true }: Props = $props();
+
+  let canvas: HTMLCanvasElement | undefined;
   // Onde o <video> está no palco. Ele é centralizado e tem altura máxima, então
   // nem sempre começa no canto do palco.
   let elemento = $state({ left: 0, top: 0, w: 0, h: 0 });
@@ -32,19 +49,19 @@
   // performance.now(). Sem reatividade de propósito: quem desenha é o canvas,
   // e redesenhar é pedido à mão.
   // eslint-disable-next-line svelte/prefer-svelte-reactivity -- quem desenha é o canvas
-  const acesas = new Map();
-  let pausadaDesde = null;
-  let itens = [];
+  const acesas = new Map<string, Acesa>();
+  let pausadaDesde: number | null = null;
+  let itens: CaixaDisposta<MarcaAcendivel>[] = [];
   let disposto = '';
   let pedido = 0;
 
   // Uma olhada grava no máximo uma marca por família.
-  const chave = (o) => `${o.quadroMs}|${o.familia}`;
+  const chave = (o: MarcaAcendivel) => `${o.quadroMs}|${o.familia}`;
   const VIDA_MS = ACENDER_MS + ACESA_MS + ESMAECER_MS;
 
   // Só as marcas que têm caixa e o instante do quadro olhado: sem os dois não
   // há o que acender, nem quando.
-  const comCaixa = $derived(objetos.filter((o) => o.caixa && o.quadroMs));
+  const comCaixa = $derived(objetos.filter((o): o is MarcaAcendivel => !!o.caixa && !!o.quadroMs));
 
   // --- quando acender -------------------------------------------------------
 
@@ -53,10 +70,12 @@
 
   $effect(() => {
     const t = currentMs;
-    untrack(() => avanca(t));
+    untrack(() => {
+      avanca(t);
+    });
   });
 
-  function avanca(t) {
+  function avanca(t: number) {
     const agora = performance.now();
     // Reproduzindo, o vídeo anda entre duas atualizações mais ou menos o tempo
     // de relógio vezes a velocidade. Andar muito mais que isso, ou para trás, é
@@ -101,15 +120,16 @@
   });
 
   $effect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
     rotulos;
     untrack(agenda);
   });
 
-  function apagaVencidas(agora) {
+  function apagaVencidas(agora: number) {
     for (const [k, a] of acesas) if (agora - a.desde >= VIDA_MS) acesas.delete(k);
   }
 
-  function alfa(a, agora) {
+  function alfa(a: Acesa | undefined, agora: number) {
     if (!a) return 0;
     if (pausadaDesde !== null) return 1;
     const idade = agora - a.desde;
@@ -137,7 +157,7 @@
   // A disposição só é refeita quando muda o conjunto aceso, o tamanho ou os
   // rótulos: refazer a cada quadro faria um rótulo trocar de lado no meio do
   // esmaecimento do vizinho.
-  function disposicao(g) {
+  function disposicao(g: CanvasRenderingContext2D) {
     const k = `${[...acesas.keys()].sort().join(',')}|${imagem.w}x${imagem.h}|${rotulos}`;
     if (k !== disposto) {
       itens = dispoe(g, [...acesas.values()].map((a) => a.marca), imagem.w, imagem.h, rotulos);
@@ -146,7 +166,7 @@
     return itens;
   }
 
-  function pinta(agora) {
+  function pinta(agora: number) {
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
     const { w, h } = elemento;
@@ -156,7 +176,7 @@
       canvas.width = cw;
       canvas.height = ch;
     }
-    const g = canvas.getContext('2d');
+    const g = contexto2d(canvas);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
     if (!acesas.size || !imagem.w) return;
@@ -169,7 +189,7 @@
   // sai como a tela está, com o rótulo no mesmo lugar e do mesmo tamanho
   // relativo. A opacidade vai cheia - uma caixa pela metade numa foto parece
   // defeito, não esmaecimento.
-  export function desenhaEm(g, largura, altura) {
+  export function desenhaEm(g: CanvasRenderingContext2D, largura: number, altura: number) {
     if (!acesas.size) return;
     if (!imagem.w) {
       desenha(g, dispoe(g, [...acesas.values()].map((a) => a.marca), largura, altura, rotulos));
@@ -184,7 +204,6 @@
   // --- tamanho --------------------------------------------------------------
 
   function mede() {
-    if (!video) return;
     const w = video.clientWidth;
     const h = video.clientHeight;
     elemento = { left: video.offsetLeft, top: video.offsetTop, w, h };

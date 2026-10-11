@@ -1,13 +1,17 @@
-<script>
-  import { thumbnail } from '../lib/thumbs.js';
-  import { hhmmss } from '../lib/format.js';
+<script lang="ts">
+  import type { Segmento } from '../lib/api.ts';
+  import { contexto2d } from '../lib/canvas.ts';
+  import { thumbnail } from '../lib/thumbs.ts';
+  import { hhmmss } from '../lib/format.ts';
 
-  let {
-    cam,
-    segments = [],   // [[inícioMs, duraçãoMs, geração], …]
-    currentMs = 0,
-    onseek = () => {},
-  } = $props();
+  interface Props {
+    cam: string;
+    segments?: Segmento[];
+    currentMs?: number;
+    onseek?: (ms: number) => void;
+  }
+
+  let { cam, segments = [], currentMs = 0, onseek }: Props = $props();
 
   // Quantas miniaturas mostrar. Mais que isso vira desfile de imagens que
   // ninguém consegue distinguir, e cada uma custa um decode.
@@ -25,11 +29,11 @@
     const center = segments.findIndex(([s, d]) => currentMs >= s && currentMs < s + d);
     const anchor = center >= 0 ? center : 0;
     const half = Math.floor(MAX_TILES / 2);
-    let start = Math.max(0, anchor - half);
+    const start = Math.max(0, anchor - half);
     return segments.slice(start, start + MAX_TILES);
   });
 
-  let strip = $state(null);
+  let strip = $state<HTMLDivElement | null>(null);
 
   // Só o início do segmento ativo, e não currentMs: currentMs muda várias vezes
   // por segundo durante a reprodução, e o que interessa aqui muda uma vez a cada
@@ -62,7 +66,7 @@
 
   // A roda do mouse é vertical; a tira rola na horizontal. Sem esta tradução o
   // navegador rola a página e a tira fica inalcançável para quem não tem trackpad.
-  function onWheel(ev) {
+  function onWheel(ev: WheelEvent & { currentTarget: HTMLDivElement }) {
     const el = ev.currentTarget;
     if (el.scrollWidth <= el.clientWidth) return;          // nada a rolar
     if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return; // gesto horizontal: o nativo já resolve
@@ -84,11 +88,11 @@
 <div class="strip" bind:this={strip} onwheel={onWheel}>
   {#each tiles as [t, dur] (t)}
     {@const active = currentMs >= t && currentMs < t + dur}
-    <button class="tile" class:active onclick={() => onseek(t)} title={hhmmss(t)}>
+    <button class="tile" class:active onclick={() => { onseek?.(t); }} title={hhmmss(t)}>
       {#await thumbnail(cam, t) then bitmap}
         {#if bitmap}
           <canvas
-            {@attach (node) => {
+            {@attach (node: HTMLCanvasElement) => {
               // Desenhar num canvas do tamanho exibido, e não escalar um
               // <img>, evita guardar um bitmap 1080p por miniatura na memória
               // do celular.
@@ -96,7 +100,7 @@
               const h = node.clientHeight * (window.devicePixelRatio || 1);
               node.width = w;
               node.height = h;
-              node.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+              contexto2d(node).drawImage(bitmap, 0, 0, w, h);
             }}
           ></canvas>
         {:else}

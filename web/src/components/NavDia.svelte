@@ -7,14 +7,20 @@
   hoje: não saber onde há material não pode virar não poder navegar. É o mesmo
   modo permissivo do DayPicker.
 -->
-<script>
+<script lang="ts">
   import DayPicker from './DayPicker.svelte';
-  import { dayKey, parseDay } from '../lib/format.js';
+  import { dayKey, parseDay } from '../lib/format.ts';
 
-  /** @type {{ value: string, days?: string[], oQue?: string, onchange: (dia: string) => void }} */
-  let { value, days = [], oQue, onchange } = $props();
+  interface Props {
+    value: string;
+    days?: string[];
+    oQue?: string | undefined;
+    onchange: (dia: string) => void;
+  }
 
-  function vizinho(n) {
+  let { value, days = [], oQue, onchange }: Props = $props();
+
+  function vizinho(n: number) {
     const d = parseDay(value);
     d.setDate(d.getDate() + n);
     return dayKey(d);
@@ -29,7 +35,9 @@
 <div class="nav-dia">
   <button
     class="ghost"
-    onclick={() => onchange(anterior)}
+    onclick={() => {
+      if (anterior) onchange(anterior);
+    }}
     disabled={!anterior}
     aria-label="dia anterior"
   >
@@ -38,7 +46,9 @@
   <DayPicker {value} {days} {oQue} {onchange} />
   <button
     class="ghost"
-    onclick={() => onchange(proximo)}
+    onclick={() => {
+      if (proximo) onchange(proximo);
+    }}
     disabled={!proximo}
     aria-label="próximo dia"
   >

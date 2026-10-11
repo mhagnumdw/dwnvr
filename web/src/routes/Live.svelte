@@ -1,21 +1,26 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
   import '../vendor/video-stream.js';
-  import { cameras, loadCameras, session, sessaoCaiu } from '../lib/state.svelte.js';
-  import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
-  import { api, mediaURL } from '../lib/api.js';
-  import { baixarQuadro } from '../lib/captura.js';
-  import { dayKey, hhmmss } from '../lib/format.js';
+  import { VideoRTC } from '../vendor/video-rtc.js';
+  import { cameras, loadCameras, session, sessaoCaiu } from '../lib/state.svelte.ts';
+  import { paramsAtuais, escrever } from '../lib/rota.svelte.ts';
+  import { api, mediaURL, mensagemDe } from '../lib/api.ts';
+  import type { Sessao } from '../lib/api.ts';
+  import { baixarQuadro } from '../lib/captura.ts';
+  import { dayKey, hhmmss } from '../lib/format.ts';
   import SemCameras from '../components/SemCameras.svelte';
 
   const STORAGE_KEY = 'dwnvr.live.selection';
   const LAYOUT_KEY = 'dwnvr.live.layout';
   const SEMPRE_KEY = 'dwnvr.live.sempreLigadas';
 
+  // Quantas colunas, ou encaixar tudo na tela.
+  type Modo = 'fit' | number;
+
   const COLUNAS = [1, 2, 3];
   // 'fit' é só mais um modo ao lado das colunas: como um exclui o outro por
   // construção, escolher 2× desliga o encaixar sem nenhum código para isso.
-  const MODOS = ['fit', ...COLUNAS];
+  const MODOS: Modo[] = ['fit', ...COLUNAS];
 
   // Precisa bater com o `gap` da grade no CSS: é o espaço que a conta do
   // encaixe desconta antes de dividir o que sobra entre os tiles.
@@ -31,6 +36,9 @@
   // cada falha seguida e voltando ao primeiro quando o vídeo toca. O player do
   // go2rtc usa 15 s fixos. Ver `religarRapido`.
   const RELIGAR_MS = [500, 1000, 2000, 5000];
+  const RELIGAR_MAX_MS = 5000;
+  // A espera depois de `n` falhas seguidas: a última se repete.
+  const religarEm = (n: number) => RELIGAR_MS[Math.min(n, RELIGAR_MS.length - 1)] ?? RELIGAR_MAX_MS;
 
   // Quanto cada sondagem do servidor espera antes de desistir, ao voltar de
   // uma aba oculta. Ver `esperarRede`.
@@ -48,10 +56,10 @@
   // tela, que escreve de volta na URL.
   const params = paramsAtuais();
 
-  let selected = $state(new Set());
-  let modo = $state(lerModo());
+  let selected = $state(new Set<string>());
+  let modo = $state<Modo>(lerModo());
   let showPicker = $state(false);
-  let palco = $state(null);
+  let palco = $state<HTMLDivElement | null>(null);
   let encaixe = $state({ cols: 1, w: 0 });
   // Segura a escrita na URL até a seleção ter sido lida - ver o efeito no fim
   // do bloco.
@@ -69,14 +77,14 @@
   //
   // Tudo isso na inicialização, e não no onMount: começar sempre em 2× e
   // corrigir depois faria a grade piscar no celular, onde o padrão é 1×.
-  function lerModo() {
+  function lerModo(): Modo {
     const daURL = params.get('view');
     if (daURL === 'fit') return 'fit';
     if (COLUNAS.includes(Number(daURL))) return Number(daURL);
     return lerLayout();
   }
 
-  function lerLayout() {
+  function lerLayout(): Modo {
     const salvo = localStorage.getItem(LAYOUT_KEY);
     if (salvo === 'fit') return 'fit';
     if (COLUNAS.includes(Number(salvo))) return Number(salvo);
@@ -89,7 +97,7 @@
     // `cams=` vazio é uma escolha - "nenhuma câmera" -, e a chave ausente é
     // falta de opinião: aí vale o que este navegador usou por último.
     const daURL = params.has('cams') ? params.getAll('cams').filter(Boolean) : null;
-    const ids = daURL ?? JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    const ids = daURL ?? selecaoSalva();
     if (ids) {
       // Só mantém câmeras que ainda existem: uma seleção salva - ou um link
       // antigo - pode citar uma câmera removida do cadastro desde então.
@@ -102,6 +110,17 @@
     }
     montado = true;
   });
+
+  // A seleção que este navegador usou por último. Conteúdo estragado vale como
+  // nenhum.
+  function selecaoSalva(): string[] | null {
+    try {
+      const v: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : null;
+    } catch {
+      return null;
+    }
+  }
 
   // A URL passa a dizer o que está na tela, e é isso que faz colar o endereço
   // em outra aba cair na mesma grade. O `montado` segura a escrita até a
@@ -123,7 +142,7 @@
   // vivo isso mostra uma barra de progresso que não significa nada - não há
   // linha do tempo para percorrer - e ainda aparece em umas câmeras e não em
   // outras, conforme o modo negociado.
-  function hideNativeControls(node) {
+  function hideNativeControls(node: VideoRTC) {
     const apply = () => {
       if (node.video) {
         node.video.controls = false;
@@ -135,9 +154,16 @@
     if (!apply()) requestAnimationFrame(apply);
   }
 
-  function fullscreen(el) {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else el.requestFullscreen?.().catch(() => {});
+  function fullscreen(el: HTMLElement) {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+      return;
+    }
+    // O Safari do iPhone só põe em tela cheia o <video>, não um <div>.
+    if (typeof el.requestFullscreen !== 'function') return;
+    el.requestFullscreen().catch(() => {
+      // recusado pelo navegador: o tile só fica como estava
+    });
   }
 
   // --- o menu do ⋮ de cada tile -----------------------------------------------
@@ -145,26 +171,31 @@
   // Um aberto por vez, pela câmera dele. Fica DENTRO do tile, e não num
   // `position: fixed` como o das Detecções: em tela cheia o navegador só mostra
   // o elemento que foi para a tela cheia, e um menu fora dele sumiria ali.
-  let menu = $state(null);
+  let menu = $state<string | null>(null);
   // O <video-stream> de cada câmera, para a captura achar o <video> dele. Não
   // precisa ser reativo: só é lido no clique.
-  const players = {};
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- só é lido no clique
+  const players = new Map<string, VideoRTC>();
   // Falha de captura ou de PiP por câmera, mostrada no próprio tile por alguns
-  // segundos.
-  const avisos = $state({});
-  const avisoTimer = {};
+  // segundos. Vazio é sem aviso.
+  const avisos = $state<Record<string, string>>({});
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- os timers, que a tela não lê
+  const avisoTimer = new Map<string, number>();
 
-  function avisar(cam, texto) {
+  function avisar(cam: string, texto: string) {
     avisos[cam] = texto;
-    clearTimeout(avisoTimer[cam]);
-    avisoTimer[cam] = setTimeout(() => delete avisos[cam], 5000);
+    clearTimeout(avisoTimer.get(cam));
+    avisoTimer.set(
+      cam,
+      setTimeout(() => (avisos[cam] = ''), 5000),
+    );
   }
 
-  function foraDoMenu(e) {
-    if (menu && !e.target.closest?.('.opcoes')) menu = null;
+  function foraDoMenu(e: MouseEvent) {
+    if (menu && !(e.target instanceof Element && e.target.closest('.opcoes'))) menu = null;
   }
 
-  function tecla(e) {
+  function tecla(e: KeyboardEvent) {
     if (e.key === 'Escape') menu = null;
   }
 
@@ -172,19 +203,19 @@
   // dois diferem só pela latência do stream. Mesma convenção das Gravações
   // (cam_AAAA-MM-DD_HH-MM-SS), para imagem de live e de gravação ficarem lado a
   // lado na pasta.
-  async function capturar(cam) {
+  async function capturar(cam: string) {
     menu = null;
     const d = new Date();
     const nome = `${cam}_${dayKey(d)}_${hhmmss(d.getTime()).replaceAll(':', '-')}.jpg`;
     try {
-      await baixarQuadro(players[cam]?.video, nome);
+      await baixarQuadro(players.get(cam)?.video, nome);
     } catch (e) {
-      avisar(cam, e.message);
+      avisar(cam, mensagemDe(e));
     }
   }
 
   // O mesmo que desmarcar a câmera na lista: grava a seleção e a URL acompanha.
-  function remover(cam) {
+  function remover(cam: string) {
     menu = null;
     toggle(cam);
   }
@@ -193,13 +224,14 @@
 
   // O Firefox não tem a API (tem só o botão dele, desenhado sobre o vídeo): lá
   // o botão nem aparece.
-  const PIP = document.pictureInPictureEnabled === true;
+  const PIP = document.pictureInPictureEnabled;
   // A câmera que está na janela flutuante. O navegador deixa uma por vez.
-  let pipCam = $state(null);
+  let pipCam = $state<string | null>(null);
 
-  async function alternarPip(cam) {
-    const video = players[cam]?.video;
+  async function alternarPip(cam: string) {
+    const video = players.get(cam)?.video;
     try {
+      if (!video) throw new Error('sem vídeo');
       if (document.pictureInPictureElement === video) await document.exitPictureInPicture();
       else await video.requestPictureInPicture();
     } catch {
@@ -219,7 +251,7 @@
   //
   // As outras câmeras continuam sendo cortadas: com a aba oculta, só a do PiP
   // segue puxando vídeo.
-  function manterNoPip(node, cam) {
+  function manterNoPip(node: VideoRTC, cam: string) {
     const desligar = node.disconnectedCallback.bind(node);
     node.disconnectedCallback = () => {
       if (node.isConnected && document.pictureInPictureElement === node.video) return;
@@ -261,7 +293,7 @@
   //   lugar desses 15 s fixos.
 
   // A espera em curso ao voltar de uma aba oculta, ou null quando não há.
-  let rede = null;
+  let rede: Promise<void> | null = null;
 
   function aoMudarVisibilidade() {
     visivel = !document.hidden;
@@ -273,7 +305,9 @@
   // player põe no `document` e que é quem religa as câmeras.
   onMount(() => {
     window.addEventListener('visibilitychange', aoMudarVisibilidade, true);
-    return () => window.removeEventListener('visibilitychange', aoMudarVisibilidade, true);
+    return () => {
+      window.removeEventListener('visibilitychange', aoMudarVisibilidade, true);
+    };
   });
 
   // Qualquer resposta serve, até um erro HTTP: o que importa é o servidor ter
@@ -284,7 +318,7 @@
         await api.ping(SONDA_MS);
         return;
       } catch {
-        await new Promise((r) => setTimeout(r, RELIGAR_MS[Math.min(i, RELIGAR_MS.length - 1)]));
+        await new Promise((r) => setTimeout(r, religarEm(i)));
       }
     }
   }
@@ -301,12 +335,12 @@
   // do início da tentativa que falhou. A sequência só volta ao começo quando o
   // vídeo toca, e não quando a conexão abre: um servidor que aceita e derruba
   // logo em seguida ficaria sendo tentado a cada meio segundo.
-  function religarRapido(node) {
+  function religarRapido(node: VideoRTC) {
     const conectar = node.onconnect.bind(node);
     node.onconnect = () => {
       if (document.hidden && document.pictureInPictureElement !== node.video) return false;
       if (!rede) return conectar();
-      rede.then(() => {
+      void rede.then(() => {
         if (!document.hidden && node.isConnected && (sempreLigadas || !foraDaTela.has(node))) conectar();
       });
       return false;
@@ -314,7 +348,7 @@
     let falhas = 0;
     const fechou = node.onclose.bind(node);
     node.onclose = () => {
-      node.RECONNECT_TIMEOUT = RELIGAR_MS[Math.min(falhas, RELIGAR_MS.length - 1)];
+      node.RECONNECT_TIMEOUT = religarEm(falhas);
       const religando = fechou();
       if (religando) falhas++;
       // Caiu e não voltou: pode ser a sessão. O websocket recusado não diz o
@@ -349,13 +383,13 @@
 
   let acessoConfirmado = $state(true);
   let ultimaConferencia = Date.now();
-  let conferindo = null;
+  let conferindo: Promise<void> | null = null;
 
   // fecharTudo corta o vídeo de todas as câmeras na hora. Desmontar o tile
   // também corta, mas só depois dos 5 s de carência do player, e o WebRTC
   // seguiria recebendo vídeo nesse meio-tempo.
   function fecharTudo() {
-    for (const node of Object.values(players)) node.ondisconnect();
+    for (const node of players.values()) node.ondisconnect();
   }
 
   function conferirSessao() {
@@ -363,7 +397,7 @@
     conferindo ??= (async () => {
       try {
         const r = await api.conferirSessao(PRAZO_CONFERENCIA_MS);
-        const s = await r.json();
+        const s = (await r.json()) as Sessao;
         if (!s.authenticated) {
           fecharTudo();
           sessaoCaiu();
@@ -387,7 +421,9 @@
       if (rede) return;
       if (!acessoConfirmado || Date.now() - ultimaConferencia >= CONFERIR_SESSAO_MS) conferirSessao();
     }, TIQUE_CONFERENCIA_MS);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+    };
   });
 
   // O aviso de sessão fica aberto só com o vídeo à vista. Fechado sem a tela
@@ -395,8 +431,8 @@
   // câmeras.
   $effect(() => {
     if (!session.authRequired || !ativo) return;
-    let ws;
-    let timer;
+    let ws: WebSocket | undefined;
+    let timer: number | undefined;
     let falhas = 0;
     let vivo = true;
     const abrir = () => {
@@ -405,14 +441,14 @@
       ws.onclose = () => {
         if (!vivo) return;
         conferirSessao();
-        timer = setTimeout(abrir, RELIGAR_MS[Math.min(falhas++, RELIGAR_MS.length - 1)]);
+        timer = setTimeout(abrir, religarEm(falhas++));
       };
     };
     abrir();
     return () => {
       vivo = false;
       clearTimeout(timer);
-      ws.close();
+      ws?.close();
     };
   });
 
@@ -433,22 +469,28 @@
   // Um Set comum, e não WeakSet, porque o tamanho importa: é ele que decide
   // se o botão "manter ligadas" aparece.
   // eslint-disable-next-line svelte/prefer-svelte-reactivity -- quem a tela lê é o `quantasFora`
-  const foraDaTela = new Set();
-  const corte = new WeakMap();
+  const foraDaTela = new Set<VideoRTC>();
+  const corte = new WeakMap<VideoRTC, number>();
   let quantasFora = $state(0);
 
   // Opt-in de quem prefere não esperar o keyframe ao rolar, e aceita pagar em
   // bateria. Do aparelho, como o layout: vai no localStorage, nunca na URL.
   let sempreLigadas = $state(localStorage.getItem(SEMPRE_KEY) === '1');
 
-  function agendarCorte(node) {
+  function agendarCorte(node: VideoRTC) {
     clearTimeout(corte.get(node));
     const espera = Math.max(0, CARENCIA_ROLAGEM_MS - node.DISCONNECT_TIMEOUT);
-    corte.set(node, setTimeout(() => node.disconnectedCallback(), espera));
+    corte.set(
+      node,
+      setTimeout(() => {
+        node.disconnectedCallback();
+      }, espera),
+    );
   }
 
   const observador = new IntersectionObserver((entradas) => {
     for (const { target: node, isIntersecting } of entradas) {
+      if (!(node instanceof VideoRTC)) continue; // só os players são observados
       clearTimeout(corte.get(node));
       if (isIntersecting) {
         foraDaTela.delete(node);
@@ -465,7 +507,7 @@
   // `connectedCallback` da instância - de todos os tiles, inclusive os fora da
   // tela, que o observer não revisita porque nada mudou para ele. A guarda é
   // aqui.
-  function soNaTela(node) {
+  function soNaTela(node: VideoRTC) {
     const ligar = node.connectedCallback.bind(node);
     node.connectedCallback = () => {
       if (sempreLigadas || !foraDaTela.has(node)) ligar();
@@ -499,23 +541,24 @@
   // link. É o que impede o `#live?view=3` de alguém de virar o seu padrão.
   //
   // Reatribui em vez de mutar: runes não observam mudança dentro de um Set.
-  function setSelection(next) {
+  function setSelection(next: Set<string>) {
     selected = next;
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
   }
 
-  function toggle(id) {
+  function toggle(id: string) {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- vira o `selected` inteiro, sem mutar o antigo
     const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     setSelection(next);
   }
 
   function todas() {
-    setSelection(tudoMarcado ? new Set() : new Set(cameras.list.map((c) => c.id)));
+    setSelection(tudoMarcado ? new Set<string>() : new Set(cameras.list.map((c) => c.id)));
   }
 
-  function setModo(m) {
+  function setModo(m: Modo) {
     modo = m;
     localStorage.setItem(LAYOUT_KEY, String(m));
   }
@@ -523,7 +566,7 @@
   // Maior tile 16:9 que cabe: para cada número de colunas, a largura do tile é
   // limitada ou pela largura disponível, ou pela altura das linhas que sobram.
   // Como a altura entra na conta, a grade escolhida nunca transborda.
-  function melhorEncaixe(n, W, H) {
+  function melhorEncaixe(n: number, W: number, H: number) {
     let melhor = { cols: 1, w: 0 };
     for (let cols = 1; cols <= n; cols++) {
       const linhas = Math.ceil(n / cols);
@@ -548,7 +591,7 @@
     // para a navegação inferior não cobrir o conteúdo. Esse padding do `main` é
     // zero no desktop, onde a navegação sobe - lê-lo evita repetir aqui, em JS,
     // o breakpoint que já está no CSS.
-    const abaixo = (el) => (el ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0);
+    const abaixo = (el: Element | null) => (el ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0);
     const topo = palco.getBoundingClientRect().top;
     const H = Math.max(
       80,
@@ -562,7 +605,8 @@
   $effect(() => {
     // Leituras explícitas porque `medir` sai cedo antes de tocar nelas: são o
     // que muda a altura disponível ou a quantidade de tiles.
-    void [modo, visible.length, showPicker];
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
+    modo; visible.length; showPicker;
     medir();
   });
 </script>
@@ -683,7 +727,7 @@
                direto do navegador ao go2rtc; o dwnvr só faz proxy da
                sinalização, para que a credencial não chegue ao navegador. -->
           <video-stream
-            {@attach (node) => {
+            {@attach (node: VideoRTC) => {
               node.mode = 'webrtc,mse';
               // Antes do `src`, que já abre a primeira conexão.
               religarRapido(node);
@@ -691,14 +735,14 @@
               hideNativeControls(node);
               if (PIP) manterNoPip(node, c.id);
               const largar = soNaTela(node);
-              players[c.id] = node;
+              players.set(c.id, node);
               // Ao desmontar, o custom element fecha a conexão sozinho no
               // disconnectedCallback - nada a limpar aqui além da referência
               // e do observer. Quando a sessão cai, quem fecha na hora é o
               // `fecharTudo`.
               return () => {
                 largar();
-                delete players[c.id];
+                players.delete(c.id);
               };
             }}
           ></video-stream>

@@ -6,25 +6,33 @@
 // Os números (`sidePx`, `maxBytes`, `quality`) vêm do GET /api/conta: moram no
 // servidor, que recusa o que passar deles.
 
+import type { RegraDoAvatar } from './api.ts';
+import { contexto2d } from './canvas.ts';
+
 // Abaixo desta qualidade a foto já fica feia; se nem assim couber no teto, é
 // melhor dizer que não deu do que mandar uma foto estragada. Na prática não
 // acontece: ruído puro, o pior caso, coube na qualidade 80.
 const QUALIDADE_MINIMA = 50;
 
-function canvas(lado) {
+function canvas(lado: number) {
   const c = document.createElement('canvas');
   c.width = c.height = lado;
   return c;
 }
 
-function jpeg(c, qualidade) {
-  return new Promise((ok) => c.toBlob(ok, 'image/jpeg', qualidade / 100));
+function jpeg(c: HTMLCanvasElement, qualidade: number) {
+  return new Promise<Blob | null>((ok) => {
+    c.toBlob(ok, 'image/jpeg', qualidade / 100);
+  });
 }
 
 // reduzirFoto devolve o JPEG pronto para o PUT, ou lança um Error com a
 // mensagem para a tela.
-export async function reduzirFoto(arquivo, { sidePx: lado, maxBytes: tetoBytes, quality: qualidade }) {
-  let img;
+export async function reduzirFoto(
+  arquivo: Blob,
+  { sidePx: lado, maxBytes: tetoBytes, quality: qualidade }: RegraDoAvatar,
+): Promise<Blob> {
+  let img: ImageBitmap;
   try {
     // Já vem girada pela orientação do EXIF: é o padrão do createImageBitmap.
     img = await createImageBitmap(arquivo);
@@ -34,7 +42,7 @@ export async function reduzirFoto(arquivo, { sidePx: lado, maxBytes: tetoBytes, 
 
   // O quadrado do centro, sem tela de recorte.
   const q = Math.min(img.width, img.height);
-  let fonte = img;
+  let fonte: CanvasImageSource = img;
   let x = (img.width - q) / 2;
   let y = (img.height - q) / 2;
   let l = q;
@@ -45,7 +53,7 @@ export async function reduzirFoto(arquivo, { sidePx: lado, maxBytes: tetoBytes, 
   while (l / 2 >= lado) {
     const n = Math.floor(l / 2);
     const c = canvas(n);
-    const ctx = c.getContext('2d');
+    const ctx = contexto2d(c);
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(fonte, x, y, l, l, 0, 0, n, n);
     fonte = c;
@@ -54,7 +62,7 @@ export async function reduzirFoto(arquivo, { sidePx: lado, maxBytes: tetoBytes, 
   }
   // Foto menor que o lado fica do tamanho dela: ampliar não traz nitidez.
   const final = canvas(Math.min(lado, l));
-  const ctx = final.getContext('2d');
+  const ctx = contexto2d(final);
   // O JPEG não tem transparência: o fundo de um PNG recortado sairia preto.
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, final.width, final.height);

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import {
     cameras,
@@ -7,9 +7,10 @@
     health,
     pollHealth,
     HEALTH_POLL_MS,
-  } from '../lib/state.svelte.js';
-  import { api } from '../lib/api.js';
-  import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
+  } from '../lib/state.svelte.ts';
+  import { api, mensagemDe } from '../lib/api.ts';
+  import type { Camera, CameraCadastrada, Orfa, Stream } from '../lib/api.ts';
+  import { paramsAtuais, escrever } from '../lib/rota.svelte.ts';
   import {
     dias,
     kbps,
@@ -19,15 +20,33 @@
     ddmm,
     duracao,
     gravadoSeHouverBuraco,
-  } from '../lib/format.js';
-  import { AJUDA_RETIDO, AJUDA_CABEM, AJUDA_SENSIBILIDADE, NIVEIS } from '../lib/ajudas.js';
+  } from '../lib/format.ts';
+  import { AJUDA_RETIDO, AJUDA_CABEM, AJUDA_SENSIBILIDADE, NIVEIS, nivel } from '../lib/ajudas.ts';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import SemCameras from '../components/SemCameras.svelte';
 
-  let editing = $state(null); // cópia da câmera em edição, ou null
-  let removendo = $state(null); // câmera aguardando confirmação de remoção
-  let apagando = $state(null); // gravações aguardando confirmação de apagamento
+  // A câmera no formulário, com o que a tela sabe do áudio dela. Os campos com
+  // `_` não vão para a API.
+  type Edicao = CameraCadastrada & {
+    _novo: boolean;
+    _hasAudio: boolean;
+    _audioCodecs: string[];
+    _sondando: boolean;
+    _sondaErro: string;
+  };
+
+  // De quem são as gravações a apagar: uma câmera cadastrada ou uma órfã.
+  interface Alvo {
+    id: string;
+    nome: string;
+    bytes: number;
+    orfa: boolean;
+  }
+
+  let editing = $state<Edicao | null>(null); // cópia da câmera em edição, ou null
+  let removendo = $state<CameraCadastrada | null>(null); // câmera aguardando confirmação de remoção
+  let apagando = $state<Alvo | null>(null); // gravações aguardando confirmação de apagamento
   let apagarGravacoes = $state(false); // checkbox do diálogo de remoção
   let saving = $state(false);
   let error = $state('');
@@ -75,17 +94,19 @@
   // voltar: recarregar quando a aba reaparece poupa o clique no botão. Com a aba
   // escondida não há custo nenhum - o evento só dispara na troca.
   function aoVoltarParaAba() {
-    if (!document.hidden) loadCameras();
+    if (!document.hidden) void loadCameras();
   }
   onMount(() => {
     document.addEventListener('visibilitychange', aoVoltarParaAba);
-    return () => document.removeEventListener('visibilitychange', aoVoltarParaAba);
+    return () => {
+      document.removeEventListener('visibilitychange', aoVoltarParaAba);
+    };
   });
 
   const stop = pollHealth();
   onDestroy(stop);
 
-  function statusOf(id) {
+  function statusOf(id: string) {
     return health.cameras.find((h) => h.id === id);
   }
 
@@ -98,13 +119,13 @@
   // repetir no JS a conta que o Go faz. O denominador é o st.quotaMB, que é
   // sempre a cota salva - cam.quotaMB é o que está no formulário e se move
   // enquanto se digita.
-  function estimaDias(cam, quotaMB = cam.quotaMB) {
+  function estimaDias(cam: Camera, quotaMB = cam.quotaMB) {
     const st = statusOf(cam.id);
-    if (!st?.retainDays || !st.quotaMB) return null;
+    if (!st?.retainDays || !st.quotaMB || quotaMB === undefined) return undefined;
     return (st.retainDays * quotaMB) / st.quotaMB;
   }
 
-  function novo(streamName) {
+  function novo(streamName: string) {
     const s = cameras.streams.find((x) => x.name === streamName);
     editing = {
       id: streamName,
@@ -123,19 +144,19 @@
       _novo: true,
       ...audioConhecido(s),
     };
-    sondarAudio(streamName);
+    void sondarAudio(streamName);
   }
 
-  function editar(cam) {
+  function editar(cam: CameraCadastrada) {
     const s = cameras.streams.find((x) => x.name === cam.id);
     editing = { ...cam, _novo: false, ...audioConhecido(s) };
-    sondarAudio(cam.id);
+    void sondarAudio(cam.id);
   }
 
   // O que já se sabe do áudio quando o formulário abre. Num stream ocioso isso
   // é sempre "não tem", e é mentira: o go2rtc só lista as trilhas enquanto
   // alguém consome o stream. Por isso sondarAudio() vem logo atrás.
-  const audioConhecido = (s) => ({
+  const audioConhecido = (s: Stream | undefined) => ({
     _hasAudio: s?.hasAudio ?? false,
     _audioCodecs: s?.audioCodecs ?? [],
     _sondando: false,
@@ -147,26 +168,28 @@
   //
   // A resposta pode demorar alguns segundos (o servidor abre o stream para
   // descobrir), então o formulário já está na tela quando ela chega - daí a
-  // conferência do id, que descarta a resposta de um formulário já fechado ou
-  // trocado por outro.
-  async function sondarAudio(streamName) {
-    if (editing?._hasAudio) return;
-    editing._sondando = true;
+  // conferência de que ele ainda é o mesmo, que descarta a resposta de um
+  // formulário já fechado ou trocado por outro.
+  async function sondarAudio(streamName: string) {
+    const form = editing;
+    if (!form || form._hasAudio) return;
+    form._sondando = true;
     try {
       const r = await api.probeStream(streamName);
-      if (editing?.id !== streamName) return;
-      editing._hasAudio = r.hasAudio;
-      editing._audioCodecs = r.audioCodecs ?? [];
-      editing._sondaErro = r.erro ?? '';
+      if (editing !== form) return;
+      form._hasAudio = r.hasAudio;
+      form._audioCodecs = r.audioCodecs ?? [];
+      form._sondaErro = r.erro ?? '';
     } catch (e) {
-      if (editing?.id !== streamName) return;
-      editing._sondaErro = e.message;
+      if (editing !== form) return;
+      form._sondaErro = mensagemDe(e);
     } finally {
-      if (editing?.id === streamName) editing._sondando = false;
+      if (editing === form) form._sondando = false;
     }
   }
 
   async function salvar() {
+    if (!editing) return;
     saving = true;
     error = '';
     try {
@@ -176,7 +199,7 @@
       await loadCameras();
       editing = null;
     } catch (e) {
-      error = e.message;
+      error = mensagemDe(e);
     } finally {
       saving = false;
     }
@@ -185,23 +208,23 @@
   // O tamanho vem da medição do diagnóstico, que é a mesma fonte do chip de
   // disco do card: dizer "apagar 3,2 GB" só ajuda se o número for o que a
   // pessoa já estava vendo.
-  function tamanhoDe(cam) {
+  function tamanhoDe(cam: Camera) {
     return statusOf(cam.id)?.diskBytes ?? 0;
   }
 
   // Um alvo normalizado para que um único diálogo sirva os dois casos: a câmera
   // cadastrada, que tem nome e status, e a órfã, que só tem o que a varredura do
   // disco descobriu.
-  const alvoDaCamera = (cam) => ({
+  const alvoDaCamera = (cam: CameraCadastrada): Alvo => ({
     id: cam.id,
     nome: cam.name,
     bytes: tamanhoDe(cam),
     orfa: false,
   });
 
-  const alvoDaOrfa = (o) => ({ id: o.id, nome: o.id, bytes: o.bytes, orfa: true });
+  const alvoDaOrfa = (o: Orfa): Alvo => ({ id: o.id, nome: o.id, bytes: o.bytes, orfa: true });
 
-  function abrirRemocao(cam) {
+  function abrirRemocao(cam: CameraCadastrada) {
     // Sempre desmarcado ao abrir: preservar as gravações é o padrão, e herdar a
     // marcação de uma remoção anterior apagaria vídeo sem ninguém pedir.
     apagarGravacoes = false;
@@ -210,6 +233,7 @@
 
   async function confirmarRemocao() {
     const cam = removendo;
+    if (!cam) return;
     const comGravacoes = apagarGravacoes;
     removendo = null;
     error = '';
@@ -218,11 +242,11 @@
       await loadCameras();
       await loadHealth();
     } catch (e) {
-      error = e.message;
+      error = mensagemDe(e);
     }
   }
 
-  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+  const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   async function reiniciarGo2rtc() {
     confirmandoReinicio = false;
@@ -241,7 +265,7 @@
         await espera(REINICIO_INTERVALO_MS);
       }
     } catch (e) {
-      error = e.message;
+      error = mensagemDe(e);
     } finally {
       await loadCameras();
       await loadHealth();
@@ -251,6 +275,7 @@
 
   async function confirmarApagamento() {
     const alvo = apagando;
+    if (!alvo) return;
     apagando = null;
     error = '';
     try {
@@ -260,7 +285,7 @@
       await loadCameras();
       await loadHealth();
     } catch (e) {
-      error = e.message;
+      error = mensagemDe(e);
     }
   }
 </script>
@@ -308,7 +333,7 @@
           <span class="chip">áudio: {cam.audio}</span>
           {#if cam.detect}
             <span class="chip" title={AJUDA_SENSIBILIDADE}>
-              movimento: {NIVEIS[cam.detectSensibilidade]?.rotulo ?? cam.detectSensibilidade}
+              movimento: {nivel(cam.detectSensibilidade)?.rotulo ?? cam.detectSensibilidade}
             </span>
           {/if}
           <span class="chip">{kbps(st?.bitrateKbps)}</span>
@@ -317,7 +342,7 @@
                primeiro é o passado que existe, o segundo é o que ela ainda
                comporta. Sozinho, cada um deles engana.
                A explicação é a mesma da coluna equivalente no Diagnóstico, e
-               vem de ajudas.js justamente para não divergir dela. O "Desde"
+               vem de ajudas.ts justamente para não divergir dela. O "Desde"
                entra só aqui e na célula de lá: é por câmera, ao contrário do
                resto do texto, e não caberia no chip sem empurrar os outros. -->
           {#if st?.oldestSegmentAt}
@@ -575,14 +600,14 @@
         <label>
           Sensibilidade
           <select bind:value={editing.detectSensibilidade}>
-            {#each NIVEIS.slice(1) as n, i (i)}
+            {#each NIVEIS as n, i (i)}
               <option value={i + 1}>{i + 1} - {n.rotulo}</option>
             {/each}
           </select>
           <!-- O custo é o que o usuário paga de verdade, e ele é POR CÂMERA:
                com dez câmeras no nível 4 são 500 olhadas por hora, não 50. -->
           <small class="muted">
-            ≈ {NIVEIS[editing.detectSensibilidade]?.porHora} marcas por hora nesta câmera
+            ≈ {nivel(editing.detectSensibilidade)?.porHora} marcas por hora nesta câmera
           </small>
         </label>
 
@@ -606,7 +631,7 @@
             type="button"
             class="danger"
             onclick={() => {
-              abrirRemocao(editing);
+              if (editing) abrirRemocao(editing);
               editing = null;
             }}>remover</button
           >

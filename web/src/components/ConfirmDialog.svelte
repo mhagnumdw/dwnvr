@@ -9,8 +9,19 @@
       As gravações <strong>não</strong> são apagadas.
     </ConfirmDialog>
 -->
-<script>
+<script lang="ts">
+  import type { Snippet } from 'svelte';
   import Modal from './Modal.svelte';
+
+  interface Props {
+    title: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    danger?: boolean;
+    onconfirm: () => void;
+    oncancel: () => void;
+    children?: Snippet;
+  }
 
   let {
     title,
@@ -20,13 +31,15 @@
     onconfirm,
     oncancel,
     children,
-  } = $props();
+  }: Props = $props();
 
-  let cancelar = $state(null);
+  let cancelar = $state<HTMLButtonElement | null>(null);
 
   // O foco entra no diálogo pelo cancelar: quando a ação é destrutiva, um Enter
   // por reflexo deve desfazer, não executar.
-  $effect(() => cancelar?.focus());
+  $effect(() => {
+    cancelar?.focus();
+  });
 </script>
 
 <Modal onclose={oncancel}>

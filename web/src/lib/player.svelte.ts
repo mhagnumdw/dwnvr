@@ -8,7 +8,8 @@
 // A referência de tempo é o relógio de parede: `base` é o instante real que
 // corresponde a currentTime=0. Assim "pular para 14:32" vira uma conta.
 
-import { mediaURL } from './api.js';
+import { mediaURL, mensagemDe } from './api.ts';
+import type { Segmento } from './api.ts';
 
 // Quanto manter bufferizado à frente e atrás. À frente cobre a latência do
 // Wi-Fi; atrás permite recuar alguns segundos sem rebuscar tudo. O de frente é
@@ -35,8 +36,7 @@ const PULO_PASSO_MS = 1000;
 const PULO_MAX_MS = 10000;
 
 export class Player {
-  /** @type {HTMLVideoElement | null} */
-  video = null;
+  video: HTMLVideoElement | null = null;
 
   base = $state(0);
   currentMs = $state(0);
@@ -45,25 +45,25 @@ export class Player {
   error = $state('');
   rate = $state(1);
 
-  #cam = null;
-  #gens = [];
-  #segments = [];
-  #ms = null;
-  #sb = null;
+  #cam = '';
+  #gens: string[] = [];
+  #segments: Segmento[] = [];
+  #ms: MediaSource | null = null;
+  #sb: SourceBuffer | null = null;
   #next = 0;
-  #initAppended = null;
-  #pumping = null; // promessa do pump em voo, ou null quando não há nenhum
+  #initAppended: string | null = null;
+  #pumping: Promise<void> | null = null; // promessa do pump em voo, ou null quando não há nenhum
   #generation = 0; // invalida trabalho em voo depois de um seek
   #seeking = false; // seek em voo: `base` e `currentTime` estão dessincronizados
-  #avisoTimer = null; // conta os ms de espera antes de acender o "carregando…"
+  #avisoTimer: number | undefined; // conta os ms de espera antes de acender o "carregando…"
 
-  #mime = null; // com que codecs o SourceBuffer atual foi criado
+  #mime: string | null = null; // com que codecs o SourceBuffer atual foi criado
   // eslint-disable-next-line svelte/prefer-svelte-reactivity -- cache interno, fora da tela
-  #mimes = new Map(); // geração -> mime, para não rebuscar o mesmo init
-  #boundary = null; // início do segmento onde as trilhas mudam e é preciso recomeçar
-  #pulo = null; // último pulo sobre dado corrompido: { inicio, alvo }, em ms
+  #mimes = new Map<string, string>(); // geração -> mime, para não rebuscar o mesmo init
+  #boundary: number | null = null; // início do segmento onde as trilhas mudam e é preciso recomeçar
+  #pulo: { inicio: number; alvo: number } | null = null; // último pulo sobre dado corrompido, em ms
 
-  attach(video) {
+  attach(video: HTMLVideoElement) {
     this.video = video;
     video.addEventListener('timeupdate', this.#onTime);
     // 'seeked' importa tanto quanto 'timeupdate': ao pular com o vídeo
@@ -112,7 +112,7 @@ export class Player {
     this.#sb = null;
   }
 
-  setSource(cam, gens, segments) {
+  setSource(cam: string, gens: string[], segments: Segmento[]) {
     this.#cam = cam;
     this.#gens = gens;
     this.#segments = segments;
@@ -134,7 +134,7 @@ export class Player {
   // seek() a cada atualização recriaria o MediaSource e devolveria o vídeo ao
   // ponto de partida; aqui só a lista muda, e o pump segue de onde parou - o
   // que também faz a reprodução destravar sozinha ao alcançar a ponta viva.
-  async updateSegments(gens, segments) {
+  async updateSegments(gens: string[], segments: Segmento[]) {
     // Trocar os arrays no meio de um pump o faria avançar o índice sobre a
     // lista nova. Esperar sai mais barato que invalidar a geração, que abortaria
     // junto um seek em voo; um pump dura o download de poucos segmentos.
@@ -169,9 +169,9 @@ export class Player {
   }
 
   // Único caminho para o `buffering`: acender é adiado, apagar é imediato.
-  #aviso(on) {
+  #aviso(on: boolean) {
     clearTimeout(this.#avisoTimer);
-    this.#avisoTimer = null;
+    this.#avisoTimer = undefined;
     if (!on) {
       this.buffering = false;
       return;
@@ -190,7 +190,7 @@ export class Player {
     // clicou. Quem fecha o portão é o próprio seek, que já pôs `currentMs` no
     // alvo. O pump continua rodando: é ele que enche o buffer.
     if (!this.#seeking) this.currentMs = this.base + this.video.currentTime * 1000;
-    this.#pump();
+    void this.#pump();
   };
 
   #onWaiting = () => {
@@ -208,11 +208,11 @@ export class Player {
     // Só cruza quando não há mesmo mais nada à frente: um `waiting` no meio do
     // buffer é rede ruim, não fronteira.
     const b = this.#sb?.buffered;
-    if (b?.length && b.end(b.length - 1) - this.video.currentTime > 0.5) return false;
+    if (b?.length && this.video && b.end(b.length - 1) - this.video.currentTime > 0.5) return false;
 
     const ms = this.#boundary;
     this.#boundary = null;
-    this.seek(ms);
+    void this.seek(ms);
     return true;
   }
 
@@ -259,17 +259,18 @@ export class Player {
     if (alvo >= this.lastMs) return;
 
     this.#pulo = { inicio, alvo };
-    this.seek(alvo);
+    void this.seek(alvo);
   };
 
   /** Índice do último segmento que começa em ms ou antes. */
-  #indexAt(ms) {
+  #indexAt(ms: number) {
     let lo = 0;
     let hi = this.#segments.length - 1;
     let found = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
-      if (this.#segments[mid][0] <= ms) {
+      const s = this.#segments[mid];
+      if (s && s[0] <= ms) {
         found = mid;
         lo = mid + 1;
       } else {
@@ -279,14 +280,16 @@ export class Player {
     return found;
   }
 
-  async seek(ms) {
-    if (!this.#segments.length || !this.video) return;
+  async seek(ms: number) {
+    const video = this.video;
+    let i = Math.max(this.#indexAt(ms), 0);
+    const achado = this.#segments[i];
+    if (!achado || !video) return;
 
-    let i = this.#indexAt(ms);
-    if (i < 0) i = 0;
-    const [start, dur] = this.#segments[i];
     // Se o alvo caiu num buraco, começa do próximo segmento que existe.
+    const [start, dur] = achado;
     if (ms > start + dur && i + 1 < this.#segments.length) i++;
+    const [alvoMs, alvoDur, alvoGen] = this.#segments[i] ?? achado;
 
     const gen = ++this.#generation;
     this.#seeking = true;
@@ -297,31 +300,33 @@ export class Player {
 
     // Onde a reprodução vai mesmo pousar: dentro do segmento, ou no começo
     // dele quando o clique caiu antes do que existe ou depois do que acabou.
-    const inside = (ms - this.#segments[i][0]) / 1000;
-    const dentro = inside > 0 && inside < this.#segments[i][1] / 1000;
+    const inside = (ms - alvoMs) / 1000;
+    const dentro = inside > 0 && inside < alvoDur / 1000;
     // O marcador vai para lá já neste quadro. Trocar o src zera o
     // `currentTime` e o buffer só chega depois de algumas requisições: sem
     // isto o cursor passaria esse tempo todo parado no início do segmento.
-    this.currentMs = dentro ? ms : this.#segments[i][0];
+    this.currentMs = dentro ? ms : alvoMs;
 
     try {
       // A geração é a DO SEGMENTO ALVO, não a primeira do dia: ligar o áudio no
       // meio do dia abre uma geração nova, e criar o SourceBuffer com os codecs
       // da antiga fazia todo appendBuffer falhar.
-      await this.#reset(this.#segments[i][0], this.#gens[this.#segments[i][2]]);
+      await this.#reset(video, alvoMs, this.#genDe(alvoGen));
       if (gen !== this.#generation) return; // outro seek chegou primeiro
       this.#next = i;
       await this.#repump();
       if (gen !== this.#generation) return;
 
-      if (dentro) this.video.currentTime = inside;
+      if (dentro) video.currentTime = inside;
       // Reflete a posição imediatamente: o autoplay pode ser bloqueado pelo
       // navegador, e nesse caso nenhum evento de reprodução viria atualizar o
       // relógio nem o marcador da timeline.
-      this.currentMs = this.base + this.video.currentTime * 1000;
-      await this.video.play().catch(() => {});
+      this.currentMs = this.base + video.currentTime * 1000;
+      await video.play().catch(() => {
+        // autoplay bloqueado: o relógio já foi posto acima, e o ▶ continua lá
+      });
     } catch (e) {
-      this.error = e.message;
+      this.error = mensagemDe(e);
     } finally {
       // Um seek atropelado não devolve o portão nem apaga o "carregando…":
       // esse estado agora é do seek novo, que ainda está buscando bytes.
@@ -332,7 +337,14 @@ export class Player {
     }
   }
 
-  async #reset(baseMs, gen) {
+  // A geração de init de um segmento, pelo índice que a timeline manda.
+  #genDe(indice: number) {
+    const g = this.#gens[indice];
+    if (g === undefined) throw new Error('segmento sem init na timeline');
+    return g;
+  }
+
+  async #reset(video: HTMLVideoElement, baseMs: number, gen: string) {
     this.base = baseMs;
     this.#next = 0;
     this.#initAppended = null;
@@ -345,30 +357,33 @@ export class Player {
     // Trocar o src zera o playbackRate. Antes isso só acontecia num seek, onde
     // ninguém repara; agora a travessia de uma fronteira de trilhas recomeça o
     // MediaSource sozinha, e perder o 8× no meio de uma revisão seria um susto.
-    const rate = this.video.playbackRate;
+    const rate = video.playbackRate;
 
-    if (this.video.src.startsWith('blob:')) URL.revokeObjectURL(this.video.src);
-    this.#ms = new MediaSource();
-    this.video.src = URL.createObjectURL(this.#ms);
-    await new Promise((r) => this.#ms.addEventListener('sourceopen', r, { once: true }));
-    this.video.playbackRate = rate;
+    if (video.src.startsWith('blob:')) URL.revokeObjectURL(video.src);
+    const ms = new MediaSource();
+    this.#ms = ms;
+    video.src = URL.createObjectURL(ms);
+    await new Promise<void>((r) => {
+      ms.addEventListener('sourceopen', () => { r(); }, { once: true });
+    });
+    video.playbackRate = rate;
 
-    this.#sb = this.#ms.addSourceBuffer(mime);
-    this.#sb.mode = 'segments';
+    const sb = ms.addSourceBuffer(mime);
+    sb.mode = 'segments';
+    this.#sb = sb;
     this.#mime = mime;
   }
 
   // Os codecs saem do init de verdade, não de um palpite pelo nome da câmera:
   // a mesma instalação mistura H265 com áudio, H265 sem áudio e H264.
-  async #mimeFor(gen) {
+  async #mimeFor(gen: string) {
     const cached = this.#mimes.get(gen);
     if (cached) return cached;
 
-    const buf = new Uint8Array(
-      await fetch(mediaURL.init(this.#cam, gen)).then((r) => r.arrayBuffer()),
-    );
-    const at = (o) => String.fromCharCode(buf[o], buf[o + 1], buf[o + 2], buf[o + 3]);
-    const map = {
+    const res = await fetch(mediaURL.init(this.#cam, gen));
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const at = (o: number) => String.fromCharCode(...buf.subarray(o, o + 4));
+    const map: Readonly<Record<string, string>> = {
       hev1: 'hev1.1.6.L153.B0',
       hvc1: 'hvc1.1.6.L153.B0',
       avc1: 'avc1.640029',
@@ -377,7 +392,7 @@ export class Player {
       mp4a: 'mp4a.40.2',
     };
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Set local, só para juntar
-    const codecs = new Set();
+    const codecs = new Set<string>();
     for (let i = 0; i + 8 <= buf.length; i++) {
       const c = map[at(i + 4)];
       if (c) codecs.add(c);
@@ -411,7 +426,7 @@ export class Player {
   // já está rodando, em vez de sair sondando uma flag para saber quando acabou.
   // Dispensar a chamada é de propósito - o pump em voo enche a mesma janela, e
   // enfileirar um por timeupdate faria a fila crescer sem fim numa rede lenta.
-  #pump() {
+  #pump(): Promise<void> {
     if (this.#pumping) return this.#pumping;
     if (!this.#sb || this.#ms?.readyState !== 'open') return Promise.resolve();
 
@@ -437,10 +452,13 @@ export class Player {
       while (
         gen === this.#generation &&
         this.#next < this.#segments.length &&
+        this.video &&
         this.#bufferedEnd() - this.video.currentTime < this.#lookahead()
       ) {
-        const [start, , gi] = this.#segments[this.#next];
-        const g = this.#gens[gi];
+        const seg = this.#segments[this.#next];
+        if (!seg) break;
+        const [start, , gi] = seg;
+        const g = this.#genDe(gi);
 
         // O init só precisa ser reanexado quando a geração muda.
         if (this.#initAppended !== g) {
@@ -469,11 +487,11 @@ export class Player {
       }
       if (gen === this.#generation) await this.#evict();
     } catch (e) {
-      if (gen === this.#generation) this.error = e.message;
+      if (gen === this.#generation) this.error = mensagemDe(e);
     }
   }
 
-  async #append(url, offset) {
+  async #append(url: string, offset: number | null) {
     // O SourceBuffer é o de quando o download começou. Um seek no meio dele -
     // o do usuário ou o de #onError - troca o MediaSource, e os bytes que
     // chegassem depois iriam parar no buffer novo, antes do init dele e com o
@@ -481,11 +499,11 @@ export class Player {
     const ms = this.#ms;
     const sb = this.#sb;
     const buf = await fetch(url).then((r) => r.arrayBuffer());
-    if (this.#sb !== sb || ms?.readyState !== 'open') return;
+    if (!sb || this.#sb !== sb || ms?.readyState !== 'open') return;
     if (offset !== null) sb.timestampOffset = offset;
-    await new Promise((res, rej) => {
-      sb.addEventListener('updateend', res, { once: true });
-      sb.addEventListener('error', () => rej(new Error('falha ao anexar segmento')), {
+    await new Promise<void>((res, rej) => {
+      sb.addEventListener('updateend', () => { res(); }, { once: true });
+      sb.addEventListener('error', () => { rej(new Error('falha ao anexar segmento')); }, {
         once: true,
       });
       sb.appendBuffer(buf);
@@ -493,13 +511,15 @@ export class Player {
   }
 
   async #evict() {
+    const sb = this.#sb;
+    if (!sb || !this.video) return;
     const keepFrom = this.video.currentTime - BEHIND_S;
-    if (keepFrom <= 0 || !this.#sb.buffered.length) return;
-    const start = this.#sb.buffered.start(0);
+    if (keepFrom <= 0 || !sb.buffered.length) return;
+    const start = sb.buffered.start(0);
     if (keepFrom - start < BEHIND_S) return;
-    await new Promise((res) => {
-      this.#sb.addEventListener('updateend', res, { once: true });
-      this.#sb.remove(start, keepFrom);
+    await new Promise<void>((res) => {
+      sb.addEventListener('updateend', () => { res(); }, { once: true });
+      sb.remove(start, keepFrom);
     });
   }
 
@@ -519,8 +539,11 @@ export class Player {
   toggle() {
     if (!this.video) return;
     if (this.video.paused) {
-      if (!this.base && this.hasSegments) this.seek(this.firstMs);
-      else this.video.play().catch(() => {});
+      if (!this.base && this.hasSegments) void this.seek(this.firstMs);
+      else
+        this.video.play().catch(() => {
+          // o navegador recusou tocar: o botão segue mostrando ▶
+        });
     } else {
       this.video.pause();
     }
@@ -533,7 +556,7 @@ export class Player {
     this.video?.pause();
   }
 
-  setRate(r) {
+  setRate(r: number) {
     if (this.video) this.video.playbackRate = r;
   }
 }
