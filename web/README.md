@@ -33,7 +33,8 @@ build faz `go build ./...` funcionar num clone limpo, sem Node instalado - o que
 importa porque o alvo é um dispositivo onde ninguém quer instalar toolchain de
 frontend.
 
-Ao alterar algo em `web/`, rode `npm run build` **antes** de commitar.
+Ao alterar algo em `web/`, rode `npm run build` **antes** de commitar. Sem
+isso, o hook `interface-atualizada` do prek recusa o commit.
 
 ## Estrutura
 

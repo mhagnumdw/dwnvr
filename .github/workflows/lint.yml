@@ -73,14 +73,17 @@ jobs:
       - name: instalar o prek
         run: pip install "prek==$(awk '$1 == "minimum_prek_version:" { gsub(/\047/, "", $2); print $2 }' .pre-commit-config.yaml)"
 
-      # O betterleaks olha só o staged, e aqui não há staged. Com o token, o
-      # zizmor liga os audits que consultam o GitHub (action com
-      # vulnerabilidade conhecida, commit impostor, tag ambígua); sem ele, roda
-      # offline, como no clone. O token só lê o código, que já é público.
+      # O betterleaks olha só o staged, e aqui não há staged. O
+      # interface-atualizada é o passo "interface está atualizada?" do ci.yml,
+      # que já o roda com o `npm ci` completo e aponta o docs/github.md no PR
+      # do Dependabot. Com o token, o zizmor liga os audits que consultam o
+      # GitHub (action com vulnerabilidade conhecida, commit impostor, tag
+      # ambígua); sem ele, roda offline, como no clone. O token só lê o
+      # código, que já é público.
       - name: prek
         run: prek run --all-files --show-diff-on-failure --color=always
         env:
-          SKIP: betterleaks
+          SKIP: betterleaks,interface-atualizada
           ZIZMOR_GITHUB_TOKEN: ${{ github.token }}
 
       # O betterleaks no histórico inteiro: o commit que não passou pelo hook

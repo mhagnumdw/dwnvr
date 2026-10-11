@@ -778,8 +778,8 @@ make help        # lista todos os alvos
 **A interface precisa ser construída antes do binário**, porque o Go a embute
 com `go:embed`. Esquecer isso produz um binário que compila e sobe
 normalmente, mas serve a tela antiga - um erro silencioso. O `Makefile`
-encadeia as duas coisas, e a CI reprova se o `internal/api/dist` versionado
-divergir de `web/`.
+encadeia as duas coisas, e o commit e a CI reprovam se o `internal/api/dist`
+versionado divergir de `web/`.
 
 | Alvo | O que faz |
 | --- | --- |
@@ -805,9 +805,10 @@ make check       # testes + os lints do prek
 O detector de corrida (`-race`) exige um compilador C na máquina que roda os
 testes. Só nela: o binário do dwnvr continua sem C.
 
-A CI roda isso e mais uma coisa: reconstrói a interface para conferir se o
-`internal/api/dist` versionado ainda corresponde a `web/`. Fica fora do `make
-check` porque exigiria Node em toda máquina que só quer compilar o Go.
+Um dos hooks do prek reconstrói a interface numa pasta temporária, para
+conferir se o `internal/api/dist` versionado ainda corresponde a `web/`. Roda
+em todo commit que mexe na tela, e no `make check`. A CI faz a mesma conferência
+no `ci.yml`.
 
 Os testes vivem ao lado do código que exercitam, em `internal/*/*_test.go`, e
 cobrem o que quebra em silêncio: a leitura de caixas fMP4, a reescrita do

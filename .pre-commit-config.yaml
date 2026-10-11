@@ -41,9 +41,9 @@ priorities:
   conferir: 20
 
 # O que é gerado, e por isso nunca editado à mão, fica fora de todo hook. O
-# internal/api/dist/ sai do `npm run build`, e o ci.yml o compara com um build
-# novo; o CHANGELOG.md é escrito pela release. Um hook que os "consertasse"
-# quebraria as duas coisas.
+# internal/api/dist/ sai do `npm run build`, e o ci.yml e o hook
+# interface-atualizada, abaixo, o comparam com um build novo; o CHANGELOG.md é
+# escrito pela release. Um hook que os "consertasse" quebraria as duas coisas.
 exclude: ^(internal/api/dist/|CHANGELOG\.md$)
 
 repos:
@@ -212,6 +212,43 @@ repos:
         language: system
         entry: web/node_modules/.bin/tsc -p web/tsconfig.node.json
         files: ^web/([^/]+\.ts|tsconfig[^/]*\.json|package\.json)$
+        pass_filenames: false
+
+  # O internal/api/dist/ do commit corresponde ao web/ do commit? É o passo
+  # "interface está atualizada?" do ci.yml, aqui antes do push: o commit da
+  # tela sem o build refeito sobe um binário que serve a tela antiga. O build
+  # vai para uma pasta temporária, e o resultado se compara com o staged, sem
+  # tocar no dist do clone: o hook só reprova. Os arquivos novos contam, porque
+  # cada build troca os nomes com hash. O Vite roda de dentro do web/, como no
+  # `npm run build`: rodado da raiz, os hashes saem outros. Vem do
+  # web/node_modules, então o build só bate com o da CI se o node_modules
+  # estiver de acordo com o package-lock.json: em dúvida, `npm ci` no web/.
+  - repo: local
+    hooks:
+      - id: interface-atualizada
+        priority: conferir
+        name: interface está atualizada?
+        language: system
+        entry: |
+          bash -c '
+            set -eu
+            tmp=$(mktemp -d)
+            trap "rm -rf $tmp" EXIT
+            (cd web && node_modules/.bin/vite build --outDir "$tmp/internal/api/dist" --emptyOutDir --logLevel warn)
+            cp "${GIT_INDEX_FILE:-$(git rev-parse --git-path index)}" "$tmp/index"
+            # Só a segunda coluna, a do build contra o staged. A primeira é a
+            # do staged contra o HEAD, que num commit da tela muda mesmo.
+            difere=$(GIT_INDEX_FILE="$tmp/index" git --work-tree="$tmp" status --porcelain --no-renames --untracked-files=all -- internal/api/dist | grep -v "^. " || true)
+            if [ -n "$difere" ]; then
+              echo "internal/api/dist não corresponde ao web/ do commit. Refaça o build e adicione o resultado:"
+              echo "  (cd web && npm run build) && git add internal/api/dist"
+              echo
+              echo "Como fica o dist staged depois do build (D sai, ?? entra, M muda):"
+              echo "$difere"
+              exit 1
+            fi
+          '
+        files: ^web/(src/|public/|index\.html$|package(-lock)?\.json$|vite\.config\.ts$)
         pass_filenames: false
 
   # TypeScript e Svelte: bug e má prática, com as regras que leem os tipos. As
