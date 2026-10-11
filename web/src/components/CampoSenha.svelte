@@ -4,8 +4,16 @@
 
     <CampoSenha bind:value={senha} placeholder="senha" autocomplete="current-password" />
 -->
-<script>
-  let { value = $bindable(''), placeholder = 'senha', autocomplete = 'current-password', ...resto } = $props();
+<script lang="ts">
+  import type { HTMLInputAttributes } from 'svelte/elements';
+
+  // O resto vai direto ao <input>: minlength, maxlength, id.
+  interface Props extends Omit<HTMLInputAttributes, 'value' | 'type'> {
+    value?: string;
+  }
+
+  let { value = $bindable(''), placeholder = 'senha', autocomplete = 'current-password', ...resto }: Props =
+    $props();
 
   let ver = $state(false);
 </script>

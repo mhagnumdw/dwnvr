@@ -3,20 +3,24 @@
   própria senha e já entra. O token fica no fragmento da URL, que não sai do
   navegador, e vai ao servidor no corpo de um POST.
 -->
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
-  import { api } from '../lib/api.js';
-  import { paramsAtuais } from '../lib/rota.svelte.js';
-  import { hhmm } from '../lib/format.js';
+  import { api, ApiError, mensagemDe } from '../lib/api.ts';
+  import type { LinkDeConvite, Pessoa } from '../lib/api.ts';
+  import { paramsAtuais } from '../lib/rota.svelte.ts';
+  import { hhmm } from '../lib/format.ts';
   import CampoSenha from '../components/CampoSenha.svelte';
 
-  let { onSuccess } = $props();
+  interface Props {
+    onSuccess: (pessoa: Pessoa) => void;
+  }
+
+  let { onSuccess }: Props = $props();
 
   const token = paramsAtuais().get('token') ?? '';
 
-  // null enquanto confere; { username, name, inviteExpiresAtMs, minPasswordLength,
-  // maxPasswordLength } com o link valendo; false com ele vencido ou já usado.
-  let link = $state(null);
+  // null enquanto confere; o link valendo; false com ele vencido ou já usado.
+  let link = $state<LinkDeConvite | false | null>(null);
   let erroAoConferir = $state('');
   let senha = $state('');
   // A senha de novo, como na Minha conta: digitada no celular erra fácil, e o
@@ -29,12 +33,12 @@
     try {
       link = await api.conferirConvite(token);
     } catch (e) {
-      if (e.status === 410 || e.status === 400) link = false;
-      else erroAoConferir = e.message;
+      if (e instanceof ApiError && (e.status === 410 || e.status === 400)) link = false;
+      else erroAoConferir = mensagemDe(e);
     }
   });
 
-  async function definir(e) {
+  async function definir(e: SubmitEvent) {
     e.preventDefault();
     if (senha !== repetida) {
       erro = 'a senha e a repetida não são iguais';
@@ -46,8 +50,8 @@
       const r = await api.definirSenha(token, senha);
       onSuccess(r.user);
     } catch (err) {
-      if (err.status === 410) link = false;
-      else erro = err.message;
+      if (err instanceof ApiError && err.status === 410) link = false;
+      else erro = mensagemDe(err);
     } finally {
       enviando = false;
     }

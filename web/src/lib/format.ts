@@ -1,13 +1,13 @@
 // Formatadores compartilhados. Ficam num lugar só para que a mesma grandeza
 // não apareça escrita de dois jeitos em telas diferentes.
 
-const pad = (n) => String(n).padStart(2, '0');
+const pad = (n: number) => String(n).padStart(2, '0');
 
 // num escreve número no padrão daqui: vírgula decimal e sem zero à direita
 // ("20 GB", não "20,00 GB"). Instanciar Intl a cada chamada é caro e estes
 // formatadores aparecem em tela que atualiza de 3 em 3 segundos, então cacheia.
-const nfs = new Map();
-function num(v, casas) {
+const nfs = new Map<number, Intl.NumberFormat>();
+function num(v: number, casas: number) {
   let f = nfs.get(casas);
   if (!f) nfs.set(casas, (f = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: casas })));
   return f.format(v);
@@ -16,16 +16,16 @@ function num(v, casas) {
 // taxa escreve a velocidade de reprodução do player ("0,25×", "1×", "16×").
 // Mora aqui pelo mesmo motivo dos outros: a vírgula decimal do resto da
 // interface - o `{r}×` cru punha "0.5×" numa tela inteira em português.
-export function taxa(r) {
+export function taxa(r: number) {
   return `${num(r, 2)}×`;
 }
 
-export function hhmmss(ms) {
+export function hhmmss(ms: number) {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-export function hhmm(ms) {
+export function hhmm(ms: number) {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
@@ -33,14 +33,14 @@ export function hhmm(ms) {
 // ddmm é a data curta dos intervalos ("14/07 a 11/08"). O ano fica de fora
 // porque os intervalos que aparecem na interface são de dias ou semanas, e
 // repeti-lo em toda ponta só ocuparia espaço.
-export function ddmm(ms) {
+export function ddmm(ms: number) {
   const d = new Date(ms);
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
 }
 
 // dataHora é o instante completo, "10/10/2026 14:32", para o que pode ter
 // acontecido há meses.
-export function dataHora(ms) {
+export function dataHora(ms: number) {
   const d = new Date(ms);
   return `${ddmm(ms)}/${d.getFullYear()} ${hhmm(ms)}`;
 }
@@ -55,7 +55,7 @@ export function dataHora(ms) {
 // conversão que não se quer. E não se quer porque o único uso disto é mostrar o
 // relógio de outra máquina - convertido, ele viraria a hora que quem lê já tem
 // no próprio pulso, que não responde nada.
-export function relogioDeFuso(epochMs, offsetSeconds) {
+export function relogioDeFuso(epochMs: number, offsetSeconds: number) {
   const d = new Date(epochMs + offsetSeconds * 1000);
   const data = `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
   const hora = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
@@ -66,35 +66,36 @@ export function dayKey(date = new Date()) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export function parseDay(key) {
-  const [y, m, d] = key.split('-').map(Number);
+// Texto fora do formato dá uma data inválida, que o chamador confere com isNaN.
+export function parseDay(key: string) {
+  const [y = NaN, m = NaN, d = NaN] = key.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
-export function bytes(n) {
+export function bytes(n: number | undefined) {
   if (!n) return '0 B';
-  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
   const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), u.length - 1);
   const v = n / 1024 ** i;
   // Passando de 100 na unidade a casa decimal só polui: "761 MB" basta.
-  return `${num(v, i === 0 || v >= 100 ? 0 : 2)} ${u[i]}`;
+  return `${num(v, i === 0 || v >= 100 ? 0 : 2)} ${u[i] ?? 'B'}`;
 }
 
 // bytesDeMB existe porque cota e mínimo livre são configurados em MB. Mostrar o
 // número cru deixava "20480 MB" na tela ao lado de um "3,62 GB" - mesma
 // grandeza, duas unidades, que é justamente o que este arquivo evita.
-export function bytesDeMB(mb) {
-  return bytes((mb || 0) * 1024 ** 2);
+export function bytesDeMB(mb: number | undefined) {
+  return bytes((mb ?? 0) * 1024 ** 2);
 }
 
-export function kbps(v) {
+export function kbps(v: number | undefined) {
   if (!v) return '-';
   return v >= 1000 ? `${num(v / 1000, 2)} Mbps` : `${num(Math.round(v), 0)} kbps`;
 }
 
 // resolucao mostra o que está sendo gravado de fato, lido do init do stream.
 // Só existe depois da primeira conexão - antes disso não há o que afirmar.
-export function resolucao(w, h) {
+export function resolucao(w: number | undefined, h: number | undefined) {
   if (!w || !h) return '-';
   return `${w}×${h}`;
 }
@@ -106,7 +107,7 @@ export function resolucao(w, h) {
 // converter de cabeça - e essas durações são lidas no meio de um diagnóstico,
 // onde ninguém quer fazer conta. A unidade menor some quando é zero, para não
 // deixar "7h 0min" na tela.
-export function duracao(ms) {
+export function duracao(ms: number | undefined) {
   if (!ms || ms < 0) return '-';
   const s = Math.round(ms / 1000);
   if (s < 60) return `${s}s`;
@@ -136,19 +137,19 @@ export const BURACO_MINIMO_MS = 3600000;
 // /api/health) quando ele fica abaixo do retido por mais que BURACO_MINIMO_MS,
 // e 0 quando não: câmera sem falha mostra só o retido, como sempre mostrou.
 // O retido entra pronto porque cada tela já o calcula para si.
-export function gravadoSeHouverBuraco(retidoMs, recordedMs) {
+export function gravadoSeHouverBuraco(retidoMs: number | undefined, recordedMs: number | undefined) {
   if (!retidoMs || !recordedMs) return 0;
   return retidoMs - recordedMs > BURACO_MINIMO_MS ? recordedMs : 0;
 }
 
 // dias converte a estimativa de retenção em algo compreensível. "20 GB" não
 // diz nada a ninguém; "≈ 8 dias 5h" diz tudo.
-export function dias(n) {
+export function dias(n: number | undefined) {
   // A estimativa chega do servidor em dias fracionários, mas ela é lida coladinha
   // no "retido", que sai do duracao() em dias e horas. Escrever uma em fração
   // ("8,2 dias") e a outra em horas ("8 dias 5h") obriga quem lê a converter de
   // cabeça só para comparar as duas - e comparar as duas é a única razão de o
   // par existir. Então a formatação é a mesma, e as frações de hora que as cotas
   // pequenas produzem o duracao() já resolve melhor do que isto resolvia.
-  return duracao((n || 0) * 86400000);
+  return duracao((n ?? 0) * 86400000);
 }

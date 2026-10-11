@@ -5,6 +5,11 @@
 // bytes buscados da mesma origem, então o canvas não fica marcado e o quadro já
 // decodificado pela placa pode ser lido de volta em pixels.
 
+import { contexto2d } from './canvas.ts';
+
+// Desenha sobre o quadro, no tamanho nativo dele.
+export type DesenhoPorCima = (g: CanvasRenderingContext2D, largura: number, altura: number) => void;
+
 // baixarQuadro recorta o quadro corrente do <video> e o entrega ao usuário:
 // folha de compartilhamento onde houver, download onde não houver. Joga se não
 // der para capturar, para quem chamou avisar na tela.
@@ -12,7 +17,7 @@
 // `porCima(g, largura, altura)`, quando vier, desenha sobre o quadro já no
 // tamanho nativo - é assim que as caixas do detector entram na imagem quando
 // estão ligadas na tela.
-export async function baixarQuadro(video, nome, porCima) {
+export async function baixarQuadro(video: HTMLVideoElement | null | undefined, nome: string, porCima?: DesenhoPorCima) {
   // Antes do primeiro quadro decodificado o <video> ainda não tem tamanho, e
   // capturar aí produziria uma imagem 0x0 sem erro nenhum.
   if (!video?.videoWidth || !video.videoHeight) {
@@ -25,15 +30,15 @@ export async function baixarQuadro(video, nome, porCima) {
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  const g = canvas.getContext('2d');
+  const g = contexto2d(canvas);
   g.drawImage(video, 0, 0);
   porCima?.(g, canvas.width, canvas.height);
 
   // JPEG porque o quadro veio de um H.264/H.265 já comprimido: o PNG guardaria
   // fielmente os artefatos da compressão anterior por várias vezes o tamanho.
-  const blob = await new Promise((resolve) =>
-    canvas.toBlob(resolve, 'image/jpeg', 0.92),
-  );
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/jpeg', 0.92);
+  });
   if (!blob) throw new Error('o navegador não conseguiu gerar a imagem');
 
   const file = new File([blob], nome, { type: 'image/jpeg' });
@@ -46,14 +51,14 @@ export async function baixarQuadro(video, nome, porCima) {
   // servido em http:// nem `navigator.canShare` chega a ser definido, e o
   // celular baixa igual ao desktop. Não é defeito, é o endereço; ver
   // docs/acesso-remoto.md.
-  if (navigator.canShare?.({ files: [file] })) {
+  if ('canShare' in navigator && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });
       return;
     } catch (e) {
       // Fechar a folha sem escolher nada é decisão do usuário, não falha: a
       // captura acabou aqui e a tela não deve acusar erro.
-      if (e.name === 'AbortError') return;
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       // Qualquer outra coisa - permissão negada, tipo recusado - ainda tem o
       // download como saída.
     }

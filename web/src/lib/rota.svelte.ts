@@ -10,7 +10,7 @@
 // lado do servidor. O `internal/api/web.go` só serve arquivo, e um `/rec` real
 // exigiria devolver o index.html para todo caminho que não existe.
 
-import { dayKey, hhmmss } from './format.js';
+import { dayKey, hhmmss } from './format.ts';
 
 export const ROTA_PADRAO = 'live';
 
@@ -19,7 +19,7 @@ export const ROTA_PADRAO = 'live';
 // um segundo deixa ~30 dentro da janela que ele conta, com folga de sobra.
 const PISO_MS = 1000;
 
-function partes(hash) {
+function partes(hash: string) {
   const cru = hash.replace(/^#/, '');
   const i = cru.indexOf('?');
   return i < 0
@@ -34,10 +34,10 @@ function partes(hash) {
 // jogaria fora a legibilidade que é o motivo de escrever o horário assim. Os
 // dois são permitidos em query pela RFC 3986, e a leitura aceita as duas formas
 // - então link antigo ou copiado de outro lugar continua valendo.
-const enc = (s) => encodeURIComponent(s).replaceAll('%3A', ':').replaceAll('%2C', ',');
+const enc = (s: string) => encodeURIComponent(s).replaceAll('%3A', ':').replaceAll('%2C', ',');
 
-function junta(sp) {
-  const out = [];
+function junta(sp: URLSearchParams) {
+  const out: string[] = [];
   for (const [k, v] of sp) out.push(`${enc(k)}=${enc(v)}`);
   return out.join('&');
 }
@@ -58,8 +58,8 @@ export function paramsAtuais() {
   return new URLSearchParams(partes(location.hash).query);
 }
 
-let pendente = null; // o que ainda não chegou à barra de endereços
-let timer = null;
+let pendente: URLSearchParams | null = null; // o que ainda não chegou à barra de endereços
+let timer: number | undefined;
 let ultimaEscrita = 0;
 
 // escrever funde um punhado de chaves no que já está na URL.
@@ -71,12 +71,15 @@ let ultimaEscrita = 0;
 //   da câmera vem do nome do stream no go2rtc e pode conter vírgula.
 // - array vazio escreve a chave sem valor, porque "nenhuma câmera marcada" é
 //   uma escolha, diferente de não ter opinião nenhuma sobre a seleção.
-export function escrever(patch) {
+// O valor de uma chave da URL: ver escrever().
+export type ValorNaURL = string | number | boolean | readonly string[] | null | undefined;
+
+export function escrever(patch: Record<string, ValorNaURL>) {
   const sp = pendente ?? paramsAtuais();
   for (const [k, v] of Object.entries(patch)) {
     sp.delete(k);
     if (v === null || v === undefined) continue;
-    if (!Array.isArray(v)) sp.set(k, String(v));
+    if (!isLista(v)) sp.set(k, String(v));
     else if (!v.length) sp.set(k, '');
     else for (const item of v) sp.append(k, item);
   }
@@ -88,8 +91,13 @@ export function escrever(patch) {
   else timer = setTimeout(aplica, espera);
 }
 
+// O Array.isArray não estreita `readonly string[]`: ver microsoft/TypeScript#17002.
+function isLista(v: ValorNaURL): v is readonly string[] {
+  return Array.isArray(v);
+}
+
 function aplica() {
-  timer = null;
+  timer = undefined;
   if (!pendente) return;
   const query = junta(pendente);
   pendente = null;
@@ -114,7 +122,7 @@ function aplica() {
 // aberta não é a pedida (ver o App). A query fica: ou já é a que a tela aberta
 // escreveu, ou é lixo inofensivo do link pedido. Sem hashchange e sem mexer em
 // rota.hash, então a tela não remonta.
-export function corrigirRota(id) {
+export function corrigirRota(id: string) {
   rota.id = id;
   const query = partes(location.hash).query;
   try {
@@ -129,7 +137,7 @@ addEventListener('hashchange', () => {
   // A tela que está saindo pode ter deixado uma escrita agendada. Ela descreve a
   // rota antiga, e cair na rota nova seria pura sujeira - `#live?cam=x&day=…`.
   clearTimeout(timer);
-  timer = null;
+  timer = undefined;
   pendente = null;
 
   rota.id = partes(location.hash).id;
@@ -138,7 +146,7 @@ addEventListener('hashchange', () => {
 
 // linkGravacoes leva a Gravações já na câmera e no instante de uma detecção. É
 // o mesmo link no modal e no menu do ⋮ da tela Detecções.
-export function linkGravacoes(cam, instanteMs) {
+export function linkGravacoes(cam: string, instanteMs: number) {
   // eslint-disable-next-line svelte/prefer-svelte-reactivity -- data de leitura única, ninguém a observa
   return `#rec?cam=${encodeURIComponent(cam)}&day=${dayKey(new Date(instanteMs))}&t=${hhmmss(instanteMs)}`;
 }

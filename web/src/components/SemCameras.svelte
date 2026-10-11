@@ -8,8 +8,8 @@
 
   O viewer não vê o link: o cadastro é do admin.
 -->
-<script>
-  import { ehAdmin } from '../lib/state.svelte.js';
+<script lang="ts">
+  import { ehAdmin } from '../lib/state.svelte.ts';
 
   let { link = true } = $props();
 </script>

@@ -6,15 +6,18 @@
   onset até DEPOIS_MS depois. O player é o mesmo de Gravações, com a lista de
   segmentos cortada nesse trecho - então ele não baixa nada além dele.
 -->
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
   import Modal from './Modal.svelte';
-  import { api, mediaURL } from '../lib/api.js';
-  import { Player } from '../lib/player.svelte.js';
-  import { dispoe, desenha } from '../lib/caixas.js';
-  import { familia, iconeDa, iconeURL, NOME_DA_CLASSE } from '../lib/icones.js';
-  import { hhmmss, ddmm } from '../lib/format.js';
-  import { linkGravacoes } from '../lib/rota.svelte.js';
+  import type CaixasDoVideo from './Caixas.svelte';
+  import { api, mediaURL, mensagemDe } from '../lib/api.ts';
+  import type { Deteccao } from '../lib/api.ts';
+  import { contexto2d } from '../lib/canvas.ts';
+  import { Player } from '../lib/player.svelte.ts';
+  import { dispoe, desenha } from '../lib/caixas.ts';
+  import { familia, iconeDa, iconeURL, NOME_DA_CLASSE } from '../lib/icones.ts';
+  import { hhmmss, ddmm } from '../lib/format.ts';
+  import { linkGravacoes } from '../lib/rota.svelte.ts';
 
   // O trecho: um pouco antes do onset, para ver o objeto entrar, e o bastante
   // depois para ver o que ele fez. Os mesmos números do mock aprovado.
@@ -50,12 +53,22 @@
   const RESPIRO_PX = 30;
   const largura = `clamp(${LARGURA_MIN_PX}px, calc((var(--altura-max) - ${RESTO_PX}px) * 16 / 9 + ${RESPIRO_PX}px), ${LARGURA_MAX_PX}px)`;
 
-  let { det, camera, onclose, onanterior = null, onproxima = null, onocultar = null } = $props();
+  interface Props {
+    det: Deteccao;
+    camera: string;
+    onclose: () => void;
+    // Nulo é "não há": sem detecção anterior, ou a câmera já oculta.
+    onanterior?: (() => void) | null;
+    onproxima?: (() => void) | null;
+    onocultar?: (() => void) | null;
+  }
 
-  let palco;
-  let img = $state(null);
-  let canvas = $state(null);
-  let video = $state(null);
+  let { det, camera, onclose, onanterior = null, onproxima = null, onocultar = null }: Props = $props();
+
+  let palco: HTMLDivElement | undefined;
+  let img = $state<HTMLImageElement | null>(null);
+  let canvas = $state<HTMLCanvasElement | null>(null);
+  let video = $state<HTMLVideoElement | null>(null);
 
   const player = new Player();
   let tocando = $state(false);
@@ -66,7 +79,7 @@
   // caminho - o quadro com as caixas fica até o vídeo ter o que mostrar.
   let videoPintou = $state(false);
   let erro = $state('');
-  let Caixas = $state(null);
+  let Caixas = $state<typeof CaixasDoVideo | null>(null);
 
   const objetos = $derived(
     [...det.objetos].sort(
@@ -75,11 +88,14 @@
   );
   // As caixas do vídeo acendem quando a reprodução passa pelo quadro olhado,
   // e a camada de Gravações acha esse quadro em `quadroMs` de cada marca.
-  const marcas = $derived(det.objetos.map((o) => ({ ...o, quadroMs: det.quadroMs })));
+  const marcas = $derived.by(() => {
+    const quadroMs = det.quadroMs;
+    return quadroMs === undefined ? [] : det.objetos.map((o) => ({ ...o, quadroMs }));
+  });
 
   const link = $derived(linkGravacoes(det.cam, det.instanteMs));
 
-  const score = (v) => v.toFixed(2).replace('.', ',');
+  const score = (v: number) => v.toFixed(2).replace('.', ',');
 
   // --- o quadro parado, com as caixas e os rótulos ---------------------------
 
@@ -92,7 +108,7 @@
     const h = palco.clientHeight;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
-    const g = canvas.getContext('2d');
+    const g = contexto2d(canvas);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
     const iw = img?.naturalWidth;
@@ -105,7 +121,7 @@
 
   onMount(() => {
     const ro = new ResizeObserver(pintaQuadro);
-    ro.observe(palco);
+    if (palco) ro.observe(palco);
     return () => {
       ro.disconnect();
       player.destroy();
@@ -124,7 +140,11 @@
     }
     tocando = true;
     erro = '';
-    if (!Caixas) import('./Caixas.svelte').then((m) => (Caixas = m.default));
+    if (!Caixas) {
+      void import('./Caixas.svelte').then((m) => {
+        Caixas = m.default;
+      });
+    }
     try {
       const t = await api.timelineRange(det.cam, inicioMs, fimMs);
       if (!video) return; // a folha fechou durante a busca
@@ -137,7 +157,7 @@
       player.setSource(det.cam, t.gens, t.segments);
       await player.seek(inicioMs);
     } catch (e) {
-      erro = e.message;
+      erro = mensagemDe(e);
       tocando = false;
     }
   }
@@ -169,7 +189,7 @@
     tocando ? Math.max(0, Math.min(1, (player.currentMs - inicioMs) / (fimMs - inicioMs))) : 0,
   );
 
-  function tecla(e) {
+  function tecla(e: KeyboardEvent) {
     if (e.key === 'ArrowLeft' && onanterior) onanterior();
     else if (e.key === 'ArrowRight' && onproxima) onproxima();
   }

@@ -1,0 +1,7 @@
+// Dois projetos, como no template svelte-ts do Vite: o app, que roda no
+// navegador, e as configs, que rodam no Node. Cada um enxerga só os tipos do
+// seu ambiente: `document` no vite.config.ts, ou `process` na tela, é erro.
+{
+  "files": [],
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+}

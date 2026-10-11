@@ -5,8 +5,37 @@
 // O critério do que entra é explicar um defeito que a app pode ter - layout,
 // vídeo, relógio, armazenamento. Não é inventário do aparelho.
 
+// O que só alguns navegadores têm, e que o lib.dom do TypeScript ainda não
+// declara. Por isso tudo opcional: a pergunta aqui é justamente se existe.
+declare global {
+  interface Navigator {
+    readonly userAgentData?: {
+      getHighEntropyValues?: (dicas: string[]) => Promise<{ model?: string }>;
+    };
+    readonly connection?: { effectiveType?: string; saveData?: boolean };
+    readonly deviceMemory?: number;
+  }
+  interface Window {
+    // O MediaSource do Safari no iPhone, que não tem o MediaSource comum.
+    readonly ManagedMediaSource?: typeof MediaSource;
+  }
+}
+
+// Um item dos cards de diagnóstico, o do navegador e o do servidor. `alerta`
+// marca o valor que já é, sozinho, uma explicação provável de defeito.
+export interface ItemDoCard {
+  rotulo: string;
+  valor: string;
+  alerta?: boolean;
+}
+
+export interface GrupoDoCard {
+  titulo: string;
+  itens: ItemDoCard[];
+}
+
 // Os codecs que o player das gravações de fato pede ao MediaSource: é a mesma
-// tabela do #mimeFor em player.svelte.js, e o live (video-rtc.js) negocia a
+// tabela do #mimeFor em player.svelte.ts, e o live (video-rtc.js) negocia a
 // partir de H.264, H.265 e AAC. Um "não" aqui é a explicação direta do "este
 // navegador não reproduz" na tela de Gravações.
 const CODECS = [
@@ -24,8 +53,8 @@ const FONTE_BASE_PX = 15;
 
 // Navegador e versão a partir do user agent. A ordem importa: Edge, Samsung e
 // Opera também dizem "Chrome/" no UA, então o Chrome é o último a ser tentado.
-function navegadorDoUA(ua) {
-  const tentativas = [
+function navegadorDoUA(ua: string) {
+  const tentativas: [RegExp, string][] = [
     [/EdgA?\/([\d.]+)/, 'Edge'],
     [/SamsungBrowser\/([\d.]+)/, 'Samsung Internet'],
     [/OPR\/([\d.]+)/, 'Opera'],
@@ -34,28 +63,28 @@ function navegadorDoUA(ua) {
     [/Version\/([\d.]+).*Safari/, 'Safari'],
   ];
   for (const [re, nome] of tentativas) {
-    const m = ua.match(re);
-    if (m) return `${nome} ${m[1]}`;
+    const m = re.exec(ua);
+    if (m?.[1]) return `${nome} ${m[1]}`;
   }
   return 'desconhecido';
 }
 
-function sistemaDoUA(ua) {
-  let m = ua.match(/Android ([\d.]+)/);
-  if (m) return `Android ${m[1]}`;
-  m = ua.match(/(?:iPhone|iPad).*OS ([\d_]+)/);
-  if (m) return `iOS ${m[1].replaceAll('_', '.')}`;
-  if (/Windows/.test(ua)) return 'Windows';
-  if (/Mac OS X/.test(ua)) return 'macOS';
-  if (/Linux/.test(ua)) return 'Linux';
+function sistemaDoUA(ua: string) {
+  let m = /Android ([\d.]+)/.exec(ua);
+  if (m?.[1]) return `Android ${m[1]}`;
+  m = /(?:iPhone|iPad).*OS ([\d_]+)/.exec(ua);
+  if (m?.[1]) return `iOS ${m[1].replaceAll('_', '.')}`;
+  if (ua.includes('Windows')) return 'Windows';
+  if (ua.includes('Mac OS X')) return 'macOS';
+  if (ua.includes('Linux')) return 'Linux';
   return 'desconhecido';
 }
 
 // Onde a página está rodando. O WebView é o navegador embutido de outro app
 // (abrir o link de dentro do WhatsApp, por exemplo): ele é outro motor, com
 // outra versão, e não o Chrome que a pessoa acha que está usando.
-function ondeRoda(ua) {
-  if (/; wv\)/.test(ua)) return 'WebView de outro app';
+function ondeRoda(ua: string) {
+  if (ua.includes('; wv)')) return 'WebView de outro app';
   if (matchMedia('(display-mode: standalone)').matches) return 'app instalado (PWA)';
   return 'aba do navegador';
 }
@@ -73,9 +102,10 @@ function escalaDoTexto() {
   return altura / FONTE_BASE_PX;
 }
 
-function suporta(mime) {
+function suporta(mime: string) {
   try {
-    return (window.MediaSource ?? window.ManagedMediaSource)?.isTypeSupported(mime) ?? false;
+    const mse = typeof MediaSource === 'undefined' ? window.ManagedMediaSource : MediaSource;
+    return mse?.isTypeSupported(mime) ?? false;
   } catch {
     return false;
   }
@@ -104,39 +134,45 @@ async function modelo() {
   if (!uad?.getHighEntropyValues) return 'o navegador não informa';
   try {
     const v = await uad.getHighEntropyValues(['model']);
+    // O desktop responde o modelo vazio, e não ausente.
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- o vazio também cai no texto
     return v.model || 'o navegador não informa';
   } catch {
     return 'o navegador não informa';
   }
 }
 
-function sim(v) {
+function sim(v: boolean) {
   return v ? 'sim' : 'não';
 }
 
 // coletar devolve grupos de itens { rotulo, valor, alerta? }. `alerta` marca o
 // valor que já é, sozinho, uma explicação provável de defeito.
-export async function coletar() {
+export async function coletar(): Promise<GrupoDoCard[]> {
   const ua = navigator.userAgent;
   const vv = window.visualViewport;
   const escala = escalaDoTexto();
   const temMSE = 'MediaSource' in window || 'ManagedMediaSource' in window;
   const conexao = navigator.connection;
 
-  const identidade = [
+  const identidade: ItemDoCard[] = [
     { rotulo: 'navegador', valor: navegadorDoUA(ua) },
     { rotulo: 'sistema', valor: sistemaDoUA(ua) },
     { rotulo: 'aparelho', valor: await modelo() },
-    { rotulo: 'rodando em', valor: ondeRoda(ua), alerta: /; wv\)/.test(ua) },
+    { rotulo: 'rodando em', valor: ondeRoda(ua), alerta: ua.includes('; wv)') },
   ];
 
-  const tela = [
+  const tela: ItemDoCard[] = [
     { rotulo: 'área da página', valor: `${innerWidth} × ${innerHeight}` },
     ...(vv && (Math.round(vv.width) !== innerWidth || Math.round(vv.height) !== innerHeight)
       ? [{ rotulo: 'área visível', valor: `${Math.round(vv.width)} × ${Math.round(vv.height)}` }]
       : []),
     { rotulo: 'densidade de pixels', valor: `${devicePixelRatio}×` },
-    { rotulo: 'orientação', valor: screen.orientation?.type ?? (innerWidth > innerHeight ? 'landscape' : 'portrait') },
+    // Safari anterior ao 16.4 não tem o screen.orientation.
+    {
+      rotulo: 'orientação',
+      valor: 'orientation' in screen ? screen.orientation.type : innerWidth > innerHeight ? 'landscape' : 'portrait',
+    },
     // Acima de 115% o layout, calibrado em 15px, começa a quebrar linha onde
     // não quebrava.
     { rotulo: 'escala do texto', valor: `${Math.round(escala * 100)}%`, alerta: escala > 1.15 },
@@ -147,7 +183,7 @@ export async function coletar() {
       : []),
   ];
 
-  const video = [
+  const video: ItemDoCard[] = [
     { rotulo: 'MediaSource', valor: sim(temMSE), alerta: !temMSE },
     { rotulo: 'WebRTC', valor: sim('RTCPeerConnection' in window) },
     ...CODECS.map((c) => {
@@ -157,7 +193,7 @@ export async function coletar() {
   ];
 
   const armazenamento = armazenamentoOk();
-  const ambiente = [
+  const ambiente: ItemDoCard[] = [
     { rotulo: 'endereço seguro (https)', valor: sim(isSecureContext) },
     { rotulo: 'armazenamento local', valor: armazenamento ? 'ok' : 'bloqueado', alerta: !armazenamento },
     { rotulo: 'fuso', valor: Intl.DateTimeFormat().resolvedOptions().timeZone || '?' },
@@ -180,7 +216,7 @@ export async function coletar() {
 // comoTexto põe os grupos numa linha por item, para colar numa conversa.
 // `cabecalho` vai antes dos grupos e `rodape` depois - o user agent no card do
 // navegador, as linhas do log no do servidor.
-export function comoTexto(grupos, cabecalho = [], rodape = []) {
+export function comoTexto(grupos: GrupoDoCard[], cabecalho: string[] = [], rodape: string[] = []) {
   const linhas = [...cabecalho];
   for (const g of grupos) {
     linhas.push('', `[${g.titulo}]`);
@@ -193,8 +229,9 @@ export function comoTexto(grupos, cabecalho = [], rodape = []) {
 // copiar põe o texto na área de transferência. A Clipboard API é
 // [SecureContext], então em http:// fica o execCommand antigo, que o Chrome
 // ainda aceita a partir de um toque. Devolve se conseguiu.
-export async function copiar(texto) {
-  if (navigator.clipboard?.writeText) {
+export async function copiar(texto: string) {
+  // Fora do https o clipboard nem existe, apesar do que o lib.dom declara.
+  if ('clipboard' in navigator) {
     try {
       await navigator.clipboard.writeText(texto);
       return true;
@@ -209,6 +246,7 @@ export async function copiar(texto) {
   document.body.append(ta);
   ta.select();
   try {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- é o único caminho fora do https
     return document.execCommand('copy');
   } catch {
     return false;

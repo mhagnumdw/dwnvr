@@ -4,34 +4,38 @@
   para "esqueci a senha" e "perdi o celular": gerar outro apaga a senha atual.
   Só o admin chega aqui; a API recusa o viewer com 403.
 -->
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
-  import { api } from '../lib/api.js';
-  import { session } from '../lib/state.svelte.js';
-  import { copiar } from '../lib/navegador.js';
-  import { dataHora } from '../lib/format.js';
+  import { api, mensagemDe } from '../lib/api.ts';
+  import type { Convite, Usuario, Usuarios } from '../lib/api.ts';
+  import { session } from '../lib/state.svelte.ts';
+  import { copiar } from '../lib/navegador.ts';
+  import { dataHora } from '../lib/format.ts';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import Avatar from '../components/Avatar.svelte';
 
-  // { authRequired, owner, users, inviteValidityMs, maxNameLength,
-  // maxUsernameLength }, da API.
-  let dados = $state(null);
+  type Acao = 'link' | 'foto' | 'remover';
+
+  // Nulo até a API responder.
+  let dados = $state<Usuarios | null>(null);
   let erro = $state('');
 
-  // O link recém-gerado: { username, name, url, venceEmMs }. Ver mostrarLink.
-  let gerado = $state(null);
+  // O link recém-gerado. Ver mostrarLink.
+  let gerado = $state<{ username: string; name: string; url: string; venceEmMs: number } | null>(null);
 
   // O relógio da contagem dos links, num tique de um segundo. Só anda com um
   // link aberto na tela.
   let agora = $state(Date.now());
   const temLinkAberto = $derived(
-    gerado || dados?.users.some((u) => u.status === 'invitePending'),
+    gerado !== null || (dados?.users.some((u) => u.status === 'invitePending') ?? false),
   );
   $effect(() => {
     if (!temLinkAberto) return;
     const id = setInterval(() => (agora = Date.now()), 1000);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+    };
   });
 
   async function carregar() {
@@ -39,7 +43,7 @@
       dados = await api.usuarios();
       erro = '';
     } catch (e) {
-      erro = e.message;
+      erro = mensagemDe(e);
     }
   }
 
@@ -54,12 +58,13 @@
 
   let copiado = $state('');
 
-  function mostrarLink(r) {
+  function mostrarLink(r: Convite) {
     gerado = {
       username: r.user.username,
       name: r.user.name,
       url: `${location.origin}${location.pathname}#convite?token=${r.token}`,
-      venceEmMs: r.user.inviteExpiresAtMs,
+      // O link novo sempre vem com o prazo; sem ele, conta como vencido.
+      venceEmMs: r.user.inviteExpiresAtMs ?? 0,
     };
     copiado = '';
   }
@@ -70,10 +75,12 @@
   const podeCompartilhar = typeof navigator.share === 'function';
 
   async function aoCopiar() {
+    if (!gerado) return;
     copiado = (await copiar(gerado.url)) ? 'copiado' : 'não deu para copiar';
   }
 
   async function compartilhar() {
+    if (!gerado) return;
     try {
       await navigator.share({ title: 'dwnvr', text: `Link para ${gerado.name} definir a senha no dwnvr`, url: gerado.url });
     } catch {
@@ -82,14 +89,14 @@
   }
 
   // "9:41", até o link vencer.
-  function falta(ms) {
+  function falta(ms: number) {
     const s = Math.max(0, Math.ceil((ms - agora) / 1000));
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
   // ---- criar ----------------------------------------------------------------
 
-  let novo = $state(null); // { username, name } com o formulário aberto
+  let novo = $state<{ username: string; name: string } | null>(null); // com o formulário aberto
   let salvando = $state(false);
   let erroNovo = $state('');
 
@@ -98,8 +105,9 @@
     erroNovo = '';
   }
 
-  async function criar(e) {
+  async function criar(e: SubmitEvent) {
     e.preventDefault();
+    if (!novo) return;
     salvando = true;
     erroNovo = '';
     try {
@@ -107,7 +115,7 @@
       novo = null;
       await carregar();
     } catch (err) {
-      erroNovo = err.message;
+      erroNovo = mensagemDe(err);
     } finally {
       salvando = false;
     }
@@ -115,24 +123,24 @@
 
   // ---- o ⋮ de cada pessoa ----------------------------------------------------
 
-  let menu = $state(null); // o usuário com o menu aberto
-  let confirmando = $state(null); // { acao: 'link' | 'foto' | 'remover', u }
+  let menu = $state<string | null>(null); // o usuário com o menu aberto
+  let confirmando = $state<{ acao: Acao; u: Usuario } | null>(null);
   let erroAcao = $state('');
 
-  function foraDoMenu(e) {
-    if (menu && !e.target.closest?.('.menu, .mais')) menu = null;
+  function foraDoMenu(e: MouseEvent) {
+    if (menu && !(e.target instanceof Element && e.target.closest('.menu, .mais'))) menu = null;
   }
 
-  function pedir(acao, u) {
+  function pedir(acao: Acao, u: Usuario) {
     menu = null;
     erroAcao = '';
     // Link novo para quem ainda não tem senha não derruba ninguém: só troca
     // um link por outro, e dispensa a confirmação.
-    if (acao === 'link' && u.status !== 'active') executar(acao, u);
+    if (acao === 'link' && u.status !== 'active') void executar(acao, u);
     else confirmando = { acao, u };
   }
 
-  async function executar(acao, u) {
+  async function executar(acao: Acao, u: Usuario) {
     confirmando = null;
     try {
       if (acao === 'link') mostrarLink(await api.novoLink(u.username));
@@ -142,7 +150,7 @@
         if (gerado?.username === u.username) gerado = null;
       }
     } catch (e) {
-      erroAcao = e.message;
+      erroAcao = mensagemDe(e);
     }
     await carregar();
   }
@@ -151,7 +159,12 @@
   const minutos = $derived(dados ? Math.round(dados.inviteValidityMs / 60000) : 0);
 </script>
 
-<svelte:window onclick={foraDoMenu} onkeydown={(e) => e.key === 'Escape' && (menu = null)} />
+<svelte:window
+  onclick={foraDoMenu}
+  onkeydown={(e: KeyboardEvent) => {
+    if (e.key === 'Escape') menu = null;
+  }}
+/>
 
 <div class="page">
   {#if erro}
@@ -226,7 +239,7 @@
               <span class="dot ok"></span>
               <span>ativo{#if u.activeSinceMs}{' '}desde <span class="quando">{dataHora(u.activeSinceMs)}</span>{/if}</span>
             </span>
-          {:else if u.status === 'invitePending' && u.inviteExpiresAtMs > agora}
+          {:else if u.status === 'invitePending' && u.inviteExpiresAtMs !== undefined && u.inviteExpiresAtMs > agora}
             <span class="chip mono"><span class="dot warn"></span>link vence em {falta(u.inviteExpiresAtMs)}</span>
           {:else}
             <span class="chip"><span class="dot bad"></span>link vencido</span>
@@ -242,14 +255,14 @@
             <div class="menu" role="menu">
               <!-- Para quem está ativo, o link novo apaga a senha: o rótulo diz
                    isso. Para quem não definiu, não há senha a redefinir. -->
-              <button class="ghost" role="menuitem" onclick={() => pedir('link', u)}>
+              <button class="ghost" role="menuitem" onclick={() => { pedir('link', u); }}>
                 {u.status === 'active' ? 'Redefinir senha' : 'Gerar link novo'}
               </button>
               <!-- O admin não troca a foto de ninguém; só tira uma que não sirva. -->
               {#if u.avatar}
-                <button class="ghost" role="menuitem" onclick={() => pedir('foto', u)}>Remover a foto</button>
+                <button class="ghost" role="menuitem" onclick={() => { pedir('foto', u); }}>Remover a foto</button>
               {/if}
-              <button class="ghost perigo" role="menuitem" onclick={() => pedir('remover', u)}>Remover</button>
+              <button class="ghost perigo" role="menuitem" onclick={() => { pedir('remover', u); }}>Remover</button>
             </div>
           {/if}
         </div>
@@ -260,7 +273,7 @@
   {/if}
 </div>
 
-{#if novo}
+{#if novo && dados}
   <Modal onclose={() => (novo = null)}>
     <form class="fields" onsubmit={criar}>
       <h3>Novo usuário</h3>
@@ -304,36 +317,45 @@
 {/if}
 
 {#if confirmando?.acao === 'link'}
+  {@const alvo = confirmando.u}
   <ConfirmDialog
-    title="Redefinir a senha de {confirmando.u.name}?"
+    title="Redefinir a senha de {alvo.name}?"
     confirmLabel="redefinir senha"
     danger
-    onconfirm={() => executar('link', confirmando.u)}
+    onconfirm={() => {
+      void executar('link', alvo);
+    }}
     oncancel={() => (confirmando = null)}
   >
-    A senha atual de {confirmando.u.name} deixa de valer agora, e os aparelhos em que ela entrou saem na
+    A senha atual de {alvo.name} deixa de valer agora, e os aparelhos em que ela entrou saem na
     hora. O dwnvr gera um link novo, e ela volta a entrar definindo uma senha nova por ele.
   </ConfirmDialog>
 {:else if confirmando?.acao === 'foto'}
+  {@const alvo = confirmando.u}
   <ConfirmDialog
-    title="Remover a foto de {confirmando.u.name}?"
+    title="Remover a foto de {alvo.name}?"
     confirmLabel="remover a foto"
     danger
-    onconfirm={() => executar('foto', confirmando.u)}
+    onconfirm={() => {
+      void executar('foto', alvo);
+    }}
     oncancel={() => (confirmando = null)}
   >
-    A foto é apagada, e no lugar dela ficam as iniciais. {confirmando.u.name} pode pôr outra pela Minha
+    A foto é apagada, e no lugar dela ficam as iniciais. {alvo.name} pode pôr outra pela Minha
     conta.
   </ConfirmDialog>
 {:else if confirmando?.acao === 'remover'}
+  {@const alvo = confirmando.u}
   <ConfirmDialog
-    title="Remover {confirmando.u.name}?"
+    title="Remover {alvo.name}?"
     confirmLabel="remover"
     danger
-    onconfirm={() => executar('remover', confirmando.u)}
+    onconfirm={() => {
+      void executar('remover', alvo);
+    }}
     oncancel={() => (confirmando = null)}
   >
-    {confirmando.u.name} sai na hora de todos os aparelhos, e o usuário <strong>@{confirmando.u.username}</strong> fica
+    {alvo.name} sai na hora de todos os aparelhos, e o usuário <strong>@{alvo.username}</strong> fica
     livre.
   </ConfirmDialog>
 {/if}

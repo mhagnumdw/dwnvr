@@ -11,17 +11,35 @@
   campo nativo fazia. Um calendário inteiro desabilitado seria pior que
   calendário nenhum.
 -->
-<script>
+<script lang="ts">
   import { tick } from 'svelte';
-  import { dayKey, parseDay } from '../lib/format.js';
+  import { dayKey, parseDay } from '../lib/format.ts';
 
-  let { value = dayKey(), days = [], oQue = 'gravação', onchange = () => {} } = $props();
+  interface Props {
+    value?: string;
+    days?: string[];
+    // Undefined explícito: o NavDia repassa o dele, que pode não ter vindo.
+    oQue?: string | undefined;
+    onchange?: (dia: string) => void;
+  }
+
+  // Uma célula do mês; nulo é o vão antes do dia 1.
+  interface Celula {
+    numero: number;
+    chave: string;
+    gravado: boolean;
+    selecionado: boolean;
+    hoje: boolean;
+    rotulo: string;
+  }
+
+  let { value = dayKey(), days = [], oQue = 'gravação', onchange }: Props = $props();
 
   let aberto = $state(false);
-  let raizEl = $state(null);
-  let triggerEl = $state(null);
-  let gradeEl = $state(null);
-  let popoverEl = $state(null);
+  let raizEl = $state<HTMLDivElement | null>(null);
+  let triggerEl = $state<HTMLButtonElement | null>(null);
+  let gradeEl = $state<HTMLDivElement | null>(null);
+  let popoverEl = $state<HTMLDivElement | null>(null);
 
   // Quanto o popover precisou sair do centro para não passar da borda da tela.
   // Medido, e não resolvido por media query: o seletor fica numa barra que
@@ -37,12 +55,12 @@
   // dias sem gravação - atravessar um buraco de uma semana com a seta tem que
   // ser possível -, e quem o acompanha é o foco REAL do DOM, não uma classe:
   // é assim que o leitor de tela anuncia cada data ao navegar.
-  let diaFocado = $state(null);
+  let diaFocado = $state<string | null>(null);
 
   // Mês visível. Nasce nulo porque só a abertura sabe qual é - depende do dia
   // selecionado naquele instante.
-  let viewYear = $state(null);
-  let viewMonth = $state(null);
+  let viewYear = $state<number | null>(null);
+  let viewMonth = $state<number | null>(null);
 
   const MESES = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -50,18 +68,18 @@
   ];
   const SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
-  const pad = (n) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(2, '0');
 
   const daysSet = $derived(new Set(days));
   // Sem lista, tudo até hoje vale - ver o cabeçalho.
   const permissivo = $derived(days.length === 0);
-  const temGravacao = $derived((chave) => (permissivo ? chave <= hoje : daysSet.has(chave)));
+  const temGravacao = $derived((chave: string) => (permissivo ? chave <= hoje : daysSet.has(chave)));
 
   // As duas pontas do que o teclado pode alcançar. O teto é hoje porque não
   // existe amanhã para reproduzir; o piso só existe quando há lista.
   const piso = $derived(permissivo ? null : days[0]);
 
-  function limitar(chave) {
+  function limitar(chave: string) {
     if (chave > hoje) return hoje;
     if (piso && chave < piso) return piso;
     return chave;
@@ -69,7 +87,7 @@
 
   // --- abrir, fechar, focar ---------------------------------------------------
 
-  function irPara(chave) {
+  function irPara(chave: string) {
     diaFocado = chave;
     const d = parseDay(chave);
     viewYear = d.getFullYear();
@@ -79,7 +97,9 @@
   // O foco vai para a célula, não para o popover: é o que faz Enter e Espaço
   // caírem no `onclick` nativo do botão, sem handler de tecla nenhum no meio.
   function focarCelula() {
-    tick().then(() => gradeEl?.querySelector(`[data-dia="${diaFocado}"]`)?.focus());
+    void tick().then(() => {
+      gradeEl?.querySelector<HTMLElement>(`[data-dia="${diaFocado ?? ''}"]`)?.focus();
+    });
   }
 
   function abrir() {
@@ -88,7 +108,7 @@
     desloc = 0;
     aberto = true;
     focarCelula();
-    tick().then(caberNaTela);
+    void tick().then(caberNaTela);
   }
 
   function caberNaTela() {
@@ -99,9 +119,13 @@
     else if (r.left < folga) desloc = folga - r.left;
   }
 
-  function fechar(devolverFoco) {
+  function fechar(devolverFoco: boolean) {
     aberto = false;
-    if (devolverFoco) tick().then(() => triggerEl?.focus());
+    if (devolverFoco) {
+      void tick().then(() => {
+        triggerEl?.focus();
+      });
+    }
   }
 
   function toggle() {
@@ -109,15 +133,15 @@
     else abrir();
   }
 
-  function selecionar(chave) {
+  function selecionar(chave: string) {
     if (!temGravacao(chave)) return;
-    onchange(chave);
+    onchange?.(chave);
     fechar(true);
   }
 
   // --- navegação --------------------------------------------------------------
 
-  function mudarMes(delta, focar) {
+  function mudarMes(delta: number, focar = false) {
     const d = parseDay(diaFocado ?? hoje);
     const ano = d.getFullYear();
     const mes = d.getMonth() + delta;
@@ -129,7 +153,7 @@
     if (focar) focarCelula();
   }
 
-  function moverFoco(dias) {
+  function moverFoco(dias: number) {
     const d = parseDay(diaFocado ?? hoje);
     d.setDate(d.getDate() + dias);
     irPara(limitar(dayKey(d)));
@@ -140,10 +164,10 @@
   // manda o padrão de calendário genérico: aqui a pergunta que se faz o tempo
   // todo é "onde começa o que ainda existe em disco", e o começo da semana não
   // responde nada.
-  function irParaPonta(fim) {
-    const chave = fim
-      ? (days.at(-1) ?? hoje)
-      : (days[0] ?? `${viewYear}-${pad(viewMonth + 1)}-01`);
+  function irParaPonta(fim: boolean) {
+    const inicioDoMes =
+      viewYear === null || viewMonth === null ? hoje : `${viewYear}-${pad(viewMonth + 1)}-01`;
+    const chave = fim ? (days.at(-1) ?? hoje) : (days[0] ?? inicioDoMes);
     irPara(limitar(chave));
     focarCelula();
   }
@@ -151,8 +175,10 @@
   // Só as teclas de movimento, e na própria célula: Enter e Espaço ficam com o
   // botão, que já os trata sozinho. É o que dispensa qualquer handler global -
   // um deles sequestrava o Enter de todo botão do popover.
-  function onCelulaKeydown(e) {
-    const passo = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+  const PASSOS: Readonly<Record<string, number>> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+
+  function onCelulaKeydown(e: KeyboardEvent) {
+    const passo = PASSOS[e.key];
     if (passo !== undefined) {
       e.preventDefault();
       moverFoco(passo);
@@ -176,7 +202,7 @@
 
     const vazias = new Date(viewYear, viewMonth, 1).getDay();
     const total = new Date(viewYear, viewMonth + 1, 0).getDate();
-    const lista = Array.from({ length: vazias }, () => null);
+    const lista: (Celula | null)[] = Array.from({ length: vazias }, () => null);
 
     for (let d = 1; d <= total; d++) {
       const chave = `${viewYear}-${pad(viewMonth + 1)}-${pad(d)}`;
@@ -190,7 +216,7 @@
         // O estado inteiro no próprio rótulo, e não num `aria-pressed` por
         // célula: trinta botões anunciando "não pressionado" é ruído. Em modo
         // permissivo "com gravação" seria mentira - ali ninguém sabe.
-        rotulo: `${d} de ${MESES[viewMonth]} de ${viewYear}`
+        rotulo: `${d} de ${MESES[viewMonth] ?? ''} de ${viewYear}`
           + (permissivo ? '' : `, ${gravado ? 'com' : 'sem'} ${oQue}`)
           + (chave === value ? ', selecionado' : ''),
       });
@@ -200,31 +226,33 @@
 
   const textoBotao = $derived.by(() => {
     if (!value) return '--/--/----';
-    const [y, m, d] = value.split('-');
+    const [y = '', m = '', d = ''] = value.split('-');
     return `${d}/${m}/${y}`;
   });
 
   const podeAvancar = $derived.by(() => {
-    if (viewYear === null) return false;
+    if (viewYear === null || viewMonth === null) return false;
     const d = parseDay(hoje);
     return viewYear < d.getFullYear() || (viewYear === d.getFullYear() && viewMonth < d.getMonth());
   });
 
   const podeRecuar = $derived.by(() => {
-    if (viewYear === null) return false;
+    if (viewYear === null || viewMonth === null) return false;
     if (!piso) return true;
-    const [y, m] = piso.split('-').map(Number);
-    return viewYear > y || (viewYear === y && viewMonth > m - 1);
+    const p = parseDay(piso);
+    return viewYear > p.getFullYear() || (viewYear === p.getFullYear() && viewMonth > p.getMonth());
   });
+
+  const mesAno = $derived(viewYear === null || viewMonth === null ? '' : `${MESES[viewMonth] ?? ''} ${viewYear}`);
 
   // --- fechar por fora --------------------------------------------------------
 
-  function onWindowClick(e) {
+  function onWindowClick(e: MouseEvent) {
     // Sem devolver o foco: quem clicou fora já escolheu para onde ir.
-    if (aberto && raizEl && !raizEl.contains(e.target)) fechar(false);
+    if (aberto && raizEl && e.target instanceof Node && !raizEl.contains(e.target)) fechar(false);
   }
 
-  function onWindowKeydown(e) {
+  function onWindowKeydown(e: KeyboardEvent) {
     if (aberto && e.key === 'Escape') {
       e.preventDefault();
       fechar(true);
@@ -234,8 +262,8 @@
   // Tabular para fora fecha, como qualquer popover não modal. `relatedTarget`
   // nulo é foco saindo da janela inteira (ou o próprio popover desmontando),
   // e aí fechar seria atrapalhar quem só trocou de aba.
-  function onFocusOut(e) {
-    if (aberto && e.relatedTarget && raizEl && !raizEl.contains(e.relatedTarget)) {
+  function onFocusOut(e: FocusEvent) {
+    if (aberto && e.relatedTarget instanceof Node && raizEl && !raizEl.contains(e.relatedTarget)) {
       fechar(false);
     }
   }
@@ -273,17 +301,21 @@
         <button
           type="button"
           class="nav ghost"
-          onclick={() => mudarMes(-1)}
+          onclick={() => {
+            mudarMes(-1);
+          }}
           disabled={!podeRecuar}
           aria-label="mês anterior"
         >
           ‹
         </button>
-        <span class="mes-ano">{MESES[viewMonth]} {viewYear}</span>
+        <span class="mes-ano">{mesAno}</span>
         <button
           type="button"
           class="nav ghost"
-          onclick={() => mudarMes(1)}
+          onclick={() => {
+            mudarMes(1);
+          }}
           disabled={!podeAvancar}
           aria-label="próximo mês"
         >
@@ -309,7 +341,9 @@
               class:hoje={item.hoje}
               class:selecionado={item.selecionado}
               data-dia={item.chave}
-              onclick={() => selecionar(item.chave)}
+              onclick={() => {
+                selecionar(item.chave);
+              }}
               onkeydown={onCelulaKeydown}
               aria-label={item.rotulo}
               aria-disabled={!item.gravado}
@@ -327,7 +361,7 @@
 
       {#if temGravacao(hoje)}
         <div class="footer">
-          <button type="button" class="hoje-btn ghost small" onclick={() => selecionar(hoje)}>
+          <button type="button" class="hoje-btn ghost small" onclick={() => { selecionar(hoje); }}>
             Hoje
           </button>
         </div>

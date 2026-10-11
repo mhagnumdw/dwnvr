@@ -3,17 +3,17 @@
   o nome valem para todos; a senha, só para quem não é o dono, cuja senha fica
   no dwnvr.yaml. Chega-se aqui pelo avatar do header: não tem aba.
 -->
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
-  import { api } from '../lib/api.js';
-  import { session } from '../lib/state.svelte.js';
-  import { reduzirFoto } from '../lib/avatar.js';
+  import { api, mensagemDe } from '../lib/api.ts';
+  import type { ComPessoa, Conta } from '../lib/api.ts';
+  import { session } from '../lib/state.svelte.ts';
+  import { reduzirFoto } from '../lib/avatar.ts';
   import Avatar from '../components/Avatar.svelte';
   import CampoSenha from '../components/CampoSenha.svelte';
 
-  // { user, minPasswordLength, maxPasswordLength, maxNameLength, avatar: { sidePx,
-  // maxBytes, quality } }, da API.
-  let dados = $state(null);
+  // Nulo até a API responder.
+  let dados = $state<Conta | null>(null);
   let erro = $state('');
 
   const p = $derived(session.pessoa);
@@ -21,34 +21,34 @@
   onMount(async () => {
     try {
       dados = await api.conta();
-      nome = dados.user.name;
+      nome = dados.user.name ?? '';
     } catch (e) {
-      erro = e.message;
+      erro = mensagemDe(e);
     }
   });
 
   // Toda resposta da conta traz a pessoa como ficou: o header se atualiza
   // junto, sem perguntar de novo.
-  function atualizar(r) {
+  function atualizar(r: ComPessoa) {
     session.pessoa = r.user;
   }
 
   // ---- foto ----------------------------------------------------------------
 
-  let escolher = $state(); // o <input type="file">, escondido atrás do botão
+  let escolher = $state<HTMLInputElement>(); // o <input type="file">, escondido atrás do botão
   let foto = $state({ ocupado: false, erro: '' });
 
-  async function aoEscolher(e) {
+  async function aoEscolher(e: Event & { currentTarget: HTMLInputElement }) {
     const arquivo = e.currentTarget.files?.[0];
     // Limpo já: escolher a mesma foto de novo tem de disparar o change.
     e.currentTarget.value = '';
-    if (!arquivo) return;
+    if (!arquivo || !dados) return;
     foto = { ocupado: true, erro: '' };
     try {
       atualizar(await api.enviarAvatar(await reduzirFoto(arquivo, dados.avatar)));
       foto.ocupado = false;
     } catch (err) {
-      foto = { ocupado: false, erro: err.message };
+      foto = { ocupado: false, erro: mensagemDe(err) };
     }
   }
 
@@ -58,7 +58,7 @@
       atualizar(await api.tirarAvatar());
       foto.ocupado = false;
     } catch (err) {
-      foto = { ocupado: false, erro: err.message };
+      foto = { ocupado: false, erro: mensagemDe(err) };
     }
   }
 
@@ -68,16 +68,16 @@
   let estadoNome = $state({ ocupado: false, erro: '', ok: false });
   const nomeMudou = $derived(nome.trim() !== '' && nome.trim() !== p?.name);
 
-  async function salvarNome(e) {
+  async function salvarNome(e: SubmitEvent) {
     e.preventDefault();
     estadoNome = { ocupado: true, erro: '', ok: false };
     try {
       const r = await api.mudarNome(nome);
       atualizar(r);
-      nome = r.user.name;
+      nome = r.user.name ?? '';
       estadoNome = { ocupado: false, erro: '', ok: true };
     } catch (err) {
-      estadoNome = { ocupado: false, erro: err.message, ok: false };
+      estadoNome = { ocupado: false, erro: mensagemDe(err), ok: false };
     }
   }
 
@@ -90,7 +90,7 @@
   let repetida = $state('');
   let estadoSenha = $state({ ocupado: false, erro: '', ok: false });
 
-  async function trocarSenha(e) {
+  async function trocarSenha(e: SubmitEvent) {
     e.preventDefault();
     if (nova !== repetida) {
       estadoSenha = { ocupado: false, erro: 'a senha nova e a repetida não são iguais', ok: false };
@@ -102,7 +102,7 @@
       atual = nova = repetida = '';
       estadoSenha = { ocupado: false, erro: '', ok: true };
     } catch (err) {
-      estadoSenha = { ocupado: false, erro: err.message, ok: false };
+      estadoSenha = { ocupado: false, erro: mensagemDe(err), ok: false };
     }
   }
 
@@ -119,7 +119,7 @@
         <strong>{p.name}</strong>
         <span class="muted small">@{p.username} · {papel}</span>
         <div class="row wrap botoes">
-          <button onclick={() => escolher.click()} disabled={foto.ocupado}>
+          <button onclick={() => { escolher?.click(); }} disabled={foto.ocupado}>
             {foto.ocupado ? 'salvando…' : p.avatar ? 'Trocar a foto' : 'Pôr uma foto'}
           </button>
           {#if p.avatar}

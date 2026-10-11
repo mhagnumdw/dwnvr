@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   // Relógio da reprodução que também aceita um horário digitado.
   //
   // É um <input> o tempo todo, e não um texto que vira campo no clique: o
@@ -11,24 +11,31 @@
   // "17:3". Os dois-pontos aparecem sozinhos quando o grupo não aceita mais
   // dígito, e ponto, vírgula e espaço valem como dois-pontos: o teclado
   // numérico do celular não tem ":".
-  import { hhmmss } from '../lib/format.js';
+  import { hhmmss } from '../lib/format.ts';
 
-  /** @type {{ ms: number, onir: (segundosDoDia: number) => void }} */
-  let { ms, onir } = $props();
+  interface Props {
+    ms: number;
+    onir: (segundosDoDia: number) => void;
+  }
 
-  let input;
+  let { ms, onir }: Props = $props();
+
+  let input: HTMLInputElement | undefined;
   let editando = $state(false);
   let texto = $state('');
-  let grupos = $state(['']);
+  let grupos = $state<string[]>(['']);
   // O que o player mostrava ao abrir o campo, para servir de placeholder: o
   // relógio de fundo continua andando, e o placeholder piscando distrai.
   let antes = $state('');
 
-  const cheio = (g, i) => g[i].length === 2 || (i === 0 && g[i].length === 1 && +g[i] >= 3);
+  const cheio = (g: string[], i: number) => {
+    const x = g[i] ?? '';
+    return x.length === 2 || (i === 0 && x.length === 1 && +x >= 3);
+  };
 
   // `apagando` segura os dois-pontos automáticos do fim: sem ele, apagar o ":"
   // o faria voltar na mesma hora.
-  function mascara(bruto, apagando) {
+  function mascara(bruto: string, apagando: boolean) {
     const g = [''];
     let recusou = false;
     for (const c of bruto.replace(/[.,;\s]/g, ':')) {
@@ -48,7 +55,7 @@
       }
       // Dígito que só formaria horário impossível é recusado aqui, e não na
       // hora de ir: "24" ou o "7" de "17:7" (70 min) nunca chegam a aparecer.
-      const novo = g[i] + c;
+      const novo = (g[i] ?? '') + c;
       const ok = i === 0 ? novo.length === 1 || +novo <= 23 : novo.length === 2 || c <= '5';
       if (!ok) {
         recusou = true;
@@ -61,9 +68,9 @@
     return { g, recusou };
   }
 
-  function segundos(g) {
+  function segundos(g: string[]) {
     if (!g[0]) return null;
-    const dezena = (x) => (x.length === 1 ? +x * 10 : +x);
+    const dezena = (x: string) => (x.length === 1 ? +x * 10 : +x);
     return +g[0] * 3600 + dezena(g[1] ?? '') * 60 + dezena(g[2] ?? '');
   }
 
@@ -72,7 +79,8 @@
   const fantasma = $derived.by(() => {
     if (!grupos[0]) return '';
     const i = grupos.length - 1;
-    let s = grupos[i].length === 0 ? '00' : i > 0 && grupos[i].length === 1 ? '0' : '';
+    const ultimo = grupos[i] ?? '';
+    let s = ultimo.length === 0 ? '00' : i > 0 && ultimo.length === 1 ? '0' : '';
     for (let k = i + 1; k < 3; k++) s += ':00';
     return s;
   });
@@ -84,28 +92,28 @@
     editando = true;
   }
 
-  function digitar(e) {
-    const m = mascara(e.currentTarget.value, e.inputType?.startsWith('delete'));
+  function digitar(e: Event & { currentTarget: HTMLInputElement }) {
+    const m = mascara(e.currentTarget.value, e instanceof InputEvent && e.inputType.startsWith('delete'));
     texto = m.g.join(':');
     grupos = m.g;
     // Direto no DOM: quando o dígito é recusado o texto não muda, o Svelte não
     // teria o que atualizar e o caractere recusado ficaria no campo.
     e.currentTarget.value = texto;
     if (m.recusou) {
-      input.animate(
+      input?.animate(
         [{ transform: 'none' }, { transform: 'translateX(-2px)' }, { transform: 'translateX(2px)' }, { transform: 'none' }],
         { duration: 180 },
       );
     }
   }
 
-  function tecla(e) {
+  function tecla(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       const s = segundos(grupos);
       if (s !== null) onir(s);
-      input.blur();
+      input?.blur();
     } else if (e.key === 'Escape') {
-      input.blur();
+      input?.blur();
     }
   }
 </script>

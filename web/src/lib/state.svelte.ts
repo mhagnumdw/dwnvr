@@ -4,10 +4,29 @@
 // tela. O que vive aqui é o que várias telas precisam enxergar - sessão, lista
 // de câmeras e saúde - e que seria desperdício buscar de novo a cada navegação.
 
-import { api } from './api.js';
-import { AVISOS_POLL_MS } from './avisos.js';
+import { api, mensagemDe } from './api.ts';
+import type {
+  CameraCadastrada,
+  Camera,
+  Disco,
+  DivergenciasDoGo2rtc,
+  Detector,
+  Faixas,
+  CameraNaSaude,
+  Orfa,
+  Pessoa,
+  Relogio,
+  Stream,
+  Uptime,
+} from './api.ts';
+import { AVISOS_POLL_MS } from './avisos.ts';
 
-export const session = $state({
+export const session = $state<{
+  authRequired: boolean;
+  authenticated: boolean;
+  checked: boolean;
+  pessoa: Pessoa | null;
+}>({
   authRequired: false,
   authenticated: false,
   checked: false,
@@ -29,7 +48,18 @@ export function sessaoCaiu() {
   session.pessoa = null;
 }
 
-export const cameras = $state({
+export const cameras = $state<{
+  list: CameraCadastrada[];
+  streams: Stream[];
+  orphans: Orfa[];
+  padrao: Camera | null;
+  faixas: Faixas | null;
+  detector: boolean | null;
+  go2rtcError: string | null;
+  go2rtcConfigFile: DivergenciasDoGo2rtc | null;
+  loading: boolean;
+  error: string | null;
+}>({
   list: [],
   streams: [],
   // Gravações que sobraram de câmeras já removidas. Vêm junto com a listagem
@@ -53,7 +83,7 @@ export const cameras = $state({
   error: null,
 });
 
-export const health = $state({
+export const health = $state<EstadoDaSaude>({
   cameras: [],
   disk: null,
   // { appSeconds, machineSeconds }. Fica nulo contra servidor antigo, que não
@@ -71,6 +101,18 @@ export const health = $state({
   go2rtc: null,
   updatedAt: 0,
 });
+
+// O /api/health como a tela o guarda: nulo onde a resposta não trouxe o campo.
+export interface EstadoDaSaude {
+  cameras: CameraNaSaude[];
+  disk: Disco | null;
+  uptime: Uptime | null;
+  clock: Relogio | null;
+  detector: Detector | null;
+  reconnectsWindowHours: number | null;
+  go2rtc: { error: string; since: string } | null;
+  updatedAt: number;
+}
 
 // Qual código o servidor está rodando. Não muda enquanto a página está aberta,
 // então é buscado uma vez só, no boot.
@@ -139,9 +181,9 @@ export async function logout() {
 export async function loadBuild() {
   try {
     const b = await api.version();
-    build.version = b.version ?? '';
-    build.commit = b.commit ?? '';
-    build.date = b.date ?? '';
+    build.version = b.version;
+    build.commit = b.commit;
+    build.date = b.date;
   } catch {
     // Versão é informativa: um servidor antigo, sem o endpoint, continua
     // usável - a interface apenas não mostra nada.
@@ -150,29 +192,35 @@ export async function loadBuild() {
 
 // [maior, menor, patch] de 'v0.1.0', e também de 'v0.1.0-3-gabc1234', que é
 // um build da main depois da v0.1.0. Nulo para 'dev' ou um hash solto.
-function semver(v) {
+function semver(v: string | undefined): number[] | null {
   const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(v ?? '');
   return m ? m.slice(1).map(Number) : null;
 }
 
 // Comparação numérica: como texto, 'v0.1.10' viria antes de 'v0.1.9'.
-function maisNova(a, b) {
-  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i];
+function maisNova(a: number[], b: number[]): boolean {
+  for (let i = 0; i < 3; i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y) return x > y;
+  }
   return false;
 }
 
 // A tag guardada, ou undefined se não há nada válido dentro do prazo.
-function lerCacheRelease() {
+function lerCacheRelease(): string | undefined {
   try {
-    const c = JSON.parse(localStorage.getItem(RELEASE_CACHE));
-    if (c && typeof c.tag === 'string' && Date.now() - c.em < RELEASE_CACHE_MS) return c.tag;
+    const c = JSON.parse(localStorage.getItem(RELEASE_CACHE) ?? 'null') as { tag?: unknown; em?: unknown } | null;
+    if (c && typeof c.tag === 'string' && typeof c.em === 'number' && Date.now() - c.em < RELEASE_CACHE_MS) {
+      return c.tag;
+    }
   } catch {
     // localStorage bloqueado ou conteúdo estragado: vale como vazio.
   }
   return undefined;
 }
 
-function gravarCacheRelease(tag) {
+function gravarCacheRelease(tag: string) {
   try {
     localStorage.setItem(RELEASE_CACHE, JSON.stringify({ tag, em: Date.now() }));
   } catch {
@@ -190,7 +238,7 @@ export async function checarNovaVersao() {
     try {
       const r = await fetch(RELEASE_API);
       // 404 é "ainda não há release": resposta válida, que vai para o cache.
-      if (r.ok) tag = (await r.json()).tag_name ?? '';
+      if (r.ok) tag = ((await r.json()) as { tag_name?: string }).tag_name ?? '';
       else if (r.status === 404) tag = '';
     } catch {
       // Sem internet, ou o GitHub fora: fica para a próxima abertura.
@@ -208,16 +256,16 @@ export async function loadCameras() {
   cameras.error = null;
   try {
     const data = await api.cameras();
-    cameras.list = data.cameras ?? [];
+    cameras.list = data.cameras;
     cameras.streams = data.streams ?? [];
     cameras.orphans = data.orphans ?? [];
     cameras.padrao = data.padrao ?? null;
     cameras.faixas = data.faixas ?? null;
-    cameras.detector = data.detector === true;
+    cameras.detector = data.detector;
     cameras.go2rtcError = data.go2rtcError ?? null;
     cameras.go2rtcConfigFile = data.go2rtcConfigFile ?? null;
   } catch (e) {
-    cameras.error = e.message;
+    cameras.error = mensagemDe(e);
     // Sem resposta nenhuma, a aba fica de fora: melhor que a tela em branco
     // esperando para sempre.
     cameras.detector ??= false;
@@ -234,7 +282,7 @@ export async function loadHealth() {
   healthPedidoEm = Date.now();
   try {
     const data = await api.health();
-    health.cameras = data.cameras ?? [];
+    health.cameras = data.cameras;
     health.disk = data.disk ?? null;
     health.uptime = data.uptime ?? null;
     health.clock = data.clock ?? null;
@@ -255,9 +303,14 @@ export const HEALTH_POLL_MS = 5000;
 // pollHealth mantém o diagnóstico vivo enquanto a tela estiver aberta, e para
 // quando ela sai - não faz sentido consultar o servidor de fundo para sempre.
 export function pollHealth(intervalMs = HEALTH_POLL_MS) {
-  loadHealth();
-  const id = setInterval(loadHealth, intervalMs);
-  return () => clearInterval(id);
+  const ler = () => {
+    void loadHealth();
+  };
+  ler();
+  const id = setInterval(ler, intervalMs);
+  return () => {
+    clearInterval(id);
+  };
 }
 
 // vigiarAvisos mantém o sino do header em dia nas telas que não releem a saúde
@@ -269,7 +322,7 @@ export function pollHealth(intervalMs = HEALTH_POLL_MS) {
 // lê na hora se o dado estiver velho.
 export function vigiarAvisos() {
   const talvez = () => {
-    if (!document.hidden && Date.now() - healthPedidoEm >= AVISOS_POLL_MS) loadHealth();
+    if (!document.hidden && Date.now() - healthPedidoEm >= AVISOS_POLL_MS) void loadHealth();
   };
   talvez();
   const id = setInterval(talvez, HEALTH_POLL_MS);

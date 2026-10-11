@@ -1,10 +1,19 @@
 // Os avisos do diagnóstico: o card Avisos da tela Diagnóstico e o sino do
 // header contam com a mesma função, então os dois não têm como discordar.
 //
-// Função pura sobre o `health` de `state.svelte.js`: chamada dentro de um
+// Função pura sobre o `health` de `state.svelte.ts`: chamada dentro de um
 // $derived, o Svelte rastreia os campos que ela lê.
 
-import { bytes, bytesDeMB, duracao, hhmmss, ddmm } from './format.js';
+import type { CameraNaSaude } from './api.ts';
+import { bytes, bytesDeMB, duracao, hhmmss, ddmm } from './format.ts';
+import type { EstadoDaSaude } from './state.svelte.ts';
+
+export type NivelDoAviso = 'bad' | 'warn';
+
+export interface Aviso {
+  nivel: NivelDoAviso;
+  texto: string;
+}
 
 // De quanto em quanto tempo o header relê a saúde para o sino, fora das telas
 // que já a releem a cada HEALTH_POLL_MS. Um problema novo aparece no sino em
@@ -17,28 +26,28 @@ const MS_HORA = 3600e3;
 // "Agora" pelo relógio do servidor, que é quem carimbou os instantes dos
 // avisos: com o relógio do aparelho errado, "desde 13:58 (12min)" viraria
 // "(3h12min)". Cai no do aparelho contra servidor antigo, sem o campo.
-export function agoraDoServidor(health) {
-  const lido = Date.parse(health.clock?.now);
+export function agoraDoServidor(health: EstadoDaSaude) {
+  const lido = health.clock ? Date.parse(health.clock.now) : NaN;
   return isNaN(lido) ? health.updatedAt || Date.now() : lido;
 }
 
 // quando escreve um instante: só a hora se é de hoje, com a data na frente se
 // não é - "13:58:12" de ontem leria como de hoje.
-const deHoje = (ms, agora) => new Date(agora).toDateString() === new Date(ms).toDateString();
-export const quando = (ms, agora) => (deHoje(ms, agora) ? hhmmss(ms) : `${ddmm(ms)} ${hhmmss(ms)}`);
+const deHoje = (ms: number, agora: number) => new Date(agora).toDateString() === new Date(ms).toDateString();
+export const quando = (ms: number, agora: number) => (deHoje(ms, agora) ? hhmmss(ms) : `${ddmm(ms)} ${hhmmss(ms)}`);
 
 // desde é o "desde quando" de todo aviso que depende de tempo, no formato do
 // "NÃO ESTÁ GRAVANDO": "desde 13:58:12 (12min)".
-function desde(iso, agora) {
+function desde(iso: string, agora: number) {
   const ms = Date.parse(iso);
   return `desde ${quando(ms, agora)} (${duracao(agora - ms)})`;
 }
 
-const porHora = (v) => v.toLocaleString('pt-BR', { maximumFractionDigits: v < 10 ? 1 : 0 });
+const porHora = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: v < 10 ? 1 : 0 });
 
 // A mensagem de reconexão diz o total, desde quando ele conta, a taxa, o
 // recente e a última: "24 vezes" sozinho não diz se é muito.
-function reconexoes(c, health, agora) {
+function reconexoes(c: CameraNaSaude, health: EstadoDaSaude, agora: number) {
   const inicio = Date.parse(c.reconnectsSince);
   if (isNaN(inicio)) return `${c.name} já reconectou ${c.reconnects} vezes.`; // servidor antigo
 
@@ -59,7 +68,7 @@ function reconexoes(c, health, agora) {
   if (janela && contando >= janela * MS_HORA) {
     texto += `, ${c.reconnectsInWindow} nas últimas ${janela}h`;
   }
-  const ultima = Date.parse(c.lastReconnectAt);
+  const ultima = c.lastReconnectAt ? Date.parse(c.lastReconnectAt) : NaN;
   if (!isNaN(ultima)) {
     texto += deHoje(ultima, agora)
       ? `, a última às ${hhmmss(ultima)}`
@@ -71,10 +80,10 @@ function reconexoes(c, health, agora) {
 // Avisos que explicam problemas antes de eles virarem mistério - que foi
 // exatamente o que faltou nos NVRs anteriores. Devolve [{ nivel, texto }], com
 // nivel 'bad' ou 'warn'.
-export function avisosDe(health) {
+export function avisosDe(health: EstadoDaSaude): Aviso[] {
   const agora = agoraDoServidor(health);
   const disk = health.disk;
-  const out = [];
+  const out: Aviso[] = [];
   if (disk?.belowMin) {
     const quandoDisco = disk.belowMinSince ? ` ${desde(disk.belowMinSince, agora)}` : '';
     out.push({
@@ -99,7 +108,7 @@ export function avisosDe(health) {
     if (!c.enabled || c.connected) continue;
     if (c.silent) continue; // já avisado acima, e com mais informação
     const quandoCaiu = c.disconnectedAt ? ` ${desde(c.disconnectedAt, agora)}` : '';
-    out.push({ nivel: 'bad', texto: `${c.name} desconectada${quandoCaiu}: ${c.lastError || 'motivo desconhecido'}` });
+    out.push({ nivel: 'bad', texto: `${c.name} desconectada${quandoCaiu}: ${c.lastError ?? 'motivo desconhecido'}` });
   }
   // Os dois avisos de configuração também vêm do /api/health, e não da lista
   // de câmeras, que a tela Diagnóstico nunca relê: o go2rtc.yaml editado e o
@@ -147,7 +156,7 @@ export function avisosDe(health) {
 
 // O que o sino precisa: quantos, e a cor do pior. Um vermelho basta para o
 // sino ficar vermelho; só amarelos, ele fica amarelo e mais discreto.
-export function resumoDosAvisos(avisos) {
+export function resumoDosAvisos(avisos: Aviso[]): { total: number; nivel: NivelDoAviso | null } {
   return {
     total: avisos.length,
     nivel: avisos.some((a) => a.nivel === 'bad') ? 'bad' : avisos.length ? 'warn' : null,

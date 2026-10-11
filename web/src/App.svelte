@@ -1,5 +1,6 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
+  import type { Component } from 'svelte';
   import {
     session,
     cameras,
@@ -14,18 +15,33 @@
     ehAdmin,
     sessaoCaiu,
     RELEASES_URL,
-  } from './lib/state.svelte.js';
-  import { rota, ROTA_PADRAO, corrigirRota } from './lib/rota.svelte.js';
-  import { setUnauthorizedHandler } from './lib/api.js';
-  import { avisosDe, resumoDosAvisos } from './lib/avisos.js';
+  } from './lib/state.svelte.ts';
+  import { rota, ROTA_PADRAO, corrigirRota } from './lib/rota.svelte.ts';
+  import { setUnauthorizedHandler } from './lib/api.ts';
+  import type { Pessoa } from './lib/api.ts';
+  import { avisosDe, resumoDosAvisos } from './lib/avisos.ts';
   import Login from './routes/Login.svelte';
   import Live from './routes/Live.svelte';
   import Recordings from './routes/Recordings.svelte';
   import Cameras from './routes/Cameras.svelte';
   import Health from './routes/Health.svelte';
   import Avatar from './components/Avatar.svelte';
+  import type TelaDoConvite from './routes/Convite.svelte';
 
-  const ROUTES = [
+  interface Rota {
+    id: string;
+    label: string;
+    icon?: string;
+    // A tela que já vem no bundle principal, ou o import do chunk à parte dela.
+    component?: Component;
+    carregar?: () => Promise<{ default: Component }>;
+    soComDetector?: boolean;
+    soAdmin?: boolean;
+    semAba?: boolean;
+  }
+
+  // Lista que nunca é vazia: a primeira é a padrão.
+  const ROUTES: readonly [Rota, ...Rota[]] = [
     { id: 'live', label: 'Ao vivo', icon: '◉', component: Live },
     { id: 'rec', label: 'Gravações', icon: '⏱', component: Recordings },
     // Chunk à parte: só quem abre a tela paga os bytes dela. E só existe com o
@@ -59,7 +75,7 @@
     },
   ];
 
-  const podeVer = (r) =>
+  const podeVer = (r: Rota) =>
     (!r.soComDetector || cameras.detector) &&
     (!r.soAdmin || ehAdmin()) &&
     (r.id !== 'conta' || session.authRequired);
@@ -69,9 +85,13 @@
   // ou sem sessão: quem o recebe ainda não tem senha. Chunk à parte, porque só
   // quem abre um link a usa.
   const convite = $derived(rota.id === 'convite');
-  let Convite = $state(null);
+  let Convite = $state<typeof TelaDoConvite | null>(null);
   $effect(() => {
-    if (convite && !Convite) import('./routes/Convite.svelte').then((m) => (Convite = m.default));
+    if (convite && !Convite) {
+      void import('./routes/Convite.svelte').then((m) => {
+        Convite = m.default;
+      });
+    }
   });
 
   // A aba que depende do detector só se decide depois do /api/cameras. Até lá
@@ -82,12 +102,14 @@
 
   // Roteamento por hash: são poucas telas, e um roteador de verdade custaria
   // mais bytes que o resto do aplicativo junto. Quem lê e escreve o hash é o
-  // `lib/rota.svelte.js`, porque ele carrega também o estado de cada tela.
+  // `lib/rota.svelte.ts`, porque ele carrega também o estado de cada tela.
   // Hash apontando para tela que não existe ou que a pessoa não pode ver -
   // erro de digitação, link de uma versão futura, `#detection` num servidor
   // sem detector, `#usuarios` aberto pelo viewer: a tela padrão assume.
   const route = $derived(
-    ROUTES.find((r) => r.id === rota.id && podeVer(r)) ?? ROUTES.find((r) => r.id === ROTA_PADRAO),
+    ROUTES.find((r) => r.id === rota.id && podeVer(r)) ??
+      ROUTES.find((r) => r.id === ROTA_PADRAO) ??
+      ROUTES[0],
   );
 
   // A tela no título, para a aba e o histórico dizerem onde se está. No login
@@ -100,14 +122,16 @@
   );
 
   // As telas em chunk à parte, já baixadas: id -> componente.
-  let carregadas = $state({});
+  let carregadas = $state<Record<string, Component>>({});
   const Tela = $derived(esperando ? null : (route.component ?? carregadas[route.id]));
 
   $effect(() => {
     if (esperando) return;
     const r = route;
     if (r.carregar && !carregadas[r.id]) {
-      r.carregar().then((m) => (carregadas[r.id] = m.default));
+      void r.carregar().then((m) => {
+        carregadas[r.id] = m.default;
+      });
     }
   });
 
@@ -125,7 +149,8 @@
   // pela mesma função. Só vigia com a sessão aberta - sem ela não há header -,
   // e só para o admin: o viewer não tem sino, e a tela dele não relê a saúde.
   $effect(() => {
-    if (logado && ehAdmin()) return vigiarAvisos();
+    if (!logado || !ehAdmin()) return;
+    return vigiarAvisos();
   });
   const sino = $derived(resumoDosAvisos(avisosDe(health)));
   const sinoTitulo = $derived(
@@ -136,17 +161,17 @@
   // igual ao hash e o navegador nem disparava evento; agora o hash carrega o
   // estado (`#rec?cam=x&t=…`), e o mesmo clique viraria uma navegação para o
   // `#rec` pelado - jogando fora justamente o que a URL passou a guardar.
-  function navegar(ev, id) {
+  function navegar(ev: MouseEvent, id: string) {
     if (id === route.id) ev.preventDefault();
   }
 
   // A versão em uso, buscada no boot. A pergunta ao GitHub por versão nova
   // espera por ela e pela sessão: só o admin vê a pílula, e o viewer não gasta
   // a consulta.
-  let versao;
+  let versao: Promise<void> | undefined;
 
   function talvezVersaoNova() {
-    if (ehAdmin()) versao.then(checarNovaVersao);
+    if (ehAdmin()) void versao?.then(checarNovaVersao);
   }
 
   onMount(async () => {
@@ -156,32 +181,32 @@
     versao = loadBuild();
     await checkSession();
     if (session.authenticated) {
-      loadCameras();
+      void loadCameras();
       talvezVersaoNova();
     }
   });
 
-  async function afterLogin(pessoa) {
+  async function afterLogin(pessoa: Pessoa) {
     session.authenticated = true;
-    session.pessoa = pessoa ?? null;
+    session.pessoa = pessoa;
     talvezVersaoNova();
     await loadCameras();
   }
 
   // Definida a senha pelo link, a pessoa já entra. O link sai do histórico:
   // voltar não pode reabrir uma tela com o token, que já não vale.
-  function aposConvite(pessoa) {
+  function aposConvite(pessoa: Pessoa) {
     session.checked = true;
     location.replace(location.pathname + location.search + '#' + ROTA_PADRAO);
-    afterLogin(pessoa);
+    void afterLogin(pessoa);
   }
 
   // O menu do avatar: Minha conta e Sair, para os dois papéis. O Sair fica a
   // um toque a mais, o que dificulta sair por engano.
   let menuConta = $state(false);
 
-  function foraDoMenu(e) {
-    if (menuConta && !e.target.closest?.('.conta')) menuConta = false;
+  function foraDoMenu(e: MouseEvent) {
+    if (menuConta && !(e.target instanceof Element && e.target.closest('.conta'))) menuConta = false;
   }
 
   let saindo = $state(false);
@@ -200,7 +225,12 @@
   <title>{titulo}</title>
 </svelte:head>
 
-<svelte:window onclick={foraDoMenu} onkeydown={(e) => e.key === 'Escape' && (menuConta = false)} />
+<svelte:window
+  onclick={foraDoMenu}
+  onkeydown={(e: KeyboardEvent) => {
+    if (e.key === 'Escape') menuConta = false;
+  }}
+/>
 
 {#if convite}
   {#if Convite}<Convite onSuccess={aposConvite} />{:else}<div class="boot">carregando…</div>{/if}
@@ -218,7 +248,7 @@
     </span>
     <nav class="top">
       {#each abas as r (r.id)}
-        <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => navegar(e, r.id)}>
+        <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => { navegar(e, r.id); }}>
           {r.label}
         </a>
       {/each}
@@ -232,7 +262,7 @@
           href="#health"
           title={sinoTitulo}
           aria-label={sinoTitulo}
-          onclick={(e) => navegar(e, 'health')}
+          onclick={(e) => { navegar(e, 'health'); }}
         >
           <svg
             viewBox="0 0 24 24"
@@ -325,7 +355,7 @@
 
   <nav class="bottom" style:--abas={abas.length}>
     {#each abas as r (r.id)}
-      <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => navegar(e, r.id)}>
+      <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => { navegar(e, r.id); }}>
         <!-- Usuários não tem um caractere que preste em todo sistema: vai
              desenhado, no tamanho dos outros. -->
         <span class="icon">

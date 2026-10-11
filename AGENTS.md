@@ -82,7 +82,7 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 | --- | --- |
 | `web/src/`, `web/index.html`, `web/public/` | `make web`, depois commitar `internal/api/dist/` inteiro, assets antigos incluídos (a CI confere) |
 | arquivo em `web/src/{lib,routes,components,vendor}` | §Estrutura do `web/README.md` |
-| rota em `internal/api/server.go`, inclusive entrar/sair do `requireAuth` | `docs/api.md` · `web/src/lib/api.js` (`api` p/ JSON, `mediaURL` p/ URL montada) |
+| rota em `internal/api/server.go`, inclusive entrar/sair do `requireAuth` | `docs/api.md` · `web/src/lib/api.ts` (tipos do JSON no fim) (`api` p/ JSON, `mediaURL` p/ URL montada) |
 | formato do JSON de resposta ou de erro | a tela em `web/src/routes/` |
 | `.go` novo em `internal/api/` | árvore §Estrutura do projeto do `README.md` |
 | campo em `internal/config/config.go` | `dwnvr.example.yaml` (com comentário) · `docs/configuracao.md` · §Configuração do `README.md` |

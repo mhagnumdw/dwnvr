@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   // Um card de consulta do Diagnóstico: vem fechado, abre num toque e mostra
   // grupos de rótulo e valor, com um "copiar" que junta tudo em texto para mandar
   // numa conversa. É o formato de "Este navegador" e de "Este servidor"; quem usa
@@ -8,9 +8,20 @@
   // para o que não cabe em rótulo e valor - as linhas do log, por exemplo.
   // `subtitulo`, opcional, vai embaixo do título com o card aberto - o "Coletado
   // em" do servidor, por exemplo.
-  import { copiar } from '../lib/navegador.js';
+  import type { Snippet } from 'svelte';
+  import { copiar } from '../lib/navegador.ts';
+  import type { GrupoDoCard } from '../lib/navegador.ts';
 
-  let { titulo, subtitulo = '', grupos, aberto = $bindable(false), texto, children } = $props();
+  interface Props {
+    titulo: string;
+    subtitulo?: string;
+    grupos: GrupoDoCard[];
+    aberto?: boolean;
+    texto: () => string;
+    children?: Snippet;
+  }
+
+  let { titulo, subtitulo = '', grupos, aberto = $bindable(false), texto, children }: Props = $props();
 
   let copiado = $state('');
 

@@ -1,18 +1,28 @@
-<script>
+<script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { cameras, loadCameras } from '../lib/state.svelte.js';
-  import { paramsAtuais, escrever } from '../lib/rota.svelte.js';
-  import { api, mediaURL } from '../lib/api.js';
-  import { Player } from '../lib/player.svelte.js';
-  import { clearThumbnails } from '../lib/thumbs.js';
-  import { baixarQuadro } from '../lib/captura.js';
-  import { dayKey, parseDay, hhmmss, duracao, taxa } from '../lib/format.js';
-  import { FAMILIAS } from '../lib/icones.js';
+  import { cameras, loadCameras } from '../lib/state.svelte.ts';
+  import { paramsAtuais, escrever } from '../lib/rota.svelte.ts';
+  import { api, mediaURL, mensagemDe } from '../lib/api.ts';
+  import type { Eventos, ObjetoMarcado, Segmento, Timeline as LinhaDoTempo, Trecho } from '../lib/api.ts';
+  import type { DesenhoPorCima } from '../lib/captura.ts';
+  import { Player } from '../lib/player.svelte.ts';
+  import { clearThumbnails } from '../lib/thumbs.ts';
+  import { baixarQuadro } from '../lib/captura.ts';
+  import { dayKey, parseDay, hhmmss, duracao, taxa } from '../lib/format.ts';
+  import { FAMILIAS } from '../lib/icones.ts';
   import Timeline from '../components/Timeline.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
   import SemCameras from '../components/SemCameras.svelte';
   import NavDia from '../components/NavDia.svelte';
   import Relogio from '../components/Relogio.svelte';
+  import type CaixasDoVideo from '../components/Caixas.svelte';
+
+  // O que a tela guarda da timeline do dia: o que ela desenha e o que o player toca.
+  type DoDia = Pick<LinhaDoTempo, 'ranges' | 'segments' | 'gens'>;
+
+  // O que a exportação vai pedir, ou por que não dá. O `never` deixa o
+  // template ler `?.erro` e `?.inicio` sem saber qual dos dois é.
+  type Exportacao = { erro: string; inicio?: never; to?: never } | { inicio: number; to: number; erro?: never };
 
   const player = new Player();
 
@@ -37,22 +47,22 @@
   // tela, que escreve de volta na URL.
   const params = paramsAtuais();
 
-  let video = $state(null);
+  let video = $state<HTMLVideoElement | null>(null);
   let cam = $state('');
   // Num const antes do $state porque o que vem da URL logo abaixo - instante e
   // zoom - são posições DENTRO deste dia, e precisam do dia de partida, não do
   // dia que estiver na tela daqui a pouco.
   const diaInicial = diaDaURL() ?? dayKey();
   let day = $state(diaInicial);
-  let daysList = $state([]);
-  let timeline = $state({ ranges: [], segments: [], gens: [] });
+  let daysList = $state<string[]>([]);
+  let timeline = $state<DoDia>({ ranges: [], segments: [], gens: [] });
   // As marcas de movimento do dia, crescentes - a faixa de calor. Elas vêm num
   // pedido à parte da timeline de propósito: a barra azul é o que a tela existe
   // para mostrar, e uma falha ao ler as marcas não pode deixá-la sem desenhar.
-  let eventos = $state([]);
+  let eventos = $state<number[]>([]);
   // As marcas de objeto do dia, do mesmo pedido: [{ instanteMs, familia, classe,
   // score }, …].
-  let objetos = $state([]);
+  let objetos = $state<ObjetoMarcado[]>([]);
   let loading = $state(false);
   let error = $state('');
   let showThumbs = $state(params.get('thumbs') !== '0');
@@ -61,13 +71,15 @@
   // o botão dele se apaga junto.
   let showCaixas = $state(params.get('caixas') !== '0');
   let showRotulos = $state(params.get('rotulos') !== '0');
-  let camadaCaixas = $state(null);
+  let camadaCaixas = $state<{ desenhaEm: DesenhoPorCima } | null>(null);
   // O componente das caixas vem num chunk à parte, baixado só quando o dia tem
   // objeto: quem não usa detecção não paga os bytes dele.
-  let Caixas = $state(null);
+  let Caixas = $state<typeof CaixasDoVideo | null>(null);
   $effect(() => {
     if (objetos.length && !Caixas) {
-      import('../components/Caixas.svelte').then((m) => (Caixas = m.default));
+      void import('../components/Caixas.svelte').then((m) => {
+        Caixas = m.default;
+      });
     }
   });
   // Segura a escrita na URL até a câmera ter sido resolvida contra o cadastro.
@@ -81,7 +93,7 @@
   // Falha de captura tem estado próprio: `error` só é apagado no load()
   // seguinte, e um aviso de captura ficaria colado na tela até trocar de dia.
   let capturaErro = $state('');
-  let avisoTimer;
+  let avisoTimer: number | undefined;
 
   // --- o que veio da URL ----------------------------------------------------
   //
@@ -100,10 +112,12 @@
       : null;
   }
 
-  function horaMs(hms, diaMs) {
+  function horaMs(hms: string | null | undefined, diaMs: number) {
     const m = /^(\d{1,2}):(\d{2}):(\d{2})$/.exec(hms ?? '');
-    if (!m || +m[1] > 23 || +m[2] > 59 || +m[3] > 59) return null;
-    return diaMs + (+m[1] * 3600 + +m[2] * 60 + +m[3]) * 1000;
+    if (!m) return null;
+    const [h, min, s] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (h > 23 || min > 59 || s > 59) return null;
+    return diaMs + (h * 3600 + min * 60 + s) * 1000;
   }
 
   const inicioDoDia = parseDay(diaInicial).getTime();
@@ -143,7 +157,7 @@
   // em pedaços de 10s vê gravação nova em ~20s, e quem gravou em pedaços de
   // 2 min não paga oito consultas do dia inteiro para cada uma que muda algo.
   const pollMs = $derived.by(() => {
-    const seg = cameras.list.find((c) => c.id === cam)?.segmentSeconds || SEG_PADRAO;
+    const seg = cameras.list.find((c) => c.id === cam)?.segmentSeconds ?? SEG_PADRAO;
     return Math.min(Math.max(seg * 1000, POLL_MIN_MS), POLL_MAX_MS);
   });
 
@@ -155,24 +169,27 @@
   // clipe, e as duas recusas antecipadas. Elas importam porque o download sai
   // por location.href: um 404 ou um 409 apareceria como texto cru numa aba,
   // sem volta para a tela.
-  const exportacao = $derived.by(() => {
+  const exportacao = $derived.by((): Exportacao | null => {
     const from = Math.round(player.currentMs || 0);
     if (!from) return null;
     const to = from + exportMin * 60_000;
 
     const sel = timeline.segments.filter(([s, d]) => s + d > from && s < to);
-    if (!sel.length) return { erro: 'sem gravação nesse trecho' };
+    const primeiro = sel[0];
+    if (!primeiro) return { erro: 'sem gravação nesse trecho' };
     // Um MP4 só pode ter um init, então o servidor recusa o intervalo que muda
     // de geração (internal/api/recordings.go:327).
-    if (sel.some(([, , gi]) => gi !== sel[0][2]))
+    if (sel.some(([, , gi]) => gi !== primeiro[2]))
       return { erro: 'o trecho atravessa uma troca de codec' };
 
-    return { inicio: sel[0][0], to };
+    return { inicio: primeiro[0], to };
   });
 
   // No localStorage, e não na URL: a duração da exportação é parâmetro de uma
   // AÇÃO, não do que se está vendo - não tem o que reproduzir num link.
-  $effect(() => localStorage.setItem('dwnvr.rec.exportMin', exportMin));
+  $effect(() => {
+    localStorage.setItem('dwnvr.rec.exportMin', String(exportMin));
+  });
 
   // A URL, ao contrário, passa a descrever a cena inteira: câmera, dia,
   // instante, velocidade, pausa, zoom, miniaturas, caixas e rótulos. É isso que faz colar o
@@ -202,16 +219,16 @@
     if (!cameras.list.length) await loadCameras();
     // Câmera do link só vale se ainda existir: cadastro some, link fica.
     const daURL = params.get('cam');
-    cam = cameras.list.some((c) => c.id === daURL) ? daURL : (cameras.list[0]?.id ?? '');
+    cam = daURL !== null && cameras.list.some((c) => c.id === daURL) ? daURL : (cameras.list[0]?.id ?? '');
     montado = true;
   });
 
   // Anda pela lista de câmeras dando a volta nas pontas.
-  function shiftCam(delta) {
+  function shiftCam(delta: number) {
     const n = cameras.list.length;
     if (!n) return;
     const i = cameras.list.findIndex((c) => c.id === cam);
-    cam = cameras.list[(i + delta + n) % n].id;
+    cam = cameras.list[(i + delta + n) % n]?.id ?? cam;
   }
 
   onDestroy(() => {
@@ -244,27 +261,27 @@
       if (agora) tPendente = agora;
     }
     camCarregada = cam;
-    load(cam, day);
+    void load(cam, day);
   });
 
   // Os dias com gravação, uma vez por câmera. É a única leitura deste endpoint
   // na tela: o dia que estreia com a tela aberta entra pelo refresh(), sem
   // custar requisição nenhuma.
   $effect(() => {
-    if (cam) carregarDias(cam);
+    if (cam) void carregarDias(cam);
   });
 
-  async function carregarDias(c) {
+  async function carregarDias(c: string) {
     try {
       const res = await api.days(c);
       if (c !== cam) return;
-      daysList = (res.days || []).map((d) => d.day);
+      daysList = res.days.map((d) => d.day);
       // Dia que não existe para esta câmera - link antigo, ou a câmera que
       // acabou de ser trocada. O instante que veio da URL descrevia aquele
       // outro dia e não sobrevive à troca.
       if (daysList.length && !daysList.includes(day)) {
         tPendente = null;
-        day = daysList.includes(dayKey()) ? dayKey() : daysList.at(-1);
+        day = daysList.includes(dayKey()) ? dayKey() : (daysList.at(-1) ?? day);
       }
     } catch {
       // Lista vazia é o modo permissivo do seletor: qualquer dia até hoje volta
@@ -283,7 +300,7 @@
   // Em modo permissivo a lista fica como está: uma lista de um dia só faria o
   // seletor sair do "tudo liberado" para "só hoje", que é o oposto do que ele
   // deve fazer quando não conhece o histórico.
-  function registrarDia(d) {
+  function registrarDia(d: string) {
     if (!daysList.length || daysList.includes(d)) return;
     daysList = [...daysList, d].sort();
   }
@@ -294,11 +311,13 @@
   $effect(() => {
     if (!cam || !isToday) return;
 
-    const id = setInterval(refresh, pollMs);
+    const id = setInterval(() => {
+      void refresh();
+    }, pollMs);
     // Aba escondida não toca vídeo nem desenha timeline; ao voltar, o que se
     // perdeu é buscado de uma vez em vez de esperar o próximo intervalo.
     const onVisible = () => {
-      if (!document.hidden) refresh();
+      if (!document.hidden) void refresh();
     };
     document.addEventListener('visibilitychange', onVisible);
 
@@ -308,7 +327,7 @@
     };
   });
 
-  async function load(c, d) {
+  async function load(c: string, d: string) {
     loading = true;
     error = '';
     try {
@@ -318,13 +337,14 @@
       // retenção apagou esse dia com a tela aberta. Reler conserta a lista e
       // leva para um dia que ainda existe. Só acontece nesse desencontro, e é
       // por isso que o poll não precisa reler nada.
-      if (!t.segments.length && daysList.includes(d)) carregarDias(c);
+      if (!t.segments.length && daysList.includes(d)) void carregarDias(c);
       player.setSource(c, t.gens, t.segments);
       clearThumbnails();
       // Num dia passado, o mais útil é o começo; hoje, o mais recente. O
       // instante que veio da URL manda em cima disso, mas só desta vez.
-      if (t.segments.length) {
-        const alvo = tPendente ?? (d === dayKey() ? t.segments.at(-1)[0] : t.segments[0][0]);
+      const ponta = d === dayKey() ? t.segments.at(-1) : t.segments[0];
+      if (ponta) {
+        const alvo = tPendente ?? ponta[0];
         tPendente = null;
         await player.seek(alvo);
         // Depois do seek, nunca antes: ele termina em play(). Também só desta
@@ -333,7 +353,7 @@
         pausarNaPrimeira = false;
       }
     } catch (e) {
-      error = e.message;
+      error = mensagemDe(e);
       timeline = { ranges: [], segments: [], gens: [] };
     } finally {
       loading = false;
@@ -342,7 +362,7 @@
     // Depois, e à parte. Câmera com a detecção desligada nem pergunta: quem só
     // grava não paga pedido nenhum pela faixa. O preço é que as marcas de um
     // período em que ela esteve ligada somem da tela junto com o desligar.
-    let ev = { onsets: [], objetos: [] };
+    let ev: Pick<Eventos, 'onsets' | 'objetos'> = { onsets: [], objetos: [] };
     if (detectLigado(c)) {
       try {
         ev = await api.events(c, d);
@@ -356,7 +376,7 @@
     }
   }
 
-  function detectLigado(c) {
+  function detectLigado(c: string) {
     return !!cameras.list.find((x) => x.id === c)?.detect;
   }
 
@@ -368,24 +388,25 @@
   // de propósito: é ela que revela se a primeira faixa da cauda continua a
   // última faixa antiga, sem precisar repetir aqui a tolerância de emenda que
   // o servidor usa. A decisão já vem tomada dentro da resposta.
-  function costurar(atual, cauda, desdeMs) {
+  function costurar(atual: DoDia, cauda: DoDia, desdeMs: number): DoDia | null {
     const novos = cauda.segments.filter(([start]) => start > desdeMs);
     if (!novos.length) return null;
 
     // A tabela de gerações da cauda tem índices próprios, começando do zero:
     // usá-los direto apontaria para a geração errada da lista antiga.
     const gens = [...atual.gens];
-    const segments = [
+    const segments: Segmento[] = [
       ...atual.segments,
-      ...novos.map(([start, dur, gi]) => {
+      ...novos.flatMap(([start, dur, gi]): Segmento[] => {
         const g = cauda.gens[gi];
+        if (g === undefined) return []; // segmento sem init: o servidor nunca manda
         let j = gens.indexOf(g);
         if (j < 0) j = gens.push(g) - 1;
-        return [start, dur, j];
+        return [[start, dur, j]];
       }),
     ];
 
-    const ranges = atual.ranges.map((r) => [...r]);
+    const ranges = atual.ranges.map(([ini, fim]): Trecho => [ini, fim]);
     for (const [ini, fim] of cauda.ranges) {
       const ultima = ranges.at(-1);
       if (ultima && ini <= ultima[1]) ultima[1] = Math.max(ultima[1], fim);
@@ -424,7 +445,8 @@
         registrarDia(d);
         timeline = t;
         player.setSource(c, t.gens, t.segments);
-        player.seek(t.segments.at(-1)[0]);
+        const ponta = t.segments.at(-1);
+        if (ponta) void player.seek(ponta[0]);
         return;
       }
 
@@ -435,7 +457,7 @@
       if (!emendada) return;
 
       timeline = emendada;
-      player.updateSegments(emendada.gens, emendada.segments);
+      void player.updateSegments(emendada.gens, emendada.segments);
     } catch {
       // Atualização de fundo: uma falha passageira não pode apagar da tela a
       // timeline que já estava boa nem interromper a reprodução.
@@ -463,7 +485,7 @@
   // segundos; a folga custa uns poucos KB de onsets por rodada.
   const ATRASO_DO_OBJETO_MS = 30 * 60_000;
 
-  async function caudaDeEventos(c, d) {
+  async function caudaDeEventos(c: string, d: string) {
     if (!detectLigado(c)) return;
     const ultimo = eventos.at(-1) ?? dayStart - 1;
     const desde = Math.max(dayStart, ultimo - ATRASO_DO_OBJETO_MS);
@@ -473,7 +495,7 @@
       const onsets = ev.onsets.filter((t) => t > ultimo);
       if (onsets.length) eventos = [...eventos, ...onsets];
       // Uma olhada grava no máximo uma marca por família.
-      const chave = (o) => `${o.instanteMs}|${o.familia}`;
+      const chave = (o: ObjetoMarcado) => `${o.instanteMs}|${o.familia}`;
       const conhecidos = new Set(objetos.map(chave));
       const novos = ev.objetos.filter((o) => !conhecidos.has(chave(o)));
       if (novos.length) objetos = [...objetos, ...novos];
@@ -501,12 +523,14 @@
     const nome = `${cam}_${dayKey(d)}_${hhmmss(d.getTime()).replaceAll(':', '-')}.jpg`;
     try {
       // A imagem sai como a tela está: com as caixas acesas, se estiverem ligadas.
-      const porCima = showCaixas ? (g, w, h) => camadaCaixas?.desenhaEm(g, w, h) : undefined;
-      await baixarQuadro(video, nome, porCima);
+      const camada = showCaixas ? camadaCaixas : null;
+      await baixarQuadro(video, nome, camada ? camada.desenhaEm : undefined);
     } catch (e) {
-      capturaErro = e.message;
+      capturaErro = mensagemDe(e);
       clearTimeout(avisoTimer);
-      avisoTimer = setTimeout(() => (capturaErro = ''), 5000);
+      avisoTimer = setTimeout(() => {
+        capturaErro = '';
+      }, 5000);
     }
   }
 </script>
@@ -519,7 +543,7 @@
       <div class="row camnav">
         <button
           class="ghost"
-          onclick={() => shiftCam(-1)}
+          onclick={() => { shiftCam(-1); }}
           disabled={cameras.list.length < 2}
           aria-label="câmera anterior"
         >
@@ -532,7 +556,7 @@
         </select>
         <button
           class="ghost"
-          onclick={() => shiftCam(1)}
+          onclick={() => { shiftCam(1); }}
           disabled={cameras.list.length < 2}
           aria-label="próxima câmera"
         >
@@ -540,7 +564,7 @@
         </button>
       </div>
 
-      <NavDia value={day} days={daysList} onchange={(d) => (day = d)} />
+      <NavDia value={day} days={daysList} onchange={(d: string) => (day = d)} />
 
       <span class="spacer"></span>
       <span class="muted small mono">
@@ -575,14 +599,14 @@
     </div>
 
     <div class="controls row wrap">
-      <button class="primary" onclick={() => player.toggle()} aria-label="tocar ou pausar">
+      <button class="primary" onclick={() => { player.toggle(); }} aria-label="tocar ou pausar">
         {player.playing ? '⏸' : '▶'}
       </button>
-      <Relogio ms={player.currentMs} onir={(seg) => player.seek(dayStart + seg * 1000)} />
+      <Relogio ms={player.currentMs} onir={(seg) => { void player.seek(dayStart + seg * 1000); }} />
 
       <select
         value={player.rate}
-        onchange={(e) => player.setRate(Number(e.currentTarget.value))}
+        onchange={(e) => { player.setRate(Number(e.currentTarget.value)); }}
         aria-label="velocidade"
       >
         {#each RATES as r (r)}<option value={r}>{taxa(r)}</option>{/each}
@@ -636,7 +660,7 @@
         {cam}
         segments={timeline.segments}
         currentMs={player.currentMs}
-        onseek={(ms) => player.seek(ms)}
+        onseek={(ms: number) => { void player.seek(ms); }}
       />
     {/if}
 
@@ -649,7 +673,7 @@
       currentMs={player.currentMs}
       bind:viewFrom
       bind:viewTo
-      onseek={(ms) => player.seek(ms)}
+      onseek={(ms: number) => { void player.seek(ms); }}
     />
 
     <p class="legend muted small row wrap">

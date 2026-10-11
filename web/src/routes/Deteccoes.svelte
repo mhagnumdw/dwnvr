@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   // Detecções: as detecções de objeto de todas as câmeras numa grade só, da
   // mais nova para a mais velha, agrupadas por hora.
   //
@@ -13,12 +13,33 @@
   import NavDia from '../components/NavDia.svelte';
   import Relogio from '../components/Relogio.svelte';
   import DeteccaoFolha from '../components/DeteccaoFolha.svelte';
-  import { api, mediaURL } from '../lib/api.js';
-  import { cameras, loadCameras } from '../lib/state.svelte.js';
-  import { paramsAtuais, escrever, linkGravacoes } from '../lib/rota.svelte.js';
-  import { FAMILIAS, familia, iconeURL } from '../lib/icones.js';
-  import { CAIXA_FOLGA_PX } from '../lib/caixas.js';
-  import { hhmmss, ddmm, dayKey, parseDay } from '../lib/format.js';
+  import { api, mediaURL, mensagemDe } from '../lib/api.ts';
+  import type { Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
+  import { cameras, loadCameras } from '../lib/state.svelte.ts';
+  import { paramsAtuais, escrever, linkGravacoes } from '../lib/rota.svelte.ts';
+  import { FAMILIAS, NOMES_DAS_FAMILIAS, familia, iconeDaFamilia, iconeURL } from '../lib/icones.ts';
+  import type { NomeDaFamilia } from '../lib/icones.ts';
+  import { CAIXA_FOLGA_PX } from '../lib/caixas.ts';
+  import { hhmmss, ddmm, dayKey, parseDay } from '../lib/format.ts';
+
+  // Uma linha da grade: o cabeçalho da hora, ou uma fileira de miniaturas.
+  // `primeira` é o índice na `lista` da primeira miniatura da fileira.
+  interface LinhaDaHora { tipo: 'hora'; k: string; y: number; altura: number; rotulo: string; dia: string }
+  interface LinhaDaGrade {
+    tipo: 'grade';
+    k: string;
+    y: number;
+    altura: number;
+    primeira: number;
+    itens: Deteccao[];
+  }
+  type Linha = LinhaDaHora | LinhaDaGrade;
+
+  // A detecção que segura a vista, e a distância dela até o topo.
+  interface Ancora {
+    k: string;
+    dy: number;
+  }
 
   // --- parâmetros -------------------------------------------------------------
 
@@ -55,19 +76,19 @@
   const MENU_PX = 140;
   const DESFAZER_MS = 6000;
 
-  const ORDEM_FAMILIAS = Object.keys(FAMILIAS);
+  const ORDEM_FAMILIAS = NOMES_DAS_FAMILIAS;
 
   // --- estado da URL ----------------------------------------------------------
 
   const params = paramsAtuais();
 
-  const idsDaURL = (k, validos) =>
-    params.has(k) ? params.getAll(k).filter((v) => validos.includes(v)) : null;
+  const idsDaURL = <T extends string>(k: string, validos: readonly T[]): T[] | null =>
+    params.has(k) ? params.getAll(k).filter((v): v is T => validos.some((x) => x === v)) : null;
 
   // Nulo é "todas": é o padrão, e fica fora do link.
-  let camsMarcadas = $state(null);
-  let familiasMarcadas = $state(idsDaURL('familias', ORDEM_FAMILIAS));
-  let colunasEscolhidas = $state(Number(params.get('cols')) || null);
+  let camsMarcadas = $state<string[] | null>(null);
+  let familiasMarcadas = $state<NomeDaFamilia[] | null>(idsDaURL('familias', ORDEM_FAMILIAS));
+  let colunasEscolhidas = $state<number | null>(Number(params.get('cols')) || null);
   let comCaixas = $state(params.get('caixas') !== '0');
   let atualizando = $state(params.get('atualizar') !== '0');
 
@@ -92,7 +113,7 @@
   // A janela carregada, da mais nova para a mais velha. `$state.raw` porque
   // cada página troca o array inteiro: proxy em 600 objetos com caixas seria
   // custo sem uso.
-  let lista = $state.raw([]);
+  let lista = $state.raw<Deteccao[]>([]);
   // Se há mais além de cada ponta da janela. Acima: detecção mais nova que o
   // topo carregado - depois de um "ir para", ou depois de soltar o topo.
   let fimAcima = $state(true);
@@ -103,7 +124,7 @@
   let erro = $state('');
   // O instante do último "ir para", que serve de cursor quando ele caiu antes
   // de qualquer detecção e a lista começou vazia.
-  let alvo = null;
+  let alvo: number | null = null;
   // Invalida a resposta de uma busca que já não descreve a tela: filtro novo,
   // "ir para" novo.
   let geracao = 0;
@@ -111,15 +132,15 @@
   // O ao vivo e Gravações só abrem para câmera que ainda está no cadastro: uma
   // detecção antiga pode citar uma câmera removida desde então, e as duas telas
   // trocariam o id desconhecido por outra câmera.
-  const existe = (cam) => cameras.list.some((c) => c.id === cam);
+  const existe = (cam: string) => cameras.list.some((c) => c.id === cam);
 
-  const chave = (d) => `${d.cam}|${d.instanteMs}`;
+  const chave = (d: Deteccao) => `${d.cam}|${d.instanteMs}`;
 
   const nomes = $derived(Object.fromEntries(cameras.list.map((c) => [c.id, c.name])));
 
   // O que vai no pedido. Nulo quando o filtro não deixou nada marcado, e aí nem
   // se pergunta ao servidor.
-  const filtro = $derived.by(() => {
+  const filtro = $derived.by((): FiltroDeDeteccoes | null => {
     if (camsMarcadas?.length === 0 || familiasMarcadas?.length === 0) return null;
     return { cams: camsMarcadas, familias: familiasMarcadas };
   });
@@ -132,10 +153,10 @@
 
   // junta duas fatias em ordem, sem repetir: a busca de novas volta de
   // propósito sobre o que já se tem, e uma página pode empatar com a vizinha.
-  function junta(a, b) {
+  function junta(a: Deteccao[], b: Deteccao[]) {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Set local, só para juntar
-    const vistos = new Set();
-    const out = [];
+    const vistos = new Set<string>();
+    const out: Deteccao[] = [];
     for (const d of [...a, ...b].sort((x, y) => y.instanteMs - x.instanteMs || (x.cam < y.cam ? -1 : 1))) {
       const k = chave(d);
       if (vistos.has(k)) continue;
@@ -145,7 +166,7 @@
     return out;
   }
 
-  async function recomeca(antes = null) {
+  async function recomeca(antes: number | null = null) {
     const g = ++geracao;
     alvo = antes;
     lista = [];
@@ -162,7 +183,7 @@
       return;
     }
     try {
-      const r = await api.deteccoes({ ...filtro, antes: antes ?? undefined, limite: pagina() });
+      const r = await api.deteccoes({ ...filtro, antes, limite: pagina() });
       if (g !== geracao) return;
       lista = r.deteccoes;
       fimAbaixo = r.fim;
@@ -170,7 +191,7 @@
       await tick();
       confere();
     } catch (e) {
-      if (g === geracao) erro = e.message;
+      if (g === geracao) erro = mensagemDe(e);
     }
   }
 
@@ -194,7 +215,7 @@
       lista = nova;
       await restaura(a);
     } catch (e) {
-      if (g === geracao) erro = e.message;
+      if (g === geracao) erro = mensagemDe(e);
     } finally {
       if (g === geracao) buscandoAbaixo = false;
     }
@@ -218,7 +239,7 @@
       lista = nova;
       await restaura(a);
     } catch (e) {
-      if (g === geracao) erro = e.message;
+      if (g === geracao) erro = mensagemDe(e);
     } finally {
       if (g === geracao) buscandoAcima = false;
     }
@@ -233,7 +254,8 @@
     const topo = lista[0]?.instanteMs ?? Date.now();
     try {
       const r = await api.deteccoes({ ...filtro, depois: topo - ATRASO_MS, limite: 200 });
-      if (g !== geracao || !r.deteccoes.length) return;
+      const maisNova = r.deteccoes[0];
+      if (g !== geracao || !maisNova) return;
       // Quem está olhando o topo vê a novidade entrar; quem rolou para baixo
       // não pode ter a tela empurrada por ela.
       const a = rolagem.ini > 0 ? ancora() : null;
@@ -241,7 +263,7 @@
       // Mais de 200 no intervalo: as mais novas ficaram de fora, e a rolagem
       // para cima as busca como faria depois de um "ir para".
       if (!r.fim) fimAcima = false;
-      registraDia(dayKey(new Date(r.deteccoes[0].instanteMs)));
+      registraDia(dayKey(new Date(maisNova.instanteMs)));
       if (a) await restaura(a);
     } catch {
       // A próxima rodada tenta de novo; um soluço da rede não vira aviso.
@@ -253,17 +275,17 @@
   // Os dias com detecção do filtro, para o calendário e as setas. Vazia é o
   // modo permissivo do seletor: até a resposta chegar, ou se ela falhar, todo
   // dia até hoje vale.
-  let diasComDeteccao = $state.raw([]);
+  let diasComDeteccao = $state.raw<string[]>([]);
   // Segura a primeira consulta até a câmera da URL ser resolvida: antes disso o
   // filtro é "todas", e a consulta sairia à toa - e, com o disco frio, é a mais
   // cara da tela.
   let camerasResolvidas = $state(false);
 
   $effect(() => {
-    if (camerasResolvidas) carregaDias(filtro);
+    if (camerasResolvidas) void carregaDias(filtro);
   });
 
-  async function carregaDias(f) {
+  async function carregaDias(f: FiltroDeDeteccoes | null) {
     if (!f) {
       diasComDeteccao = [];
       return;
@@ -279,7 +301,7 @@
   // Hoje estreando no calendário com a tela aberta: a detecção nova já diz o
   // dia, sem reler a lista. Em modo permissivo a lista fica vazia - um dia só a
   // tiraria do "tudo liberado".
-  function registraDia(dia) {
+  function registraDia(dia: string) {
     if (!diasComDeteccao.length || diasComDeteccao.includes(dia)) return;
     diasComDeteccao = [...diasComDeteccao, dia].sort();
   }
@@ -287,12 +309,12 @@
   // Religar busca na hora: esperar a rodada seguinte pareceria que não pegou.
   function alternaAtualizar() {
     atualizando = !atualizando;
-    if (atualizando) novas();
+    if (atualizando) void novas();
   }
 
   // --- a grade, calculada -----------------------------------------------------
 
-  let listaEl;
+  let listaEl: HTMLDivElement | undefined;
   let largura = $state(0);
 
   const grade = $derived.by(() => {
@@ -301,7 +323,7 @@
     return { vao, larguraTile, alturaTile: (larguraTile * 9) / 16 };
   });
 
-  const chaveHora = (ms) => {
+  const chaveHora = (ms: number) => {
     const d = new Date(ms);
     return `${dayKey(d)}T${d.getHours()}`;
   };
@@ -311,13 +333,13 @@
   // diz em que linha mora a detecção i, para achar a âncora depois de uma troca.
   const layout = $derived.by(() => {
     const { vao, alturaTile } = grade;
-    const linhas = [];
-    const linhaDe = new Array(lista.length);
+    const linhas: Linha[] = [];
+    const linhaDe: number[] = [];
     let y = 0;
-    let hora = null;
-    let atual = null;
-    for (let i = 0; i < lista.length; i++) {
-      const ms = lista[i].instanteMs;
+    let hora: string | null = null;
+    let atual: LinhaDaGrade | null = null;
+    for (const [i, det] of lista.entries()) {
+      const ms = det.instanteMs;
       const h = chaveHora(ms);
       if (h !== hora) {
         const d = new Date(ms);
@@ -334,11 +356,11 @@
         atual = null;
       }
       if (!atual || atual.itens.length === colunas) {
-        atual = { tipo: 'grade', k: `g${chave(lista[i])}`, y, altura: alturaTile, itens: [] };
+        atual = { tipo: 'grade', k: `g${chave(det)}`, y, altura: alturaTile, primeira: i, itens: [] };
         linhas.push(atual);
         y += alturaTile + vao;
       }
-      atual.itens.push(i);
+      atual.itens.push(det);
       linhaDe[i] = linhas.length - 1;
     }
     return { linhas, linhaDe, altura: y };
@@ -349,7 +371,7 @@
   // A vista em px da lista: `ini` é o que está logo abaixo da barra, `fim` o pé
   // da janela. Relida a cada quadro de rolagem.
   let rolagem = $state({ ini: 0, fim: 0 });
-  let barraEl;
+  let barraEl: HTMLDivElement | undefined;
   let barraH = $state(0);
   // O cabeçalho do App fica grudado no topo no desktop; a barra desta tela
   // gruda logo abaixo dele.
@@ -377,9 +399,9 @@
     if (!carregado || !filtro || erro) return;
     const tela = window.innerHeight;
     if (!fimAbaixo && !buscandoAbaixo && lista.length && layout.altura - rolagem.fim < tela * BUSCA_TELAS) {
-      abaixo();
+      void abaixo();
     }
-    if (!fimAcima && !buscandoAcima && rolagem.ini < tela * BUSCA_TELAS) acima();
+    if (!fimAcima && !buscandoAcima && rolagem.ini < tela * BUSCA_TELAS) void acima();
   }
 
   // O que vai para o DOM. A faixa anda em degraus de DEGRAU_PX, e não a cada
@@ -394,32 +416,42 @@
   });
 
   // Primeira linha cujo fim passa de `y`: busca binária, as linhas vêm em ordem.
-  function primeiraAbaixo(y) {
+  function primeiraAbaixo(y: number) {
     const l = layout.linhas;
     let lo = 0;
     let hi = l.length;
     while (lo < hi) {
       const m = (lo + hi) >> 1;
-      if (l[m].y + l[m].altura <= y) lo = m + 1;
+      const linha = l[m];
+      if (linha && linha.y + linha.altura <= y) lo = m + 1;
       else hi = m;
     }
     return lo;
   }
 
+  // A linha onde mora a detecção i da `lista`.
+  function linhaDaDeteccao(i: number) {
+    const li = layout.linhaDe[i];
+    return li === undefined ? undefined : layout.linhas[li];
+  }
+
   const vistas = $derived.by(() => {
     const { de, ate } = janela;
-    const l = layout.linhas;
-    const out = [];
-    for (let i = primeiraAbaixo(de); i < l.length && l[i].y < ate; i++) out.push(l[i]);
+    const out: Linha[] = [];
+    for (const linha of layout.linhas.slice(primeiraAbaixo(de))) {
+      if (linha.y >= ate) break;
+      out.push(linha);
+    }
     return out;
   });
 
   // A primeira linha de miniaturas à vista: é ela que dá o dia e a hora da
   // barra, e o cabeçalho que gruda.
   const noTopo = $derived.by(() => {
-    const l = layout.linhas;
-    for (let i = primeiraAbaixo(rolagem.ini + 1); i < l.length; i++) {
-      if (l[i].tipo === 'grade') return { linha: l[i], det: lista[l[i].itens[0]] };
+    for (const linha of layout.linhas.slice(primeiraAbaixo(rolagem.ini + 1))) {
+      if (linha.tipo !== 'grade') continue;
+      const det = linha.itens[0];
+      if (det) return { linha, det };
     }
     return null;
   });
@@ -433,8 +465,9 @@
   const horaGrudada = $derived.by(() => {
     if (!noTopo || rolagem.ini <= 0) return null;
     const l = layout.linhas;
-    for (let i = layout.linhaDe[noTopo.linha.itens[0]]; i >= 0; i--) {
-      if (l[i].tipo === 'hora') return l[i].y + l[i].altura <= rolagem.ini ? l[i] : null;
+    for (let i = layout.linhaDe[noTopo.linha.primeira] ?? -1; i >= 0; i--) {
+      const linha = l[i];
+      if (linha?.tipo === 'hora') return linha.y + linha.altura <= rolagem.ini ? linha : null;
     }
     return null;
   });
@@ -442,24 +475,23 @@
   // A âncora é a detecção no topo da vista e a distância dela até lá. Trocar
   // o que está acima - página que chegou, topo solto, novas - mexe no `y` de
   // tudo; restaurar a âncora devolve a vista ao mesmo lugar.
-  function ancora() {
+  function ancora(): Ancora | null {
     if (!noTopo) return null;
     return { k: chave(noTopo.det), dy: noTopo.linha.y - rolagem.ini };
   }
 
-  async function restaura(a) {
+  async function restaura(a: Ancora | null) {
     await tick();
     if (!a) return;
-    const i = lista.findIndex((d) => chave(d) === a.k);
-    if (i < 0) return;
-    const y = layout.linhas[layout.linhaDe[i]].y;
-    const delta = y - a.dy - rolagem.ini;
+    const linha = linhaDaDeteccao(lista.findIndex((d) => chave(d) === a.k));
+    if (!linha) return;
+    const delta = linha.y - a.dy - rolagem.ini;
     if (Math.abs(delta) >= 1) window.scrollBy(0, delta);
     mede();
   }
 
   // Zoom e largura mudam a altura de tudo: a âncora segura a vista.
-  async function mudaColunas(passo) {
+  async function mudaColunas(passo: number) {
     const a = ancora();
     colunasEscolhidas = Math.min(faixa.max, Math.max(faixa.min, colunas + passo));
     await restaura(a);
@@ -471,14 +503,14 @@
   // A proporção de cada câmera, aprendida da primeira imagem que chega. A
   // caixa do objeto é uma fração da IMAGEM, e numa câmera 4:3 dentro de uma
   // miniatura 16:9 a imagem não ocupa a miniatura inteira.
-  let proporcoes = $state({});
+  let proporcoes = $state<Record<string, number>>({});
 
-  function aprende(cam, ev) {
-    const { naturalWidth: w, naturalHeight: h } = ev.currentTarget;
+  function aprende(cam: string, img: HTMLImageElement) {
+    const { naturalWidth: w, naturalHeight: h } = img;
     if (w && h && proporcoes[cam] !== w / h) proporcoes[cam] = w / h;
   }
 
-  function areaDaImagem(cam) {
+  function areaDaImagem(cam: string) {
     const { larguraTile: W, alturaTile: H } = grade;
     const p = proporcoes[cam] ?? 16 / 9;
     const w = p >= W / H ? W : H * p;
@@ -487,60 +519,62 @@
   }
 
   // As famílias de uma detecção, uma vez cada, a mais importante primeiro.
-  function familiasDe(d) {
-    const out = [];
+  function familiasDe(d: Deteccao) {
+    const out: string[] = [];
     for (const o of d.objetos) if (!out.includes(o.familia)) out.push(o.familia);
     return out.sort((a, b) => familia(a).prioridade - familia(b).prioridade);
   }
 
-  const score = (v) => v.toFixed(2).replace('.', ',');
+  const score = (v: number) => v.toFixed(2).replace('.', ',');
 
-  const pct = (v) => `${Math.min(1, Math.max(0, v)) * 100}%`;
+  const pct = (v: number) => `${Math.min(1, Math.max(0, v)) * 100}%`;
 
   // A caixa com a mesma folga do vídeo e da folha (CAIXA_FOLGA_PX), parando na
   // borda da imagem. A folga é em px e a caixa em fração, então quem soma é o
   // CSS.
-  const inicio = (v) => `max(0px, calc(${pct(v)} - ${CAIXA_FOLGA_PX}px))`;
-  const tamanho = (de, ate) => `calc(min(100%, calc(${pct(ate)} + ${CAIXA_FOLGA_PX}px)) - ${inicio(de)})`;
+  const inicio = (v: number) => `max(0px, calc(${pct(v)} - ${CAIXA_FOLGA_PX}px))`;
+  const tamanho = (de: number, ate: number) => `calc(min(100%, calc(${pct(ate)} + ${CAIXA_FOLGA_PX}px)) - ${inicio(de)})`;
 
   // --- a folha ----------------------------------------------------------------
 
-  let aberto = $state(null);
+  let aberto = $state<string | null>(null);
   const iAberto = $derived(aberto ? lista.findIndex((d) => chave(d) === aberto) : -1);
+  const detAberta = $derived(lista[iAberto]);
 
   // --- a barra ----------------------------------------------------------------
 
   let camerasAbertas = $state(false);
-  let camsEl;
+  let camsEl: HTMLDivElement | undefined;
 
-  const marcada = (id) => camsMarcadas === null || camsMarcadas.includes(id);
+  const marcada = (id: string) => camsMarcadas === null || camsMarcadas.includes(id);
 
-  function alternaCamera(id) {
+  function alternaCamera(id: string) {
     const atuais = camsMarcadas ?? cameras.list.map((c) => c.id);
     const novas = atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id];
     camsMarcadas = novas.length === cameras.list.length ? null : novas;
-    recomeca();
+    void recomeca();
   }
 
   function todasCameras() {
     camsMarcadas = camsMarcadas === null ? [] : null;
-    recomeca();
+    void recomeca();
   }
 
-  function alternaFamilia(id) {
+  function alternaFamilia(id: NomeDaFamilia) {
     const atuais = familiasMarcadas ?? ORDEM_FAMILIAS;
     const novas = atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id];
     familiasMarcadas = novas.length === ORDEM_FAMILIAS.length
       ? null
       : ORDEM_FAMILIAS.filter((f) => novas.includes(f));
-    recomeca();
+    void recomeca();
   }
 
   const nMarcadas = $derived(camsMarcadas?.length ?? cameras.list.length);
 
-  function foraDasCameras(e) {
-    if (camerasAbertas && camsEl && !camsEl.contains(e.target)) camerasAbertas = false;
-    if (menu && menuEl && !menuEl.contains(e.target) && !e.target.closest?.('.mais')) menu = null;
+  function foraDasCameras(e: MouseEvent) {
+    const alvoDoClique = e.target instanceof Element ? e.target : null;
+    if (camerasAbertas && camsEl && !camsEl.contains(alvoDoClique)) camerasAbertas = false;
+    if (menu && menuEl && !menuEl.contains(alvoDoClique) && !alvoDoClique?.closest('.mais')) menu = null;
   }
 
   // --- ocultar uma câmera daqui mesmo -----------------------------------------
@@ -548,10 +582,17 @@
   // O menu do ⋮ de uma miniatura. Um só, fora da grade e em `position: fixed`:
   // a miniatura corta o que passa da borda dela, e a linha pode sair do DOM
   // no meio da rolagem. Por isso mesmo ele fecha quando a tela rola.
-  let menu = $state(null); // { k, cam, instanteMs, x, y, paraCima }
-  let menuEl = $state(null);
+  let menu = $state<{
+    k: string;
+    cam: string;
+    instanteMs: number;
+    x: number;
+    y: number;
+    paraCima: boolean;
+  } | null>(null);
+  let menuEl = $state<HTMLDivElement | null>(null);
 
-  function abreMenu(d, ev) {
+  function abreMenu(d: Deteccao, ev: MouseEvent & { currentTarget: HTMLElement }) {
     if (menu?.k === chave(d)) {
       menu = null;
       return;
@@ -570,17 +611,17 @@
 
   // O aviso de desfazer: a miniatura some debaixo do dedo, e um toque errado
   // no meio da rolagem é fácil. Desfazer sai mais barato que perguntar antes.
-  let desfazer = $state(null); // { nome, antes }
-  let desfazerTimer = 0;
+  let desfazer = $state<{ nome: string; antes: string[] | null } | null>(null);
+  let desfazerTimer: number | undefined;
 
   // A âncora de `ancora()`, mas pulando a câmera que vai sair: a detecção que
   // segura a vista precisa continuar na lista depois do filtro.
-  function ancoraSem(cam) {
+  function ancoraSem(cam: string): Ancora | null {
     if (!noTopo) return null;
-    for (let i = noTopo.linha.itens[0]; i < lista.length; i++) {
-      if (lista[i].cam !== cam) {
-        return { k: chave(lista[i]), dy: layout.linhas[layout.linhaDe[i]].y - rolagem.ini };
-      }
+    for (let i = noTopo.linha.primeira; i < lista.length; i++) {
+      const det = lista[i];
+      const linha = linhaDaDeteccao(i);
+      if (det && linha && det.cam !== cam) return { k: chave(det), dy: linha.y - rolagem.ini };
     }
     return null;
   }
@@ -588,7 +629,7 @@
   // Só desmarca a câmera no filtro desta tela, o mesmo do botão "câmeras". A
   // lista não recomeça: as detecções dela saem do que já está carregado e a
   // vista fica onde estava, que é o ponto de ocultar sem subir até a barra.
-  async function ocultaCamera(cam) {
+  async function ocultaCamera(cam: string) {
     menu = null;
     aberto = null;
     const antes = camsMarcadas;
@@ -600,7 +641,7 @@
 
     if (!restantes.length) {
       camsMarcadas = restantes;
-      recomeca();
+      void recomeca();
       return;
     }
     const a = ancoraSem(cam);
@@ -622,10 +663,10 @@
     camsMarcadas = desfazer.antes;
     desfazer = null;
     const ms = noTopo?.det.instanteMs;
-    recomeca(rolagem.ini > 0 && ms != null ? ms + 1 : null);
+    void recomeca(rolagem.ini > 0 && ms != null ? ms + 1 : null);
   }
 
-  function tecla(e) {
+  function tecla(e: KeyboardEvent) {
     if (e.key === 'Escape') menu = null;
   }
 
@@ -633,14 +674,14 @@
   // incluídos - a detecção de 14:32:07.500 aparece quando se pede 14:32:07.
   const diaTopo = $derived(dayKey(new Date(topoMs)));
 
-  function irParaDia(chaveDia) {
+  function irParaDia(chaveDia: string) {
     const d = parseDay(chaveDia);
     d.setDate(d.getDate() + 1);
-    recomeca(chaveDia === dayKey() ? null : d.getTime());
+    void recomeca(chaveDia === dayKey() ? null : d.getTime());
   }
 
-  function irParaHora(segundos) {
-    recomeca(parseDay(diaTopo).getTime() + (segundos + 1) * 1000);
+  function irParaHora(segundos: number) {
+    void recomeca(parseDay(diaTopo).getTime() + (segundos + 1) * 1000);
   }
 
   // --- ciclo de vida ----------------------------------------------------------
@@ -651,11 +692,11 @@
   }
 
   onMount(() => {
-    const cab = document.querySelector('#app > header');
+    const cab = document.querySelector<HTMLElement>('#app > header');
     const medeTudo = () => {
       cabH = cab?.offsetHeight ?? 0;
-      barraH = barraEl.offsetHeight;
-      largura = listaEl.clientWidth;
+      barraH = barraEl?.offsetHeight ?? 0;
+      largura = listaEl?.clientWidth ?? 0;
       rolou();
     };
     // Já agora, e não só quando o observador responder: a primeira página é
@@ -663,17 +704,19 @@
     medeTudo();
     const ro = new ResizeObserver(medeTudo);
     if (cab) ro.observe(cab);
-    ro.observe(barraEl);
-    ro.observe(listaEl);
+    if (barraEl) ro.observe(barraEl);
+    if (listaEl) ro.observe(listaEl);
 
-    (async () => {
+    void (async () => {
       if (!cameras.list.length) await loadCameras();
       camsMarcadas = idsDaURL('cams', cameras.list.map((c) => c.id));
       camerasResolvidas = true;
-      recomeca();
+      await recomeca();
     })();
 
-    const t = setInterval(novas, NOVAS_MS);
+    const t = setInterval(() => {
+      void novas();
+    }, NOVAS_MS);
     return () => {
       ro.disconnect();
       clearInterval(t);
@@ -818,15 +861,14 @@
           <strong class="mono">{l.rotulo}</strong>
           <span class="muted small">{l.dia}</span>
         </div>
-      {:else}
+      {:else if l.tipo === 'grade'}
         <div
           class="linha"
           class:compacta={colunas >= (desktop ? 7 : 4)}
           style:transform="translateY({l.y}px)"
           style:height="{l.altura}px"
         >
-          {#each l.itens as i (chave(lista[i]))}
-            {@const d = lista[i]}
+          {#each l.itens as d (chave(d))}
             <div class="celula">
               <button
                 class="tile"
@@ -839,7 +881,9 @@
                       src={mediaURL.quadro(d.cam, d.instanteMs)}
                       alt=""
                       decoding="async"
-                      onload={(e) => aprende(d.cam, e)}
+                      onload={(e) => {
+                        if (e.currentTarget instanceof HTMLImageElement) aprende(d.cam, e.currentTarget);
+                      }}
                     />
                   {/if}
                   {#each d.objetos as o, j (j)}
@@ -863,7 +907,8 @@
                 </span>
                 <span class="icones">
                   {#each familiasDe(d) as f (f)}
-                    <img src={iconeURL(f, 12, familia(f).cor)} alt="" width="12" height="12" />
+                    {@const icone = iconeDaFamilia(f)}
+                    {#if icone}<img src={iconeURL(icone, 12, familia(f).cor)} alt="" width="12" height="12" />{/if}
                   {/each}
                 </span>
                 <span class="legenda">
@@ -873,7 +918,9 @@
               </button>
               <button
                 class="mais"
-                onclick={(e) => abreMenu(d, e)}
+                onclick={(e: MouseEvent & { currentTarget: HTMLButtonElement }) => {
+                  abreMenu(d, e);
+                }}
                 aria-label="opções da câmera {nomes[d.cam] ?? d.cam}"
                 aria-haspopup="menu"
                 aria-expanded={menu?.k === chave(d)}
@@ -902,21 +949,26 @@
   {/if}
 </div>
 
-{#if iAberto >= 0}
-  {@const d = lista[iAberto]}
+{#if detAberta}
+  {@const d = detAberta}
+  {@const anterior = lista[iAberto + 1]}
+  {@const proxima = lista[iAberto - 1]}
   {#key aberto}
     <DeteccaoFolha
       det={d}
       camera={nomes[d.cam] ?? d.cam}
       onclose={() => (aberto = null)}
-      onanterior={iAberto + 1 < lista.length ? () => (aberto = chave(lista[iAberto + 1])) : null}
-      onproxima={iAberto > 0 ? () => (aberto = chave(lista[iAberto - 1])) : null}
-      onocultar={() => ocultaCamera(d.cam)}
+      onanterior={anterior ? () => (aberto = chave(anterior)) : null}
+      onproxima={proxima ? () => (aberto = chave(proxima)) : null}
+      onocultar={() => {
+        void ocultaCamera(d.cam);
+      }}
     />
   {/key}
 {/if}
 
 {#if menu}
+  {@const m = menu}
   <div
     class="menu"
     role="menu"
@@ -943,7 +995,13 @@
         Abrir em Gravações
       </a>
     {/if}
-    <button class="ghost" role="menuitem" onclick={() => ocultaCamera(menu.cam)}>
+    <button
+      class="ghost"
+      role="menuitem"
+      onclick={() => {
+        void ocultaCamera(m.cam);
+      }}
+    >
       Ocultar a câmera <strong>{nomes[menu.cam] ?? menu.cam}</strong>
     </button>
   </div>
