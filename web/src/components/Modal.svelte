@@ -19,6 +19,7 @@
     onclose?: () => void;
     largura?: number | string;
     reservaRolagem?: boolean;
+    centralizada?: boolean;
     children?: Snippet;
   }
 
@@ -35,7 +36,18 @@
   // a crescer - e a folha vibra entre os dois estados a cada quadro. Com a
   // reserva a largura não depende da barra e o ciclo não tem por onde começar.
   // No celular a barra flutua sobre o conteúdo e a reserva não ocupa nada.
-  let { onclose, largura = 460, reservaRolagem = false, children }: Props = $props();
+  //
+  // `centralizada` abre a folha no meio da tela também no celular. A folha
+  // de baixo serve a formulário, onde o polegar alcança os campos; a folha
+  // da detecção é para olhar o quadro, e com semanas de uso no meio provou
+  // ser melhor.
+  let {
+    onclose,
+    largura = 460,
+    reservaRolagem = false,
+    centralizada = false,
+    children,
+  }: Props = $props();
   const larguraCSS = $derived(typeof largura === 'number' ? `${largura}px` : largura);
 
   const self = {};
@@ -55,6 +67,7 @@
 
 <div
   class="overlay"
+  class:centralizada
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) onclose?.();
@@ -95,6 +108,16 @@
     overflow-y: auto;
     border-radius: var(--radius) var(--radius) 0 0;
     padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .centralizada {
+    place-items: center;
+    padding: 8px;
+  }
+
+  .centralizada .sheet {
+    border-radius: var(--radius);
+    padding-bottom: 14px;
   }
 
   .sheet.reserva-rolagem {

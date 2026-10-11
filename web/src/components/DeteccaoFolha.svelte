@@ -27,10 +27,12 @@
   // A largura da folha. O palco é 16:9 e é o que mais cresce, então numa
   // janela baixa é a largura que precisa ceder para o quadro caber inteiro -
   // o teto sai da altura livre, e não o contrário. `RESTO_PX` é o que o resto
-  // da folha ocupa em altura (cabeçalho 36 + objetos 19,5 + ações 44 + três
-  // espaços de 14 + 28 de padding + 2 de borda, medidos em 22/09/2026) e
-  // `RESPIRO_PX` é o que fica dos lados do palco (28 de padding + 2 de borda),
-  // que entra na largura mas não no palco.
+  // da folha ocupa em altura (cabeçalho 36 + objetos 36, a altura do botão
+  // de ocultar + ações 44 + três espaços de 14 + 28 de padding + 2 de borda)
+  // e `RESPIRO_PX` é o que fica dos lados do palco (28 de padding + 2 de
+  // borda), que entra na largura mas não no palco. Sem o botão, quando a
+  // câmera já está oculta, a linha dos objetos tem 19,5 e a conta sobra - a
+  // folha sai um pouco mais estreita, o que não faz mal.
   //
   // A conta precisa fechar certa, arredondando para cima: com a folha 1px
   // acima do teto aparece a barra de rolagem, ela come a largura, o palco encolhe,
@@ -49,7 +51,7 @@
   // defeito.
   const LARGURA_MAX_PX = 880;
   const LARGURA_MIN_PX = 360;
-  const RESTO_PX = 172;
+  const RESTO_PX = 188;
   const RESPIRO_PX = 30;
   const largura = `clamp(${LARGURA_MIN_PX}px, calc((var(--altura-max) - ${RESTO_PX}px) * 16 / 9 + ${RESPIRO_PX}px), ${LARGURA_MAX_PX}px)`;
 
@@ -204,22 +206,13 @@
 
 <svelte:window onkeydown={tecla} />
 
-<Modal {onclose} {largura} reservaRolagem>
+<Modal {onclose} {largura} reservaRolagem centralizada>
   <div class="cab">
     <span class="hora mono">{hhmmss(det.instanteMs)}</span>
     <span class="muted small">{ddmm(det.instanteMs)}</span>
     <span class="muted">·</span>
     <span class="camera">{camera}</span>
     <span class="spacer"></span>
-    {#if onocultar}
-      <button
-        class="ghost ocultar"
-        onclick={onocultar}
-        aria-label="ocultar a câmera {camera} desta tela"
-      >
-        ocultar câmera
-      </button>
-    {/if}
     <button class="ghost fechar" onclick={onclose} aria-label="fechar">✕</button>
   </div>
 
@@ -277,6 +270,17 @@
         <span>{NOME_DA_CLASSE[o.classe] ?? o.classe} {score(o.score)}</span>
       </span>
     {/each}
+    <!-- Mora aqui, e não no cabeçalho: lá ele deixava pouco espaço e o nome
+         da câmera saía cortado no celular. -->
+    {#if onocultar}
+      <button
+        class="ghost ocultar"
+        onclick={onocultar}
+        aria-label="ocultar a câmera {camera} desta tela"
+      >
+        ocultar câmera
+      </button>
+    {/if}
   </div>
 
   <div class="acoes">
@@ -312,6 +316,7 @@
 
   .ocultar {
     flex: none;
+    margin-left: auto;
     color: var(--dim);
     font-size: 13px;
   }
@@ -417,6 +422,7 @@
   .objetos {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 6px 14px;
   }
 
