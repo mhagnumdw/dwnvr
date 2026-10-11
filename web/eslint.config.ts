@@ -63,7 +63,7 @@ export default defineConfig([
 
   // Só as configs rodam no Node.
   {
-    files: ['vite.config.ts', 'eslint.config.ts'],
+    files: ['vite.config.ts', 'eslint.config.ts', 'prettier.config.ts'],
     languageOptions: { globals: globals.node },
   },
 ]);

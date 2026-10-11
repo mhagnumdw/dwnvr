@@ -1,0 +1,8 @@
+# Código do go2rtc, copiado como veio: não é nosso para formatar. A declaração
+# dos tipos dele, ao lado, é nossa, e passa pelo Prettier.
+src/vendor/*.js
+
+# Fora do escopo: o Markdown tem o markdownlint, o package-lock.json é do npm,
+# e o resto do JSON é config curta, já arrumada à mão.
+*.md
+*.json

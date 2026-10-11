@@ -81,6 +81,11 @@ O ESLint usa as regras que leem os tipos (`strictTypeChecked` e
 componente sem `lang="ts"`. As exceções estão no `eslint.config.ts`, cada uma
 com o motivo.
 
+A formatação é do Prettier, com o plugin do Svelte, no `prettier.config.ts`:
+aspas simples e linha de até 100, que era o que o código já fazia. Trecho
+arrumado à mão de propósito, como os desenhos dos ícones, leva um
+`// prettier-ignore` em cima.
+
 O contrato com o servidor fica no fim do `src/lib/api.ts`: o JSON de cada
 resposta, escrito a partir das structs Go de `internal/api`. O TypeScript não
 confere o que chega pela rede, então mudar o JSON de um lado pede mudar o tipo

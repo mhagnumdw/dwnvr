@@ -230,6 +230,22 @@ repos:
         args: [--fix, --no-warn-ignored, --max-warnings=0]
         files: ^web/(src/.*\.(ts|svelte)|[^/]+\.ts)$
 
+  # TypeScript, Svelte, CSS e o index.html do web/: a formatação. As regras
+  # estão no web/prettier.config.ts. Vem depois do ESLint, porque o --fix dele
+  # pode deixar linha fora do formato, e assim o Prettier tem a última palavra.
+  # O --ignore-path aponta o .prettierignore do web/, que o Prettier só procura
+  # na pasta de onde é chamado, e aqui é a raiz. O Prettier vem das
+  # devDependencies do web/: em clone novo, antes rode `npm ci` no web/.
+  - repo: local
+    hooks:
+      - id: prettier
+        priority: formatar-depois
+        name: prettier
+        language: system
+        entry: web/node_modules/.bin/prettier
+        args: [--write, --ignore-path, web/.prettierignore]
+        files: ^web/(src/.*\.(ts|svelte|css)|index\.html|[^/]+\.ts)$
+
   # Python do dwnvr-detect: lint e formatação, o flake8 e o black numa
   # ferramenta só. As regras estão no dwnvr-detect/ruff.toml.
   - repo: https://github.com/astral-sh/ruff-pre-commit
