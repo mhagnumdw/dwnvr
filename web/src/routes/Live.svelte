@@ -166,9 +166,9 @@
 
   // --- o menu do ⋮ de cada tile -----------------------------------------------
 
-  // Um aberto por vez, pela câmera dele. Fica DENTRO do tile, e não num
-  // `position: fixed` como o das Detecções: em tela cheia o navegador só mostra
-  // o elemento que foi para a tela cheia, e um menu fora dele sumiria ali.
+  // Um aberto por vez, pela câmera dele. Fica DENTRO do tile, e não fora da
+  // grade como o das Detecções: em tela cheia o navegador só mostra o elemento
+  // que foi para a tela cheia, e um menu fora dele sumiria ali.
   let menu = $state<string | null>(null);
   // O <video-stream> de cada câmera, para a captura achar o <video> dele. Não
   // precisa ser reativo: só é lido no clique.
@@ -195,6 +195,34 @@
 
   function tecla(e: KeyboardEvent) {
     if (e.key === 'Escape') menu = null;
+  }
+
+  // Entre o ⋮ e o menu, e entre o menu e a borda da tela.
+  const MENU_FOLGA = 6;
+  const MENU_BORDA = 8;
+
+  // O tile corta o que passa da borda dele, e no celular, com duas colunas, ele
+  // tem uns 180px de altura: o menu virava uma caixinha com rolagem. Por isso o
+  // menu é `position: fixed`, que escapa do corte mesmo dentro do tile, posto
+  // aqui junto do ⋮. Abre para baixo; se não couber e houver mais espaço
+  // acima, para cima; e só rola se não couber em nenhum dos dois.
+  function posicionaMenu(el: HTMLElement) {
+    const marca = el.parentElement?.querySelector('.mais span');
+    if (!marca) return;
+    const r = marca.getBoundingClientRect();
+    const altura = el.offsetHeight;
+    const abaixo = window.innerHeight - r.bottom - MENU_FOLGA - MENU_BORDA;
+    const acima = r.top - MENU_FOLGA - MENU_BORDA;
+    const paraCima = altura > abaixo && acima > abaixo;
+    const cabe = paraCima ? acima : abaixo;
+    el.style.right = `${document.documentElement.clientWidth - r.right}px`;
+    el.style.top = `${paraCima ? r.top - MENU_FOLGA - Math.min(altura, cabe) : r.bottom + MENU_FOLGA}px`;
+    el.style.maxHeight = `${cabe}px`;
+  }
+
+  // Preso à tela e não ao tile, o menu ficaria para trás quando a página rola.
+  function fechaMenu() {
+    menu = null;
   }
 
   // O quadro é o que está na tela, e o nome leva a hora do clique: no live os
@@ -618,6 +646,7 @@
 <svelte:window
   onresize={medir}
   onorientationchange={medir}
+  onscroll={fechaMenu}
   onpointerdown={foraDoMenu}
   onkeydown={tecla}
 />
@@ -795,7 +824,7 @@
             {#if menu === c.id}
               <!-- Links de verdade, e não botões que trocam o hash: assim o
                    clique do meio e o "abrir em nova aba" também funcionam. -->
-              <div class="menu" role="menu">
+              <div class="menu" role="menu" {@attach posicionaMenu}>
                 <a role="menuitem" href="#rec?cam={encodeURIComponent(c.id)}">Ver gravações</a>
                 {#if cameras.detector}
                   <a role="menuitem" href="#detection?cams={encodeURIComponent(c.id)}">
@@ -1087,8 +1116,7 @@
 
   /* --- o ⋮: mesma medida e mesmo desenho do das miniaturas das Detecções --- */
 
-  /* Sem caixa própria: o ⋮ e o menu se posicionam contra o tile, e é isso que
-     deixa a altura do menu ser medida pela do tile. O div existe só para
+  /* Sem caixa própria: o ⋮ se posiciona contra o tile. O div existe só para
      segurar o duplo clique. */
   .opcoes {
     display: contents;
@@ -1146,14 +1174,11 @@
     }
   }
 
-  /* Dentro do tile, que corta o que passa da borda: num tile muito baixo o
-     menu rola em vez de sumir pela metade. */
+  /* `top`, `right` e `max-height` vêm do `posicionaMenu`. Acima do cabeçalho e
+     da navegação inferior, que são 20. */
   .menu {
-    position: absolute;
-    top: 30px;
-    right: 4px;
-    z-index: 1;
-    max-height: calc(100% - 38px);
+    position: fixed;
+    z-index: 30;
     overflow-y: auto;
     padding: 4px;
     background: var(--panel);
