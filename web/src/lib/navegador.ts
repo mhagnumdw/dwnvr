@@ -171,13 +171,21 @@ export async function coletar(): Promise<GrupoDoCard[]> {
     // Safari anterior ao 16.4 não tem o screen.orientation.
     {
       rotulo: 'orientação',
-      valor: 'orientation' in screen ? screen.orientation.type : innerWidth > innerHeight ? 'landscape' : 'portrait',
+      valor:
+        'orientation' in screen
+          ? screen.orientation.type
+          : innerWidth > innerHeight
+            ? 'landscape'
+            : 'portrait',
     },
     // Acima de 115% o layout, calibrado em 15px, começa a quebrar linha onde
     // não quebrava.
     { rotulo: 'escala do texto', valor: `${Math.round(escala * 100)}%`, alerta: escala > 1.15 },
     { rotulo: 'toque', valor: sim(matchMedia('(pointer: coarse)').matches) },
-    { rotulo: 'tema do sistema', valor: matchMedia('(prefers-color-scheme: light)').matches ? 'claro' : 'escuro' },
+    {
+      rotulo: 'tema do sistema',
+      valor: matchMedia('(prefers-color-scheme: light)').matches ? 'claro' : 'escuro',
+    },
     ...(matchMedia('(prefers-reduced-motion: reduce)').matches
       ? [{ rotulo: 'animações', valor: 'reduzidas' }]
       : []),
@@ -195,13 +203,26 @@ export async function coletar(): Promise<GrupoDoCard[]> {
   const armazenamento = armazenamentoOk();
   const ambiente: ItemDoCard[] = [
     { rotulo: 'endereço seguro (https)', valor: sim(isSecureContext) },
-    { rotulo: 'armazenamento local', valor: armazenamento ? 'ok' : 'bloqueado', alerta: !armazenamento },
+    {
+      rotulo: 'armazenamento local',
+      valor: armazenamento ? 'ok' : 'bloqueado',
+      alerta: !armazenamento,
+    },
     { rotulo: 'fuso', valor: Intl.DateTimeFormat().resolvedOptions().timeZone || '?' },
     { rotulo: 'idioma', valor: navigator.language },
-    ...(navigator.deviceMemory ? [{ rotulo: 'memória', valor: `${navigator.deviceMemory} GB` }] : []),
-    ...(navigator.hardwareConcurrency ? [{ rotulo: 'núcleos', valor: String(navigator.hardwareConcurrency) }] : []),
+    ...(navigator.deviceMemory
+      ? [{ rotulo: 'memória', valor: `${navigator.deviceMemory} GB` }]
+      : []),
+    ...(navigator.hardwareConcurrency
+      ? [{ rotulo: 'núcleos', valor: String(navigator.hardwareConcurrency) }]
+      : []),
     ...(conexao?.effectiveType
-      ? [{ rotulo: 'rede', valor: conexao.effectiveType + (conexao.saveData ? ', economia de dados' : '') }]
+      ? [
+          {
+            rotulo: 'rede',
+            valor: conexao.effectiveType + (conexao.saveData ? ', economia de dados' : ''),
+          },
+        ]
       : []),
   ];
 

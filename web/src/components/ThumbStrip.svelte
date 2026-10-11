@@ -68,7 +68,7 @@
   // navegador rola a página e a tira fica inalcançável para quem não tem trackpad.
   function onWheel(ev: WheelEvent & { currentTarget: HTMLDivElement }) {
     const el = ev.currentTarget;
-    if (el.scrollWidth <= el.clientWidth) return;          // nada a rolar
+    if (el.scrollWidth <= el.clientWidth) return; // nada a rolar
     if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return; // gesto horizontal: o nativo já resolve
 
     // deltaMode: 0 px (Chrome), 1 linhas (Firefox), 2 páginas.
@@ -88,7 +88,14 @@
 <div class="strip" bind:this={strip} onwheel={onWheel}>
   {#each tiles as [t, dur] (t)}
     {@const active = currentMs >= t && currentMs < t + dur}
-    <button class="tile" class:active onclick={() => { onseek?.(t); }} title={hhmmss(t)}>
+    <button
+      class="tile"
+      class:active
+      onclick={() => {
+        onseek?.(t);
+      }}
+      title={hhmmss(t)}
+    >
       {#await thumbnail(cam, t) then bitmap}
         {#if bitmap}
           <canvas
@@ -143,7 +150,10 @@
   }
 
   @media (max-width: 520px) {
-    .tile { width: 88px; height: 52px; }
+    .tile {
+      width: 88px;
+      height: 52px;
+    }
   }
 
   .tile.active {
@@ -169,5 +179,7 @@
     padding: 1px 0;
   }
 
-  .fail { color: var(--dim); }
+  .fail {
+    color: var(--dim);
+  }
 </style>

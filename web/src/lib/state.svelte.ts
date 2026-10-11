@@ -210,8 +210,16 @@ function maisNova(a: number[], b: number[]): boolean {
 // A tag guardada, ou undefined se não há nada válido dentro do prazo.
 function lerCacheRelease(): string | undefined {
   try {
-    const c = JSON.parse(localStorage.getItem(RELEASE_CACHE) ?? 'null') as { tag?: unknown; em?: unknown } | null;
-    if (c && typeof c.tag === 'string' && typeof c.em === 'number' && Date.now() - c.em < RELEASE_CACHE_MS) {
+    const c = JSON.parse(localStorage.getItem(RELEASE_CACHE) ?? 'null') as {
+      tag?: unknown;
+      em?: unknown;
+    } | null;
+    if (
+      c &&
+      typeof c.tag === 'string' &&
+      typeof c.em === 'number' &&
+      Date.now() - c.em < RELEASE_CACHE_MS
+    ) {
       return c.tag;
     }
   } catch {

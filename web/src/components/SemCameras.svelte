@@ -20,5 +20,7 @@
 </div>
 
 <style>
-  p { margin: 0 0 10px; }
+  p {
+    margin: 0 0 10px;
+  }
 </style>

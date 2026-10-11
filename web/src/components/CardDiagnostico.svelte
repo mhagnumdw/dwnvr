@@ -21,7 +21,14 @@
     children?: Snippet;
   }
 
-  let { titulo, subtitulo = '', grupos, aberto = $bindable(false), texto, children }: Props = $props();
+  let {
+    titulo,
+    subtitulo = '',
+    grupos,
+    aberto = $bindable(false),
+    texto,
+    children,
+  }: Props = $props();
 
   let copiado = $state('');
 
@@ -73,13 +80,29 @@
 </div>
 
 <style>
-  .diag:not(.row) { display: grid; gap: 10px; }
+  .diag:not(.row) {
+    display: grid;
+    gap: 10px;
+  }
 
   /* Uma coluna no celular, duas quando cabe. Os grupos não se partem entre
      colunas: "Vídeo" pela metade separaria o H.265 do MediaSource. */
-  .grupos { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-  dl { margin: 0; display: grid; gap: 2px; }
-  .titulo { margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
+  .grupos {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+  dl {
+    margin: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .titulo {
+    margin: 0 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 11px;
+  }
   /* Botão sem cara de botão: lê como o título dos outros cards. Os 44px de
      toque ficam; a margem negativa devolve a altura para o card fechado não
      ficar mais alto que os vizinhos. */
@@ -94,15 +117,36 @@
     font: inherit;
     text-align: left;
   }
-  .abrir:hover:not(:disabled) { border-color: transparent; }
+  .abrir:hover:not(:disabled) {
+    border-color: transparent;
+  }
   /* A mesma margem do cabeçalho: sem ela, o "copiar" que aparece ao abrir
      deixaria a linha 16px mais alta, e o título desceria. */
-  .copiar { margin: -8px 0; }
+  .copiar {
+    margin: -8px 0;
+  }
   /* Alinhado com o título, depois da seta (12px) e do vão (8px), e puxado
      para perto dele. */
-  .subtitulo { margin: -6px 0 0; padding-left: 20px; }
-  .seta-card { width: 12px; font-size: 12px; color: var(--dim); }
-  .item { display: flex; gap: 10px; justify-content: space-between; }
-  dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
-  .alerta { color: var(--warn); }
+  .subtitulo {
+    margin: -6px 0 0;
+    padding-left: 20px;
+  }
+  .seta-card {
+    width: 12px;
+    font-size: 12px;
+    color: var(--dim);
+  }
+  .item {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+  }
+  dd {
+    margin: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+  .alerta {
+    color: var(--warn);
+  }
 </style>

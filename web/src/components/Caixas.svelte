@@ -35,7 +35,14 @@
     desde: number;
   }
 
-  let { video, objetos = [], currentMs = 0, playing = false, rate = 1, rotulos = true }: Props = $props();
+  let {
+    video,
+    objetos = [],
+    currentMs = 0,
+    playing = false,
+    rate = 1,
+    rotulos = true,
+  }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined;
   // Onde o <video> está no palco. Ele é centralizado e tem altura máxima, então
@@ -83,18 +90,23 @@
     // quadro nenhum: pular uma hora não pode acender as caixas da hora inteira.
     const decorrido = Math.min(agora - ultimoRelogio, 2000);
     const salto = t - ultimoMs;
-    const andou = playing && ultimoRelogio > 0 && salto >= 0 &&
+    const andou =
+      playing &&
+      ultimoRelogio > 0 &&
+      salto >= 0 &&
       salto <= decorrido * Math.max(1, rate) * 1.5 + 500;
 
     if (andou) {
       for (const o of comCaixa) {
-        if (o.quadroMs > ultimoMs && o.quadroMs <= t) acesas.set(chave(o), { marca: o, desde: agora });
+        if (o.quadroMs > ultimoMs && o.quadroMs <= t)
+          acesas.set(chave(o), { marca: o, desde: agora });
       }
     } else {
       // O que estava aceso era do trecho de onde se saiu.
       acesas.clear();
       for (const o of comCaixa) {
-        if (o.quadroMs <= t && o.quadroMs >= t - POUSO_MS) acesas.set(chave(o), { marca: o, desde: agora });
+        if (o.quadroMs <= t && o.quadroMs >= t - POUSO_MS)
+          acesas.set(chave(o), { marca: o, desde: agora });
       }
     }
     ultimoMs = t;
@@ -160,7 +172,13 @@
   function disposicao(g: CanvasRenderingContext2D) {
     const k = `${[...acesas.keys()].sort().join(',')}|${imagem.w}x${imagem.h}|${rotulos}`;
     if (k !== disposto) {
-      itens = dispoe(g, [...acesas.values()].map((a) => a.marca), imagem.w, imagem.h, rotulos);
+      itens = dispoe(
+        g,
+        [...acesas.values()].map((a) => a.marca),
+        imagem.w,
+        imagem.h,
+        rotulos,
+      );
       disposto = k;
     }
     return itens;
@@ -192,7 +210,16 @@
   export function desenhaEm(g: CanvasRenderingContext2D, largura: number, altura: number) {
     if (!acesas.size) return;
     if (!imagem.w) {
-      desenha(g, dispoe(g, [...acesas.values()].map((a) => a.marca), largura, altura, rotulos));
+      desenha(
+        g,
+        dispoe(
+          g,
+          [...acesas.values()].map((a) => a.marca),
+          largura,
+          altura,
+          rotulos,
+        ),
+      );
       return;
     }
     g.save();

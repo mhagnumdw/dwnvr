@@ -206,7 +206,8 @@
   let menuConta = $state(false);
 
   function foraDoMenu(e: MouseEvent) {
-    if (menuConta && !(e.target instanceof Element && e.target.closest('.conta'))) menuConta = false;
+    if (menuConta && !(e.target instanceof Element && e.target.closest('.conta')))
+      menuConta = false;
   }
 
   let saindo = $state(false);
@@ -248,7 +249,13 @@
     </span>
     <nav class="top">
       {#each abas as r (r.id)}
-        <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => { navegar(e, r.id); }}>
+        <a
+          href="#{r.id}"
+          class:active={r.id === route.id}
+          onclick={(e) => {
+            navegar(e, r.id);
+          }}
+        >
           {r.label}
         </a>
       {/each}
@@ -262,7 +269,9 @@
           href="#health"
           title={sinoTitulo}
           aria-label={sinoTitulo}
-          onclick={(e) => { navegar(e, 'health'); }}
+          onclick={(e) => {
+            navegar(e, 'health');
+          }}
         >
           <svg
             viewBox="0 0 24 24"
@@ -355,7 +364,13 @@
 
   <nav class="bottom" style:--abas={abas.length}>
     {#each abas as r (r.id)}
-      <a href="#{r.id}" class:active={r.id === route.id} onclick={(e) => { navegar(e, r.id); }}>
+      <a
+        href="#{r.id}"
+        class:active={r.id === route.id}
+        onclick={(e) => {
+          navegar(e, r.id);
+        }}
+      >
         <!-- Usuários não tem um caractere que preste em todo sistema: vai
              desenhado, no tamanho dos outros. -->
         <span class="icon">
@@ -472,7 +487,9 @@
   }
 
   /* Só amarelos: o sino recua, e só a bolha chama. */
-  .sino.warn { color: var(--dim); }
+  .sino.warn {
+    color: var(--dim);
+  }
 
   .sino svg {
     width: 21px;
@@ -480,7 +497,9 @@
   }
 
   @media (hover: hover) {
-    .sino:hover { background: var(--panel-2); }
+    .sino:hover {
+      background: var(--panel-2);
+    }
   }
 
   /* A borda da cor do header separa a bolha do desenho do sino. */
@@ -501,8 +520,14 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .sino.bad .bolha { background: var(--bad); color: #fff; }
-  .sino.warn .bolha { background: var(--warn); color: #1b1300; }
+  .sino.bad .bolha {
+    background: var(--bad);
+    color: #fff;
+  }
+  .sino.warn .bolha {
+    background: var(--warn);
+    color: #1b1300;
+  }
 
   /* O menu se prende ao avatar, e não ao header: abre sob ele. */
   .conta {
@@ -662,10 +687,19 @@
       text-decoration: none;
     }
 
-    nav.top a:hover { background: var(--panel-2); }
-    nav.top a.active { color: var(--fg); background: var(--panel-2); }
+    nav.top a:hover {
+      background: var(--panel-2);
+    }
+    nav.top a.active {
+      color: var(--fg);
+      background: var(--panel-2);
+    }
 
-    nav.bottom { display: none; }
-    main { padding-bottom: 0; }
+    nav.bottom {
+      display: none;
+    }
+    main {
+      padding-bottom: 0;
+    }
   }
 </style>

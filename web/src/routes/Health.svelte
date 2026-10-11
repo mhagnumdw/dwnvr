@@ -30,7 +30,11 @@
   import SemCameras from '../components/SemCameras.svelte';
   import { coletar, comoTexto } from '../lib/navegador.ts';
   import type { GrupoDoCard } from '../lib/navegador.ts';
-  import { grupos as gruposDoServidor, linhaDoLog, coletadoEm } from '../lib/diagnostico-servidor.ts';
+  import {
+    grupos as gruposDoServidor,
+    linhaDoLog,
+    coletadoEm,
+  } from '../lib/diagnostico-servidor.ts';
   import CardDiagnostico from '../components/CardDiagnostico.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import MarcaGitHub from '../components/MarcaGitHub.svelte';
@@ -196,12 +200,19 @@
   // a coluna sabe extrair o valor que a ordena, texto passa pelo colator, e o
   // empate cai SEMPRE no nome - senão a tabela dança a cada leitura de 5 s,
   // que é o que acontece quando meia dúzia de câmeras tem o mesmo zero.
-  function ordena<T>(itens: readonly T[], colunas: Colunas<T>, ordem: Ordem, nomeDe: (c: T) => string) {
+  function ordena<T>(
+    itens: readonly T[],
+    colunas: Colunas<T>,
+    ordem: Ordem,
+    nomeDe: (c: T) => string,
+  ) {
     const col = colunas.find((c) => c.id === ordem.col) ?? colunas[0];
     const dir = ordem.asc ? 1 : -1;
     // Cópia: a origem é estado global e a tela só quer uma visão dele.
     return [...itens].sort((a, b) => {
-      const d = col.texto ? colator.compare(col.valor(a), col.valor(b)) : col.valor(a) - col.valor(b);
+      const d = col.texto
+        ? colator.compare(col.valor(a), col.valor(b))
+        : col.valor(a) - col.valor(b);
       return d ? d * dir : colator.compare(nomeDe(a), nomeDe(b));
     });
   }
@@ -213,7 +224,9 @@
   // que não mostrar nada.
   const compiladoEm = $derived.by(() => {
     const d = new Date(build.date);
-    return build.date && !isNaN(d.getTime()) ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    return build.date && !isNaN(d.getTime())
+      ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+      : '';
   });
 
   // ---- este navegador ---------------------------------------------------
@@ -273,12 +286,19 @@
   // sem os milissegundos; abaixo de 5s é ruído, e acima é relógio errado, que
   // faz "agora" apontar para outro ponto da timeline.
   const diferencaRelogio = $derived.by((): { valor: string; alerta?: boolean } | null => {
-    const lido = admin ? (health.clock ? Date.parse(health.clock.now) : NaN) : horaDoHeader?.servidor;
+    const lido = admin
+      ? health.clock
+        ? Date.parse(health.clock.now)
+        : NaN
+      : horaDoHeader?.servidor;
     const aqui = admin ? health.updatedAt : horaDoHeader?.aqui;
     if (!lido || isNaN(lido) || !aqui) return null;
     const d = Math.round((aqui - lido) / 1000);
     if (Math.abs(d) < 5) return { valor: 'igual ao do servidor' };
-    return { valor: `${duracao(Math.abs(d) * 1000)} ${d > 0 ? 'adiantado' : 'atrasado'}`, alerta: true };
+    return {
+      valor: `${duracao(Math.abs(d) * 1000)} ${d > 0 ? 'adiantado' : 'atrasado'}`,
+      alerta: true,
+    };
   });
 
   const gruposComRelogio = $derived(
@@ -290,7 +310,10 @@
   );
 
   function textoDoNavegador() {
-    const cabecalho = [`dwnvr ${build.version || '?'} - diagnóstico do navegador`, new Date().toString()];
+    const cabecalho = [
+      `dwnvr ${build.version || '?'} - diagnóstico do navegador`,
+      new Date().toString(),
+    ];
     return comoTexto(gruposComRelogio, cabecalho, [`user agent: ${navigator.userAgent}`]);
   }
 
@@ -352,9 +375,15 @@
   // a ser espaço comum no texto colado.
   function textoDoServidor() {
     const coletado = coletadoServidor.replaceAll(' ', ' ');
-    const cabecalho = [`dwnvr ${build.version || '?'} - diagnóstico do servidor`, coletado || new Date().toString()];
+    const cabecalho = [
+      `dwnvr ${build.version || '?'} - diagnóstico do servidor`,
+      coletado || new Date().toString(),
+    ];
     const log = logServidor?.linhas.length
-      ? [`[Últimos avisos e erros do log: ${logServidor.linhas.length} de ${logServidor.total}]`, ...logServidor.linhas.map(linhaDoLog)]
+      ? [
+          `[Últimos avisos e erros do log: ${logServidor.linhas.length} de ${logServidor.total}]`,
+          ...logServidor.linhas.map(linhaDoLog),
+        ]
       : [];
     return comoTexto(gruposServidor, cabecalho, log);
   }
@@ -460,7 +489,8 @@
       cor: 'var(--dim)',
       escuro: true,
       rotulo: 'em andamento',
-      ajuda: 'Marcas que ainda não têm resultado: esperando o melhor quadro (até 3 s), esperando a vez na fila, ou em análise agora. O chip da fila e as bolinhas da tabela contam só as que esperam a vez.',
+      ajuda:
+        'Marcas que ainda não têm resultado: esperando o melhor quadro (até 3 s), esperando a vez na fila, ou em análise agora. O chip da fila e as bolinhas da tabela contam só as que esperam a vez.',
       sempre: true,
     },
     { id: 'perdido', cor: 'var(--bad)', escuro: true, rotulo: 'não analisadas' },
@@ -489,7 +519,16 @@
   // A soma das câmeras. O servidor manda por câmera, e o total é conta que a
   // tela faz: é uma soma de poucos números por câmera.
   const soma = $derived.by(() => {
-    const s: Desfechos = { total: 0, descartado: 0, olhado: 0, objeto: 0, esperando: 0, semVideo: 0, recusados: 0, falhas: 0 };
+    const s: Desfechos = {
+      total: 0,
+      descartado: 0,
+      olhado: 0,
+      objeto: 0,
+      esperando: 0,
+      semVideo: 0,
+      recusados: 0,
+      falhas: 0,
+    };
     for (const c of comFunil) {
       const d = desfechosDe(c);
       for (const k of CHAVES_DOS_DESFECHOS) s[k] += d[k];
@@ -581,7 +620,10 @@
   // sozinhas, e compartilhar `sort` faria uma mexer na outra.
   const sortDetDaURL = params.get('dsort');
   let ordemDet = $state<Ordem>({
-    col: sortDetDaURL !== null && colunasDet.some((c) => c.id === sortDetDaURL) ? sortDetDaURL : 'nome',
+    col:
+      sortDetDaURL !== null && colunasDet.some((c) => c.id === sortDetDaURL)
+        ? sortDetDaURL
+        : 'nome',
     asc: params.get('ddir') !== 'desc',
   });
 
@@ -655,7 +697,9 @@
   // de configuração conta do próprio reinício, e aí o desde de cada aviso é o
   // que vale.
   const contandoDesde = $derived.by(() => {
-    const inicios = health.cameras.map((c) => Date.parse(c.reconnectsSince)).filter((t) => !isNaN(t) && t > 0);
+    const inicios = health.cameras
+      .map((c) => Date.parse(c.reconnectsSince))
+      .filter((t) => !isNaN(t) && t > 0);
     if (!inicios.length) return null;
     const min = Math.min(...inicios);
     return Math.max(...inicios) - min < 60e3 ? min : null;
@@ -715,7 +759,9 @@
         <div class="row wrap">
           <strong>Disco</strong>
           <span class="spacer"></span>
-          <span class="muted small mono">{bytes(disk.freeBytes)} livres de {bytes(disk.totalBytes)}</span>
+          <span class="muted small mono"
+            >{bytes(disk.freeBytes)} livres de {bytes(disk.totalBytes)}</span
+          >
         </div>
 
         <div
@@ -723,7 +769,10 @@
           title="azul: gravações do dwnvr; amarelo: gravações de câmeras removidas; cinza: outros dados"
         >
           <span class="seg dwnvr" style:width="{usadoPeloDwnvr * 100}%"></span>
-          <span class="seg orfas" class:visivel={orfasBytes > 0} style:width="{usadoPorOrfas * 100}%"
+          <span
+            class="seg orfas"
+            class:visivel={orfasBytes > 0}
+            style:width="{usadoPorOrfas * 100}%"
           ></span>
           <span class="seg outros" style:width="{usadoPorOutros * 100}%"></span>
         </div>
@@ -733,7 +782,9 @@
           <!-- Só com órfã: a legenda permanente sugeriria que sobrar gravação sem
                câmera é o normal. Quem apaga é a tela de Câmeras, não a retenção. -->
           {#if orfasBytes > 0}
-            <span title="Gravações de câmeras removidas. A retenção não as apaga; apague em Câmeras.">
+            <span
+              title="Gravações de câmeras removidas. A retenção não as apaga; apague em Câmeras."
+            >
               <i class="orfas"></i> câmeras removidas: {bytes(orfasBytes)}
             </span>
           {/if}
@@ -745,9 +796,21 @@
     {/if}
 
     <div class="card row wrap totais">
-      <div><span class="big mono">{health.cameras.filter((c) => c.connected).length}</span><br /><span class="muted small">conectadas</span></div>
-      <div><span class="big mono">{kbps(totalKbps)}</span><br /><span class="muted small">taxa somada</span></div>
-      <div><span class="big mono">{bytes(bytesPorDia)}</span><br /><span class="muted small">por dia</span></div>
+      <div>
+        <span class="big mono">{health.cameras.filter((c) => c.connected).length}</span><br /><span
+          class="muted small">conectadas</span
+        >
+      </div>
+      <div>
+        <span class="big mono">{kbps(totalKbps)}</span><br /><span class="muted small"
+          >taxa somada</span
+        >
+      </div>
+      <div>
+        <span class="big mono">{bytes(bytesPorDia)}</span><br /><span class="muted small"
+          >por dia</span
+        >
+      </div>
     </div>
 
     <!-- O card existe também sem aviso nenhum, com o "nenhum problema": a área
@@ -760,7 +823,9 @@
           <span class="spacer"></span>
           {#if temReconexao}
             {#if contandoDesde}
-              <span class="muted small">reconexões contadas desde {quando(contandoDesde, agora)}</span>
+              <span class="muted small"
+                >reconexões contadas desde {quando(contandoDesde, agora)}</span
+              >
             {/if}
             <button
               class="ghost small"
@@ -773,7 +838,9 @@
           {/if}
         </div>
         {#if erroZerar}
-          <p class="row bad"><span class="dot bad"></span>Não foi possível zerar as reconexões: {erroZerar}</p>
+          <p class="row bad">
+            <span class="dot bad"></span>Não foi possível zerar as reconexões: {erroZerar}
+          </p>
         {/if}
         <!-- eslint-disable-next-line svelte/require-each-key -- só texto, sem estado por linha; e dois avisos podem ter o mesmo texto, o que quebraria a chave -->
         {#each avisos as a}
@@ -807,7 +874,9 @@
             class:ativa={o.col === col.id}
             aria-label="ordenar por {col.rotulo}"
             title={col.ajuda}
-            onclick={() => { ordenarPor(col.id); }}
+            onclick={() => {
+              ordenarPor(col.id);
+            }}
           >
             {col.rotulo}{#if o.col === col.id}<span class="seta">{o.asc ? '▲' : '▼'}</span>{/if}
           </button>
@@ -818,7 +887,8 @@
     <!-- O rótulo de cada valor no cartão do celular, tirado da mesma coluna que
          nomeia o chip. No desktop some: lá quem nomeia é o cabeçalho. -->
     {#snippet rotulo(cols: readonly ColunaBase[], o: Ordem, id: string)}
-      <span class="rot-cel" class:ativa={o.col === id}>{cols.find((c) => c.id === id)?.rotulo}</span>
+      <span class="rot-cel" class:ativa={o.col === id}>{cols.find((c) => c.id === id)?.rotulo}</span
+      >
     {/snippet}
 
     <div class="table card">
@@ -833,7 +903,9 @@
             class:ativa={ordem.col === col.id}
             aria-label="ordenar por {col.rotulo}"
             title={col.ajuda}
-            onclick={() => { ordenar(col.id); }}
+            onclick={() => {
+              ordenar(col.id);
+            }}
           >
             <span class="rotulo">{col.rotulo}</span>
             <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
@@ -844,19 +916,29 @@
       {#each linhas as c (c.id)}
         <div class="trow row">
           <span class="c-nome row">
-            <span class="dot" class:ok={c.connected && !c.silent} class:bad={c.enabled && (c.silent || !c.connected)}></span>
+            <span
+              class="dot"
+              class:ok={c.connected && !c.silent}
+              class:bad={c.enabled && (c.silent || !c.connected)}
+            ></span>
             <span class="nome">{c.name}</span>
             <!-- Conectada mas sem gravar é o estado traiçoeiro: o ponto verde
                  dizia "tudo bem" enquanto a câmera não produzia nada. -->
             {#if c.silent}<span class="chip parada">não grava</span>
-            {:else if c.lastSegmentAt}<span class="chip">{hhmmss(new Date(c.lastSegmentAt).getTime())}</span>{/if}
+            {:else if c.lastSegmentAt}<span class="chip"
+                >{hhmmss(new Date(c.lastSegmentAt).getTime())}</span
+              >{/if}
             {#if c.hasAudio}<span class="chip">áudio</span>{/if}
           </span>
           <span class="mono">{@render rotulo(colunas, ordem, 'bitrate')}{kbps(c.bitrateKbps)}</span>
           <!-- Uso e cota juntos, como no chip da tela de Câmeras: o número
                sozinho não diz se é muito ou pouco para esta câmera. -->
-          <span class="mono">{@render rotulo(colunas, ordem, 'disco')}<span class="inteiro">{bytes(c.diskBytes)}</span>
-            de <span class="inteiro">{bytesDeMB(c.quotaMB)}</span></span>
+          <span class="mono"
+            >{@render rotulo(colunas, ordem, 'disco')}<span class="inteiro"
+              >{bytes(c.diskBytes)}</span
+            >
+            de <span class="inteiro">{bytesDeMB(c.quotaMB)}</span></span
+          >
           <!-- O gravado vai em linha própria, e só com buraco: na câmera sem
                falha a célula fica como sempre foi, e a linha a mais é o próprio
                sinal de que algo faltou. -->
@@ -898,16 +980,22 @@
             <!-- Os números zeram quando o dwnvr reinicia: sem dizer desde quando
                  eles contam, "12 com objeto" não é muito nem pouco. -->
             {#if health.uptime}
-              <span class="muted small">desde que o dwnvr subiu, há {duracao(health.uptime.appSeconds * 1000)}</span>
+              <span class="muted small"
+                >desde que o dwnvr subiu, há {duracao(health.uptime.appSeconds * 1000)}</span
+              >
             {/if}
             {#if detector}
               <span
                 class="chip mono"
-                title="marcas esperando a vez agora, e o teto: {detector.fila.porCamera} por câmera com detecção ligada"
+                title="marcas esperando a vez agora, e o teto: {detector.fila
+                  .porCamera} por câmera com detecção ligada"
               >
                 fila {detector.fila.agora}/{detector.fila.cap}
               </span>
-              <span class="chip mono" title="o maior tamanho que a fila já teve desde que o dwnvr subiu">
+              <span
+                class="chip mono"
+                title="o maior tamanho que a fila já teve desde que o dwnvr subiu"
+              >
                 pico {detector.fila.pico}
               </span>
             {/if}
@@ -919,13 +1007,18 @@
                  objeto e o que ficou sem resposta. É a única forma desta tela de
                  responder POR QUE uma marca não virou objeto sem precisar de
                  prosa. -->
-            <div class="funil" bind:clientWidth={larguraFunil} title="o que aconteceu com cada marca de movimento">
+            <div
+              class="funil"
+              bind:clientWidth={larguraFunil}
+              title="o que aconteceu com cada marca de movimento"
+            >
               {#each funil.pedacos as p (p.id)}
                 <span
                   class="seg"
                   class:escuro={p.escuro}
                   style:width="{(p.n / funil.total) * 100}%"
-                  style:background={p.cor}>{cabe(p) ? p.n : ''}</span>
+                  style:background={p.cor}>{cabe(p) ? p.n : ''}</span
+                >
               {/each}
             </div>
 
@@ -949,15 +1042,22 @@
                    cresce quando o aparelho não dá conta. Zero é "ainda não
                    olhou nenhuma", e um "0,0s" ali diria que é instantâneo. -->
               {#if detector?.tempos.analiseMs}
-                <span>analisar leva <b class="mono">{segundos(detector.tempos.analiseMs)}</b> por marca</span>
-                <span>espera de cada marca na fila <b class="mono">{segundos(detector.tempos.esperaMs)}</b></span>
+                <span
+                  >analisar leva <b class="mono">{segundos(detector.tempos.analiseMs)}</b> por marca</span
+                >
+                <span
+                  >espera de cada marca na fila <b class="mono"
+                    >{segundos(detector.tempos.esperaMs)}</b
+                  ></span
+                >
               {/if}
             </div>
 
             {#if naoAnalisadas.length}
               <p class="small muted quebra">
                 das {funil.perdidas} não analisadas:
-                {#each naoAnalisadas as m, i (m.texto)}{i ? ' · ' : ' '}<b class="mono">{m.n}</b> {m.texto}{/each}
+                {#each naoAnalisadas as m, i (m.texto)}{i ? ' · ' : ' '}<b class="mono">{m.n}</b>
+                  {m.texto}{/each}
               </p>
             {/if}
           {:else}
@@ -974,11 +1074,14 @@
                 class:ativa={ordemDet.col === col.id}
                 aria-label="ordenar por {col.rotulo}"
                 title={col.ajuda}
-                onclick={() => { ordenarDet(col.id); }}
+                onclick={() => {
+                  ordenarDet(col.id);
+                }}
               >
                 <span class="rotulo">{col.rotulo}</span>
                 <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
-                <span class="seta">{ordemDet.col === col.id ? (ordemDet.asc ? '▲' : '▼') : ''}</span>
+                <span class="seta">{ordemDet.col === col.id ? (ordemDet.asc ? '▲' : '▼') : ''}</span
+                >
               </button>
             {/each}
           </div>
@@ -992,16 +1095,30 @@
                   <a class="small" href="#cams?editar={encodeURIComponent(c.id)}">ligar</a>
                 </span>
               {/if}
-              <span class="mono" class:zero={!c.olhadas}>{@render rotulo(colunasDet, ordemDet, 'olhadas')}{c.olhadas}</span>
-              <span class="mono" class:zero={!c.objeto}>{@render rotulo(colunasDet, ordemDet, 'objeto')}{c.objeto}</span>
+              <span class="mono" class:zero={!c.olhadas}
+                >{@render rotulo(colunasDet, ordemDet, 'olhadas')}{c.olhadas}</span
+              >
+              <span class="mono" class:zero={!c.objeto}
+                >{@render rotulo(colunasDet, ordemDet, 'objeto')}{c.objeto}</span
+              >
               <!-- Quase tudo com objeto não é bom sinal: costuma ser um objeto
                    parado dentro do quadro, e aí o reconhecimento está confirmando
                    sempre a mesma coisa em vez de avisar de algo novo. -->
-              <span class="mono" class:zero={!c.objeto} class:alerta={c.acerto !== null && c.acerto >= 90}>
-                {@render rotulo(colunasDet, ordemDet, 'acerto')}{c.acerto === null ? '-' : `${c.acerto}%`}
+              <span
+                class="mono"
+                class:zero={!c.objeto}
+                class:alerta={c.acerto !== null && c.acerto >= 90}
+              >
+                {@render rotulo(colunasDet, ordemDet, 'acerto')}{c.acerto === null
+                  ? '-'
+                  : `${c.acerto}%`}
               </span>
-              <span class="mono" class:zero={!c.descartado}>{@render rotulo(colunasDet, ordemDet, 'descartadas')}{c.descartado}</span>
-              <span class="mono" class:zero={!c.perdidas} class:alerta={c.perdidas > 0}>{@render rotulo(colunasDet, ordemDet, 'perdidas')}{c.perdidas}</span>
+              <span class="mono" class:zero={!c.descartado}
+                >{@render rotulo(colunasDet, ordemDet, 'descartadas')}{c.descartado}</span
+              >
+              <span class="mono" class:zero={!c.perdidas} class:alerta={c.perdidas > 0}
+                >{@render rotulo(colunasDet, ordemDet, 'perdidas')}{c.perdidas}</span
+              >
               <!-- Os lugares da câmera, e não um número: cheio ou vazio se lê
                    de relance. Âmbar quando todos estão ocupados, que é quando a
                    próxima marca dela é descartada. O azul fica à esquerda deles,
@@ -1011,7 +1128,10 @@
               <span class="celula-fila">
                 {#if c.ligada}
                   {#if c.fila.olhando}
-                    <span class="processando" title="o detector está processando uma imagem desta câmera agora"></span>
+                    <span
+                      class="processando"
+                      title="o detector está processando uma imagem desta câmera agora"
+                    ></span>
                   {/if}
                   <span
                     class="lugares"
@@ -1040,19 +1160,29 @@
         {/if}
       </div>
     {/if}
-
   {/if}
 
   <!-- Este navegador: o lado de quem olha, que o servidor não enxerga. O
        "copiar" é o que torna a seção útil de longe - a pessoa manda o texto
        numa conversa em vez de descrever o celular. -->
-  <CardDiagnostico titulo="Este navegador" grupos={gruposComRelogio} bind:aberto={navegadorAberto} texto={textoDoNavegador} />
+  <CardDiagnostico
+    titulo="Este navegador"
+    grupos={gruposComRelogio}
+    bind:aberto={navegadorAberto}
+    texto={textoDoNavegador}
+  />
 
   {#if admin}
     <!-- Este servidor: a máquina que grava, vista de dentro. Responde "a
          máquina tem fôlego para gravar?", que a tabela de câmeras acima não
          responde - ela só mostra a consequência. -->
-    <CardDiagnostico titulo="Este servidor" subtitulo={coletadoServidor} grupos={gruposServidor} bind:aberto={servidorAberto} texto={textoDoServidor}>
+    <CardDiagnostico
+      titulo="Este servidor"
+      subtitulo={coletadoServidor}
+      grupos={gruposServidor}
+      bind:aberto={servidorAberto}
+      texto={textoDoServidor}
+    >
       {#if logServidor}
         <section class="log">
           <p class="titulo muted">
@@ -1078,7 +1208,9 @@
     <!-- O separador vai como expressão porque o Svelte apara o espaço no início
          de um bloco {#if}, e sem isso sai "5s· última leitura". -->
     <p class="muted small">
-      Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(Date.now() - health.updatedAt)}{/if}
+      Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(
+          Date.now() - health.updatedAt,
+        )}{/if}
     </p>
   {/if}
 
@@ -1120,11 +1252,16 @@
      uma classe ao seletor - ou seja, ela ganha do .row global por
      especificidade. Sem a ressalva, todo card que se declara linha (os totais,
      o "nenhum problema", a faixa de estado) virava coluna calado. */
-  .card:not(.row) { display: grid; gap: 10px; }
+  .card:not(.row) {
+    display: grid;
+    gap: 10px;
+  }
 
   /* Mais baixa que os outros cards: é contexto de leitura rápida, não deve
      disputar espaço com o disco logo abaixo. */
-  .statusbar { padding: 8px 12px; }
+  .statusbar {
+    padding: 8px 12px;
+  }
 
   .meter {
     display: flex;
@@ -1133,29 +1270,65 @@
     overflow: hidden;
     background: #1b1f24;
   }
-  .seg.dwnvr { background: var(--accent); }
-  .seg.orfas { background: var(--warn); }
+  .seg.dwnvr {
+    background: var(--accent);
+  }
+  .seg.orfas {
+    background: var(--warn);
+  }
   /* Órfã de poucos MB num disco de centenas de GB daria um trecho de 0px: o
      amarelo da legenda não teria par na barra. */
-  .seg.orfas.visivel { min-width: 4px; }
-  .seg.outros { background: #3d444d; }
+  .seg.orfas.visivel {
+    min-width: 4px;
+  }
+  .seg.outros {
+    background: #3d444d;
+  }
 
-  .legend { gap: 14px; }
-  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: -1px; }
-  .legend i.dwnvr { background: var(--accent); }
-  .legend i.orfas { background: var(--warn); }
-  .legend i.outros { background: #3d444d; }
+  .legend {
+    gap: 14px;
+  }
+  .legend i {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    vertical-align: -1px;
+  }
+  .legend i.dwnvr {
+    background: var(--accent);
+  }
+  .legend i.orfas {
+    background: var(--warn);
+  }
+  .legend i.outros {
+    background: #3d444d;
+  }
 
-  .totais { justify-content: space-around; text-align: center; gap: 18px; }
-  .big { font-size: 22px; font-weight: 600; }
+  .totais {
+    justify-content: space-around;
+    text-align: center;
+    gap: 18px;
+  }
+  .big {
+    font-size: 22px;
+    font-weight: 600;
+  }
 
   /* ---- sobre ---- */
 
-  .sobre .versao { margin: 0; gap: 4px 8px; }
+  .sobre .versao {
+    margin: 0;
+    gap: 4px 8px;
+  }
 
   /* Com cara de botão, e não de link solto numa frase: são destinos, e no
      celular o dedo precisa de alvo. */
-  .sobre .links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sobre .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
   .sobre .links a {
     display: inline-flex;
     align-items: center;
@@ -1170,15 +1343,33 @@
     font-size: 13px;
   }
   @media (hover: hover) {
-    .sobre .links a:hover { border-color: var(--accent); }
+    .sobre .links a:hover {
+      border-color: var(--accent);
+    }
   }
 
-  .avisos p { margin: 0; gap: 8px; align-items: flex-start; font-size: 13px; }
-  .avisos p.bad { color: var(--bad); }
-  .chip.parada { color: var(--bad); border-color: #5c2b2b; }
-  .avisos p.warn { color: var(--warn); }
-  .avisos .dot { margin-top: 6px; }
-  .avisos p.ok { color: var(--ok); }
+  .avisos p {
+    margin: 0;
+    gap: 8px;
+    align-items: flex-start;
+    font-size: 13px;
+  }
+  .avisos p.bad {
+    color: var(--bad);
+  }
+  .chip.parada {
+    color: var(--bad);
+    border-color: #5c2b2b;
+  }
+  .avisos p.warn {
+    color: var(--warn);
+  }
+  .avisos .dot {
+    margin-top: 6px;
+  }
+  .avisos p.ok {
+    color: var(--ok);
+  }
 
   /* ---- reconhecimento de objetos ---- */
 
@@ -1186,9 +1377,19 @@
      precisa encostar na borda para rolar de lado inteira no celular, e o
      resumo precisa do respiro que todo card tem. O gap zerado é o que faz o
      risco divisor colar nas duas metades em vez de flutuar entre elas. */
-  .deteccao { padding: 0; gap: 0; }
-  .topo { display: grid; gap: 10px; padding: 12px; }
-  .tabela { border-top: 1px solid var(--line); overflow-x: auto; }
+  .deteccao {
+    padding: 0;
+    gap: 0;
+  }
+  .topo {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+  }
+  .tabela {
+    border-top: 1px solid var(--line);
+    overflow-x: auto;
+  }
 
   /* A barra do funil. Mesma altura da barra de disco não serve: aqui os
      pedaços carregam número dentro, e 12px cortaria o algarismo. */
@@ -1213,22 +1414,43 @@
     color: var(--dim);
   }
   /* Texto escuro só onde o fundo é forte o bastante para sustentá-lo. */
-  .funil .seg.escuro { color: #0d1117; }
+  .funil .seg.escuro {
+    color: #0d1117;
+  }
 
   /* Espalhados na linha inteira no desktop e empilhados no celular, que é o
      que o wrap já faz - o gap é o que impede os números de se colarem. */
-  .numeros { gap: 14px; }
+  .numeros {
+    gap: 14px;
+  }
   /* O número que não coube no pedaço vem colado no rótulo da legenda, e
      precisa ler como número e não como parte do texto. */
-  .legend b { color: var(--fg); }
-  .numeros b { color: var(--fg); font-weight: 600; }
-  .quebra { margin: 0; }
-  .quebra b { color: var(--fg); }
+  .legend b {
+    color: var(--fg);
+  }
+  .numeros b {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .quebra {
+    margin: 0;
+  }
+  .quebra b {
+    color: var(--fg);
+  }
 
   /* No cartão do celular, a fila vai no canto da linha do nome: é o que
      muda de um instante para outro, e fica à vista sem procurar. */
-  .trow.detgrid > :first-child { grid-column: 1 / 3; grid-row: 1; }
-  .trow.detgrid > .celula-fila { grid-column: 3; grid-row: 1; justify-self: end; align-self: center; }
+  .trow.detgrid > :first-child {
+    grid-column: 1 / 3;
+    grid-row: 1;
+  }
+  .trow.detgrid > .celula-fila {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    align-self: center;
+  }
 
   @media (min-width: 720px) {
     /* Colunas: câmera, olhadas, com objeto, acerto, descartadas, perdidas, na
@@ -1237,29 +1459,45 @@
     /* .thead e .trow também são classe, e a regra deles vem depois nesta folha -
        no empate de especificidade ela ganharia e a grade voltaria a ter as seis
        colunas da tabela de câmeras. Os dois nomes juntos desempatam. */
-    .thead.detgrid, .trow.detgrid {
+    .thead.detgrid,
+    .trow.detgrid {
       grid-template-columns:
         minmax(110px, 1.7fr) repeat(2, minmax(62px, 0.9fr)) minmax(58px, 0.8fr)
         repeat(2, minmax(68px, 0.9fr)) minmax(56px, 0.8fr);
     }
-    .trow.detgrid > :first-child, .trow.detgrid > .celula-fila { grid-column: auto; grid-row: auto; }
+    .trow.detgrid > :first-child,
+    .trow.detgrid > .celula-fila {
+      grid-column: auto;
+      grid-row: auto;
+    }
     /* Números à direita: é assim que se compara uma coluna de olho. O nome fica
        onde está, à esquerda - e o critério é a POSIÇÃO, não a classe `.nome`,
        que só as linhas têm: por classe, o "câmera" do cabeçalho ia para a
        direita sozinho, desalinhado da coluna que ele nomeia. */
-    .detgrid > :not(:first-child) { text-align: right; }
+    .detgrid > :not(:first-child) {
+      text-align: right;
+    }
     /* O cabeçalho é botão, e botão é flex: nele o que alinha não é o text-align
        e sim o justify-content, senão rótulo e seta ficam colados à esquerda
        enquanto os números da coluna estão à direita. */
-    .thead.detgrid .th:not(:first-child) { justify-content: flex-end; }
+    .thead.detgrid .th:not(:first-child) {
+      justify-content: flex-end;
+    }
   }
   /* Zero é resposta, mas não é notícia: apagado para a linha que tem número
      saltar dentre as que não têm. */
-  .zero { color: #4a5058; }
+  .zero {
+    color: #4a5058;
+  }
   /* A câmera sem detecção: o nome continua legível, porque é ele que diz de
      quem é o aviso, e os números recuam. */
-  .c-desligada { gap: 8px; min-width: 0; }
-  .desligada > :not(:first-child) { opacity: 0.5; }
+  .c-desligada {
+    gap: 8px;
+    min-width: 0;
+  }
+  .desligada > :not(:first-child) {
+    opacity: 0.5;
+  }
   /* O rótulo do grupo das câmeras sem detecção, no tom dos cabeçalhos: é
      divisão da tabela, não mais uma linha dela. */
   .grupo {
@@ -1269,11 +1507,17 @@
     letter-spacing: 0.04em;
     font-size: 11px;
   }
-  .alerta { color: var(--warn); }
+  .alerta {
+    color: var(--warn);
+  }
 
   /* Os lugares de uma câmera na fila. Do tamanho do .dot global, para ler
      como parente dele; o livre é só o contorno. */
-  .lugares { display: inline-flex; gap: 4px; justify-content: flex-end; }
+  .lugares {
+    display: inline-flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
   .lugar {
     display: inline-block;
     width: 9px;
@@ -1281,11 +1525,22 @@
     border-radius: 50%;
     border: 1.5px solid #4a5058;
   }
-  .lugar.esperando { background: var(--dim); border-color: var(--dim); }
-  .cheia .lugar.esperando, .lugar.esperando.cheio { background: var(--warn); border-color: var(--warn); }
+  .lugar.esperando {
+    background: var(--dim);
+    border-color: var(--dim);
+  }
+  .cheia .lugar.esperando,
+  .lugar.esperando.cheio {
+    background: var(--warn);
+    border-color: var(--warn);
+  }
   /* A câmera em processamento: fora da fila, então fora dos lugares - um
      ponto à parte, com halo, para não ler como mais um lugar. */
-  .celula-fila { display: inline-flex; align-items: center; justify-content: flex-end; }
+  .celula-fila {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
   .processando {
     display: inline-block;
     width: 9px;
@@ -1295,15 +1550,28 @@
     box-shadow: 0 0 0 3px #2f81f733;
     margin-right: 9px;
   }
-  .legenda-fila { gap: 14px; padding: 8px 12px 10px; border-top: 1px solid #21262d; }
-  .legenda-fila .lugar, .legenda-fila .processando { margin-right: 6px; vertical-align: -1px; }
+  .legenda-fila {
+    gap: 14px;
+    padding: 8px 12px 10px;
+    border-top: 1px solid #21262d;
+  }
+  .legenda-fila .lugar,
+  .legenda-fila .processando {
+    margin-right: 6px;
+    vertical-align: -1px;
+  }
 
   /* ---- este servidor ---- */
 
   /* O log fica em lista corrida e não em rótulo e valor: cada linha é longa,
      e alinhada à direita ficaria ilegível. Rola por dentro para 50 linhas não
      empurrarem o resto da tela. */
-  .log .titulo { margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
+  .log .titulo {
+    margin: 0 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 11px;
+  }
   .log ol {
     margin: 0;
     padding: 0;
@@ -1314,43 +1582,89 @@
     overflow-y: auto;
     overflow-wrap: anywhere;
   }
-  .log li { color: var(--warn); }
-  .log li.erro { color: var(--bad); }
+  .log li {
+    color: var(--warn);
+  }
+  .log li.erro {
+    color: var(--bad);
+  }
 
-  .table { padding: 0; overflow-x: auto; }
+  .table {
+    padding: 0;
+    overflow-x: auto;
+  }
   /* No celular as duas tabelas não cabem em colunas e rolavam de lado. Cada
      linha vira um cartão: o nome em cima, e os valores numa grade de três,
      cada um com o rótulo da coluna em cima dele. A grade é a mesma em todos
      os cartões, então um valor fica sempre no mesmo lugar - descer o olho
      pelo "reconex." de cada câmera continua sendo ler uma coluna. Sem
      cabeçalho, a ordenação vai para os chips. */
-  .thead, .trow {
+  .thead,
+  .trow {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px 10px;
     padding: 10px 12px;
     align-items: start;
   }
-  .trow > :first-child { grid-column: 1 / -1; }
+  .trow > :first-child {
+    grid-column: 1 / -1;
+  }
   /* O disco é o valor mais largo ("19,93 GB de 20 GB") e leva a fatia maior;
      se ainda assim não couber, quebra antes do "de", e não no meio de um
      número com a unidade. */
-  .table .trow { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.3fr) minmax(0, 1fr); }
-  .inteiro { white-space: nowrap; }
-  .thead { display: none; border-bottom: 1px solid var(--line); }
-  .rot-cel { display: block; font-size: 11px; line-height: 1.3; color: var(--dim); }
-  .rot-cel.ativa { color: var(--accent); }
-  .ordem { gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .table .trow {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  }
+  .inteiro {
+    white-space: nowrap;
+  }
+  .thead {
+    display: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .rot-cel {
+    display: block;
+    font-size: 11px;
+    line-height: 1.3;
+    color: var(--dim);
+  }
+  .rot-cel.ativa {
+    color: var(--accent);
+  }
+  .ordem {
+    gap: 6px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
   /* Chip e não botão cheio: abaixo dos 44px do botão global, porque são
      sete lado a lado e quebrariam em três linhas. */
-  .ordem .chip { min-height: 32px; padding: 4px 11px; color: var(--dim); }
-  .ordem .chip.ativa { border-color: var(--accent); color: var(--fg); background: #2f81f71f; }
-  .ordem .seta { font-size: 9px; color: var(--accent); }
+  .ordem .chip {
+    min-height: 32px;
+    padding: 4px 11px;
+    color: var(--dim);
+  }
+  .ordem .chip.ativa {
+    border-color: var(--accent);
+    color: var(--fg);
+    background: #2f81f71f;
+  }
+  .ordem .seta {
+    font-size: 9px;
+    color: var(--accent);
+  }
 
   @media (min-width: 720px) {
-    .ordem, .rot-cel { display: none; }
-    .thead { display: grid; }
-    .thead, .trow, .table .trow {
+    .ordem,
+    .rot-cel {
+      display: none;
+    }
+    .thead {
+      display: grid;
+    }
+    .thead,
+    .trow,
+    .table .trow {
       /* Colunas: nome, taxa, disco, retido, cabem, reconex. O disco tem faixa
          própria porque carrega duas grandezas ("12,91 GB de 20 GB") e no repeat
          uniforme ele quebrava em duas linhas antes das outras precisarem. */
@@ -1361,7 +1675,9 @@
       padding: 9px 12px;
       align-items: center;
     }
-    .trow > :first-child { grid-column: auto; }
+    .trow > :first-child {
+      grid-column: auto;
+    }
   }
   /* O cabeçalho é botão para funcionar com teclado, mas continua parecendo
      cabeçalho: o estilo global de button não serve aqui. */
@@ -1379,8 +1695,13 @@
     font: inherit;
     text-align: left;
   }
-  .th:hover:not(:disabled) { border-color: transparent; color: var(--fg); }
-  .th.ativa { color: var(--fg); }
+  .th:hover:not(:disabled) {
+    border-color: transparent;
+    color: var(--fg);
+  }
+  .th.ativa {
+    color: var(--fg);
+  }
   /* O sublinhado pontilhado é a marca de que há explicação ali: sem ele o
      title existe e ninguém descobre que basta parar o mouse. Fica na cor da
      linha para insinuar, não para competir com o rótulo. */
@@ -1391,9 +1712,26 @@
     text-decoration: underline dotted var(--line);
     text-underline-offset: 3px;
   }
-  .th:hover .rotulo, .th.ativa .rotulo { text-decoration-color: var(--dim); }
-  .th .seta { width: 9px; flex: none; font-size: 9px; color: var(--accent); }
-  .trow + .trow { border-top: 1px solid #21262d; }
-  .c-nome { gap: 7px; min-width: 0; }
-  .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .th:hover .rotulo,
+  .th.ativa .rotulo {
+    text-decoration-color: var(--dim);
+  }
+  .th .seta {
+    width: 9px;
+    flex: none;
+    font-size: 9px;
+    color: var(--accent);
+  }
+  .trow + .trow {
+    border-top: 1px solid #21262d;
+  }
+  .c-nome {
+    gap: 7px;
+    min-width: 0;
+  }
+  .nome {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 </style>

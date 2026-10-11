@@ -137,7 +137,10 @@ export const BURACO_MINIMO_MS = 3600000;
 // /api/health) quando ele fica abaixo do retido por mais que BURACO_MINIMO_MS,
 // e 0 quando não: câmera sem falha mostra só o retido, como sempre mostrou.
 // O retido entra pronto porque cada tela já o calcula para si.
-export function gravadoSeHouverBuraco(retidoMs: number | undefined, recordedMs: number | undefined) {
+export function gravadoSeHouverBuraco(
+  retidoMs: number | undefined,
+  recordedMs: number | undefined,
+) {
   if (!retidoMs || !recordedMs) return 0;
   return retidoMs - recordedMs > BURACO_MINIMO_MS ? recordedMs : 0;
 }

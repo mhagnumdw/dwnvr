@@ -3,7 +3,13 @@
   import { cameras, loadCameras } from '../lib/state.svelte.ts';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.ts';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
-  import type { Eventos, ObjetoMarcado, Segmento, Timeline as LinhaDoTempo, Trecho } from '../lib/api.ts';
+  import type {
+    Eventos,
+    ObjetoMarcado,
+    Segmento,
+    Timeline as LinhaDoTempo,
+    Trecho,
+  } from '../lib/api.ts';
   import type { DesenhoPorCima } from '../lib/captura.ts';
   import { Player } from '../lib/player.svelte.ts';
   import { clearThumbnails } from '../lib/thumbs.ts';
@@ -22,7 +28,8 @@
 
   // O que a exportação vai pedir, ou por que não dá. O `never` deixa o
   // template ler `?.erro` e `?.inicio` sem saber qual dos dois é.
-  type Exportacao = { erro: string; inicio?: never; to?: never } | { inicio: number; to: number; erro?: never };
+  type Exportacao =
+    { erro: string; inicio?: never; to?: never } | { inicio: number; to: number; erro?: never };
 
   const player = new Player();
 
@@ -107,9 +114,7 @@
     // `2026-13-45`, que passa em qualquer teste de formato mas volta escrevendo
     // outra coisa - e se não é no futuro, que é o mesmo teto do calendário.
     // Não existe amanhã para reproduzir.
-    return /^\d{4}-\d{2}-\d{2}$/.test(d) && dayKey(parseDay(d)) === d && d <= dayKey()
-      ? d
-      : null;
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) && dayKey(parseDay(d)) === d && d <= dayKey() ? d : null;
   }
 
   function horaMs(hms: string | null | undefined, diaMs: number) {
@@ -219,7 +224,10 @@
     if (!cameras.list.length) await loadCameras();
     // Câmera do link só vale se ainda existir: cadastro some, link fica.
     const daURL = params.get('cam');
-    cam = daURL !== null && cameras.list.some((c) => c.id === daURL) ? daURL : (cameras.list[0]?.id ?? '');
+    cam =
+      daURL !== null && cameras.list.some((c) => c.id === daURL)
+        ? daURL
+        : (cameras.list[0]?.id ?? '');
     montado = true;
   });
 
@@ -543,7 +551,9 @@
       <div class="row camnav">
         <button
           class="ghost"
-          onclick={() => { shiftCam(-1); }}
+          onclick={() => {
+            shiftCam(-1);
+          }}
           disabled={cameras.list.length < 2}
           aria-label="câmera anterior"
         >
@@ -556,7 +566,9 @@
         </select>
         <button
           class="ghost"
-          onclick={() => { shiftCam(1); }}
+          onclick={() => {
+            shiftCam(1);
+          }}
           disabled={cameras.list.length < 2}
           aria-label="próxima câmera"
         >
@@ -599,14 +611,27 @@
     </div>
 
     <div class="controls row wrap">
-      <button class="primary" onclick={() => { player.toggle(); }} aria-label="tocar ou pausar">
+      <button
+        class="primary"
+        onclick={() => {
+          player.toggle();
+        }}
+        aria-label="tocar ou pausar"
+      >
         {player.playing ? '⏸' : '▶'}
       </button>
-      <Relogio ms={player.currentMs} onir={(seg) => { void player.seek(dayStart + seg * 1000); }} />
+      <Relogio
+        ms={player.currentMs}
+        onir={(seg) => {
+          void player.seek(dayStart + seg * 1000);
+        }}
+      />
 
       <select
         value={player.rate}
-        onchange={(e) => { player.setRate(Number(e.currentTarget.value)); }}
+        onchange={(e) => {
+          player.setRate(Number(e.currentTarget.value));
+        }}
         aria-label="velocidade"
       >
         {#each RATES as r (r)}<option value={r}>{taxa(r)}</option>{/each}
@@ -660,7 +685,9 @@
         {cam}
         segments={timeline.segments}
         currentMs={player.currentMs}
-        onseek={(ms: number) => { void player.seek(ms); }}
+        onseek={(ms: number) => {
+          void player.seek(ms);
+        }}
       />
     {/if}
 
@@ -673,7 +700,9 @@
       currentMs={player.currentMs}
       bind:viewFrom
       bind:viewTo
-      onseek={(ms: number) => { void player.seek(ms); }}
+      onseek={(ms: number) => {
+        void player.seek(ms);
+      }}
     />
 
     <p class="legend muted small row wrap">
@@ -690,8 +719,8 @@
         {/each}
       {/if}
       <span>
-        toque para pular · arraste para navegar · duplo toque aproxima, dois dedos
-        afastam · pince ou role para dar zoom
+        toque para pular · arraste para navegar · duplo toque aproxima, dois dedos afastam · pince
+        ou role para dar zoom
       </span>
     </p>
   {/if}
@@ -706,9 +735,15 @@
     margin: 0 auto;
   }
 
-  .bar select { max-width: 45vw; }
-  .camnav { gap: 4px; }
-  .camnav button { padding: 9px 12px; }
+  .bar select {
+    max-width: 45vw;
+  }
+  .camnav {
+    gap: 4px;
+  }
+  .camnav button {
+    padding: 9px 12px;
+  }
 
   .stage {
     position: relative;
@@ -751,15 +786,26 @@
     padding: 3px 8px;
     font-size: 12px;
   }
-  .badge.bad { color: var(--bad); border-color: #5c2b2b; }
+  .badge.bad {
+    color: var(--bad);
+    border-color: #5c2b2b;
+  }
 
   /* Botão e seletor são um controle só. Separados eles se leem como duas
      funções; colados, voltam a dizer "exportar 5 min", que era o rótulo antigo.
      O min-height iguala o select ao botão: no app.css só `button` tem os 44px,
      e a diferença de 4px vira um degrau visível quando os dois encostam. */
-  .split { display: inline-flex; }
-  .split > * { border-radius: 0; margin: 0; position: relative; }
-  .split > button { border-radius: 8px 0 0 8px; }
+  .split {
+    display: inline-flex;
+  }
+  .split > * {
+    border-radius: 0;
+    margin: 0;
+    position: relative;
+  }
+  .split > button {
+    border-radius: 8px 0 0 8px;
+  }
   .split > select {
     border-radius: 0 8px 8px 0;
     margin-left: -1px;
@@ -768,11 +814,19 @@
   }
   /* A sobreposição de 1px esconderia a borda destacada do vizinho de baixo. */
   .split > :hover:not(:disabled),
-  .split > :focus-visible { z-index: 1; }
+  .split > :focus-visible {
+    z-index: 1;
+  }
 
-  .exportinfo { margin: -4px 0 0; color: var(--bad); }
+  .exportinfo {
+    margin: -4px 0 0;
+    color: var(--bad);
+  }
 
-  .legend { gap: 14px; margin: 0; }
+  .legend {
+    gap: 14px;
+    margin: 0;
+  }
   .legend i {
     display: inline-block;
     width: 10px;
@@ -780,8 +834,15 @@
     border-radius: 2px;
     vertical-align: -1px;
   }
-  .legend i.has { background: var(--accent); }
-  .legend i.gap { background: #1b1f24; border: 1px solid var(--line); }
+  .legend i.has {
+    background: var(--accent);
+  }
+  .legend i.gap {
+    background: #1b1f24;
+    border: 1px solid var(--line);
+  }
   /* O mesmo âmbar da faixa de calor, em CALOR_COR no Timeline.svelte. */
-  .legend i.heat { background: #d29922; }
+  .legend i.heat {
+    background: #d29922;
+  }
 </style>

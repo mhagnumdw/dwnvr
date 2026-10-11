@@ -63,7 +63,14 @@
     onocultar?: (() => void) | null;
   }
 
-  let { det, camera, onclose, onanterior = null, onproxima = null, onocultar = null }: Props = $props();
+  let {
+    det,
+    camera,
+    onclose,
+    onanterior = null,
+    onproxima = null,
+    onocultar = null,
+  }: Props = $props();
 
   let palco: HTMLDivElement | undefined;
   let img = $state<HTMLImageElement | null>(null);
@@ -205,7 +212,11 @@
     <span class="camera">{camera}</span>
     <span class="spacer"></span>
     {#if onocultar}
-      <button class="ghost ocultar" onclick={onocultar} aria-label="ocultar a câmera {camera} desta tela">
+      <button
+        class="ghost ocultar"
+        onclick={onocultar}
+        aria-label="ocultar a câmera {camera} desta tela"
+      >
         ocultar câmera
       </button>
     {/if}
@@ -257,7 +268,12 @@
     {#each objetos as o, i (i)}
       {@const icone = iconeDa(o, true) ?? iconeDa(o, false)}
       <span class="objeto">
-        {#if icone}<img src={iconeURL(icone, 14, familia(o.familia).cor)} alt="" width="14" height="14" />{/if}
+        {#if icone}<img
+            src={iconeURL(icone, 14, familia(o.familia).cor)}
+            alt=""
+            width="14"
+            height="14"
+          />{/if}
         <span>{NOME_DA_CLASSE[o.classe] ?? o.classe} {score(o.score)}</span>
       </span>
     {/each}
@@ -294,7 +310,11 @@
     padding: 4px 10px;
   }
 
-  .ocultar { flex: none; color: var(--dim); font-size: 13px; }
+  .ocultar {
+    flex: none;
+    color: var(--dim);
+    font-size: 13px;
+  }
 
   .palco {
     position: relative;
@@ -389,7 +409,10 @@
     white-space: nowrap;
   }
 
-  .badge.bad { color: var(--bad); border-color: #5c2b2b; }
+  .badge.bad {
+    color: var(--bad);
+    border-color: #5c2b2b;
+  }
 
   .objetos {
     display: flex;

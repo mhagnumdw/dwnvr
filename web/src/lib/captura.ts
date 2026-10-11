@@ -17,7 +17,11 @@ export type DesenhoPorCima = (g: CanvasRenderingContext2D, largura: number, altu
 // `porCima(g, largura, altura)`, quando vier, desenha sobre o quadro já no
 // tamanho nativo - é assim que as caixas do detector entram na imagem quando
 // estão ligadas na tela.
-export async function baixarQuadro(video: HTMLVideoElement | null | undefined, nome: string, porCima?: DesenhoPorCima) {
+export async function baixarQuadro(
+  video: HTMLVideoElement | null | undefined,
+  nome: string,
+  porCima?: DesenhoPorCima,
+) {
   // Antes do primeiro quadro decodificado o <video> ainda não tem tamanho, e
   // capturar aí produziria uma imagem 0x0 sem erro nenhum.
   if (!video?.videoWidth || !video.videoHeight) {

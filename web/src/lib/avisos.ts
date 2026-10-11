@@ -33,8 +33,10 @@ export function agoraDoServidor(health: EstadoDaSaude) {
 
 // quando escreve um instante: só a hora se é de hoje, com a data na frente se
 // não é - "13:58:12" de ontem leria como de hoje.
-const deHoje = (ms: number, agora: number) => new Date(agora).toDateString() === new Date(ms).toDateString();
-export const quando = (ms: number, agora: number) => (deHoje(ms, agora) ? hhmmss(ms) : `${ddmm(ms)} ${hhmmss(ms)}`);
+const deHoje = (ms: number, agora: number) =>
+  new Date(agora).toDateString() === new Date(ms).toDateString();
+export const quando = (ms: number, agora: number) =>
+  deHoje(ms, agora) ? hhmmss(ms) : `${ddmm(ms)} ${hhmmss(ms)}`;
 
 // desde é o "desde quando" de todo aviso que depende de tempo, no formato do
 // "NÃO ESTÁ GRAVANDO": "desde 13:58:12 (12min)".
@@ -108,7 +110,10 @@ export function avisosDe(health: EstadoDaSaude): Aviso[] {
     if (!c.enabled || c.connected) continue;
     if (c.silent) continue; // já avisado acima, e com mais informação
     const quandoCaiu = c.disconnectedAt ? ` ${desde(c.disconnectedAt, agora)}` : '';
-    out.push({ nivel: 'bad', texto: `${c.name} desconectada${quandoCaiu}: ${c.lastError ?? 'motivo desconhecido'}` });
+    out.push({
+      nivel: 'bad',
+      texto: `${c.name} desconectada${quandoCaiu}: ${c.lastError ?? 'motivo desconhecido'}`,
+    });
   }
   // Os dois avisos de configuração também vêm do /api/health, e não da lista
   // de câmeras, que a tela Diagnóstico nunca relê: o go2rtc.yaml editado e o
@@ -139,7 +144,10 @@ export function avisosDe(health: EstadoDaSaude): Aviso[] {
   // cameras.go2rtcError, que a tela Diagnóstico nunca relê: o go2rtc caindo
   // com ela aberta tem que aparecer, e sumir quando ele volta.
   if (health.go2rtc) {
-    out.push({ nivel: 'bad', texto: `go2rtc inacessível ${desde(health.go2rtc.since, agora)}: ${health.go2rtc.error}` });
+    out.push({
+      nivel: 'bad',
+      texto: `go2rtc inacessível ${desde(health.go2rtc.since, agora)}: ${health.go2rtc.error}`,
+    });
   }
   // Com o detector de objetos fora, a gravação e as marcas de movimento
   // seguem normais: sem este aviso, a falta das marcas de objeto só se nota

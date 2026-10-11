@@ -63,7 +63,8 @@ export const api = {
 
   // Só para saber se o servidor é alcançável: o corpo não importa, e qualquer
   // resposta, até um erro HTTP, conta. Ver `esperarRede` no Ao vivo.
-  ping: (ms: number) => fetch('api/version', { cache: 'no-store', signal: AbortSignal.timeout(ms) }),
+  ping: (ms: number) =>
+    fetch('api/version', { cache: 'no-store', signal: AbortSignal.timeout(ms) }),
 
   login: async (username: string, password: string) => {
     const res = await fetch('api/login', {
@@ -90,11 +91,16 @@ export const api = {
       body: JSON.stringify({ username: usuario, name: nome }),
     }),
   novoLink: (usuario: string) =>
-    request<Convite>('usuarios/link', { method: 'POST', body: JSON.stringify({ username: usuario }) }),
+    request<Convite>('usuarios/link', {
+      method: 'POST',
+      body: JSON.stringify({ username: usuario }),
+    }),
   removerUsuario: (usuario: string) =>
     request<unknown>('usuarios?username=' + encodeURIComponent(usuario), { method: 'DELETE' }),
   tirarAvatarDe: (usuario: string) =>
-    request<unknown>('usuarios/avatar?username=' + encodeURIComponent(usuario), { method: 'DELETE' }),
+    request<unknown>('usuarios/avatar?username=' + encodeURIComponent(usuario), {
+      method: 'DELETE',
+    }),
 
   // Minha conta: cada um muda o que é seu. Tudo devolve { user } como ficou,
   // para o header se atualizar sem perguntar de novo. A foto vai crua, o JPEG
@@ -120,10 +126,14 @@ export const api = {
   conferirConvite: (token: string) =>
     request<LinkDeConvite>('convite/conferir', { method: 'POST', body: JSON.stringify({ token }) }),
   definirSenha: (token: string, senha: string) =>
-    request<ComPessoa>('convite', { method: 'POST', body: JSON.stringify({ token, password: senha }) }),
+    request<ComPessoa>('convite', {
+      method: 'POST',
+      body: JSON.stringify({ token, password: senha }),
+    }),
 
   cameras: () => request<RespostaCameras>('cameras'),
-  saveCamera: (cam: Camera) => request<unknown>('cameras', { method: 'POST', body: JSON.stringify(cam) }),
+  saveCamera: (cam: Camera) =>
+    request<unknown>('cameras', { method: 'POST', body: JSON.stringify(cam) }),
   // As gravações só vão junto se forem pedidas: o padrão é preservá-las.
   deleteCamera: (id: string, { recordings = false } = {}) =>
     request<unknown>(`cameras?id=${encodeURIComponent(id)}${recordings ? '&recordings=1' : ''}`, {
@@ -361,7 +371,8 @@ export interface Faixa {
 }
 
 // Os campos da câmera com faixa: o FaixasDaCamera de internal/config/parametros.go.
-export type CampoComFaixa = 'quotaMB' | 'segmentSeconds' | 'maxDays' | 'stallSeconds' | 'detectSensibilidade';
+export type CampoComFaixa =
+  'quotaMB' | 'segmentSeconds' | 'maxDays' | 'stallSeconds' | 'detectSensibilidade';
 export type Faixas = Partial<Record<CampoComFaixa, Faixa>>;
 
 // O que está no go2rtc.yaml e o go2rtc ainda não carregou. Lista vazia não vem.

@@ -60,7 +60,9 @@
     if (e.target === e.currentTarget) onclose?.();
   }}
 >
-  <div class="card sheet" class:reserva-rolagem={reservaRolagem} style:--largura={larguraCSS}>{@render children?.()}</div>
+  <div class="card sheet" class:reserva-rolagem={reservaRolagem} style:--largura={larguraCSS}>
+    {@render children?.()}
+  </div>
 </div>
 
 <style>
@@ -100,7 +102,13 @@
   }
 
   @media (min-width: 640px) {
-    .overlay { place-items: center; padding: 20px; }
-    .sheet { max-width: var(--largura); border-radius: var(--radius); }
+    .overlay {
+      place-items: center;
+      padding: 20px;
+    }
+    .sheet {
+      max-width: var(--largura);
+      border-radius: var(--radius);
+    }
   }
 </style>

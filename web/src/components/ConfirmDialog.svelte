@@ -57,6 +57,12 @@
 </Modal>
 
 <style>
-  h3 { margin: 0; font-size: 15px; }
-  .body { margin: -4px 0 0; color: var(--dim); }
+  h3 {
+    margin: 0;
+    font-size: 15px;
+  }
+  .body {
+    margin: -4px 0 0;
+    color: var(--dim);
+  }
 </style>

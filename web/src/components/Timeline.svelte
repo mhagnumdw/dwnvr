@@ -25,7 +25,7 @@
   }
 
   let {
-    ranges = [],       // [[inícioMs, fimMs], …] faixas com gravação
+    ranges = [], // [[inícioMs, fimMs], …] faixas com gravação
     // Instantes em que o gatilho viu movimento, crescentes. Vazio quer dizer
     // "não há o que mostrar" - seja porque a câmera está com a detecção
     // desligada, seja porque o dia foi quieto -, e nesse caso a faixa de calor
@@ -68,9 +68,9 @@
   // ícone: o ícone de classe é maior que o de família, e com a zona crescendo a
   // barra desceria no meio de um zoom.
   const ZONA_PX = 24;
-  const OBJ_PX = 10;   // a linha de objeto
+  const OBJ_PX = 10; // a linha de objeto
   const BARRA_PX = 36;
-  const VAO_PX = 3;    // respiro entre a barra e cada faixa vizinha
+  const VAO_PX = 3; // respiro entre a barra e cada faixa vizinha
   const CALOR_PX = 10;
   const REGUA_PX = 20; // o que sobra embaixo, para os rótulos de hora
 
@@ -122,9 +122,7 @@
   const temObjetos = $derived(objetos.length > 0);
   const objTop = TOPO_PX + ZONA_PX;
   const barTop = $derived(temObjetos ? objTop + OBJ_PX + VAO_PX : TOPO_PX);
-  const alturaCanvas = $derived(
-    barTop + BARRA_PX + (temCalor ? VAO_PX + CALOR_PX : 0) + REGUA_PX,
-  );
+  const alturaCanvas = $derived(barTop + BARRA_PX + (temCalor ? VAO_PX + CALOR_PX : 0) + REGUA_PX);
 
   // As marcas agrupadas por instante, crescentes. Uma olhada pode confirmar
   // mais de uma família no mesmo quadro - pessoa e moto chegam juntas, e numa
@@ -160,8 +158,17 @@
 
   $effect(() => {
     // Redesenha sempre que qualquer uma destas mudar.
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
-    ranges; events; grupos; viewFrom; viewTo; currentMs; width; hoverMs; alturaCanvas;
+    /* eslint-disable @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear */
+    ranges;
+    events;
+    grupos;
+    viewFrom;
+    viewTo;
+    currentMs;
+    width;
+    hoverMs;
+    alturaCanvas;
+    /* eslint-enable @typescript-eslint/no-unused-expressions */
     draw();
   });
 
@@ -319,8 +326,7 @@
       for (let x = 0; x < cols.length; x++) {
         const c = cols[x];
         if (!c) continue;
-        g.globalAlpha =
-          CALOR_ALFA_MIN + (1 - CALOR_ALFA_MIN) * Math.sqrt(Math.min(1, c / teto));
+        g.globalAlpha = CALOR_ALFA_MIN + (1 - CALOR_ALFA_MIN) * Math.sqrt(Math.min(1, c / teto));
         g.fillRect(x, calorTop, 1, CALOR_PX);
       }
       g.globalAlpha = 1;
@@ -370,7 +376,7 @@
     moved: boolean;
   } | null = null;
   let lastTap: { t: number; x: number } | null = null; // o último toque limpo, para o duplo toque
-  let swallowUp = false;  // o up do 2º dedo não pode virar seek
+  let swallowUp = false; // o up do 2º dedo não pode virar seek
 
   const DOUBLE_TAP_MS = 300;
   const DOUBLE_TAP_PX = 32;
@@ -379,8 +385,8 @@
   // de 1.35, e o touchpad, que manda dezenas de deltas pequenos, soma o mesmo
   // zoom na medida do movimento dos dedos em vez de um passo cheio por evento.
   const WHEEL_ZOOM_POR_PX = Math.log(1.35) / 100;
-  const WHEEL_PX_POR_LINHA = 33;   // Firefox pode mandar o delta em linhas
-  const WHEEL_DELTA_MAX_PX = 300;  // um evento isolado nunca salta mais que ~2.5x nem ~¼ da tela
+  const WHEEL_PX_POR_LINHA = 33; // Firefox pode mandar o delta em linhas
+  const WHEEL_DELTA_MAX_PX = 300; // um evento isolado nunca salta mais que ~2.5x nem ~¼ da tela
 
   function localX(ev: MouseEvent) {
     return ev.clientX - (canvas?.getBoundingClientRect().left ?? 0);
@@ -472,8 +478,11 @@
 
     // Duplo toque: o 1º já pulou para o ponto, o 2º aproxima ancorado ali -
     // por isso nenhum gesto precisa esperar para saber se vem um segundo toque.
-    if (lastTap && ev.timeStamp - lastTap.t < DOUBLE_TAP_MS
-        && Math.abs(x - lastTap.x) < DOUBLE_TAP_PX) {
+    if (
+      lastTap &&
+      ev.timeStamp - lastTap.t < DOUBLE_TAP_MS &&
+      Math.abs(x - lastTap.x) < DOUBLE_TAP_PX
+    ) {
       lastTap = null;
       zoomTo(toMs(x), span / ZOOM_STEP, x / width);
       return;
@@ -566,7 +575,10 @@
     <!-- A margem da borda cresce com o texto: a dica de uma marca é mais longa
          que a de um horário, e sairia pela lateral. -->
     {@const margem = hoverGrupo ? 90 : 28}
-    <span class="tip mono" style:left="{Math.min(Math.max(toX(hoverMs), margem), width - margem)}px">
+    <span
+      class="tip mono"
+      style:left="{Math.min(Math.max(toX(hoverMs), margem), width - margem)}px"
+    >
       {hhmmss(hoverMs)}{#if hoverGrupo}&nbsp;· {descreve(hoverGrupo)}{/if}
     </span>
   {/if}

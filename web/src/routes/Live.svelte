@@ -66,9 +66,7 @@
   let montado = $state(false);
 
   const visible = $derived(cameras.list.filter((c) => selected.has(c.id)));
-  const tudoMarcado = $derived(
-    cameras.list.length > 0 && selected.size === cameras.list.length,
-  );
+  const tudoMarcado = $derived(cameras.list.length > 0 && selected.size === cameras.list.length);
 
   // A URL vem primeiro, o localStorage depois, e só então o palpite pela
   // largura da tela. A URL descreve ESTE link; o localStorage, o hábito deste
@@ -341,7 +339,8 @@
       if (document.hidden && document.pictureInPictureElement !== node.video) return false;
       if (!rede) return conectar();
       void rede.then(() => {
-        if (!document.hidden && node.isConnected && (sempreLigadas || !foraDaTela.has(node))) conectar();
+        if (!document.hidden && node.isConnected && (sempreLigadas || !foraDaTela.has(node)))
+          conectar();
       });
       return false;
     };
@@ -419,7 +418,8 @@
     if (!session.authRequired || !ativo) return;
     const id = setInterval(() => {
       if (rede) return;
-      if (!acessoConfirmado || Date.now() - ultimaConferencia >= CONFERIR_SESSAO_MS) conferirSessao();
+      if (!acessoConfirmado || Date.now() - ultimaConferencia >= CONFERIR_SESSAO_MS)
+        conferirSessao();
     }, TIQUE_CONFERENCIA_MS);
     return () => {
       clearInterval(id);
@@ -591,7 +591,8 @@
     // para a navegação inferior não cobrir o conteúdo. Esse padding do `main` é
     // zero no desktop, onde a navegação sobe - lê-lo evita repetir aqui, em JS,
     // o breakpoint que já está no CSS.
-    const abaixo = (el: Element | null) => (el ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0);
+    const abaixo = (el: Element | null) =>
+      el ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0;
     const topo = palco.getBoundingClientRect().top;
     const H = Math.max(
       80,
@@ -605,8 +606,11 @@
   $effect(() => {
     // Leituras explícitas porque `medir` sai cedo antes de tocar nelas: são o
     // que muda a altura disponível ou a quantidade de tiles.
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
-    modo; visible.length; showPicker;
+    /* eslint-disable @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear */
+    modo;
+    visible.length;
+    showPicker;
+    /* eslint-enable @typescript-eslint/no-unused-expressions */
     medir();
   });
 </script>
@@ -708,8 +712,8 @@
 
   {#if !acessoConfirmado}
     <p class="card small semacesso">
-      Não deu para confirmar o seu acesso com o dwnvr, e o vídeo fica parado até confirmar. Tentando de
-      novo…
+      Não deu para confirmar o seu acesso com o dwnvr, e o vídeo fica parado até confirmar. Tentando
+      de novo…
     </p>
   {/if}
 
@@ -722,7 +726,11 @@
     >
       {#each acessoConfirmado ? visible : [] as c (c.id)}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="tile" ondblclick={(e) => fullscreen(e.currentTarget)} title="duplo clique: tela cheia">
+        <div
+          class="tile"
+          ondblclick={(e) => fullscreen(e.currentTarget)}
+          title="duplo clique: tela cheia"
+        >
           <!-- O componente do go2rtc negocia WebRTC/MSE sozinho. A mídia vai
                direto do navegador ao go2rtc; o dwnvr só faz proxy da
                sinalização, para que a credencial não chegue ao navegador. -->
@@ -781,8 +789,8 @@
               onclick={() => (menu = menu === c.id ? null : c.id)}
               aria-label="opções da câmera {c.name}"
               aria-haspopup="menu"
-              aria-expanded={menu === c.id}
-            ><span aria-hidden="true">⋮</span></button>
+              aria-expanded={menu === c.id}><span aria-hidden="true">⋮</span></button
+            >
 
             {#if menu === c.id}
               <!-- Links de verdade, e não botões que trocam o hash: assim o
@@ -836,15 +844,26 @@
      `melhorEncaixe`: o teto de largura só tiraria espaço em tela mais alta,
      como a 16:10 de notebook. Nas colunas fixas o teto fica: lá a altura não
      entra na conta, e o tile cresceria com a largura até passar da janela. */
-  .page.fit { max-width: none; }
+  .page.fit {
+    max-width: none;
+  }
 
   /* No celular a linha anda no limite e o último botão desceria: lá o botão
      fica só com o ícone e a contagem, como em Detecções. O nome volta do
      tablet para cima. */
-  .cams { display: inline-flex; align-items: center; gap: 5px; padding: 9px 10px; }
-  .cams .texto { display: none; }
+  .cams {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 9px 10px;
+  }
+  .cams .texto {
+    display: none;
+  }
   @media (min-width: 720px) {
-    .cams .texto { display: inline; }
+    .cams .texto {
+      display: inline;
+    }
   }
   .cams svg {
     display: block;
@@ -856,8 +875,13 @@
     stroke-width: 1.8;
   }
 
-  .modos button { padding: 8px 11px; }
-  .modos button.on { color: var(--fg); border-color: var(--accent); }
+  .modos button {
+    padding: 8px 11px;
+  }
+  .modos button.on {
+    color: var(--fg);
+    border-color: var(--accent);
+  }
 
   .modos svg {
     display: block;
@@ -868,10 +892,22 @@
     stroke-width: 2;
   }
 
-  .sempre { padding: 8px 11px; }
-  .sempre.on { border-color: var(--accent); }
-  .sempre svg { display: block; width: 20px; height: 20px; }
-  .sempre .moldura { fill: none; stroke: currentColor; stroke-width: 1.8; }
+  .sempre {
+    padding: 8px 11px;
+  }
+  .sempre.on {
+    border-color: var(--accent);
+  }
+  .sempre svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+  }
+  .sempre .moldura {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+  }
   .sempre .rastro {
     fill: none;
     stroke: currentColor;
@@ -887,7 +923,10 @@
     paint-order: stroke;
   }
 
-  .selecao { display: grid; gap: 10px; }
+  .selecao {
+    display: grid;
+    gap: 10px;
+  }
 
   .lista {
     display: grid;
@@ -901,11 +940,18 @@
     padding: 4px 0;
   }
 
-  .lista input { min-height: 0; width: 18px; height: 18px; accent-color: var(--accent); }
+  .lista input {
+    min-height: 0;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+  }
 
   /* Recorta a grade no modo encaixar: a altura em pixels vem do `medir`, e sem
      isto um arredondamento para cima devolveria a rolagem que o modo evita. */
-  .palco.fit { overflow: hidden; }
+  .palco.fit {
+    overflow: hidden;
+  }
 
   .grid {
     display: grid;
@@ -983,26 +1029,45 @@
     height: 16px;
   }
 
-  .pip .moldura { fill: none; stroke: currentColor; stroke-width: 2; }
-  .pip .janela { fill: currentColor; }
+  .pip .moldura {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
+  .pip .janela {
+    fill: currentColor;
+  }
 
-  .pip:focus-visible { outline: 2px solid var(--accent); }
-  .pip.on { color: var(--accent); outline: 2px solid var(--accent); }
+  .pip:focus-visible {
+    outline: 2px solid var(--accent);
+  }
+  .pip.on {
+    color: var(--accent);
+    outline: 2px solid var(--accent);
+  }
 
   /* Como o ⋮: com mouse aparece só sobre o tile, e fica enquanto a câmera está
      no PiP; no toque fica sempre à vista. */
   @media (hover: hover) {
-    .pip { opacity: 0; }
+    .pip {
+      opacity: 0;
+    }
     .tile:hover .pip,
     .pip:focus-visible,
-    .pip.on { opacity: 1; }
-    .tile:hover .pip { background: rgba(13, 17, 23, 0.95); }
+    .pip.on {
+      opacity: 1;
+    }
+    .tile:hover .pip {
+      background: rgba(13, 17, 23, 0.95);
+    }
   }
 
   /* O player do go2rtc escreve o modo (loading, RTC, MSE) no canto de cima à
      direita, que é o lugar do ⋮: o texto anda para a esquerda dele, sem tocar
      no arquivo copiado. */
-  .tile :global(video-stream .info) { padding-right: 44px; }
+  .tile :global(video-stream .info) {
+    padding-right: 44px;
+  }
 
   /* Embaixo à direita: em cima à esquerda o player do go2rtc escreve os erros
      dele, e embaixo à esquerda está o nome. */
@@ -1025,7 +1090,9 @@
   /* Sem caixa própria: o ⋮ e o menu se posicionam contra o tile, e é isso que
      deixa a altura do menu ser medida pela do tile. O div existe só para
      segurar o duplo clique. */
-  .opcoes { display: contents; }
+  .opcoes {
+    display: contents;
+  }
 
   .mais {
     position: absolute;
@@ -1055,18 +1122,28 @@
     color: var(--fg);
   }
 
-  .mais:focus-visible { outline: none; }
+  .mais:focus-visible {
+    outline: none;
+  }
   .mais:focus-visible span,
-  .mais[aria-expanded='true'] span { outline: 2px solid var(--accent); }
+  .mais[aria-expanded='true'] span {
+    outline: 2px solid var(--accent);
+  }
 
   /* Com mouse o ⋮ aparece só sobre o tile, e fica enquanto o menu dele está
      aberto. No toque não há hover: ele fica sempre à vista. */
   @media (hover: hover) {
-    .mais { opacity: 0; }
+    .mais {
+      opacity: 0;
+    }
     .tile:hover .mais,
     .mais:focus-visible,
-    .mais[aria-expanded='true'] { opacity: 1; }
-    .tile:hover .mais span { background: rgba(13, 17, 23, 0.95); }
+    .mais[aria-expanded='true'] {
+      opacity: 1;
+    }
+    .tile:hover .mais span {
+      background: rgba(13, 17, 23, 0.95);
+    }
   }
 
   /* Dentro do tile, que corta o que passa da borda: num tile muito baixo o
@@ -1103,6 +1180,8 @@
 
   @media (hover: hover) {
     .menu a:hover,
-    .menu button:hover { background: var(--panel-2); }
+    .menu button:hover {
+      background: var(--panel-2);
+    }
   }
 </style>

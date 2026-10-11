@@ -364,7 +364,13 @@ export class Player {
     this.#ms = ms;
     video.src = URL.createObjectURL(ms);
     await new Promise<void>((r) => {
-      ms.addEventListener('sourceopen', () => { r(); }, { once: true });
+      ms.addEventListener(
+        'sourceopen',
+        () => {
+          r();
+        },
+        { once: true },
+      );
     });
     video.playbackRate = rate;
 
@@ -502,10 +508,22 @@ export class Player {
     if (!sb || this.#sb !== sb || ms?.readyState !== 'open') return;
     if (offset !== null) sb.timestampOffset = offset;
     await new Promise<void>((res, rej) => {
-      sb.addEventListener('updateend', () => { res(); }, { once: true });
-      sb.addEventListener('error', () => { rej(new Error('falha ao anexar segmento')); }, {
-        once: true,
-      });
+      sb.addEventListener(
+        'updateend',
+        () => {
+          res();
+        },
+        { once: true },
+      );
+      sb.addEventListener(
+        'error',
+        () => {
+          rej(new Error('falha ao anexar segmento'));
+        },
+        {
+          once: true,
+        },
+      );
       sb.appendBuffer(buf);
     });
   }
@@ -518,7 +536,13 @@ export class Player {
     const start = sb.buffered.start(0);
     if (keepFrom - start < BEHIND_S) return;
     await new Promise<void>((res) => {
-      sb.addEventListener('updateend', () => { res(); }, { once: true });
+      sb.addEventListener(
+        'updateend',
+        () => {
+          res();
+        },
+        { once: true },
+      );
       sb.remove(start, keepFrom);
     });
   }

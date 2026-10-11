@@ -17,14 +17,27 @@
   import type { Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
   import { cameras, loadCameras } from '../lib/state.svelte.ts';
   import { paramsAtuais, escrever, linkGravacoes } from '../lib/rota.svelte.ts';
-  import { FAMILIAS, NOMES_DAS_FAMILIAS, familia, iconeDaFamilia, iconeURL } from '../lib/icones.ts';
+  import {
+    FAMILIAS,
+    NOMES_DAS_FAMILIAS,
+    familia,
+    iconeDaFamilia,
+    iconeURL,
+  } from '../lib/icones.ts';
   import type { NomeDaFamilia } from '../lib/icones.ts';
   import { CAIXA_FOLGA_PX } from '../lib/caixas.ts';
   import { hhmmss, ddmm, dayKey, parseDay } from '../lib/format.ts';
 
   // Uma linha da grade: o cabeçalho da hora, ou uma fileira de miniaturas.
   // `primeira` é o índice na `lista` da primeira miniatura da fileira.
-  interface LinhaDaHora { tipo: 'hora'; k: string; y: number; altura: number; rotulo: string; dia: string }
+  interface LinhaDaHora {
+    tipo: 'hora';
+    k: string;
+    y: number;
+    altura: number;
+    rotulo: string;
+    dia: string;
+  }
   interface LinhaDaGrade {
     tipo: 'grade';
     k: string;
@@ -157,7 +170,9 @@
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Set local, só para juntar
     const vistos = new Set<string>();
     const out: Deteccao[] = [];
-    for (const d of [...a, ...b].sort((x, y) => y.instanteMs - x.instanteMs || (x.cam < y.cam ? -1 : 1))) {
+    for (const d of [...a, ...b].sort(
+      (x, y) => y.instanteMs - x.instanteMs || (x.cam < y.cam ? -1 : 1),
+    )) {
       const k = chave(d);
       if (vistos.has(k)) continue;
       vistos.add(k);
@@ -249,7 +264,8 @@
   // As novas, e as atrasadas logo abaixo do topo. Só com o topo carregado: fora
   // dele, a rolagem para cima é que as traz.
   async function novas() {
-    if (!atualizando || document.hidden || !carregado || !fimAcima || !filtro || buscandoAcima) return;
+    if (!atualizando || document.hidden || !carregado || !fimAcima || !filtro || buscandoAcima)
+      return;
     const g = geracao;
     const topo = lista[0]?.instanteMs ?? Date.now();
     try {
@@ -356,7 +372,14 @@
         atual = null;
       }
       if (!atual || atual.itens.length === colunas) {
-        atual = { tipo: 'grade', k: `g${chave(det)}`, y, altura: alturaTile, primeira: i, itens: [] };
+        atual = {
+          tipo: 'grade',
+          k: `g${chave(det)}`,
+          y,
+          altura: alturaTile,
+          primeira: i,
+          itens: [],
+        };
         linhas.push(atual);
         y += alturaTile + vao;
       }
@@ -398,7 +421,12 @@
   function confere() {
     if (!carregado || !filtro || erro) return;
     const tela = window.innerHeight;
-    if (!fimAbaixo && !buscandoAbaixo && lista.length && layout.altura - rolagem.fim < tela * BUSCA_TELAS) {
+    if (
+      !fimAbaixo &&
+      !buscandoAbaixo &&
+      lista.length &&
+      layout.altura - rolagem.fim < tela * BUSCA_TELAS
+    ) {
       void abaixo();
     }
     if (!fimAcima && !buscandoAcima && rolagem.ini < tela * BUSCA_TELAS) void acima();
@@ -533,7 +561,8 @@
   // borda da imagem. A folga é em px e a caixa em fração, então quem soma é o
   // CSS.
   const inicio = (v: number) => `max(0px, calc(${pct(v)} - ${CAIXA_FOLGA_PX}px))`;
-  const tamanho = (de: number, ate: number) => `calc(min(100%, calc(${pct(ate)} + ${CAIXA_FOLGA_PX}px)) - ${inicio(de)})`;
+  const tamanho = (de: number, ate: number) =>
+    `calc(min(100%, calc(${pct(ate)} + ${CAIXA_FOLGA_PX}px)) - ${inicio(de)})`;
 
   // --- a folha ----------------------------------------------------------------
 
@@ -563,9 +592,10 @@
   function alternaFamilia(id: NomeDaFamilia) {
     const atuais = familiasMarcadas ?? ORDEM_FAMILIAS;
     const novas = atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id];
-    familiasMarcadas = novas.length === ORDEM_FAMILIAS.length
-      ? null
-      : ORDEM_FAMILIAS.filter((f) => novas.includes(f));
+    familiasMarcadas =
+      novas.length === ORDEM_FAMILIAS.length
+        ? null
+        : ORDEM_FAMILIAS.filter((f) => novas.includes(f));
     void recomeca();
   }
 
@@ -574,7 +604,8 @@
   function foraDasCameras(e: MouseEvent) {
     const alvoDoClique = e.target instanceof Element ? e.target : null;
     if (camerasAbertas && camsEl && !camsEl.contains(alvoDoClique)) camerasAbertas = false;
-    if (menu && menuEl && !menuEl.contains(alvoDoClique) && !alvoDoClique?.closest('.mais')) menu = null;
+    if (menu && menuEl && !menuEl.contains(alvoDoClique) && !alvoDoClique?.closest('.mais'))
+      menu = null;
   }
 
   // --- ocultar uma câmera daqui mesmo -----------------------------------------
@@ -709,7 +740,10 @@
 
     void (async () => {
       if (!cameras.list.length) await loadCameras();
-      camsMarcadas = idsDaURL('cams', cameras.list.map((c) => c.id));
+      camsMarcadas = idsDaURL(
+        'cams',
+        cameras.list.map((c) => c.id),
+      );
       camerasResolvidas = true;
       await recomeca();
     })();
@@ -770,7 +804,9 @@
         title={comCaixas ? 'esconder as caixas dos objetos' : 'mostrar as caixas dos objetos'}
         onclick={() => (comCaixas = !comCaixas)}
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="4" width="11" height="8" rx="1" /></svg>
+        <svg viewBox="0 0 16 16" aria-hidden="true"
+          ><rect x="2.5" y="4" width="11" height="8" rx="1" /></svg
+        >
         <span class="rotulo">caixas</span>
       </button>
       <button
@@ -784,7 +820,11 @@
         onclick={alternaAtualizar}
       >
         <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5" stroke-linecap="round" stroke-linejoin="round" />
+          <path
+            d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
         <span class="rotulo">atualizar</span>
       </button>
@@ -828,7 +868,11 @@
           <div class="lista-cams">
             {#each cameras.list as c (c.id)}
               <label class="row">
-                <input type="checkbox" checked={marcada(c.id)} onchange={() => alternaCamera(c.id)} />
+                <input
+                  type="checkbox"
+                  checked={marcada(c.id)}
+                  onchange={() => alternaCamera(c.id)}
+                />
                 <span>{c.name}</span>
               </label>
             {/each}
@@ -882,7 +926,8 @@
                       alt=""
                       decoding="async"
                       onload={(e) => {
-                        if (e.currentTarget instanceof HTMLImageElement) aprende(d.cam, e.currentTarget);
+                        if (e.currentTarget instanceof HTMLImageElement)
+                          aprende(d.cam, e.currentTarget);
                       }}
                     />
                   {/if}
@@ -908,7 +953,12 @@
                 <span class="icones">
                   {#each familiasDe(d) as f (f)}
                     {@const icone = iconeDaFamilia(f)}
-                    {#if icone}<img src={iconeURL(icone, 12, familia(f).cor)} alt="" width="12" height="12" />{/if}
+                    {#if icone}<img
+                        src={iconeURL(icone, 12, familia(f).cor)}
+                        alt=""
+                        width="12"
+                        height="12"
+                      />{/if}
                   {/each}
                 </span>
                 <span class="legenda">
@@ -923,8 +973,8 @@
                 }}
                 aria-label="opções da câmera {nomes[d.cam] ?? d.cam}"
                 aria-haspopup="menu"
-                aria-expanded={menu?.k === chave(d)}
-              ><span aria-hidden="true">⋮</span></button>
+                aria-expanded={menu?.k === chave(d)}><span aria-hidden="true">⋮</span></button
+              >
             </div>
           {/each}
         </div>
@@ -1046,11 +1096,26 @@
      das miniaturas na segunda, todos só com o ícone. Com o nome escrito eles
      pedem ~470 px numa linha de 370. As três colunas deixam cada linha se
      dividir do seu jeito: a 1ª é a largura das famílias, a 3ª a das câmeras. */
-  .quando { grid-column: 1 / 3; grid-row: 1; }
-  .cams { grid-column: 3; grid-row: 1; position: relative; }
-  .familias { grid-column: 1; grid-row: 2; }
-  .controles { grid-column: 2 / 4; grid-row: 2; }
-  .barra .rotulo { display: none; }
+  .quando {
+    grid-column: 1 / 3;
+    grid-row: 1;
+  }
+  .cams {
+    grid-column: 3;
+    grid-row: 1;
+    position: relative;
+  }
+  .familias {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .controles {
+    grid-column: 2 / 4;
+    grid-row: 2;
+  }
+  .barra .rotulo {
+    display: none;
+  }
 
   .familias {
     display: flex;
@@ -1066,9 +1131,17 @@
     color: var(--dim);
   }
 
-  .familia.on { color: var(--fg); border-color: var(--accent); }
-  .familia img { display: block; flex: none; }
-  .familia:not(.on) img { opacity: 0.4; }
+  .familia.on {
+    color: var(--fg);
+    border-color: var(--accent);
+  }
+  .familia img {
+    display: block;
+    flex: none;
+  }
+  .familia:not(.on) img {
+    opacity: 0.4;
+  }
 
   /* Os controles das miniaturas têm a forma das famílias ao lado: o mesmo
      botão, o mesmo "ligado". */
@@ -1086,7 +1159,10 @@
     color: var(--dim);
   }
 
-  .controles button.on { color: var(--fg); border-color: var(--accent); }
+  .controles button.on {
+    color: var(--fg);
+    border-color: var(--accent);
+  }
 
   .controles svg {
     width: 14px;
@@ -1142,8 +1218,16 @@
     gap: 6px 14px;
   }
 
-  .lista-cams label { gap: 8px; cursor: pointer; padding: 4px 0; }
-  .lista-cams span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lista-cams label {
+    gap: 8px;
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  .lista-cams span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   /* --- a grade --- */
 
@@ -1228,7 +1312,11 @@
     bottom: 100%;
     padding: 0 3px;
     border-radius: 3px 3px 3px 0;
-    font: 600 10px/13px system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font:
+      600 10px/13px system-ui,
+      -apple-system,
+      'Segoe UI',
+      sans-serif;
     color: #0d1117;
     white-space: nowrap;
   }
@@ -1240,9 +1328,15 @@
     border-radius: 0 0 3px 0;
   }
 
-  .compacta .score { font-size: 9px; line-height: 11px; padding: 0 2px; }
+  .compacta .score {
+    font-size: 9px;
+    line-height: 11px;
+    padding: 0 2px;
+  }
 
-  .sem-caixas .caixa { display: none; }
+  .sem-caixas .caixa {
+    display: none;
+  }
 
   .icones {
     position: absolute;
@@ -1255,7 +1349,9 @@
     background: rgba(13, 17, 23, 0.8);
   }
 
-  .icones img { display: block; }
+  .icones img {
+    display: block;
+  }
 
   /* O ⋮ no canto, à direita dos ícones das famílias e com a mesma pastilha
      deles. A pastilha é pequena, mas o alvo do toque é o canto inteiro. */
@@ -1287,25 +1383,41 @@
     color: var(--fg);
   }
 
-  .mais:focus-visible { outline: none; }
+  .mais:focus-visible {
+    outline: none;
+  }
   .mais:focus-visible span,
-  .mais[aria-expanded='true'] span { outline: 2px solid var(--accent); }
+  .mais[aria-expanded='true'] span {
+    outline: 2px solid var(--accent);
+  }
 
-  .celula .icones { right: 30px; }
+  .celula .icones {
+    right: 30px;
+  }
 
   /* Com mouse o ⋮ aparece só sobre a miniatura, e fica enquanto o menu dele
      está aberto. No toque não há hover: ele fica sempre à vista. */
   @media (hover: hover) {
-    .mais { opacity: 0; }
+    .mais {
+      opacity: 0;
+    }
     .celula:hover .mais,
     .mais:focus-visible,
-    .mais[aria-expanded='true'] { opacity: 1; }
-    .celula:hover .mais span { background: rgba(13, 17, 23, 0.95); }
+    .mais[aria-expanded='true'] {
+      opacity: 1;
+    }
+    .celula:hover .mais span {
+      background: rgba(13, 17, 23, 0.95);
+    }
   }
 
   /* Na miniatura pequena o ⋮ não se acerta com o dedo: a ação fica na folha. */
-  .compacta .mais { display: none; }
-  .compacta .icones { right: 4px; }
+  .compacta .mais {
+    display: none;
+  }
+  .compacta .icones {
+    right: 4px;
+  }
 
   .menu {
     position: fixed;
@@ -1338,7 +1450,9 @@
 
   @media (hover: hover) {
     .menu button:hover,
-    .menu .item:hover { background: var(--panel-2); }
+    .menu .item:hover {
+      background: var(--panel-2);
+    }
   }
 
   .aviso {
@@ -1359,8 +1473,15 @@
     white-space: nowrap;
   }
 
-  .aviso span { overflow: hidden; text-overflow: ellipsis; }
-  .aviso button { border: 0; color: var(--accent); font-weight: 600; }
+  .aviso span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .aviso button {
+    border: 0;
+    color: var(--accent);
+    font-weight: 600;
+  }
 
   .legenda {
     position: absolute;
@@ -1378,13 +1499,28 @@
     color: var(--fg);
   }
 
-  .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nome {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   /* Na miniatura pequena não cabe o nome da câmera: fica só a hora. */
-  .compacta .nome { display: none; }
-  .compacta .legenda { font-size: 10px; line-height: 16px; padding: 0 4px; }
-  .compacta .icones { padding: 2px 3px; }
-  .compacta .icones img { width: 10px; height: 10px; }
+  .compacta .nome {
+    display: none;
+  }
+  .compacta .legenda {
+    font-size: 10px;
+    line-height: 16px;
+    padding: 0 4px;
+  }
+  .compacta .icones {
+    padding: 2px 3px;
+  }
+  .compacta .icones img {
+    width: 10px;
+    height: 10px;
+  }
 
   .fim {
     text-align: center;
@@ -1392,7 +1528,9 @@
   }
 
   @media (min-width: 720px) {
-    .tela { padding: 0 18px 8px; }
+    .tela {
+      padding: 0 18px 8px;
+    }
 
     /* Do tablet para cima os nomes voltam, mas as duas linhas do celular
        continuam: no iPad em pé (820 px) a barra inteira não cabe numa linha
@@ -1403,18 +1541,35 @@
       padding: 10px 18px;
     }
 
-    .barra .rotulo { display: inline; }
+    .barra .rotulo {
+      display: inline;
+    }
 
-    .hora { left: -18px; right: -18px; padding: 0 20px; }
-    .legenda { font-size: 12px; line-height: 20px; }
-    .aviso { bottom: 20px; }
+    .hora {
+      left: -18px;
+      right: -18px;
+      padding: 0 20px;
+    }
+    .legenda {
+      font-size: 12px;
+      line-height: 20px;
+    }
+    .aviso {
+      bottom: 20px;
+    }
   }
 
   /* Linha única quando tudo cabe: a barra inteira mede ~1000 px. A folga
      cobre fonte do sistema um pouco mais larga que a medida. */
   @media (min-width: 1060px) {
-    .barra { display: flex; }
-    .quando { flex: none; }
-    .controles { margin-left: auto; }
+    .barra {
+      display: flex;
+    }
+    .quando {
+      flex: none;
+    }
+    .controles {
+      margin-left: auto;
+    }
   }
 </style>

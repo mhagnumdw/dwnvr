@@ -37,7 +37,9 @@ function maquina(m: Servidor['maquina']) {
   if (m.kernel) itens.push({ rotulo: 'kernel', valor: m.kernel });
   // O teto do container vai junto dos núcleos, e não numa linha à parte: é ele
   // que diz quantos o dwnvr enxerga de fato.
-  const liberados = m.nucleosLiberados ? ` (o container pode usar ${num(m.nucleosLiberados, m.nucleosLiberados % 1 ? 1 : 0)})` : '';
+  const liberados = m.nucleosLiberados
+    ? ` (o container pode usar ${num(m.nucleosLiberados, m.nucleosLiberados % 1 ? 1 : 0)})`
+    : '';
   itens.push({ rotulo: 'núcleos', valor: `${m.nucleos}${liberados}` });
   if (m.carga) {
     // Carga acima do número de núcleos é fila: tem processo esperando CPU.
@@ -83,12 +85,17 @@ function processo(
     const quando = a ? `últimos ${duracao(p.vivoMs - a.vivoMs)}` : 'média desde que subiu';
     // Em fração da máquina inteira, e não de um núcleo, para comparar direto
     // com a carga e a pressão ao lado.
-    itens.push({ rotulo: 'CPU', valor: `${num((usado / nucleos) * 100, 1)}% da máquina (${quando})` });
+    itens.push({
+      rotulo: 'CPU',
+      valor: `${num((usado / nucleos) * 100, 1)}% da máquina (${quando})`,
+    });
   }
   if (p.memoriaBytes) {
     itens.push({
       rotulo: 'memória',
-      valor: limiteBytes ? `${bytes(p.memoriaBytes)} de ${bytes(limiteBytes)} do limite` : bytes(p.memoriaBytes),
+      valor: limiteBytes
+        ? `${bytes(p.memoriaBytes)} de ${bytes(limiteBytes)} do limite`
+        : bytes(p.memoriaBytes),
       alerta: !!limiteBytes && p.memoriaBytes >= limiteBytes * PERTO_DO_TETO,
     });
   }
@@ -128,11 +135,14 @@ function memoria(m: NonNullable<Servidor['memoria']>, limiteNoProcesso: boolean)
   } else {
     itens.push({ rotulo: 'swap', valor: 'nenhuma' });
   }
-  if (m.limiteBytes && !limiteNoProcesso) itens.push({ rotulo: 'limite do container', valor: bytes(m.limiteBytes) });
+  if (m.limiteBytes && !limiteNoProcesso)
+    itens.push({ rotulo: 'limite do container', valor: bytes(m.limiteBytes) });
   if (m.oomKills != null) {
     itens.push({
       rotulo: 'processos encerrados por falta de memória (OOM kill)',
-      valor: m.oomKills ? `${m.oomKills} desde que a máquina ligou` : 'nenhum desde que a máquina ligou',
+      valor: m.oomKills
+        ? `${m.oomKills} desde que a máquina ligou`
+        : 'nenhum desde que a máquina ligou',
       alerta: m.oomKills > 0,
     });
   }
@@ -181,7 +191,11 @@ function storage(s: Servidor['storage']) {
 
 function go2rtc(g: Servidor['go2rtc']) {
   const itens: ItemDoCard[] = [
-    { rotulo: 'responde', valor: g.ok ? `sim, em ${num(g.ms)} ms` : `não: ${g.erro ?? '?'}`, alerta: !g.ok },
+    {
+      rotulo: 'responde',
+      valor: g.ok ? `sim, em ${num(g.ms)} ms` : `não: ${g.erro ?? '?'}`,
+      alerta: !g.ok,
+    },
   ];
   if (g.versao) itens.push({ rotulo: 'versão', valor: g.versao });
   if (g.url) itens.push({ rotulo: 'endereço', valor: g.url });
@@ -190,9 +204,17 @@ function go2rtc(g: Servidor['go2rtc']) {
 
 function detector(d: NonNullable<Servidor['detector']>) {
   const itens: ItemDoCard[] = [
-    { rotulo: 'responde', valor: d.ok ? `sim, em ${num(d.ms)} ms` : `não: ${d.erro ?? '?'}`, alerta: !d.ok },
+    {
+      rotulo: 'responde',
+      valor: d.ok ? `sim, em ${num(d.ms)} ms` : `não: ${d.erro ?? '?'}`,
+      alerta: !d.ok,
+    },
   ];
-  if (d.modelo) itens.push({ rotulo: 'modelo', valor: d.entrada ? `${d.modelo}, entrada ${d.entrada}` : d.modelo });
+  if (d.modelo)
+    itens.push({
+      rotulo: 'modelo',
+      valor: d.entrada ? `${d.modelo}, entrada ${d.entrada}` : d.modelo,
+    });
   if (d.threads) itens.push({ rotulo: 'threads', valor: String(d.threads) });
   itens.push({ rotulo: 'endereço', valor: d.url });
   return itens;

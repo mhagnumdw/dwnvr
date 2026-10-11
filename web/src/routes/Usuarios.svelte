@@ -22,7 +22,9 @@
   let erro = $state('');
 
   // O link recém-gerado. Ver mostrarLink.
-  let gerado = $state<{ username: string; name: string; url: string; venceEmMs: number } | null>(null);
+  let gerado = $state<{ username: string; name: string; url: string; venceEmMs: number } | null>(
+    null,
+  );
 
   // O relógio da contagem dos links, num tique de um segundo. Só anda com um
   // link aberto na tela.
@@ -82,7 +84,11 @@
   async function compartilhar() {
     if (!gerado) return;
     try {
-      await navigator.share({ title: 'dwnvr', text: `Link para ${gerado.name} definir a senha no dwnvr`, url: gerado.url });
+      await navigator.share({
+        title: 'dwnvr',
+        text: `Link para ${gerado.name} definir a senha no dwnvr`,
+        url: gerado.url,
+      });
     } catch {
       // Cancelar o menu do sistema também cai aqui. Nada a fazer.
     }
@@ -171,10 +177,10 @@
     <p class="card small erro">Não deu para ler os usuários: {erro}</p>
   {:else if dados && !dados.authRequired}
     <p class="card small">
-      A autenticação está desligada, e sem ela não há usuários: quem alcança o dwnvr entra direto. Para
-      ligar, defina <code>server.username</code> e <code>server.password</code> no
-      <code>dwnvr.yaml</code> e reinicie o dwnvr. Essa é a sua conta, a de administrador; as outras
-      pessoas você cria aqui.
+      A autenticação está desligada, e sem ela não há usuários: quem alcança o dwnvr entra direto.
+      Para ligar, defina <code>server.username</code> e <code>server.password</code> no
+      <code>dwnvr.yaml</code> e reinicie o dwnvr. Essa é a sua conta, a de administrador; as outras pessoas
+      você cria aqui.
     </p>
   {:else if dados}
     <div class="row">
@@ -189,7 +195,9 @@
           <strong>Link de {gerado.name}</strong>
           <span class="spacer"></span>
           {#if gerado.venceEmMs > agora}
-            <span class="chip mono"><span class="dot warn"></span>vence em {falta(gerado.venceEmMs)}</span>
+            <span class="chip mono"
+              ><span class="dot warn"></span>vence em {falta(gerado.venceEmMs)}</span
+            >
           {:else}
             <span class="chip"><span class="dot bad"></span>vencido</span>
           {/if}
@@ -232,15 +240,22 @@
           <Avatar pessoa={u} tamanho={36} />
           <div class="quem">
             <div class="nome"><strong>{u.name}</strong></div>
-            <div class="muted small login">@{u.username}{u.role === 'admin' ? ' · administrador' : ''}</div>
+            <div class="muted small login">
+              @{u.username}{u.role === 'admin' ? ' · administrador' : ''}
+            </div>
           </div>
           {#if u.status === 'active'}
             <span class="chip" class:desde={u.activeSinceMs}>
               <span class="dot ok"></span>
-              <span>ativo{#if u.activeSinceMs}{' '}desde <span class="quando">{dataHora(u.activeSinceMs)}</span>{/if}</span>
+              <span
+                >ativo{#if u.activeSinceMs}{' '}desde
+                  <span class="quando">{dataHora(u.activeSinceMs)}</span>{/if}</span
+              >
             </span>
           {:else if u.status === 'invitePending' && u.inviteExpiresAtMs !== undefined && u.inviteExpiresAtMs > agora}
-            <span class="chip mono"><span class="dot warn"></span>link vence em {falta(u.inviteExpiresAtMs)}</span>
+            <span class="chip mono"
+              ><span class="dot warn"></span>link vence em {falta(u.inviteExpiresAtMs)}</span
+            >
           {:else}
             <span class="chip"><span class="dot bad"></span>link vencido</span>
           {/if}
@@ -255,19 +270,39 @@
             <div class="menu" role="menu">
               <!-- Para quem está ativo, o link novo apaga a senha: o rótulo diz
                    isso. Para quem não definiu, não há senha a redefinir. -->
-              <button class="ghost" role="menuitem" onclick={() => { pedir('link', u); }}>
+              <button
+                class="ghost"
+                role="menuitem"
+                onclick={() => {
+                  pedir('link', u);
+                }}
+              >
                 {u.status === 'active' ? 'Redefinir senha' : 'Gerar link novo'}
               </button>
               <!-- O admin não troca a foto de ninguém; só tira uma que não sirva. -->
               {#if u.avatar}
-                <button class="ghost" role="menuitem" onclick={() => { pedir('foto', u); }}>Remover a foto</button>
+                <button
+                  class="ghost"
+                  role="menuitem"
+                  onclick={() => {
+                    pedir('foto', u);
+                  }}>Remover a foto</button
+                >
               {/if}
-              <button class="ghost perigo" role="menuitem" onclick={() => { pedir('remover', u); }}>Remover</button>
+              <button
+                class="ghost perigo"
+                role="menuitem"
+                onclick={() => {
+                  pedir('remover', u);
+                }}>Remover</button
+              >
             </div>
           {/if}
         </div>
       {:else}
-        <p class="muted small vazio">Ninguém além de você ainda. Crie uma pessoa para mandar o link.</p>
+        <p class="muted small vazio">
+          Ninguém além de você ainda. Crie uma pessoa para mandar o link.
+        </p>
       {/each}
     </div>
   {/if}
@@ -327,8 +362,8 @@
     }}
     oncancel={() => (confirmando = null)}
   >
-    A senha atual de {alvo.name} deixa de valer agora, e os aparelhos em que ela entrou saem na
-    hora. O dwnvr gera um link novo, e ela volta a entrar definindo uma senha nova por ele.
+    A senha atual de {alvo.name} deixa de valer agora, e os aparelhos em que ela entrou saem na hora.
+    O dwnvr gera um link novo, e ela volta a entrar definindo uma senha nova por ele.
   </ConfirmDialog>
 {:else if confirmando?.acao === 'foto'}
   {@const alvo = confirmando.u}
@@ -341,8 +376,7 @@
     }}
     oncancel={() => (confirmando = null)}
   >
-    A foto é apagada, e no lugar dela ficam as iniciais. {alvo.name} pode pôr outra pela Minha
-    conta.
+    A foto é apagada, e no lugar dela ficam as iniciais. {alvo.name} pode pôr outra pela Minha conta.
   </ConfirmDialog>
 {:else if confirmando?.acao === 'remover'}
   {@const alvo = confirmando.u}

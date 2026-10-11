@@ -35,7 +35,8 @@ export const NOMES_DAS_FAMILIAS: readonly NomeDaFamilia[] = ['pessoa', 'veiculo'
 // hasOwn, e não `in`: `constructor` está em todo objeto, e não é família.
 export const ehFamilia = (nome: string): nome is NomeDaFamilia => Object.hasOwn(FAMILIAS, nome);
 
-export const familia = (nome: string): Familia => (ehFamilia(nome) ? FAMILIAS[nome] : FAMILIA_DESCONHECIDA);
+export const familia = (nome: string): Familia =>
+  ehFamilia(nome) ? FAMILIAS[nome] : FAMILIA_DESCONHECIDA;
 
 // As classes do modelo (nomes do COCO, como o detector devolve) em português,
 // para a dica do ponteiro. Espelha o `FamiliasPadrao` de
@@ -59,6 +60,8 @@ export const NOME_DA_CLASSE: Readonly<Record<string, string>> = {
 // o mesmo desenho servir a 14px e a 20px.
 type Desenho = (g: CanvasRenderingContext2D) => void;
 
+// Cada linha é um traço do desenho, com o comentário dizendo qual.
+// prettier-ignore
 const DESENHOS = {
   pessoa(g: CanvasRenderingContext2D) {
     g.beginPath(); g.arc(0.5, 0.18, 0.16, 0, 7); g.fill();       // cabeça
@@ -199,7 +202,10 @@ const ICONE_DA_CLASSE: Readonly<Record<string, NomeDoIcone>> = {
 export const iconeDaFamilia = (nome: string): NomeDoIcone | null => (ehIcone(nome) ? nome : null);
 
 // O nome do ícone de uma marca no nível de detalhe pedido.
-export function iconeDa(marca: { classe: string; familia: string }, porClasse: boolean): NomeDoIcone | null {
+export function iconeDa(
+  marca: { classe: string; familia: string },
+  porClasse: boolean,
+): NomeDoIcone | null {
   const nome = porClasse ? (ICONE_DA_CLASSE[marca.classe] ?? marca.familia) : marca.familia;
   return ehIcone(nome) ? nome : null;
 }

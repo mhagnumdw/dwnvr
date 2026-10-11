@@ -119,11 +119,17 @@
         <strong>{p.name}</strong>
         <span class="muted small">@{p.username} · {papel}</span>
         <div class="row wrap botoes">
-          <button onclick={() => { escolher?.click(); }} disabled={foto.ocupado}>
+          <button
+            onclick={() => {
+              escolher?.click();
+            }}
+            disabled={foto.ocupado}
+          >
             {foto.ocupado ? 'salvando…' : p.avatar ? 'Trocar a foto' : 'Pôr uma foto'}
           </button>
           {#if p.avatar}
-            <button class="ghost" onclick={tirarFoto} disabled={foto.ocupado}>Remover a foto</button>
+            <button class="ghost" onclick={tirarFoto} disabled={foto.ocupado}>Remover a foto</button
+            >
           {/if}
         </div>
         {#if foto.erro}<span class="small erro">{foto.erro}</span>{/if}
@@ -165,7 +171,14 @@
         <strong>Trocar senha</strong>
         <!-- O usuário, escondido, é para o gerenciador de senhas do navegador
              saber de quem é a senha nova. -->
-        <input class="oculto" value={p.username} autocomplete="username" readonly tabindex="-1" aria-hidden="true" />
+        <input
+          class="oculto"
+          value={p.username}
+          autocomplete="username"
+          readonly
+          tabindex="-1"
+          aria-hidden="true"
+        />
         <CampoSenha bind:value={atual} placeholder="senha atual" autocomplete="current-password" />
         <CampoSenha
           bind:value={nova}
@@ -185,9 +198,13 @@
         </button>
         {#if estadoSenha.erro}<span class="small erro">{estadoSenha.erro}</span>{/if}
         {#if estadoSenha.ok}
-          <span class="small ok">Senha trocada. Os outros aparelhos em que você entrou vão pedir a nova.</span>
+          <span class="small ok"
+            >Senha trocada. Os outros aparelhos em que você entrou vão pedir a nova.</span
+          >
         {:else}
-          <span class="small muted">Os outros aparelhos em que você entrou vão pedir a senha nova.</span>
+          <span class="small muted"
+            >Os outros aparelhos em que você entrou vão pedir a senha nova.</span
+          >
         {/if}
       </form>
     {/if}

@@ -118,7 +118,7 @@ async function decodeWithWebCodecs(buf: Uint8Array): Promise<ImageBitmap> {
 
   // O mdat é caixa de topo, então basta percorrer o nível raiz.
   let sample: Uint8Array | null = null;
-  for (let o = 0; o + 8 <= buf.length; ) {
+  for (let o = 0; o + 8 <= buf.length;) {
     const size = dv.getUint32(o);
     if (size < 8) break;
     if (fourcc(buf, o + 4) === 'mdat') {
@@ -172,9 +172,23 @@ async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>) {
 
   try {
     await new Promise<void>((res, rej) => {
-      v.addEventListener('loadeddata', () => { res(); }, { once: true });
-      v.addEventListener('error', () => { rej(new Error('miniatura ilegível')); }, { once: true });
-      setTimeout(() => { rej(new Error('tempo esgotado')); }, 8000);
+      v.addEventListener(
+        'loadeddata',
+        () => {
+          res();
+        },
+        { once: true },
+      );
+      v.addEventListener(
+        'error',
+        () => {
+          rej(new Error('miniatura ilegível'));
+        },
+        { once: true },
+      );
+      setTimeout(() => {
+        rej(new Error('tempo esgotado'));
+      }, 8000);
     });
     return await createImageBitmap(v);
   } finally {

@@ -93,7 +93,10 @@
   }
 
   function digitar(e: Event & { currentTarget: HTMLInputElement }) {
-    const m = mascara(e.currentTarget.value, e instanceof InputEvent && e.inputType.startsWith('delete'));
+    const m = mascara(
+      e.currentTarget.value,
+      e instanceof InputEvent && e.inputType.startsWith('delete'),
+    );
     texto = m.g.join(':');
     grupos = m.g;
     // Direto no DOM: quando o dígito é recusado o texto não muda, o Svelte não
@@ -101,7 +104,12 @@
     e.currentTarget.value = texto;
     if (m.recusou) {
       input?.animate(
-        [{ transform: 'none' }, { transform: 'translateX(-2px)' }, { transform: 'translateX(2px)' }, { transform: 'none' }],
+        [
+          { transform: 'none' },
+          { transform: 'translateX(-2px)' },
+          { transform: 'translateX(2px)' },
+          { transform: 'none' },
+        ],
         { duration: 180 },
       );
     }
@@ -174,12 +182,24 @@
     border: 1px solid transparent;
     cursor: text;
   }
-  input:hover:not(:disabled) { border-color: var(--line); }
-  input:disabled { cursor: default; color: var(--fg); }
-  input:focus-visible { outline: none; }
-  input::placeholder { color: var(--dim); opacity: 0.55; }
+  input:hover:not(:disabled) {
+    border-color: var(--line);
+  }
+  input:disabled {
+    cursor: default;
+    color: var(--fg);
+  }
+  input:focus-visible {
+    outline: none;
+  }
+  input::placeholder {
+    color: var(--dim);
+    opacity: 0.55;
+  }
 
-  .editando input { border-color: var(--accent); }
+  .editando input {
+    border-color: var(--accent);
+  }
 
   .espelho {
     border: 1px solid transparent;

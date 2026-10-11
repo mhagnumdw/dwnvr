@@ -193,8 +193,7 @@
     saving = true;
     error = '';
     try {
-      const { _novo, _hasAudio, _audioCodecs, _sondando, _sondaErro, ...cam } =
-        editing;
+      const { _novo, _hasAudio, _audioCodecs, _sondando, _sondaErro, ...cam } = editing;
       await api.saveCamera(cam);
       await loadCameras();
       editing = null;
@@ -305,10 +304,7 @@
       {@const st = statusOf(cam.id)}
       <div class="card cam">
         <div class="row wrap head">
-          <span
-            class="dot"
-            class:ok={st?.connected}
-            class:bad={cam.enabled && st && !st.connected}
+          <span class="dot" class:ok={st?.connected} class:bad={cam.enabled && st && !st.connected}
           ></span>
           <strong>{cam.name}</strong>
           <code class="muted small">{cam.id}</code>
@@ -350,7 +346,8 @@
             {@const retido = Date.now() - desde.getTime()}
             {@const gravado = gravadoSeHouverBuraco(retido, st.recordedMs)}
             <span class="chip retido" title="{AJUDA_RETIDO} Desde {ddmm(desde.getTime())}">
-              retido: {duracao(retido)}{#if gravado} · gravado {duracao(gravado)}{/if}
+              retido: {duracao(retido)}{#if gravado}
+                · gravado {duracao(gravado)}{/if}
             </span>
           {/if}
           {#if st?.retainDays}
@@ -366,7 +363,9 @@
              empurraria a retenção para fora do alinhamento a cada nome de pasta. -->
         {#if cam.dir}
           <div class="row wrap chips">
-            <span class="chip storage" title="pasta das gravações desta câmera">storage: {cam.dir}</span>
+            <span class="chip storage" title="pasta das gravações desta câmera"
+              >storage: {cam.dir}</span
+            >
           </div>
         {/if}
 
@@ -396,7 +395,11 @@
         title="perguntar de novo ao go2rtc quais streams ele serve"
       >
         <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5" stroke-linecap="round" stroke-linejoin="round" />
+          <path
+            d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </button>
     </div>
@@ -405,12 +408,15 @@
       {@const arq = cameras.go2rtcConfigFile}
       <div class="card warnbox aviso">
         <p class="small">
-          O <code>go2rtc.yaml</code> mudou depois que o go2rtc subiu. Ele só lê o arquivo quando
-          sobe, então estas mudanças ainda não valem:
+          O <code>go2rtc.yaml</code> mudou depois que o go2rtc subiu. Ele só lê o arquivo quando sobe,
+          então estas mudanças ainda não valem:
         </p>
         <ul class="small">
           {#each arq.novas ?? [] as id (id)}
-            <li><code>{id}</code> <span class="muted">nova - aparece para cadastrar depois do reinício</span></li>
+            <li>
+              <code>{id}</code>
+              <span class="muted">nova - aparece para cadastrar depois do reinício</span>
+            </li>
           {/each}
           {#each arq.alteradas ?? [] as id (id)}
             <li><code>{id}</code> <span class="muted">configuração mudou</span></li>
@@ -445,18 +451,22 @@
         {/each}
       </div>
     {:else if cameras.go2rtcError}
-      <p class="muted small vazio">Não dá para listar os streams enquanto o go2rtc não responder.</p>
+      <p class="muted small vazio">
+        Não dá para listar os streams enquanto o go2rtc não responder.
+      </p>
     {:else}
-      <p class="muted small vazio">Nenhum stream novo - o dwnvr já grava todos os que o go2rtc serve.</p>
+      <p class="muted small vazio">
+        Nenhum stream novo - o dwnvr já grava todos os que o go2rtc serve.
+      </p>
     {/if}
 
     <!-- Depois da lista: quem já entendeu como funciona quer o botão primeiro, e
          quem não entendeu lê a explicação ao lado do que ela explica. -->
     <p class="muted small explica">
       Câmera não se cadastra aqui do zero: o dwnvr grava o que o go2rtc entrega e não guarda
-      endereço nem senha de câmera. Declare o stream no <code>go2rtc.yaml</code> e reinicie o
-      go2rtc, que só lê o arquivo quando sobe. Aí ele aparece nesta lista - um clique escolhe
-      cota, áudio e retenção, e a gravação começa. Vale também para mudar uma câmera que já grava.
+      endereço nem senha de câmera. Declare o stream no <code>go2rtc.yaml</code> e reinicie o go2rtc,
+      que só lê o arquivo quando sobe. Aí ele aparece nesta lista - um clique escolhe cota, áudio e retenção,
+      e a gravação começa. Vale também para mudar uma câmera que já grava.
     </p>
 
     <!-- Sem aviso não quer dizer arquivo igual: mudar a fonte ffmpeg de uma
@@ -478,8 +488,8 @@
     <div class="card orfas">
       <h3>Gravações de câmeras removidas</h3>
       <p class="muted small">
-        Não contam na cota de ninguém, não abrem na tela de Gravações e a retenção não as
-        alcança, nem com o disco cheio - só saem do disco por aqui.
+        Não contam na cota de ninguém, não abrem na tela de Gravações e a retenção não as alcança,
+        nem com o disco cheio - só saem do disco por aqui.
       </p>
 
       {#each cameras.orphans as o (o.id)}
@@ -492,7 +502,8 @@
             {#if o.days}
               <span class="chip">{bytes(o.bytes)}</span>
               <span class="chip">
-                {ddmm(o.firstMs)} a {ddmm(o.lastMs)} · {o.days} {o.days > 1 ? 'dias' : 'dia'}
+                {ddmm(o.firstMs)} a {ddmm(o.lastMs)} · {o.days}
+                {o.days > 1 ? 'dias' : 'dia'}
               </span>
             {:else}
               <!-- Diretório sem índice: sobra de uma evicção ou de uma cópia à
@@ -511,7 +522,9 @@
   <!-- O separador vai como expressão porque o Svelte apara o espaço no início
        de um bloco {#if}, e sem isso sai "5s· última leitura". -->
   <p class="muted small">
-    Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(Date.now() - health.updatedAt)}{/if}
+    Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(
+        Date.now() - health.updatedAt,
+      )}{/if}
   </p>
 </div>
 
@@ -545,8 +558,8 @@
           <small class="muted">Verificando se esta câmera entrega áudio...</small>
         {:else if editing._sondaErro}
           <small class="muted">
-            Não deu para verificar o áudio desta câmera ({editing._sondaErro}). As
-            opções estão liberadas; o Diagnóstico avisa se o áudio não chegar.
+            Não deu para verificar o áudio desta câmera ({editing._sondaErro}). As opções estão
+            liberadas; o Diagnóstico avisa se o áudio não chegar.
           </small>
         {:else if !editing._hasAudio}
           <small class="muted">
@@ -566,7 +579,13 @@
              com step=100 o browser recusava 20480 (20 GiB), que é exatamente o
              tipo de número que se digita numa cota. O min vem da API: sem
              resposta, o input fica sem ele e quem recusa é o servidor. -->
-        <input type="number" bind:value={editing.quotaMB} min={faixas?.quotaMB?.min} step="1" required />
+        <input
+          type="number"
+          bind:value={editing.quotaMB}
+          min={faixas?.quotaMB?.min}
+          step="1"
+          required
+        />
         <!-- O campo é em MB porque é assim que a cota é guardada, mas quem digita
              20480 quer saber que isso são 20 GB. -->
         <small class="muted">
@@ -685,7 +704,9 @@
       ? 'Enquanto isso, a câmera para de gravar por alguns segundos e volta sozinha.'
       : `Enquanto isso, as ${ativas} câmeras param de gravar por alguns segundos e voltam sozinhas.`}
     {#each vaoParar as id (id)}
-      <p class="vai-parar"><code>{id}</code> saiu do arquivo: depois do reinício ela para de gravar.</p>
+      <p class="vai-parar">
+        <code>{id}</code> saiu do arquivo: depois do reinício ela para de gravar.
+      </p>
     {/each}
   </ConfirmDialog>
 {/if}
@@ -716,32 +737,72 @@
     margin: 0 auto;
   }
 
-  .list { display: grid; gap: 8px; }
-  .cam { display: grid; gap: 8px; }
-  .head { gap: 8px; }
-  .acoes { gap: 8px; margin-left: auto; }
-  .chips { gap: 6px; }
+  .list {
+    display: grid;
+    gap: 8px;
+  }
+  .cam {
+    display: grid;
+    gap: 8px;
+  }
+  .head {
+    gap: 8px;
+  }
+  .acoes {
+    gap: 8px;
+    margin-left: auto;
+  }
+  .chips {
+    gap: 6px;
+  }
   /* O chip nasce nowrap, e um caminho longo não tem espaço para quebrar: sem
      estas duas linhas ele estoura a largura do card no celular. */
-  .chip.storage { white-space: normal; overflow-wrap: anywhere; }
+  .chip.storage {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   /* Os dois falam da mesma cota e por isso compartilham a borda; a cor separa
      o que é fato do que é conta: "retido" já aconteceu e fica no texto normal,
      "cabem" é projeção e vai no tom do acento, como toda estimativa da tela. */
-  .chip.retido, .chip.retain { border-color: #1f6feb66; }
-  .chip.retain { color: var(--accent); }
-  .chip.warn { color: var(--warn); }
-  .err { color: var(--bad); margin: 0; }
+  .chip.retido,
+  .chip.retain {
+    border-color: #1f6feb66;
+  }
+  .chip.retain {
+    color: var(--accent);
+  }
+  .chip.warn {
+    color: var(--warn);
+  }
+  .err {
+    color: var(--bad);
+    margin: 0;
+  }
 
-  .warnbox { border-color: #6b5a1f; color: var(--warn); }
-  .errbox { border-color: #5c2b2b; color: var(--bad); }
+  .warnbox {
+    border-color: #6b5a1f;
+    color: var(--warn);
+  }
+  .errbox {
+    border-color: #5c2b2b;
+    color: var(--bad);
+  }
 
-  h3 { margin: 0 0 4px; font-size: 15px; }
+  h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+  }
 
   /* O botão fica colado à direita do título, e não na lista: ele vale também
      quando a lista está vazia, que é justamente quando se desconfia dela. A
      margem negativa devolve a altura que o alvo de 44px acrescenta à linha. */
-  .ajuda .titulo { justify-content: space-between; margin: -10px 0 0; }
-  .ajuda h3 { margin: 0; }
+  .ajuda .titulo {
+    justify-content: space-between;
+    margin: -10px 0 0;
+  }
+  .ajuda h3 {
+    margin: 0;
+  }
   /* Sem borda em repouso: com ela, o botão pesava mais que o título ao lado. A
      borda de :hover e o foco do teclado continuam valendo. */
   .atualizar {
@@ -758,18 +819,47 @@
     stroke: currentColor;
     stroke-width: 1.6;
   }
-  .atualizar.girando svg { animation: girar 0.8s linear infinite; }
-  @keyframes girar { to { transform: rotate(360deg); } }
+  .atualizar.girando svg {
+    animation: girar 0.8s linear infinite;
+  }
+  @keyframes girar {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   /* O aviso fica dentro do card, entre o título e a lista: é onde se olha
      depois de editar o arquivo, e é a lista que ele explica. */
-  .aviso { display: grid; gap: 10px; margin: 0 0 12px; padding: 12px; }
-  .aviso p { margin: 0; }
-  .aviso ul { margin: 0; padding-left: 18px; color: var(--fg); }
-  .aviso li { margin: 2px 0; }
-  .aviso li .muted { font-size: 12px; }
-  .aviso .acao { justify-content: flex-end; }
-  button.warn { color: var(--warn); border-color: #6b5a1f; white-space: nowrap; }
-  .reinicio { margin: 10px 0 0; }
+  .aviso {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 12px;
+  }
+  .aviso p {
+    margin: 0;
+  }
+  .aviso ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--fg);
+  }
+  .aviso li {
+    margin: 2px 0;
+  }
+  .aviso li .muted {
+    font-size: 12px;
+  }
+  .aviso .acao {
+    justify-content: flex-end;
+  }
+  button.warn {
+    color: var(--warn);
+    border-color: #6b5a1f;
+    white-space: nowrap;
+  }
+  .reinicio {
+    margin: 10px 0 0;
+  }
   /* Com cara de link, porque é a saída de exceção; o alvo de toque vem do
      padding, já que 44px de altura mínima afastariam a linha do texto. */
   button.link {
@@ -781,29 +871,82 @@
     text-decoration: underline;
     font-size: inherit;
   }
-  .vai-parar { margin: 8px 0 0; color: var(--warn); }
-  .ajuda .vazio { margin: 0; }
-  .ajuda .explica { margin: 12px 0 0; }
-  .ajuda code { color: var(--fg); }
+  .vai-parar {
+    margin: 8px 0 0;
+    color: var(--warn);
+  }
+  .ajuda .vazio {
+    margin: 0;
+  }
+  .ajuda .explica {
+    margin: 12px 0 0;
+  }
+  .ajuda code {
+    color: var(--fg);
+  }
 
-  .orfas { display: grid; gap: 8px; }
-  .orfas p { margin: -4px 0 2px; }
-  .orfa { gap: 10px; align-items: start; }
-  .orfa .dados { gap: 6px; flex: 1; min-width: 0; }
-  .orfa code { color: var(--fg); }
-  .orfa button { flex: none; }
+  .orfas {
+    display: grid;
+    gap: 8px;
+  }
+  .orfas p {
+    margin: -4px 0 2px;
+  }
+  .orfa {
+    gap: 10px;
+    align-items: start;
+  }
+  .orfa .dados {
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+  .orfa code {
+    color: var(--fg);
+  }
+  .orfa button {
+    flex: none;
+  }
 
   /* O checkbox dentro do ConfirmDialog: sem a margem ele encosta no parágrafo
      acima e deixa de parecer uma escolha à parte. */
-  label.check.apagar { margin: 10px 0 6px; font-size: 14px; }
+  label.check.apagar {
+    margin: 10px 0 6px;
+    font-size: 14px;
+  }
 
   /* O Modal só entrega a moldura; o espaçamento entre os campos é do formulário. */
-  .fields { display: grid; gap: 14px; }
+  .fields {
+    display: grid;
+    gap: 14px;
+  }
 
-  label { display: grid; gap: 5px; font-size: 13px; color: var(--dim); }
+  label {
+    display: grid;
+    gap: 5px;
+    font-size: 13px;
+    color: var(--dim);
+  }
   label input:not([type='checkbox']),
-  label select { width: 100%; color: var(--fg); font-size: 15px; }
-  label.check { display: flex; align-items: center; gap: 9px; color: var(--fg); font-size: 15px; }
-  label.check input { width: 18px; height: 18px; min-height: 0; accent-color: var(--accent); }
-  small { font-size: 12px; }
+  label select {
+    width: 100%;
+    color: var(--fg);
+    font-size: 15px;
+  }
+  label.check {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--fg);
+    font-size: 15px;
+  }
+  label.check input {
+    width: 18px;
+    height: 18px;
+    min-height: 0;
+    accent-color: var(--accent);
+  }
+  small {
+    font-size: 12px;
+  }
 </style>

@@ -63,8 +63,18 @@
   let viewMonth = $state<number | null>(null);
 
   const MESES = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
   ];
   const SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
@@ -73,7 +83,9 @@
   const daysSet = $derived(new Set(days));
   // Sem lista, tudo até hoje vale - ver o cabeçalho.
   const permissivo = $derived(days.length === 0);
-  const temGravacao = $derived((chave: string) => (permissivo ? chave <= hoje : daysSet.has(chave)));
+  const temGravacao = $derived((chave: string) =>
+    permissivo ? chave <= hoje : daysSet.has(chave),
+  );
 
   // As duas pontas do que o teclado pode alcançar. O teto é hoje porque não
   // existe amanhã para reproduzir; o piso só existe quando há lista.
@@ -175,7 +187,12 @@
   // Só as teclas de movimento, e na própria célula: Enter e Espaço ficam com o
   // botão, que já os trata sozinho. É o que dispensa qualquer handler global -
   // um deles sequestrava o Enter de todo botão do popover.
-  const PASSOS: Readonly<Record<string, number>> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+  const PASSOS: Readonly<Record<string, number>> = {
+    ArrowLeft: -1,
+    ArrowRight: 1,
+    ArrowUp: -7,
+    ArrowDown: 7,
+  };
 
   function onCelulaKeydown(e: KeyboardEvent) {
     const passo = PASSOS[e.key];
@@ -216,9 +233,10 @@
         // O estado inteiro no próprio rótulo, e não num `aria-pressed` por
         // célula: trinta botões anunciando "não pressionado" é ruído. Em modo
         // permissivo "com gravação" seria mentira - ali ninguém sabe.
-        rotulo: `${d} de ${MESES[viewMonth] ?? ''} de ${viewYear}`
-          + (permissivo ? '' : `, ${gravado ? 'com' : 'sem'} ${oQue}`)
-          + (chave === value ? ', selecionado' : ''),
+        rotulo:
+          `${d} de ${MESES[viewMonth] ?? ''} de ${viewYear}` +
+          (permissivo ? '' : `, ${gravado ? 'com' : 'sem'} ${oQue}`) +
+          (chave === value ? ', selecionado' : ''),
       });
     }
     return lista;
@@ -243,7 +261,9 @@
     return viewYear > p.getFullYear() || (viewYear === p.getFullYear() && viewMonth > p.getMonth());
   });
 
-  const mesAno = $derived(viewYear === null || viewMonth === null ? '' : `${MESES[viewMonth] ?? ''} ${viewYear}`);
+  const mesAno = $derived(
+    viewYear === null || viewMonth === null ? '' : `${MESES[viewMonth] ?? ''} ${viewYear}`,
+  );
 
   // --- fechar por fora --------------------------------------------------------
 
@@ -282,8 +302,16 @@
     aria-expanded={aberto}
   >
     <span class="data mono">{textoBotao}</span>
-    <svg class="icone" viewBox="0 0 16 16" width="14" height="14" fill="none"
-         stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+    <svg
+      class="icone"
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      aria-hidden="true"
+    >
       <rect x="2" y="3" width="12" height="11" rx="2" />
       <path d="M2 7h12M5 1.5v3M11 1.5v3" stroke-linecap="round" />
     </svg>
@@ -361,7 +389,13 @@
 
       {#if temGravacao(hoje)}
         <div class="footer">
-          <button type="button" class="hoje-btn ghost small" onclick={() => { selecionar(hoje); }}>
+          <button
+            type="button"
+            class="hoje-btn ghost small"
+            onclick={() => {
+              selecionar(hoje);
+            }}
+          >
             Hoje
           </button>
         </div>

@@ -68,7 +68,7 @@ export const CAIXA_FOLGA_PX = 5;
 
 // A geometria do rótulo.
 const AFASTAMENTO_PX = 18; // entre o rótulo e a borda da caixa
-const FOLGA_PX = 4;        // entre um rótulo e o que ele está evitando
+const FOLGA_PX = 4; // entre um rótulo e o que ele está evitando
 const FONTE = '600 11px system-ui, -apple-system, "Segoe UI", sans-serif';
 const ROTULO_ALTURA_PX = 17;
 const ROTULO_PADDING_PX = 5;
@@ -119,7 +119,8 @@ export function dispoe<M extends MarcaDoDetector>(
   // acontece com os ícones da timeline.
   for (const it of [...itens].sort((a, b) => a.prioridade - b.prioridade)) {
     const texto = textoDo(it.marca);
-    const w = ROTULO_PADDING_PX * 2 + ICONE_PX + ICONE_VAO_PX + Math.ceil(g.measureText(texto).width);
+    const w =
+      ROTULO_PADDING_PX * 2 + ICONE_PX + ICONE_VAO_PX + Math.ceil(g.measureText(texto).width);
     const h = ROTULO_ALTURA_PX;
 
     // O lugar mais PERTO da caixa que caiba inteiro no quadro e não cubra
@@ -131,8 +132,14 @@ export function dispoe<M extends MarcaDoDetector>(
       const r = { x: p.x, y: p.y, w, h };
       const perto = distancia(r, it.caixa);
       if (!reserva || perto < reserva.perto) reserva = { r, perto };
-      const folgado = { x: r.x - FOLGA_PX, y: r.y - FOLGA_PX, w: w + 2 * FOLGA_PX, h: h + 2 * FOLGA_PX };
-      if (caixas.some((c) => sobrepoe(folgado, c)) || postos.some((q) => sobrepoe(folgado, q))) continue;
+      const folgado = {
+        x: r.x - FOLGA_PX,
+        y: r.y - FOLGA_PX,
+        w: w + 2 * FOLGA_PX,
+        h: h + 2 * FOLGA_PX,
+      };
+      if (caixas.some((c) => sobrepoe(folgado, c)) || postos.some((q) => sobrepoe(folgado, q)))
+        continue;
       if (!livre || perto < livre.perto) livre = { r, perto };
     }
     const rotulo = (livre ?? reserva)?.r;
@@ -156,7 +163,8 @@ export function dispoe<M extends MarcaDoDetector>(
       // A ponta sai da BORDA do rótulo, na direção da caixa: mirando um canto,
       // o traço nasceria solto, no vazio da curvatura.
       const de = borda(rotulo, ate);
-      const custo = Math.hypot(ate.x - de.x, ate.y - de.y) +
+      const custo =
+        Math.hypot(ate.x - de.x, ate.y - de.y) +
         (estorvos.some((e) => cruza(de, ate, e)) ? 10_000 : 0);
       if (!melhor || custo < melhor.custo) melhor = { de, ate, custo };
     }
@@ -200,10 +208,14 @@ function distancia(a: Retangulo, b: Retangulo) {
 
 // Onde o traço pode encostar na caixa: o meio de cada lado e os quatro cantos.
 const encostos = (r: Retangulo): Ponto[] => [
-  { x: r.x + r.w / 2, y: r.y }, { x: r.x + r.w / 2, y: r.y + r.h },
-  { x: r.x, y: r.y + r.h / 2 }, { x: r.x + r.w, y: r.y + r.h / 2 },
-  { x: r.x, y: r.y }, { x: r.x + r.w, y: r.y },
-  { x: r.x, y: r.y + r.h }, { x: r.x + r.w, y: r.y + r.h },
+  { x: r.x + r.w / 2, y: r.y },
+  { x: r.x + r.w / 2, y: r.y + r.h },
+  { x: r.x, y: r.y + r.h / 2 },
+  { x: r.x + r.w, y: r.y + r.h / 2 },
+  { x: r.x, y: r.y },
+  { x: r.x + r.w, y: r.y },
+  { x: r.x, y: r.y + r.h },
+  { x: r.x + r.w, y: r.y + r.h },
 ];
 
 // O ponto da borda do retângulo na direção de um alvo.
@@ -213,7 +225,10 @@ function borda(r: Retangulo, alvo: Ponto): Ponto {
   const dx = alvo.x - cx;
   const dy = alvo.y - cy;
   if (!dx && !dy) return { x: cx, y: cy };
-  const t = Math.min(dx ? r.w / 2 / Math.abs(dx) : Infinity, dy ? r.h / 2 / Math.abs(dy) : Infinity);
+  const t = Math.min(
+    dx ? r.w / 2 / Math.abs(dx) : Infinity,
+    dy ? r.h / 2 / Math.abs(dy) : Infinity,
+  );
   return { x: cx + dx * t, y: cy + dy * t };
 }
 
@@ -226,8 +241,10 @@ function cruza(p: Ponto, q: Ponto, r: Retangulo) {
   const dx = q.x - p.x;
   const dy = q.y - p.y;
   const lados: [num: number, den: number][] = [
-    [p.x - r.x, -dx], [r.x + r.w - p.x, dx],
-    [p.y - r.y, -dy], [r.y + r.h - p.y, dy],
+    [p.x - r.x, -dx],
+    [r.x + r.w - p.x, dx],
+    [p.y - r.y, -dy],
+    [r.y + r.h - p.y, dy],
   ];
   for (const [num, den] of lados) {
     if (den === 0) {
@@ -266,7 +283,10 @@ export function desenha<M extends MarcaDoDetector>(
     const { de, ate } = it.traco;
     // Um fio escuro por baixo do colorido: o traço de 1 px some tanto no muro
     // claro quanto no cinza da noite sem ele.
-    const fios: [largura: number, cor: string, opacidade: number][] = [[2.5, '#000', 0.65], [1, it.cor, 1]];
+    const fios: [largura: number, cor: string, opacidade: number][] = [
+      [2.5, '#000', 0.65],
+      [1, it.cor, 1],
+    ];
     for (const [largura, cor, opacidade] of fios) {
       g.globalAlpha = alfa(it) * opacidade;
       g.strokeStyle = cor;
@@ -312,7 +332,8 @@ export function desenha<M extends MarcaDoDetector>(
     g.lineWidth = 1;
     g.strokeStyle = 'rgba(0,0,0,.6)';
     g.stroke();
-    if (icone) desenhaIcone(g, icone, x + ROTULO_PADDING_PX, y + (h - ICONE_PX) / 2, ICONE_PX, ESCURO);
+    if (icone)
+      desenhaIcone(g, icone, x + ROTULO_PADDING_PX, y + (h - ICONE_PX) / 2, ICONE_PX, ESCURO);
     g.fillStyle = ESCURO;
     g.fillText(texto, x + ROTULO_PADDING_PX + ICONE_PX + ICONE_VAO_PX, y + h / 2 + 0.5);
   }

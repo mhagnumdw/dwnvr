@@ -97,7 +97,9 @@
       <p class="error small">{erro}</p>
     {:else if link === false}
       <p>Este link venceu ou já foi usado.</p>
-      <p class="muted small">Peça outro link a quem administra este dwnvr. Se você já definiu a senha, é só entrar.</p>
+      <p class="muted small">
+        Peça outro link a quem administra este dwnvr. Se você já definiu a senha, é só entrar.
+      </p>
       <a class="entrar" href="#live">Ir para a tela de entrar</a>
     {:else if erroAoConferir}
       <p class="error small">Não deu para conferir o link: {erroAoConferir}</p>
