@@ -13,6 +13,7 @@
   import NavDia from '../components/NavDia.svelte';
   import Relogio from '../components/Relogio.svelte';
   import DeteccaoFolha from '../components/DeteccaoFolha.svelte';
+  import BotaoCameras from '../components/BotaoCameras.svelte';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
   import type { Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
   import { cameras, loadCameras } from '../lib/state.svelte.ts';
@@ -846,18 +847,16 @@
     </div>
 
     <div class="cams" bind:this={camsEl}>
-      <button
-        class="ghost"
+      <!-- O ícone daqui tinha 16 de viewBox e traço 1.4: o 2.1 é o mesmo
+           traço no viewBox 24 do componente. -->
+      <BotaoCameras
+        marcadas={nMarcadas}
+        total={cameras.list.length}
+        todas={camsMarcadas === null}
+        aberto={camerasAbertas}
         onclick={() => (camerasAbertas = !camerasAbertas)}
-        aria-expanded={camerasAbertas}
-        aria-label="câmeras ({nMarcadas})"
-      >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <rect x="1.5" y="4.5" width="9" height="7" rx="1.2" />
-          <path d="M10.5 7 14.5 5v6l-4-2z" stroke-linejoin="round" />
-        </svg>
-        <span class="rotulo">câmeras</span> ({nMarcadas})
-      </button>
+        --traco="2.1"
+      />
       {#if camerasAbertas}
         <div class="popover">
           <div class="row">
@@ -1179,22 +1178,6 @@
     color: var(--fg);
     font-size: 17px;
     line-height: 1;
-  }
-
-  .cams > button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    white-space: nowrap;
-  }
-
-  .cams > button svg {
-    width: 16px;
-    height: 16px;
-    flex: none;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.4;
   }
 
   .popover {

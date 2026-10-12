@@ -9,6 +9,7 @@
   import { baixarQuadro } from '../lib/captura.ts';
   import { dayKey, hhmmss } from '../lib/format.ts';
   import SemCameras from '../components/SemCameras.svelte';
+  import BotaoCameras from '../components/BotaoCameras.svelte';
 
   const STORAGE_KEY = 'dwnvr.live.selection';
   const LAYOUT_KEY = 'dwnvr.live.layout';
@@ -653,19 +654,13 @@
 
 <div class="page" class:fit={modo === 'fit'}>
   <div class="row wrap">
-    <button
-      class="ghost cams"
+    <BotaoCameras
+      marcadas={selected.size}
+      total={cameras.list.length}
+      todas={tudoMarcado}
       onclick={() => (showPicker = !showPicker)}
-      aria-label="câmeras ({selected.size})"
-    >
-      <!-- Filmadora desenhada à mão, no traço dos ícones ao lado: o ☰ dizia
-           "menu", e o botão abre a lista de câmeras. -->
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="2" y="6" width="13.5" height="12" rx="2" />
-        <path d="M15.5 10.5 22 7v10l-6.5-3.5z" stroke-linejoin="round" />
-      </svg>
-      <span class="texto">câmeras</span> ({selected.size})
-    </button>
+      --pad-x="10px"
+    />
 
     <div class="row modos" role="group" aria-label="layout">
       {#each MODOS as m (m)}
@@ -875,33 +870,6 @@
      entra na conta, e o tile cresceria com a largura até passar da janela. */
   .page.fit {
     max-width: none;
-  }
-
-  /* No celular a linha anda no limite e o último botão desceria: lá o botão
-     fica só com o ícone e a contagem, como em Detecções. O nome volta do
-     tablet para cima. */
-  .cams {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 9px 10px;
-  }
-  .cams .texto {
-    display: none;
-  }
-  @media (min-width: 720px) {
-    .cams .texto {
-      display: inline;
-    }
-  }
-  .cams svg {
-    display: block;
-    width: 16px;
-    height: 16px;
-    flex: none;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
   }
 
   .modos button {

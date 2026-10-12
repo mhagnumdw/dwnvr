@@ -60,7 +60,8 @@ src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  que abre uma detecção com o quadro e o trecho gravado,
                  o card fechável de diagnóstico com o "copiar",
                  o campo de senha com o olho, o avatar (a foto ou as
-                 iniciais)
+                 iniciais), o botão que abre a lista de câmeras (marcadas
+                 do total)
 src/vendor/      player de live do go2rtc (MIT), em JavaScript, com os tipos
                  dele escritos à mão - ver vendor/README.md
 ```
