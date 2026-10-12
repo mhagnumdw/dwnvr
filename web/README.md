@@ -47,7 +47,8 @@ src/lib/         api e os tipos do JSON dela, estado (runes), rota e
                  servidor que grava, avisos do diagnóstico (o card e o
                  sino do header), a redução da foto da Minha conta, o
                  contexto 2D do canvas, a tela cheia (simulada por CSS onde
-                 o navegador não a faz, como no iPhone)
+                 o navegador não a faz, como no iPhone) e os controles que
+                 somem sozinhos sobre o vídeo nela
 src/routes/      as telas, o login e a de definir a senha pelo link de
                  convite; Detecções, Usuários, Minha conta e a do convite
                  são chunk à parte. Detecções só aparece com o detector de

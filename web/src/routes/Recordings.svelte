@@ -17,6 +17,7 @@
   import { dayKey, parseDay, hhmmss, duracao, taxa } from '../lib/format.ts';
   import { FAMILIAS } from '../lib/icones.ts';
   import { telaCheia, alternarTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
+  import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
   import Timeline from '../components/Timeline.svelte';
   import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
@@ -51,8 +52,6 @@
   // também precisa dela - para recusar um `rate=999` sem inventar uma segunda
   // lista que um dia discordaria desta.
   const RATES = [0.25, 0.5, 1, 2, 4, 8, 16];
-  // Quanto os controles ficam à vista na tela cheia depois do último toque.
-  const CONTROLES_SOMEM_MS = 3000;
 
   // Lidos uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
@@ -117,27 +116,18 @@
   // No localStorage, como a duração da exportação: é gosto de quem usa o
   // aparelho, não parte da cena que um link reproduz.
   let controlesFixos = $state(localStorage.getItem('dwnvr.rec.controlesFixos') === '1');
-  let controlesVisiveis = $state(true);
-  // Fora da tela cheia os controles nunca somem, seja qual for o estado acima.
-  const controlesEscondidos = $derived(emTelaCheia && !controlesVisiveis);
   let sobreControles = false;
-  let somemTimer: number | undefined;
+  // Eles só somem com o vídeo tocando: quem pausou quer olhar e mexer. Com o
+  // mouse em cima deles, também não.
+  const controles = controlesQueSomem(
+    () => emTelaCheia && player.playing && !controlesFixos && !sobreControles,
+  );
+  // Fora da tela cheia os controles nunca somem, seja qual for o estado acima.
+  const controlesEscondidos = $derived(emTelaCheia && !controles.visiveis);
 
   $effect(() => {
     localStorage.setItem('dwnvr.rec.controlesFixos', controlesFixos ? '1' : '0');
   });
-
-  // Mostra os controles e rearma o sumiço. Eles só somem com o vídeo tocando:
-  // quem pausou quer olhar e mexer. Com o mouse em cima deles, também não.
-  function mostrarControles() {
-    controlesVisiveis = true;
-    clearTimeout(somemTimer);
-    somemTimer = setTimeout(() => {
-      if (emTelaCheia && player.playing && !controlesFixos && !sobreControles) {
-        controlesVisiveis = false;
-      }
-    }, CONTROLES_SOMEM_MS);
-  }
 
   // Entrar na tela cheia, dar play, pausar e soltar o alfinete recomeçam a
   // contagem.
@@ -147,7 +137,9 @@
     player.playing;
     controlesFixos;
     /* eslint-enable @typescript-eslint/no-unused-expressions */
-    untrack(mostrarControles);
+    untrack(() => {
+      controles.mostrar();
+    });
   });
 
   function alternarCheia() {
@@ -295,7 +287,7 @@
     player.destroy();
     clearThumbnails();
     clearTimeout(avisoTimer);
-    clearTimeout(somemTimer);
+    controles.parar();
   });
 
   // Ligar o player assim que o <video> existir no DOM.
@@ -655,10 +647,10 @@
         if (telaCheia.el === node) sairDaTelaCheia();
       }}
       onpointerdowncapture={() => {
-        if (emTelaCheia) mostrarControles();
+        if (emTelaCheia) controles.mostrar();
       }}
       onpointermove={(e) => {
-        if (emTelaCheia && e.pointerType === 'mouse') mostrarControles();
+        if (emTelaCheia && e.pointerType === 'mouse') controles.mostrar();
       }}
     >
       <div class="stage" ondblclick={alternarCheia}>
@@ -699,7 +691,7 @@
         onpointerleave={(e) => {
           if (e.pointerType !== 'mouse') return;
           sobreControles = false;
-          if (emTelaCheia) mostrarControles();
+          if (emTelaCheia) controles.mostrar();
         }}
       >
         <div class="controls row wrap">

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import '../vendor/video-stream.js';
   import { VideoRTC } from '../vendor/video-rtc.js';
   import { cameras, loadCameras, session, sessaoCaiu } from '../lib/state.svelte.ts';
@@ -10,6 +10,9 @@
   import { dayKey, hhmmss } from '../lib/format.ts';
   import SemCameras from '../components/SemCameras.svelte';
   import BotaoCameras from '../components/BotaoCameras.svelte';
+  import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
+  import { telaCheia, entrarEmTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
+  import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
 
   const STORAGE_KEY = 'dwnvr.live.selection';
   const LAYOUT_KEY = 'dwnvr.live.layout';
@@ -52,6 +55,16 @@
   // O tique que decide se está na hora de conferir, e o intervalo entre as
   // tentativas enquanto a sessão não se confirma.
   const TIQUE_CONFERENCIA_MS = 5000;
+
+  // Na tela cheia: quanto dura a câmera entrando de lado (e a que volta para
+  // o lugar, num deslize curto demais).
+  const TROCA_MS = 220;
+  // O deslize troca de câmera ao passar de DESLIZE_PX, ou de DESLIZE_FRACAO
+  // da largura da tela se ela for estreita. Antes de EIXO_PX o dedo ainda não
+  // disse se vai para o lado ou para cima.
+  const DESLIZE_PX = 80;
+  const DESLIZE_FRACAO = 0.2;
+  const EIXO_PX = 8;
 
   // Lida uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
@@ -153,17 +166,139 @@
     if (!apply()) requestAnimationFrame(apply);
   }
 
-  function fullscreen(el: HTMLElement) {
-    if (document.fullscreenElement) {
-      void document.exitFullscreen();
+  // --- a tela cheia --------------------------------------------------------------
+
+  // Vai para a tela cheia o palco inteiro, e não o tile: é ele que fica parado
+  // enquanto as câmeras trocam. Lá dentro a grade vira um carrossel - a câmera
+  // atual ocupa a tela e as vizinhas esperam dos lados, prontas para entrar com
+  // o dedo -, e as outras saem de cena com `display: none`.
+  //
+  // São os mesmos tiles da grade, com o mesmo player: entrar e sair não
+  // reconecta nada. Quem sai de cena cai na regra do `soNaTela`, como um tile
+  // rolado para fora: segue ligado por CARENCIA_ROLAGEM_MS (ou sempre, com o
+  // "manter ligadas") e depois é cortado. Por isso a troca é na hora logo
+  // depois de entrar, e espera um keyframe depois disso.
+  const emTelaCheia = $derived(!!palco && telaCheia.el === palco);
+  // A câmera na tela, pelo id: tirar outra da seleção não a troca de lugar.
+  let atual = $state<string | null>(null);
+  const idxAtual = $derived(visible.findIndex((c) => c.id === atual));
+  // Com duas câmeras a anterior e a próxima são a mesma: ela espera do lado
+  // de onde vai entrar.
+  let lado = $state<1 | -1>(1);
+  // Quanto o carrossel está deslocado, em px, e se o deslocamento anima.
+  let arrasto = $state(0);
+  let animando = $state(false);
+
+  // O nome e a posição ficam; setas, ⋮, PiP e o botão de sair somem. Não
+  // somem com o menu aberto nem com o mouse em cima de um deles.
+  let sobreControles = false;
+  const controles = controlesQueSomem(() => emTelaCheia && !menu && !sobreControles);
+
+  type Papel = 'atual' | 'ant' | 'prox' | 'fora';
+
+  function papel(i: number): Papel {
+    const n = visible.length;
+    if (i === idxAtual) return 'atual';
+    if (n === 2) return lado === 1 ? 'prox' : 'ant';
+    if (i === (idxAtual + 1) % n) return 'prox';
+    if (i === (idxAtual - 1 + n) % n) return 'ant';
+    return 'fora';
+  }
+
+  function alternarCheia(cam: string) {
+    if (!palco) return;
+    if (emTelaCheia) {
+      // Dois deslizes seguidos rápidos também fazem um duplo clique.
+      if (Date.now() - arrastouEm > 2 * TROCA_MS) sairDaTelaCheia();
       return;
     }
-    // O Safari do iPhone só põe em tela cheia o <video>, não um <div>.
-    if (typeof el.requestFullscreen !== 'function') return;
-    el.requestFullscreen().catch(() => {
-      // recusado pelo navegador: o tile só fica como estava
-    });
+    atual = cam;
+    menu = null;
+    entrarEmTelaCheia(palco);
   }
+
+  // A próxima (1) ou a anterior (-1), em roda: da última volta à primeira.
+  function ir(d: 1 | -1) {
+    const n = visible.length;
+    if (animando || n < 2 || !palco) return;
+    menu = null;
+    lado = d;
+    animando = true;
+    arrasto = -d * palco.clientWidth;
+    setTimeout(() => {
+      // Tudo no mesmo tique: a câmera que entrou vira a atual no mesmo quadro
+      // em que o carrossel volta ao zero, sem animar a volta.
+      animando = false;
+      arrasto = 0;
+      atual = visible[(idxAtual + d + n) % n]?.id ?? atual;
+    }, TROCA_MS);
+  }
+
+  // O deslize. O eixo se decide nos primeiros EIXO_PX: para cima ou para
+  // baixo não é com a tela. Começar num botão ou no menu também não.
+  let gesto: { id: number; x: number; y: number; eixo: 'x' | 'y' | null } | null = null;
+  let arrastouEm = 0;
+
+  function gestoComeca(e: PointerEvent) {
+    if (!emTelaCheia || animando || visible.length < 2) return;
+    if (e.target instanceof Element && e.target.closest('button, a, .menu')) return;
+    gesto = { id: e.pointerId, x: e.clientX, y: e.clientY, eixo: null };
+  }
+
+  function gestoMove(e: PointerEvent) {
+    if (emTelaCheia && e.pointerType === 'mouse') {
+      sobreControles = e.target instanceof Element && !!e.target.closest('button, a, .menu');
+      controles.mostrar();
+    }
+    if (gesto?.id !== e.pointerId || !palco) return;
+    const dx = e.clientX - gesto.x;
+    const dy = e.clientY - gesto.y;
+    if (!gesto.eixo && Math.hypot(dx, dy) > EIXO_PX) {
+      gesto.eixo = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (gesto.eixo === 'x') palco.setPointerCapture(e.pointerId);
+    }
+    if (gesto.eixo !== 'x') return;
+    if (visible.length === 2) lado = dx < 0 ? 1 : -1;
+    arrasto = dx;
+  }
+
+  function gestoAcaba(e: PointerEvent) {
+    if (gesto?.id !== e.pointerId || !palco) return;
+    const { eixo, x } = gesto;
+    gesto = null;
+    if (eixo !== 'x') return;
+    arrastouEm = Date.now();
+    const dx = e.clientX - x;
+    const limite = Math.min(DESLIZE_PX, palco.clientWidth * DESLIZE_FRACAO);
+    if (e.type === 'pointerup' && Math.abs(dx) > limite) {
+      ir(dx < 0 ? 1 : -1);
+      return;
+    }
+    // Curto demais: a câmera volta para o lugar.
+    animando = true;
+    arrasto = 0;
+    setTimeout(() => (animando = false), TROCA_MS);
+  }
+
+  onMount(() => () => {
+    controles.parar();
+  });
+
+  // Entrar e trocar de câmera mostram os controles e recomeçam a contagem.
+  $effect(() => {
+    if (!emTelaCheia) return;
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
+    atual;
+    untrack(() => {
+      controles.mostrar();
+    });
+  });
+
+  // A câmera da tela sumiu da seleção por outro caminho, ou o acesso não se
+  // confirmou e a grade se esvaziou: a tela cheia ficaria preta.
+  $effect(() => {
+    if (emTelaCheia && (idxAtual < 0 || !acessoConfirmado)) sairDaTelaCheia();
+  });
 
   // --- o menu do ⋮ de cada tile -----------------------------------------------
 
@@ -196,6 +331,10 @@
 
   function tecla(e: KeyboardEvent) {
     if (e.key === 'Escape') menu = null;
+    if (emTelaCheia && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+      e.preventDefault();
+      ir(e.key === 'ArrowRight' ? 1 : -1);
+    }
   }
 
   // Entre o ⋮ e o menu, e entre o menu e a borda da tela.
@@ -242,8 +381,15 @@
   }
 
   // O mesmo que desmarcar a câmera na lista: grava a seleção e a URL acompanha.
+  // Na tela cheia, a próxima entra no lugar; se era a única, a tela cheia
+  // fecha.
   function remover(cam: string) {
     menu = null;
+    if (emTelaCheia && cam === atual) {
+      const n = visible.length;
+      if (n < 2) sairDaTelaCheia();
+      else atual = visible[(idxAtual + 1) % n]?.id ?? null;
+    }
     toggle(cam);
   }
 
@@ -609,7 +755,9 @@
   }
 
   function medir() {
-    if (!palco) return;
+    // Na tela cheia quem dá a medida do palco é ela; a grade se mede de novo
+    // na volta.
+    if (!palco || emTelaCheia) return;
     if (modo !== 'fit' || !visible.length) {
       palco.style.height = '';
       return;
@@ -639,6 +787,7 @@
     modo;
     visible.length;
     showPicker;
+    emTelaCheia;
     /* eslint-enable @typescript-eslint/no-unused-expressions */
     medir();
   });
@@ -741,19 +890,46 @@
     </p>
   {/if}
 
-  <div class="palco" class:fit={modo === 'fit'} bind:this={palco}>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="palco"
+    class:fit={modo === 'fit'}
+    class:fs={emTelaCheia}
+    class:escondidos={emTelaCheia && !controles.visiveis}
+    style:--troca="{TROCA_MS}ms"
+    bind:this={palco}
+    {@attach (node: HTMLElement) => () => {
+      // A de verdade o navegador desfaz sozinho quando o elemento sai da
+      // página; a simulada ficaria cobrindo a tela seguinte, como ao abrir as
+      // gravações pelo ⋮.
+      if (telaCheia.el === node) sairDaTelaCheia();
+    }}
+    onpointerdowncapture={() => {
+      if (emTelaCheia) controles.mostrar();
+    }}
+    onpointerdown={gestoComeca}
+    onpointermove={gestoMove}
+    onpointerup={gestoAcaba}
+    onpointercancel={gestoAcaba}
+  >
     <div
       class="grid"
       class:fit={modo === 'fit'}
+      class:animando
       style:--cols={modo === 'fit' ? encaixe.cols : modo}
       style:--tile-w="{Math.floor(encaixe.w)}px"
+      style:transform={emTelaCheia && arrasto ? `translateX(${arrasto}px)` : null}
     >
-      {#each acessoConfirmado ? visible : [] as c (c.id)}
+      {#each acessoConfirmado ? visible : [] as c, i (c.id)}
+        {@const p = emTelaCheia ? papel(i) : null}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="tile"
-          ondblclick={(e) => fullscreen(e.currentTarget)}
-          title="duplo clique: tela cheia"
+          class:ant={p === 'ant'}
+          class:prox={p === 'prox'}
+          class:fora={p === 'fora'}
+          ondblclick={() => alternarCheia(c.id)}
+          title={emTelaCheia ? undefined : 'duplo clique: tela cheia'}
         >
           <!-- O componente do go2rtc negocia WebRTC/MSE sozinho. A mídia vai
                direto do navegador ao go2rtc; o dwnvr só faz proxy da
@@ -782,7 +958,9 @@
                botão do PiP não podem virar isso. -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="rotulo" ondblclick={(e) => e.stopPropagation()}>
-            <span class="name">{c.name}</span>
+            <span class="name"
+              >{c.name}{#if emTelaCheia}<span class="pos">{i + 1}/{visible.length}</span>{/if}</span
+            >
             {#if PIP}
               <button
                 class="pip"
@@ -838,6 +1016,34 @@
         </div>
       {/each}
     </div>
+
+    <!-- Fora do carrossel: ficam paradas enquanto as câmeras deslizam. O nome,
+         o PiP e o ⋮ são os do próprio tile, e vão junto com a imagem. -->
+    {#if emTelaCheia}
+      {#if visible.length > 1}
+        <button
+          class="ghost seta esq"
+          onclick={() => {
+            ir(-1);
+          }}
+          aria-label="câmera anterior"
+          title="câmera anterior (←)"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+        </button>
+        <button
+          class="ghost seta dir"
+          onclick={() => {
+            ir(1);
+          }}
+          aria-label="próxima câmera"
+          title="próxima câmera (→)"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
+      {/if}
+      <span class="sair"><BotaoTelaCheia ativa sobreVideo onclick={sairDaTelaCheia} /></span>
+    {/if}
   </div>
 
   {#if !visible.length && !showPicker}
@@ -1176,5 +1382,145 @@
     .menu button:hover {
       background: var(--panel-2);
     }
+  }
+
+  /* --- a tela cheia --------------------------------------------------------- */
+
+  /* Sem `position`: quem o põe é o navegador (`:fullscreen`) ou a regra da
+     simulada no app.css, e ele é o apoio das setas e do botão de sair. O
+     deslize é todo da tela: sem `touch-action` o navegador o tomaria. */
+  .palco.fs {
+    overflow: hidden;
+    background: #000;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .palco.fs .grid {
+    display: block;
+    position: absolute;
+    inset: 0;
+    height: auto;
+  }
+  .grid.animando {
+    transition: transform var(--troca) ease-out;
+  }
+
+  /* `left`, e não `transform`, para pôr as vizinhas dos lados: tile com
+     transform vira a referência do `position: fixed`, e o menu do ⋮ abriria
+     fora do lugar. */
+  .palco.fs .tile {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    border-radius: 0;
+  }
+  .palco.fs .tile.ant {
+    left: -100%;
+  }
+  .palco.fs .tile.prox {
+    left: 100%;
+  }
+  .palco.fs .tile.fora {
+    display: none;
+  }
+
+  /* Os controles do tile, maiores: aqui é a tela inteira, e no celular o dedo. */
+  .palco.fs .rotulo {
+    left: max(10px, env(safe-area-inset-left));
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  .palco.fs .name {
+    padding: 4px 10px;
+    font-size: 14px;
+  }
+  .pos {
+    margin-left: 6px;
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .palco.fs .pip {
+    width: 34px;
+    height: 28px;
+  }
+  .palco.fs .pip svg {
+    width: 18px;
+    height: 18px;
+  }
+  .palco.fs .mais {
+    width: 52px;
+    height: 48px;
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 0 0;
+  }
+  .palco.fs .mais span {
+    width: 36px;
+    height: 32px;
+    font-size: 18px;
+    line-height: 32px;
+  }
+  /* Embaixo à direita está o botão de sair. */
+  .palco.fs .badge {
+    right: max(10px, env(safe-area-inset-right));
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 54px);
+  }
+
+  /* Mesmo fundo do botão de sair (`sobreVideo`): a imagem pode ser clara. */
+  .seta {
+    position: absolute;
+    top: 50%;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 56px;
+    padding: 0;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.55);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  .seta.esq {
+    left: max(8px, env(safe-area-inset-left));
+  }
+  .seta.dir {
+    right: max(8px, env(safe-area-inset-right));
+  }
+  .seta svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .sair {
+    position: absolute;
+    z-index: 1;
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  /* O nome e a posição ficam; o resto some. No fim do bloco para ganhar do
+     `.tile:hover`, que tem o mesmo peso. */
+  .palco.fs .seta,
+  .palco.fs .sair,
+  .palco.fs .mais,
+  .palco.fs .pip {
+    transition: opacity 0.25s;
+  }
+  .palco.escondidos .seta,
+  .palco.escondidos .sair,
+  .palco.escondidos .mais,
+  .palco.escondidos .pip {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .palco.escondidos {
+    cursor: none;
   }
 </style>
