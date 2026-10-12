@@ -16,7 +16,9 @@
   import { baixarQuadro } from '../lib/captura.ts';
   import { dayKey, parseDay, hhmmss, duracao, taxa } from '../lib/format.ts';
   import { FAMILIAS } from '../lib/icones.ts';
+  import { telaCheia, alternarTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
   import Timeline from '../components/Timeline.svelte';
+  import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
   import SemCameras from '../components/SemCameras.svelte';
   import NavDia from '../components/NavDia.svelte';
@@ -49,6 +51,8 @@
   // também precisa dela - para recusar um `rate=999` sem inventar uma segunda
   // lista que um dia discordaria desta.
   const RATES = [0.25, 0.5, 1, 2, 4, 8, 16];
+  // Quanto os controles ficam à vista na tela cheia depois do último toque.
+  const CONTROLES_SOMEM_MS = 3000;
 
   // Lidos uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
@@ -101,6 +105,54 @@
   // seguinte, e um aviso de captura ficaria colado na tela até trocar de dia.
   let capturaErro = $state('');
   let avisoTimer: number | undefined;
+
+  // --- tela cheia -------------------------------------------------------------
+  //
+  // Vão para a tela cheia o vídeo, os controles de reprodução e a timeline; o
+  // resto da tela fica para trás. Os controles ficam por cima do vídeo e somem
+  // sozinhos, ou, FIXOS, embaixo dele, com o vídeo no espaço que sobra.
+
+  let cheia = $state<HTMLDivElement | null>(null);
+  const emTelaCheia = $derived(!!cheia && telaCheia.el === cheia);
+  // No localStorage, como a duração da exportação: é gosto de quem usa o
+  // aparelho, não parte da cena que um link reproduz.
+  let controlesFixos = $state(localStorage.getItem('dwnvr.rec.controlesFixos') === '1');
+  let controlesVisiveis = $state(true);
+  // Fora da tela cheia os controles nunca somem, seja qual for o estado acima.
+  const controlesEscondidos = $derived(emTelaCheia && !controlesVisiveis);
+  let sobreControles = false;
+  let somemTimer: number | undefined;
+
+  $effect(() => {
+    localStorage.setItem('dwnvr.rec.controlesFixos', controlesFixos ? '1' : '0');
+  });
+
+  // Mostra os controles e rearma o sumiço. Eles só somem com o vídeo tocando:
+  // quem pausou quer olhar e mexer. Com o mouse em cima deles, também não.
+  function mostrarControles() {
+    controlesVisiveis = true;
+    clearTimeout(somemTimer);
+    somemTimer = setTimeout(() => {
+      if (emTelaCheia && player.playing && !controlesFixos && !sobreControles) {
+        controlesVisiveis = false;
+      }
+    }, CONTROLES_SOMEM_MS);
+  }
+
+  // Entrar na tela cheia, dar play, pausar e soltar o alfinete recomeçam a
+  // contagem.
+  $effect(() => {
+    if (!emTelaCheia) return;
+    /* eslint-disable @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear */
+    player.playing;
+    controlesFixos;
+    /* eslint-enable @typescript-eslint/no-unused-expressions */
+    untrack(mostrarControles);
+  });
+
+  function alternarCheia() {
+    if (cheia) alternarTelaCheia(cheia);
+  }
 
   // --- o que veio da URL ----------------------------------------------------
   //
@@ -243,6 +295,7 @@
     player.destroy();
     clearThumbnails();
     clearTimeout(avisoTimer);
+    clearTimeout(somemTimer);
   });
 
   // Ligar o player assim que o <video> existir no DOM.
@@ -586,124 +639,185 @@
       </span>
     </div>
 
-    <div class="stage">
-      <video bind:this={video} playsinline controls={false}></video>
-      {#if Caixas && showCaixas && objetos.length}
-        <Caixas
-          bind:this={camadaCaixas}
-          {video}
-          {objetos}
-          currentMs={player.currentMs}
-          playing={player.playing}
-          rate={player.rate}
-          rotulos={showRotulos}
-        />
-      {/if}
-      <!-- Empilhados numa coluna, e não cada um no seu `position: absolute`:
+    <!-- O que vai para a tela cheia. Lá dentro, o que não entra (miniaturas,
+         exportação, os botões de caixa e de imagem) sai do DOM em vez de só se
+         esconder: as miniaturas não decodificam nada para ninguém ver. -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="cheia"
+      class:fs={emTelaCheia}
+      class:fixos={controlesFixos}
+      class:escondidos={controlesEscondidos}
+      bind:this={cheia}
+      {@attach (node: HTMLElement) => () => {
+        // A de verdade o navegador desfaz sozinho quando o elemento sai da
+        // página; a simulada ficaria cobrindo a tela seguinte.
+        if (telaCheia.el === node) sairDaTelaCheia();
+      }}
+      onpointerdowncapture={() => {
+        if (emTelaCheia) mostrarControles();
+      }}
+      onpointermove={(e) => {
+        if (emTelaCheia && e.pointerType === 'mouse') mostrarControles();
+      }}
+    >
+      <div class="stage" ondblclick={alternarCheia}>
+        <video bind:this={video} playsinline controls={false}></video>
+        {#if Caixas && showCaixas && objetos.length}
+          <Caixas
+            bind:this={camadaCaixas}
+            {video}
+            {objetos}
+            currentMs={player.currentMs}
+            playing={player.playing}
+            rate={player.rate}
+            rotulos={showRotulos}
+          />
+        {/if}
+        <!-- Empilhados numa coluna, e não cada um no seu `position: absolute`:
            antes eram três avisos disputando o mesmo canto, e o aviso de captura
            chega justamente quando o "carregando…" tem chance de estar aceso. -->
-      <div class="avisos">
-        {#if player.buffering}<span class="badge">carregando…</span>{/if}
-        {#if player.error}<span class="badge bad">{player.error}</span>{/if}
-        {#if error}<span class="badge bad">{error}</span>{/if}
-        {#if capturaErro}<span class="badge bad">{capturaErro}</span>{/if}
+        <div class="avisos">
+          {#if player.buffering}<span class="badge">carregando…</span>{/if}
+          {#if player.error}<span class="badge bad">{player.error}</span>{/if}
+          {#if error}<span class="badge bad">{error}</span>{/if}
+          {#if capturaErro}<span class="badge bad">{capturaErro}</span>{/if}
+        </div>
+        {#if !emTelaCheia}
+          <span class="entrar"
+            ><BotaoTelaCheia ativa={false} sobreVideo onclick={alternarCheia} /></span
+          >
+        {/if}
+      </div>
+
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="dock"
+        onpointerenter={(e) => {
+          if (e.pointerType === 'mouse') sobreControles = true;
+        }}
+        onpointerleave={(e) => {
+          if (e.pointerType !== 'mouse') return;
+          sobreControles = false;
+          if (emTelaCheia) mostrarControles();
+        }}
+      >
+        <div class="controls row wrap">
+          <button
+            class="primary"
+            onclick={() => {
+              player.toggle();
+            }}
+            aria-label="tocar ou pausar"
+          >
+            {player.playing ? '⏸' : '▶'}
+          </button>
+          <Relogio
+            ms={player.currentMs}
+            onir={(seg) => {
+              void player.seek(dayStart + seg * 1000);
+            }}
+          />
+
+          <select
+            value={player.rate}
+            onchange={(e) => {
+              player.setRate(Number(e.currentTarget.value));
+            }}
+            aria-label="velocidade"
+          >
+            {#each RATES as r (r)}<option value={r}>{taxa(r)}</option>{/each}
+          </select>
+
+          <span class="spacer"></span>
+          {#if emTelaCheia}
+            <!-- Só o ícone: o `title` explica no desktop, e no celular quem toca
+             vê na hora o que mudou. -->
+            <button
+              class="ghost fixar"
+              class:on={controlesFixos}
+              onclick={() => (controlesFixos = !controlesFixos)}
+              aria-label="fixar os controles"
+              aria-pressed={controlesFixos}
+              title={controlesFixos
+                ? 'soltar os controles: somem sozinhos com o vídeo tocando'
+                : 'fixar os controles embaixo do vídeo'}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 4h6M10 4v6l-3 4h10l-3-4V4M12 14v6" />
+              </svg>
+            </button>
+            <BotaoTelaCheia ativa onclick={alternarCheia} />
+          {:else}
+            <button class="ghost small" onclick={() => (showThumbs = !showThumbs)}>
+              {showThumbs ? 'ocultar' : 'mostrar'} miniaturas
+            </button>
+            <!-- Só com objeto no dia, como as cores da legenda: câmera sem detecção
+           não tem caixa nenhuma para mostrar. -->
+            {#if objetos.length}
+              <button class="ghost small" onclick={() => (showCaixas = !showCaixas)}>
+                {showCaixas ? 'ocultar' : 'mostrar'} caixas
+              </button>
+              <button
+                class="ghost small"
+                onclick={() => (showRotulos = !showRotulos)}
+                disabled={!showCaixas}
+              >
+                {showRotulos ? 'ocultar' : 'mostrar'} rótulos
+              </button>
+            {/if}
+            <button
+              onclick={capturar}
+              disabled={!player.currentMs}
+              title="Baixar a imagem do instante mostrado"
+            >
+              ⤓ imagem
+            </button>
+            <span class="split">
+              <button onclick={exportar} disabled={!exportacao?.inicio}>⤓ exportar</button>
+              <select
+                bind:value={exportMin}
+                aria-label="duração da exportação"
+                title="A partir do instante mostrado"
+              >
+                {#each DURACOES as m (m)}<option value={m}>{m} min</option>{/each}
+              </select>
+            </span>
+          {/if}
+        </div>
+
+        <!-- Só aparece quando há o que explicar. O botão desabilitado diz que não
+         dá; sozinho, ele não diria por quê. -->
+        {#if exportacao?.erro && !emTelaCheia}
+          <p class="exportinfo small mono">⤓ {exportacao.erro}</p>
+        {/if}
+
+        {#if showThumbs && !emTelaCheia}
+          <ThumbStrip
+            {cam}
+            segments={timeline.segments}
+            currentMs={player.currentMs}
+            onseek={(ms: number) => {
+              void player.seek(ms);
+            }}
+          />
+        {/if}
+
+        <Timeline
+          ranges={timeline.ranges}
+          events={eventos}
+          {objetos}
+          {dayStart}
+          {dayEnd}
+          currentMs={player.currentMs}
+          bind:viewFrom
+          bind:viewTo
+          onseek={(ms: number) => {
+            void player.seek(ms);
+          }}
+        />
       </div>
     </div>
-
-    <div class="controls row wrap">
-      <button
-        class="primary"
-        onclick={() => {
-          player.toggle();
-        }}
-        aria-label="tocar ou pausar"
-      >
-        {player.playing ? '⏸' : '▶'}
-      </button>
-      <Relogio
-        ms={player.currentMs}
-        onir={(seg) => {
-          void player.seek(dayStart + seg * 1000);
-        }}
-      />
-
-      <select
-        value={player.rate}
-        onchange={(e) => {
-          player.setRate(Number(e.currentTarget.value));
-        }}
-        aria-label="velocidade"
-      >
-        {#each RATES as r (r)}<option value={r}>{taxa(r)}</option>{/each}
-      </select>
-
-      <span class="spacer"></span>
-      <button class="ghost small" onclick={() => (showThumbs = !showThumbs)}>
-        {showThumbs ? 'ocultar' : 'mostrar'} miniaturas
-      </button>
-      <!-- Só com objeto no dia, como as cores da legenda: câmera sem detecção
-           não tem caixa nenhuma para mostrar. -->
-      {#if objetos.length}
-        <button class="ghost small" onclick={() => (showCaixas = !showCaixas)}>
-          {showCaixas ? 'ocultar' : 'mostrar'} caixas
-        </button>
-        <button
-          class="ghost small"
-          onclick={() => (showRotulos = !showRotulos)}
-          disabled={!showCaixas}
-        >
-          {showRotulos ? 'ocultar' : 'mostrar'} rótulos
-        </button>
-      {/if}
-      <button
-        onclick={capturar}
-        disabled={!player.currentMs}
-        title="Baixar a imagem do instante mostrado"
-      >
-        ⤓ imagem
-      </button>
-      <span class="split">
-        <button onclick={exportar} disabled={!exportacao?.inicio}>⤓ exportar</button>
-        <select
-          bind:value={exportMin}
-          aria-label="duração da exportação"
-          title="A partir do instante mostrado"
-        >
-          {#each DURACOES as m (m)}<option value={m}>{m} min</option>{/each}
-        </select>
-      </span>
-    </div>
-
-    <!-- Só aparece quando há o que explicar. O botão desabilitado diz que não
-         dá; sozinho, ele não diria por quê. -->
-    {#if exportacao?.erro}
-      <p class="exportinfo small mono">⤓ {exportacao.erro}</p>
-    {/if}
-
-    {#if showThumbs}
-      <ThumbStrip
-        {cam}
-        segments={timeline.segments}
-        currentMs={player.currentMs}
-        onseek={(ms: number) => {
-          void player.seek(ms);
-        }}
-      />
-    {/if}
-
-    <Timeline
-      ranges={timeline.ranges}
-      events={eventos}
-      {objetos}
-      {dayStart}
-      {dayEnd}
-      currentMs={player.currentMs}
-      bind:viewFrom
-      bind:viewTo
-      onseek={(ms: number) => {
-        void player.seek(ms);
-      }}
-    />
 
     <p class="legend muted small row wrap">
       <span><i class="has"></i> com gravação</span>
@@ -763,6 +877,90 @@
     display: block;
     background: #000;
     margin: 0 auto;
+  }
+
+  /* Fora da tela cheia, os dois embrulhos repetem o espaçamento da .page e
+     não mudam nada no desenho. */
+  .cheia,
+  .dock {
+    display: grid;
+    gap: 10px;
+  }
+
+  .entrar {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+  }
+
+  /* Na tela cheia: sem `position`, porque quem o põe é o navegador (`:fullscreen`)
+     ou a regra da simulada no app.css, e ele é o apoio da faixa de controles. */
+  .cheia.fs {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: #000;
+  }
+  .cheia.fs .stage {
+    flex: 1;
+    min-height: 0;
+    border-radius: 0;
+  }
+  .cheia.fs video {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    max-height: none;
+  }
+  /* Fixos: a faixa embaixo do vídeo, que fica com o que sobra da altura. */
+  .cheia.fs .dock {
+    gap: 8px;
+    padding: 8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+  }
+  /* Soltos: por cima do vídeo, sobre um degradê que segura a leitura num vídeo
+     claro. */
+  .cheia.fs:not(.fixos) .dock {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding-top: 28px;
+    background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.75) 28px);
+    border-top: 0;
+    transition:
+      opacity 0.25s,
+      transform 0.25s;
+  }
+  .cheia.escondidos .dock {
+    opacity: 0;
+    transform: translateY(12px);
+    pointer-events: none;
+  }
+  .cheia.escondidos {
+    cursor: none;
+  }
+
+  /* O alfinete, do mesmo tamanho do botão da tela cheia ao lado. */
+  .fixar {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    padding: 0;
+  }
+  .fixar svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .fixar.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
   }
 
   .avisos {

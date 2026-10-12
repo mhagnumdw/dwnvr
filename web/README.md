@@ -46,7 +46,8 @@ src/lib/         api e os tipos do JSON dela, estado (runes), rota e
                  diagnóstico do navegador de quem está olhando e do
                  servidor que grava, avisos do diagnóstico (o card e o
                  sino do header), a redução da foto da Minha conta, o
-                 contexto 2D do canvas
+                 contexto 2D do canvas, a tela cheia (simulada por CSS onde
+                 o navegador não a faz, como no iPhone)
 src/routes/      as telas, o login e a de definir a senha pelo link de
                  convite; Detecções, Usuários, Minha conta e a do convite
                  são chunk à parte. Detecções só aparece com o detector de
@@ -61,7 +62,7 @@ src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  o card fechável de diagnóstico com o "copiar",
                  o campo de senha com o olho, o avatar (a foto ou as
                  iniciais), o botão que abre a lista de câmeras (marcadas
-                 do total)
+                 do total), o botão de entrar e sair da tela cheia
 src/vendor/      player de live do go2rtc (MIT), em JavaScript, com os tipos
                  dele escritos à mão - ver vendor/README.md
 ```

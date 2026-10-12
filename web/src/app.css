@@ -129,6 +129,23 @@ a {
   flex-wrap: wrap;
 }
 
+/* A tela cheia simulada, onde o navegador não faz a de verdade
+   (lib/telaCheia.svelte.ts). O !important imita a regra `:fullscreen` do
+   próprio navegador: o CSS com escopo do componente é mais específico e não
+   pode desfazê-la. O z-index passa da navegação inferior e do cabeçalho. */
+[data-tela-cheia-simulada] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 100;
+  width: 100% !important;
+  height: 100dvh !important;
+  margin: 0 !important;
+}
+/* E a página por baixo não rola com o dedo em cima dela. */
+:root:has([data-tela-cheia-simulada]) {
+  overflow: hidden;
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
