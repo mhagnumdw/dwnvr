@@ -17,6 +17,7 @@
     RELEASES_URL,
   } from './lib/state.svelte.ts';
   import { rota, ROTA_PADRAO, corrigirRota } from './lib/rota.svelte.ts';
+  import { telaNova, vigiarVersaoDaTela } from './lib/versao-tela.svelte.ts';
   import { setUnauthorizedHandler } from './lib/api.ts';
   import type { Pessoa } from './lib/api.ts';
   import { avisosDe, resumoDosAvisos } from './lib/avisos.ts';
@@ -125,15 +126,27 @@
   let carregadas = $state<Record<string, Component>>({});
   const Tela = $derived(esperando ? null : (route.component ?? carregadas[route.id]));
 
+  // As que não baixaram. Sem isto a falha deixava a tela em branco, sem dizer
+  // nada. Sair e voltar para a tela tenta de novo.
+  let falharam = $state<Record<string, boolean>>({});
+
   $effect(() => {
     if (esperando) return;
     const r = route;
     if (r.carregar && !carregadas[r.id]) {
-      void r.carregar().then((m) => {
-        carregadas[r.id] = m.default;
-      });
+      r.carregar().then(
+        (m) => {
+          carregadas[r.id] = m.default;
+          falharam[r.id] = false;
+        },
+        () => {
+          falharam[r.id] = true;
+        },
+      );
     }
   });
+
+  $effect(() => vigiarVersaoDaTela());
 
   const logado = $derived(session.checked && (!session.authRequired || session.authenticated));
 
@@ -240,112 +253,125 @@
 {:else if session.authRequired && !session.authenticated}
   <Login onSuccess={afterLogin} />
 {:else}
-  <header>
-    <span class="brand">
-      <!-- O mesmo arquivo do favicon, servido de public/: uma marca só, um
+  <!-- A faixa de versão nova desce junto com o header. Quem mede a altura dele
+       para se encostar embaixo (a tela Detecções) mede este bloco. -->
+  <div class="topo">
+    <header>
+      <span class="brand">
+        <!-- O mesmo arquivo do favicon, servido de public/: uma marca só, um
            lugar só para mudar. -->
-      <img class="mark" src="/favicon.svg" alt="" width="24" height="24" />
-      dwnvr
-    </span>
-    <nav class="top">
-      {#each abas as r (r.id)}
-        <a
-          href="#{r.id}"
-          class:active={r.id === route.id}
-          onclick={(e) => {
-            navegar(e, r.id);
-          }}
-        >
-          {r.label}
-        </a>
-      {/each}
-    </nav>
-    <div class="acoes">
-      <!-- Some sem aviso: um sino apagado sempre à vista ensinaria a não
-           olhar para ele. A cor da bolha é a do pior aviso. -->
-      {#if sino.total}
-        <a
-          class="sino {sino.nivel}"
-          href="#health"
-          title={sinoTitulo}
-          aria-label={sinoTitulo}
-          onclick={(e) => {
-            navegar(e, 'health');
-          }}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
+        <img class="mark" src="/favicon.svg" alt="" width="24" height="24" />
+        dwnvr
+      </span>
+      <nav class="top">
+        {#each abas as r (r.id)}
+          <a
+            href="#{r.id}"
+            class:active={r.id === route.id}
+            onclick={(e) => {
+              navegar(e, r.id);
+            }}
           >
-            <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9" />
-            <path d="M10.3 19.5a1.9 1.9 0 0 0 3.4 0" />
-          </svg>
-          <span class="bolha">{sino.total}</span>
-        </a>
-      {/if}
-      <!-- Leva às releases, e não direto à versão nova: quem pulou algumas
+            {r.label}
+          </a>
+        {/each}
+      </nav>
+      <div class="acoes">
+        <!-- Some sem aviso: um sino apagado sempre à vista ensinaria a não
+           olhar para ele. A cor da bolha é a do pior aviso. -->
+        {#if sino.total}
+          <a
+            class="sino {sino.nivel}"
+            href="#health"
+            title={sinoTitulo}
+            aria-label={sinoTitulo}
+            onclick={(e) => {
+              navegar(e, 'health');
+            }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9" />
+              <path d="M10.3 19.5a1.9 1.9 0 0 0 3.4 0" />
+            </svg>
+            <span class="bolha">{sino.total}</span>
+          </a>
+        {/if}
+        <!-- Leva às releases, e não direto à versão nova: quem pulou algumas
            precisa ler as notas de todas desde a sua. -->
-      {#if build.nova && ehAdmin()}
-        <a
-          class="nova"
-          href={RELEASES_URL}
-          target="_blank"
-          rel="noopener"
-          title="Versão nova do dwnvr: {build.nova} (você está na {build.version}). Veja o que mudou e como atualizar."
-        >
-          ↑ {build.nova}
-        </a>
-      {/if}
-      <!-- Sem autenticação configurada não há de quem ser a conta nem sessão
+        {#if build.nova && ehAdmin()}
+          <a
+            class="nova"
+            href={RELEASES_URL}
+            target="_blank"
+            rel="noopener"
+            title="Versão nova do dwnvr: {build.nova} (você está na {build.version}). Veja o que mudou e como atualizar."
+          >
+            ↑ {build.nova}
+          </a>
+        {/if}
+        <!-- Sem autenticação configurada não há de quem ser a conta nem sessão
            para encerrar, e um botão que não faz nada é pior que botão nenhum.
            O anel marca o menu aberto, e a Minha conta, que não tem aba. -->
-      {#if session.authRequired && session.pessoa}
-        <div class="conta">
-          <button
-            class="avbtn"
-            class:ativo={menuConta || route.id === 'conta'}
-            onclick={() => (menuConta = !menuConta)}
-            aria-haspopup="menu"
-            aria-expanded={menuConta}
-            aria-label="conta de {session.pessoa.name}"
-            title={session.pessoa.name}
-          >
-            <Avatar pessoa={session.pessoa} tamanho={32} />
-          </button>
-          {#if menuConta}
-            <div class="menu-conta" role="menu">
-              <div class="quem">
-                <Avatar pessoa={session.pessoa} tamanho={40} />
-                <div>
-                  <strong>{session.pessoa.name}</strong>
-                  <span class="muted small">@{session.pessoa.username} · {papel}</span>
+        {#if session.authRequired && session.pessoa}
+          <div class="conta">
+            <button
+              class="avbtn"
+              class:ativo={menuConta || route.id === 'conta'}
+              onclick={() => (menuConta = !menuConta)}
+              aria-haspopup="menu"
+              aria-expanded={menuConta}
+              aria-label="conta de {session.pessoa.name}"
+              title={session.pessoa.name}
+            >
+              <Avatar pessoa={session.pessoa} tamanho={32} />
+            </button>
+            {#if menuConta}
+              <div class="menu-conta" role="menu">
+                <div class="quem">
+                  <Avatar pessoa={session.pessoa} tamanho={40} />
+                  <div>
+                    <strong>{session.pessoa.name}</strong>
+                    <span class="muted small">@{session.pessoa.username} · {papel}</span>
+                  </div>
                 </div>
+                <div class="sep"></div>
+                <a
+                  href="#conta"
+                  role="menuitem"
+                  class:atual={route.id === 'conta'}
+                  onclick={(e) => {
+                    navegar(e, 'conta');
+                    menuConta = false;
+                  }}>Minha conta</a
+                >
+                <div class="sep"></div>
+                <button role="menuitem" onclick={sair} disabled={saindo}>
+                  {saindo ? 'saindo…' : 'Sair'}
+                </button>
               </div>
-              <div class="sep"></div>
-              <a
-                href="#conta"
-                role="menuitem"
-                class:atual={route.id === 'conta'}
-                onclick={(e) => {
-                  navegar(e, 'conta');
-                  menuConta = false;
-                }}>Minha conta</a
-              >
-              <div class="sep"></div>
-              <button role="menuitem" onclick={sair} disabled={saindo}>
-                {saindo ? 'saindo…' : 'Sair'}
-              </button>
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
-  </header>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </header>
+    <!-- Sem botão de fechar: adiar a recarga só adia o chunk que não baixa. -->
+    {#if telaNova.disponivel}
+      <div class="faixa" role="status">
+        <span class="txt">
+          O dwnvr foi atualizado. <span class="muted">Recarregue para usar a versão nova.</span>
+        </span>
+        <button class="primary" onclick={() => location.reload()}>Recarregar</button>
+      </div>
+    {/if}
+  </div>
 
   <main>
     <!-- A chave força a remontagem ao trocar de tela: cada uma tem recursos
@@ -358,7 +384,23 @@
          escritas da própria tela usam replaceState, que não dispara
          hashchange, então elas não remontam nada. -->
     {#key rota.hash}
-      {#if Tela}<Tela />{/if}
+      {#if Tela}
+        <Tela />
+      {:else if route.carregar && falharam[route.id]}
+        <div class="falhou">
+          <div class="ico" aria-hidden="true">↻</div>
+          <h3>Não deu para abrir esta tela</h3>
+          <p>
+            {#if telaNova.disponivel}
+              O dwnvr foi atualizado desde que esta página foi aberta. Recarregue para continuar;
+              você volta para esta mesma tela.
+            {:else}
+              A conexão com o dwnvr falhou. Recarregue para tentar de novo.
+            {/if}
+          </p>
+          <button class="primary" onclick={() => location.reload()}>Recarregar</button>
+        </div>
+      {/if}
     {/key}
   </main>
 
@@ -417,9 +459,65 @@
     padding: 6px 12px;
     background: var(--panel);
     border-bottom: 1px solid var(--line);
+  }
+
+  .topo {
     position: sticky;
     top: 0;
     z-index: 20;
+  }
+
+  /* O azul da pílula de release, só que opaco: a faixa fica sobre o vídeo
+     quando a página rola. */
+  .faixa {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 6px 6px 12px;
+    background: #14233b;
+    border-bottom: 1px solid rgba(47, 129, 247, 0.55);
+    font-size: 14px;
+  }
+
+  .faixa .txt {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.3;
+  }
+
+  /* 34px, como a pílula e o avatar: os 44px do botão comum engordariam a
+     faixa. */
+  .faixa button {
+    min-height: 34px;
+    padding: 5px 14px;
+    font-size: 14px;
+  }
+
+  .falhou {
+    max-width: 420px;
+    margin: 48px auto;
+    padding: 24px 18px;
+    display: grid;
+    gap: 10px;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .falhou .ico {
+    font-size: 28px;
+    line-height: 1;
+    color: var(--accent);
+  }
+
+  .falhou h3 {
+    margin: 0;
+    font-size: 16px;
+  }
+
+  .falhou p {
+    margin: 0;
+    color: var(--dim);
+    font-size: 14px;
   }
 
   .brand {
@@ -673,6 +771,15 @@
     header {
       gap: 20px;
       padding: 10px 18px;
+    }
+
+    .faixa {
+      justify-content: center;
+      padding: 6px 18px;
+    }
+
+    .faixa .txt {
+      flex: none;
     }
 
     nav.top {

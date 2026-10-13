@@ -756,7 +756,9 @@
   }
 
   onMount(() => {
-    const cab = document.querySelector<HTMLElement>('#app > header');
+    // O header e a faixa de versão nova, quando ela aparece: os dois grudam no
+    // topo, e a barra desta tela se encosta embaixo deles.
+    const cab = document.querySelector<HTMLElement>('#app > .topo');
     const medeTudo = () => {
       cabH = cab?.offsetHeight ?? 0;
       barraH = barraEl?.offsetHeight ?? 0;

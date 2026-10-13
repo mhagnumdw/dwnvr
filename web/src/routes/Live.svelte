@@ -13,6 +13,7 @@
   import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
   import { telaCheia, entrarEmTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
   import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
+  import { telaNova } from '../lib/versao-tela.svelte.ts';
 
   const STORAGE_KEY = 'dwnvr.live.selection';
   const LAYOUT_KEY = 'dwnvr.live.layout';
@@ -788,6 +789,8 @@
     visible.length;
     showPicker;
     emTelaCheia;
+    // A faixa de versão nova desce o palco, e nenhum resize avisa.
+    telaNova.disponivel;
     /* eslint-enable @typescript-eslint/no-unused-expressions */
     medir();
   });
