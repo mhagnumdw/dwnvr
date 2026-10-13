@@ -11,7 +11,7 @@ import { mediaURL } from './api.ts';
 
 const cache = new Map<string, Promise<ImageBitmap | null>>();
 const MAX_CACHE = 240; // ~algumas telas de tira; acima disso a RAM do celular sofre
-const MAX_PARALLEL = 3;
+const MAX_PARALLEL = 3; // decodificações ao mesmo tempo; o download não espera
 
 interface Tarefa {
   fn: () => Promise<ImageBitmap>;
@@ -54,7 +54,9 @@ export function thumbnail(cam: string, t: number): Promise<ImageBitmap | null> {
   const guardada = cache.get(key);
   if (guardada) return guardada;
 
-  const p = schedule(() => decode(mediaURL.thumb(cam, t))).catch(() => null);
+  const p = baixar(mediaURL.thumb(cam, t))
+    .then((buf) => schedule(() => decode(buf)))
+    .catch(() => null);
   cache.set(key, p);
 
   if (cache.size > MAX_CACHE) {
@@ -73,12 +75,19 @@ export function clearThumbnails() {
   cache.clear();
 }
 
-async function decode(url: string) {
-  const res = await fetch(url);
+// O download fica fora da fila: esperar a rede não ocupa o decodificador, e as
+// miniaturas que a tira pede juntas - as que entraram na vista - viajam juntas.
+// A prioridade baixa deixa os segmentos do player passarem na frente quando a
+// conexão é HTTP/1.1, com seis por vez.
+async function baixar(url: string) {
+  const res = await fetch(url, { priority: 'low' });
   // O corpo de um erro é o JSON da API: tentar decodificá-lo como vídeo só
   // gasta um <video> para chegar à mesma miniatura vazia.
   if (!res.ok) throw new Error(`miniatura: HTTP ${res.status}`);
-  const buf = new Uint8Array(await res.arrayBuffer());
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+async function decode(buf: Uint8Array<ArrayBuffer>) {
   if (typeof VideoDecoder !== 'undefined') {
     try {
       return await decodeWithWebCodecs(buf);

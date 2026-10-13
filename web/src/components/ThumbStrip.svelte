@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { SvelteSet } from 'svelte/reactivity';
   import type { Segmento } from '../lib/api.ts';
   import { contexto2d } from '../lib/canvas.ts';
   import { thumbnail } from '../lib/thumbs.ts';
@@ -16,6 +17,11 @@
   // Quantas miniaturas mostrar. Mais que isso vira desfile de imagens que
   // ninguém consegue distinguir, e cada uma custa um decode.
   const MAX_TILES = 40;
+
+  // Quanto além da parte visível a tira já pede, de cada lado, em fração da
+  // largura dela: a miniatura fica pronta antes de a rolagem chegar, sem pedir
+  // as 40 da janela.
+  const FOLGA = '50%';
 
   // Uma janela contígua de 40 segmentos em torno do instante atual - e não uma
   // amostragem espaçada do dia. Um dia real tem ~2300 segmentos de ~33s, então
@@ -64,6 +70,56 @@
     strip.scrollLeft += t.left - s.left - (s.width - t.width) / 2;
   });
 
+  // A tira só pede a miniatura que entra na vista, mais a FOLGA, e o resto
+  // espera a rolagem chegar perto. Antes ela pedia as 40 da janela na ordem do
+  // DOM, da esquerda para a direita, e as visíveis - em volta do ativo, no
+  // índice 20, ou no fim da tira no dia de hoje - chegavam por último.
+  //
+  // As pedidas recomeçam a cada carga de câmera ou de dia, junto com o cache
+  // que o Recordings limpa nessa hora. O `segments` muda de identidade a cada
+  // poll do dia de hoje, por isso a chave é o primeiro instante, e não a lista.
+  const carga = $derived(`${cam}@${segments[0]?.[0] ?? ''}`);
+  const pedidas = $derived({ carga, instantes: new SvelteSet<number>() });
+
+  // O slice da janela é novo a cada atualização do currentMs, mas ela só
+  // desliza uma vez por segmento: é aí que vale observar os tiles de novo.
+  const janela = $derived(tiles.length ? `${cam}@${tiles[0]?.[0]}+${tiles.length}` : '');
+
+  // O primeiro aviso de um IntersectionObserver traz de uma vez todos os tiles
+  // já à vista. Ele roda depois do efeito acima, que já pôs o ativo na vista.
+  $effect(() => {
+    if (!strip || !janela) return;
+    const io = new IntersectionObserver(
+      (entradas) => {
+        pedir(
+          entradas
+            .filter((e) => e.isIntersecting)
+            .map((e) => Number((e.target as HTMLElement).dataset['t'])),
+        );
+      },
+      { root: strip, rootMargin: `0px ${FOLGA}` },
+    );
+    for (const tile of strip.querySelectorAll('.tile')) io.observe(tile);
+    return () => {
+      io.disconnect();
+    };
+  });
+
+  // Do ativo para fora: a fila do thumbs.ts decodifica na ordem em que os
+  // downloads terminam, e a primeira que importa é a do ativo. A distância é
+  // até o segmento, e não até o começo dele, para o ativo valer zero.
+  function pedir(novas: number[]) {
+    const longe = ([s, d]: Segmento) =>
+      currentMs < s ? s - currentMs : Math.max(0, currentMs - s - d);
+    const fila = tiles
+      .filter(([t]) => novas.includes(t) && !pedidas.instantes.has(t))
+      .sort((a, b) => longe(a) - longe(b));
+    for (const [t] of fila) {
+      void thumbnail(cam, t);
+      pedidas.instantes.add(t);
+    }
+  }
+
   // A roda do mouse é vertical; a tira rola na horizontal. Sem esta tradução o
   // navegador rola a página e a tira fica inalcançável para quem não tem trackpad.
   function onWheel(ev: WheelEvent & { currentTarget: HTMLDivElement }) {
@@ -91,29 +147,32 @@
     <button
       class="tile"
       class:active
+      data-t={t}
       onclick={() => {
         onseek?.(t);
       }}
       title={hhmmss(t)}
     >
-      {#await thumbnail(cam, t) then bitmap}
-        {#if bitmap}
-          <canvas
-            {@attach (node: HTMLCanvasElement) => {
-              // Desenhar num canvas do tamanho exibido, e não escalar um
-              // <img>, evita guardar um bitmap 1080p por miniatura na memória
-              // do celular.
-              const w = node.clientWidth * (window.devicePixelRatio || 1);
-              const h = node.clientHeight * (window.devicePixelRatio || 1);
-              node.width = w;
-              node.height = h;
-              contexto2d(node).drawImage(bitmap, 0, 0, w, h);
-            }}
-          ></canvas>
-        {:else}
-          <span class="fail">-</span>
-        {/if}
-      {/await}
+      {#if pedidas.instantes.has(t)}
+        {#await thumbnail(cam, t) then bitmap}
+          {#if bitmap}
+            <canvas
+              {@attach (node: HTMLCanvasElement) => {
+                // Desenhar num canvas do tamanho exibido, e não escalar um
+                // <img>, evita guardar um bitmap 1080p por miniatura na memória
+                // do celular.
+                const w = node.clientWidth * (window.devicePixelRatio || 1);
+                const h = node.clientHeight * (window.devicePixelRatio || 1);
+                node.width = w;
+                node.height = h;
+                contexto2d(node).drawImage(bitmap, 0, 0, w, h);
+              }}
+            ></canvas>
+          {:else}
+            <span class="fail">-</span>
+          {/if}
+        {/await}
+      {/if}
       <span class="time mono">{hhmmss(t)}</span>
     </button>
   {/each}
