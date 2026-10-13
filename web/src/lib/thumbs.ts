@@ -75,6 +75,9 @@ export function clearThumbnails() {
 
 async function decode(url: string) {
   const res = await fetch(url);
+  // O corpo de um erro é o JSON da API: tentar decodificá-lo como vídeo só
+  // gasta um <video> para chegar à mesma miniatura vazia.
+  if (!res.ok) throw new Error(`miniatura: HTTP ${res.status}`);
   const buf = new Uint8Array(await res.arrayBuffer());
   if (typeof VideoDecoder !== 'undefined') {
     try {

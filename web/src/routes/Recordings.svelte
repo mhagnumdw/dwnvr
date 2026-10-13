@@ -26,8 +26,9 @@
   import Relogio from '../components/Relogio.svelte';
   import type CaixasDoVideo from '../components/Caixas.svelte';
 
-  // O que a tela guarda da timeline do dia: o que ela desenha e o que o player toca.
-  type DoDia = Pick<LinhaDoTempo, 'ranges' | 'segments' | 'gens'>;
+  // O que a tela guarda da timeline do dia: o que ela desenha e o que o player
+  // toca, e de que câmera ela é.
+  type DoDia = Pick<LinhaDoTempo, 'cam' | 'ranges' | 'segments' | 'gens'>;
 
   // O que a exportação vai pedir, ou por que não dá. O `never` deixa o
   // template ler `?.erro` e `?.inicio` sem saber qual dos dois é.
@@ -65,7 +66,7 @@
   const diaInicial = diaDaURL() ?? dayKey();
   let day = $state(diaInicial);
   let daysList = $state<string[]>([]);
-  let timeline = $state<DoDia>({ ranges: [], segments: [], gens: [] });
+  let timeline = $state<DoDia>({ cam: '', ranges: [], segments: [], gens: [] });
   // As marcas de movimento do dia, crescentes - a faixa de calor. Elas vêm num
   // pedido à parte da timeline de propósito: a barra azul é o que a tela existe
   // para mostrar, e uma falha ao ler as marcas não pode deixá-la sem desenhar.
@@ -407,7 +408,7 @@
       }
     } catch (e) {
       error = mensagemDe(e);
-      timeline = { ranges: [], segments: [], gens: [] };
+      timeline = { cam: c, ranges: [], segments: [], gens: [] };
     } finally {
       loading = false;
     }
@@ -785,8 +786,13 @@
         {/if}
 
         {#if showThumbs && !emTelaCheia}
+          <!-- A câmera vem da timeline, e não do seletor: ao trocar de câmera
+          o seletor muda na hora e os segmentos só quando a timeline nova
+          chega. Nesse meio-tempo a tira pedia cada miniatura com a câmera nova
+          e o instante da antiga - um 404 por miniatura, na frente da fila das
+          certas. -->
           <ThumbStrip
-            {cam}
+            cam={timeline.cam}
             segments={timeline.segments}
             currentMs={player.currentMs}
             onseek={(ms: number) => {
