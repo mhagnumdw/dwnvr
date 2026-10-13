@@ -15,7 +15,7 @@
   import DeteccaoFolha from '../components/DeteccaoFolha.svelte';
   import BotaoCameras from '../components/BotaoCameras.svelte';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
-  import type { Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
+  import type { Caixa, Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
   import { cameras, loadCameras } from '../lib/state.svelte.ts';
   import { paramsAtuais, escrever, linkGravacoes } from '../lib/rota.svelte.ts';
   import {
@@ -539,12 +539,44 @@
     if (w && h && proporcoes[cam] !== w / h) proporcoes[cam] = w / h;
   }
 
-  function areaDaImagem(cam: string) {
+  // Onde a imagem da câmera fica dentro da miniatura, em px.
+  function retanguloDaImagem(cam: string) {
     const { larguraTile: W, alturaTile: H } = grade;
     const p = proporcoes[cam] ?? 16 / 9;
     const w = p >= W / H ? W : H * p;
     const h = p >= W / H ? W / p : H;
-    return `left:${(W - w) / 2}px;top:${(H - h) / 2}px;width:${w}px;height:${h}px`;
+    return { x: (W - w) / 2, y: (H - h) / 2, w, h };
+  }
+
+  function areaDaImagem(cam: string) {
+    const { x, y, w, h } = retanguloDaImagem(cam);
+    return `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+  }
+
+  // O tamanho do score na miniatura, o mesmo do CSS de `.score` (altura) e uma
+  // folga para "0,84" (largura).
+  const SCORE_ALTURA_PX = { normal: 13, compacta: 11 };
+  const SCORE_LARGURA_PX = { normal: 30, compacta: 26 };
+
+  // Em que lado de FORA da caixa o score cabe inteiro na miniatura: em cima,
+  // senão embaixo, senão ao lado. Nunca por dentro, que cobre o objeto - a
+  // cabeça de uma pessoa perto do topo. Sem lugar nenhum (caixa do tamanho da
+  // imagem), fica sem score; ele está na folha.
+  function ladoDoScore(cam: string, caixa: Caixa, compacta: boolean) {
+    const { larguraTile: W, alturaTile: H } = grade;
+    const img = retanguloDaImagem(cam);
+    const borda = (v: number, total: number) => Math.min(1, Math.max(0, v)) * total;
+    const x1 = img.x + Math.max(0, borda(caixa[0], img.w) - CAIXA_FOLGA_PX);
+    const y1 = img.y + Math.max(0, borda(caixa[1], img.h) - CAIXA_FOLGA_PX);
+    const x2 = img.x + Math.min(img.w, borda(caixa[2], img.w) + CAIXA_FOLGA_PX);
+    const y2 = img.y + Math.min(img.h, borda(caixa[3], img.h) + CAIXA_FOLGA_PX);
+    const h = compacta ? SCORE_ALTURA_PX.compacta : SCORE_ALTURA_PX.normal;
+    const w = compacta ? SCORE_LARGURA_PX.compacta : SCORE_LARGURA_PX.normal;
+    if (y1 >= h) return 'acima';
+    if (y2 + h <= H) return 'abaixo';
+    if (x2 + w <= W) return 'direita';
+    if (x1 >= w) return 'esquerda';
+    return null;
   }
 
   // As famílias de uma detecção, uma vez cada, a mais importante primeiro.
@@ -932,6 +964,7 @@
                   {/if}
                   {#each d.objetos as o, j (j)}
                     {#if o.caixa}
+                      {@const lado = ladoDoScore(d.cam, o.caixa, colunas >= (desktop ? 7 : 4))}
                       <span
                         class="caixa"
                         style:left={inicio(o.caixa[0])}
@@ -940,11 +973,11 @@
                         style:height={tamanho(o.caixa[1], o.caixa[3])}
                         style:border-color={familia(o.familia).cor}
                       >
-                        <span
-                          class="score mono"
-                          class:dentro={o.caixa[1] < 0.1}
-                          style:background={familia(o.familia).cor}>{score(o.score)}</span
-                        >
+                        {#if lado}
+                          <span class="score mono {lado}" style:background={familia(o.familia).cor}
+                            >{score(o.score)}</span
+                          >
+                        {/if}
                       </span>
                     {/if}
                   {/each}
@@ -1287,14 +1320,11 @@
     pointer-events: none;
   }
 
-  /* O score do detector de objetos, colado no canto da caixa: em cima dela, ou
-     por dentro quando a caixa encosta no topo e não sobra lugar. */
+  /* O score do detector de objetos, colado na caixa e sempre do lado de fora:
+     o lado vem de ladoDoScore. Os -2px e os 2px são a borda da caixa. */
   .score {
     position: absolute;
-    left: -2px;
-    bottom: 100%;
     padding: 0 3px;
-    border-radius: 3px 3px 3px 0;
     font:
       600 10px/13px system-ui,
       -apple-system,
@@ -1304,11 +1334,28 @@
     white-space: nowrap;
   }
 
-  .score.dentro {
-    bottom: auto;
-    top: 0;
-    left: 0;
-    border-radius: 0 0 3px 0;
+  .score.acima {
+    left: -2px;
+    bottom: 100%;
+    border-radius: 3px 3px 3px 0;
+  }
+
+  .score.abaixo {
+    left: -2px;
+    top: 100%;
+    border-radius: 0 3px 3px 3px;
+  }
+
+  .score.direita {
+    left: calc(100% + 2px);
+    top: -2px;
+    border-radius: 0 3px 3px 3px;
+  }
+
+  .score.esquerda {
+    right: calc(100% + 2px);
+    top: -2px;
+    border-radius: 3px 0 3px 3px;
   }
 
   .compacta .score {
