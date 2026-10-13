@@ -381,12 +381,24 @@
     };
   });
 
+  // Cada load() leva um número, e só o mais recente mexe na tela. Duas trocas
+  // de câmera rápidas disparam dois pedidos, e nada garante que as respostas
+  // voltem na ordem: a atrasada deixaria o player numa câmera e o seletor em
+  // outra.
+  let carga = 0;
+  // A carga cuja timeline está na tela. Atrás de `carga`, ela ainda é a da
+  // câmera ou do dia anterior.
+  let naTela = 0;
+
   async function load(c: string, d: string) {
+    const minha = ++carga;
     loading = true;
     error = '';
     try {
       const t = await api.timeline(c, d);
+      if (minha !== carga) return;
       timeline = t;
+      naTela = minha;
       // Dia que o calendário oferecia e voltou vazio: a lista está velha - a
       // retenção apagou esse dia com a tela aberta. Reler conserta a lista e
       // leva para um dia que ainda existe. Só acontece nesse desencontro, e é
@@ -401,16 +413,22 @@
         const alvo = tPendente ?? ponta[0];
         tPendente = null;
         await player.seek(alvo);
+        // A câmera ou o dia mudou durante o seek: o pause pararia o novo. E a
+        // pausa do link continua valendo para ele, que é o primeiro a tocar.
+        if (minha !== carga) return;
         // Depois do seek, nunca antes: ele termina em play(). Também só desta
         // vez - dali em diante o botão é que decide.
         if (pausarNaPrimeira) player.pause();
         pausarNaPrimeira = false;
       }
     } catch (e) {
+      if (minha !== carga) return;
       error = mensagemDe(e);
       timeline = { cam: c, ranges: [], segments: [], gens: [] };
+      naTela = minha;
     } finally {
-      loading = false;
+      // O "carregando…" é do load() mais recente: o atrasado não o apaga.
+      if (minha === carga) loading = false;
     }
 
     // Depois, e à parte. Câmera com a detecção desligada nem pergunta: quem só
@@ -424,7 +442,7 @@
         // Sem marcas a faixa só não aparece; a timeline já está na tela.
       }
     }
-    if (c === cam && d === day) {
+    if (minha === carga) {
       eventos = ev.onsets;
       objetos = ev.objetos;
     }
@@ -474,8 +492,10 @@
 
   async function refresh() {
     // A virada da meia-noite não mexe em `day` sozinha: o dia que era hoje para
-    // de crescer e não precisa mais ser relido.
-    if (refreshing || document.hidden || day !== dayKey()) return;
+    // de crescer e não precisa mais ser relido. E antes de o load() mais
+    // recente pôr a timeline dele na tela, a que está lá é a da câmera ou do
+    // dia anterior: a cauda seria costurada nela. O load() já traz o dia todo.
+    if (refreshing || naTela !== carga || document.hidden || day !== dayKey()) return;
     refreshing = true;
     const c = cam;
     const d = day;

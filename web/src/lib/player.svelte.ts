@@ -311,7 +311,7 @@ export class Player {
       // A geração é a DO SEGMENTO ALVO, não a primeira do dia: ligar o áudio no
       // meio do dia abre uma geração nova, e criar o SourceBuffer com os codecs
       // da antiga fazia todo appendBuffer falhar.
-      await this.#reset(video, alvoMs, this.#genDe(alvoGen));
+      await this.#reset(video, alvoMs, this.#genDe(alvoGen), gen);
       if (gen !== this.#generation) return; // outro seek chegou primeiro
       this.#next = i;
       await this.#repump();
@@ -326,7 +326,8 @@ export class Player {
         // autoplay bloqueado: o relógio já foi posto acima, e o ▶ continua lá
       });
     } catch (e) {
-      this.error = mensagemDe(e);
+      // O erro de um seek atropelado é da câmera ou do trecho de antes.
+      if (gen === this.#generation) this.error = mensagemDe(e);
     } finally {
       // Um seek atropelado não devolve o portão nem apaga o "carregando…":
       // esse estado agora é do seek novo, que ainda está buscando bytes.
@@ -344,12 +345,18 @@ export class Player {
     return g;
   }
 
-  async #reset(video: HTMLVideoElement, baseMs: number, gen: string) {
+  // `seek` é o número do seek que pediu a troca.
+  async #reset(video: HTMLVideoElement, baseMs: number, gen: string, seek: number) {
     this.base = baseMs;
     this.#next = 0;
     this.#initAppended = null;
 
     const mime = await this.#mimeFor(gen);
+    // Outro seek começou enquanto o init vinha - numa troca de câmera rápida,
+    // o da câmera nova, com um init que pode ter chegado antes. O <video> agora
+    // é dele: trocar o src aqui derrubaria o que ele já montou, e o player
+    // ficaria parado num MediaSource vazio.
+    if (seek !== this.#generation) return;
     if (!MediaSource.isTypeSupported(mime)) {
       throw new Error(`este navegador não reproduz ${mime}`);
     }
