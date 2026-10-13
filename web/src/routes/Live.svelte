@@ -982,6 +982,28 @@
 
           {#if avisos[c.id]}<span class="badge">{avisos[c.id]}</span>{/if}
 
+          <!-- Na tela cheia este canto é do botão de sair, que é do palco. Dois
+               cliques rápidos nele não podem chegar ao duplo clique do tile:
+               seriam três trocas em vez de duas. -->
+          {#if !emTelaCheia}
+            <button
+              class="cheia"
+              onclick={() => {
+                alternarCheia(c.id);
+              }}
+              ondblclick={(e) => {
+                e.stopPropagation();
+              }}
+              aria-label="{c.name} em tela cheia"
+              title="tela cheia (ou duplo clique no vídeo)"
+            >
+              <!-- O mesmo desenho do BotaoTelaCheia. -->
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
+              </svg>
+            </button>
+          {/if}
+
           <!-- O duplo clique do tile é a tela cheia: dois toques rápidos no ⋮
                ou no menu não podem virar isso. -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1195,7 +1217,8 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    max-width: calc(100% - 16px);
+    /* Até o botão de tela cheia, à direita. */
+    max-width: calc(100% - 50px);
   }
 
   .name {
@@ -1209,9 +1232,10 @@
     pointer-events: none;
   }
 
-  /* Mesma altura e mesmo fundo do ⋮, para os dois controles do tile serem da
-     mesma família. */
-  .pip {
+  /* Mesma altura e mesmo fundo do ⋮, para os controles do tile serem da mesma
+     família. */
+  .pip,
+  .cheia {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1226,7 +1250,8 @@
     color: var(--fg);
   }
 
-  .pip svg {
+  .pip svg,
+  .cheia svg {
     display: block;
     width: 16px;
     height: 16px;
@@ -1241,7 +1266,8 @@
     fill: currentColor;
   }
 
-  .pip:focus-visible {
+  .pip:focus-visible,
+  .cheia:focus-visible {
     outline: 2px solid var(--accent);
   }
   .pip.on {
@@ -1249,20 +1275,39 @@
     outline: 2px solid var(--accent);
   }
 
-  /* Como o ⋮: com mouse aparece só sobre o tile, e fica enquanto a câmera está
-     no PiP; no toque fica sempre à vista. */
+  /* Como o ⋮: com mouse aparecem só sobre o tile, e o PiP fica enquanto a
+     câmera está nele; no toque ficam sempre à vista. */
   @media (hover: hover) {
-    .pip {
+    .pip,
+    .cheia {
       opacity: 0;
     }
     .tile:hover .pip,
+    .tile:hover .cheia,
     .pip:focus-visible,
+    .cheia:focus-visible,
     .pip.on {
       opacity: 1;
     }
-    .tile:hover .pip {
+    .tile:hover .pip,
+    .tile:hover .cheia {
       background: rgba(13, 17, 23, 0.95);
     }
+  }
+
+  /* Embaixo à direita, na linha do nome e do PiP. */
+  .cheia {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .cheia svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   /* O player do go2rtc escreve o modo (loading, RTC, MSE) no canto de cima à
@@ -1272,12 +1317,12 @@
     padding-right: 44px;
   }
 
-  /* Embaixo à direita: em cima à esquerda o player do go2rtc escreve os erros
-     dele, e embaixo à esquerda está o nome. */
+  /* Embaixo à direita, acima do botão de tela cheia: em cima à esquerda o
+     player do go2rtc escreve os erros dele, e embaixo à esquerda está o nome. */
   .badge {
     position: absolute;
     right: 8px;
-    bottom: 8px;
+    bottom: 32px;
     max-width: calc(100% - 120px);
     background: rgba(0, 0, 0, 0.7);
     border: 1px solid #5c2b2b;
