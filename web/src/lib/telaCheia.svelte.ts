@@ -22,9 +22,14 @@ document.addEventListener('fullscreenchange', () => {
     document.fullscreenElement instanceof HTMLElement ? document.fullscreenElement : null;
 });
 
-// O Esc da tela cheia de verdade é do navegador; a simulada precisa do seu.
+// O Esc da tela cheia de verdade é do navegador; a simulada precisa do seu. O
+// `preventDefault` avisa quem ouve depois, como o Modal, que a tecla já foi
+// usada: sem ele, o mesmo Esc fecharia a folha onde a tela cheia estava.
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && telaCheia.simulada) sairDaTelaCheia();
+  if (e.key === 'Escape' && telaCheia.simulada) {
+    e.preventDefault();
+    sairDaTelaCheia();
+  }
 });
 
 function simular(el: HTMLElement) {

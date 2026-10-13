@@ -9,6 +9,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Modal from './Modal.svelte';
+  import BotaoTelaCheia from './BotaoTelaCheia.svelte';
   import type CaixasDoVideo from './Caixas.svelte';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
   import type { Deteccao } from '../lib/api.ts';
@@ -18,6 +19,7 @@
   import { familia, iconeDa, iconeURL, NOME_DA_CLASSE } from '../lib/icones.ts';
   import { hhmmss, ddmm } from '../lib/format.ts';
   import { linkGravacoes } from '../lib/rota.svelte.ts';
+  import { telaCheia, alternarTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
 
   // O trecho: um pouco antes do onset, para ver o objeto entrar, e o bastante
   // depois para ver o que ele fez. Os mesmos números do mock aprovado.
@@ -74,7 +76,7 @@
     onocultar = null,
   }: Props = $props();
 
-  let palco: HTMLDivElement | undefined;
+  let palco = $state<HTMLDivElement | null>(null);
   let img = $state<HTMLImageElement | null>(null);
   let canvas = $state<HTMLCanvasElement | null>(null);
   let video = $state<HTMLVideoElement | null>(null);
@@ -198,7 +200,37 @@
     tocando ? Math.max(0, Math.min(1, (player.currentMs - inicioMs) / (fimMs - inicioMs))) : 0,
   );
 
+  // --- a tela cheia -----------------------------------------------------------
+  //
+  // Vai para a tela cheia só o palco: o quadro, o vídeo, as caixas e a barra
+  // do trecho. O duplo clique chega depois de dois cliques simples, e cada um
+  // tocaria ou pausaria: o segundo é ignorado, e o primeiro, se pausou, é
+  // desfeito no duplo. Assim o duplo clique nunca pausa - com o trecho parado,
+  // ele já começa a tocar na tela cheia.
+
+  const emTelaCheia = $derived(!!palco && telaCheia.el === palco);
+  let pausouNoClique = false;
+
+  function clique(e: MouseEvent) {
+    if (e.detail > 1) return;
+    pausouNoClique = player.playing;
+    void tocar();
+  }
+
+  function alternarCheia() {
+    if (palco) alternarTelaCheia(palco);
+  }
+
+  function duploClique() {
+    alternarCheia();
+    if (pausouNoClique && !player.playing) player.toggle();
+    pausouNoClique = false;
+  }
+
+  // Na tela cheia as setas não trocam de detecção: a folha seguinte é outra,
+  // e o palco que estava na tela cheia sairia dela junto com a anterior.
   function tecla(e: KeyboardEvent) {
+    if (emTelaCheia) return;
     if (e.key === 'ArrowLeft' && onanterior) onanterior();
     else if (e.key === 'ArrowRight' && onproxima) onproxima();
   }
@@ -216,7 +248,18 @@
     <button class="ghost fechar" onclick={onclose} aria-label="fechar">✕</button>
   </div>
 
-  <div class="palco" bind:this={palco}>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="palco"
+    class:fs={emTelaCheia}
+    bind:this={palco}
+    ondblclick={duploClique}
+    {@attach (node: HTMLElement) => () => {
+      // A de verdade o navegador desfaz sozinho quando o elemento sai da
+      // página; a simulada ficaria cobrindo a tela depois da folha fechar.
+      if (telaCheia.el === node) sairDaTelaCheia();
+    }}
+  >
     {#if det.temQuadro}
       <img
         bind:this={img}
@@ -242,7 +285,7 @@
     {/if}
     <button
       class="toque"
-      onclick={tocar}
+      onclick={clique}
       aria-label={tocando ? 'pausar ou continuar' : `tocar o trecho das ${hhmmss(det.instanteMs)}`}
     ></button>
     {#if !player.playing}
@@ -250,6 +293,9 @@
         <svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z" /></svg>
       </span>
     {/if}
+    <span class="tela-cheia"
+      ><BotaoTelaCheia ativa={emTelaCheia} sobreVideo onclick={alternarCheia} /></span
+    >
     <div class="avisos">
       {#if player.buffering}<span class="badge">carregando…</span>{/if}
       {#if player.error}<span class="badge bad">{player.error}</span>{/if}
@@ -329,6 +375,12 @@
     overflow: hidden;
   }
 
+  /* Sem `position`, e sem o 16:9: quem dá os dois é o navegador (`:fullscreen`)
+     ou a regra da simulada no app.css. */
+  .palco.fs {
+    border-radius: 0;
+  }
+
   .palco img,
   .palco video,
   .palco canvas {
@@ -376,6 +428,19 @@
     height: 22px;
     margin-left: 3px;
     fill: #fff;
+  }
+
+  /* Sempre à vista, com mouse ou no toque: aqui o vídeo é o assunto da folha,
+     e não um entre vários, como no Ao vivo. */
+  .tela-cheia {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .palco.fs .tela-cheia {
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
   }
 
   .progresso {

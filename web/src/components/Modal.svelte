@@ -58,7 +58,11 @@
     };
   });
 
+  // Com algo da folha na tela cheia, o Esc é dela: sai da tela cheia e deixa
+  // a folha aberta. A de verdade aparece no `fullscreenElement`; a simulada
+  // marca a tecla como já tratada (lib/telaCheia.svelte.ts).
   function keydown(e: KeyboardEvent) {
+    if (e.defaultPrevented || document.fullscreenElement) return;
     if (e.key === 'Escape' && stack.at(-1) === self) onclose?.();
   }
 </script>
