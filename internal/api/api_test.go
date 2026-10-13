@@ -344,6 +344,53 @@ func freedBytes(t *testing.T, rec *httptest.ResponseRecorder) int64 {
 // O padrão é preservar. Apagar horas de vídeo como efeito colateral de um clique
 // em "remover" seria destrutivo demais para ser implícito, e este teste é o que
 // impede que a opção nova vire o comportamento padrão por descuido.
+// A miniatura e o segmento acham a entrada pelo índice: a miniatura recorta o
+// init e o primeiro fragmento, e o segmento, tudo depois do init. Instante que
+// não é início de segmento é 404.
+func TestThumbESegmentoRecortamOArquivoDoIndice(t *testing.T) {
+	s, cam := testServer(t)
+	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
+	var e store.Entry
+	for i := range 3 {
+		e = store.Entry{
+			StartMs: base.UnixMilli() + int64(i)*30_000, DurMs: 30_000,
+			Size: 2000, Gen: "aabbcc", InitSize: 737, FirstFrag: 500,
+		}
+		if err := cam.Append(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Bytes numerados, para o recorte errado não passar despercebido.
+	conteudo := make([]byte, e.Size)
+	for i := range conteudo {
+		conteudo[i] = byte(i)
+	}
+	if err := cam.EnsureDirs(e.Day()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cam.SegmentPath(e.StartMs), conteudo, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	pede := func(h http.HandlerFunc, rota string, inicio int64) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		h(rec, httptest.NewRequest(http.MethodGet,
+			fmt.Sprintf("/api/rec/%s?cam=cam_teste&t=%d", rota, inicio), nil))
+		return rec
+	}
+	if rec := pede(s.handleThumb, "thumb", e.StartMs); rec.Code != http.StatusOK ||
+		!bytes.Equal(rec.Body.Bytes(), conteudo[:e.InitSize+e.FirstFrag]) {
+		t.Errorf("miniatura: HTTP %d, %d bytes", rec.Code, rec.Body.Len())
+	}
+	if rec := pede(s.handleSegment, "seg", e.StartMs); rec.Code != http.StatusOK ||
+		!bytes.Equal(rec.Body.Bytes(), conteudo[e.InitSize:]) {
+		t.Errorf("segmento: HTTP %d, %d bytes", rec.Code, rec.Body.Len())
+	}
+	if rec := pede(s.handleThumb, "thumb", e.StartMs+1); rec.Code != http.StatusNotFound {
+		t.Errorf("instante fora do índice: HTTP %d, esperava 404", rec.Code)
+	}
+}
+
 func TestDeleteCameraMantemGravacoesPorPadrao(t *testing.T) {
 	s, cam := testServer(t)
 	seed(t, cam, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})

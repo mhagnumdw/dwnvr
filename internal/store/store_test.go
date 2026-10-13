@@ -1,9 +1,11 @@
 package store
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -542,6 +544,163 @@ func TestLoadDayIgnoraLinhaTruncada(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Errorf("esperava 1 entrada válida, veio %d", len(entries))
+	}
+}
+
+// O atalho do varreDia lê o começo da linha sem decodificá-la. Se este teste
+// quebrar, a ordem dos campos do Entry mudou: o índice continua certo, mas cada
+// miniatura volta a decodificar o dia inteiro.
+func TestCabecaDaLinhaLeOQueOAppendEscreve(t *testing.T) {
+	c := newTestCamera(t)
+	e := entryAt(baseTime(), 30_017, 1_000)
+	if err := c.Append(e); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(c.IndexPath(e.Day()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inicio, dur, ok := cabecaDaLinha(bytes.TrimSpace(b))
+	if !ok || inicio != e.StartMs || dur != e.DurMs {
+		t.Errorf("cabecaDaLinha(%q) = %d, %d, %v", b, inicio, dur, ok)
+	}
+}
+
+func TestCabecaDaLinhaRecusaOutroFormato(t *testing.T) {
+	for _, linha := range []string{
+		`{"d":60000,"t":1791923604690,"sz":1}`,
+		`{"t":1791923604690,"sz":1,"d":60000}`,
+		`{"t":-5,"d":60000,"sz":1}`,
+		`{"t":1791923604690,"d":60000}`,
+		`{"t":12345678901234567890,"d":1,"sz":1}`,
+		`{"t":1791923604690,"d":`,
+		``,
+	} {
+		if _, _, ok := cabecaDaLinha([]byte(linha)); ok {
+			t.Errorf("cabecaDaLinha(%q) aceitou uma linha fora do formato", linha)
+		}
+	}
+}
+
+func TestEntryDevolveSoOSegmentoPedido(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	var gravadas []Entry
+	for i := range 5 {
+		e := entryAt(base.Add(time.Duration(i)*time.Minute), 60_000, int64(1000+i))
+		if err := c.Append(e); err != nil {
+			t.Fatal(err)
+		}
+		gravadas = append(gravadas, e)
+	}
+
+	for _, want := range gravadas {
+		got, ok, err := c.Entry(want.StartMs)
+		if err != nil || !ok || got != want {
+			t.Errorf("Entry(%d) = %+v, %v, %v; esperava %+v", want.StartMs, got, ok, err, want)
+		}
+	}
+	// A busca é pelo início exato: 1ms depois dele não é segmento nenhum.
+	if _, ok, err := c.Entry(gravadas[2].StartMs + 1); ok || err != nil {
+		t.Errorf("Entry fora de um início: ok=%v, err=%v", ok, err)
+	}
+	// Dia sem índice: não achar não é erro.
+	if _, ok, err := c.Entry(base.AddDate(0, 0, -3).UnixMilli()); ok || err != nil {
+		t.Errorf("Entry num dia sem índice: ok=%v, err=%v", ok, err)
+	}
+}
+
+// Linha fora do formato do Append - escrita à mão, por exemplo - não some: cai
+// na decodificação inteira.
+func TestEntryERangeAchamLinhaEmOutroFormato(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	if err := c.Append(entryAt(base, 60_000, 1_000)); err != nil {
+		t.Fatal(err)
+	}
+	outra := base.Add(time.Minute).UnixMilli()
+	f, err := os.OpenFile(c.IndexPath(base.Format(DayLayout)), os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Fprintf(f, `{"sz":7,"d":60000,"t":%d,"g":"abc123","io":737,"f0":50000}`+"\n", outra)
+	f.Close()
+
+	if e, ok, err := c.Entry(outra); err != nil || !ok || e.Size != 7 {
+		t.Errorf("Entry = %+v, %v, %v", e, ok, err)
+	}
+	got, err := c.Range(outra, outra+1)
+	if err != nil || len(got) != 1 || got[0].StartMs != outra {
+		t.Errorf("Range = %+v, %v", got, err)
+	}
+}
+
+// A linha truncada pode começar justamente com o início procurado: o começo
+// bate, a decodificação falha, e ela fica de fora como no LoadDay.
+func TestEntryIgnoraLinhaTruncada(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	if err := c.Append(entryAt(base, 60_000, 1_000)); err != nil {
+		t.Fatal(err)
+	}
+	cortada := base.Add(time.Minute).UnixMilli()
+	f, err := os.OpenFile(c.IndexPath(base.Format(DayLayout)), os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Fprintf(f, `{"t":%d,"d":60000,"sz":`, cortada)
+	f.Close()
+
+	if _, ok, err := c.Entry(cortada); ok || err != nil {
+		t.Errorf("Entry da linha truncada: ok=%v, err=%v", ok, err)
+	}
+	if _, ok, err := c.Entry(base.UnixMilli()); !ok || err != nil {
+		t.Errorf("Entry da linha boa: ok=%v, err=%v", ok, err)
+	}
+}
+
+// O Range escolhe as linhas pelo começo delas; a régua é o que ele fazia antes,
+// filtrar o dia inteiro decodificado.
+func TestRangeBateComOFiltroSobreODiaInteiro(t *testing.T) {
+	c := newTestCamera(t)
+	dia := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
+
+	// Durações variadas, começando no dia anterior para um segmento atravessar
+	// a meia-noite.
+	inicio := dia.Add(-90 * time.Second)
+	for i := range 40 {
+		dur := int64(20_000 + (i%5)*7_000)
+		if err := c.Append(entryAt(inicio, dur, 100)); err != nil {
+			t.Fatal(err)
+		}
+		inicio = inicio.Add(time.Duration(dur) * time.Millisecond)
+	}
+	var todas []Entry
+	for _, d := range []time.Time{dia.AddDate(0, 0, -1), dia} {
+		l, err := c.LoadDay(d.Format(DayLayout))
+		if err != nil {
+			t.Fatal(err)
+		}
+		todas = append(todas, l...)
+	}
+
+	// A partir da meia-noite: o segmento que vem do dia anterior entra, e o
+	// intervalo não atravessa a virada.
+	for from := dia.UnixMilli(); from < inicio.UnixMilli(); from += 11_000 {
+		to := from + 45_000
+		var want []Entry
+		for _, e := range todas {
+			if e.EndMs() > from && e.StartMs < to {
+				want = append(want, e)
+			}
+		}
+		got, err := c.Range(from, to)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("Range(%d, %d) devolveu %d entradas, esperava %d", from, to, len(got), len(want))
+		}
 	}
 }
 

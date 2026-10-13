@@ -591,6 +591,54 @@ func (c *Camera) TotalBytes() int64 {
 // Uma última linha truncada (queda no meio de um append) é descartada em
 // silêncio: é exatamente a falha que o formato append-only prevê.
 func (c *Camera) LoadDay(day string) ([]Entry, error) {
+	return c.varreDia(day, func(int64, int64) bool { return true })
+}
+
+// Entry devolve a entrada do segmento que começa em startMs, e false se o
+// índice não tem nenhuma. É a pergunta da miniatura e de cada segmento do
+// player, e por isso decodifica só a linha certa, e não o dia inteiro.
+func (c *Camera) Entry(startMs int64) (Entry, bool, error) {
+	day := time.UnixMilli(startMs).Format(DayLayout)
+	list, err := c.varreDia(day, func(inicioMs, _ int64) bool { return inicioMs == startMs })
+	if err != nil || len(list) == 0 {
+		return Entry{}, false, err
+	}
+	return list[0], true, nil
+}
+
+// Range devolve as entradas que cobrem [fromMs, toMs).
+//
+// O dia anterior a `from` também é lido: um segmento pode ter começado antes da
+// meia-noite e se estender para dentro do intervalo pedido.
+func (c *Camera) Range(fromMs, toMs int64) ([]Entry, error) {
+	if toMs <= fromMs {
+		return nil, nil
+	}
+	start := time.UnixMilli(fromMs).AddDate(0, 0, -1)
+	end := time.UnixMilli(toMs)
+	cobre := func(inicioMs, durMs int64) bool { return inicioMs+durMs > fromMs && inicioMs < toMs }
+
+	var out []Entry
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+		entries, err := c.varreDia(d.Format(DayLayout), cobre)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, entries...)
+	}
+	return out, nil
+}
+
+// varreDia lê as entradas de um dia que `quer` aceita, ordenadas por início.
+//
+// O caro no índice é decodificar a linha: um dia de segmentos de 30s tem
+// ~2.700 linhas, e decodificar todas custa ~45ms de CPU num Orange Pi Zero 3.
+// A miniatura quer uma linha só, e a cauda do dia de hoje, uma ou duas. Então
+// o início e a duração saem do começo da linha, que o json.Marshal do Entry
+// escreve sempre igual (`{"t":…,"d":…,`), e só a linha aceita é decodificada.
+// Linha que não começa assim - editada à mão, ou de um Entry com outra ordem
+// de campos - é decodificada inteira: mais lenta, nunca errada.
+func (c *Camera) varreDia(day string, quer func(inicioMs, durMs int64) bool) ([]Entry, error) {
 	f, err := os.Open(c.IndexPath(day))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -608,13 +656,18 @@ func (c *Camera) LoadDay(day string) ([]Entry, error) {
 		if len(line) == 0 {
 			continue
 		}
+		if inicioMs, durMs, ok := cabecaDaLinha(line); ok && !quer(inicioMs, durMs) {
+			continue
+		}
 		var e Entry
 		if err := json.Unmarshal(line, &e); err != nil {
 			// Só a última linha pode estar truncada; qualquer outra indica
 			// corrupção de verdade e merece ser reportada.
 			continue
 		}
-		entries = append(entries, e)
+		if quer(e.StartMs, e.DurMs) {
+			entries = append(entries, e)
+		}
 	}
 	if err := sc.Err(); err != nil {
 		return nil, err
@@ -623,30 +676,38 @@ func (c *Camera) LoadDay(day string) ([]Entry, error) {
 	return entries, nil
 }
 
-// Range devolve as entradas que cobrem [fromMs, toMs).
-//
-// O dia anterior a `from` também é lido: um segmento pode ter começado antes da
-// meia-noite e se estender para dentro do intervalo pedido.
-func (c *Camera) Range(fromMs, toMs int64) ([]Entry, error) {
-	if toMs <= fromMs {
-		return nil, nil
+// cabecaDaLinha lê o início e a duração do começo de uma linha do índice sem
+// decodificá-la: `{"t":1791923604690,"d":30017,"sz":…`. O ok sai falso quando
+// a linha não começa exatamente assim.
+func cabecaDaLinha(line []byte) (inicioMs, durMs int64, ok bool) {
+	resto, ok := bytes.CutPrefix(line, []byte(`{"t":`))
+	if !ok {
+		return 0, 0, false
 	}
-	start := time.UnixMilli(fromMs).AddDate(0, 0, -1)
-	end := time.UnixMilli(toMs)
+	if inicioMs, resto, ok = numeroAte(resto, ','); !ok {
+		return 0, 0, false
+	}
+	if resto, ok = bytes.CutPrefix(resto, []byte(`"d":`)); !ok {
+		return 0, 0, false
+	}
+	if durMs, _, ok = numeroAte(resto, ','); !ok {
+		return 0, 0, false
+	}
+	return inicioMs, durMs, true
+}
 
-	var out []Entry
-	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
-		entries, err := c.LoadDay(d.Format(DayLayout))
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range entries {
-			if e.EndMs() > fromMs && e.StartMs < toMs {
-				out = append(out, e)
-			}
-		}
+// numeroAte lê os dígitos do começo de b até o byte `fim`, e devolve o que
+// vem depois dele. Sem sinal e com no máximo 18 dígitos, para nunca estourar
+// o int64: o que fugir disso fica para a decodificação inteira.
+func numeroAte(b []byte, fim byte) (n int64, resto []byte, ok bool) {
+	i := 0
+	for ; i < len(b) && b[i] >= '0' && b[i] <= '9'; i++ {
+		n = n*10 + int64(b[i]-'0')
 	}
-	return out, nil
+	if i == 0 || i > 18 || i == len(b) || b[i] != fim {
+		return 0, nil, false
+	}
+	return n, b[i+1:], true
 }
 
 // LoadEventos lê os onsets de um dia, ordenados. Dia sem arquivo devolve fatia

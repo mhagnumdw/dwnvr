@@ -531,16 +531,14 @@ func (s *Server) segmentParam(r *http.Request) (*store.Camera, store.Entry, erro
 		return nil, store.Entry{}, errors.New("parâmetro t inválido")
 	}
 
-	entries, err := cam.LoadDay(time.UnixMilli(t).Format(store.DayLayout))
+	e, ok, err := cam.Entry(t)
 	if err != nil {
 		return nil, store.Entry{}, err
 	}
-	for _, e := range entries {
-		if e.StartMs == t {
-			return cam, e, nil
-		}
+	if !ok {
+		return nil, store.Entry{}, errors.New("segmento não encontrado no índice")
 	}
-	return nil, store.Entry{}, errors.New("segmento não encontrado no índice")
+	return cam, e, nil
 }
 
 func (s *Server) rangeParams(r *http.Request) (from, to int64, err error) {
