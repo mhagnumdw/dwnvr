@@ -614,19 +614,32 @@ func (c *Camera) Range(fromMs, toMs int64) ([]Entry, error) {
 	if toMs <= fromMs {
 		return nil, nil
 	}
-	start := time.UnixMilli(fromMs).AddDate(0, 0, -1)
-	end := time.UnixMilli(toMs)
 	cobre := func(inicioMs, durMs int64) bool { return inicioMs+durMs > fromMs && inicioMs < toMs }
 
 	var out []Entry
-	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
-		entries, err := c.varreDia(d.Format(DayLayout), cobre)
+	for _, d := range dias(time.UnixMilli(fromMs).AddDate(0, 0, -1), toMs) {
+		entries, err := c.varreDia(d, cobre)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, entries...)
 	}
 	return out, nil
+}
+
+// dias devolve os dias (DayLayout) de `de` até o do último instante antes de
+// toMs, inclusive.
+//
+// O fim compara dias, e não instantes: de 23:59:50 a 00:00:35, o passo de um
+// dia a partir de `de` cai às 23:59:50 do dia seguinte, já depois de toMs, e o
+// dia seguinte ficaria de fora.
+func dias(de time.Time, toMs int64) []string {
+	ultimo := time.UnixMilli(toMs - 1).Format(DayLayout)
+	var out []string
+	for d := de; d.Format(DayLayout) <= ultimo; d = d.AddDate(0, 0, 1) {
+		out = append(out, d.Format(DayLayout))
+	}
+	return out
 }
 
 // varreDia lê as entradas de um dia que `quer` aceita, ordenadas por início.
@@ -753,12 +766,9 @@ func (c *Camera) EventoRange(fromMs, toMs int64) ([]Evento, error) {
 	if toMs <= fromMs {
 		return nil, nil
 	}
-	start := time.UnixMilli(fromMs)
-	end := time.UnixMilli(toMs)
-
 	var out []Evento
-	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
-		evs, err := c.LoadEventos(d.Format(DayLayout))
+	for _, d := range dias(time.UnixMilli(fromMs), toMs) {
+		evs, err := c.LoadEventos(d)
 		if err != nil {
 			return nil, err
 		}

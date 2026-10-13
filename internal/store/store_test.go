@@ -356,6 +356,30 @@ func TestRangeIncluiSegmentoQueAtravessaMeiaNoite(t *testing.T) {
 	}
 }
 
+// Um intervalo de 23:59:50 a 00:00:35 tem a hora do `from` maior que a do
+// `to`. Se o laço de dias comparasse instantes em vez de dias, pararia antes do
+// dia seguinte, e o que vem depois da meia-noite sumiria da exportação.
+func TestRangeAtravessaMeiaNoiteComHoraDoFromMaior(t *testing.T) {
+	c := newTestCamera(t)
+	dia := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
+
+	// Um segmento antes da meia-noite e outro depois dela.
+	if err := c.Append(entryAt(dia.Add(-30*time.Second), 30_000, 100)); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Append(entryAt(dia, 30_000, 100)); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := c.Range(dia.Add(-10*time.Second).UnixMilli(), dia.Add(35*time.Second).UnixMilli())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("Range devolveu %d entradas, esperava 2 (a de depois da meia-noite foi perdida?)", len(got))
+	}
+}
+
 func TestRangeExcluiForaDoIntervalo(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
@@ -684,9 +708,9 @@ func TestRangeBateComOFiltroSobreODiaInteiro(t *testing.T) {
 		todas = append(todas, l...)
 	}
 
-	// A partir da meia-noite: o segmento que vem do dia anterior entra, e o
-	// intervalo não atravessa a virada.
-	for from := dia.UnixMilli(); from < inicio.UnixMilli(); from += 11_000 {
+	// Começa antes da meia-noite: há intervalos que atravessam a virada, com a
+	// hora do `from` maior que a do `to`.
+	for from := dia.Add(-2 * time.Minute).UnixMilli(); from < inicio.UnixMilli(); from += 11_000 {
 		to := from + 45_000
 		var want []Entry
 		for _, e := range todas {
@@ -993,6 +1017,22 @@ func TestEventoRangeAtravessaDias(t *testing.T) {
 	}
 	if len(evs) != 2 {
 		t.Fatalf("esperava 2 marcas em dois dias, veio %d", len(evs))
+	}
+}
+
+// O mesmo caso do TestRangeAtravessaMeiaNoiteComHoraDoFromMaior: o trecho
+// da detecção que cruza a meia-noite não pode perder as marcas do dia seguinte.
+func TestEventoRangeAtravessaMeiaNoiteComHoraDoFromMaior(t *testing.T) {
+	c := newTestCamera(t)
+	dia := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
+	appendEventos(t, c, dia, -5*time.Second, 10*time.Second)
+
+	evs, err := c.EventoRange(dia.Add(-10*time.Second).UnixMilli(), dia.Add(35*time.Second).UnixMilli())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 2 {
+		t.Fatalf("esperava 2 marcas, uma de cada lado da meia-noite, veio %d", len(evs))
 	}
 }
 
