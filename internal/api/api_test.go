@@ -714,6 +714,28 @@ func TestRangeParams(t *testing.T) {
 	}
 }
 
+// A exportação aceita até o teto e recusa um milissegundo a mais. Sem
+// gravação no intervalo, o que cabe no teto cai no 404 de "nenhuma gravação".
+func TestExportRespeitaOTeto(t *testing.T) {
+	s, _ := testServer(t)
+	const from = int64(1786176000000)
+	casos := []struct {
+		span time.Duration
+		code int
+	}{
+		{maxExportSpan, http.StatusNotFound},
+		{maxExportSpan + time.Millisecond, http.StatusBadRequest},
+	}
+	for _, c := range casos {
+		url := fmt.Sprintf("/api/rec/export?cam=cam_teste&from=%d&to=%d", from, from+c.span.Milliseconds())
+		rec := httptest.NewRecorder()
+		s.handleExport(rec, httptest.NewRequest(http.MethodGet, url, nil))
+		if rec.Code != c.code {
+			t.Errorf("intervalo de %s devolveu HTTP %d, esperava %d", c.span, rec.Code, c.code)
+		}
+	}
+}
+
 // O favicon é um SVG com um comentário em cima, e comentário XML não admite
 // hífen duplo. Citar ali dentro o nome de uma variável CSS torna o arquivo
 // malformado - e o sintoma é cruel: o servidor devolve 200, com content-type e

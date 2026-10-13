@@ -465,6 +465,10 @@ sem cgroup, fora do Linux).
 **Intervalo** é `from`+`to` em epoch ms, ou o atalho `day=AAAA-MM-DD`, que
 equivale ao dia inteiro em hora local. `to` precisa ser maior que `from`.
 
+**`/api/rec/export`** aceita no máximo 10 min de intervalo, o mesmo teto da tela
+de Gravações; acima disso responde 400. Por isso o atalho `day=` não serve
+para ele.
+
 **`t`** é o instante inicial do segmento, exatamente como veio da timeline. Ele
 não é convertido em caminho de arquivo por conta própria: é procurado no
 índice, que é quem sabe onde terminam `ftyp`+`moov` (`io`) e qual o tamanho do

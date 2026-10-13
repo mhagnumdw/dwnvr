@@ -21,8 +21,11 @@ import (
 const gapTolerance = 2000 * time.Millisecond
 
 // maxExportSpan limita a janela de exportação. Sem teto, um pedido de 30 dias
-// tentaria emendar dezenas de milhares de segmentos numa única resposta.
-const maxExportSpan = 6 * time.Hour
+// tentaria emendar dezenas de milhares de segmentos numa única resposta. O
+// valor é o mesmo teto da tela de Gravações (DURACOES em
+// web/src/routes/Recordings.svelte), para que quem chama a API direto não
+// consiga pedir mais do que a interface oferece.
+const maxExportSpan = 10 * time.Minute
 
 // handleDays lista os dias com gravação - as bolinhas do calendário.
 func (s *Server) handleDays(w http.ResponseWriter, r *http.Request) {

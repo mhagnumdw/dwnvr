@@ -44,9 +44,9 @@
   // Segundos de segmento assumidos quando a câmera não informa - é o default do
   // dwnvr.example.yaml. Servidor atual já resolve o campo antes de responder.
   const SEG_PADRAO = 30;
-  // Durações oferecidas na exportação. O servidor aceita até 6h (maxExportSpan
-  // em internal/api/recordings.go), então o teto daqui é escolha de interface:
-  // 10 min já é um arquivo grande de se baixar pelo celular.
+  // Durações oferecidas na exportação. 10 min já é um arquivo grande de se
+  // baixar pelo celular, e é também o teto do servidor (maxExportSpan em
+  // internal/api/recordings.go): passar daqui exige subir os dois juntos.
   const DURACOES = [1, 2, 3, 5, 10];
   // Velocidades oferecidas. Num const, e não solta no template, porque a URL
   // também precisa dela - para recusar um `rate=999` sem inventar uma segunda
