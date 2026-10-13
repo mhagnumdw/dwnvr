@@ -26,6 +26,15 @@ literalmente, no init segment gravado pelo dwnvr.
 Os parameter sets verdadeiros chegam **in-band**, dentro dos samples. É por isso
 que a decodificação sai certa apesar do container mentir.
 
+> **Desde 12/10/2026 o dwnvr corrige o init na gravação**, trocando os
+> parameter sets dele pelos in-band (ver §Parameter sets do init em
+> [arquitetura.md](arquitetura.md#parameter-sets-do-init-o-dwnvr-corrige)). O
+> motivo foi uma vítima real: no Chrome 154 de um Android 10, o decodificador
+> de hardware se guiava pelo init e as gravações de 640x360 apareciam com 1/4
+> do tamanho, no canto do quadro, no player e nas miniaturas. O ao vivo, que
+> não passa pelo init, aparecia certo. O que segue descreve as gravações
+> anteriores à correção.
+
 ## Evidência
 
 `cam_iota` depois de trocar para `onvif2`:
@@ -69,7 +78,7 @@ configuração de codec"; significa apenas "mesmo conjunto de trilhas".
 Onde isso pode incomodar: uma exportação que atravesse uma troca de resolução
 gera um MP4 cujo container descreve uma resolução e cujo bitstream muda no meio.
 Players seguem o in-band e costumam lidar bem, mas é um caso a testar quando a
-exportação for implementada.
+exportação for implementada. (Nem todo player: ver o aviso no começo.)
 
 Detectar a troca de verdade exigiria comparar os parameter sets in-band, ou
 seja, percorrer NAL units dentro dos samples - trabalho real que não se paga

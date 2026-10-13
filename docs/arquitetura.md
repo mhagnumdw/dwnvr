@@ -13,7 +13,7 @@ bytes de mídia.
 - [Decisões que o formato obriga](#decisões-que-o-formato-obriga)
 - [Armazenamento](#armazenamento)
 - [Geração: o init identificado por hash](#geração-o-init-identificado-por-hash)
-- [Limitação conhecida: parameter sets H265](#limitação-conhecida-parameter-sets-h265)
+- [Parameter sets do init: o dwnvr corrige](#parameter-sets-do-init-o-dwnvr-corrige)
 
 ## Por que consumir o fMP4 do go2rtc
 
@@ -190,22 +190,34 @@ cam_eta     ead03cc7ac5a   660 B   H264 onvif1
 cam_epsilon  27dcb8115adf   660 B   H264 onvif2 (resolução diferente)
 ```
 
-## Limitação conhecida: parameter sets H265
+## Parameter sets do init: o dwnvr corrige
 
 Nas câmeras Yoosee o go2rtc não consegue extrair VPS/SPS/PPS do `FmtpLine` e
 grava no `hvcC` um **SPS hardcoded no próprio código**, que descreve 2560x1440.
-Os parameter sets verdadeiros chegam in-band, dentro dos samples - por isso a
-decodificação sai certa mesmo com o container mentindo a resolução.
+No H264 o `avcC` sai com o SPS do SDP, que em algumas câmeras descreve outro
+tamanho. Os parameter sets verdadeiros chegam in-band, dentro dos samples.
 
-Três consequências que valem lembrar:
+O navegador do computador, o ffmpeg e o mpv seguem o in-band e decodificam
+certo. O decodificador de hardware de alguns celulares Android não: ele se
+prepara pelo init e desenha o quadro de 640x360 no canto de uma superfície de
+2560x1440, e a imagem sai com 1/4 do tamanho.
 
-- **O 4CC `hev1` é obrigatório**, não cosmético. Converter para `hvc1` (que o
-  Safari prefere) quebraria a reprodução, porque `hvc1` afirma que os parameter
-  sets estão só na sample entry - e ali só há dummies.
-- **O hash do init não detecta troca de codec em H265**, já que o init é sempre
-  o mesmo dummy. Em H264 funciona normalmente. A reprodução não é afetada.
-- **Trocar apenas a resolução não muda o hash**, pelo mesmo motivo. Também não
-  afeta a reprodução.
+Por isso o init só é gravado no primeiro keyframe de cada conexão, já
+corrigido: os parameter sets do `hvcC`/`avcC` passam a ser os in-band, e a
+sample entry e o `tkhd` passam a dizer a resolução real (`fmp4.CorrigeInit`,
+chamado por `fixaInit` no recorder). Os bytes de mídia não mudam. A correção só
+acontece quando a resolução do SPS in-band difere da do init, e, se o init
+corrigido não parsear, o original é gravado.
+
+O que vale lembrar:
+
+- **O 4CC `hev1` continua.** Os parameter sets seguem vindo in-band, que é o
+  que o `hev1` declara, e as gravações anteriores à correção têm só o dummy no
+  init: com `hvc1`, que afirma que eles estão só na sample entry, elas
+  deixariam de tocar.
+- **O hash do init passou a refletir a resolução real** nas gravações novas, em
+  H265 também: trocar a resolução da câmera abre uma geração nova. Nas
+  anteriores à correção, todo H265 Yoosee tem o mesmo init dummy.
 
 Detalhes e evidências em
 [go2rtc-h265-parameter-sets.md](go2rtc-h265-parameter-sets.md).

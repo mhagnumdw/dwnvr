@@ -4,6 +4,7 @@ package recorder
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -768,18 +769,21 @@ func (r *Recorder) session(ctx context.Context) error {
 	rd := fmp4.NewReader(body)
 	var pending []byte
 
-	// O SPS in-band é procurado UMA vez por conexão, no fragmento do primeiro
-	// keyframe - que é onde os parameter sets aparecem, sempre antes do IDR.
-	// Varrer todo mdat custaria 15 varreduras por segundo por câmera para
+	// O moof do primeiro keyframe da conexão espera o mdat dele. É no mdat
+	// que vêm os parameter sets in-band, que podem corrigir o init (ver
+	// fixaInit), e o init tem de estar fixado antes de o primeiro segmento
+	// abrir, porque cada segmento começa por ele. É UMA vez por conexão:
+	// varrer todo mdat custaria 15 varreduras por segundo por câmera para
 	// reencontrar eternamente o mesmo dado.
-	var wantInbandSPS bool
+	var adiado []byte
+	var adiadoFrag fmp4.Fragment
 
 	// O fragmento corrente: o moof dele já foi lido, o mdat ainda não.
 	// Fragmento de áudio chega exatamente igual ao de vídeo, e o que decide se
 	// o mdat é imagem é o fragEhVideo, reescrito a cada moof, de vídeo ou de
 	// áudio. Um "é keyframe" solto, sem ele, sobreviveria de um fragmento de
-	// vídeo até o mdat de áudio seguinte, e o gatilho e a busca do SPS leriam
-	// áudio achando que era imagem.
+	// vídeo até o mdat de áudio seguinte, e o gatilho leria áudio achando que
+	// era imagem.
 	var fragEhVideo, fragKeyframe bool
 	var fragInstanteMs int64
 
@@ -795,6 +799,31 @@ func (r *Recorder) session(ctx context.Context) error {
 			r.entrega(r.recorte.Encerra())
 		}
 	}()
+
+	// aplicaMoof processa o moof de um fragmento: rotação de segmento, relógio,
+	// e o moof guardado em pending até o mdat dele chegar.
+	aplicaMoof := func(frag fmp4.Fragment, box []byte) error {
+		if fragEhVideo = frag.TrackID == seg.videoTrack.ID; fragEhVideo {
+			// Antes de rotacionar: o keyframe que abre o segmento também
+			// conta para a estimativa de onde ele começa.
+			seg.relogio.observar(seg.midiaMs(frag.BaseDecodeTime), time.Now().UnixMilli())
+			if err := seg.maybeRotate(frag); err != nil {
+				return err
+			}
+			seg.lastEnd = frag.EndTime()
+			fragKeyframe = frag.Keyframe
+			// Depois do maybeRotate: se ele abriu um segmento novo, é o
+			// início DELE que ancora este quadro.
+			fragInstanteMs = seg.instanteDe(frag.BaseDecodeTime)
+		}
+		pending = append(pending[:0], box...)
+		if seg.open() {
+			if err := fmp4.RebaseMoof(pending, seg.bases); err != nil {
+				return fmt.Errorf("rebase do moof: %w", err)
+			}
+		}
+		return nil
+	}
 
 	for {
 		typ, box, err := rd.NextBox()
@@ -817,36 +846,22 @@ func (r *Recorder) session(ctx context.Context) error {
 				return errors.New("stream sem trilha de vídeo")
 			}
 			seg.movie, seg.videoTrack = mv, vt
-
-			// A geração é o hash do init. Se o SPS mudar depois de uma
-			// reconexão, o hash muda e os segmentos novos passam a apontar
-			// para outro init - sem quebrar a reprodução dos antigos.
-			gen := fmp4.InitGen(seg.init)
-			if err := r.idx.WriteInit(gen, seg.init); err != nil {
-				return fmt.Errorf("gravando init: %w", err)
-			}
-			seg.gen = gen
-			r.initAtual = seg.init
-			if r.recorte != nil {
-				r.recorte.Init(seg.init)
-			}
+			seg.gen = "" // o init novo só vale depois de fixado
 
 			// A resolução do init é só a primeira aproximação: se a câmera
-			// mandar parameter sets in-band, é o SPS deles que vale. Ver
-			// wantInbandSPS logo abaixo.
+			// mandar parameter sets in-band, é o SPS deles que vale. O init
+			// só é gravado no primeiro keyframe, já corrigido (fixaInit).
 			r.setResolution(vt.Width, vt.Height)
-			wantInbandSPS = true
 
 			r.mu.Lock()
-			r.videoCodec, r.hasAudio, r.gen = vt.Codec, mv.HasAudio(), gen
+			r.videoCodec, r.hasAudio = vt.Codec, mv.HasAudio()
 			r.mu.Unlock()
 			r.setConnected(true, "")
 			// À parte: a consulta ao go2rtc não pode atrasar o primeiro
 			// segmento.
 			go r.olhaTranscodificacao(ctx, cam.ID)
 			r.log.Info("conectado", "codec", vt.Codec, "audio", mv.HasAudio(),
-				"resolucao_no_init", fmt.Sprintf("%dx%d", vt.Width, vt.Height),
-				"gen", gen, "init_bytes", len(seg.init))
+				"resolucao_no_init", fmt.Sprintf("%dx%d", vt.Width, vt.Height))
 
 		case "moof":
 			if seg.movie == nil {
@@ -856,32 +871,25 @@ func (r *Recorder) session(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("moof ilegível: %w", err)
 			}
-			if fragEhVideo = frag.TrackID == seg.videoTrack.ID; fragEhVideo {
-				// Antes de rotacionar: o keyframe que abre o segmento também
-				// conta para a estimativa de onde ele começa.
-				seg.relogio.observar(seg.midiaMs(frag.BaseDecodeTime), time.Now().UnixMilli())
-				if err := seg.maybeRotate(frag); err != nil {
-					return err
-				}
-				seg.lastEnd = frag.EndTime()
-				fragKeyframe = frag.Keyframe
-				// Depois do maybeRotate: se ele abriu um segmento novo, é o
-				// início DELE que ancora este quadro.
-				fragInstanteMs = seg.instanteDe(frag.BaseDecodeTime)
+			if seg.gen == "" && frag.TrackID == seg.videoTrack.ID && frag.Keyframe {
+				adiado, adiadoFrag = append(adiado[:0], box...), frag
+				continue
 			}
-			pending = append(pending[:0], box...)
-			if seg.open() {
-				if err := fmp4.RebaseMoof(pending, seg.bases); err != nil {
-					return fmt.Errorf("rebase do moof: %w", err)
-				}
+			if err := aplicaMoof(frag, box); err != nil {
+				return err
 			}
 
 		case "mdat":
-			if fragEhVideo {
-				if wantInbandSPS && fragKeyframe {
-					wantInbandSPS = false
-					r.readInbandSPS(seg.videoTrack, box)
+			if len(adiado) > 0 {
+				if err := r.fixaInit(seg, box); err != nil {
+					return err
 				}
+				if err := aplicaMoof(adiadoFrag, adiado); err != nil {
+					return err
+				}
+				adiado = adiado[:0]
+			}
+			if fragEhVideo {
 				r.movimento(fragInstanteMs, fragKeyframe, pending, box)
 			}
 			fragEhVideo, fragKeyframe = false, false
@@ -909,25 +917,75 @@ func (r *Recorder) setResolution(w, h uint16) {
 	r.width, r.height = w, h
 }
 
-// readInbandSPS corrige a resolução com o SPS que veio junto do keyframe.
+// fixaInit grava o init da conexão, no primeiro keyframe dela, e o passa à
+// gravação e à detecção. keyframe é o mdat desse keyframe.
 //
-// Vale mais que o SPS do init porque é o que o decodificador obedece. A câmera
-// da cam_teta do primeiro deployment anunciava 2560x1440 no init e transmitia
-// 1920x1080 - sem isto, a tela mostraria com confiança um número que nenhum
-// frame gravado tem.
-func (r *Recorder) readInbandSPS(vt fmp4.Track, mdat []byte) {
-	sps, ok := fmp4.FindSPS(vt.Codec, fmp4.BoxPayload(mdat), vt.NALLengthSize)
-	if !ok {
-		return
+// Antes de gravar, confere o init contra os parameter sets in-band: vale o SPS
+// que vem junto do keyframe, porque é o que o decodificador obedece. O init
+// do go2rtc pode descrever outro stream - no H.265 das câmeras que não mandam
+// os parameter sets no SDP, um SPS fixo de 2560x1440 para um stream de
+// 640x360. O Chrome do computador mostra certo, mas o decodificador de
+// hardware de alguns celulares se guia pelo init e desenha a imagem com 1/4 do
+// tamanho, num canto. O init gravado já sai corrigido (fmp4.CorrigeInit); se o
+// corrigido não parsear, grava o original, e o pior caso é igual a antes.
+func (r *Recorder) fixaInit(seg *segmenter, keyframe []byte) error {
+	vt := seg.videoTrack
+	payload := fmp4.BoxPayload(keyframe)
+	if init, ok := fmp4.CorrigeInit(seg.init, vt, payload); ok {
+		mv, nvt, err := leInit(init)
+		if err == nil {
+			r.log.Warn("o init anuncia uma resolução que o stream não usa; gravando o init corrigido",
+				"init", fmt.Sprintf("%dx%d", vt.Width, vt.Height),
+				"gravando", fmt.Sprintf("%dx%d", nvt.Width, nvt.Height))
+			seg.init, seg.movie, seg.videoTrack = init, mv, nvt
+			r.setResolution(nvt.Width, nvt.Height)
+		} else {
+			// Não deve acontecer: a correção só refaz caixas que a leitura
+			// conhece. Se acontecer, o init da câmera ainda grava.
+			r.log.Warn("init corrigido ilegível; gravando o da câmera", "erro", err)
+		}
 	}
-	w, h, ok := fmp4.SPSSize(vt.Codec, sps)
-	if !ok || (w == vt.Width && h == vt.Height) {
-		return
+
+	// A geração é o hash do init. Se o SPS mudar depois de uma reconexão, o
+	// hash muda e os segmentos novos passam a apontar para outro init - sem
+	// quebrar a reprodução dos antigos.
+	gen := fmp4.InitGen(seg.init)
+	if err := r.idx.WriteInit(gen, seg.init); err != nil {
+		return fmt.Errorf("gravando init: %w", err)
 	}
-	r.setResolution(w, h)
-	r.log.Warn("o init anuncia uma resolução que o stream não usa",
-		"init", fmt.Sprintf("%dx%d", vt.Width, vt.Height),
-		"gravando", fmt.Sprintf("%dx%d", w, h))
+	seg.gen = gen
+	r.initAtual = seg.init
+	if r.recorte != nil {
+		r.recorte.Init(seg.init)
+	}
+	r.mu.Lock()
+	r.gen = gen
+	r.mu.Unlock()
+	r.log.Info("init gravado", "gen", gen, "init_bytes", len(seg.init))
+	return nil
+}
+
+// leInit lê a trilha de vídeo de um init (ftyp+moov).
+func leInit(init []byte) (*fmp4.Movie, fmp4.Track, error) {
+	rd := fmp4.NewReader(bytes.NewReader(init))
+	for {
+		typ, box, err := rd.NextBox()
+		if err != nil {
+			return nil, fmp4.Track{}, err
+		}
+		if typ != "moov" {
+			continue
+		}
+		mv, err := fmp4.ParseMoov(box)
+		if err != nil {
+			return nil, fmp4.Track{}, err
+		}
+		vt, ok := mv.VideoTrack()
+		if !ok {
+			return nil, fmp4.Track{}, errors.New("init sem trilha de vídeo")
+		}
+		return mv, vt, nil
+	}
 }
 
 // --- segmentação ------------------------------------------------------------
