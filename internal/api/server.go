@@ -67,6 +67,8 @@ type Server struct {
 	proxies []netip.Prefix
 }
 
+// New monta o servidor HTTP com as peças que o main já abriu, e o limite do
+// login a partir da config.
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 	mgr *recorder.Manager, ret *retention.Manager, cad *usuarios.Cadastro, secret []byte,
 	log *slog.Logger) *Server {

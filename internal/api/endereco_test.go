@@ -8,6 +8,8 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/config"
 )
 
+// O endereço de quem fez a requisição, direto e atrás de proxy, com o
+// trustedProxies padrão.
 func TestClienteDe(t *testing.T) {
 	confiaveis, err := config.Prefixos(config.TrustedProxiesPadrao)
 	if err != nil {

@@ -311,6 +311,8 @@ func TestPrefixosAceitaEnderecoSolto(t *testing.T) {
 	}
 }
 
+// carregaAvisosDe lê só o dwnvr.yaml e devolve a config e os avisos; um erro
+// de leitura falha o teste.
 func carregaAvisosDe(t *testing.T, yaml string) (*Config, []Aviso) {
 	t.Helper()
 	cfg, _, avisos, err := carregaComAvisos(t, yaml, "")

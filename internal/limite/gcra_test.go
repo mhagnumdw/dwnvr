@@ -8,9 +8,19 @@ import (
 // relogio é um relógio parado, que o teste avança à mão.
 type relogio struct{ t time.Time }
 
-func (r *relogio) agora() time.Time     { return r.t }
+// agora é o instante em que o relógio está parado.
+func (r *relogio) agora() time.Time { return r.t }
+
+// anda avança o relógio em d.
 func (r *relogio) anda(d time.Duration) { r.t = r.t.Add(d) }
-func novoRelogio() *relogio             { return &relogio{t: time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)} }
+
+// novoRelogio é um relógio parado num instante fixo.
+func novoRelogio() *relogio {
+	return &relogio{t: time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)}
+}
+
+// passa registra uma requisição da chave k e falha o teste se ela for
+// recusada.
 func passa(t *testing.T, g *GCRA, k string) {
 	t.Helper()
 	if r := g.Permite(k); !r.Permitido {

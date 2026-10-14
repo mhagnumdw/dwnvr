@@ -77,6 +77,8 @@ func novoGCRA(porMinuto, rajada int, agora func() time.Time) *GCRA {
 	}
 }
 
+// Permite é o Limitador.Permite pelo GCRA: a requisição passa se o TAT da
+// chave não estiver adiantado mais que a folga, e aí o empurra um intervalo.
 func (g *GCRA) Permite(chave string) Resultado {
 	g.mu.Lock()
 	defer g.mu.Unlock()
