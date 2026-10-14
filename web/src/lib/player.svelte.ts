@@ -339,10 +339,22 @@ export class Player {
       // esse estado agora é do seek novo, que ainda está buscando bytes.
       if (gen === this.#generation) {
         this.#seeking = false;
-        this.carregando = false;
         this.#aviso(false);
       }
     }
+
+    if (gen === this.#generation) void this.#encherEntaoLiberar(gen);
+  }
+
+  // O pump do seek mede a janela à frente a partir do 0 do MediaSource novo, e
+  // o vídeo só pula para dentro do segmento depois: um clique perto do fim
+  // dele deixa poucos segundos no buffer. A tira só sai da frente quando a
+  // janela estiver cheia a partir de onde o vídeo está. Fica fora do await do
+  // seek, porque quem o espera - a pausa do `paused=1`, a folha da detecção -
+  // quer o primeiro quadro, e não a janela cheia.
+  async #encherEntaoLiberar(gen: number) {
+    if (!this.error) await this.#repump();
+    if (gen === this.#generation) this.carregando = false;
   }
 
   // A geração de init de um segmento, pelo índice que a timeline manda.
