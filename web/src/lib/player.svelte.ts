@@ -42,6 +42,10 @@ export class Player {
   currentMs = $state(0);
   playing = $state(false);
   buffering = $state(false);
+  // Do começo de um seek até a janela à frente estar no buffer, sem o atraso
+  // do `buffering`: é por ele que a tira de miniaturas sabe quando sair da
+  // frente.
+  carregando = $state(false);
   error = $state('');
   rate = $state(1);
 
@@ -124,6 +128,7 @@ export class Player {
     // o portão precisa ser aberto aqui: um dia novo sem gravação nenhuma não
     // chama seek(), e o relógio ficaria mudo para sempre.
     this.#seeking = false;
+    this.carregando = false;
     this.base = 0;
     this.currentMs = 0;
   }
@@ -293,6 +298,7 @@ export class Player {
 
     const gen = ++this.#generation;
     this.#seeking = true;
+    this.carregando = true;
     this.error = '';
     this.#aviso(true);
     // Um seek novo manda em qualquer fronteira que estivesse agendada.
@@ -333,6 +339,7 @@ export class Player {
       // esse estado agora é do seek novo, que ainda está buscando bytes.
       if (gen === this.#generation) {
         this.#seeking = false;
+        this.carregando = false;
         this.#aviso(false);
       }
     }

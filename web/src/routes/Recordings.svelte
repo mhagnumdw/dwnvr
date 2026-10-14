@@ -815,6 +815,7 @@
             cam={timeline.cam}
             segments={timeline.segments}
             currentMs={player.currentMs}
+            adiar={player.carregando}
             onseek={(ms: number) => {
               void player.seek(ms);
             }}
