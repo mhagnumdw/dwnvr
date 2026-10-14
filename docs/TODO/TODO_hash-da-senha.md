@@ -35,8 +35,8 @@ E não resolve:
   no yaml (`chaveDaSessao`, em `internal/api/auth.go`).
 - **Quem tem root na máquina.**
 - **Tentar senhas pela tela de login.** Isso é o
-  [limite de tentativas](TODO_limite-de-tentativas-no-login.md). O hash deixa
-  cada tentativa mais cara, mas não limita.
+  [limite de tentativas](../configuracao.md#limite-de-tentativas-no-login). O
+  hash deixa cada tentativa mais cara, mas não limita.
 
 Só o `server.password` pode virar hash. O `go2rtc.password` é a credencial que
 o dwnvr apresenta ao go2rtc, e ele precisa dela como foi escrita.
@@ -177,10 +177,9 @@ Argon2id deixa de custar a dependência.
    valor guardado, que passa a ser o hash: trocar a senha gera outro hash e
    derruba as sessões, como hoje. Gerar outro hash da mesma senha também
    derruba, porque o salt muda.
-7. **Uma verificação por vez**, até o
-   [limite de tentativas](TODO_limite-de-tentativas-no-login.md) existir:
-   cada uma custa 0,77 s de um núcleo no Orange Pi, e o login não limita
-   tentativas.
+7. **Uma verificação por vez**: cada uma custa 0,77 s de um núcleo no Orange
+   Pi. O [limite de tentativas](../configuracao.md#limite-de-tentativas-no-login)
+   segura quem insiste de um endereço, mas não quem tenta de vários.
 8. **A flag `-hash-password`** no `cmd/dwnvr/main.go`, como a `-healthcheck`:
    pede a senha duas vezes, sem mostrar na tela, imprime o valor para o
    `server.password` e sai. O dwnvr nunca escreve no `dwnvr.yaml`, então quem

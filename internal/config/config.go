@@ -15,8 +15,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -60,6 +62,17 @@ type Server struct {
 	// de todas as câmeras.
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
+
+	// LoginAttemptsPerMinute é o ritmo das tentativas de login de cada
+	// endereço, depois de uma rajada de limite.RajadaDoLogin seguidas. Zero
+	// desliga o limite.
+	LoginAttemptsPerMinute int `yaml:"loginAttemptsPerMinute"`
+
+	// TrustedProxies são as redes dos proxies cujo X-Forwarded-For diz quem
+	// chegou de verdade (ver api.clienteDe). Fora delas, vale o endereço da
+	// conexão, porque o header quem escreve é o cliente. Lista vazia não
+	// confia em ninguém.
+	TrustedProxies []string `yaml:"trustedProxies"`
 }
 
 // AuthEnabled diz se alguma credencial foi configurada.
@@ -160,7 +173,11 @@ type Camera struct {
 
 func defaults() Config {
 	return Config{
-		Server: Server{Listen: ":8080"},
+		Server: Server{
+			Listen:                 ":8080",
+			LoginAttemptsPerMinute: LoginAttemptsPerMinutePadrao,
+			TrustedProxies:         slices.Clone(TrustedProxiesPadrao),
+		},
 		Go2RTC: Go2RTC{URL: "http://localhost:1984"},
 		Storage: Storage{
 			Root:      "/mnt/storage/dwnvr/recordings",
@@ -227,6 +244,13 @@ func (a Aviso) Texto() string {
 func (c *Config) confere() []Aviso {
 	p := defaults()
 	var av []Aviso
+	confereFaixa(&av, Aviso{Campo: "server.loginAttemptsPerMinute"}, &c.Server.LoginAttemptsPerMinute,
+		FaixaLoginAttemptsPerMinute, p.Server.LoginAttemptsPerMinute, p.Server.LoginAttemptsPerMinute)
+	if _, err := Prefixos(c.Server.TrustedProxies); err != nil {
+		av = append(av, Aviso{Campo: "server.trustedProxies", Valor: c.Server.TrustedProxies,
+			Aceito: "endereços IP ou redes CIDR, como 172.16.0.0/12", Usando: p.Server.TrustedProxies})
+		c.Server.TrustedProxies = p.Server.TrustedProxies
+	}
 	confereFaixa(&av, Aviso{Campo: "storage.minFreeMB"}, &c.Storage.MinFreeMB,
 		FaixaMinFreeMB, p.Storage.MinFreeMB, p.Storage.MinFreeMB)
 
@@ -307,6 +331,24 @@ func confereFaixa[T int | int64](av *[]Aviso, a Aviso, v *T, f Faixa, troca, usa
 	a.Valor, a.Aceito, a.Usando = *v, f.String(), usando
 	*av = append(*av, a)
 	*v = troca
+}
+
+// Prefixos lê a lista do server.trustedProxies. Cada item é uma rede CIDR ou
+// um endereço só, que vira a rede dele sozinho (/32 ou /128).
+func Prefixos(itens []string) ([]netip.Prefix, error) {
+	ps := make([]netip.Prefix, 0, len(itens))
+	for _, it := range itens {
+		if p, err := netip.ParsePrefix(it); err == nil {
+			ps = append(ps, p.Masked())
+			continue
+		}
+		a, err := netip.ParseAddr(it)
+		if err != nil {
+			return nil, fmt.Errorf("%q não é endereço nem rede", it)
+		}
+		ps = append(ps, netip.PrefixFrom(a, a.BitLen()))
+	}
+	return ps, nil
 }
 
 const audiosAceitos = "none, flac ou aac"

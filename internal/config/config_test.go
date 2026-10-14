@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -242,4 +243,79 @@ func TestExemploCarrega(t *testing.T) {
 	if cfg.Defaults.Detect {
 		t.Error("o exemplo liga a detecção")
 	}
+}
+
+// TestLimiteDoLoginVemLigado: sem as chaves no yaml, o login já sai limitado e
+// o proxy do compose é confiável. Zero desliga, e lista vazia não confia em
+// ninguém: os dois valem como escritos, sem aviso.
+func TestLimiteDoLoginVemLigado(t *testing.T) {
+	cfg, _, err := carrega(t, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.LoginAttemptsPerMinute != LoginAttemptsPerMinutePadrao ||
+		!slices.Equal(cfg.Server.TrustedProxies, TrustedProxiesPadrao) {
+		t.Errorf("sem as chaves: %+v", cfg.Server)
+	}
+
+	cfg, avisos := carregaAvisosDe(t, `
+server:
+  loginAttemptsPerMinute: 0
+  trustedProxies: []
+`)
+	if len(avisos) > 0 {
+		t.Fatalf("avisos %+v", avisos)
+	}
+	if cfg.Server.LoginAttemptsPerMinute != 0 || len(cfg.Server.TrustedProxies) != 0 {
+		t.Errorf("desligado: %+v", cfg.Server)
+	}
+}
+
+// TestLimiteDoLoginRuimSobeComOPadrao: fora da faixa, ou um proxy que não é
+// endereço, volta ao padrão com aviso. Um proxy ruim derruba a lista inteira:
+// confiar só na parte escrita certa mudaria o endereço de quem o dono quis
+// cobrir.
+func TestLimiteDoLoginRuimSobeComOPadrao(t *testing.T) {
+	cfg, avisos := carregaAvisosDe(t, `
+server:
+  loginAttemptsPerMinute: -1
+  trustedProxies: [10.0.0.0/8, servidor-do-proxy]
+`)
+	if cfg.Server.LoginAttemptsPerMinute != LoginAttemptsPerMinutePadrao ||
+		!slices.Equal(cfg.Server.TrustedProxies, TrustedProxiesPadrao) {
+		t.Errorf("config %+v, esperava os padrões", cfg.Server)
+	}
+	got := porCampo(avisos)
+	for _, campo := range []string{"server.loginAttemptsPerMinute", "server.trustedProxies"} {
+		if _, ok := got[campo]; !ok {
+			t.Errorf("sem aviso de %s: %+v", campo, avisos)
+		}
+	}
+
+	if _, avisos := carregaAvisosDe(t, "server:\n  loginAttemptsPerMinute: 61\n"); len(avisos) != 1 {
+		t.Errorf("61 por minuto: avisos %+v, esperava 1", avisos)
+	}
+}
+
+// TestPrefixosAceitaEnderecoSolto: um IP sem máscara é a rede só dele.
+func TestPrefixosAceitaEnderecoSolto(t *testing.T) {
+	ps, err := Prefixos([]string{"192.168.0.10", "fd00::1", "10.1.2.3/8"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	quer := []string{"192.168.0.10/32", "fd00::1/128", "10.0.0.0/8"}
+	for i, p := range ps {
+		if p.String() != quer[i] {
+			t.Errorf("%d: %s, esperava %s", i, p, quer[i])
+		}
+	}
+}
+
+func carregaAvisosDe(t *testing.T, yaml string) (*Config, []Aviso) {
+	t.Helper()
+	cfg, _, avisos, err := carregaComAvisos(t, yaml, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg, avisos
 }

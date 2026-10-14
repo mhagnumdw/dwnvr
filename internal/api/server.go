@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"os"
 	"slices"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
+	"github.com/mhagnumdw/dwnvr/internal/limite"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/retention"
 	"github.com/mhagnumdw/dwnvr/internal/store"
@@ -58,14 +60,32 @@ type Server struct {
 	// processo, o único que escreve ali: por isso um mutex, e não um arquivo de
 	// lock, que só teria serventia entre processos.
 	cadastro sync.Mutex
+	// limiteLogin conta as tentativas de login de cada endereço. É nil com o
+	// server.loginAttemptsPerMinute em zero: aí o login não paga nada por ele.
+	limiteLogin limite.Limitador
+	// proxies são as redes do server.trustedProxies, já lidas (ver clienteDe).
+	proxies []netip.Prefix
 }
 
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 	mgr *recorder.Manager, ret *retention.Manager, cad *usuarios.Cadastro, secret []byte,
 	log *slog.Logger) *Server {
 
-	return &Server{cfg: cfg, store: st, client: client, mgr: mgr, ret: ret,
+	s := &Server{cfg: cfg, store: st, client: client, mgr: mgr, ret: ret,
 		usuarios: cad, sessionSecret: secret, log: log, startedAt: time.Now()}
+	s.limiteLogin, s.proxies = limiteDoLogin(cfg.Server)
+	return s
+}
+
+// limiteDoLogin monta o limite do login a partir da config, já conferida no
+// boot (ver config.Load): uma lista de proxies inválida ali já voltou ao
+// padrão.
+func limiteDoLogin(c config.Server) (limite.Limitador, []netip.Prefix) {
+	proxies, _ := config.Prefixos(c.TrustedProxies)
+	if c.LoginAttemptsPerMinute <= 0 {
+		return nil, proxies
+	}
+	return limite.NovoGCRA(c.LoginAttemptsPerMinute, limite.RajadaDoLogin), proxies
 }
 
 // knownCamera evita que um ID arbitrário vindo da URL vire caminho no disco.
@@ -467,8 +487,10 @@ func logRequests(log *slog.Logger, next http.Handler) http.Handler {
 		sw := &statusWriter{ResponseWriter: w, code: http.StatusOK}
 		next.ServeHTTP(sw, r)
 		// Só o que deu errado vira log: com uma timeline pedindo centenas de
-		// segmentos, registrar tudo afogaria o journal do servidor.
-		if sw.code >= 400 {
+		// segmentos, registrar tudo afogaria o journal do servidor. O 429 fica
+		// de fora: quem passa do limite insiste, e o limitador já registra o
+		// começo de cada episódio (ver limitarLogin).
+		if sw.code >= 400 && sw.code != http.StatusTooManyRequests {
 			log.Warn("requisição recusada", "status", sw.code,
 				"metodo", r.Method, "caminho", r.URL.Path, "de", r.RemoteAddr, encaminhado(r))
 		}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { api, mensagemDe } from '../lib/api.ts';
+  import { api, mensagemDe, MuitasTentativas } from '../lib/api.ts';
   import type { Pessoa } from '../lib/api.ts';
   import { build, REPO_URL } from '../lib/state.svelte.ts';
   import MarcaGitHub from '../components/MarcaGitHub.svelte';
@@ -16,6 +16,22 @@
   let error = $state('');
   let busy = $state(false);
 
+  // O 429: passado o limite de tentativas, a linha do erro conta até a
+  // próxima, e o botão fica desligado até lá. O relógio só anda enquanto a
+  // contagem corre.
+  let liberaEm = $state(0);
+  let agora = $state(Date.now());
+  const espera = $derived(Math.max(0, Math.ceil((liberaEm - agora) / 1000)));
+
+  $effect(() => {
+    if (!liberaEm) return;
+    const id = setInterval(() => {
+      agora = Date.now();
+      if (agora >= liberaEm) clearInterval(id);
+    }, 250);
+    return () => clearInterval(id);
+  });
+
   async function submit(e: SubmitEvent) {
     e.preventDefault();
     busy = true;
@@ -24,6 +40,13 @@
       const r = await api.login(username, password);
       onSuccess(r.user);
     } catch (err) {
+      if (err instanceof MuitasTentativas) {
+        // A senha fica: o servidor nem a conferiu, e ao fim da contagem basta
+        // tocar em Entrar de novo.
+        agora = Date.now();
+        liberaEm = agora + err.segundos * 1000;
+        return;
+      }
       error = mensagemDe(err);
       password = '';
     } finally {
@@ -51,13 +74,15 @@
     />
     <CampoSenha bind:value={password} />
 
-    <button class="primary" type="submit" disabled={busy}>
+    <button class="primary" type="submit" disabled={busy || espera > 0}>
       {busy ? 'entrando…' : 'Entrar'}
     </button>
 
     <!-- Espaço reservado sempre: sem isto o formulário salta quando o erro
          aparece, e o botão foge do dedo no meio do toque. -->
-    <p class="error small">{error}</p>
+    <p class="error small">
+      {espera > 0 ? `Muitas tentativas. Tente de novo em ${espera} s.` : error}
+    </p>
 
     <!-- Não há e-mail para recuperar a senha: o remédio é o admin gerar um
          link de convite novo, e quem esqueceu precisa saber disso daqui. -->

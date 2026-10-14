@@ -569,6 +569,10 @@ inatividade e a detecção - ligada ou não, o mecanismo e o nível de
 sensibilidade, de 1 a 5. Detalhes, incluindo o custo de cada modo de áudio em
 CPU e disco, em [`docs/configuracao.md`](docs/configuracao.md).
 
+O login limita as tentativas de cada endereço (`server.loginAttemptsPerMinute`,
+ligado por padrão), para ninguém testar senhas sem parar. Detalhes em
+[`docs/configuracao.md`](docs/configuracao.md#limite-de-tentativas-no-login).
+
 O detector de objetos é opcional: um container à parte, `dwnvr-detect`,
 apontado por `detector.url` no `dwnvr.yaml`. Sem ele, a detecção marca só
 movimento.
@@ -634,6 +638,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   ├── api/                servidor HTTP
 │   │   ├── server.go       rotas e o papel que cada uma exige
 │   │   ├── auth.go         login e sessão por pessoa, em cookie assinado (HMAC), sem estado no servidor
+│   │   ├── endereco.go     o endereço de quem fez a requisição, atrás de proxy ou não, para o limite do login
 │   │   ├── usuarios.go     a tela Usuários e o link de convite
 │   │   ├── conta.go        a Minha conta: a própria senha, o nome e a foto, e o serviço das fotos
 │   │   ├── derrubar.go     fecha o ao vivo e o aviso de sessão de quem é removido ou ganha link novo
@@ -658,6 +663,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── sps.go          resolução real a partir do SPS de H264/H265
 │   │   └── corrige.go      troca os parameter sets do init pelos que vêm no stream
 │   ├── go2rtc/             cliente da API do go2rtc e do stream fMP4
+│   ├── limite/             o limite de requisições por cliente (GCRA), que o login usa
 │   ├── logbuf/             guarda em memória os últimos avisos e erros do log, para o Diagnóstico
 │   ├── recorder/           um recorder por câmera: corta em keyframe e grava
 │   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram

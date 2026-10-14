@@ -54,7 +54,10 @@ instalar, "app instalado (PWA)".
 Abrir uma porta no roteador, ou publicar o dwnvr por um túnel público (como o
 Tailscale Funnel ou o Cloudflare Tunnel), deixa a tela de login à vista de
 qualquer um. O login do dwnvr passa a ser a única proteção das câmeras, e ele
-não foi feito para isso: as tentativas não têm limite.
+não foi feito para isso: o
+[limite de tentativas](configuracao.md#limite-de-tentativas-no-login) é por
+endereço, e quem tenta de muitos endereços ao mesmo tempo não é contido por
+ele.
 
 Com o Tailscale, o servidor só responde a dispositivos que entraram na VPN. Do
 resto da internet, não há o que encontrar.
@@ -105,7 +108,12 @@ Transparency, como acontece com todo certificado do Let's Encrypt.
 
 Do lado do dwnvr, nada muda. As URLs da tela são relativas, e o WebSocket do
 ao vivo passa a `wss://` sozinho. O `serve` avisa que a conexão chegou por
-HTTPS (`X-Forwarded-Proto`), e com isso o cookie de sessão sai `Secure`.
+HTTPS (`X-Forwarded-Proto`), e com isso o cookie de sessão sai `Secure`. Ele
+também diz o endereço do tailnet de quem abriu a tela (`X-Forwarded-For`), e é
+por ele que o login conta as tentativas de cada dispositivo (ver
+[Limite de tentativas no login](configuracao.md#limite-de-tentativas-no-login)).
+O `serve` descarta o header que o dispositivo mandar, então ninguém escapa do
+limite inventando um endereço.
 
 O `http://<ip-da-máquina>:8080` continua funcionando na rede de casa. Para o
 navegador, é outra origem: login separado, e sem os recursos de HTTPS.

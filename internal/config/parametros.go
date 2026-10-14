@@ -36,7 +36,25 @@ var (
 	// faixaSensibilidade é a dos níveis que o detect conhece; o número mora lá
 	// porque cada nível tem um limiar medido.
 	faixaSensibilidade = Faixa{Min: detect.NivelMin, Max: detect.NivelMax}
+
+	// FaixaLoginAttemptsPerMinute: zero desliga o limite. Cada tentativa custa
+	// uma conta de senha inteira (0,77 s de CPU num Orange Pi Zero 3), e 60
+	// por minuto de um só endereço já ocupam boa parte de um núcleo.
+	FaixaLoginAttemptsPerMinute = Faixa{Min: 0, Max: 60, Unidade: "por minuto"}
 )
+
+// LoginAttemptsPerMinutePadrao: depois da rajada, uma tentativa a cada 30 s.
+// Quem digitou errado espera pouco, e quem testa senhas fica em umas 2.900
+// por dia por endereço, contra uma a cada 0,77 s sem limite.
+const LoginAttemptsPerMinutePadrao = 2
+
+// TrustedProxiesPadrao são o loopback e a faixa que o Docker usa para as
+// redes do compose. É por ela que chegam os dois caminhos de HTTPS da doc: o
+// `tailscale serve`, pelo gateway da rede, e o Caddy do compose, pelo IP do
+// container. Os dois substituem o X-Forwarded-For que o cliente mandar
+// (conferido em 13/10/2026). O loopback cobre o dwnvr fora do Docker, com o
+// proxy na mesma máquina.
+var TrustedProxiesPadrao = []string{"127.0.0.0/8", "::1/128", "172.16.0.0/12"}
 
 // FaixasDaCamera são as faixas dos campos numéricos da câmera, pelo nome no
 // JSON. É o que a API manda à tela; campo numérico novo com input na tela

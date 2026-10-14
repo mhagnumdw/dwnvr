@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
+	"github.com/mhagnumdw/dwnvr/internal/limite"
 	"github.com/mhagnumdw/dwnvr/internal/usuarios"
 )
 
@@ -419,6 +421,68 @@ func TestEncaminhadoCortaNoTeto(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", strings.Repeat("1", encaminhadoMax+50))
 	if v := encaminhado(req).Value.String(); v != strings.Repeat("1", encaminhadoMax)+"…" {
 		t.Errorf("header longo: %d bytes", len(v))
+	}
+}
+
+// Passada a rajada, o login responde 429 com o Retry-After, sem conferir a
+// senha, nem a certa. O episódio vira uma linha de log só, e o 429 não entra
+// no log de requisição recusada. Outro endereço, atrás do mesmo proxy, segue
+// entrando.
+func TestLoginPassouDoLimite(t *testing.T) {
+	s, _ := testServer(t)
+	var log strings.Builder
+	s.log = slog.New(slog.NewTextHandler(&log, nil))
+	comAutenticacao(t, s)
+	s.limiteLogin, s.proxies = limiteDoLogin(s.cfg.Server)
+	h := logRequests(s.log, http.HandlerFunc(s.handleLogin))
+
+	entrar := func(senha, de string) *httptest.ResponseRecorder {
+		corpo, _ := json.Marshal(map[string]string{"username": "admin", "password": senha})
+		req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(corpo)))
+		req.RemoteAddr = "172.18.0.1:5000" // o proxy, igual para todo mundo
+		req.Header.Set("X-Forwarded-For", de)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+
+	for i := range limite.RajadaDoLogin {
+		if rec := entrar("errada", "100.64.0.7"); rec.Code != http.StatusUnauthorized {
+			t.Fatalf("tentativa %d: status %d, esperava 401", i+1, rec.Code)
+		}
+	}
+	log.Reset()
+	for range 3 {
+		rec := entrar("senha", "100.64.0.7")
+		if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Set-Cookie") != "" {
+			t.Fatalf("depois da rajada, com a senha certa: status %d, Set-Cookie %q",
+				rec.Code, rec.Header().Get("Set-Cookie"))
+		}
+		// O relógio aqui é o de verdade, e as contas de senha da rajada o
+		// fazem andar (uns 6 s com -race): a espera exata é do teste do
+		// internal/limite, com relógio falso. Aqui basta estar no intervalo.
+		if got, err := strconv.Atoi(rec.Header().Get("Retry-After")); err != nil || got < 1 || got > 30 {
+			t.Errorf("Retry-After %q, esperava de 1 a 30", rec.Header().Get("Retry-After"))
+		}
+	}
+	l := log.String()
+	if n := strings.Count(l, `msg="limite de tentativas de login atingido" cliente=100.64.0.7 espera_s=`); n != 1 {
+		t.Errorf("%d linhas do episódio, esperava 1: %s", n, l)
+	}
+	if strings.Contains(l, "requisição recusada") {
+		t.Errorf("o 429 entrou no log de requisição recusada: %s", l)
+	}
+
+	if rec := entrar("senha", "100.64.0.8"); rec.Code != http.StatusOK {
+		t.Errorf("outro endereço: status %d, esperava 200", rec.Code)
+	}
+}
+
+// Com o server.loginAttemptsPerMinute em zero, não há limite nenhum.
+func TestLimiteDoLoginDesligado(t *testing.T) {
+	c := config.Server{LoginAttemptsPerMinute: 0, TrustedProxies: config.TrustedProxiesPadrao}
+	if l, proxies := limiteDoLogin(c); l != nil || len(proxies) != 3 {
+		t.Errorf("limite %v, proxies %v", l, proxies)
 	}
 }
 

@@ -8,6 +8,7 @@ CPU e em disco.
 - [Valor fora da faixa](#valor-fora-da-faixa)
 - [Retenção](#retenção)
 - [Áudio](#áudio)
+- [Limite de tentativas no login](#limite-de-tentativas-no-login)
 
 ## Os dois arquivos
 
@@ -77,8 +78,9 @@ outras paradas. No boot, cada valor assim:
 
 No `cameras.json`, zero e campo ausente são "usar o padrão" e nunca dão aviso.
 No `dwnvr.yaml` o zero é inválido, porque ali o padrão é o próprio valor. As
-exceções são o `maxDays`, onde zero é "sem limite", e o `storage.minFreeMB`,
-onde zero desliga a trava global de disco.
+exceções são o `maxDays`, onde zero é "sem limite", e o `storage.minFreeMB` e
+o `server.loginAttemptsPerMinute`, onde zero desliga a trava global de disco e
+o limite de tentativas no login.
 
 O que continua impedindo o boot é o que não tem padrão seguro: um arquivo que
 não se consegue ler, o `storage.root` vazio e o ID de câmera que viraria um
@@ -208,3 +210,67 @@ que descarta o áudio já na origem. Nenhuma configuração do dwnvr traz de vol
 um áudio descartado lá.
 
 A medição completa do FLAC está em [audio-flac.md](audio-flac.md).
+
+## Limite de tentativas no login
+
+```yaml
+server:
+  loginAttemptsPerMinute: 2
+  trustedProxies: [127.0.0.0/8, "::1/128", 172.16.0.0/12]
+```
+
+Os valores acima são os padrões, que valem sem escrever nada.
+
+Cada endereço tem **5 tentativas de login seguidas**. Depois delas, as
+seguintes passam no ritmo do `loginAttemptsPerMinute`: com o padrão, uma a cada
+30 s. Quem para de tentar recupera uma vaga a cada intervalo, até as 5. Passado
+o limite, o login responde sem conferir a senha, e a tela conta os segundos até
+a próxima tentativa. Conta toda tentativa, a certa também.
+
+Quem só errou a senha duas ou três vezes não vê o limite. Ele existe para quem
+testa senhas sem parar: cada tentativa custa 0,77 s de CPU num Orange Pi Zero 3
+(ver [O login](api.md#o-login)), e sem limite isso ocupa um núcleo o tempo
+todo, e o login de quem é da casa espera atrás.
+
+`0` desliga o limite. O aceito vai de 0 a 60 por minuto.
+
+O limite é **por endereço**, e não por usuário: por usuário, qualquer um que
+alcance a tela travaria o login do dono só errando a senha dele de propósito.
+Como é por endereço, quem tenta de muitos endereços ao mesmo tempo não é
+contido por ele.
+
+### De onde vem o endereço
+
+Atrás de um proxy, toda conexão chega ao dwnvr com o endereço do proxy, igual
+para todo mundo. Quem chegou de verdade vem no header `X-Forwarded-For`, que o
+proxy preenche. Mas quem fala direto com a porta do dwnvr também consegue
+mandar esse header, inventando um endereço a cada tentativa. Por isso o
+`trustedProxies` lista as redes dos proxies confiáveis:
+
+- se a conexão vem de uma delas, o endereço é o do `X-Forwarded-For`, lido da
+  direita para a esquerda até o primeiro que não seja de proxy confiável;
+- se não vem, o endereço é o da conexão, e o header é ignorado.
+
+O padrão cobre o loopback e a faixa que o Docker usa para as redes do compose.
+É por ela que chegam os dois caminhos de HTTPS desta documentação: o
+`tailscale serve` do [acesso remoto](acesso-remoto.md), pelo gateway da rede do
+compose, e o Caddy do [HTTPS na rede de casa](https-na-rede-local.md), pelo IP
+do container dele. Os dois põem no header o endereço de quem conectou, no lugar
+do que o aparelho tiver mandado. Isso foi conferido em 13/10/2026 com o
+`tailscale serve` 1.102 e o Caddy 2.11.7. Quem abre direto na 8080 pela rede de
+casa chega com o próprio endereço, fora da lista.
+
+Mude o `trustedProxies` só se o seu proxy chega ao dwnvr por outra rede, como
+um nginx em outra máquina. Cada item é uma rede (`10.0.0.0/8`) ou um endereço
+só (`192.168.1.20`). Um item inválido faz a lista inteira voltar ao padrão, com
+aviso no log. `[]` não confia em ninguém: atrás de um proxy, todo mundo vira
+um endereço só, e quem passa do limite trava o login de todos.
+
+Dois casos fazem o padrão errar:
+
+- **A rede de casa dentro de `172.16.0.0/12`.** Um aparelho dela, falando direto
+  com a 8080, conseguiria inventar o endereço. Tire a faixa e ponha só a rede
+  do compose, que o `docker network inspect` mostra.
+- **Docker rootless** (não testado). Pelo que diz a documentação dele, toda
+  conexão chega ao container com o endereço do gateway, que está na lista.
+  Como no caso de cima, o header passa a ser aceito de qualquer aparelho.
