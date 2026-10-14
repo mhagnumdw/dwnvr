@@ -157,7 +157,12 @@ func TestTrocarACredencialDoDonoDerrubaAsSessoesDele(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return New(cfg, nil, nil, nil, nil, cad, segredo, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		log := slog.New(slog.NewTextHandler(io.Discard, nil))
+		acessos, err := usuarios.AbrirAcessos(filepath.Join(filepath.Dir(caminho), "acessos.json"), log)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return New(cfg, nil, nil, nil, nil, cad, acessos, segredo, log)
 	}
 	antes := subir("admin", "senha")
 	dono, _ := antes.quem("admin")

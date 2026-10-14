@@ -64,4 +64,14 @@ const (
 	// crypto/rand. O nome muda a cada troca e vai na URL, o que deixa o
 	// navegador guardar a imagem para sempre.
 	BytesDoIdDoAvatar = 8
+
+	// PassoDoUltimoAcesso é de quanto em quanto o último acesso de uma pessoa
+	// anda. A tela o mostra até o minuto; num passo menor, as requisições de
+	// quem está usando mexeriam no mapa à toa.
+	PassoDoUltimoAcesso = time.Minute
+
+	// EsperaParaGravarOsAcessos é quanto um último acesso novo espera na
+	// memória antes de ir para o acessos.json. É o máximo que se perde numa
+	// queda de energia; no desligamento normal, o pendente é gravado na hora.
+	EsperaParaGravarOsAcessos = 5 * time.Minute
 )

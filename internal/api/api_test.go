@@ -48,12 +48,17 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	acessos, err := usuarios.AbrirAcessos(cfg.AcessosPath(), log)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	s := &Server{
 		cfg:           cfg,
 		store:         st,
 		mgr:           mgr,
 		usuarios:      cad,
+		acessos:       acessos,
 		sessionSecret: []byte("segredo-de-teste-com-32-bytes!!!"),
 		log:           log,
 	}

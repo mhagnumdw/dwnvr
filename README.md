@@ -668,7 +668,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   ├── recorder/           um recorder por câmera: corta em keyframe e grava
 │   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram
 │   ├── store/              layout em disco e índice NDJSON
-│   └── usuarios/           o usuarios.json, o papel de cada um, o link de convite, a senha em hash (PBKDF2, uma conta por vez) e a foto
+│   └── usuarios/           o usuarios.json, o papel de cada um, o link de convite, a senha em hash (PBKDF2, uma conta por vez), a foto e o último acesso
 ├── dwnvr-detect/           o detector de objetos, opcional, num container à parte (ver dwnvr-detect/README.md)
 ├── web/                    interface Svelte 5 + TypeScript + Vite (ver web/README.md)
 ├── docs/                   documentação longa (ver docs/README.md)

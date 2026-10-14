@@ -635,10 +635,11 @@ Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem 
 // GET /api/usuarios
 {
   "authRequired": true,
-  "owner": { "username": "admin", "name": "admin", "avatar": "" },
+  "owner": { "username": "admin", "name": "admin", "avatar": "", "lastAccessMs": 1791986400000 },
   "users": [
     { "username": "maria", "name": "Maria", "role": "viewer", "status": "invitePending",
-      "inviteExpiresAtMs": 1791587903000, "createdAtMs": 1791587303000, "avatar": "4d1e0b62a7c3f915" }
+      "inviteExpiresAtMs": 1791587903000, "createdAtMs": 1791587303000, "avatar": "4d1e0b62a7c3f915",
+      "lastAccessMs": 1791500000000 }
   ],
   "inviteValidityMs": 600000,
   "maxNameLength": 60,
@@ -649,7 +650,18 @@ Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem 
 O `status` é `active` (tem senha), `invitePending` (pode definir a senha pelo
 link) ou `inviteExpired` (precisa de outro link). Quem está `active` traz também
 `activeSinceMs`, quando definiu a senha pelo link; trocar a própria senha não o
-muda, e o link novo o apaga. Criar e o link novo devolvem
+muda, e o link novo o apaga.
+
+O `lastAccessMs` é a última requisição da pessoa com sessão válida, e não o
+último login, que diz pouco com a sessão se renovando sozinha. Anda de minuto
+em minuto (`usuarios.PassoDoUltimoAcesso`) e vem em qualquer `status`: quem
+ganhou link novo continua com o acesso de antes. Some de quem não usou o
+dwnvr desde que o campo existe, e de quem é removido ou criado de novo com o
+mesmo usuário. A requisição só anota na memória; o `acessos.json`, na pasta de
+config, é gravado em segundo plano, no máximo a cada 5 minutos
+(`usuarios.EsperaParaGravarOsAcessos`) e ao desligar.
+
+Criar e o link novo devolvem
 `{"user": {...}, "token": "..."}`: o token só existe nessa resposta, e a
 tela monta o link com ele. Usuário fora do formato, repetido ou igual ao do
 dono, e nome vazio, são `400` com o motivo; pessoa que não existe é `404`.

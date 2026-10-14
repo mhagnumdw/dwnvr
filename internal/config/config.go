@@ -378,6 +378,10 @@ func (c *Config) CamerasPath() string { return filepath.Join(c.dir, "cameras.jso
 // gravação.
 func (c *Config) UsuariosPath() string { return filepath.Join(c.dir, "usuarios.json") }
 
+// AcessosPath é onde fica o último acesso de cada pessoa, ao lado do
+// usuarios.json, mas num arquivo à parte (ver usuarios.Acessos).
+func (c *Config) AcessosPath() string { return filepath.Join(c.dir, "acessos.json") }
+
 // Resolve devolve a câmera com os defaults já aplicados, para que o resto do
 // código nunca precise perguntar "esse zero é intencional?".
 func (c *Config) Resolve(cam Camera) Camera {

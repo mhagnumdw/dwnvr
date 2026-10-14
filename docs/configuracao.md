@@ -31,6 +31,12 @@ pessoa fica ao lado, em `avatares/`, um JPEG de até 32 KB por pessoa. Se ele fi
 dwnvr sobe do mesmo jeito, só o dono entra, e nada é gravado por cima dele até
 ser corrigido.
 
+Também ao lado fica o `acessos.json`, `0600`, com o último acesso de cada
+pessoa, que a tela Usuários mostra. Ele nasce no primeiro acesso e é gravado
+em segundo plano, no máximo a cada 5 minutos e ao desligar: numa queda de
+energia, perdem-se no máximo esses minutos. Ilegível, o dwnvr sobe do mesmo
+jeito, avisa no log e recomeça os acessos do zero.
+
 Há ainda um terceiro arquivo que o dwnvr **só lê pela API, nunca abre**: o
 `go2rtc.yaml`. Ele é do go2rtc, e configurá-lo é tarefa de quem instala. Veja
 [`go2rtc.example.yaml`](../go2rtc.example.yaml).
