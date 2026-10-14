@@ -58,6 +58,10 @@ export class Player {
   #initAppended: string | null = null;
   #pumping: Promise<void> | null = null; // promessa do pump em voo, ou null quando não há nenhum
   #generation = 0; // invalida trabalho em voo depois de um seek
+  // Cancela os downloads da geração que acabou de ser invalidada. Sem isto, o
+  // pump velho segurava o novo até o segmento que ninguém mais quer terminar
+  // de chegar - e ainda dividia a banda com ele.
+  #cancela = new AbortController();
   #seeking = false; // seek em voo: `base` e `currentTime` estão dessincronizados
   #avisoTimer: number | undefined; // conta os ms de espera antes de acender o "carregando…"
 
@@ -93,6 +97,8 @@ export class Player {
     v.removeEventListener('pause', this.#onPause);
     v.removeEventListener('ratechange', this.#onRate);
     v.removeEventListener('error', this.#onError);
+    // Sair da tela larga o segmento que estava chegando: ninguém mais o vê.
+    this.#novaGeracao();
     // Um aviso agendado que dispara depois disto acenderia o "carregando…" de
     // um player que não existe mais - e ninguém o apagaria.
     this.#aviso(false);
@@ -123,8 +129,8 @@ export class Player {
     this.#mimes.clear();
     this.#boundary = null;
     this.#pulo = null;
-    this.#generation++;
-    // O incremento acima impede o `finally` de um seek em voo de rodar, então
+    this.#novaGeracao();
+    // A geração nova acima impede o `finally` de um seek em voo de rodar, então
     // o portão precisa ser aberto aqui: um dia novo sem gravação nenhuma não
     // chama seek(), e o relógio ficaria mudo para sempre.
     this.#seeking = false;
@@ -158,6 +164,12 @@ export class Player {
     this.#next = i < 0 ? segments.length : i;
 
     await this.#pump();
+  }
+
+  #novaGeracao() {
+    this.#cancela.abort();
+    this.#cancela = new AbortController();
+    return ++this.#generation;
   }
 
   get hasSegments() {
@@ -296,7 +308,7 @@ export class Player {
     if (ms > start + dur && i + 1 < this.#segments.length) i++;
     const [alvoMs, alvoDur, alvoGen] = this.#segments[i] ?? achado;
 
-    const gen = ++this.#generation;
+    const gen = this.#novaGeracao();
     this.#seeking = true;
     this.carregando = true;
     this.error = '';
@@ -369,8 +381,14 @@ export class Player {
     this.base = baseMs;
     this.#next = 0;
     this.#initAppended = null;
+    // O buffer velho para de receber já, e não só quando o src trocar: o vídeo
+    // antigo continua tocando enquanto o init vem, e um pump que o timeupdate
+    // dele disparasse agora leria a lista NOVA a partir do índice 0 - baixando
+    // o primeiro segmento do dia para o buffer errado, ou marcando a fronteira
+    // de trilhas no começo do dia.
+    this.#sb = null;
 
-    const mime = await this.#mimeFor(gen);
+    const mime = await this.#mimeFor(gen, this.#cancela.signal);
     // Outro seek começou enquanto o init vinha - numa troca de câmera rápida,
     // o da câmera nova, com um init que pode ter chegado antes. O <video> agora
     // é dele: trocar o src aqui derrubaria o que ele já montou, e o player
@@ -408,11 +426,11 @@ export class Player {
 
   // Os codecs saem do init de verdade, não de um palpite pelo nome da câmera:
   // a mesma instalação mistura H265 com áudio, H265 sem áudio e H264.
-  async #mimeFor(gen: string) {
+  async #mimeFor(gen: string, signal: AbortSignal) {
     const cached = this.#mimes.get(gen);
     if (cached) return cached;
 
-    const res = await fetch(mediaURL.init(this.#cam, gen));
+    const res = await fetch(mediaURL.init(this.#cam, gen), { signal });
     const buf = new Uint8Array(await res.arrayBuffer());
     const at = (o: number) => String.fromCharCode(...buf.subarray(o, o + 4));
     const map: Readonly<Record<string, string>> = {
@@ -472,6 +490,7 @@ export class Player {
   // Espera o pump em voo largar o osso e roda outro. É o que seek() precisa:
   // ele acabou de mudar o ponto de retomada, e o pump que começou antes disso
   // não serve - só receber a promessa dele deixaria o vídeo sem nada anexado.
+  // A espera é curta: a geração nova cancelou o download do pump velho.
   async #repump() {
     await this.#pumping;
     return this.#pump();
@@ -479,6 +498,7 @@ export class Player {
 
   async #pumpOnce() {
     const gen = this.#generation;
+    const signal = this.#cancela.signal;
 
     try {
       while (
@@ -502,16 +522,19 @@ export class Player {
           //
           // Quando só o SPS mudou (resolução, por exemplo) o mime continua o
           // mesmo e reanexar o init basta: é o caso comum e segue sem emenda.
-          const mime = await this.#mimeFor(g);
+          const mime = await this.#mimeFor(g, signal);
+          // O mime de uma geração invalidada não diz nada sobre o buffer de
+          // agora: compará-lo marcaria a fronteira no player de outro seek.
+          if (gen !== this.#generation) break;
           if (mime !== this.#mime) {
             this.#boundary = start;
             break;
           }
-          await this.#append(mediaURL.init(this.#cam, g), null);
+          await this.#append(mediaURL.init(this.#cam, g), null, signal);
           if (gen !== this.#generation) break;
           this.#initAppended = g;
         }
-        await this.#append(mediaURL.segment(this.#cam, start), (start - this.base) / 1000);
+        await this.#append(mediaURL.segment(this.#cam, start), (start - this.base) / 1000, signal);
         // Um seek durante o download já apontou `#next` para o segmento dele;
         // avançar aqui faria o pump novo pular justamente esse.
         if (gen !== this.#generation) break;
@@ -523,14 +546,14 @@ export class Player {
     }
   }
 
-  async #append(url: string, offset: number | null) {
+  async #append(url: string, offset: number | null, signal: AbortSignal) {
     // O SourceBuffer é o de quando o download começou. Um seek no meio dele -
     // o do usuário ou o de #onError - troca o MediaSource, e os bytes que
     // chegassem depois iriam parar no buffer novo, antes do init dele e com o
     // timestampOffset do antigo.
     const ms = this.#ms;
     const sb = this.#sb;
-    const buf = await fetch(url).then((r) => r.arrayBuffer());
+    const buf = await fetch(url, { signal }).then((r) => r.arrayBuffer());
     if (!sb || this.#sb !== sb || ms?.readyState !== 'open') return;
     if (offset !== null) sb.timestampOffset = offset;
     await new Promise<void>((res, rej) => {
