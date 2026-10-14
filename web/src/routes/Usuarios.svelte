@@ -248,47 +248,51 @@
       {#each dados.users as u (u.username)}
         <div class="linha">
           <Avatar pessoa={u} tamanho={36} />
-          <div class="quem">
-            <div class="nome"><strong>{u.name}</strong></div>
-            <div class="muted small login">
-              @{u.username}{u.role === 'admin' ? ' · administrador' : ''}
+          <!-- O nome e o chip: no celular, um embaixo do outro; de 720 px para
+               cima, lado a lado (ver .meio). -->
+          <div class="meio">
+            <div class="quem">
+              <div class="nome"><strong>{u.name}</strong></div>
+              <div class="muted small login">
+                @{u.username}{u.role === 'admin' ? ' · administrador' : ''}
+              </div>
+              <!-- Quem está ativo tem o último acesso no chip, que é o que se
+                   quer saber no dia a dia, e aqui a data em que definiu a senha.
+                   Quem tem link aberto ou vencido tem o link no chip, e aqui o
+                   acesso de antes, se houver. -->
+              {#if u.status === 'active' && u.activeSinceMs}
+                <div class="muted small">
+                  ativo desde <span class="quando">{dataHora(u.activeSinceMs)}</span>
+                </div>
+              {:else if u.status !== 'active' && u.lastAccessMs}
+                <div class="muted small">
+                  último acesso <span class="quando">{hojeOntem(u.lastAccessMs, agora)}</span>
+                </div>
+              {/if}
             </div>
-            <!-- Quem está ativo tem o último acesso no chip, que é o que se
-                 quer saber no dia a dia, e aqui a data em que definiu a senha.
-                 Quem tem link aberto ou vencido tem o link no chip, e aqui o
-                 acesso de antes, se houver. -->
-            {#if u.status === 'active' && u.activeSinceMs}
-              <div class="muted small">
-                ativo desde <span class="quando">{dataHora(u.activeSinceMs)}</span>
-              </div>
-            {:else if u.status !== 'active' && u.lastAccessMs}
-              <div class="muted small">
-                último acesso <span class="quando">{hojeOntem(u.lastAccessMs, agora)}</span>
-              </div>
+            {#if u.status === 'active'}
+              <!-- O ponto verde diz que está ativo. Sem acesso registrado é
+                   quem não usou o dwnvr desde que o último acesso passou a ser
+                   anotado. -->
+              <span class="chip quebra">
+                <span class="dot ok"></span>
+                {#if u.lastAccessMs}
+                  <span
+                    >último acesso <span class="quando">{hojeOntem(u.lastAccessMs, agora)}</span
+                    ></span
+                  >
+                {:else}
+                  <span>nenhum acesso registrado</span>
+                {/if}
+              </span>
+            {:else if u.status === 'invitePending' && u.inviteExpiresAtMs !== undefined && u.inviteExpiresAtMs > agora}
+              <span class="chip mono"
+                ><span class="dot warn"></span>link vence em {falta(u.inviteExpiresAtMs)}</span
+              >
+            {:else}
+              <span class="chip"><span class="dot bad"></span>link vencido</span>
             {/if}
           </div>
-          {#if u.status === 'active'}
-            <!-- O ponto verde diz que está ativo. Sem acesso registrado é
-                 quem não usou o dwnvr desde que o último acesso passou a ser
-                 anotado. -->
-            <span class="chip quebra">
-              <span class="dot ok"></span>
-              {#if u.lastAccessMs}
-                <span
-                  >último acesso <span class="quando">{hojeOntem(u.lastAccessMs, agora)}</span
-                  ></span
-                >
-              {:else}
-                <span>nenhum acesso registrado</span>
-              {/if}
-            </span>
-          {:else if u.status === 'invitePending' && u.inviteExpiresAtMs !== undefined && u.inviteExpiresAtMs > agora}
-            <span class="chip mono"
-              ><span class="dot warn"></span>link vence em {falta(u.inviteExpiresAtMs)}</span
-            >
-          {:else}
-            <span class="chip"><span class="dot bad"></span>link vencido</span>
-          {/if}
           <button
             class="ghost mais"
             onclick={() => (menu = menu === u.username ? null : u.username)}
@@ -485,14 +489,37 @@
     border-bottom: 0;
   }
 
-  .linha .chip {
-    flex: none;
+  /* No celular, o chip é a quarta linha, embaixo do nome, do @usuário e da
+     data: ao lado deles, disputava a largura com o nome e quebrava em duas
+     linhas. De 720 px para cima há largura, e ele volta para a direita. O
+     avatar e o ⋮ ficam no meio da linha nos dois casos. */
+  .meio {
+    flex: 1;
+    min-width: 0;
   }
 
-  /* "último acesso 10/10/2026 14:32" não cabe ao lado do nome no celular: lá
-     o chip quebra antes da data, e o raio deixa de ser de pílula. */
-  .linha .chip.quebra {
-    flex: 0 1 auto;
+  .meio > .chip {
+    display: flex;
+    width: fit-content;
+    margin-top: 4px;
+  }
+
+  @media (min-width: 720px) {
+    .meio {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .meio > .chip {
+      flex: none;
+      margin-top: 0;
+    }
+  }
+
+  /* Em 320 px, nem na linha própria cabe "último acesso ontem 22:47": o chip
+     quebra antes da data, e o raio deixa de ser de pílula. */
+  .chip.quebra {
     white-space: normal;
     border-radius: 12px;
   }
@@ -501,11 +528,9 @@
     white-space: nowrap;
   }
 
-  /* O piso é para o nome não sumir no celular: sem ele, quem cede o espaço é
-     o nome, e não o chip do último acesso, que pode quebrar em duas linhas. */
   .quem {
     flex: 1;
-    min-width: 5em;
+    min-width: 0;
     line-height: 1.3;
   }
 
