@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import type { Segmento } from '../lib/api.ts';
   import { contexto2d } from '../lib/canvas.ts';
@@ -9,10 +10,11 @@
     cam: string;
     segments?: Segmento[];
     currentMs?: number;
+    adiar?: boolean;
     onseek?: (ms: number) => void;
   }
 
-  let { cam, segments = [], currentMs = 0, onseek }: Props = $props();
+  let { cam, segments = [], currentMs = 0, adiar = false, onseek }: Props = $props();
 
   // Quantas miniaturas mostrar. Mais que isso vira desfile de imagens que
   // ninguém consegue distinguir, e cada uma custa um decode.
@@ -79,7 +81,12 @@
   // que o Recordings limpa nessa hora. O `segments` muda de identidade a cada
   // poll do dia de hoje, por isso a chave é o primeiro instante, e não a lista.
   const carga = $derived(`${cam}@${segments[0]?.[0] ?? ''}`);
-  const pedidas = $derived({ carga, instantes: new SvelteSet<number>() });
+  const pedidas = $derived({
+    carga,
+    instantes: new SvelteSet<number>(),
+    // Set comum de propósito: quem dispara a liberação é só o `adiar`.
+    adiadas: new Set<number>(),
+  });
 
   // O slice da janela é novo a cada atualização do currentMs, mas ela só
   // desliza uma vez por segmento: é aí que vale observar os tiles de novo.
@@ -91,11 +98,13 @@
     if (!strip || !janela) return;
     const io = new IntersectionObserver(
       (entradas) => {
-        pedir(
-          entradas
-            .filter((e) => e.isIntersecting)
-            .map((e) => Number((e.target as HTMLElement).dataset['t'])),
-        );
+        const novas: number[] = [];
+        for (const e of entradas) {
+          const t = Number((e.target as HTMLElement).dataset['t']);
+          if (e.isIntersecting) novas.push(t);
+          else pedidas.adiadas.delete(t); // saiu da vista antes da vez dela
+        }
+        pedir(novas);
       },
       { root: strip, rootMargin: `0px ${FOLGA}` },
     );
@@ -109,6 +118,10 @@
   // downloads terminam, e a primeira que importa é a do ativo. A distância é
   // até o segmento, e não até o começo dele, para o ativo valer zero.
   function pedir(novas: number[]) {
+    if (adiar) {
+      for (const t of novas) pedidas.adiadas.add(t);
+      return;
+    }
     const longe = ([s, d]: Segmento) =>
       currentMs < s ? s - currentMs : Math.max(0, currentMs - s - d);
     const fila = tiles
@@ -119,6 +132,20 @@
       pedidas.instantes.add(t);
     }
   }
+
+  // Enquanto o player busca o trecho que vai tocar, a tira não pede nada: o
+  // `priority: 'low'` do thumbs.ts só ordena a fila do navegador, e o que já
+  // saiu divide a banda com o segmento - que precisa chegar inteiro antes do
+  // primeiro quadro. O que entrou na vista nesse meio-tempo fica guardado e
+  // sai junto quando o vídeo já tem o que mostrar.
+  $effect(() => {
+    if (adiar || !pedidas.adiadas.size) return;
+    const fila = [...pedidas.adiadas];
+    pedidas.adiadas.clear();
+    untrack(() => {
+      pedir(fila);
+    });
+  });
 
   // A roda do mouse é vertical; a tira rola na horizontal. Sem esta tradução o
   // navegador rola a página e a tira fica inalcançável para quem não tem trackpad.

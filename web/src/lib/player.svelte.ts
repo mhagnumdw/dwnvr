@@ -42,6 +42,10 @@ export class Player {
   currentMs = $state(0);
   playing = $state(false);
   buffering = $state(false);
+  // Do começo de um seek até a janela à frente estar no buffer, sem o atraso
+  // do `buffering`: é por ele que a tira de miniaturas sabe quando sair da
+  // frente.
+  carregando = $state(false);
   error = $state('');
   rate = $state(1);
 
@@ -124,6 +128,7 @@ export class Player {
     // o portão precisa ser aberto aqui: um dia novo sem gravação nenhuma não
     // chama seek(), e o relógio ficaria mudo para sempre.
     this.#seeking = false;
+    this.carregando = false;
     this.base = 0;
     this.currentMs = 0;
   }
@@ -293,6 +298,7 @@ export class Player {
 
     const gen = ++this.#generation;
     this.#seeking = true;
+    this.carregando = true;
     this.error = '';
     this.#aviso(true);
     // Um seek novo manda em qualquer fronteira que estivesse agendada.
@@ -336,6 +342,19 @@ export class Player {
         this.#aviso(false);
       }
     }
+
+    if (gen === this.#generation) void this.#encherEntaoLiberar(gen);
+  }
+
+  // O pump do seek mede a janela à frente a partir do 0 do MediaSource novo, e
+  // o vídeo só pula para dentro do segmento depois: um clique perto do fim
+  // dele deixa poucos segundos no buffer. A tira só sai da frente quando a
+  // janela estiver cheia a partir de onde o vídeo está. Fica fora do await do
+  // seek, porque quem o espera - a pausa do `paused=1`, a folha da detecção -
+  // quer o primeiro quadro, e não a janela cheia.
+  async #encherEntaoLiberar(gen: number) {
+    if (!this.error) await this.#repump();
+    if (gen === this.#generation) this.carregando = false;
   }
 
   // A geração de init de um segmento, pelo índice que a timeline manda.
