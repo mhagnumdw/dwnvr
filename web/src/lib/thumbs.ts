@@ -174,6 +174,13 @@ async function decodeWithWebCodecs(buf: Uint8Array): Promise<ImageBitmap> {
 
 // --- alternativa com <video> ------------------------------------------------
 
+// No Android o `loadeddata` pode chegar antes de o quadro estar pronto para ser
+// copiado, e o createImageBitmap o recusa com "The image source is not usable".
+// Num Chrome 155 por http (13/10/2026), 9 de 220 miniaturas viravam "-" na
+// tira; tentando de novo, 0 de 276, e a segunda chamada, 50 ms depois, bastou
+// em todas. As esperas seguintes são folga, e a última recusa vale como falha.
+const ESPERAS_DO_QUADRO_MS = [50, 100, 200, 400];
+
 async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>) {
   const url = URL.createObjectURL(new Blob([buf], { type: 'video/mp4' }));
   const v = document.createElement('video');
@@ -202,10 +209,21 @@ async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>) {
         rej(new Error('tempo esgotado'));
       }, 8000);
     });
-    return await createImageBitmap(v);
+    return await quadroDo(v);
   } finally {
     URL.revokeObjectURL(url);
     v.removeAttribute('src');
     v.load();
   }
+}
+
+async function quadroDo(v: HTMLVideoElement) {
+  for (const ms of ESPERAS_DO_QUADRO_MS) {
+    try {
+      return await createImageBitmap(v);
+    } catch {
+      await new Promise((r) => setTimeout(r, ms));
+    }
+  }
+  return createImageBitmap(v);
 }

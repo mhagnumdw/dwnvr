@@ -42,7 +42,7 @@ parte dos recursos. No dwnvr, isso aparece em três lugares:
   para uma conversa. Em `http://` essa folha não existe, e a imagem só é
   baixada.
 - **Miniaturas da timeline.** Em `https://` elas são decodificadas por
-  WebCodecs. Em `http://`, por um `<video>` escondido, que é mais lento.
+  WebCodecs. Em `http://`, por um `<video>` escondido, um pouco mais lento.
 
 **E a senha do dwnvr deixa de passar em claro pela rede.**
 
