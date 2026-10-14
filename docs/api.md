@@ -67,7 +67,8 @@ login do dono, cuja senha está em texto no `dwnvr.yaml`, e o de um usuário que
 não existe pagam a mesma conta, para o tempo de resposta não dizer quem
 existe.
 
-Cada endereço tem um limite de tentativas (ver
+Cada endereço tem um limite de tentativas, ligado por padrão e desligado com
+`server.loginAttemptsPerMinute: 0` (ver
 [Limite de tentativas no login](configuracao.md#limite-de-tentativas-no-login)).
 Passado dele, a resposta é `429`, antes de qualquer conta de senha, com o
 `Retry-After` em segundos e o mesmo número no erro, como em
