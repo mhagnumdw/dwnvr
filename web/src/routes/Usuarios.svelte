@@ -10,7 +10,7 @@
   import type { Convite, Usuario, Usuarios } from '../lib/api.ts';
   import { session } from '../lib/state.svelte.ts';
   import { copiar } from '../lib/navegador.ts';
-  import { dataHora } from '../lib/format.ts';
+  import { dataHora, hojeOntem } from '../lib/format.ts';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import Avatar from '../components/Avatar.svelte';
@@ -43,6 +43,9 @@
   async function carregar() {
     try {
       dados = await api.usuarios();
+      // O "hoje" e o "ontem" do último acesso contam daqui: sem link aberto,
+      // o tique não anda.
+      agora = Date.now();
       erro = '';
     } catch (e) {
       erro = mensagemDe(e);
@@ -227,6 +230,13 @@
               {#if voce === dados.owner.username}<span class="muted small">você</span>{/if}
             </div>
             <div class="muted small">@{dados.owner.username} · administrador</div>
+            {#if voce !== dados.owner.username && dados.owner.lastAccessMs}
+              <div class="muted small">
+                último acesso <span class="quando"
+                  >{hojeOntem(dados.owner.lastAccessMs, agora)}</span
+                >
+              </div>
+            {/if}
           </div>
           {#if voce === dados.owner.username}
             <a class="small" href="#conta">Minha conta</a>
@@ -238,27 +248,51 @@
       {#each dados.users as u (u.username)}
         <div class="linha">
           <Avatar pessoa={u} tamanho={36} />
-          <div class="quem">
-            <div class="nome"><strong>{u.name}</strong></div>
-            <div class="muted small login">
-              @{u.username}{u.role === 'admin' ? ' · administrador' : ''}
+          <!-- O nome e o chip: no celular, um embaixo do outro; de 720 px para
+               cima, lado a lado (ver .meio). -->
+          <div class="meio">
+            <div class="quem">
+              <div class="nome"><strong>{u.name}</strong></div>
+              <div class="muted small login">
+                @{u.username}{u.role === 'admin' ? ' · administrador' : ''}
+              </div>
+              <!-- Quem está ativo tem o último acesso no chip, que é o que se
+                   quer saber no dia a dia, e aqui a data em que definiu a senha.
+                   Quem tem link aberto ou vencido tem o link no chip, e aqui o
+                   acesso de antes, se houver. -->
+              {#if u.status === 'active' && u.activeSinceMs}
+                <div class="muted small">
+                  ativo desde <span class="quando">{dataHora(u.activeSinceMs)}</span>
+                </div>
+              {:else if u.status !== 'active' && u.lastAccessMs}
+                <div class="muted small">
+                  último acesso <span class="quando">{hojeOntem(u.lastAccessMs, agora)}</span>
+                </div>
+              {/if}
             </div>
-          </div>
-          {#if u.status === 'active'}
-            <span class="chip" class:desde={u.activeSinceMs}>
-              <span class="dot ok"></span>
-              <span
-                >ativo{#if u.activeSinceMs}{' '}desde
-                  <span class="quando">{dataHora(u.activeSinceMs)}</span>{/if}</span
+            {#if u.status === 'active'}
+              <!-- O ponto verde diz que está ativo. Sem acesso registrado é
+                   quem não usou o dwnvr desde que o último acesso passou a ser
+                   anotado. -->
+              <span class="chip quebra">
+                <span class="dot ok"></span>
+                {#if u.lastAccessMs}
+                  <span
+                    >último acesso <span class="quando">{hojeOntem(u.lastAccessMs, agora)}</span
+                    ></span
+                  >
+                {:else}
+                  <span>nenhum acesso registrado</span>
+                {/if}
+              </span>
+            {:else if u.status === 'invitePending' && u.inviteExpiresAtMs !== undefined && u.inviteExpiresAtMs > agora}
+              <span class="chip mono"
+                ><span class="dot warn"></span>link vence em {falta(u.inviteExpiresAtMs)}</span
               >
-            </span>
-          {:else if u.status === 'invitePending' && u.inviteExpiresAtMs !== undefined && u.inviteExpiresAtMs > agora}
-            <span class="chip mono"
-              ><span class="dot warn"></span>link vence em {falta(u.inviteExpiresAtMs)}</span
-            >
-          {:else}
-            <span class="chip"><span class="dot bad"></span>link vencido</span>
-          {/if}
+            {:else}
+              <span class="chip"><span class="dot bad"></span>link vencido</span>
+            {/if}
+          </div>
           <button
             class="ghost mais"
             onclick={() => (menu = menu === u.username ? null : u.username)}
@@ -395,8 +429,12 @@
 {/if}
 
 <style>
+  /* A coluna é minmax(0, 1fr), e não a implícita: esta cresce até a largura
+     mínima do conteúdo, e um nome comprido, que não quebra, empurrava a tela
+     para além da largura do celular. Assim o nome corta com reticências. */
   .page {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
     padding: 10px;
     max-width: 900px;
@@ -451,14 +489,37 @@
     border-bottom: 0;
   }
 
-  .linha .chip {
-    flex: none;
+  /* No celular, o chip é a quarta linha, embaixo do nome, do @usuário e da
+     data: ao lado deles, disputava a largura com o nome e quebrava em duas
+     linhas. De 720 px para cima há largura, e ele volta para a direita. O
+     avatar e o ⋮ ficam no meio da linha nos dois casos. */
+  .meio {
+    flex: 1;
+    min-width: 0;
   }
 
-  /* "ativo desde 10/10/2026 14:32" não cabe ao lado do nome no celular: lá o
-     chip quebra antes da data, e o raio deixa de ser de pílula. */
-  .linha .chip.desde {
-    flex: 0 1 auto;
+  .meio > .chip {
+    display: flex;
+    width: fit-content;
+    margin-top: 4px;
+  }
+
+  @media (min-width: 720px) {
+    .meio {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .meio > .chip {
+      flex: none;
+      margin-top: 0;
+    }
+  }
+
+  /* Em 320 px, nem na linha própria cabe "último acesso ontem 22:47": o chip
+     quebra antes da data, e o raio deixa de ser de pílula. */
+  .chip.quebra {
     white-space: normal;
     border-radius: 12px;
   }
@@ -467,11 +528,9 @@
     white-space: nowrap;
   }
 
-  /* O piso é para o nome não sumir no celular: sem ele, quem cede o espaço é
-     o nome, e não o chip do "ativo desde", que pode quebrar em duas linhas. */
   .quem {
     flex: 1;
-    min-width: 5em;
+    min-width: 0;
     line-height: 1.3;
   }
 

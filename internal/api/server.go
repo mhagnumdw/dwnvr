@@ -32,6 +32,8 @@ type Server struct {
 	sessionSecret []byte
 	// usuarios são as pessoas do usuarios.json. O dono vem do cfg.
 	usuarios *usuarios.Cadastro
+	// acessos é o último acesso de cada pessoa, que a sessao anota.
+	acessos *usuarios.Acessos
 	// abertas são as conexões que não voltam a apresentar o cookie (o ao vivo
 	// e o aviso de sessão), para derrubar quem é removido. Ver derrubar.go.
 	abertas conexoes
@@ -61,11 +63,11 @@ type Server struct {
 }
 
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
-	mgr *recorder.Manager, ret *retention.Manager, cad *usuarios.Cadastro, secret []byte,
-	log *slog.Logger) *Server {
+	mgr *recorder.Manager, ret *retention.Manager, cad *usuarios.Cadastro,
+	acessos *usuarios.Acessos, secret []byte, log *slog.Logger) *Server {
 
 	return &Server{cfg: cfg, store: st, client: client, mgr: mgr, ret: ret,
-		usuarios: cad, sessionSecret: secret, log: log, startedAt: time.Now()}
+		usuarios: cad, acessos: acessos, sessionSecret: secret, log: log, startedAt: time.Now()}
 }
 
 // knownCamera evita que um ID arbitrário vindo da URL vire caminho no disco.

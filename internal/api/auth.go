@@ -139,7 +139,11 @@ func (s *Server) tokenPessoa(tok string) (p pessoa, expires int64, ok bool) {
 // passou da metade do prazo, a resposta leva um cookie novo (ver
 // sessionRenew).
 //
-// Não cria estado no servidor: renovar é só assinar outro prazo.
+// É também onde o último acesso da pessoa é anotado: toda requisição
+// autenticada passa por aqui, inclusive o /api/session. A anotação só toca a
+// memória (ver usuarios.Acessos).
+//
+// Não cria estado de sessão no servidor: renovar é só assinar outro prazo.
 func (s *Server) sessao(w http.ResponseWriter, r *http.Request) (pessoa, bool) {
 	c, err := r.Cookie(sessionCookie)
 	if err != nil {
@@ -152,6 +156,7 @@ func (s *Server) sessao(w http.ResponseWriter, r *http.Request) (pessoa, bool) {
 	if time.Until(time.Unix(expires, 0)) < sessionRenew {
 		s.setSessionCookie(w, r, p)
 	}
+	s.acessos.Registrar(p.Usuario)
 	return p, true
 }
 
@@ -244,6 +249,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.setSessionCookie(w, r, p)
+	s.acessos.Registrar(p.Usuario)
 	s.log.Info("login aceito", "usuario", p.Usuario, "de", r.RemoteAddr, encaminhado(r))
 	writeJSON(w, map[string]any{"ok": true, "user": p})
 }

@@ -26,11 +26,38 @@ type usuarioNaTela struct {
 	// Só com a senha definida pelo link, e não em quem a definiu antes de o
 	// campo existir.
 	AtivoDesdeMs int64 `json:"activeSinceMs,omitempty"`
+	// Só de quem já usou o dwnvr depois de o campo existir, em qualquer
+	// situação: quem ganhou link novo continua com o acesso de antes.
+	UltimoAcessoMs int64 `json:"lastAccessMs,omitempty"`
 }
 
-func naTela(u usuarios.Usuario, agora time.Time) usuarioNaTela {
+// donoNaTela é o dono como a tela Usuários o vê. Ele não está no cadastro, e a
+// tela o mostra sem botão nenhum.
+type donoNaTela struct {
+	Usuario        string `json:"username"`
+	Nome           string `json:"name"`
+	Avatar         string `json:"avatar"`
+	UltimoAcessoMs int64  `json:"lastAccessMs,omitempty"`
+}
+
+// ms é o instante em milissegundos, ou 0 para o instante zero, que o
+// omitempty some.
+func ms(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixMilli()
+}
+
+func (s *Server) naTela(u usuarios.Usuario, agora time.Time) usuarioNaTela {
 	v := usuarioNaTela{Usuario: u.Usuario, Nome: u.Nome, Papel: u.Papel, Situacao: u.Situacao(agora),
 		Avatar: u.Avatar}
+	// Acesso de antes da criação da conta é de quem teve o mesmo usuário
+	// antes. O Esquecer do Criar só chega ao disco na gravação seguinte, e uma
+	// queda nesse meio-tempo traria o acesso antigo de volta no boot.
+	if ultimo := s.acessos.Ultimo(u.Usuario); !ultimo.Before(u.CriadoEm) {
+		v.UltimoAcessoMs = ms(ultimo)
+	}
 	if u.Link != nil {
 		v.LinkVenceEmMs = u.Link.VenceEm.UnixMilli()
 	}
@@ -46,8 +73,8 @@ func naTela(u usuarios.Usuario, agora time.Time) usuarioNaTela {
 // conviteNaTela é a resposta de quem gera um link: a pessoa e o token, que só
 // existe nesta resposta. A tela monta o link com o endereço pelo qual o admin
 // está acessando.
-func conviteNaTela(c usuarios.Convite) map[string]any {
-	return map[string]any{"user": naTela(c.Usuario, time.Now()), "token": c.Token}
+func (s *Server) conviteNaTela(c usuarios.Convite) map[string]any {
+	return map[string]any{"user": s.naTela(c.Usuario, time.Now()), "token": c.Token}
 }
 
 // semCadastro recusa o que grava no cadastro quando não há autenticação: sem
@@ -100,11 +127,12 @@ func (s *Server) handleUsuarios(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dono, _ := s.quem(s.cfg.Server.Username)
-	resp["owner"] = map[string]string{"username": dono.Usuario, "name": dono.Nome, "avatar": dono.Avatar}
+	resp["owner"] = donoNaTela{Usuario: dono.Usuario, Nome: dono.Nome, Avatar: dono.Avatar,
+		UltimoAcessoMs: ms(s.acessos.Ultimo(dono.Usuario))}
 	agora := time.Now()
 	lista := []usuarioNaTela{}
 	for _, u := range s.usuarios.Listar() {
-		lista = append(lista, naTela(u, agora))
+		lista = append(lista, s.naTela(u, agora))
 	}
 	resp["users"] = lista
 	writeJSON(w, resp)
@@ -128,8 +156,10 @@ func (s *Server) handleCriarUsuario(w http.ResponseWriter, r *http.Request) {
 		s.recusa(w, "criando o usuário", err)
 		return
 	}
+	// Um login reaproveitado não herda o acesso de quem o teve antes.
+	s.acessos.Esquecer(req.Usuario)
 	s.log.Info("usuário criado pela interface", "usuario", req.Usuario, "por", pessoaDe(r).Usuario)
-	writeJSON(w, conviteNaTela(c))
+	writeJSON(w, s.conviteNaTela(c))
 }
 
 // handleNovoLink gera outro link para a pessoa. A senha dela deixa de valer,
@@ -151,7 +181,7 @@ func (s *Server) handleNovoLink(w http.ResponseWriter, r *http.Request) {
 	}
 	s.derrubarPessoa(req.Usuario, "link novo")
 	s.log.Info("link novo gerado pela interface", "usuario", req.Usuario, "por", pessoaDe(r).Usuario)
-	writeJSON(w, conviteNaTela(c))
+	writeJSON(w, s.conviteNaTela(c))
 }
 
 // handleRemoverUsuario apaga a pessoa e derruba o que ela tem aberto.
@@ -165,6 +195,7 @@ func (s *Server) handleRemoverUsuario(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.derrubarPessoa(usuario, "removido")
+	s.acessos.Esquecer(usuario)
 	s.log.Info("usuário removido pela interface", "usuario", usuario, "por", pessoaDe(r).Usuario)
 	writeJSON(w, map[string]bool{"removed": true})
 }
@@ -246,5 +277,6 @@ func (s *Server) handleConvite(w http.ResponseWriter, r *http.Request) {
 	}
 	s.log.Info("senha definida pelo link", "usuario", u.Usuario, "de", r.RemoteAddr, encaminhado(r))
 	s.setSessionCookie(w, r, p)
+	s.acessos.Registrar(u.Usuario)
 	writeJSON(w, map[string]any{"ok": true, "user": p})
 }

@@ -45,6 +45,17 @@ export function dataHora(ms: number) {
   return `${ddmm(ms)}/${d.getFullYear()} ${hhmm(ms)}`;
 }
 
+// hojeOntem é o instante recente lido de relance: "hoje 08:12", "ontem 22:47",
+// e o completo de dataHora do anteontem para trás.
+export function hojeOntem(ms: number, agora: number) {
+  const ontem = new Date(agora);
+  ontem.setDate(ontem.getDate() - 1);
+  const dia = new Date(ms).toDateString();
+  if (dia === new Date(agora).toDateString()) return `hoje ${hhmm(ms)}`;
+  if (dia === ontem.toDateString()) return `ontem ${hhmm(ms)}`;
+  return dataHora(ms);
+}
+
 // relogioDeFuso escreve um instante no fuso de OUTRA máquina: recebe o epoch em
 // milissegundos e o deslocamento daquele fuso em segundos, e devolve
 // "18/08/2026 18:14:57".
