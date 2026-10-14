@@ -185,9 +185,8 @@
           {#if bitmap}
             <canvas
               {@attach (node: HTMLCanvasElement) => {
-                // Desenhar num canvas do tamanho exibido, e não escalar um
-                // <img>, evita guardar um bitmap 1080p por miniatura na memória
-                // do celular.
+                // O bitmap já vem do thumbs.ts na largura do quadrinho maior;
+                // o canvas, do tamanho exibido, ajusta ao quadrinho de agora.
                 const w = node.clientWidth * (window.devicePixelRatio || 1);
                 const h = node.clientHeight * (window.devicePixelRatio || 1);
                 node.width = w;
@@ -220,6 +219,7 @@
     overscroll-behavior-x: contain;
   }
 
+  /* A largura é a LARGURA_DO_QUADRINHO do thumbs.ts: mudou aqui, mude lá. */
   .tile {
     position: relative;
     flex: 0 0 auto;

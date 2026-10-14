@@ -13,6 +13,24 @@ const cache = new Map<string, Promise<ImageBitmap | null>>();
 const MAX_CACHE = 240; // ~algumas telas de tira; acima disso a RAM do celular sofre
 const MAX_PARALLEL = 3; // decodificações ao mesmo tempo; o download não espera
 
+// Largura do quadrinho maior da tira, em px de CSS: o `.tile` do
+// ThumbStrip.svelte. O de tela estreita é menor, mas o celular girado passa a
+// usar este, e guardar no menor deixaria a miniatura borrada.
+const LARGURA_DO_QUADRINHO = 108;
+
+// O cache guarda o bitmap pronto, sem compressão: 4 bytes por pixel. Na
+// resolução da câmera, uma miniatura 640×360 ocupa ~0,9 MB, e uma 1080p,
+// ~8 MB. Reduzida à largura do quadrinho na densidade da tela, fica em
+// ~0,23 MB num celular de densidade 3, qualquer que seja a câmera. Medido num
+// Chrome 155 em 14/10/2026: reduzir custa de 0,1 a 0,5 ms por miniatura com
+// GPU, contra 4 a 13 ms da decodificação.
+function reduzida(larguraDaFonte: number): ImageBitmapOptions | undefined {
+  const alvo = Math.ceil(LARGURA_DO_QUADRINHO * (window.devicePixelRatio || 1));
+  // Só a largura: a altura segue a proporção da câmera. Ampliar não ganha
+  // nitidez e gasta mais memória que a própria fonte.
+  return larguraDaFonte > alvo ? { resizeWidth: alvo, resizeQuality: 'medium' } : undefined;
+}
+
 interface Tarefa {
   fn: () => Promise<ImageBitmap>;
   resolve: (b: ImageBitmap) => void;
@@ -153,7 +171,7 @@ async function decodeWithWebCodecs(buf: Uint8Array): Promise<ImageBitmap> {
           return;
         }
         done = true;
-        void createImageBitmap(frame)
+        void createImageBitmap(frame, reduzida(frame.displayWidth))
           .then(resolve, reject)
           .finally(() => {
             frame.close();
@@ -218,12 +236,13 @@ async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>) {
 }
 
 async function quadroDo(v: HTMLVideoElement) {
+  const opcoes = reduzida(v.videoWidth);
   for (const ms of ESPERAS_DO_QUADRO_MS) {
     try {
-      return await createImageBitmap(v);
+      return await createImageBitmap(v, opcoes);
     } catch {
       await new Promise((r) => setTimeout(r, ms));
     }
   }
-  return createImageBitmap(v);
+  return createImageBitmap(v, opcoes);
 }
