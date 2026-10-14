@@ -51,7 +51,13 @@ func ms(t time.Time) int64 {
 
 func (s *Server) naTela(u usuarios.Usuario, agora time.Time) usuarioNaTela {
 	v := usuarioNaTela{Usuario: u.Usuario, Nome: u.Nome, Papel: u.Papel, Situacao: u.Situacao(agora),
-		Avatar: u.Avatar, UltimoAcessoMs: ms(s.acessos.Ultimo(u.Usuario))}
+		Avatar: u.Avatar}
+	// Acesso de antes da criação da conta é de quem teve o mesmo usuário
+	// antes. O Esquecer do Criar só chega ao disco na gravação seguinte, e uma
+	// queda nesse meio-tempo traria o acesso antigo de volta no boot.
+	if ultimo := s.acessos.Ultimo(u.Usuario); !ultimo.Before(u.CriadoEm) {
+		v.UltimoAcessoMs = ms(ultimo)
+	}
 	if u.Link != nil {
 		v.LinkVenceEmMs = u.Link.VenceEm.UnixMilli()
 	}

@@ -132,25 +132,28 @@ func TestSemAutenticacaoNaoHaCadastro(t *testing.T) {
 	}
 }
 
+// acessoNaTela é o lastAccessMs da pessoa no GET /api/usuarios, pedido pelo
+// admin, ou nil se não veio.
+func acessoNaTela(t *testing.T, s *Server, usuario string) any {
+	t.Helper()
+	_, resp := pedirComo(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
+	lista, _ := resp["users"].([]any)
+	for _, u := range lista {
+		if m, _ := u.(map[string]any); m["username"] == usuario {
+			return m["lastAccessMs"]
+		}
+	}
+	t.Fatalf("%s fora da lista: %v", usuario, resp)
+	return nil
+}
+
 // O último acesso: qualquer requisição com sessão o anota, a tela Usuários o
 // mostra, e remover a pessoa o apaga.
 func TestUltimoAcessoNaTelaUsuarios(t *testing.T) {
 	s, _ := testServer(t)
 	comAutenticacao(t, s, maria)
 
-	daMaria := func() any {
-		_, resp := pedirComo(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
-		lista, _ := resp["users"].([]any)
-		for _, u := range lista {
-			if m, _ := u.(map[string]any); m["username"] == "maria" {
-				return m["lastAccessMs"]
-			}
-		}
-		t.Fatalf("maria fora da lista: %v", resp)
-		return nil
-	}
-
-	if got := daMaria(); got != nil {
+	if got := acessoNaTela(t, s, "maria"); got != nil {
 		t.Errorf("antes de ela usar o dwnvr, lastAccessMs=%v", got)
 	}
 
@@ -158,7 +161,7 @@ func TestUltimoAcessoNaTelaUsuarios(t *testing.T) {
 	if rec, _ := pedirComo(t, s, "maria", http.MethodGet, "/api/session", nil); rec.Code != http.StatusOK {
 		t.Fatalf("sessão da maria: status %d", rec.Code)
 	}
-	got, _ := daMaria().(float64)
+	got, _ := acessoNaTela(t, s, "maria").(float64)
 	if int64(got) < antes || int64(got) > time.Now().UnixMilli() {
 		t.Errorf("depois de ela usar, lastAccessMs=%v, esperava entre %d e agora", got, antes)
 	}
@@ -174,6 +177,38 @@ func TestUltimoAcessoNaTelaUsuarios(t *testing.T) {
 	}
 	if got := s.acessos.Ultimo("maria"); !got.IsZero() {
 		t.Errorf("depois de remover, o acesso da maria ficou: %v", got)
+	}
+}
+
+// O acessos.json que o boot lê pode ter o acesso de quem teve o mesmo usuário
+// antes, se o dwnvr caiu antes de gravar o Esquecer. Acesso de antes da
+// criação da conta não aparece; o da pessoa nova, sim.
+func TestAcessoDeAntesDaContaNaoAparece(t *testing.T) {
+	s, _ := testServer(t)
+	criada := time.Now().Truncate(time.Second)
+	nova := maria
+	nova.CriadoEm = criada
+	comAutenticacao(t, s, nova)
+
+	antigo := criada.Add(-time.Hour).Format(time.RFC3339)
+	if err := os.WriteFile(s.cfg.AcessosPath(), []byte(`{"lastAccess":{"maria":"`+antigo+`"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	acessos, err := usuarios.AbrirAcessos(s.cfg.AcessosPath(), s.log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.acessos = acessos
+
+	if got := acessoNaTela(t, s, "maria"); got != nil {
+		t.Errorf("acesso de antes da conta apareceu: lastAccessMs=%v", got)
+	}
+
+	if rec, _ := pedirComo(t, s, "maria", http.MethodGet, "/api/session", nil); rec.Code != http.StatusOK {
+		t.Fatalf("sessão da maria: status %d", rec.Code)
+	}
+	if got := acessoNaTela(t, s, "maria"); got == nil {
+		t.Error("o acesso da maria nova não apareceu")
 	}
 }
 
