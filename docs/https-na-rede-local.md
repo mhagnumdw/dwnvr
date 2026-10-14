@@ -324,6 +324,15 @@ Nada muda. As URLs da tela são relativas, e o WebSocket do ao vivo passa a
 `wss://` sozinho. O Caddy avisa que a conexão chegou por HTTPS
 (`X-Forwarded-Proto`), e com isso o cookie de sessão sai `Secure`.
 
+O Caddy também diz ao dwnvr o endereço de quem abriu a tela
+(`X-Forwarded-For`), e é por ele que o login conta as tentativas de cada
+aparelho (ver
+[Limite de tentativas no login](configuracao.md#limite-de-tentativas-no-login)).
+O dwnvr aceita esse header porque o Caddy chega pela rede do compose, que está
+no `trustedProxies` padrão. O Caddy descarta o header que o aparelho mandar
+(conferido com o 2.11.7), então ninguém escapa do limite inventando um
+endereço.
+
 A mídia do WebRTC continua indo direto do navegador para a porta 8555 do
 go2rtc, fora do Caddy, como antes (ver
 [§O ao vivo e a porta 8555](acesso-remoto.md#o-ao-vivo-e-a-porta-8555)).

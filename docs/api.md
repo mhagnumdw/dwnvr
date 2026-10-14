@@ -65,8 +65,17 @@ Toda tentativa custa uma conta de senha de 0,77 s num Orange Pi Zero 3
 tentativas simultâneas não ocupam os núcleos da gravação, só esperam a vez. O
 login do dono, cuja senha está em texto no `dwnvr.yaml`, e o de um usuário que
 não existe pagam a mesma conta, para o tempo de resposta não dizer quem
-existe. Não há limite de tentativas
-([TODO](TODO/TODO_limite-de-tentativas-no-login.md)).
+existe.
+
+Cada endereço tem um limite de tentativas, ligado por padrão e desligado com
+`server.loginAttemptsPerMinute: 0` (ver
+[Limite de tentativas no login](configuracao.md#limite-de-tentativas-no-login)).
+Passado dele, a resposta é `429`, antes de qualquer conta de senha, com o
+`Retry-After` em segundos e o mesmo número no erro, como em
+`{"error": "muitas tentativas; tente de novo em 30 s"}`. O número é o que
+falta para a próxima tentativa passar: depende do `loginAttemptsPerMinute` e
+diminui com o tempo. A tentativa recusada assim não conta: insistir durante a
+espera não a estica.
 
 ### O cookie
 

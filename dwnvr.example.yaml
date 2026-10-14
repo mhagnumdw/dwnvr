@@ -17,6 +17,16 @@ server:
   # username: admin
   # password: troque-me
 
+  # Limite de tentativas de login por endereço: 5 seguidas e, depois, este
+  # tanto por minuto. 0 desliga; o aceito vai de 0 a 12. Ver
+  # docs/configuracao.md, "Limite de tentativas no login".
+  # loginAttemptsPerMinute: 2
+
+  # Os proxies cujo X-Forwarded-For diz o endereço de verdade de quem tenta o
+  # login. O padrão cobre o `tailscale serve` e o Caddy do compose; mude só se
+  # o seu proxy chega ao dwnvr por outra rede. [] não confia em ninguém.
+  # trustedProxies: [127.0.0.0/8, "::1/128", 172.16.0.0/12]
+
 go2rtc:
   # O dwnvr apenas consome o go2rtc; configurá-lo continua sendo tarefa sua.
   #

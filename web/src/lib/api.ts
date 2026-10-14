@@ -47,6 +47,19 @@ export class ApiError extends Error {
   }
 }
 
+// MuitasTentativas é o 429 do login: o endereço passou do limite de
+// tentativas, e a próxima só passa daqui a `segundos` (o Retry-After).
+export class MuitasTentativas extends ApiError {
+  readonly segundos: number;
+
+  constructor(segundos: number) {
+    super('muitas tentativas', 429);
+    // Sem o header, ou com lixo nele, espera o mínimo: o servidor recusa de
+    // novo se ainda for cedo, e manda o número certo.
+    this.segundos = Number.isFinite(segundos) && segundos > 0 ? Math.ceil(segundos) : 1;
+  }
+}
+
 // mensagemDe tira o texto de um erro qualquer, para a tela: o `catch` do
 // TypeScript recebe `unknown`, porque em JavaScript dá para lançar qualquer
 // coisa.
@@ -71,6 +84,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });
+    if (res.status === 429) throw new MuitasTentativas(Number(res.headers.get('Retry-After')));
     if (!res.ok) throw new ApiError('usuário ou senha inválidos', res.status);
     return (await res.json()) as ComPessoa;
   },

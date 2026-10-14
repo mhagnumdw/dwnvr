@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -218,6 +219,9 @@ func (s *Server) exigir(admin bool, next http.HandlerFunc) http.HandlerFunc {
 // dwnvr.yaml, e a de um usuário que não existe. Assim o tempo de resposta não
 // diz quem existe nem quem é o dono.
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if !s.limitarLogin(w, r) {
+		return
+	}
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -252,6 +256,30 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.acessos.Registrar(p.Usuario)
 	s.log.Info("login aceito", "usuario", p.Usuario, "de", r.RemoteAddr, encaminhado(r))
 	writeJSON(w, map[string]any{"ok": true, "user": p})
+}
+
+// limitarLogin conta a tentativa no limite do endereço e, passado dele,
+// responde 429 com o Retry-After em segundos. Vem antes de tudo, inclusive de
+// ler o corpo: a conta da senha é o que o limite poupa. Conta toda tentativa,
+// a certa também, porque só depois da conta se sabe se ela era a certa.
+func (s *Server) limitarLogin(w http.ResponseWriter, r *http.Request) bool {
+	if s.limiteLogin == nil {
+		return true
+	}
+	cliente := clienteDe(r, s.proxies)
+	res := s.limiteLogin.Permite(cliente.String())
+	if res.Permitido {
+		return true
+	}
+	// Arredondado para cima: com 0 s a tela tentaria de novo cedo demais.
+	seg := int((res.Espera + time.Second - 1) / time.Second)
+	if res.PrimeiraRecusa {
+		s.log.Warn("limite de tentativas de login atingido", "cliente", cliente, "espera_s", seg,
+			"de", r.RemoteAddr, encaminhado(r))
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(seg))
+	writeError(w, http.StatusTooManyRequests, fmt.Sprintf("muitas tentativas; tente de novo em %d s", seg))
+	return false
 }
 
 // handleLogout apaga o cookie. Só vira log com uma sessão válida: sem ela não
