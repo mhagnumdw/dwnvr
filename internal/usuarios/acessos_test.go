@@ -116,6 +116,34 @@ func TestGravacaoFicaParaOTimer(t *testing.T) {
 	}
 }
 
+// A gravação que falha agenda outra tentativa sozinha: sem isso, ela
+// esperaria o próximo acesso, e sem acesso ficaria para o desligamento.
+func TestGravacaoQueFalhaTentaDeNovo(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "config") // ainda não existe
+	caminho := filepath.Join(dir, "acessos.json")
+	agora := time.Now()
+	a := acessosEm(t, dir, &agora)
+
+	a.Registrar("maria")
+	a.espera = 20 * time.Millisecond
+	if err := a.GravarPendente(); err == nil {
+		t.Fatal("gravou num diretório que não existe")
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	prazo := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(caminho); err == nil {
+			break
+		}
+		if time.Now().After(prazo) {
+			t.Fatal("depois da falha, nenhuma tentativa gravou o acessos.json")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func TestEsquecerApagaOAcesso(t *testing.T) {
 	dir := t.TempDir()
 	agora := time.Now()

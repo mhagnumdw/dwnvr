@@ -130,7 +130,9 @@ func (a *Acessos) agendar() {
 
 // GravarPendente grava no acessos.json o que a memória tem de novo, se tiver.
 // Roda no timer e no desligamento. Se a gravação falhar, o pendente continua
-// marcado, e a próxima mudança agenda outra tentativa.
+// marcado e outra tentativa fica agendada, sem esperar o próximo acesso: sem
+// acesso, o que falhou só iria para o disco no desligamento, e uma queda de
+// energia perderia mais que a espera.
 func (a *Acessos) GravarPendente() error {
 	a.gravando.Lock()
 	defer a.gravando.Unlock()
@@ -155,7 +157,7 @@ func (a *Acessos) GravarPendente() error {
 	}
 	if err != nil {
 		a.mu.Lock()
-		a.pendente = true
+		a.agendar()
 		a.mu.Unlock()
 	}
 	return err
