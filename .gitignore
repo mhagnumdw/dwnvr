@@ -2,6 +2,10 @@
 dwnvr.yaml
 cameras.json
 .session-secret
+# As pessoas: senhas em hash, fotos e último acesso.
+usuarios.json
+avatares/
+acessos.json
 
 # Configuração local do go2rtc. Versionado só o .example: o arquivo real leva
 # as URLs RTSP das câmeras, com usuário e senha embutidos.

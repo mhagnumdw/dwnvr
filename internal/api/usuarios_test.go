@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -128,6 +129,66 @@ func TestSemAutenticacaoNaoHaCadastro(t *testing.T) {
 	}
 	if rec, resp := pedirComo(t, s, "", http.MethodGet, "/api/usuarios", nil); rec.Code != http.StatusOK || resp["authRequired"] != false {
 		t.Errorf("listar sem autenticação: status %d, %s", rec.Code, rec.Body)
+	}
+}
+
+// O último acesso: qualquer requisição com sessão o anota, a tela Usuários o
+// mostra, e remover a pessoa o apaga.
+func TestUltimoAcessoNaTelaUsuarios(t *testing.T) {
+	s, _ := testServer(t)
+	comAutenticacao(t, s, maria)
+
+	daMaria := func() any {
+		_, resp := pedirComo(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
+		lista, _ := resp["users"].([]any)
+		for _, u := range lista {
+			if m, _ := u.(map[string]any); m["username"] == "maria" {
+				return m["lastAccessMs"]
+			}
+		}
+		t.Fatalf("maria fora da lista: %v", resp)
+		return nil
+	}
+
+	if got := daMaria(); got != nil {
+		t.Errorf("antes de ela usar o dwnvr, lastAccessMs=%v", got)
+	}
+
+	antes := time.Now().Truncate(time.Second).UnixMilli()
+	if rec, _ := pedirComo(t, s, "maria", http.MethodGet, "/api/session", nil); rec.Code != http.StatusOK {
+		t.Fatalf("sessão da maria: status %d", rec.Code)
+	}
+	got, _ := daMaria().(float64)
+	if int64(got) < antes || int64(got) > time.Now().UnixMilli() {
+		t.Errorf("depois de ela usar, lastAccessMs=%v, esperava entre %d e agora", got, antes)
+	}
+
+	// O admin que lista também acabou de usar: o dono vem com o dele.
+	_, resp := pedirComo(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
+	if dono, _ := resp["owner"].(map[string]any); dono["lastAccessMs"] == nil {
+		t.Errorf("o dono veio sem lastAccessMs: %v", resp["owner"])
+	}
+
+	if rec, _ := pedirComo(t, s, "admin", http.MethodDelete, "/api/usuarios?username=maria", nil); rec.Code != http.StatusOK {
+		t.Fatalf("remover: status %d, %s", rec.Code, rec.Body)
+	}
+	if got := s.acessos.Ultimo("maria"); !got.IsZero() {
+		t.Errorf("depois de remover, o acesso da maria ficou: %v", got)
+	}
+}
+
+// Com a autenticação desligada não há de quem anotar o acesso, e nenhum
+// arquivo nasce.
+func TestSemAutenticacaoNaoHaUltimoAcesso(t *testing.T) {
+	s, _ := testServer(t)
+	if rec, _ := pedirComo(t, s, "", http.MethodGet, "/api/cameras", nil); rec.Code != http.StatusOK {
+		t.Fatalf("câmeras sem autenticação: status %d", rec.Code)
+	}
+	if err := s.acessos.GravarPendente(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(s.cfg.AcessosPath()); !os.IsNotExist(err) {
+		t.Errorf("acessos.json criado sem autenticação (stat: %v)", err)
 	}
 }
 

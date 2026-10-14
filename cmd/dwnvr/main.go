@@ -139,9 +139,14 @@ func run(log *slog.Logger, cfgPath string) error {
 			"arquivo", cfg.UsuariosPath(), "usuarios", cad.Quantos())
 	}
 
+	acessos, err := usuarios.AbrirAcessos(cfg.AcessosPath(), log)
+	if err != nil {
+		log.Warn("últimos acessos ilegíveis; recomeçam vazios", "erro", err)
+	}
+
 	srv := &http.Server{
 		Addr:    cfg.Server.Listen,
-		Handler: api.New(cfg, st, client, mgr, ret, cad, secret, log).Handler(),
+		Handler: api.New(cfg, st, client, mgr, ret, cad, acessos, secret, log).Handler(),
 		// Sem WriteTimeout: exportação e proxy de live são respostas longas por
 		// natureza, e um teto aqui as cortaria no meio.
 		ReadHeaderTimeout: 10 * time.Second,
@@ -162,6 +167,12 @@ func run(log *slog.Logger, cfgPath string) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+
+	// Sem requisição nova, o que os últimos minutos anotaram vai para o disco
+	// agora, e não se perde no reinício.
+	if err := acessos.GravarPendente(); err != nil {
+		log.Error("gravando os últimos acessos", "arquivo", cfg.AcessosPath(), "erro", err)
+	}
 
 	// Stop espera cada segmento em aberto ser fechado e indexado. Sem isso,
 	// todo reinício perderia o último minuto de cada câmera.

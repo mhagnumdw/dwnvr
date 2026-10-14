@@ -284,12 +284,14 @@ export interface Usuario {
   inviteExpiresAtMs?: number;
   createdAtMs?: number;
   activeSinceMs?: number;
+  // Só de quem já usou o dwnvr depois de o campo existir.
+  lastAccessMs?: number;
 }
 
 // Sem autenticação ligada não há cadastro: vem sem `owner` e com a lista vazia.
 export interface Usuarios {
   authRequired: boolean;
-  owner?: { username: string; name: string; avatar: string };
+  owner?: { username: string; name: string; avatar: string; lastAccessMs?: number };
   users: Usuario[];
   inviteValidityMs: number;
   maxNameLength: number;
