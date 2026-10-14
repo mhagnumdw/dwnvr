@@ -18,7 +18,7 @@ server:
   # password: troque-me
 
   # Limite de tentativas de login por endereço: 5 seguidas e, depois, este
-  # tanto por minuto. 0 desliga; o aceito vai de 0 a 60. Ver
+  # tanto por minuto. 0 desliga; o aceito vai de 0 a 12. Ver
   # docs/configuracao.md, "Limite de tentativas no login".
   # loginAttemptsPerMinute: 2
 

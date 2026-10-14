@@ -38,9 +38,9 @@ var (
 	faixaSensibilidade = Faixa{Min: detect.NivelMin, Max: detect.NivelMax}
 
 	// FaixaLoginAttemptsPerMinute: zero desliga o limite. Cada tentativa custa
-	// uma conta de senha inteira (0,77 s de CPU num Orange Pi Zero 3), e 60
-	// por minuto de um só endereço já ocupam boa parte de um núcleo.
-	FaixaLoginAttemptsPerMinute = Faixa{Min: 0, Max: 60, Unidade: "por minuto"}
+	// uma conta de senha inteira (0,77 s de CPU num Orange Pi Zero 3). 12 por
+	// minuto, uma a cada 5 s, já é muito para quem digita a senha.
+	FaixaLoginAttemptsPerMinute = Faixa{Min: 0, Max: 12, Unidade: "por minuto"}
 )
 
 // LoginAttemptsPerMinutePadrao: depois da rajada, uma tentativa a cada 30 s.

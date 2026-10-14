@@ -292,8 +292,8 @@ server:
 		}
 	}
 
-	if _, avisos := carregaAvisosDe(t, "server:\n  loginAttemptsPerMinute: 61\n"); len(avisos) != 1 {
-		t.Errorf("61 por minuto: avisos %+v, esperava 1", avisos)
+	if _, avisos := carregaAvisosDe(t, "server:\n  loginAttemptsPerMinute: 13\n"); len(avisos) != 1 {
+		t.Errorf("13 por minuto: avisos %+v, esperava 1", avisos)
 	}
 }
 

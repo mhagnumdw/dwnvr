@@ -232,7 +232,7 @@ testa senhas sem parar: cada tentativa custa 0,77 s de CPU num Orange Pi Zero 3
 (ver [O login](api.md#o-login)), e sem limite isso ocupa um núcleo o tempo
 todo, e o login de quem é da casa espera atrás.
 
-`0` desliga o limite. O aceito vai de 0 a 60 por minuto.
+`0` desliga o limite. O aceito vai de 0 a 12 por minuto.
 
 O limite é **por endereço**, e não por usuário: por usuário, qualquer um que
 alcance a tela travaria o login do dono só errando a senha dele de propósito.
