@@ -2,6 +2,51 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.9.0](https://github.com/mhagnumdw/dwnvr/compare/v0.8.0...v0.9.0) (2026-10-15)
+
+### Added
+
+- feat(api): limite de tentativas no login ([#21](https://github.com/mhagnumdw/dwnvr/pull/21)) ([b76c6e20](https://github.com/mhagnumdw/dwnvr/commit/b76c6e2020008fa530d18c35d0c2407e4cff9d70))
+- feat: mostra o último acesso de cada pessoa na tela Usuários ([#22](https://github.com/mhagnumdw/dwnvr/pull/22)) ([878596f3](https://github.com/mhagnumdw/dwnvr/commit/878596f3c2da6f35f70c5608856bcad926e51961))
+- feat(web): avisa quando a tela aberta ficou desatualizada ([d820871d](https://github.com/mhagnumdw/dwnvr/commit/d820871db904f425196118af4f6a66fb0d90645a))
+- feat(web): tela cheia no vídeo da detecção ([aee3d81a](https://github.com/mhagnumdw/dwnvr/commit/aee3d81aeef7457a09034bb3a50aa918f0473399))
+- feat(web): botão de tela cheia em cada câmera do Ao vivo ([bf60a809](https://github.com/mhagnumdw/dwnvr/commit/bf60a80967bc33770874d4ba6a3e976f73dd50b4))
+- feat(web): tela cheia no Ao vivo, trocando de câmera ([133d69ec](https://github.com/mhagnumdw/dwnvr/commit/133d69ecf5e94ba283185e4f8373cbfb61d6f712))
+- feat(web): tela cheia nas gravações ([ec38a317](https://github.com/mhagnumdw/dwnvr/commit/ec38a3179bd70794e15c880e09f10cbea0d4fcac))
+- feat(web): botão de câmeras mostra as marcadas do total ([03bb8394](https://github.com/mhagnumdw/dwnvr/commit/03bb83942591a60eea886e83b006a2dd0f2c55aa))
+- feat(api): login aceito e logout vão para o log, com o endereço de origem ([5d131f5a](https://github.com/mhagnumdw/dwnvr/commit/5d131f5aff930834d0f8ecbbbfc92121f17e2815))
+- feat(web): login diz o que fazer quando a senha é esquecida ([9a260057](https://github.com/mhagnumdw/dwnvr/commit/9a260057a5f9e141bfa6394fb8766e107e9bf7c5))
+
+### Fixed
+
+- fix(web): troca de câmera nas gravações não fica mais em tela preta ([#25](https://github.com/mhagnumdw/dwnvr/pull/25)) ([2a056631](https://github.com/mhagnumdw/dwnvr/commit/2a0566314d14607df9f7635e805d6d2fa3504b9d))
+- fix(web): miniaturas das gravações não ficam mais sem imagem por http ([a1f77018](https://github.com/mhagnumdw/dwnvr/commit/a1f77018e0e8214c79376f2ef72af59d40e6504c))
+- fix(web): vídeo das gravações fica na câmera escolhida mesmo trocando rápido ([fa1d4da6](https://github.com/mhagnumdw/dwnvr/commit/fa1d4da60d1c01386aec9cc79a7cb8c12320e31f))
+- fix(store): trecho que cruza a meia-noite não perde mais o que vem depois dela ([5e1529f5](https://github.com/mhagnumdw/dwnvr/commit/5e1529f5bd95ff8c8536631b34c7bae663cbdaec))
+- fix(web): miniaturas com erro ao trocar de câmera nas Gravações ([cecd43f8](https://github.com/mhagnumdw/dwnvr/commit/cecd43f8acdcfdc61fef0307a40bf4f259b01210))
+- fix(api): exportação pela API limitada a 10 minutos ([d77756d7](https://github.com/mhagnumdw/dwnvr/commit/d77756d76fd76dd2f1370625df6b04f7709322d5))
+- fix(recorder): gravação aparecia pequena, num canto, em alguns celulares ([730f5329](https://github.com/mhagnumdw/dwnvr/commit/730f5329e249ae273f1f63484cf53142edcc0264))
+- fix(web): score da detecção sempre fora da caixa ([894820bb](https://github.com/mhagnumdw/dwnvr/commit/894820bbb3d345e6f51afadd171bb24969521bf9))
+- fix(web): folha da detecção abre no meio da tela no celular ([b0056691](https://github.com/mhagnumdw/dwnvr/commit/b0056691f9ccc00624f8097dec279ef6abe8b1fe))
+- fix(web): menu ⋮ do Ao vivo aparece inteiro no celular ([20fb788d](https://github.com/mhagnumdw/dwnvr/commit/20fb788def2037624a0f9035aceb703f57e0332f))
+
+### Performance
+
+- perf(web): miniaturas das gravações ocupam bem menos memória ([#24](https://github.com/mhagnumdw/dwnvr/pull/24)) ([73303c75](https://github.com/mhagnumdw/dwnvr/commit/73303c753408fcd6e7a1e85cfd59dc1c37bb1974))
+- perf(web): gravação carrega antes das miniaturas ([#23](https://github.com/mhagnumdw/dwnvr/pull/23)) ([ec67568c](https://github.com/mhagnumdw/dwnvr/commit/ec67568c89d4a1d609eb654a9a3b51df2e5b4ce8))
+- perf(web): miniaturas das gravações aparecem primeiro onde se está olhando ([ba53fa5a](https://github.com/mhagnumdw/dwnvr/commit/ba53fa5a8c74af0df195b0d21cf8fe519962e2c5))
+- perf(store): miniaturas e vídeos das gravações sem reler o dia inteiro ([d7d7c1c4](https://github.com/mhagnumdw/dwnvr/commit/d7d7c1c47fc90725b9ef63c4e1e3e92d7532e003))
+
+### Changed
+
+- refactor(web): interface em TypeScript ([6f5aac81](https://github.com/mhagnumdw/dwnvr/commit/6f5aac8108e11e50e888545086ba8e27c80a2e4d))
+
+### CI/Build
+
+- ci: commit da tela sem o build refeito é recusado ([6e432ae3](https://github.com/mhagnumdw/dwnvr/commit/6e432ae333f4a6e03c00b5333e3ba4582259b052))
+- build(deps): bump source-map-js from 1.2.1 to 1.2.2 in /web ([80dd2c48](https://github.com/mhagnumdw/dwnvr/commit/80dd2c48df6fc850e1460c42e902864a84a9e231))
+- ci: Prettier formata o web/ a cada commit ([165bb0f3](https://github.com/mhagnumdw/dwnvr/commit/165bb0f3e6ab329985a113e98b2c1c3bd4d58624))
+
 ## [v0.8.0](https://github.com/mhagnumdw/dwnvr/compare/v0.7.0...v0.8.0) (2026-10-10)
 
 ### Pede ação ao atualizar
