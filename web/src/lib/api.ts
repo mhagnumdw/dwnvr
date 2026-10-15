@@ -20,16 +20,31 @@ export function setUnauthorizedHandler(fn: () => void) {
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch('api/' + path, opts);
+  await conferir(res);
+  return (await res.json()) as T;
+}
 
+// midia baixa um pedaço de gravação para o player. Passa pelo mesmo conferir()
+// do request(): o corpo de um erro não pode chegar ao SourceBuffer como vídeo.
+export async function midia(url: string, signal: AbortSignal) {
+  const res = await fetch(url, { signal });
+  await conferir(res);
+  return res.arrayBuffer();
+}
+
+// conferir lança o erro de uma resposta antes que alguém leia o corpo. A
+// mensagem é a do JSON da API; quando o corpo é outra coisa - o texto do
+// http.ServeFile, o HTML de um proxy com o dwnvr reiniciando - fica o status,
+// porque o statusText vem vazio no HTTP/2 e uma mensagem vazia some da tela.
+async function conferir(res: Response) {
   if (res.status === 401) {
     onUnauthorized();
     throw new ApiError('sessão expirada', 401);
   }
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(body.error ?? res.statusText, res.status);
+    throw new ApiError(body.error ?? `o servidor respondeu ${res.status}`, res.status);
   }
-  return (await res.json()) as T;
 }
 
 // json lê a resposta de um fetch feito à parte, sem o request(): o público e o
