@@ -8,7 +8,7 @@
 // A referência de tempo é o relógio de parede: `base` é o instante real que
 // corresponde a currentTime=0. Assim "pular para 14:32" vira uma conta.
 
-import { mediaURL, mensagemDe } from './api.ts';
+import { mediaURL, mensagemDe, midia } from './api.ts';
 import type { Segmento } from './api.ts';
 
 // Quanto manter bufferizado à frente e atrás. À frente cobre a latência do
@@ -430,8 +430,7 @@ export class Player {
     const cached = this.#mimes.get(gen);
     if (cached) return cached;
 
-    const res = await fetch(mediaURL.init(this.#cam, gen), { signal });
-    const buf = new Uint8Array(await res.arrayBuffer());
+    const buf = new Uint8Array(await midia(mediaURL.init(this.#cam, gen), signal));
     const at = (o: number) => String.fromCharCode(...buf.subarray(o, o + 4));
     const map: Readonly<Record<string, string>> = {
       hev1: 'hev1.1.6.L153.B0',
@@ -553,7 +552,7 @@ export class Player {
     // timestampOffset do antigo.
     const ms = this.#ms;
     const sb = this.#sb;
-    const buf = await fetch(url, { signal }).then((r) => r.arrayBuffer());
+    const buf = await midia(url, signal);
     if (!sb || this.#sb !== sb || ms?.readyState !== 'open') return;
     if (offset !== null) sb.timestampOffset = offset;
     await new Promise<void>((res, rej) => {
