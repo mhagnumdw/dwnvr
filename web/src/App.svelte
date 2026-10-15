@@ -16,7 +16,7 @@
     sessaoCaiu,
     RELEASES_URL,
   } from './lib/state.svelte.ts';
-  import { rota, ROTA_PADRAO, corrigirRota, linkDaTela } from './lib/rota.svelte.ts';
+  import { rota, ROTA_PADRAO, corrigirRota, linkDaTela, cena } from './lib/rota.svelte.ts';
   import { appInstalado, copiar } from './lib/navegador.ts';
   import { telaNova, vigiarVersaoDaTela } from './lib/versao-tela.svelte.ts';
   import { setUnauthorizedHandler } from './lib/api.ts';
@@ -186,11 +186,22 @@
   let copiouTela = $state('');
   let timerCopiou: number | undefined;
 
+  // A cena em palavras vai no título - o assunto do e-mail - e no texto, que o
+  // WhatsApp manda junto do link. Tela sem cena fica com o título da aba.
+  // Copiar leva só o link: quem cola espera um link.
+  //
+  // Com a cena, o link vai dentro do texto, numa linha própria, e não no campo
+  // `url`: o Chrome do Android junta texto e url com um espaço, e o link
+  // grudava no fim da frase. O WhatsApp acha o link no texto e monta a prévia
+  // do mesmo jeito.
   async function compartilharTela() {
     const url = linkDaTela();
     if (typeof navigator.share === 'function') {
+      const dados: ShareData = cena.texto
+        ? { title: `dwnvr · ${cena.texto}`, text: `${cena.texto}\n${url}` }
+        : { title: titulo, url };
       try {
-        await navigator.share({ title: 'dwnvr', url });
+        await navigator.share(dados);
       } catch {
         // Cancelar o menu do sistema também cai aqui. Nada a fazer.
       }
@@ -317,11 +328,11 @@
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <path d="M12 3v12" />
-                <path d="m7.5 7.5 4.5-4.5 4.5 4.5" />
-                <path
-                  d="M8 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2"
-                />
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <path d="m8.59 13.51 6.83 3.98" />
+                <path d="m15.41 6.51-6.82 3.98" />
               </svg>
             </button>
             {#if copiouTela}<span class="copiou" role="status">{copiouTela}</span>{/if}

@@ -50,6 +50,11 @@ export const rota = $state({
   hash: location.hash,
 });
 
+// cena diz em palavras o que a tela mostra ("frente, 14/10 às 04:48:05"), para
+// o texto do compartilhar. Só as telas que mostram uma cena preenchem; a troca
+// de tela zera, para o texto de uma não sair no link da outra.
+export const cena = $state({ texto: '' });
+
 // paramsAtuais lê a query de agora. As telas chamam uma vez, na inicialização:
 // a URL é a fonte da PRIMEIRA leitura, e daí em diante quem manda é o estado da
 // tela, que escreve de volta.
@@ -147,6 +152,7 @@ addEventListener('hashchange', () => {
   clearTimeout(timer);
   timer = undefined;
   pendente = null;
+  cena.texto = '';
 
   rota.id = partes(location.hash).id;
   rota.hash = location.hash;

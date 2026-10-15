@@ -38,6 +38,13 @@ export function ddmm(ms: number) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
 }
 
+// diaCurto é o dia para uma mensagem que fica guardada: "14/10", e com o ano
+// só quando não é o deste ano. Nunca "ontem", que amanhã já é mentira.
+export function diaCurto(ms: number, agora = Date.now()) {
+  const ano = new Date(ms).getFullYear();
+  return ano === new Date(agora).getFullYear() ? ddmm(ms) : `${ddmm(ms)}/${ano}`;
+}
+
 // dataHora é o instante completo, "10/10/2026 14:32", para o que pode ter
 // acontecido há meses.
 export function dataHora(ms: number) {
