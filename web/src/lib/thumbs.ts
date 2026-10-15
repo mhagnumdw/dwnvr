@@ -24,8 +24,8 @@ const LARGURA_DO_QUADRINHO = 108;
 // ~0,23 MB num celular de densidade 3, qualquer que seja a câmera. Medido num
 // Chrome 155 em 14/10/2026: reduzir custa de 0,1 a 0,5 ms por miniatura com
 // GPU, contra 4 a 13 ms da decodificação.
-function reduzida(larguraDaFonte: number): ImageBitmapOptions | undefined {
-  const alvo = Math.ceil(LARGURA_DO_QUADRINHO * (window.devicePixelRatio || 1));
+function reduzida(larguraDaFonte: number, densidade: number): ImageBitmapOptions | undefined {
+  const alvo = Math.ceil(LARGURA_DO_QUADRINHO * densidade);
   // Só a largura: a altura segue a proporção da câmera. Ampliar não ganha
   // nitidez e gasta mais memória que a própria fonte.
   return larguraDaFonte > alvo ? { resizeWidth: alvo, resizeQuality: 'medium' } : undefined;
@@ -71,13 +71,16 @@ export function thumbnail(cam: string, t: number): Promise<ImageBitmap | null> {
   // A densidade da tela entra na chave porque o bitmap guardado foi reduzido
   // para ela (veja `reduzida`): depois de um zoom do navegador, ou de levar a
   // janela para outro monitor, ele sairia esticado no quadrinho novo. As
-  // entradas da densidade antiga saem pelo MAX_CACHE, como qualquer outra.
-  const key = `${cam}@${t}@${window.devicePixelRatio || 1}`;
+  // entradas da densidade antiga saem pelo MAX_CACHE, como qualquer outra. É
+  // lida uma vez só: um zoom entre o pedido e a decodificação guardaria, sob
+  // esta chave, um bitmap reduzido para outra densidade.
+  const densidade = window.devicePixelRatio || 1;
+  const key = `${cam}@${t}@${densidade}`;
   const guardada = cache.get(key);
   if (guardada) return guardada;
 
   const p = baixar(mediaURL.thumb(cam, t))
-    .then((buf) => schedule(() => decode(buf)))
+    .then((buf) => schedule(() => decode(buf, densidade)))
     .catch(() => null);
   cache.set(key, p);
 
@@ -109,16 +112,16 @@ async function baixar(url: string) {
   return new Uint8Array(await res.arrayBuffer());
 }
 
-async function decode(buf: Uint8Array<ArrayBuffer>) {
+async function decode(buf: Uint8Array<ArrayBuffer>, densidade: number) {
   if (typeof VideoDecoder !== 'undefined') {
     try {
-      return await decodeWithWebCodecs(buf);
+      return await decodeWithWebCodecs(buf, densidade);
     } catch {
       // Cai para o <video>: alguns navegadores anunciam WebCodecs mas recusam
       // a configuração destas câmeras.
     }
   }
-  return decodeWithVideoElement(buf);
+  return decodeWithVideoElement(buf, densidade);
 }
 
 // --- WebCodecs --------------------------------------------------------------
@@ -132,7 +135,7 @@ function fourcc(buf: Uint8Array, o: number) {
   return String.fromCharCode(...buf.subarray(o, o + 4));
 }
 
-async function decodeWithWebCodecs(buf: Uint8Array): Promise<ImageBitmap> {
+async function decodeWithWebCodecs(buf: Uint8Array, densidade: number): Promise<ImageBitmap> {
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
   // A caixa de configuração fica aninhada dentro do moov; varrer por assinatura
@@ -175,7 +178,7 @@ async function decodeWithWebCodecs(buf: Uint8Array): Promise<ImageBitmap> {
           return;
         }
         done = true;
-        void createImageBitmap(frame, reduzida(frame.displayWidth))
+        void createImageBitmap(frame, reduzida(frame.displayWidth, densidade))
           .then(resolve, reject)
           .finally(() => {
             frame.close();
@@ -203,7 +206,7 @@ async function decodeWithWebCodecs(buf: Uint8Array): Promise<ImageBitmap> {
 // em todas. As esperas seguintes são folga, e a última recusa vale como falha.
 const ESPERAS_DO_QUADRO_MS = [50, 100, 200, 400];
 
-async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>) {
+async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>, densidade: number) {
   const url = URL.createObjectURL(new Blob([buf], { type: 'video/mp4' }));
   const v = document.createElement('video');
   v.muted = true;
@@ -231,7 +234,7 @@ async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>) {
         rej(new Error('tempo esgotado'));
       }, 8000);
     });
-    return await quadroDo(v);
+    return await quadroDo(v, densidade);
   } finally {
     URL.revokeObjectURL(url);
     v.removeAttribute('src');
@@ -239,8 +242,8 @@ async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>) {
   }
 }
 
-async function quadroDo(v: HTMLVideoElement) {
-  const opcoes = reduzida(v.videoWidth);
+async function quadroDo(v: HTMLVideoElement, densidade: number) {
+  const opcoes = reduzida(v.videoWidth, densidade);
   for (const ms of ESPERAS_DO_QUADRO_MS) {
     try {
       return await createImageBitmap(v, opcoes);
