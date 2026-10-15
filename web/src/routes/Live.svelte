@@ -3,7 +3,7 @@
   import '../vendor/video-stream.js';
   import { VideoRTC } from '../vendor/video-rtc.js';
   import { cameras, loadCameras, session, sessaoCaiu } from '../lib/state.svelte.ts';
-  import { paramsAtuais, escrever } from '../lib/rota.svelte.ts';
+  import { paramsAtuais, escrever, cena } from '../lib/rota.svelte.ts';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
   import type { Sessao } from '../lib/api.ts';
   import { baixarQuadro } from '../lib/captura.ts';
@@ -31,6 +31,9 @@
   // encaixe desconta antes de dividir o que sobra entre os tiles.
   const GAP = 8;
   const PROPORCAO = 16 / 9;
+
+  // Até quantas câmeras o texto do compartilhar diz pelo nome.
+  const NOMES_NO_TEXTO = 3;
 
   // Quanto tempo um tile rolado para fora da tela segue ligado antes do corte.
   // Longa de propósito: voltar para onde se estava há pouco não pode custar a
@@ -149,6 +152,16 @@
       // tela, então omiti-lo faria o mesmo link abrir diferente no celular.
       view: modo,
     });
+  });
+
+  // O que o compartilhar diz em palavras: as câmeras marcadas, pelo nome até
+  // NOMES_NO_TEXTO; acima disso só a conta, que a lista não caberia num assunto.
+  $effect(() => {
+    if (!montado) return;
+    const nomes = cameras.list.filter((c) => selected.has(c.id)).map((c) => c.name);
+    if (!nomes.length) cena.texto = '';
+    else if (nomes.length <= NOMES_NO_TEXTO) cena.texto = `Ao vivo: ${nomes.join(', ')}`;
+    else cena.texto = `Ao vivo: ${nomes.length} câmeras`;
   });
 
   // O componente do go2rtc cria o <video> com controls=true. Numa grade ao

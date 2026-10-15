@@ -50,6 +50,11 @@ export const rota = $state({
   hash: location.hash,
 });
 
+// cena diz em palavras o que a tela mostra ("frente, 14/10 às 04:48:05"), para
+// o texto do compartilhar. Só as telas que mostram uma cena preenchem; a troca
+// de tela zera, para o texto de uma não sair no link da outra.
+export const cena = $state({ texto: '' });
+
 // paramsAtuais lê a query de agora. As telas chamam uma vez, na inicialização:
 // a URL é a fonte da PRIMEIRA leitura, e daí em diante quem manda é o estado da
 // tela, que escreve de volta.
@@ -118,6 +123,14 @@ function aplica() {
   }
 }
 
+// linkDaTela é o link da cena que está na tela agora, para mandar a alguém. Lê
+// a escrita pendente antes da barra de endereços: com o piso de 1s, o
+// location.href pode estar um segundo atrás do player. Não escreve nada.
+export function linkDaTela() {
+  const query = junta(pendente ?? paramsAtuais());
+  return `${location.origin}${location.pathname}#${rota.id}${query ? `?${query}` : ''}`;
+}
+
 // corrigirRota troca o nome da rota na barra de endereços, quando a tela
 // aberta não é a pedida (ver o App). A query fica: ou já é a que a tela aberta
 // escreveu, ou é lixo inofensivo do link pedido. Sem hashchange e sem mexer em
@@ -139,6 +152,7 @@ addEventListener('hashchange', () => {
   clearTimeout(timer);
   timer = undefined;
   pendente = null;
+  cena.texto = '';
 
   rota.id = partes(location.hash).id;
   rota.hash = location.hash;

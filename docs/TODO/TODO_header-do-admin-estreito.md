@@ -26,6 +26,12 @@ espaço. O viewer, com quatro abas e sem sino nem pílula, não tem o
 problema. Abaixo de 720 px as abas descem para o rodapé, e o header fica só
 com a marca, o sino, a pílula e o avatar.
 
+No app instalado (PWA) o header ganha mais um ícone, o de compartilhar a tela,
+de 34 px mais os 12 px de espaço entre os botões. A tabela foi medida no
+navegador, sem ele: pela conta, e não por medição, no PWA em tela larga cada
+linha passa uns 46 px a mais, e o problema começa um pouco acima de 900 px. No
+celular o ícone fica no header estreito, que tem espaço.
+
 Antes do avatar, com o botão Sair, era pior: a 900 px o "Ao vivo" já quebrava,
 e a 820 px o header passava 61 px.
 

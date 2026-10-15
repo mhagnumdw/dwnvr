@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
   import { cameras, loadCameras } from '../lib/state.svelte.ts';
-  import { paramsAtuais, escrever } from '../lib/rota.svelte.ts';
+  import { paramsAtuais, escrever, cena } from '../lib/rota.svelte.ts';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
   import type {
     Eventos,
@@ -14,7 +14,7 @@
   import { Player } from '../lib/player.svelte.ts';
   import { clearThumbnails } from '../lib/thumbs.ts';
   import { baixarQuadro } from '../lib/captura.ts';
-  import { dayKey, parseDay, hhmmss, duracao, taxa } from '../lib/format.ts';
+  import { dayKey, parseDay, hhmmss, duracao, taxa, diaCurto } from '../lib/format.ts';
   import { FAMILIAS } from '../lib/icones.ts';
   import { telaCheia, alternarTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
   import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
@@ -263,6 +263,17 @@
       caixas: showCaixas ? null : '0',
       rotulos: showRotulos ? null : '0',
     });
+  });
+
+  // O que o compartilhar diz em palavras: a câmera e o instante. Velocidade,
+  // zoom e o resto só o link precisa levar.
+  $effect(() => {
+    if (!montado || !cam) return;
+    const nome = cameras.list.find((c) => c.id === cam)?.name ?? cam;
+    const ms = player.currentMs;
+    cena.texto = ms
+      ? `${nome}, ${diaCurto(ms)} às ${hhmmss(ms)}`
+      : `${nome}, ${diaCurto(parseDay(day).getTime())}`;
   });
 
   onMount(async () => {
