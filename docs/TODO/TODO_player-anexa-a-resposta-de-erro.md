@@ -15,12 +15,13 @@ que esperava o download anterior. **Não foi medido nem reproduzido.**
 Em `web/src/lib/player.svelte.ts`, nenhum dos dois `fetch` confere `res.ok`:
 
 - **`#mimeFor`** lê o corpo do init e procura os nomes dos codecs nele. Um
-  corpo de erro é o JSON do `writeError` (`{"error": "..."}`), sem codec
-  nenhum: o mime sai `video/mp4; codecs=""`, o `isTypeSupported` recusa e a
-  tela diz "este navegador não reproduz video/mp4; codecs=""" - culpa o
-  navegador por um erro do servidor.
+  corpo de erro não tem codec nenhum, seja o JSON do `writeError`
+  (`{"error": "..."}`, no 400 e no 401), o texto do `http.ServeFile` (o 404 do
+  `handleInit`) ou o HTML do proxy: o mime sai `video/mp4; codecs=""`, o
+  `isTypeSupported` recusa e a tela diz "este navegador não reproduz
+  video/mp4; codecs=""" - culpa o navegador por um erro do servidor.
 - **`#append`** faz `fetch(url).then((r) => r.arrayBuffer())` e anexa o que
-  vier ao `SourceBuffer`. O JSON de erro vira "falha ao anexar segmento", ou
+  vier ao `SourceBuffer`. O corpo de erro vira "falha ao anexar segmento", ou
   um erro de decodificação que o `#onError` tenta pular de segundo em segundo.
 
 ## Quando acontece
