@@ -68,7 +68,11 @@ function drain() {
  * rebuscar nem redecodificar nada.
  */
 export function thumbnail(cam: string, t: number): Promise<ImageBitmap | null> {
-  const key = `${cam}@${t}`;
+  // A densidade da tela entra na chave porque o bitmap guardado foi reduzido
+  // para ela (veja `reduzida`): depois de um zoom do navegador, ou de levar a
+  // janela para outro monitor, ele sairia esticado no quadrinho novo. As
+  // entradas da densidade antiga saem pelo MAX_CACHE, como qualquer outra.
+  const key = `${cam}@${t}@${window.devicePixelRatio || 1}`;
   const guardada = cache.get(key);
   if (guardada) return guardada;
 
