@@ -310,14 +310,24 @@ export const HEALTH_POLL_MS = 5000;
 
 // pollHealth mantém o diagnóstico vivo enquanto a tela estiver aberta, e para
 // quando ela sai - não faz sentido consultar o servidor de fundo para sempre.
+// Pelo mesmo motivo, com a aba oculta não lê: uma aba esquecida aberta em
+// Câmeras ou Diagnóstico perguntaria a cada intervalMs, dia e noite, e ainda
+// manteria o admin com "acesso agora" na tela Usuários. Ao voltar, lê na hora
+// se o dado estiver velho; se o sino acabou de pedir a leitura no mesmo
+// evento, não repete.
 export function pollHealth(intervalMs = HEALTH_POLL_MS) {
   const ler = () => {
-    void loadHealth();
+    if (!document.hidden) void loadHealth();
+  };
+  const aoVoltar = () => {
+    if (!document.hidden && Date.now() - healthPedidoEm >= intervalMs) void loadHealth();
   };
   ler();
   const id = setInterval(ler, intervalMs);
+  document.addEventListener('visibilitychange', aoVoltar);
   return () => {
     clearInterval(id);
+    document.removeEventListener('visibilitychange', aoVoltar);
   };
 }
 
