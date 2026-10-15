@@ -80,12 +80,18 @@ function sistemaDoUA(ua: string) {
   return 'desconhecido';
 }
 
+// appInstalado diz se a página roda como o app instalado (PWA), na janela
+// própria, sem barra de endereços.
+export function appInstalado() {
+  return matchMedia('(display-mode: standalone)').matches;
+}
+
 // Onde a página está rodando. O WebView é o navegador embutido de outro app
 // (abrir o link de dentro do WhatsApp, por exemplo): ele é outro motor, com
 // outra versão, e não o Chrome que a pessoa acha que está usando.
 function ondeRoda(ua: string) {
   if (ua.includes('; wv)')) return 'WebView de outro app';
-  if (matchMedia('(display-mode: standalone)').matches) return 'app instalado (PWA)';
+  if (appInstalado()) return 'app instalado (PWA)';
   return 'aba do navegador';
 }
 

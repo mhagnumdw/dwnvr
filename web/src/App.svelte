@@ -16,7 +16,8 @@
     sessaoCaiu,
     RELEASES_URL,
   } from './lib/state.svelte.ts';
-  import { rota, ROTA_PADRAO, corrigirRota } from './lib/rota.svelte.ts';
+  import { rota, ROTA_PADRAO, corrigirRota, linkDaTela } from './lib/rota.svelte.ts';
+  import { appInstalado, copiar } from './lib/navegador.ts';
   import { telaNova, vigiarVersaoDaTela } from './lib/versao-tela.svelte.ts';
   import { setUnauthorizedHandler } from './lib/api.ts';
   import type { Pessoa } from './lib/api.ts';
@@ -178,6 +179,28 @@
     if (id === route.id) ev.preventDefault();
   }
 
+  // Compartilhar a tela, só no app instalado: no navegador a barra de endereços
+  // já leva a cena, e no app ela não existe. O menu do sistema (WhatsApp,
+  // e-mail) onde houver - pede HTTPS -; no resto, copiar o link.
+  const instalado = appInstalado();
+  let copiouTela = $state('');
+  let timerCopiou: number | undefined;
+
+  async function compartilharTela() {
+    const url = linkDaTela();
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: 'dwnvr', url });
+      } catch {
+        // Cancelar o menu do sistema também cai aqui. Nada a fazer.
+      }
+      return;
+    }
+    copiouTela = (await copiar(url)) ? 'link copiado' : 'não deu para copiar';
+    clearTimeout(timerCopiou);
+    timerCopiou = setTimeout(() => (copiouTela = ''), 2000);
+  }
+
   // A versão em uso, buscada no boot. A pergunta ao GitHub por versão nova
   // espera por ela e pela sessão: só o admin vê a pílula, e o viewer não gasta
   // a consulta.
@@ -277,6 +300,33 @@
         {/each}
       </nav>
       <div class="acoes">
+        {#if instalado}
+          <div class="compartilhar">
+            <button
+              class="icone"
+              onclick={compartilharTela}
+              title="Compartilhar esta tela"
+              aria-label="Compartilhar esta tela"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 3v12" />
+                <path d="m7.5 7.5 4.5-4.5 4.5 4.5" />
+                <path
+                  d="M8 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2"
+                />
+              </svg>
+            </button>
+            {#if copiouTela}<span class="copiou" role="status">{copiouTela}</span>{/if}
+          </div>
+        {/if}
         <!-- Some sem aviso: um sino apagado sempre à vista ensinaria a não
            olhar para ele. A cor da bolha é a do pior aviso. -->
         {#if sino.total}
@@ -598,6 +648,51 @@
     .sino:hover {
       background: var(--panel-2);
     }
+  }
+
+  /* O compartilhar tem o tamanho e o traço do sino, mas não chama atenção:
+     fica na cor do texto apagado. */
+  .compartilhar {
+    position: relative;
+  }
+
+  .icone {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    min-height: 0;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: none;
+    color: var(--dim);
+  }
+
+  .icone svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  @media (hover: hover) {
+    .icone:hover {
+      background: var(--panel-2);
+      color: var(--fg);
+    }
+  }
+
+  /* Abre sob o ícone, como o menu do avatar. */
+  .copiou {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 6px);
+    right: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    font-size: 13px;
+    white-space: nowrap;
   }
 
   /* A borda da cor do header separa a bolha do desenho do sino. */

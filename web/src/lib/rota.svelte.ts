@@ -118,6 +118,14 @@ function aplica() {
   }
 }
 
+// linkDaTela é o link da cena que está na tela agora, para mandar a alguém. Lê
+// a escrita pendente antes da barra de endereços: com o piso de 1s, o
+// location.href pode estar um segundo atrás do player. Não escreve nada.
+export function linkDaTela() {
+  const query = junta(pendente ?? paramsAtuais());
+  return `${location.origin}${location.pathname}#${rota.id}${query ? `?${query}` : ''}`;
+}
+
 // corrigirRota troca o nome da rota na barra de endereços, quando a tela
 // aberta não é a pedida (ver o App). A query fica: ou já é a que a tela aberta
 // escreveu, ou é lixo inofensivo do link pedido. Sem hashchange e sem mexer em
