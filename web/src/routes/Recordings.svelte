@@ -11,7 +11,10 @@
     Trecho,
   } from '../lib/api.ts';
   import type { DesenhoPorCima } from '../lib/captura.ts';
-  import { Player } from '../lib/player.svelte.ts';
+  import { Player, PULO_RAPIDO_MS } from '../lib/player.svelte.ts';
+  import { toqueDuplo, SEQUENCIA_MS } from '../lib/toqueDuplo.ts';
+  import type { Lado } from '../lib/toqueDuplo.ts';
+  import { fade } from 'svelte/transition';
   import { clearThumbnails } from '../lib/thumbs.ts';
   import { baixarQuadro } from '../lib/captura.ts';
   import { dayKey, parseDay, hhmmss, duracao, taxa, diaCurto } from '../lib/format.ts';
@@ -145,6 +148,52 @@
 
   function alternarCheia() {
     if (cheia) alternarTelaCheia(cheia);
+  }
+
+  // --- pular 10 s ---------------------------------------------------------------
+  //
+  // Como no YouTube: no celular, duplo toque nas laterais do vídeo e no meio a
+  // tela cheia; no desktop, o duplo clique em qualquer ponto é a tela cheia, e
+  // os pulos são as setas. A meia-lua do lado do pulo mostra a soma enquanto a
+  // sequência está aberta.
+
+  let pulo = $state<{ lado: Lado; soma: number } | null>(null);
+  let puloTimer: number | undefined;
+  // O Chrome do Android também gera `dblclick` com o duplo toque: sem saber de
+  // onde ele veio, o pulo na lateral entraria junto na tela cheia.
+  let ultimoPonteiro = '';
+
+  function pularRapido(lado: Lado) {
+    player.pular(lado * PULO_RAPIDO_MS);
+    const s = PULO_RAPIDO_MS / 1000;
+    pulo = { lado, soma: pulo?.lado === lado ? pulo.soma + s : s };
+    clearTimeout(puloTimer);
+    puloTimer = setTimeout(() => {
+      pulo = null;
+    }, SEQUENCIA_MS);
+  }
+
+  const toque = toqueDuplo({ pular: pularRapido, meio: alternarCheia });
+
+  // As teclas valem na tela inteira, com ou sem tela cheia. Num campo ou num
+  // select, a seta e o espaço são dele; o calendário também usa as setas, e
+  // marca a tecla como usada.
+  function tecla(e: KeyboardEvent) {
+    if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
+    const alvo = e.target instanceof HTMLElement ? e.target : null;
+    if (alvo && (alvo.isContentEditable || alvo.closest('input, select, textarea'))) return;
+
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      pularRapido(e.key === 'ArrowLeft' ? -1 : 1);
+    } else if (e.key === ' ') {
+      // Fora do player, o espaço num botão continua sendo do botão: o das
+      // câmeras, o do dia. Dentro dele, o `preventDefault` também impede o
+      // clique - sem isso, com o foco no ▶, o vídeo alternaria duas vezes.
+      if (alvo && alvo !== document.body && !cheia?.contains(alvo)) return;
+      e.preventDefault();
+      if (!e.repeat) player.toggle();
+    }
   }
 
   // --- o que veio da URL ----------------------------------------------------
@@ -299,6 +348,7 @@
     player.destroy();
     clearThumbnails();
     clearTimeout(avisoTimer);
+    clearTimeout(puloTimer);
     controles.parar();
   });
 
@@ -620,6 +670,8 @@
   }
 </script>
 
+<svelte:window onkeydown={tecla} />
+
 <div class="page">
   {#if !cameras.list.length && !cameras.loading}
     <SemCameras />
@@ -636,7 +688,14 @@
         >
           ‹
         </button>
-        <select bind:value={cam} aria-label="câmera">
+        <!-- O blur devolve as setas aos pulos, como no select da velocidade. -->
+        <select
+          bind:value={cam}
+          onchange={(e) => {
+            e.currentTarget.blur();
+          }}
+          aria-label="câmera"
+        >
           {#each cameras.list as c (c.id)}
             <option value={c.id}>{c.name}</option>
           {/each}
@@ -685,7 +744,14 @@
         if (emTelaCheia && e.pointerType === 'mouse') controles.mostrar();
       }}
     >
-      <div class="stage" ondblclick={alternarCheia}>
+      <div
+        class="stage"
+        onpointerdown={(e) => (ultimoPonteiro = e.pointerType)}
+        onpointerup={toque}
+        ondblclick={() => {
+          if (ultimoPonteiro !== 'touch') alternarCheia();
+        }}
+      >
         <video bind:this={video} playsinline controls={false}></video>
         {#if Caixas && showCaixas && objetos.length}
           <Caixas
@@ -707,6 +773,12 @@
           {#if error}<span class="badge bad">{error}</span>{/if}
           {#if capturaErro}<span class="badge bad">{capturaErro}</span>{/if}
         </div>
+        {#if pulo}
+          <div class="meia-lua" class:direita={pulo.lado > 0} out:fade={{ duration: 250 }}>
+            <span class="setas">{pulo.lado < 0 ? '◀◀◀' : '▶▶▶'}</span>
+            <span>{pulo.soma} segundos</span>
+          </div>
+        {/if}
         {#if !emTelaCheia}
           <span class="entrar"
             ><BotaoTelaCheia ativa={false} sobreVideo onclick={alternarCheia} /></span
@@ -747,6 +819,8 @@
             value={player.rate}
             onchange={(e) => {
               player.setRate(Number(e.currentTarget.value));
+              // Senão as setas seguintes trocariam a velocidade, e não pulariam.
+              e.currentTarget.blur();
             }}
             aria-label="velocidade"
           >
@@ -894,6 +968,39 @@
     background: #000;
     border-radius: var(--radius);
     overflow: hidden;
+    /* O duplo toque é nosso: sem zoom do navegador no lugar dele. */
+    touch-action: manipulation;
+  }
+
+  /* O retorno do pulo de 10 s, como a do YouTube: um arco translúcido colado na
+     borda do lado do pulo. Passa os toques adiante, para o vídeo. */
+  .meia-lua {
+    position: absolute;
+    top: -10%;
+    bottom: -10%;
+    left: 0;
+    width: 42%;
+    border-radius: 0 50% 50% 0 / 0 50% 50% 0;
+    background: rgba(255, 255, 255, 0.12);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+    user-select: none;
+  }
+  .meia-lua.direita {
+    left: auto;
+    right: 0;
+    border-radius: 50% 0 0 50% / 50% 0 0 50%;
+  }
+  .meia-lua .setas {
+    font-size: 18px;
+    letter-spacing: -4px;
   }
 
   video {
