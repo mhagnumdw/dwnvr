@@ -482,6 +482,9 @@ export class Player {
         { once: true },
       );
     });
+    // Mesma conta de antes, agora para a espera do sourceopen: o SourceBuffer
+    // de um MediaSource que já saiu do <video> tomaria o lugar do seek novo.
+    if (seek !== this.#generation || this.#ms !== ms) return;
     video.playbackRate = rate;
 
     const sb = ms.addSourceBuffer(mime);
