@@ -35,6 +35,13 @@ const AVISO_MS = 400;
 const PULO_PASSO_MS = 1000;
 const PULO_MAX_MS = 10000;
 
+// O pulo do duplo toque nas laterais do vídeo e das setas do teclado, como no
+// YouTube. Cada toque ou tecla a mais soma outro.
+export const PULO_RAPIDO_MS = 10000;
+// Até onde um pulo para a frente vai antes do fim do que existe. Pousar
+// exatamente no fim faria o seek() voltar ao começo do último segmento.
+const PULO_RAPIDO_FOLGA_MS = 1000;
+
 export class Player {
   video: HTMLVideoElement | null = null;
 
@@ -356,6 +363,56 @@ export class Player {
     }
 
     if (gen === this.#generation) void this.#encherEntaoLiberar(gen);
+  }
+
+  // Anda `deltaMs` a partir de onde o vídeo está, para trás ou para a frente.
+  //
+  // O seek() recria o MediaSource e rebusca tudo, o que num pulo de 10 s
+  // acenderia o "carregando…" a cada toque. Só que o alvo quase sempre já está
+  // no buffer - BEHIND_S atrás, a janela do #lookahead() à frente -, e aí basta
+  // mudar o `currentTime`. O seek() fica para quando não está: logo depois de
+  // outro seek, longe demais, num buraco da gravação ou além de uma fronteira
+  // de trilhas, que nunca chega ao buffer.
+  //
+  // Pulos seguidos somam: durante um seek, `currentMs` já é o alvo dele (o
+  // portão do #seeking o segura lá), e fora de um seek `currentTime` muda na
+  // hora. Nos dois casos o próximo pulo parte de onde o anterior mandou ir.
+  //
+  // Pausado continua pausado, como no YouTube - e o seek() termina em play().
+  pular(deltaMs: number) {
+    const video = this.video;
+    if (!video || !this.base || !this.hasSegments) return;
+
+    const de = this.#seeking ? this.currentMs : this.base + video.currentTime * 1000;
+    let alvo = Math.max(de + deltaMs, this.firstMs);
+    if (deltaMs > 0) alvo = Math.min(alvo, Math.max(de, this.lastMs - PULO_RAPIDO_FOLGA_MS));
+
+    const t = (alvo - this.base) / 1000;
+    const b = this.#sb?.buffered;
+    let noBuffer = false;
+    if (b && !this.#seeking) {
+      for (let i = 0; i < b.length; i++) {
+        if (t >= b.start(i) && t < b.end(i)) noBuffer = true;
+      }
+    }
+    if (noBuffer) {
+      video.currentTime = t;
+      // O `seeked` também atualiza, mas só depois que o quadro chega: assim o
+      // relógio e o marcador já vão para lá agora.
+      this.currentMs = alvo;
+      return;
+    }
+
+    const pausado = video.paused;
+    const seek = this.seek(alvo);
+    // seek() troca a geração antes do primeiro await. Outro seek que chegue
+    // depois - um clique na timeline - manda no play e não é pausado aqui.
+    const gen = this.#generation;
+    if (pausado) {
+      void seek.then(() => {
+        if (gen === this.#generation) video.pause();
+      });
+    }
   }
 
   // O pump do seek mede a janela à frente a partir do 0 do MediaSource novo, e
