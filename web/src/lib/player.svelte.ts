@@ -77,6 +77,10 @@ export class Player {
   #mimes = new Map<string, string>(); // geração -> mime, para não rebuscar o mesmo init
   #boundary: number | null = null; // início do segmento onde as trilhas mudam e é preciso recomeçar
   #pulo: { inicio: number; alvo: number } | null = null; // último pulo sobre dado corrompido, em ms
+  // Se quem pulou estava com o vídeo pausado, enquanto o seek desse pulo está
+  // em voo. O `paused` do <video> não serve aí: o #reset troca o src, e o
+  // vídeo fica pausado até o seek terminar, tocando ou não antes.
+  #pularPausado: boolean | null = null;
 
   attach(video: HTMLVideoElement) {
     this.video = video;
@@ -317,6 +321,7 @@ export class Player {
 
     const gen = this.#novaGeracao();
     this.#seeking = true;
+    this.#pularPausado = null;
     this.carregando = true;
     this.error = '';
     this.#aviso(true);
@@ -403,16 +408,20 @@ export class Player {
       return;
     }
 
-    const pausado = video.paused;
+    // Durante um seek, a vontade é a do pulo que o começou; o de outra origem -
+    // um clique na timeline - termina em play().
+    const pausado = this.#seeking ? (this.#pularPausado ?? false) : video.paused;
     const seek = this.seek(alvo);
+    // Depois do seek(), que a apaga ao começar.
+    this.#pularPausado = pausado;
     // seek() troca a geração antes do primeiro await. Outro seek que chegue
     // depois - um clique na timeline - manda no play e não é pausado aqui.
     const gen = this.#generation;
-    if (pausado) {
-      void seek.then(() => {
-        if (gen === this.#generation) video.pause();
-      });
-    }
+    void seek.then(() => {
+      if (gen !== this.#generation) return;
+      this.#pularPausado = null;
+      if (pausado) video.pause();
+    });
   }
 
   // O pump do seek mede a janela à frente a partir do 0 do MediaSource novo, e
