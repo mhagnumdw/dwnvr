@@ -129,6 +129,29 @@ export const ICONES_UI = {
     ['rect', { x: 3, y: 4.5, width: 18, height: 16.5, rx: 3 }],
     ['path', { d: 'M3 10.5h18M7.5 2.25v4.5M16.5 2.25v4.5' }],
   ],
+  // Três quadros lado a lado: a tira de miniaturas.
+  miniaturas: [
+    ['rect', { x: 2.5, y: 6, width: 5.5, height: 12, rx: 1 }],
+    ['rect', { x: 9.25, y: 6, width: 5.5, height: 12, rx: 1 }],
+    ['rect', { x: 16, y: 6, width: 5.5, height: 12, rx: 1 }],
+  ],
+  // A caixa com o rótulo em cima, como o detector as desenha sobre o vídeo. O
+  // vão entre os dois é o que o separa de uma pasta.
+  caixasRotulo: [
+    ['rect', { x: 3.75, y: 10, width: 16.5, height: 10, rx: 1.5 }],
+    ['rect', { x: 3, y: 2.5, width: 12, height: 5, rx: 1, ...cheio }],
+  ],
+  baixar: [['path', { d: 'M12 4v11M7 10.5l5 5 5-5M4.5 19.5h15' }]],
+  imagem: [
+    ['rect', { x: 3, y: 4.5, width: 18, height: 15, rx: 2 }],
+    ['circle', { cx: 8.5, cy: 9.5, r: 1.6 }],
+    ['path', { d: 'M21 15.5l-5-5-9 9' }],
+  ],
+  info: [
+    ['circle', { cx: 12, cy: 12, r: 9 }],
+    ['path', { d: 'M12 11v5.5' }],
+    ['circle', { cx: 12, cy: 7.6, r: 1.1, ...cheio }],
+  ],
 
   // Detecções e formulários
   caixas: [['rect', { x: 3.75, y: 6, width: 16.5, height: 12, rx: 1.5 }]],

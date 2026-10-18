@@ -1,20 +1,25 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
-  import type { Segmento } from '../lib/api.ts';
+  import type { ObjetoMarcado, Segmento } from '../lib/api.ts';
   import { contexto2d } from '../lib/canvas.ts';
   import { thumbnail } from '../lib/thumbs.ts';
   import { hhmmss } from '../lib/format.ts';
+  import SeloDeFamilias from './SeloDeFamilias.svelte';
+  import { nomesDasFamilias } from '../lib/icones.ts';
 
   interface Props {
     cam: string;
     segments?: Segmento[];
+    // As marcas de objeto do dia: cada miniatura mostra as famílias do trecho
+    // dela.
+    objetos?: ObjetoMarcado[];
     currentMs?: number;
     adiar?: boolean;
     onseek?: (ms: number) => void;
   }
 
-  let { cam, segments = [], currentMs = 0, adiar = false, onseek }: Props = $props();
+  let { cam, segments = [], objetos = [], currentMs = 0, adiar = false, onseek }: Props = $props();
 
   // Quantas miniaturas mostrar. Mais que isso vira desfile de imagens que
   // ninguém consegue distinguir, e cada uma custa um decode.
@@ -39,6 +44,33 @@
     const half = Math.floor(MAX_TILES / 2);
     const start = Math.max(0, anchor - half);
     return segments.slice(start, start + MAX_TILES);
+  });
+
+  // As famílias de cada miniatura, pelo início do segmento. Uma passada pelas
+  // marcas do dia, com a miniatura de cada uma achada por busca binária nas
+  // 40 da janela: refeita uma vez por segmento, e não por quadro.
+  const familiasPorTile = $derived.by(() => {
+    const porTile: Record<number, string[]> = {};
+    const primeiro = tiles[0];
+    const ultimo = tiles.at(-1);
+    if (!primeiro || !ultimo || !objetos.length) return porTile;
+    const fim = ultimo[0] + ultimo[1];
+    for (const o of objetos) {
+      if (o.instanteMs < primeiro[0] || o.instanteMs >= fim) continue;
+      let lo = 0;
+      let hi = tiles.length - 1;
+      while (lo < hi) {
+        const m = (lo + hi + 1) >> 1;
+        if ((tiles[m]?.[0] ?? Infinity) <= o.instanteMs) lo = m;
+        else hi = m - 1;
+      }
+      const tile = tiles[lo];
+      // Num buraco entre dois segmentos, a marca não é de nenhuma miniatura.
+      if (!tile || o.instanteMs >= tile[0] + tile[1]) continue;
+      const fams = (porTile[tile[0]] ??= []);
+      if (!fams.includes(o.familia)) fams.push(o.familia);
+    }
+    return porTile;
   });
 
   let strip = $state<HTMLDivElement | null>(null);
@@ -179,6 +211,9 @@
         onseek?.(t);
       }}
       title={hhmmss(t)}
+      aria-label={[hhmmss(t), nomesDasFamilias(familiasPorTile[t] ?? [])]
+        .filter(Boolean)
+        .join(', ')}
     >
       {#if pedidas.instantes.has(t)}
         {#await thumbnail(cam, t) then bitmap}
@@ -199,6 +234,7 @@
           {/if}
         {/await}
       {/if}
+      <SeloDeFamilias familias={familiasPorTile[t] ?? []} />
       <span class="time mono">{hhmmss(t)}</span>
     </button>
   {/each}

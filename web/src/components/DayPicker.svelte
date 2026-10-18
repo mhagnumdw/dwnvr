@@ -14,7 +14,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import Icone from './Icone.svelte';
-  import { dayKey, parseDay } from '../lib/format.ts';
+  import { dayKey, parseDay, diaCurto } from '../lib/format.ts';
 
   interface Props {
     value?: string;
@@ -243,11 +243,14 @@
     return lista;
   });
 
-  const textoBotao = $derived.by(() => {
+  // A data inteira para o leitor de tela; no botão, a curta, com o ano só
+  // quando não é o deste ano: no celular a barra divide a linha com a câmera.
+  const dataInteira = $derived.by(() => {
     if (!value) return '--/--/----';
     const [y = '', m = '', d = ''] = value.split('-');
     return `${d}/${m}/${y}`;
   });
+  const textoBotao = $derived(value ? diaCurto(parseDay(value).getTime()) : '--/--');
 
   const podeAvancar = $derived.by(() => {
     if (viewYear === null || viewMonth === null) return false;
@@ -298,7 +301,7 @@
     class="trigger ghost"
     onclick={toggle}
     bind:this={triggerEl}
-    aria-label="dia: {textoBotao}"
+    aria-label="dia: {dataInteira}"
     aria-haspopup="dialog"
     aria-expanded={aberto}
   >

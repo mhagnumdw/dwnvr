@@ -71,6 +71,33 @@ button {
     background 0.12s;
 }
 
+/* O toque longo num botão é da dica (lib/dicaDoToque.ts): sem a seleção do
+   texto nem o menu do sistema por cima dela. */
+button {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* A dica do toque longo. Fora de qualquer componente porque nasce no body (ou
+   na tela cheia), pelo JS. Clara sobre o tema escuro, como as do Android. */
+.dica-do-toque {
+  position: fixed;
+  z-index: 200;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 13px;
+  line-height: 1.35;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+.dica-do-toque[hidden] {
+  display: none;
+}
+
 /* Só onde existe ponteiro de verdade. No toque o navegador deixa o botão tocado
    em :hover até o próximo toque em outro lugar, e o botão que acabou de ser
    desligado continuava de borda azul, como se ainda estivesse ligado. */

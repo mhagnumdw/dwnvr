@@ -14,6 +14,7 @@
   import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
   import { telaCheia, entrarEmTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
   import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
+  import { alturaLivre } from '../lib/alturaLivre.ts';
   import { telaNova } from '../lib/versao-tela.svelte.ts';
   import Icone from '../components/Icone.svelte';
 
@@ -779,18 +780,8 @@
       return;
     }
 
-    // O palco vai do seu topo até o fim da janela, menos o que já está
-    // reservado abaixo dele: o respiro da página e o espaço que o `main` guarda
-    // para a navegação inferior não cobrir o conteúdo. Esse padding do `main` é
-    // zero no desktop, onde a navegação sobe - lê-lo evita repetir aqui, em JS,
-    // o breakpoint que já está no CSS.
-    const abaixo = (el: Element | null) =>
-      el ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0;
-    const topo = palco.getBoundingClientRect().top;
-    const H = Math.max(
-      80,
-      window.innerHeight - topo - abaixo(palco.parentElement) - abaixo(palco.closest('main')),
-    );
+    // O palco vai do seu topo até o fim da janela.
+    const H = alturaLivre(palco);
 
     palco.style.height = `${H}px`;
     encaixe = melhorEncaixe(visible.length, palco.clientWidth, H);
