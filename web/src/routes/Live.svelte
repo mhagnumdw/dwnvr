@@ -1278,9 +1278,7 @@
   }
   .nome-cam {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .camchip::before {
     content: '';
