@@ -2,6 +2,34 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.10.0](https://github.com/mhagnumdw/dwnvr/compare/v0.9.0...v0.10.0) (2026-10-18)
+
+### Added
+
+- feat(web): toque simples esconde os controles na tela cheia ([#35](https://github.com/mhagnumdw/dwnvr/pull/35)) ([7692fc8e](https://github.com/mhagnumdw/dwnvr/commit/7692fc8e3c5b8ad5914f13c9e7109a3eca04173a))
+- feat(web): Gravações cabe na tela, com controles numa linha só ([#33](https://github.com/mhagnumdw/dwnvr/pull/33)) ([c2b8c28a](https://github.com/mhagnumdw/dwnvr/commit/c2b8c28a09f4809038af015b53a3fd094245699d))
+- feat(web): chips para escolher as câmeras e barra do Ao vivo com rótulos ([#30](https://github.com/mhagnumdw/dwnvr/pull/30)) ([217a558b](https://github.com/mhagnumdw/dwnvr/commit/217a558b0011bf5c6cd8db1a570522a73bde7366))
+- feat(web): pular 10 s nas gravações, como no YouTube ([#29](https://github.com/mhagnumdw/dwnvr/pull/29)) ([083b43c3](https://github.com/mhagnumdw/dwnvr/commit/083b43c3dceef19ebebf9a5252d8cc0cf82abca4))
+- feat(web): compartilhar a tela pelo app instalado ([#28](https://github.com/mhagnumdw/dwnvr/pull/28)) ([bb999457](https://github.com/mhagnumdw/dwnvr/commit/bb999457666dc2ef9180b562233cb9c6b0682a86))
+
+### Fixed
+
+- fix(web): exportar 10 min de gravação não falha mais ([#34](https://github.com/mhagnumdw/dwnvr/pull/34)) ([f2511ad6](https://github.com/mhagnumdw/dwnvr/commit/f2511ad67fad646f063e529994852f21fbf72a03))
+- fix(web): erro do servidor nas gravações aparece com o motivo ([#27](https://github.com/mhagnumdw/dwnvr/pull/27)) ([0c956148](https://github.com/mhagnumdw/dwnvr/commit/0c9561485f7c074c2da6aacf6986ce749987845d))
+
+### Performance
+
+- perf(web): Câmeras e Diagnóstico param de perguntar com a aba oculta ([#26](https://github.com/mhagnumdw/dwnvr/pull/26)) ([c655d8da](https://github.com/mhagnumdw/dwnvr/commit/c655d8dac328d4abd154c073cf4b35537985ae34))
+
+### Changed
+
+- refactor(web): a lista de câmeras do Ao vivo e de Detecções é um componente só ([#32](https://github.com/mhagnumdw/dwnvr/pull/32)) ([1e561a89](https://github.com/mhagnumdw/dwnvr/commit/1e561a8913ec4287f3753696d99e9ebf377cd4a0))
+- refactor(web): ícones da interface num mapa só, desenhados pelo <Icone> ([#31](https://github.com/mhagnumdw/dwnvr/pull/31)) ([59de1ef8](https://github.com/mhagnumdw/dwnvr/commit/59de1ef8c6e1547ddf63b9ade7c9779fbde596ea))
+
+### Docs
+
+- docs: AGENTS.md mais enxuto e com os princípios do projeto ([a3b907d3](https://github.com/mhagnumdw/dwnvr/commit/a3b907d3cf294870b1154b1a53bf9ad63ca5108f))
+
 ## [v0.9.0](https://github.com/mhagnumdw/dwnvr/compare/v0.8.0...v0.9.0) (2026-10-15)
 
 ### Added
