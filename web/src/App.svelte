@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import type { Component } from 'svelte';
   import {
     session,
@@ -22,6 +22,8 @@
   import { setUnauthorizedHandler } from './lib/api.ts';
   import type { Pessoa } from './lib/api.ts';
   import { avisosDe, resumoDosAvisos } from './lib/avisos.ts';
+  import { fecharAviso } from './lib/snackbar.svelte.ts';
+  import { instalarDicaDoToque } from './lib/dicaDoToque.ts';
   import Login from './routes/Login.svelte';
   import Live from './routes/Live.svelte';
   import Recordings from './routes/Recordings.svelte';
@@ -29,6 +31,7 @@
   import Health from './routes/Health.svelte';
   import Avatar from './components/Avatar.svelte';
   import Icone from './components/Icone.svelte';
+  import Snackbar from './components/Snackbar.svelte';
   import type { NomeDoIconeUi } from './lib/iconesUi.ts';
   import type TelaDoConvite from './routes/Convite.svelte';
 
@@ -234,6 +237,20 @@
       void loadCameras();
       talvezVersaoNova();
     }
+  });
+
+  onMount(instalarDicaDoToque);
+
+  // O aviso é da tela que o deu: ele não atravessa para a próxima. O
+  // `rota.hash` só muda em navegação de verdade, a mesma que remonta a tela.
+  $effect(() => {
+    /* eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear */
+    rota.hash;
+    // Sem o untrack, o aviso lido lá dentro viraria dependência, e cada aviso
+    // novo se fecharia ao abrir.
+    untrack(() => {
+      fecharAviso();
+    });
   });
 
   async function afterLogin(pessoa: Pessoa) {
@@ -460,6 +477,8 @@
       </a>
     {/each}
   </nav>
+
+  <Snackbar />
 {/if}
 
 <style>

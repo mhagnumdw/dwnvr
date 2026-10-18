@@ -17,10 +17,12 @@
   import { fade } from 'svelte/transition';
   import { clearThumbnails } from '../lib/thumbs.ts';
   import { baixarQuadro } from '../lib/captura.ts';
-  import { dayKey, parseDay, hhmmss, duracao, taxa, diaCurto } from '../lib/format.ts';
+  import { dayKey, parseDay, hhmmss, taxa, diaCurto } from '../lib/format.ts';
   import { FAMILIAS } from '../lib/icones.ts';
   import { telaCheia, alternarTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
   import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
+  import { alturaLivre } from '../lib/alturaLivre.ts';
+  import { avisar } from '../lib/snackbar.svelte.ts';
   import Timeline from '../components/Timeline.svelte';
   import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
@@ -57,6 +59,10 @@
   // também precisa dela - para recusar um `rate=999` sem inventar uma segunda
   // lista que um dia discordaria desta.
   const RATES = [0.25, 0.5, 1, 2, 4, 8, 16];
+  // Abaixo disso a tela não encolhe mais o vídeo e passa a rolar: numa janela
+  // tão baixa, vídeo, controles e timeline não cabem juntos de jeito nenhum.
+  // O celular deitado, com a navegação embaixo, deixa uns 270.
+  const ALTURA_MINIMA = 240;
 
   // Lidos uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
@@ -80,10 +86,12 @@
   let objetos = $state<ObjetoMarcado[]>([]);
   let loading = $state(false);
   let error = $state('');
-  let showThumbs = $state(params.get('thumbs') !== '0');
+  // As miniaturas são gosto de quem usa o aparelho, como a duração da
+  // exportação: no localStorage, e ligadas até alguém desligar.
+  let showThumbs = $state(localStorage.getItem('dwnvr.rec.miniaturas') !== '0');
   // As caixas do detector sobre o vídeo, e os rótulos delas. Ligadas por
-  // padrão e guardadas na URL, como as miniaturas. Rótulo sem caixa não existe:
-  // o botão dele se apaga junto.
+  // padrão e guardadas na URL: são parte do que um link mostra. Rótulo sem
+  // caixa não existe; um botão só passa pelos três estados.
   let showCaixas = $state(params.get('caixas') !== '0');
   let showRotulos = $state(params.get('rotulos') !== '0');
   let camadaCaixas = $state<{ desenhaEm: DesenhoPorCima } | null>(null);
@@ -151,6 +159,80 @@
     if (cheia) alternarTelaCheia(cheia);
   }
 
+  // --- os botões só de ícone --------------------------------------------------
+  //
+  // No celular miniaturas, caixas e baixar são só ícone, e cada toque se explica
+  // numa snackbar. No desktop o rótulo do botão já diz o que ele faz, e o aviso
+  // seria repetição: quem decide é o próprio rótulo, visível ou não, para não
+  // repetir aqui o breakpoint do CSS.
+
+  let rotuloDoBotao = $state<HTMLElement | null>(null);
+
+  function avisoDoBotao(texto: string) {
+    if (rotuloDoBotao && getComputedStyle(rotuloDoBotao).display !== 'none') return;
+    avisar({ texto });
+  }
+
+  function alternarMiniaturas() {
+    showThumbs = !showThumbs;
+    avisoDoBotao(showThumbs ? 'Miniaturas exibidas' : 'Miniaturas ocultas');
+  }
+
+  // Sem caixas -> caixas -> caixas com rótulos -> sem caixas.
+  const ESTADOS_DAS_CAIXAS = ['sem caixas', 'caixas', 'caixas + rótulos'] as const;
+  const estadoDasCaixas = $derived(!showCaixas ? 0 : showRotulos ? 2 : 1);
+
+  function trocarCaixas() {
+    const proximo = (estadoDasCaixas + 1) % 3;
+    showCaixas = proximo > 0;
+    showRotulos = proximo === 2;
+    avisoDoBotao(
+      [
+        'Caixas de detecção ocultas',
+        'Caixas de detecção exibidas, sem rótulos',
+        'Caixas de detecção exibidas, com rótulos',
+      ][proximo] ?? '',
+    );
+  }
+
+  // O menu do baixar e o balão dos gestos: um aberto por vez, e fecham com o
+  // clique fora deles ou com Esc.
+  let menu = $state<'baixar' | 'gestos' | null>(null);
+
+  function foraDoMenu(e: MouseEvent) {
+    if (menu && !(e.target instanceof Element && e.target.closest('.ancora'))) menu = null;
+  }
+
+  // --- a altura ----------------------------------------------------------------
+  //
+  // A tela tem a altura da janela, e o vídeo fica com o que sobra dela: nada de
+  // rolagem, e ocultar as miniaturas devolve o espaço ao vídeo quando é a
+  // altura que o limita. Com o celular deitado o vídeo vai para o lado, e a
+  // altura dele é a da tela menos a da timeline e a da legenda, que ficam
+  // embaixo com a largura toda.
+
+  let pagina = $state<HTMLDivElement | null>(null);
+  let alturaDaPagina = $state(0);
+  let alturaDaLinha = $state(0);
+  let alturaDaLegenda = $state(0);
+
+  function medirPagina() {
+    // Na tela cheia o palco é dela; a página se mede de novo na volta.
+    if (pagina && !emTelaCheia) alturaDaPagina = alturaLivre(pagina, ALTURA_MINIMA);
+  }
+
+  $effect(() => {
+    if (!pagina) return;
+    medirPagina();
+    // O cabeçalho cresce quando a faixa de versão nova aparece.
+    const ro = new ResizeObserver(medirPagina);
+    const topo = document.querySelector('#app > .topo');
+    if (topo) ro.observe(topo);
+    return () => {
+      ro.disconnect();
+    };
+  });
+
   // --- pular 10 s ---------------------------------------------------------------
   //
   // Como no YouTube: no celular, duplo toque nas laterais do vídeo e no meio a
@@ -184,6 +266,10 @@
     const alvo = e.target instanceof HTMLElement ? e.target : null;
     if (alvo && (alvo.isContentEditable || alvo.closest('input, select, textarea'))) return;
 
+    if (e.key === 'Escape' && menu) {
+      menu = null;
+      return;
+    }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
       pularRapido(e.key === 'ArrowLeft' ? -1 : 1);
@@ -248,7 +334,6 @@
 
   const dayStart = $derived(parseDay(day).getTime());
   const dayEnd = $derived(dayStart + 86400_000);
-  const gravado = $derived(timeline.ranges.reduce((a, [s, e]) => a + (e - s), 0));
   const isToday = $derived(day === dayKey());
 
   // O ritmo vem da câmera selecionada: `segmentSeconds` é configurado por
@@ -261,7 +346,7 @@
     return Math.min(Math.max(seg * 1000, POLL_MIN_MS), POLL_MAX_MS);
   });
 
-  // Decide o que a exportação vai pedir, e se ela é possível.
+  // Decide o que a exportação de `min` minutos vai pedir, e se ela é possível.
   //
   // O filtro repete a regra do store.Range (internal/store/store.go:372):
   // segmento inteiro que se sobrepõe ao intervalo entra. Repetir a regra aqui
@@ -269,10 +354,9 @@
   // clipe, e as duas recusas antecipadas. Elas importam porque o download sai
   // por location.href: um 404 ou um 409 apareceria como texto cru numa aba,
   // sem volta para a tela.
-  const exportacao = $derived.by((): Exportacao | null => {
-    const from = Math.round(player.currentMs || 0);
+  function planoDe(min: number, from: number): Exportacao | null {
     if (!from) return null;
-    const to = from + exportMin * 60_000;
+    const to = from + min * 60_000;
 
     const sel = timeline.segments.filter(([s, d]) => s + d > from && s < to);
     const primeiro = sel[0];
@@ -283,16 +367,31 @@
       return { erro: 'o trecho atravessa uma troca de codec' };
 
     return { inicio: primeiro[0], to };
+  }
+
+  // Um plano por duração oferecida: o menu mostra de uma vez quais dá para
+  // baixar. Só com o menu aberto - fechado, ninguém olha, e o instante muda
+  // várias vezes por segundo.
+  const planos = $derived.by(() => {
+    if (menu !== 'baixar') return [];
+    const from = Math.round(player.currentMs || 0);
+    return DURACOES.map((min) => ({ min, plano: planoDe(min, from) }));
   });
+  // Por que a menor duração recusada não dá. As maiores recusam pelo mesmo
+  // motivo ou por um que só elas têm (a troca de codec mais adiante).
+  const recusa = $derived(planos.find((p) => p.plano?.erro));
 
   // No localStorage, e não na URL: a duração da exportação é parâmetro de uma
   // AÇÃO, não do que se está vendo - não tem o que reproduzir num link.
   $effect(() => {
     localStorage.setItem('dwnvr.rec.exportMin', String(exportMin));
   });
+  $effect(() => {
+    localStorage.setItem('dwnvr.rec.miniaturas', showThumbs ? '1' : '0');
+  });
 
   // A URL, ao contrário, passa a descrever a cena inteira: câmera, dia,
-  // instante, velocidade, pausa, zoom, miniaturas, caixas e rótulos. É isso que faz colar o
+  // instante, velocidade, pausa, zoom, caixas e rótulos. É isso que faz colar o
   // endereço em outra aba cair no mesmo trecho da mesma câmera.
   //
   // O que está no padrão fica de fora, para o link não carregar o que já vale
@@ -309,7 +408,9 @@
       rate: player.rate === 1 ? null : player.rate,
       paused: player.playing ? null : '1',
       zoom: diaInteiro ? null : `${hhmmss(viewFrom)},${hhmmss(viewTo)}`,
-      thumbs: showThumbs ? null : '0',
+      // As miniaturas saíram da URL para o localStorage: um link antigo não
+      // carrega mais o `thumbs=0` adiante.
+      thumbs: null,
       caixas: showCaixas ? null : '0',
       rotulos: showRotulos ? null : '0',
     });
@@ -645,12 +746,18 @@
   // nesse instante e o teste do servidor é `>`, então ele continua de fora - e
   // em troca o nome do arquivo, que sai do `from` pedido
   // (internal/api/recordings.go:352), passa a casar com o conteúdo.
-  function exportar() {
-    if (!exportacao?.inicio) return;
-    location.href = mediaURL.export(cam, exportacao.inicio, exportacao.to);
+  function exportar(min: number) {
+    const plano = planoDe(min, Math.round(player.currentMs || 0));
+    menu = null;
+    if (!plano?.inicio) return;
+    exportMin = min;
+    avisoDoBotao(`Baixando ${min} min de vídeo a partir de ${hhmmss(plano.inicio)}`);
+    location.href = mediaURL.export(cam, plano.inicio, plano.to);
   }
 
   async function capturar() {
+    menu = null;
+    avisoDoBotao(`Baixando a imagem das ${hhmmss(player.currentMs)}`);
     // O nome segue a mesma convenção da exportação (cam_AAAA-MM-DD_HH-MM-SS),
     // para que imagem e vídeo do mesmo instante fiquem lado a lado na pasta.
     // E o instante é o MOSTRADO, não a hora atual: uma captura de ontem
@@ -671,13 +778,20 @@
   }
 </script>
 
-<svelte:window onkeydown={tecla} />
+<svelte:window onkeydown={tecla} onclick={foraDoMenu} onresize={medirPagina} />
 
-<div class="page">
+<div
+  class="page"
+  bind:this={pagina}
+  style:height={alturaDaPagina ? `${alturaDaPagina}px` : null}
+  style:--alt-pagina="{alturaDaPagina}px"
+  style:--alt-linha="{alturaDaLinha}px"
+  style:--alt-legenda="{alturaDaLegenda}px"
+>
   {#if !cameras.list.length && !cameras.loading}
     <SemCameras />
   {:else}
-    <div class="bar row wrap">
+    <div class="bar row">
       <div class="row camnav">
         <button
           class="ghost"
@@ -714,17 +828,10 @@
       </div>
 
       <NavDia value={day} days={daysList} onchange={(d: string) => (day = d)} />
-
-      <span class="spacer"></span>
-      <span class="muted small mono">
-        {#if loading}carregando…
-        {:else if timeline.segments.length}{duracao(gravado)} · {timeline.ranges.length} faixa(s)
-        {:else}sem gravação{/if}
-      </span>
     </div>
 
-    <!-- O que vai para a tela cheia. Lá dentro, o que não entra (miniaturas,
-         exportação, os botões de caixa e de imagem) sai do DOM em vez de só se
+    <!-- O que vai para a tela cheia. Lá dentro, o que não entra (miniaturas e
+         os botões de miniaturas, caixas e baixar) sai do DOM em vez de só se
          esconder: as miniaturas não decodificam nada para ninguém ver. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
@@ -769,7 +876,10 @@
            antes eram três avisos disputando o mesmo canto, e o aviso de captura
            chega justamente quando o "carregando…" tem chance de estar aceso. -->
         <div class="avisos">
-          {#if player.buffering}<span class="badge">carregando…</span>{/if}
+          {#if player.buffering || loading}<span class="badge">carregando…</span>{/if}
+          {#if !loading && !error && !timeline.segments.length}
+            <span class="badge">sem gravação neste dia</span>
+          {/if}
           {#if player.error}<span class="badge bad">{player.error}</span>{/if}
           {#if error}<span class="badge bad">{error}</span>{/if}
           {#if capturaErro}<span class="badge bad">{capturaErro}</span>{/if}
@@ -799,13 +909,13 @@
           if (emTelaCheia) controles.mostrar();
         }}
       >
-        <div class="controls row wrap">
+        <div class="controls row">
           <button
             class="primary"
             onclick={() => {
               player.toggle();
             }}
-            aria-label="tocar ou pausar"
+            aria-label={player.playing ? 'pausar' : 'tocar'}
           >
             <Icone nome={player.playing ? 'pausa' : 'play'} tamanho={18} />
           </button>
@@ -846,48 +956,84 @@
             </button>
             <BotaoTelaCheia ativa onclick={alternarCheia} />
           {:else}
-            <button class="ghost small" onclick={() => (showThumbs = !showThumbs)}>
-              {showThumbs ? 'ocultar' : 'mostrar'} miniaturas
+            <!-- No celular só o ícone, e o toque se explica na snackbar; no
+                 desktop o rótulo aparece ao lado. -->
+            <button
+              class="ghost ib"
+              class:on={showThumbs}
+              onclick={alternarMiniaturas}
+              aria-label={showThumbs ? 'ocultar miniaturas' : 'exibir miniaturas'}
+              aria-pressed={showThumbs}
+            >
+              <Icone nome="miniaturas" tamanho={20} />
+              <span class="rotulo" bind:this={rotuloDoBotao}>miniaturas</span>
             </button>
             <!-- Só com objeto no dia, como as cores da legenda: câmera sem detecção
            não tem caixa nenhuma para mostrar. -->
             {#if objetos.length}
-              <button class="ghost small" onclick={() => (showCaixas = !showCaixas)}>
-                {showCaixas ? 'ocultar' : 'mostrar'} caixas
-              </button>
               <button
-                class="ghost small"
-                onclick={() => (showRotulos = !showRotulos)}
-                disabled={!showCaixas}
+                class="ghost ib"
+                class:on={showCaixas}
+                onclick={trocarCaixas}
+                aria-label="caixas de detecção: {ESTADOS_DAS_CAIXAS[
+                  estadoDasCaixas
+                ]}. Toque para trocar"
               >
-                {showRotulos ? 'ocultar' : 'mostrar'} rótulos
+                <Icone nome={showRotulos && showCaixas ? 'caixasRotulo' : 'caixas'} tamanho={20} />
+                <span class="rotulo">{ESTADOS_DAS_CAIXAS[estadoDasCaixas]}</span>
               </button>
             {/if}
-            <button
-              onclick={capturar}
-              disabled={!player.currentMs}
-              title="Baixar a imagem do instante mostrado"
-            >
-              ⤓ imagem
-            </button>
-            <span class="split">
-              <button onclick={exportar} disabled={!exportacao?.inicio}>⤓ exportar</button>
-              <select
-                bind:value={exportMin}
-                aria-label="duração da exportação"
-                title="A partir do instante mostrado"
+            <span class="ancora">
+              <button
+                class="ghost ib"
+                onclick={() => (menu = menu === 'baixar' ? null : 'baixar')}
+                aria-label="baixar imagem ou vídeo"
+                aria-haspopup="menu"
+                aria-expanded={menu === 'baixar'}
               >
-                {#each DURACOES as m (m)}<option value={m}>{m} min</option>{/each}
-              </select>
+                <Icone nome="baixar" tamanho={20} />
+                <span class="rotulo">baixar</span>
+              </button>
+              {#if menu === 'baixar'}
+                <div class="pop acima" role="menu">
+                  <div class="tit">Baixar</div>
+                  <button
+                    class="imagem"
+                    role="menuitem"
+                    onclick={capturar}
+                    disabled={!player.currentMs}
+                  >
+                    <Icone nome="imagem" tamanho={18} /> Imagem deste instante
+                  </button>
+                  <div class="tit">Vídeo a partir deste instante</div>
+                  <div class="duracoes">
+                    {#each planos as { min, plano } (min)}
+                      <button
+                        role="menuitem"
+                        class:ultima={min === exportMin}
+                        onclick={() => {
+                          exportar(min);
+                        }}
+                        disabled={!plano?.inicio}
+                        title={plano?.erro}
+                      >
+                        {min} min
+                      </button>
+                    {/each}
+                  </div>
+                  <!-- O botão desabilitado diz que não dá; sozinho, ele não
+                       diria por quê. -->
+                  {#if recusa?.plano?.erro}
+                    <p class="recusa small">
+                      {recusa.min === DURACOES[0] ? '' : `de ${recusa.min} min em diante: `}{recusa
+                        .plano.erro}
+                    </p>
+                  {/if}
+                </div>
+              {/if}
             </span>
           {/if}
         </div>
-
-        <!-- Só aparece quando há o que explicar. O botão desabilitado diz que não
-         dá; sozinho, ele não diria por quê. -->
-        {#if exportacao?.erro && !emTelaCheia}
-          <p class="exportinfo small mono">⤓ {exportacao.erro}</p>
-        {/if}
 
         {#if showThumbs && !emTelaCheia}
           <!-- A câmera vem da timeline, e não do seletor: ao trocar de câmera
@@ -895,68 +1041,98 @@
           chega. Nesse meio-tempo a tira pedia cada miniatura com a câmera nova
           e o instante da antiga - um 404 por miniatura, na frente da fila das
           certas. -->
-          <ThumbStrip
-            cam={timeline.cam}
-            segments={timeline.segments}
+          <div class="miniaturas">
+            <ThumbStrip
+              cam={timeline.cam}
+              segments={timeline.segments}
+              {objetos}
+              currentMs={player.currentMs}
+              adiar={player.carregando}
+              onseek={(ms: number) => {
+                void player.seek(ms);
+              }}
+            />
+          </div>
+        {/if}
+
+        <div class="linha" bind:offsetHeight={alturaDaLinha}>
+          <Timeline
+            ranges={timeline.ranges}
+            events={eventos}
+            {objetos}
+            {dayStart}
+            {dayEnd}
             currentMs={player.currentMs}
-            adiar={player.carregando}
+            bind:viewFrom
+            bind:viewTo
             onseek={(ms: number) => {
               void player.seek(ms);
             }}
           />
-        {/if}
-
-        <Timeline
-          ranges={timeline.ranges}
-          events={eventos}
-          {objetos}
-          {dayStart}
-          {dayEnd}
-          currentMs={player.currentMs}
-          bind:viewFrom
-          bind:viewTo
-          onseek={(ms: number) => {
-            void player.seek(ms);
-          }}
-        />
+        </div>
       </div>
     </div>
 
-    <p class="legend muted small row wrap">
-      <span><i class="has"></i> com gravação</span>
-      <span><i class="gap"></i> sem gravação</span>
-      {#if eventos.length}
-        <span><i class="heat"></i> movimento</span>
-      {/if}
-      <!-- As três, e não só as do dia: a legenda explica a cor antes de ela
+    <!-- Os gestos ficam no balão da ⓘ: são para quem ainda não os conhece, e
+         à vista ocupavam mais linhas que a legenda inteira no celular. O
+         balão fica fora da legenda porque, deitado, ela rola para o lado e
+         o cortaria. -->
+    <div class="rodape ancora" bind:offsetHeight={alturaDaLegenda}>
+      <div class="legend muted small row wrap">
+        <span><i class="has"></i> com gravação</span>
+        <span><i class="gap"></i> sem gravação</span>
+        {#if eventos.length}
+          <span><i class="heat"></i> movimento</span>
+        {/if}
+        <!-- As três, e não só as do dia: a legenda explica a cor antes de ela
            aparecer, e não muda de tamanho a cada marca nova. -->
-      {#if objetos.length}
-        {#each Object.values(FAMILIAS) as f (f.nome)}
-          <span><i style:background={f.cor}></i> {f.nome}</span>
-        {/each}
+        {#if objetos.length}
+          {#each Object.values(FAMILIAS) as f (f.nome)}
+            <span><i style:background={f.cor}></i> {f.nome}</span>
+          {/each}
+        {/if}
+        <button
+          class="ghost info"
+          onclick={() => (menu = menu === 'gestos' ? null : 'gestos')}
+          aria-label="gestos da timeline"
+          aria-expanded={menu === 'gestos'}
+        >
+          <Icone nome="info" tamanho={16} />
+        </button>
+      </div>
+      {#if menu === 'gestos'}
+        <div class="pop acima gestos" role="dialog" aria-label="gestos da timeline">
+          toque para pular · arraste para navegar · duplo toque aproxima, dois dedos afastam · pince
+          ou role para dar zoom
+        </div>
       {/if}
-      <span>
-        toque para pular · arraste para navegar · duplo toque aproxima, dois dedos afastam · pince
-        ou role para dar zoom
-      </span>
-    </p>
+    </div>
   {/if}
 </div>
 
 <style>
+  /* Uma coluna com a altura da janela (medida em `medirPagina`): o vídeo fica
+     com o que os outros deixam. */
   .page {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
     padding: 10px;
     max-width: 1400px;
     margin: 0 auto;
   }
 
+  /* Câmera e dia numa linha só: quem cede é o nome da câmera. */
+  .bar {
+    flex-wrap: nowrap;
+  }
   .bar select {
     max-width: 45vw;
+    min-width: 0;
   }
   .camnav {
     gap: 4px;
+    min-width: 0;
   }
   .camnav button {
     padding: 9px 6px;
@@ -999,23 +1175,201 @@
   }
   video {
     width: 100%;
-    aspect-ratio: 16 / 9;
-    /* A timeline é o ponto desta tela e precisa caber junto com o vídeo: sem
-       este teto, um 16:9 numa janela larga já empurra a barra para fora da
-       vista. */
-    max-height: 56dvh;
+    height: 100%;
     object-fit: contain;
     display: block;
     background: #000;
-    margin: 0 auto;
   }
 
-  /* Fora da tela cheia, os dois embrulhos repetem o espaçamento da .page e
-     não mudam nada no desenho. */
-  .cheia,
-  .dock {
-    display: grid;
+  /* Fora da tela cheia o palco cresce até 16:9 pela largura e encolhe para o
+     resto caber: quando é a altura que manda, sobra faixa preta dos lados. */
+  .cheia:not(.fs) {
+    /* Do tamanho do conteúdo, e só encolhe: a sobra fica embaixo da legenda,
+       e não entre ela e a timeline. */
+    flex: 0 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
+  }
+  .cheia:not(.fs) .stage {
+    flex: 0 1 auto;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    min-height: 120px;
+  }
+  .cheia:not(.fs) .dock {
+    flex: none;
+    display: grid;
+    gap: 8px;
+  }
+  /* A tira rola por dentro: sem o piso zero, a largura dela abriria a página. */
+  .miniaturas {
+    min-width: 0;
+  }
+
+  /* Uma linha só. O seletor de velocidade enxuga o respiro para os três
+     ícones caberem ao lado em 360 px. */
+  .controls {
+    flex-wrap: nowrap;
+    gap: 3px;
+  }
+  .controls > select {
+    padding: 9px 2px 9px 6px;
+  }
+  .controls .spacer {
+    min-width: 0;
+  }
+
+  /* Os botões só de ícone: miniaturas, caixas e baixar. O rótulo aparece onde
+     cabe (desktop). Marcado, como os botões marcados do Ao vivo. */
+  .ib {
+    display: inline-grid;
+    grid-auto-flow: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-width: 44px;
+    padding: 0 10px;
+    color: var(--dim);
+  }
+  .ib.on {
+    color: var(--fg);
+    border-color: var(--accent);
+    background: var(--ativo-fundo);
+  }
+  .rotulo {
+    display: none;
+    font-size: 14px;
+  }
+  @media (min-width: 720px) {
+    .rotulo {
+      display: inline;
+    }
+  }
+
+  /* O menu do baixar, no desenho do menu da conta. */
+  .ancora {
+    position: relative;
+  }
+  .pop {
+    position: absolute;
+    z-index: 30;
+    right: 0;
+    top: calc(100% + 6px);
+    width: max-content;
+    min-width: 250px;
+    max-width: calc(100vw - 24px);
+    padding: 6px;
+    display: grid;
+    gap: 2px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+  .pop.acima {
+    top: auto;
+    bottom: calc(100% + 6px);
+  }
+  .pop .tit {
+    padding: 6px 10px 2px;
+    font-size: 12px;
+    color: var(--dim);
+  }
+  /* Com cara de botão, como as durações logo abaixo: solta no menu, sem
+     fundo nem borda, ela se lia como um título. */
+  .imagem {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 2px 10px 6px;
+    min-height: 38px;
+    padding: 4px 10px;
+    font-size: 13px;
+  }
+  .duracoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 2px 10px 6px;
+  }
+  .duracoes button {
+    flex: 1;
+    min-height: 38px;
+    padding: 4px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  /* A última duração baixada: só a borda, porque o toque baixa, não escolhe. */
+  .duracoes button.ultima {
+    border-color: var(--accent);
+  }
+  .recusa {
+    margin: 0;
+    padding: 0 10px 6px;
+    color: var(--bad);
+  }
+
+  /* Celular deitado: vídeo à esquerda, e câmera, dia, controles e miniaturas à
+     direita; a timeline e a legenda embaixo com a largura toda, porque é na
+     timeline que se navega. A altura do vídeo é a da tela menos as delas. */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .page {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-rows: auto auto 1fr auto auto;
+      grid-template-areas: 'stage bar' 'stage ctl' 'stage mini' 'linha linha' 'legenda legenda';
+      gap: 8px 10px;
+    }
+    .cheia:not(.fs),
+    .cheia:not(.fs) .dock {
+      display: contents;
+    }
+    .cheia:not(.fs) .stage {
+      grid-area: stage;
+      width: auto;
+      height: calc(var(--alt-pagina) - 20px - var(--alt-linha) - 8px - var(--alt-legenda) - 8px);
+      max-width: calc(100vw - 280px);
+      min-height: 0;
+    }
+    .bar {
+      grid-area: bar;
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+    .controls {
+      grid-area: ctl;
+    }
+    .miniaturas {
+      grid-area: mini;
+      align-self: start;
+    }
+    .linha {
+      grid-area: linha;
+    }
+    /* Uma linha só, que rola para o lado: quebrada em três, ela tirava do
+       vídeo mais da metade da altura. */
+    .rodape {
+      grid-area: legenda;
+    }
+    .legend {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      white-space: nowrap;
+      scrollbar-width: none;
+      /* Rolando por dentro, a grade a espremeria até zero. */
+      min-height: min-content;
+    }
+    .rotulo {
+      display: none;
+    }
+    /* Os controles ficam no alto: o menu do baixar abre para baixo. */
+    .controls .pop.acima {
+      top: calc(100% + 6px);
+      bottom: auto;
+    }
   }
 
   .entrar {
@@ -1111,41 +1465,40 @@
     border-color: #5c2b2b;
   }
 
-  /* Botão e seletor são um controle só. Separados eles se leem como duas
-     funções; colados, voltam a dizer "exportar 5 min", que era o rótulo antigo.
-     O min-height iguala o select ao botão: no app.css só `button` tem os 44px,
-     e a diferença de 4px vira um degrau visível quando os dois encostam. */
-  .split {
-    display: inline-flex;
+  .rodape {
+    flex: none;
   }
-  .split > * {
-    border-radius: 0;
-    margin: 0;
-    position: relative;
-  }
-  .split > button {
-    border-radius: 8px 0 0 8px;
-  }
-  .split > select {
-    border-radius: 0 8px 8px 0;
-    margin-left: -1px;
-    min-height: 44px;
-    padding-right: 8px;
-  }
-  /* A sobreposição de 1px esconderia a borda destacada do vizinho de baixo. */
-  .split > :hover:not(:disabled),
-  .split > :focus-visible {
-    z-index: 1;
-  }
-
-  .exportinfo {
-    margin: -4px 0 0;
-    color: var(--bad);
-  }
-
   .legend {
     gap: 14px;
     margin: 0;
+  }
+  /* A ⓘ no fim da linha, sem engordá-la: o alvo do toque passa da linha pelas
+     margens negativas. */
+  .info {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    min-height: 32px;
+    margin: -6px 0 -6px -8px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    color: var(--dim);
+  }
+  .info[aria-expanded='true'] {
+    color: var(--accent);
+  }
+  /* O balão abre por cima da timeline, alinhado à esquerda da legenda. */
+  .pop.gestos {
+    left: 0;
+    right: auto;
+    min-width: 0;
+    width: max-content;
+    max-width: min(360px, 100%);
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--dim);
   }
   .legend i {
     display: inline-block;
@@ -1154,15 +1507,15 @@
     border-radius: 2px;
     vertical-align: -1px;
   }
-  .legend i.has {
+  .has {
     background: var(--accent);
   }
-  .legend i.gap {
+  .gap {
     background: #1b1f24;
     border: 1px solid var(--line);
   }
   /* O mesmo âmbar da faixa de calor, em CALOR_COR no Timeline.svelte. */
-  .legend i.heat {
+  .heat {
     background: #d29922;
   }
 </style>

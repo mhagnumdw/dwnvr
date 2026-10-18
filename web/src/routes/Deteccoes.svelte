@@ -16,20 +16,16 @@
   import BotaoCameras from '../components/BotaoCameras.svelte';
   import SeletorCameras from '../components/SeletorCameras.svelte';
   import Icone from '../components/Icone.svelte';
+  import SeloDeFamilias from '../components/SeloDeFamilias.svelte';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
   import type { Caixa, Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
   import { cameras, loadCameras } from '../lib/state.svelte.ts';
   import { paramsAtuais, escrever, linkGravacoes } from '../lib/rota.svelte.ts';
-  import {
-    FAMILIAS,
-    NOMES_DAS_FAMILIAS,
-    familia,
-    iconeDaFamilia,
-    iconeURL,
-  } from '../lib/icones.ts';
+  import { FAMILIAS, NOMES_DAS_FAMILIAS, familia, iconeURL } from '../lib/icones.ts';
   import type { NomeDaFamilia } from '../lib/icones.ts';
   import { CAIXA_FOLGA_PX } from '../lib/caixas.ts';
   import { hhmmss, ddmm, dayKey, parseDay } from '../lib/format.ts';
+  import { avisar, fecharAviso } from '../lib/snackbar.svelte.ts';
 
   // Uma linha da grade: o cabeçalho da hora, ou uma fileira de miniaturas.
   // `primeira` é o índice na `lista` da primeira miniatura da fileira.
@@ -581,11 +577,11 @@
     return null;
   }
 
-  // As famílias de uma detecção, uma vez cada, a mais importante primeiro.
+  // As famílias de uma detecção, uma vez cada.
   function familiasDe(d: Deteccao) {
     const out: string[] = [];
     for (const o of d.objetos) if (!out.includes(o.familia)) out.push(o.familia);
-    return out.sort((a, b) => familia(a).prioridade - familia(b).prioridade);
+    return out;
   }
 
   const score = (v: number) => v.toFixed(2).replace('.', ',');
@@ -675,10 +671,10 @@
     };
   }
 
-  // O aviso de desfazer: a miniatura some debaixo do dedo, e um toque errado
-  // no meio da rolagem é fácil. Desfazer sai mais barato que perguntar antes.
-  let desfazer = $state<{ nome: string; antes: string[] | null } | null>(null);
-  let desfazerTimer: number | undefined;
+  // O aviso de desfazer, na snackbar: a miniatura some debaixo do dedo, e um
+  // toque errado no meio da rolagem é fácil. Desfazer sai mais barato que
+  // perguntar antes.
+  let avisoDesfazer: number | undefined;
 
   // A âncora de `ancora()`, mas pulando a câmera que vai sair: a detecção que
   // segura a vista precisa continuar na lista depois do filtro.
@@ -701,9 +697,19 @@
     const antes = camsMarcadas;
     const restantes = (camsMarcadas ?? cameras.list.map((c) => c.id)).filter((x) => x !== cam);
 
-    clearTimeout(desfazerTimer);
-    desfazer = { nome: nomes[cam] ?? cam, antes };
-    desfazerTimer = setTimeout(() => (desfazer = null), DESFAZER_MS);
+    avisoDesfazer = avisar(
+      {
+        forte: nomes[cam] ?? cam,
+        texto: 'oculta',
+        acao: {
+          rotulo: 'desfazer',
+          fazer: () => {
+            desfaz(antes);
+          },
+        },
+      },
+      DESFAZER_MS,
+    );
 
     if (!restantes.length) {
       camsMarcadas = restantes;
@@ -723,11 +729,8 @@
   // Desfazer precisa buscar de novo: o que era da câmera já foi solto. A busca
   // parte da detecção do topo da vista, como um "ir para", e o que está acima
   // chega com a rolagem.
-  function desfaz() {
-    if (!desfazer) return;
-    clearTimeout(desfazerTimer);
-    camsMarcadas = desfazer.antes;
-    desfazer = null;
+  function desfaz(antes: string[] | null) {
+    camsMarcadas = antes;
     const ms = noTopo?.det.instanteMs;
     void recomeca(rolagem.ini > 0 && ms != null ? ms + 1 : null);
   }
@@ -791,7 +794,7 @@
     return () => {
       ro.disconnect();
       clearInterval(t);
-      clearTimeout(desfazerTimer);
+      fecharAviso(avisoDesfazer);
       cancelAnimationFrame(pedido);
       geracao++;
     };
@@ -972,17 +975,7 @@
                     {/if}
                   {/each}
                 </span>
-                <span class="icones">
-                  {#each familiasDe(d) as f (f)}
-                    {@const icone = iconeDaFamilia(f)}
-                    {#if icone}<img
-                        src={iconeURL(icone, 12, familia(f).cor)}
-                        alt=""
-                        width="12"
-                        height="12"
-                      />{/if}
-                  {/each}
-                </span>
+                <SeloDeFamilias familias={familiasDe(d)} />
                 <span class="legenda">
                   <span class="mono">{hhmmss(d.instanteMs)}</span>
                   <span class="nome">{nomes[d.cam] ?? d.cam}</span>
@@ -1077,13 +1070,6 @@
     >
       Ocultar a câmera <strong>{nomes[menu.cam] ?? menu.cam}</strong>
     </button>
-  </div>
-{/if}
-
-{#if desfazer}
-  <div class="aviso" role="status">
-    <span><strong>{desfazer.nome}</strong> oculta</span>
-    <button class="ghost" onclick={desfaz}>desfazer</button>
   </div>
 {/if}
 
@@ -1331,21 +1317,6 @@
     display: none;
   }
 
-  .icones {
-    position: absolute;
-    right: 4px;
-    top: 4px;
-    display: inline-flex;
-    gap: 4px;
-    padding: 3px 4px;
-    border-radius: 6px;
-    background: rgba(13, 17, 23, 0.8);
-  }
-
-  .icones img {
-    display: block;
-  }
-
   /* O ⋮ no canto, à direita dos ícones das famílias e com a mesma pastilha
      deles. A pastilha é pequena, mas o alvo do toque é o canto inteiro. */
   .mais {
@@ -1381,7 +1352,8 @@
     outline: 2px solid var(--accent);
   }
 
-  .celula .icones {
+  /* O selo das famílias abre espaço para o ⋮ à direita dele. */
+  .celula :global(.selo) {
     right: 30px;
   }
 
@@ -1405,7 +1377,7 @@
   .compacta .mais {
     display: none;
   }
-  .compacta .icones {
+  .compacta :global(.selo) {
     right: 4px;
   }
 
@@ -1445,34 +1417,6 @@
     }
   }
 
-  .aviso {
-    position: fixed;
-    z-index: 40;
-    left: 50%;
-    bottom: calc(var(--nav-h) + 12px);
-    transform: translateX(-50%);
-    max-width: calc(100vw - 20px);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 6px 0 14px;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-    white-space: nowrap;
-  }
-
-  .aviso span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .aviso button {
-    border: 0;
-    color: var(--accent);
-    font-weight: 600;
-  }
-
   .legenda {
     position: absolute;
     left: 4px;
@@ -1504,10 +1448,10 @@
     line-height: 16px;
     padding: 0 4px;
   }
-  .compacta .icones {
+  .compacta :global(.selo) {
     padding: 2px 3px;
   }
-  .compacta .icones img {
+  .compacta :global(.selo img) {
     width: 10px;
     height: 10px;
   }
@@ -1543,9 +1487,6 @@
     .legenda {
       font-size: 12px;
       line-height: 20px;
-    }
-    .aviso {
-      bottom: 20px;
     }
   }
 
