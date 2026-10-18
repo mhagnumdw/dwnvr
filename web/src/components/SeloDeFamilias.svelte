@@ -2,10 +2,11 @@
   Os ícones das famílias de objeto num canto de uma miniatura: um por família
   presente, na ordem de prioridade. É o mesmo selo na grade de Detecções e na
   tira de miniaturas das Gravações. Quem usa dá `position: relative` à
-  miniatura.
+  miniatura e põe as famílias no nome do botão (`nomesDasFamilias`): os ícones
+  são imagem sem texto, e o nome é o que o leitor de tela lê.
 -->
 <script lang="ts">
-  import { familia, iconeDaFamilia, iconeURL } from '../lib/icones.ts';
+  import { familia, iconeDaFamilia, iconeURL, porPrioridade } from '../lib/icones.ts';
 
   interface Props {
     // As famílias, sem repetição; a ordem quem dá é o selo.
@@ -14,9 +15,7 @@
 
   let { familias }: Props = $props();
 
-  const ordem = $derived(
-    [...familias].sort((a, b) => familia(a).prioridade - familia(b).prioridade),
-  );
+  const ordem = $derived(porPrioridade(familias));
 </script>
 
 {#if ordem.length}

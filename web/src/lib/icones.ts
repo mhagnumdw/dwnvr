@@ -38,6 +38,17 @@ export const ehFamilia = (nome: string): nome is NomeDaFamilia => Object.hasOwn(
 export const familia = (nome: string): Familia =>
   ehFamilia(nome) ? FAMILIAS[nome] : FAMILIA_DESCONHECIDA;
 
+// As famílias, sem repetição, na ordem de prioridade.
+export const porPrioridade = (familias: readonly string[]) =>
+  [...familias].sort((a, b) => familia(a).prioridade - familia(b).prioridade);
+
+// As famílias por extenso, para o nome que o leitor de tela lê numa
+// miniatura: "pessoa, animal".
+export const nomesDasFamilias = (familias: readonly string[]) =>
+  porPrioridade(familias)
+    .map((f) => familia(f).nome)
+    .join(', ');
+
 // As classes do modelo (nomes do COCO, como o detector devolve) em português,
 // para a dica do ponteiro. Espelha o `FamiliasPadrao` de
 // internal/detect/parametros.go; classe fora dele aparece com o nome cru.

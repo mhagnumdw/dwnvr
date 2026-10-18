@@ -21,7 +21,13 @@
   import type { Caixa, Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
   import { cameras, loadCameras } from '../lib/state.svelte.ts';
   import { paramsAtuais, escrever, linkGravacoes } from '../lib/rota.svelte.ts';
-  import { FAMILIAS, NOMES_DAS_FAMILIAS, familia, iconeURL } from '../lib/icones.ts';
+  import {
+    FAMILIAS,
+    NOMES_DAS_FAMILIAS,
+    familia,
+    iconeURL,
+    nomesDasFamilias,
+  } from '../lib/icones.ts';
   import type { NomeDaFamilia } from '../lib/icones.ts';
   import { CAIXA_FOLGA_PX } from '../lib/caixas.ts';
   import { hhmmss, ddmm, dayKey, parseDay } from '../lib/format.ts';
@@ -941,7 +947,8 @@
               <button
                 class="tile"
                 onclick={() => (aberto = chave(d))}
-                aria-label="abrir {hhmmss(d.instanteMs)}, {nomes[d.cam] ?? d.cam}"
+                aria-label="abrir {hhmmss(d.instanteMs)}, {nomes[d.cam] ??
+                  d.cam}, {nomesDasFamilias(familiasDe(d))}"
               >
                 <span class="imagem" style={areaDaImagem(d.cam)}>
                   {#if d.temQuadro}

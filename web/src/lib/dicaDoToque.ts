@@ -91,10 +91,11 @@ export function instalarDicaDoToque() {
   };
   // O `contextmenu` é o próprio toque longo para o navegador, e pode chegar
   // antes do nosso tempo: a dica abre com ele. E o menu do sistema (abrir o
-  // link, copiar), que abriria no mesmo toque, não abre.
+  // link, copiar), que abriria no mesmo toque, não abre. Só no toque: o
+  // clique direito e a tecla de menu continuam abrindo o menu de sempre.
   const aoMenu = (e: Event) => {
     const el = e.target instanceof Element ? e.target.closest(ALVO) : null;
-    if (!el || !textoDe(el)) return;
+    if (!el || (alvo !== el && !abriu)) return;
     e.preventDefault();
     if (alvo === el && !abriu) {
       clearTimeout(timer);

@@ -6,6 +6,7 @@
   import { thumbnail } from '../lib/thumbs.ts';
   import { hhmmss } from '../lib/format.ts';
   import SeloDeFamilias from './SeloDeFamilias.svelte';
+  import { nomesDasFamilias } from '../lib/icones.ts';
 
   interface Props {
     cam: string;
@@ -210,6 +211,9 @@
         onseek?.(t);
       }}
       title={hhmmss(t)}
+      aria-label={[hhmmss(t), nomesDasFamilias(familiasPorTile[t] ?? [])]
+        .filter(Boolean)
+        .join(', ')}
     >
       {#if pedidas.instantes.has(t)}
         {#await thumbnail(cam, t) then bitmap}
