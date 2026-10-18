@@ -452,6 +452,26 @@
     montado = true;
   });
 
+  // Troca de dia pelo calendário mantendo o horário e o zoom: a posição do
+  // player e a janela da timeline são instantes do dia que sai, então viram o
+  // mesmo horário no dia que entra. Sem isto o load() cai no começo do dia e a
+  // Timeline, vendo a janela fora do dia novo, reancora no dia inteiro.
+  //
+  // Fora daqui (dia que não existe para a câmera, em carregarDias) fica o
+  // comportamento antigo: lá o horário descrevia outro dia e não vale.
+  function mudarDia(novo: string) {
+    if (novo === day) return;
+    const deslocamento = parseDay(novo).getTime() - dayStart;
+    const agora = player.currentMs;
+    if (agora) tPendente = agora + deslocamento;
+    // Janela ainda não ancorada (0) fica como está: a Timeline a ancora.
+    if (viewTo) {
+      viewFrom += deslocamento;
+      viewTo += deslocamento;
+    }
+    day = novo;
+  }
+
   // Anda pela lista de câmeras dando a volta nas pontas.
   function shiftCam(delta: number) {
     const n = cameras.list.length;
@@ -840,7 +860,7 @@
         </button>
       </div>
 
-      <NavDia value={day} days={daysList} onchange={(d: string) => (day = d)} />
+      <NavDia value={day} days={daysList} onchange={mudarDia} />
     </div>
 
     <!-- O que vai para a tela cheia. Lá dentro, o que não entra (miniaturas e
