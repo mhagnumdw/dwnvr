@@ -256,7 +256,15 @@
     }, SEQUENCIA_MS);
   }
 
-  const toque = toqueDuplo({ pular: pularRapido, meio: alternarCheia });
+  // O toque simples esconde os controles da tela cheia, também pausado; fixos,
+  // eles ficam, que é para isso que se fixa.
+  const toque = toqueDuplo({
+    pular: pularRapido,
+    meio: alternarCheia,
+    simples: () => {
+      if (emTelaCheia && !controlesFixos) controles.toqueSimples();
+    },
+  });
 
   // As teclas valem na tela inteira, com ou sem tela cheia. Num campo ou num
   // select, a seta e o espaço são dele; o calendário também usa as setas, e
@@ -851,7 +859,7 @@
         if (telaCheia.el === node) sairDaTelaCheia();
       }}
       onpointerdowncapture={() => {
-        if (emTelaCheia) controles.mostrar();
+        if (emTelaCheia) controles.tocou();
       }}
       onpointermove={(e) => {
         if (emTelaCheia && e.pointerType === 'mouse') controles.mostrar();
