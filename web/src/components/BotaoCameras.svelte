@@ -11,6 +11,8 @@
   (espessura do ícone) e `--pad-x`.
 -->
 <script lang="ts">
+  import Icone from './Icone.svelte';
+
   let {
     marcadas,
     total,
@@ -37,10 +39,7 @@
 >
   <!-- Filmadora desenhada à mão, no traço dos ícones ao lado: o ☰ dizia
        "menu", e o botão abre a lista de câmeras. -->
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    <rect x="2" y="6" width="13.5" height="12" rx="2" />
-    <path d="M15.5 10.5 22 7v10l-6.5-3.5z" stroke-linejoin="round" />
-  </svg>
+  <Icone nome="camera" tamanho={16} traco="var(--traco, 1.8)" />
   <span class="texto">câmeras</span>
   <span class="mono">{marcadas}<span class="total">/{total}</span></span>
 </button>
@@ -53,17 +52,8 @@
     padding: 9px var(--pad-x, 12px);
     white-space: nowrap;
   }
-  svg {
-    display: block;
-    width: 16px;
-    height: 16px;
-    flex: none;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: var(--traco, 1.8);
-  }
-  .todas svg {
-    stroke: var(--accent);
+  .todas :global(svg) {
+    color: var(--accent);
   }
   .total {
     color: var(--dim);

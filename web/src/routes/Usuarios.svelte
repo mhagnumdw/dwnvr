@@ -14,6 +14,7 @@
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import Avatar from '../components/Avatar.svelte';
+  import Icone from '../components/Icone.svelte';
 
   type Acao = 'link' | 'foto' | 'remover';
 
@@ -298,8 +299,10 @@
             onclick={() => (menu = menu === u.username ? null : u.username)}
             aria-label="opções de {u.name}"
             aria-haspopup="menu"
-            aria-expanded={menu === u.username}><span aria-hidden="true">⋮</span></button
+            aria-expanded={menu === u.username}
           >
+            <Icone nome="menu" tamanho={18} />
+          </button>
           {#if menu === u.username}
             <div class="menu" role="menu">
               <!-- Para quem está ativo, o link novo apaga a senha: o rótulo diz
@@ -557,7 +560,6 @@
     width: 36px;
     min-height: 36px;
     padding: 0;
-    font-weight: 700;
   }
 
   /* O mesmo desenho do menu do ⋮ da tela Detecções, preso à linha. */

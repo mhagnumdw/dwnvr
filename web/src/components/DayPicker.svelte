@@ -13,6 +13,7 @@
 -->
 <script lang="ts">
   import { tick } from 'svelte';
+  import Icone from './Icone.svelte';
   import { dayKey, parseDay } from '../lib/format.ts';
 
   interface Props {
@@ -302,19 +303,7 @@
     aria-expanded={aberto}
   >
     <span class="data mono">{textoBotao}</span>
-    <svg
-      class="icone"
-      viewBox="0 0 16 16"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.5"
-      aria-hidden="true"
-    >
-      <rect x="2" y="3" width="12" height="11" rx="2" />
-      <path d="M2 7h12M5 1.5v3M11 1.5v3" stroke-linecap="round" />
-    </svg>
+    <span class="icone"><Icone nome="calendario" tamanho={14} traco={2.25} /></span>
   </button>
 
   {#if aberto}
@@ -335,7 +324,7 @@
           disabled={!podeRecuar}
           aria-label="mês anterior"
         >
-          ‹
+          <Icone nome="chevronEsq" tamanho={18} />
         </button>
         <span class="mes-ano">{mesAno}</span>
         <button
@@ -347,7 +336,7 @@
           disabled={!podeAvancar}
           aria-label="próximo mês"
         >
-          ›
+          <Icone nome="chevronDir" tamanho={18} />
         </button>
       </div>
 
@@ -431,6 +420,7 @@
   }
 
   .icone {
+    display: flex;
     opacity: 0.75;
     flex-shrink: 0;
   }
@@ -465,8 +455,6 @@
   .nav {
     padding: 4px 8px;
     min-height: 32px;
-    font-size: 18px;
-    line-height: 1;
   }
 
   .dias-semana {

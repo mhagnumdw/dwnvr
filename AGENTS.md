@@ -61,6 +61,15 @@ limitado**, como exemplo o Orange Pi Zero 3. Ele não é feito *para* um hardwar
     caminho interno ou `DayLayout` (a gravação antiga continua legível?);
     flag em `cmd/dwnvr/main.go`; rota ou JSON documentado em `docs/api.md`.
 
+## Interface
+
+- Ícone da interface é `<Icone nome="…" tamanho={…} />`, e o desenho mora em
+  `web/src/lib/iconesUi.ts`. Ícone novo entra lá, num viewBox 24×24. Nada de
+  `<svg>` inline numa tela nem de caractere (⋮ ✕ ▶) no lugar de ícone: o
+  caractere muda de forma a cada sistema.
+- Fora do mapa ficam só os ícones de detecção em canvas (`lib/icones.ts`) e a
+  marca do GitHub (`MarcaGitHub.svelte`).
+
 ## Lint
 
 - Uma vez por clone: `prek install` (o prek se instala com

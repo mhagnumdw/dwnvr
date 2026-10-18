@@ -10,6 +10,7 @@
   // em" do servidor, por exemplo.
   import type { Snippet } from 'svelte';
   import { copiar } from '../lib/navegador.ts';
+  import Icone from './Icone.svelte';
   import type { GrupoDoCard } from '../lib/navegador.ts';
 
   interface Props {
@@ -45,7 +46,9 @@
          que o dedo acha. O "copiar" fica fora dele, senão tocar para copiar
          também fecharia o card. -->
     <button class="abrir row" onclick={() => (aberto = !aberto)} aria-expanded={aberto}>
-      <span class="seta-card">{aberto ? '▾' : '▸'}</span>
+      <span class="seta-card"
+        ><Icone nome={aberto ? 'chevronBaixo' : 'chevronDir'} tamanho={14} /></span
+      >
       <strong>{titulo}</strong>
     </button>
     {#if aberto && grupos.length}
@@ -132,8 +135,8 @@
     padding-left: 20px;
   }
   .seta-card {
-    width: 12px;
-    font-size: 12px;
+    display: flex;
+    width: 14px;
     color: var(--dim);
   }
   .item {
