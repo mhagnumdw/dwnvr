@@ -356,11 +356,17 @@
   // sem volta para a tela.
   function planoDe(min: number, from: number): Exportacao | null {
     if (!from) return null;
-    const to = from + min * 60_000;
 
-    const sel = timeline.segments.filter(([s, d]) => s + d > from && s < to);
-    const primeiro = sel[0];
-    if (!primeiro) return { erro: 'sem gravação nesse trecho' };
+    // A conta dos `min` minutos parte do início do primeiro segmento, que é o
+    // `from` enviado (ver `exportar`), e não do instante: contada do instante,
+    // a janela passaria de `min` pelo pedaço do segmento antes dele, e no
+    // de 10 min o servidor recusaria com 400 (maxExportSpan).
+    const primeiro = timeline.segments.find(([s, d]) => s + d > from);
+    if (!primeiro || primeiro[0] >= from + min * 60_000)
+      return { erro: 'sem gravação nesse trecho' };
+    const to = primeiro[0] + min * 60_000;
+
+    const sel = timeline.segments.filter(([s, d]) => s + d > primeiro[0] && s < to);
     // Um MP4 só pode ter um init, então o servidor recusa o intervalo que muda
     // de geração (internal/api/recordings.go:327).
     if (sel.some(([, , gi]) => gi !== primeiro[2]))
@@ -742,10 +748,9 @@
   }
 
   // O `from` enviado é o início REAL do primeiro segmento, não o instante do
-  // cursor. O conjunto de segmentos é o mesmo - o anterior termina exatamente
-  // nesse instante e o teste do servidor é `>`, então ele continua de fora - e
-  // em troca o nome do arquivo, que sai do `from` pedido
-  // (internal/api/recordings.go:352), passa a casar com o conteúdo.
+  // cursor. O anterior termina exatamente nesse instante e o teste do servidor
+  // é `>`, então ele continua de fora; e o nome do arquivo, que sai do `from`
+  // pedido (internal/api/recordings.go:352), passa a casar com o conteúdo.
   function exportar(min: number) {
     const plano = planoDe(min, Math.round(player.currentMs || 0));
     menu = null;
