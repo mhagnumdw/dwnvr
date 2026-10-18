@@ -27,6 +27,7 @@
   import SemCameras from '../components/SemCameras.svelte';
   import NavDia from '../components/NavDia.svelte';
   import Relogio from '../components/Relogio.svelte';
+  import Icone from '../components/Icone.svelte';
   import type CaixasDoVideo from '../components/Caixas.svelte';
 
   // O que a tela guarda da timeline do dia: o que ela desenha e o que o player
@@ -686,7 +687,7 @@
           disabled={cameras.list.length < 2}
           aria-label="câmera anterior"
         >
-          ‹
+          <Icone nome="chevronEsq" tamanho={18} />
         </button>
         <!-- O blur devolve as setas aos pulos, como no select da velocidade. -->
         <select
@@ -708,7 +709,7 @@
           disabled={cameras.list.length < 2}
           aria-label="próxima câmera"
         >
-          ›
+          <Icone nome="chevronDir" tamanho={18} />
         </button>
       </div>
 
@@ -775,7 +776,7 @@
         </div>
         {#if pulo}
           <div class="meia-lua" class:direita={pulo.lado > 0} out:fade={{ duration: 250 }}>
-            <span class="setas">{pulo.lado < 0 ? '◀◀◀' : '▶▶▶'}</span>
+            <Icone nome={pulo.lado < 0 ? 'pulaEsq' : 'pulaDir'} tamanho={26} />
             <span>{pulo.soma} segundos</span>
           </div>
         {/if}
@@ -806,7 +807,7 @@
             }}
             aria-label="tocar ou pausar"
           >
-            {player.playing ? '⏸' : '▶'}
+            <Icone nome={player.playing ? 'pausa' : 'play'} tamanho={18} />
           </button>
           <Relogio
             ms={player.currentMs}
@@ -841,9 +842,7 @@
                 ? 'soltar os controles: somem sozinhos com o vídeo tocando'
                 : 'fixar os controles embaixo do vídeo'}
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M9 4h6M10 4v6l-3 4h10l-3-4V4M12 14v6" />
-              </svg>
+              <Icone nome="fixar" tamanho={22} />
             </button>
             <BotaoTelaCheia ativa onclick={alternarCheia} />
           {:else}
@@ -960,7 +959,7 @@
     gap: 4px;
   }
   .camnav button {
-    padding: 9px 12px;
+    padding: 9px 6px;
   }
 
   .stage {
@@ -998,11 +997,6 @@
     right: 0;
     border-radius: 50% 0 0 50% / 50% 0 0 50%;
   }
-  .meia-lua .setas {
-    font-size: 18px;
-    letter-spacing: -4px;
-  }
-
   video {
     width: 100%;
     aspect-ratio: 16 / 9;
@@ -1084,15 +1078,6 @@
     place-items: center;
     width: 44px;
     padding: 0;
-  }
-  .fixar svg {
-    width: 22px;
-    height: 22px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
   .fixar.on {
     background: var(--accent);

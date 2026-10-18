@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
   import DayPicker from './DayPicker.svelte';
+  import Icone from './Icone.svelte';
   import { dayKey, parseDay } from '../lib/format.ts';
 
   interface Props {
@@ -41,7 +42,7 @@
     disabled={!anterior}
     aria-label="dia anterior"
   >
-    ‹
+    <Icone nome="chevronEsq" tamanho={18} />
   </button>
   <DayPicker {value} {days} {oQue} {onchange} />
   <button
@@ -52,7 +53,7 @@
     disabled={!proximo}
     aria-label="próximo dia"
   >
-    ›
+    <Icone nome="chevronDir" tamanho={18} />
   </button>
 </div>
 
@@ -64,6 +65,6 @@
   }
 
   .nav-dia > button {
-    padding: 9px 12px;
+    padding: 9px 6px;
   }
 </style>

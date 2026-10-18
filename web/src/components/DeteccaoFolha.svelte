@@ -9,6 +9,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Modal from './Modal.svelte';
+  import Icone from './Icone.svelte';
   import BotaoTelaCheia from './BotaoTelaCheia.svelte';
   import type CaixasDoVideo from './Caixas.svelte';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
@@ -245,7 +246,9 @@
     <span class="muted">·</span>
     <span class="camera">{camera}</span>
     <span class="spacer"></span>
-    <button class="ghost fechar" onclick={onclose} aria-label="fechar">✕</button>
+    <button class="ghost fechar" onclick={onclose} aria-label="fechar">
+      <Icone nome="fechar" tamanho={16} />
+    </button>
   </div>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -290,7 +293,7 @@
     ></button>
     {#if !player.playing}
       <span class="play" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z" /></svg>
+        <Icone nome="play" tamanho={22} />
       </span>
     {/if}
     <span class="tela-cheia"
@@ -421,13 +424,11 @@
     background: rgba(13, 17, 23, 0.72);
     border: 1px solid rgba(230, 237, 243, 0.35);
     pointer-events: none;
+    color: #fff;
   }
 
-  .play svg {
-    width: 22px;
-    height: 22px;
+  .play :global(svg) {
     margin-left: 3px;
-    fill: #fff;
   }
 
   /* Sempre à vista, com mouse ou no toque: aqui o vídeo é o assunto da folha,

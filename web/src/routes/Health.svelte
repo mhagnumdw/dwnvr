@@ -38,6 +38,7 @@
   import CardDiagnostico from '../components/CardDiagnostico.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import MarcaGitHub from '../components/MarcaGitHub.svelte';
+  import Icone from '../components/Icone.svelte';
 
   // Uma coluna das tabelas: sabe extrair o valor que a ordena. Texto passa
   // pelo colator; número, pela subtração.
@@ -878,7 +879,13 @@
               ordenarPor(col.id);
             }}
           >
-            {col.rotulo}{#if o.col === col.id}<span class="seta">{o.asc ? '▲' : '▼'}</span>{/if}
+            {col.rotulo}{#if o.col === col.id}<span class="seta"
+                ><Icone
+                  nome={o.asc ? 'chevronCima' : 'chevronBaixo'}
+                  tamanho={12}
+                  traco={2.5}
+                /></span
+              >{/if}
           </button>
         {/each}
       </div>
@@ -909,7 +916,11 @@
           >
             <span class="rotulo">{col.rotulo}</span>
             <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
-            <span class="seta">{ordem.col === col.id ? (ordem.asc ? '▲' : '▼') : ''}</span>
+            <span class="seta">
+              {#if ordem.col === col.id}
+                <Icone nome={ordem.asc ? 'chevronCima' : 'chevronBaixo'} tamanho={12} traco={2.5} />
+              {/if}
+            </span>
           </button>
         {/each}
       </div>
@@ -1080,8 +1091,15 @@
               >
                 <span class="rotulo">{col.rotulo}</span>
                 <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
-                <span class="seta">{ordemDet.col === col.id ? (ordemDet.asc ? '▲' : '▼') : ''}</span
-                >
+                <span class="seta">
+                  {#if ordemDet.col === col.id}
+                    <Icone
+                      nome={ordemDet.asc ? 'chevronCima' : 'chevronBaixo'}
+                      tamanho={12}
+                      traco={2.5}
+                    />
+                  {/if}
+                </span>
               </button>
             {/each}
           </div>
@@ -1650,7 +1668,7 @@
     background: #2f81f71f;
   }
   .ordem .seta {
-    font-size: 9px;
+    display: flex;
     color: var(--accent);
   }
 
@@ -1717,9 +1735,9 @@
     text-decoration-color: var(--dim);
   }
   .th .seta {
-    width: 9px;
+    display: flex;
+    width: 12px;
     flex: none;
-    font-size: 9px;
     color: var(--accent);
   }
   .trow + .trow {

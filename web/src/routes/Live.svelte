@@ -14,6 +14,7 @@
   import { telaCheia, entrarEmTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
   import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
   import { telaNova } from '../lib/versao-tela.svelte.ts';
+  import Icone from '../components/Icone.svelte';
 
   const STORAGE_KEY = 'dwnvr.live.selection';
   const LAYOUT_KEY = 'dwnvr.live.layout';
@@ -842,15 +843,7 @@
             onclick={() => setModo(m)}
           >
             {#if m === 'fit'}
-              <!-- Cantos de enquadramento desenhados à mão: o caractere ⛶ não
-                   existe nas fontes do sistema no Linux nem no Android. -->
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
+              <Icone nome="encaixar" tamanho={17} />
               <span class="texto-botao">Encaixar</span>
             {:else}
               {m}×
@@ -873,21 +866,7 @@
             : `câmeras fora da tela pausam após ${CARENCIA_ROLAGEM_MS / 1000} s`}
           onclick={alternarSempre}
         >
-          <!-- A tela com o vídeo escapando por baixo dela: o ▶ é "toca fora
-               da área visível", e o ❚❚, "pausa lá". O recorte em volta do
-               glifo é da cor do fundo. -->
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="2.5" y="2.5" width="15" height="11" rx="1.6" class="moldura" />
-            <path d="M5 17h4M5 20.5h3" class="rastro" />
-            {#if sempreLigadas}
-              <path d="M12.6 11.4 23.2 17.3 12.6 23.2z" class="glifo" />
-            {:else}
-              <g class="glifo">
-                <rect x="13" y="12" width="3.4" height="10.5" rx=".6" />
-                <rect x="18.8" y="12" width="3.4" height="10.5" rx=".6" />
-              </g>
-            {/if}
-          </svg>
+          <Icone nome={sempreLigadas ? 'foraDaTelaToca' : 'foraDaTelaPausa'} tamanho={20} />
           <span class="trilho"></span>
           <span class="texto-botao">Pausar fora da tela</span>
         </button>
@@ -1004,12 +983,7 @@
                 aria-pressed={pipCam === c.id}
                 title={pipCam === c.id ? 'fechar a janela flutuante' : 'abrir em janela flutuante'}
               >
-                <!-- A janela grande com a pequena no canto: o desenho que os
-                     sistemas usam para PiP. -->
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="3" y="5" width="18" height="14" rx="2" class="moldura" />
-                  <rect x="12" y="12" width="7" height="5" rx="1" class="janela" />
-                </svg>
+                <Icone nome="pip" tamanho={16} />
               </button>
             {/if}
           </div>
@@ -1031,10 +1005,7 @@
               aria-label="{c.name} em tela cheia"
               title="tela cheia (ou duplo clique no vídeo)"
             >
-              <!-- O mesmo desenho do BotaoTelaCheia. -->
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
-              </svg>
+              <Icone nome="telaCheia" tamanho={16} />
             </button>
           {/if}
 
@@ -1047,7 +1018,8 @@
               onclick={() => (menu = menu === c.id ? null : c.id)}
               aria-label="opções da câmera {c.name}"
               aria-haspopup="menu"
-              aria-expanded={menu === c.id}><span aria-hidden="true">⋮</span></button
+              aria-expanded={menu === c.id}
+              ><span aria-hidden="true"><Icone nome="menu" tamanho="100%" /></span></button
             >
 
             {#if menu === c.id}
@@ -1085,7 +1057,7 @@
           aria-label="câmera anterior"
           title="câmera anterior (←)"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          <Icone nome="chevronEsq" tamanho={22} />
         </button>
         <button
           class="ghost seta dir"
@@ -1095,7 +1067,7 @@
           aria-label="próxima câmera"
           title="próxima câmera (→)"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+          <Icone nome="chevronDir" tamanho={22} />
         </button>
       {/if}
       <span class="sair"><BotaoTelaCheia ativa sobreVideo onclick={sairDaTelaCheia} /></span>
@@ -1176,15 +1148,6 @@
     z-index: 1;
   }
 
-  .modos svg {
-    display: block;
-    width: 17px;
-    height: 17px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-  }
-
   .sep {
     display: none;
     width: 1px;
@@ -1202,31 +1165,6 @@
   }
   .pausar.on {
     border-color: var(--accent);
-  }
-  .pausar svg {
-    display: block;
-    width: 20px;
-    height: 20px;
-    flex: none;
-  }
-  .pausar .moldura {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-  }
-  .pausar .rastro {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-dasharray: 1.5 2.5;
-  }
-  .pausar .glifo {
-    fill: var(--accent);
-    stroke: var(--bg);
-    stroke-width: 2;
-    stroke-linejoin: round;
-    paint-order: stroke;
   }
   .trilho {
     width: 30px;
@@ -1397,22 +1335,6 @@
     color: var(--fg);
   }
 
-  .pip svg,
-  .cheia svg {
-    display: block;
-    width: 16px;
-    height: 16px;
-  }
-
-  .pip .moldura {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-  }
-  .pip .janela {
-    fill: currentColor;
-  }
-
   .pip:focus-visible,
   .cheia:focus-visible {
     outline: 2px solid var(--accent);
@@ -1447,14 +1369,6 @@
     position: absolute;
     right: 8px;
     bottom: 8px;
-  }
-
-  .cheia svg {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 
   /* O player do go2rtc escreve o modo (loading, RTC, MSE) no canto de cima à
@@ -1507,12 +1421,9 @@
     display: block;
     width: 22px;
     height: 20px;
+    padding: 2px;
     border-radius: 6px;
     background: rgba(13, 17, 23, 0.8);
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 20px;
-    text-align: center;
     color: var(--fg);
   }
 
@@ -1639,7 +1550,7 @@
     width: 34px;
     height: 28px;
   }
-  .palco.fs .pip svg {
+  .palco.fs .pip :global(svg) {
     width: 18px;
     height: 18px;
   }
@@ -1651,8 +1562,7 @@
   .palco.fs .mais span {
     width: 36px;
     height: 32px;
-    font-size: 18px;
-    line-height: 32px;
+    padding: 6px;
   }
   /* Embaixo à direita está o botão de sair. */
   .palco.fs .badge {
@@ -1679,15 +1589,6 @@
   }
   .seta.dir {
     right: max(8px, env(safe-area-inset-right));
-  }
-  .seta svg {
-    width: 22px;
-    height: 22px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 
   .sair {

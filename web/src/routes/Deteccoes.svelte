@@ -14,6 +14,7 @@
   import Relogio from '../components/Relogio.svelte';
   import DeteccaoFolha from '../components/DeteccaoFolha.svelte';
   import BotaoCameras from '../components/BotaoCameras.svelte';
+  import Icone from '../components/Icone.svelte';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
   import type { Caixa, Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
   import { cameras, loadCameras } from '../lib/state.svelte.ts';
@@ -839,9 +840,7 @@
         title={comCaixas ? 'esconder as caixas dos objetos' : 'mostrar as caixas dos objetos'}
         onclick={() => (comCaixas = !comCaixas)}
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true"
-          ><rect x="2.5" y="4" width="11" height="8" rx="1" /></svg
-        >
+        <Icone nome="caixas" tamanho={14} traco={2.4} />
         <span class="rotulo">caixas</span>
       </button>
       <button
@@ -854,13 +853,7 @@
           : `buscar sozinho as detecções novas, a cada ${NOVAS_MS / 1000} s`}
         onclick={alternaAtualizar}
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path
-            d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
+        <Icone nome="atualizar" tamanho={14} traco={2.4} />
         <span class="rotulo">atualizar</span>
       </button>
       <span class="spacer"></span>
@@ -869,15 +862,19 @@
         onclick={() => mudaColunas(1)}
         disabled={colunas >= faixa.max}
         title="miniaturas menores"
-        aria-label="miniaturas menores">−</button
+        aria-label="miniaturas menores"
       >
+        <Icone nome="menos" tamanho={18} />
+      </button>
       <button
         class="ghost zoom"
         onclick={() => mudaColunas(-1)}
         disabled={colunas <= faixa.min}
         title="miniaturas maiores"
-        aria-label="miniaturas maiores">+</button
+        aria-label="miniaturas maiores"
       >
+        <Icone nome="mais" tamanho={18} />
+      </button>
     </div>
 
     <div class="cams" bind:this={camsEl}>
@@ -1007,7 +1004,8 @@
                 }}
                 aria-label="opções da câmera {nomes[d.cam] ?? d.cam}"
                 aria-haspopup="menu"
-                aria-expanded={menu?.k === chave(d)}><span aria-hidden="true">⋮</span></button
+                aria-expanded={menu?.k === chave(d)}
+                ><span aria-hidden="true"><Icone nome="menu" tamanho="100%" /></span></button
               >
             </div>
           {/each}
@@ -1198,21 +1196,10 @@
     border-color: var(--accent);
   }
 
-  .controles svg {
-    width: 14px;
-    height: 14px;
-    flex: none;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-  }
-
   .controles .zoom {
     justify-content: center;
     min-width: 40px;
     color: var(--fg);
-    font-size: 17px;
-    line-height: 1;
   }
 
   .popover {
@@ -1406,12 +1393,9 @@
     display: block;
     width: 22px;
     height: 20px;
+    padding: 2px;
     border-radius: 6px;
     background: rgba(13, 17, 23, 0.8);
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 20px;
-    text-align: center;
     color: var(--fg);
   }
 

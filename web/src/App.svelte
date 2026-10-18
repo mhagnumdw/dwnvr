@@ -28,12 +28,14 @@
   import Cameras from './routes/Cameras.svelte';
   import Health from './routes/Health.svelte';
   import Avatar from './components/Avatar.svelte';
+  import Icone from './components/Icone.svelte';
+  import type { NomeDoIconeUi } from './lib/iconesUi.ts';
   import type TelaDoConvite from './routes/Convite.svelte';
 
   interface Rota {
     id: string;
     label: string;
-    icon?: string;
+    icon?: NomeDoIconeUi;
     // A tela que já vem no bundle principal, ou o import do chunk à parte dela.
     component?: Component;
     carregar?: () => Promise<{ default: Component }>;
@@ -44,29 +46,30 @@
 
   // Lista que nunca é vazia: a primeira é a padrão.
   const ROUTES: readonly [Rota, ...Rota[]] = [
-    { id: 'live', label: 'Ao vivo', icon: '◉', component: Live },
-    { id: 'rec', label: 'Gravações', icon: '⏱', component: Recordings },
+    { id: 'live', label: 'Ao vivo', icon: 'aoVivo', component: Live },
+    { id: 'rec', label: 'Gravações', icon: 'relogio', component: Recordings },
     // Chunk à parte: só quem abre a tela paga os bytes dela. E só existe com o
     // detector de objetos configurado - sem ele não há detecção para listar.
     {
       id: 'detection',
       label: 'Detecções',
-      icon: '▣',
+      icon: 'deteccao',
       carregar: () => import('./routes/Deteccoes.svelte'),
       soComDetector: true,
     },
     // As duas do admin. Esconder a aba não é segurança - a API recusa o viewer
     // com 403 -, é só não mostrar o que ele não pode usar. Usuários vem em
     // chunk à parte: o viewer nunca baixa a tela.
-    { id: 'cams', label: 'Câmeras', icon: '☰', component: Cameras, soAdmin: true },
+    { id: 'cams', label: 'Câmeras', icon: 'lista', component: Cameras, soAdmin: true },
     {
       id: 'usuarios',
       label: 'Usuários',
+      icon: 'usuarios',
       carregar: () => import('./routes/Usuarios.svelte'),
       soAdmin: true,
     },
     // Para o viewer, só "Este navegador" e a versão.
-    { id: 'health', label: 'Diagnóstico', icon: '♥', component: Health },
+    { id: 'health', label: 'Diagnóstico', icon: 'coracao', component: Health },
     // Sem aba: chega-se pelo avatar do header. Só existe com login, porque sem
     // ele não há de quem ser a conta.
     {
@@ -319,21 +322,7 @@
               title="Compartilhar esta tela"
               aria-label="Compartilhar esta tela"
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <path d="m8.59 13.51 6.83 3.98" />
-                <path d="m15.41 6.51-6.82 3.98" />
-              </svg>
+              <Icone nome="compartilhar" tamanho={21} />
             </button>
             {#if copiouTela}<span class="copiou" role="status">{copiouTela}</span>{/if}
           </div>
@@ -350,18 +339,7 @@
               navegar(e, 'health');
             }}
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9" />
-              <path d="M10.3 19.5a1.9 1.9 0 0 0 3.4 0" />
-            </svg>
+            <Icone nome="sino" tamanho={21} />
             <span class="bolha">{sino.total}</span>
           </a>
         {/if}
@@ -375,7 +353,8 @@
             rel="noopener"
             title="Versão nova do dwnvr: {build.nova} (você está na {build.version}). Veja o que mudou e como atualizar."
           >
-            ↑ {build.nova}
+            <Icone nome="setaCima" tamanho={14} />
+            {build.nova}
           </a>
         {/if}
         <!-- Sem autenticação configurada não há de quem ser a conta nem sessão
@@ -449,7 +428,7 @@
         <Tela />
       {:else if route.carregar && falharam[route.id]}
         <div class="falhou">
-          <div class="ico" aria-hidden="true">↻</div>
+          <div class="ico"><Icone nome="atualizar" tamanho={28} /></div>
           <h3>Não deu para abrir esta tela</h3>
           <p>
             {#if telaNova.disponivel}
@@ -474,26 +453,8 @@
           navegar(e, r.id);
         }}
       >
-        <!-- Usuários não tem um caractere que preste em todo sistema: vai
-             desenhado, no tamanho dos outros. -->
         <span class="icon">
-          {#if r.id === 'usuarios'}
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              aria-hidden="true"
-            >
-              <circle cx="9" cy="8" r="3.5" />
-              <path d="M2.5 20c.8-4 3.3-6 6.5-6s5.7 2 6.5 6" />
-              <circle cx="17" cy="9" r="2.6" />
-              <path d="M16 14.2c2.9-.3 5 1.6 5.6 4.8" />
-            </svg>
-          {:else}
-            {r.icon}
-          {/if}
+          {#if r.icon}<Icone nome={r.icon} tamanho={18} />{/if}
         </span>
         <span class="label">{r.label}</span>
       </a>
@@ -565,8 +526,6 @@
   }
 
   .falhou .ico {
-    font-size: 28px;
-    line-height: 1;
     color: var(--accent);
   }
 
@@ -615,6 +574,7 @@
   .nova {
     display: inline-flex;
     align-items: center;
+    gap: 4px;
     /* A mesma altura do avatar ao lado. */
     min-height: 34px;
     padding: 5px 12px;
@@ -650,11 +610,6 @@
     color: var(--dim);
   }
 
-  .sino svg {
-    width: 21px;
-    height: 21px;
-  }
-
   @media (hover: hover) {
     .sino:hover {
       background: var(--panel-2);
@@ -678,11 +633,6 @@
     border-radius: 999px;
     background: none;
     color: var(--dim);
-  }
-
-  .icone svg {
-    width: 21px;
-    height: 21px;
   }
 
   @media (hover: hover) {
@@ -857,17 +807,9 @@
   }
 
   .icon {
-    font-size: 18px;
-    line-height: 1;
-    /* A altura fixa alinha o desenho da aba Usuários com os caracteres. */
     height: 18px;
     display: grid;
     place-items: center;
-  }
-
-  .icon svg {
-    width: 18px;
-    height: 18px;
   }
 
   /* No desktop a navegação sobe: o polegar deixa de ser a restrição e a

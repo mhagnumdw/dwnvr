@@ -25,6 +25,7 @@
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import SemCameras from '../components/SemCameras.svelte';
+  import Icone from '../components/Icone.svelte';
 
   // A câmera no formulário, com o que a tela sabe do áudio dela. Os campos com
   // `_` não vão para a API.
@@ -394,13 +395,7 @@
         aria-label="atualizar"
         title="perguntar de novo ao go2rtc quais streams ele serve"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path
-            d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
+        <Icone nome="atualizar" tamanho={16} traco={2.4} />
       </button>
     </div>
 
@@ -812,14 +807,7 @@
     color: var(--dim);
     border-color: transparent;
   }
-  .atualizar svg {
-    width: 16px;
-    height: 16px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-  }
-  .atualizar.girando svg {
+  .atualizar.girando :global(svg) {
     animation: girar 0.8s linear infinite;
   }
   @keyframes girar {

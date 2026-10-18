@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import type { HTMLInputAttributes } from 'svelte/elements';
+  import Icone from './Icone.svelte';
 
   // O resto vai direto ao <input>: minlength, maxlength, id.
   interface Props extends Omit<HTMLInputAttributes, 'value' | 'type'> {
@@ -42,16 +43,7 @@
     aria-label={ver ? 'esconder senha' : 'mostrar senha'}
     title={ver ? 'esconder senha' : 'mostrar senha'}
   >
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"
-        stroke-linejoin="round"
-      />
-      <circle cx="8" cy="8" r="2" />
-      {#if ver}
-        <path d="M2.5 13.5l11-11" stroke-linecap="round" />
-      {/if}
-    </svg>
+    <Icone nome={ver ? 'olhoCortado' : 'olho'} tamanho={18} traco={2.1} />
   </button>
 </div>
 
@@ -89,13 +81,5 @@
   .olho:hover,
   .olho[aria-pressed='true'] {
     color: var(--fg);
-  }
-
-  .olho svg {
-    width: 18px;
-    height: 18px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.4;
   }
 </style>

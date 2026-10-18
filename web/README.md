@@ -42,7 +42,9 @@ isso, o hook `interface-atualizada` do prek recusa o commit.
 src/lib/         api e os tipos do JSON dela, estado (runes), rota e
                  estado na URL, formatadores,
                  player MSE, miniaturas, captura de quadro, ícones das
-                 famílias de objeto, disposição e desenho das caixas,
+                 famílias de objeto (canvas), os ícones da interface (o
+                 mapa nome -> desenho do `<Icone>`), disposição e desenho
+                 das caixas,
                  diagnóstico do navegador de quem está olhando e do
                  servidor que grava, avisos do diagnóstico (o card e o
                  sino do header), a redução da foto da Minha conta, o
@@ -64,7 +66,8 @@ src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  o card fechável de diagnóstico com o "copiar",
                  o campo de senha com o olho, o avatar (a foto ou as
                  iniciais), o botão que abre a lista de câmeras (marcadas
-                 do total), o botão de entrar e sair da tela cheia
+                 do total), o botão de entrar e sair da tela cheia, o
+                 `<Icone>` que desenha qualquer ícone da interface pelo nome
 src/vendor/      player de live do go2rtc (MIT), em JavaScript, com os tipos
                  dele escritos à mão - ver vendor/README.md
 ```
