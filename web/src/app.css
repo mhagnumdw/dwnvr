@@ -9,6 +9,8 @@
   --fg: #e6edf3;
   --dim: #8b949e;
   --accent: #2f81f7;
+  /* O fundo de um botão marcado: o segmentado do Ao vivo e os chips de câmeras. */
+  --ativo-fundo: #12233d;
   --ok: #3fb950;
   --warn: #d29922;
   --bad: #f85149;

@@ -10,6 +10,7 @@
   import { dayKey, hhmmss } from '../lib/format.ts';
   import SemCameras from '../components/SemCameras.svelte';
   import BotaoCameras from '../components/BotaoCameras.svelte';
+  import SeletorCameras from '../components/SeletorCameras.svelte';
   import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
   import { telaCheia, entrarEmTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
   import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
@@ -875,24 +876,14 @@
   </div>
 
   {#if showPicker}
-    <div class="card chips">
-      {#if cameras.list.length}
-        <button class="camchip todas" onclick={todas}>
-          {tudoMarcado ? 'limpar' : 'todas'}
-        </button>
-        {#each cameras.list as c (c.id)}
-          <button
-            class="camchip"
-            class:on={selected.has(c.id)}
-            aria-pressed={selected.has(c.id)}
-            onclick={() => toggle(c.id)}
-          >
-            <span class="nome-cam">{c.name}</span>
-          </button>
-        {/each}
-      {:else}
-        <p class="muted small">nenhuma câmera cadastrada</p>
-      {/if}
+    <div class="card">
+      <SeletorCameras
+        cameras={cameras.list}
+        marcada={(id: string) => selected.has(id)}
+        todas={tudoMarcado}
+        ontoggle={toggle}
+        ontodas={todas}
+      />
     </div>
   {/if}
 
@@ -1091,8 +1082,6 @@
   }
 
   .page {
-    /* O fundo do botão marcado, no segmentado e nos chips. */
-    --ativo-fundo: #12233d;
     display: grid;
     gap: 10px;
     padding: 10px;
@@ -1194,51 +1183,6 @@
 
   /* Os textos dos botões só aparecem onde cabem. */
   .texto-botao {
-    display: none;
-  }
-
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .camchip {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 40px;
-    padding: 0 14px;
-    border-radius: 10px;
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--dim);
-    max-width: 100%;
-  }
-  .nome-cam {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .camchip::before {
-    content: '';
-    flex: none;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--line);
-  }
-  .camchip.on {
-    color: var(--fg);
-    border-color: var(--accent);
-    background: var(--ativo-fundo);
-  }
-  .camchip.on::before {
-    background: var(--ok);
-  }
-  .camchip.todas {
-    font-weight: 500;
-    background: transparent;
-  }
-  .camchip.todas::before {
     display: none;
   }
 
