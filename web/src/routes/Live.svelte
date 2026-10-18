@@ -14,6 +14,7 @@
   import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
   import { telaCheia, entrarEmTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
   import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
+  import { toqueDuplo } from '../lib/toqueDuplo.ts';
   import { alturaLivre } from '../lib/alturaLivre.ts';
   import { telaNova } from '../lib/versao-tela.svelte.ts';
   import Icone from '../components/Icone.svelte';
@@ -295,6 +296,33 @@
     animando = true;
     arrasto = 0;
     setTimeout(() => (animando = false), TROCA_MS);
+  }
+
+  // O toque simples na imagem esconde os controles, como nas gravações. Só o
+  // toque que não andou: o deslize troca de câmera. O duplo toque é do
+  // `dblclick` do tile, que o Chrome do Android também gera, e o toque que
+  // fecha o menu só fecha o menu.
+  let toqueEm: { id: number; x: number; y: number; menu: boolean } | null = null;
+  const toque = toqueDuplo({
+    simples: () => {
+      if (emTelaCheia) controles.toqueSimples();
+    },
+  });
+
+  function toqueComeca(e: PointerEvent) {
+    toqueEm =
+      e.pointerType === 'touch'
+        ? { id: e.pointerId, x: e.clientX, y: e.clientY, menu: !!menu }
+        : null;
+  }
+
+  function toqueAcaba(e: PointerEvent) {
+    if (toqueEm?.id !== e.pointerId) return;
+    const { x, y, menu: comMenu } = toqueEm;
+    toqueEm = null;
+    if (comMenu || Math.hypot(e.clientX - x, e.clientY - y) > EIXO_PX) return;
+    if (e.target instanceof Element && e.target.closest('button, a, .menu')) return;
+    toque(e);
   }
 
   onMount(() => () => {
@@ -899,12 +927,18 @@
       // gravações pelo ⋮.
       if (telaCheia.el === node) sairDaTelaCheia();
     }}
-    onpointerdowncapture={() => {
-      if (emTelaCheia) controles.mostrar();
+    onpointerdowncapture={(e) => {
+      if (!emTelaCheia) return;
+      toque.cancelar();
+      toqueComeca(e);
+      controles.tocou();
     }}
     onpointerdown={gestoComeca}
     onpointermove={gestoMove}
-    onpointerup={gestoAcaba}
+    onpointerup={(e) => {
+      toqueAcaba(e);
+      gestoAcaba(e);
+    }}
     onpointercancel={gestoAcaba}
   >
     <div
