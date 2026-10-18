@@ -929,6 +929,7 @@
     }}
     onpointerdowncapture={(e) => {
       if (!emTelaCheia) return;
+      toque.cancelar();
       toqueComeca(e);
       controles.tocou();
     }}

@@ -859,7 +859,9 @@
         if (telaCheia.el === node) sairDaTelaCheia();
       }}
       onpointerdowncapture={() => {
-        if (emTelaCheia) controles.tocou();
+        if (!emTelaCheia) return;
+        toque.cancelar();
+        controles.tocou();
       }}
       onpointermove={(e) => {
         if (emTelaCheia && e.pointerType === 'mouse') controles.mostrar();

@@ -5,7 +5,8 @@
 //
 // O toque simples só se confirma depois de DUPLO_MS sem outro toque: até lá
 // ele pode ser o primeiro de um duplo. O toque que entra na sequência de pulos
-// não é simples.
+// não é simples. Qualquer toque que comece antes disso, até num botão, o
+// cancela: quem usa chama `cancelar` no `pointerdown` de tudo.
 //
 // O detector é próprio, e não o `dblclick` do navegador: o Chrome do Android
 // gera um `dblclick` por par de toques, mas não os toques seguidos da
@@ -25,7 +26,7 @@ export function toqueDuplo(acoes: { pular?(lado: Lado): void; meio?(): void; sim
   let sequencia: { lado: Lado; t: number } | null = null;
   let simplesTimer: number | undefined;
 
-  return (e: PointerEvent) => {
+  const aoSoltar = (e: PointerEvent) => {
     if (e.pointerType !== 'touch') return;
     // O toque num botão por cima do vídeo é do botão.
     if (e.target instanceof Element && e.target.closest('button')) return;
@@ -62,4 +63,10 @@ export function toqueDuplo(acoes: { pular?(lado: Lado): void; meio?(): void; sim
       acoes.pular?.(lado);
     }
   };
+
+  return Object.assign(aoSoltar, {
+    cancelar() {
+      clearTimeout(simplesTimer);
+    },
+  });
 }
