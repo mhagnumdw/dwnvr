@@ -190,7 +190,7 @@
   // São os mesmos tiles da grade, com o mesmo player: entrar e sair não
   // reconecta nada. Quem sai de cena cai na regra do `soNaTela`, como um tile
   // rolado para fora: segue ligado por CARENCIA_ROLAGEM_MS (ou sempre, com o
-  // "manter ligadas") e depois é cortado. Por isso a troca é na hora logo
+  // "Pausar fora da tela" desligado) e depois é cortado. Por isso a troca é na hora logo
   // depois de entrar, e espera um keyframe depois disso.
   const emTelaCheia = $derived(!!palco && telaCheia.el === palco);
   // A câmera na tela, pelo id: tirar outra da seleção não a troca de lugar.
@@ -656,7 +656,7 @@
   // some por inteiro é cortado: tile cortado pela metade segue ligado.
   //
   // Um Set comum, e não WeakSet, porque o tamanho importa: é ele que decide
-  // se o botão "manter ligadas" aparece.
+  // se o interruptor "Pausar fora da tela" aparece.
   // eslint-disable-next-line svelte/prefer-svelte-reactivity -- quem a tela lê é o `quantasFora`
   const foraDaTela = new Set<VideoRTC>();
   const corte = new WeakMap<VideoRTC, number>();
@@ -802,6 +802,8 @@
     visible.length;
     showPicker;
     emTelaCheia;
+    // O interruptor entra na barra e pode quebrar uma linha nova.
+    quantasFora;
     // A faixa de versão nova desce o palco, e nenhum resize avisa.
     telaNova.disponivel;
     /* eslint-enable @typescript-eslint/no-unused-expressions */
@@ -818,81 +820,97 @@
 />
 
 <div class="page" class:fit={modo === 'fit'}>
-  <div class="row wrap">
+  <div class="barra">
     <BotaoCameras
       marcadas={selected.size}
       total={cameras.list.length}
       todas={tudoMarcado}
+      aberto={showPicker}
       onclick={() => (showPicker = !showPicker)}
       --pad-x="10px"
     />
 
-    <div class="row modos" role="group" aria-label="layout">
-      {#each MODOS as m (m)}
-        <button
-          class="ghost"
-          class:on={modo === m}
-          aria-pressed={modo === m}
-          title={m === 'fit' ? 'encaixar todas na tela' : `${m} coluna${m > 1 ? 's' : ''}`}
-          onclick={() => setModo(m)}
-        >
-          {#if m === 'fit'}
-            <!-- Cantos de enquadramento desenhados à mão: o caractere ⛶ não
-                 existe nas fontes do sistema no Linux nem no Android. -->
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          {:else}
-            {m}×
-          {/if}
-        </button>
-      {/each}
-    </div>
+    <div class="controles">
+      <div class="row modos" role="group" aria-label="layout">
+        {#each MODOS as m (m)}
+          <button
+            class="ghost"
+            class:on={modo === m}
+            aria-pressed={modo === m}
+            title={m === 'fit' ? 'encaixar todas na tela' : `${m} coluna${m > 1 ? 's' : ''}`}
+            aria-label={m === 'fit' ? 'encaixar todas na tela' : undefined}
+            onclick={() => setModo(m)}
+          >
+            {#if m === 'fit'}
+              <!-- Cantos de enquadramento desenhados à mão: o caractere ⛶ não
+                   existe nas fontes do sistema no Linux nem no Android. -->
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span class="texto-botao">Encaixar</span>
+            {:else}
+              {m}×
+            {/if}
+          </button>
+        {/each}
+      </div>
 
-    <!-- Só aparece quando há o que manter: com tudo à vista - o encaixar,
-         ou poucas câmeras - não há tile fora da tela para cortar. -->
-    {#if quantasFora > 0}
-      <button
-        class="ghost sempre"
-        class:on={sempreLigadas}
-        aria-pressed={sempreLigadas}
-        aria-label="manter ligadas as câmeras fora da tela"
-        title={sempreLigadas
-          ? 'câmeras fora da tela seguem ligadas (gasta mais bateria)'
-          : `câmeras fora da tela desligam após ${CARENCIA_ROLAGEM_MS / 1000} s`}
-        onclick={alternarSempre}
-      >
-        <!-- A tela com o vídeo escapando por baixo dela: "toca fora da área
-             visível". O recorte em volta do ▶ é da cor do fundo. -->
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="2.5" y="2.5" width="15" height="11" rx="1.6" class="moldura" />
-          <path d="M5 17h4M5 20.5h3" class="rastro" />
-          <path d="M12.6 11.4 23.2 17.3 12.6 23.2z" class="play" />
-        </svg>
-      </button>
-    {/if}
+      <!-- Só aparece quando há o que pausar: com tudo à vista - o encaixar,
+           ou poucas câmeras - não há tile fora da tela para cortar. -->
+      {#if quantasFora > 0}
+        <span class="sep"></span>
+        <button
+          class="ghost pausar"
+          class:on={!sempreLigadas}
+          aria-pressed={!sempreLigadas}
+          aria-label="pausar câmeras fora da tela"
+          title={sempreLigadas
+            ? 'câmeras fora da tela seguem ligadas (gasta mais bateria)'
+            : `câmeras fora da tela pausam após ${CARENCIA_ROLAGEM_MS / 1000} s`}
+          onclick={alternarSempre}
+        >
+          <!-- A tela com o vídeo escapando por baixo dela: o ▶ é "toca fora
+               da área visível", e o ❚❚, "pausa lá". O recorte em volta do
+               glifo é da cor do fundo. -->
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="2.5" y="2.5" width="15" height="11" rx="1.6" class="moldura" />
+            <path d="M5 17h4M5 20.5h3" class="rastro" />
+            {#if sempreLigadas}
+              <path d="M12.6 11.4 23.2 17.3 12.6 23.2z" class="glifo" />
+            {:else}
+              <g class="glifo">
+                <rect x="13" y="12" width="3.4" height="10.5" rx=".6" />
+                <rect x="18.8" y="12" width="3.4" height="10.5" rx=".6" />
+              </g>
+            {/if}
+          </svg>
+          <span class="trilho"></span>
+          <span class="texto-botao">Pausar fora da tela</span>
+        </button>
+      {/if}
+    </div>
   </div>
 
   {#if showPicker}
-    <div class="card selecao">
+    <div class="card chips">
       {#if cameras.list.length}
-        <div class="row">
-          <button class="ghost" onclick={todas}>
-            {tudoMarcado ? 'limpar' : `todas (${cameras.list.length})`}
+        <button class="camchip todas" onclick={todas}>
+          {tudoMarcado ? 'limpar' : 'todas'}
+        </button>
+        {#each cameras.list as c (c.id)}
+          <button
+            class="camchip"
+            class:on={selected.has(c.id)}
+            aria-pressed={selected.has(c.id)}
+            onclick={() => toggle(c.id)}
+          >
+            <span class="nome-cam">{c.name}</span>
           </button>
-        </div>
-        <div class="lista">
-          {#each cameras.list as c (c.id)}
-            <label class="row">
-              <input type="checkbox" checked={selected.has(c.id)} onchange={() => toggle(c.id)} />
-              <span>{c.name}</span>
-            </label>
-          {/each}
-        </div>
+        {/each}
       {:else}
         <p class="muted small">nenhuma câmera cadastrada</p>
       {/if}
@@ -1101,6 +1119,8 @@
   }
 
   .page {
+    /* O fundo do botão marcado, no segmentado e nos chips. */
+    --ativo-fundo: #12233d;
     display: grid;
     gap: 10px;
     padding: 10px;
@@ -1116,12 +1136,44 @@
     max-width: none;
   }
 
+  .barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .controles {
+    display: contents;
+  }
+
+  /* O segmentado: encaixar e as colunas coladas num bloco só. */
+  .modos {
+    gap: 0;
+  }
   .modos button {
-    padding: 8px 11px;
+    padding: 8px 12px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 0;
+    margin-left: -1px;
+    color: var(--dim);
+  }
+  .modos button:first-child {
+    margin-left: 0;
+    border-radius: 8px 0 0 8px;
+  }
+  .modos button:last-child {
+    border-radius: 0 8px 8px 0;
   }
   .modos button.on {
     color: var(--fg);
     border-color: var(--accent);
+    background: var(--ativo-fundo);
+    position: relative;
+    z-index: 1;
   }
 
   .modos svg {
@@ -1133,59 +1185,140 @@
     stroke-width: 2;
   }
 
-  .sempre {
-    padding: 8px 11px;
+  .sep {
+    display: none;
+    width: 1px;
+    align-self: stretch;
+    background: var(--line);
+    margin: 4px 2px;
   }
-  .sempre.on {
+
+  /* O interruptor: ligado é "pausa lá fora", o padrão. */
+  .pausar {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .pausar.on {
     border-color: var(--accent);
   }
-  .sempre svg {
+  .pausar svg {
     display: block;
     width: 20px;
     height: 20px;
+    flex: none;
   }
-  .sempre .moldura {
+  .pausar .moldura {
     fill: none;
     stroke: currentColor;
     stroke-width: 1.8;
   }
-  .sempre .rastro {
+  .pausar .rastro {
     fill: none;
     stroke: currentColor;
     stroke-width: 1.8;
     stroke-linecap: round;
     stroke-dasharray: 1.5 2.5;
   }
-  .sempre .play {
+  .pausar .glifo {
     fill: var(--accent);
     stroke: var(--bg);
     stroke-width: 2;
     stroke-linejoin: round;
     paint-order: stroke;
   }
-
-  .selecao {
-    display: grid;
-    gap: 10px;
+  .trilho {
+    width: 30px;
+    height: 17px;
+    border-radius: 9px;
+    background: var(--line);
+    position: relative;
+    flex: none;
+  }
+  .trilho::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--fg);
+    transition: left 0.12s;
+  }
+  .pausar.on .trilho {
+    background: var(--accent);
+  }
+  .pausar.on .trilho::after {
+    left: 15px;
   }
 
-  .lista {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 6px 14px;
+  /* Os textos dos botões só aparecem onde cabem. */
+  .texto-botao {
+    display: none;
   }
 
-  .lista label {
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
-    cursor: pointer;
-    padding: 4px 0;
+  }
+  .camchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--dim);
+    max-width: 100%;
+  }
+  .nome-cam {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .camchip::before {
+    content: '';
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--line);
+  }
+  .camchip.on {
+    color: var(--fg);
+    border-color: var(--accent);
+    background: var(--ativo-fundo);
+  }
+  .camchip.on::before {
+    background: var(--ok);
+  }
+  .camchip.todas {
+    font-weight: 500;
+    background: transparent;
+  }
+  .camchip.todas::before {
+    display: none;
   }
 
-  .lista input {
-    min-height: 0;
-    width: 18px;
-    height: 18px;
-    accent-color: var(--accent);
+  @media (min-width: 720px) {
+    .controles {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+    .sep {
+      display: block;
+    }
+    .texto-botao {
+      display: inline;
+    }
   }
 
   /* Recorta a grade no modo encaixar: a altura em pixels vem do `medir`, e sem
