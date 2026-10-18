@@ -14,6 +14,7 @@
   import Relogio from '../components/Relogio.svelte';
   import DeteccaoFolha from '../components/DeteccaoFolha.svelte';
   import BotaoCameras from '../components/BotaoCameras.svelte';
+  import SeletorCameras from '../components/SeletorCameras.svelte';
   import Icone from '../components/Icone.svelte';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
   import type { Caixa, Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
@@ -890,23 +891,13 @@
       />
       {#if camerasAbertas}
         <div class="popover">
-          <div class="row">
-            <button class="ghost" onclick={todasCameras}>
-              {camsMarcadas === null ? 'limpar' : `todas (${cameras.list.length})`}
-            </button>
-          </div>
-          <div class="lista-cams">
-            {#each cameras.list as c (c.id)}
-              <label class="row">
-                <input
-                  type="checkbox"
-                  checked={marcada(c.id)}
-                  onchange={() => alternaCamera(c.id)}
-                />
-                <span>{c.name}</span>
-              </label>
-            {/each}
-          </div>
+          <SeletorCameras
+            cameras={cameras.list}
+            {marcada}
+            todas={camsMarcadas === null}
+            ontoggle={alternaCamera}
+            ontodas={todasCameras}
+          />
         </div>
       {/if}
     </div>
@@ -1215,23 +1206,6 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  }
-
-  .lista-cams {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px 14px;
-  }
-
-  .lista-cams label {
-    gap: 8px;
-    cursor: pointer;
-    padding: 4px 0;
-  }
-  .lista-cams span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   /* --- a grade --- */
