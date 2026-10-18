@@ -462,7 +462,10 @@
   function mudarDia(novo: string) {
     if (novo === day) return;
     const deslocamento = parseDay(novo).getTime() - dayStart;
-    const agora = player.currentMs;
+    // O alvo ainda pendente (link com `t=`, ou uma troca anterior cujo load()
+    // não chegou) já é um instante do dia que sai; o player ainda está num dia
+    // mais antigo que ele.
+    const agora = tPendente ?? player.currentMs;
     if (agora) tPendente = agora + deslocamento;
     // Janela ainda não ancorada (0) fica como está: a Timeline a ancora.
     if (viewTo) {
