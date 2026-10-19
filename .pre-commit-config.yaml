@@ -88,13 +88,14 @@ repos:
   # Arquivo acima de 5000 tokens (bytes/4, a conta aproximada) interrompe o
   # commit. O limite é escolha de organização, não de capacidade: o agente lê
   # arquivo maior, mas gasta contexto com o que não é da tarefa, e um arquivo
-  # por assunto se acha pelo nome. A conta é do staged, não do working tree. O arquivo que já
-  # passava do limite no HEAD pode continuar, desde que não cresça: o hook
-  # barra o arquivo novo grande e o grande que engorda, e a divisão do que
-  # já existe fica para quando alguém o tocar. Por isso, na CI, onde o staged
-  # é o próprio HEAD, ele não acha nada. Fica de fora o que ninguém escreve
-  # à mão nem por agente: lockfile (go.sum, package-lock.json), código de
-  # terceiros copiado (web/src/vendor/) e o gerado do `exclude` global.
+  # por assunto se acha pelo nome. A conta é do staged, não do working tree.
+  # O arquivo que já passava do limite no HEAD pode continuar, desde que não
+  # cresça: o hook barra o arquivo novo grande e o grande que engorda, e a
+  # divisão do que já existe fica para quando alguém o tocar. Por isso, na
+  # CI, onde o staged é o próprio HEAD, ele não acha nada. Fica de fora o que
+  # ninguém escreve à mão nem por agente: lockfile (go.sum,
+  # package-lock.json), código de terceiros copiado (web/src/vendor/) e o
+  # gerado do `exclude` global.
   - repo: local
     hooks:
       - id: limite-de-tokens
