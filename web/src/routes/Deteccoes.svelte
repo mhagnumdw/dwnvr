@@ -63,11 +63,9 @@
 
   // Colunas da grade: o zoom anda entre as pontas, e o padrão é o que o mock
   // aprovado mostrava. No celular a miniatura de 3 colunas (103 px) já foi
-  // recusada como pequena demais; 4 fica como opção de quem quer varrer. O
-  // padrão é 1: a detecção inteira, com a caixa legível, e quem quer varrer
-  // aumenta.
+  // recusada como pequena demais; 4 fica como opção de quem quer varrer.
   const COLUNAS = {
-    celular: { padrao: 1, min: 1, max: 4 },
+    celular: { padrao: 2, min: 1, max: 4 },
     desktop: { padrao: 5, min: 3, max: 8 },
   };
   // A mesma quebra do App.svelte, onde a navegação sobe para o cabeçalho.
