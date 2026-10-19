@@ -5,90 +5,37 @@
   // Safari do iPhone só abre o teclado quando o foco nasce do próprio toque, e
   // um focus() chamado depois de trocar o elemento chega tarde demais.
   //
-  // A máscara lê o que foi digitado em três grupos, hora, minuto e segundo.
-  // Hora com um dígito completa à esquerda (1 = 01h); minuto e segundo com um
-  // dígito completam à direita (3 = 30), que é o que se quer dizer ao digitar
-  // "17:3". Os dois-pontos aparecem sozinhos quando o grupo não aceita mais
-  // dígito, e ponto, vírgula e espaço valem como dois-pontos: o teclado
-  // numérico do celular não tem ":".
-  import { hhmmss } from '../lib/format.ts';
+  // A máscara mora em lib/mascaraHora.ts, a mesma dos campos de horário de
+  // Detecções. Sem os segundos (`segundos={false}`), o relógio mostra e aceita
+  // só HH:MM, e `onir` recebe o segundo zero do minuto digitado.
+  import { hhmm, hhmmss } from '../lib/format.ts';
+  import { fantasma as resto, mascara, sacudir, segundosDoDia } from '../lib/mascaraHora.ts';
 
   interface Props {
     ms: number;
     onir: (segundosDoDia: number) => void;
+    segundos?: boolean;
   }
 
-  let { ms, onir }: Props = $props();
+  let { ms, onir, segundos = true }: Props = $props();
+
+  const grupos = $derived(segundos ? 3 : 2);
+  const formata = (v: number) => (segundos ? hhmmss(v) : hhmm(v));
 
   let input: HTMLInputElement | undefined;
   let editando = $state(false);
   let texto = $state('');
-  let grupos = $state<string[]>(['']);
+  let digitados = $state<string[]>(['']);
   // O que o player mostrava ao abrir o campo, para servir de placeholder: o
   // relógio de fundo continua andando, e o placeholder piscando distrai.
   let antes = $state('');
 
-  const cheio = (g: string[], i: number) => {
-    const x = g[i] ?? '';
-    return x.length === 2 || (i === 0 && x.length === 1 && +x >= 3);
-  };
-
-  // `apagando` segura os dois-pontos automáticos do fim: sem ele, apagar o ":"
-  // o faria voltar na mesma hora.
-  function mascara(bruto: string, apagando: boolean) {
-    const g = [''];
-    let recusou = false;
-    for (const c of bruto.replace(/[.,;\s]/g, ':')) {
-      let i = g.length - 1;
-      if (c === ':') {
-        if (g[i] !== '' && i < 2) g.push('');
-        continue;
-      }
-      if (c < '0' || c > '9') continue;
-      if (cheio(g, i)) {
-        if (i === 2) {
-          recusou = true;
-          continue;
-        }
-        g.push('');
-        i++;
-      }
-      // Dígito que só formaria horário impossível é recusado aqui, e não na
-      // hora de ir: "24" ou o "7" de "17:7" (70 min) nunca chegam a aparecer.
-      const novo = (g[i] ?? '') + c;
-      const ok = i === 0 ? novo.length === 1 || +novo <= 23 : novo.length === 2 || c <= '5';
-      if (!ok) {
-        recusou = true;
-        continue;
-      }
-      g[i] = novo;
-    }
-    const i = g.length - 1;
-    if (!apagando && i < 2 && g[i] !== '' && cheio(g, i)) g.push('');
-    return { g, recusou };
-  }
-
-  function segundos(g: string[]) {
-    if (!g[0]) return null;
-    const dezena = (x: string) => (x.length === 1 ? +x * 10 : +x);
-    return +g[0] * 3600 + dezena(g[1] ?? '') * 60 + dezena(g[2] ?? '');
-  }
-
-  // O resto de HH:MM:SS em cinza depois do que já foi digitado: "17:3" ganha
-  // "0:00", e dá para ver que o Enter leva a 17:30:00.
-  const fantasma = $derived.by(() => {
-    if (!grupos[0]) return '';
-    const i = grupos.length - 1;
-    const ultimo = grupos[i] ?? '';
-    let s = ultimo.length === 0 ? '00' : i > 0 && ultimo.length === 1 ? '0' : '';
-    for (let k = i + 1; k < 3; k++) s += ':00';
-    return s;
-  });
+  const fantasma = $derived(resto(digitados, grupos));
 
   function abrir() {
-    antes = hhmmss(ms);
+    antes = formata(ms);
     texto = '';
-    grupos = [''];
+    digitados = [''];
     editando = true;
   }
 
@@ -96,28 +43,19 @@
     const m = mascara(
       e.currentTarget.value,
       e instanceof InputEvent && e.inputType.startsWith('delete'),
+      grupos,
     );
     texto = m.g.join(':');
-    grupos = m.g;
+    digitados = m.g;
     // Direto no DOM: quando o dígito é recusado o texto não muda, o Svelte não
     // teria o que atualizar e o caractere recusado ficaria no campo.
     e.currentTarget.value = texto;
-    if (m.recusou) {
-      input?.animate(
-        [
-          { transform: 'none' },
-          { transform: 'translateX(-2px)' },
-          { transform: 'translateX(2px)' },
-          { transform: 'none' },
-        ],
-        { duration: 180 },
-      );
-    }
+    if (m.recusou) sacudir(input);
   }
 
   function tecla(e: KeyboardEvent) {
     if (e.key === 'Enter') {
-      const s = segundos(grupos);
+      const s = segundosDoDia(digitados);
       if (s !== null) onir(s);
       input?.blur();
     } else if (e.key === 'Escape') {
@@ -126,14 +64,14 @@
   }
 </script>
 
-<span class="relogio" class:editando>
+<span class="relogio" class:editando class:sem-segundos={!segundos}>
   {#if editando}
     <span class="espelho" aria-hidden="true">{texto}<i>{fantasma}</i></span>
   {/if}
   <input
     bind:this={input}
     class="mono"
-    value={editando ? texto : ms ? hhmmss(ms) : '--:--:--'}
+    value={editando ? texto : ms ? formata(ms) : segundos ? '--:--:--' : '--:--'}
     placeholder={editando ? antes : ''}
     disabled={!ms}
     inputmode="decimal"
@@ -158,6 +96,9 @@
     width: calc(8ch + 18px);
     height: 44px;
     font-size: 16px;
+  }
+  .relogio.sem-segundos {
+    width: calc(5ch + 18px);
   }
 
   input,

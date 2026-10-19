@@ -40,7 +40,8 @@ isso, o hook `interface-atualizada` do prek recusa o commit.
 
 ```text
 src/lib/         api e os tipos do JSON dela, estado (runes), rota e
-                 estado na URL, formatadores,
+                 estado na URL, formatadores, a máscara do horário
+                 digitado,
                  player MSE, miniaturas, captura de quadro, ícones das
                  famílias de objeto (canvas), os ícones da interface (o
                  mapa nome -> desenho do `<Icone>`), disposição e desenho
@@ -61,7 +62,9 @@ src/routes/      as telas, o login e a de definir a senha pelo link de
                  objetos configurado, Câmeras e Usuários só para o admin, e
                  a Minha conta não tem aba: abre pelo avatar do header
 src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
-                 horário digitado, modal e confirmação,
+                 horário digitado, o campo de horário e o intervalo de
+                 horário de Detecções (o botão, o chip e os campos De e
+                 Até), modal e confirmação,
                  o estado de "nenhuma câmera cadastrada", seletor de dia e as
                  setas de dia anterior e próximo,
                  caixas do detector sobre o vídeo (chunk à parte), a folha
