@@ -30,6 +30,12 @@ export function hhmm(ms: number) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// horaDoMinuto escreve um minuto do dia (0 a 1439) como HH:MM: é como os
+// horários do intervalo de Detecções são guardados.
+export function horaDoMinuto(m: number) {
+  return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+}
+
 // ddmm é a data curta dos intervalos ("14/07 a 11/08"). O ano fica de fora
 // porque os intervalos que aparecem na interface são de dias ou semanas, e
 // repeti-lo em toda ponta só ocuparia espaço.

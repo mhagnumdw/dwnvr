@@ -12,6 +12,7 @@
   import { onMount, tick } from 'svelte';
   import NavDia from '../components/NavDia.svelte';
   import Relogio from '../components/Relogio.svelte';
+  import IntervaloDeHorario from '../components/IntervaloDeHorario.svelte';
   import DeteccaoFolha from '../components/DeteccaoFolha.svelte';
   import BotaoCameras from '../components/BotaoCameras.svelte';
   import SeletorCameras from '../components/SeletorCameras.svelte';
@@ -30,7 +31,7 @@
   } from '../lib/icones.ts';
   import type { NomeDaFamilia } from '../lib/icones.ts';
   import { CAIXA_FOLGA_PX } from '../lib/caixas.ts';
-  import { hhmmss, ddmm, dayKey, parseDay } from '../lib/format.ts';
+  import { hhmmss, ddmm, dayKey, parseDay, horaDoMinuto } from '../lib/format.ts';
   import { avisar, fecharAviso } from '../lib/snackbar.svelte.ts';
 
   // Uma linha da grade: o cabeçalho da hora, ou uma fileira de miniaturas.
@@ -52,6 +53,15 @@
     itens: Deteccao[];
   }
   type Linha = LinhaDaHora | LinhaDaGrade;
+
+  // O intervalo de horário: só as detecções entre `de` e `ate` do `dia`, em
+  // minutos do dia e com os dois minutos inteiros incluídos. O `ate` menor que
+  // o `de` termina no dia seguinte (22:00 até 06:00 é a noite).
+  interface Intervalo {
+    dia: string;
+    de: number;
+    ate: number;
+  }
 
   // A detecção que segura a vista, e a distância dela até o topo.
   interface Ancora {
@@ -110,6 +120,24 @@
   let comCaixas = $state(params.get('caixas') !== '0');
   let atualizando = $state(params.get('atualizar') !== '0');
 
+  // O intervalo vem do link inteiro ou não vem: `dia`, `de` e `ate`.
+  const minutoDaURL = (k: string) => {
+    const m = /^(\d{2}):(\d{2})$/.exec(params.get(k) ?? '');
+    if (!m) return null;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    return h < 24 && min < 60 ? h * 60 + min : null;
+  };
+  function intervaloDaURL(): Intervalo | null {
+    const dia = params.get('dia') ?? '';
+    const de = minutoDaURL('de');
+    const ate = minutoDaURL('ate');
+    // A ida e volta recusa o dia que não existe: 2026-02-31 viraria 03/03.
+    if (dayKey(parseDay(dia)) !== dia || de === null || ate === null) return null;
+    return { dia, de, ate };
+  }
+  let intervalo = $state<Intervalo | null>(intervaloDaURL());
+
   let desktop = $state(window.innerWidth >= DESKTOP_PX);
   const faixa = $derived(desktop ? COLUNAS.desktop : COLUNAS.celular);
   const colunas = $derived(
@@ -123,6 +151,9 @@
       cols: colunasEscolhidas,
       caixas: comCaixas ? null : '0',
       atualizar: atualizando ? null : '0',
+      dia: intervalo?.dia,
+      de: intervalo ? horaDoMinuto(intervalo.de) : null,
+      ate: intervalo ? horaDoMinuto(intervalo.ate) : null,
     });
   });
 
@@ -141,8 +172,9 @@
   let buscandoAbaixo = false;
   let erro = $state('');
   // O instante do último "ir para", que serve de cursor quando ele caiu antes
-  // de qualquer detecção e a lista começou vazia.
-  let alvo: number | null = null;
+  // de qualquer detecção e a lista começou vazia. Reativo porque é ele que o
+  // relógio mostra com a lista vazia.
+  let alvo = $state<number | null>(null);
   // Invalida a resposta de uma busca que já não descreve a tela: filtro novo,
   // "ir para" novo.
   let geracao = 0;
@@ -162,6 +194,28 @@
     if (camsMarcadas?.length === 0 || familiasMarcadas?.length === 0) return null;
     return { cams: camsMarcadas, familias: familiasMarcadas };
   });
+
+  // O intervalo em instantes: `de` incluído, `ate` excluído (o minuto final
+  // inteiro fica dentro). Nulo sem intervalo.
+  const limites = $derived.by(() => {
+    if (!intervalo) return null;
+    const de = parseDay(intervalo.dia);
+    de.setMinutes(intervalo.de);
+    const ate = parseDay(intervalo.dia);
+    if (intervalo.ate < intervalo.de) ate.setDate(ate.getDate() + 1);
+    ate.setMinutes(intervalo.ate + 1);
+    return { de: de.getTime(), ate: ate.getTime() };
+  });
+
+  // As detecções de uma página que caem no intervalo, e se alguma ficou de
+  // fora: a que passou da ponta diz que a lista acabou daquele lado, porque o
+  // servidor entrega em ordem.
+  function dentro(ds: Deteccao[]) {
+    if (!limites) return { ds, cortou: false };
+    const { de, ate } = limites;
+    const ok = ds.filter((d) => d.instanteMs >= de && d.instanteMs < ate);
+    return { ds: ok, cortou: ok.length < ds.length };
+  }
 
   // Uma página é o que enche duas telas: pouco mais que isso já é o prefetch.
   function pagina() {
@@ -186,11 +240,17 @@
     return out;
   }
 
-  async function recomeca(antes: number | null = null) {
+  // Com intervalo, a busca parte da ponta de cima dele - ou do "ir para", que
+  // fica preso dentro, no mínimo o primeiro minuto -, e a ponta de cima vale
+  // como o topo da lista.
+  async function recomeca(pedido: number | null = null) {
     const g = ++geracao;
+    const antes = limites
+      ? Math.min(Math.max(pedido ?? limites.ate, limites.de + 60000), limites.ate)
+      : pedido;
     alvo = antes;
     lista = [];
-    fimAcima = antes === null;
+    fimAcima = antes === null || (limites !== null && antes >= limites.ate);
     fimAbaixo = false;
     carregado = false;
     erro = '';
@@ -205,8 +265,9 @@
     try {
       const r = await api.deteccoes({ ...filtro, antes, limite: pagina() });
       if (g !== geracao) return;
-      lista = r.deteccoes;
-      fimAbaixo = r.fim;
+      const { ds, cortou } = dentro(r.deteccoes);
+      lista = ds;
+      fimAbaixo = r.fim || cortou;
       carregado = true;
       await tick();
       confere();
@@ -224,8 +285,9 @@
       const r = await api.deteccoes({ ...filtro, antes: ultimo.instanteMs, limite: pagina() });
       if (g !== geracao) return;
       const a = ancora();
-      let nova = junta(lista, r.deteccoes);
-      fimAbaixo = r.fim;
+      const { ds, cortou } = dentro(r.deteccoes);
+      let nova = junta(lista, ds);
+      fimAbaixo = r.fim || cortou;
       // Solta o topo, que ficou para trás. A âncora mora na vista e a vista
       // nunca está no pedaço solto: a sobra é bem maior que uma tela.
       if (nova.length > MAX_ITENS) {
@@ -250,14 +312,25 @@
       const r = await api.deteccoes({ ...filtro, depois, limite: pagina() });
       if (g !== geracao) return;
       const a = ancora();
-      let nova = junta(r.deteccoes, lista);
-      fimAcima = r.fim;
+      const { ds, cortou } = dentro(r.deteccoes);
+      let nova = junta(ds, lista);
+      fimAcima = r.fim || cortou;
       if (nova.length > MAX_ITENS) {
         nova = nova.slice(0, MAX_ITENS);
         fimAbaixo = false;
       }
+      // A lista vazia é um "ir para" sem nada antes dele - comum no começo de
+      // um intervalo. A página chega acima do instante pedido, e a vista vai ao
+      // pé dela, onde está a detecção mais perto dele.
+      const vazia = !lista.length;
       lista = nova;
-      await restaura(a);
+      if (vazia) {
+        await tick();
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        mede();
+      } else {
+        await restaura(a);
+      }
     } catch (e) {
       if (g === geracao) erro = mensagemDe(e);
     } finally {
@@ -267,23 +340,26 @@
   }
 
   // As novas, e as atrasadas logo abaixo do topo. Só com o topo carregado: fora
-  // dele, a rolagem para cima é que as traz.
+  // dele, a rolagem para cima é que as traz. Com um intervalo que já acabou, e
+  // passada a folga das atrasadas, não há o que buscar.
   async function novas() {
     if (!atualizando || document.hidden || !carregado || !fimAcima || !filtro || buscandoAcima)
       return;
+    if (limites && Date.now() > limites.ate + ATRASO_MS) return;
     const g = geracao;
-    const topo = lista[0]?.instanteMs ?? Date.now();
+    const topo = lista[0]?.instanteMs ?? Math.min(Date.now(), limites?.ate ?? Infinity);
     try {
       const r = await api.deteccoes({ ...filtro, depois: topo - ATRASO_MS, limite: 200 });
-      const maisNova = r.deteccoes[0];
+      const { ds, cortou } = dentro(r.deteccoes);
+      const maisNova = ds[0];
       if (g !== geracao || !maisNova) return;
       // Quem está olhando o topo vê a novidade entrar; quem rolou para baixo
       // não pode ter a tela empurrada por ela.
       const a = rolagem.ini > 0 ? ancora() : null;
-      lista = junta(r.deteccoes, lista);
+      lista = junta(ds, lista);
       // Mais de 200 no intervalo: as mais novas ficaram de fora, e a rolagem
       // para cima as busca como faria depois de um "ir para".
-      if (!r.fim) fimAcima = false;
+      if (!r.fim && !cortou) fimAcima = false;
       registraDia(dayKey(new Date(maisNova.instanteMs)));
       if (a) await restaura(a);
     } catch {
@@ -349,6 +425,7 @@
     return `${dayKey(d)}T${d.getHours()}`;
   };
   const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  const diaLongo = (ms: number) => `${SEMANA[new Date(ms).getDay()]}, ${ddmm(ms)}`;
 
   // As linhas na ordem da tela, cada uma com o `y` onde começa. `linhaDe[i]`
   // diz em que linha mora a detecção i, para achar a âncora depois de uma troca.
@@ -370,7 +447,7 @@
           y,
           altura: HORA_PX,
           rotulo: `${String(d.getHours()).padStart(2, '0')}h`,
-          dia: `${SEMANA[d.getDay()]}, ${ddmm(ms)}`,
+          dia: diaLongo(ms),
         });
         y += HORA_PX;
         hora = h;
@@ -516,6 +593,9 @@
   async function restaura(a: Ancora | null) {
     await tick();
     if (!a) return;
+    // De novo: a ponta do intervalo, que aparece acima da lista quando a
+    // rolagem chega nela, empurra a lista sem mudar o `y` de linha nenhuma.
+    mede();
     const linha = linhaDaDeteccao(lista.findIndex((d) => chave(d) === a.k));
     if (!linha) return;
     const delta = linha.y - a.dy - rolagem.ini;
@@ -745,18 +825,44 @@
     if (e.key === 'Escape') menu = null;
   }
 
-  // "Ir para": o dia vai ao fim dele, e o horário ao segundo digitado, os dois
-  // incluídos - a detecção de 14:32:07.500 aparece quando se pede 14:32:07.
+  // "Ir para": o dia vai ao fim dele, e o horário ao minuto digitado, os dois
+  // incluídos - a detecção de 14:32:07 aparece quando se pede 14:32.
   const diaTopo = $derived(dayKey(new Date(topoMs)));
 
+  // Com intervalo, trocar de dia leva o mesmo horário para o outro dia.
   function irParaDia(chaveDia: string) {
+    if (intervalo) {
+      intervalo = { ...intervalo, dia: chaveDia };
+      void recomeca();
+      return;
+    }
     const d = parseDay(chaveDia);
     d.setDate(d.getDate() + 1);
     void recomeca(chaveDia === dayKey() ? null : d.getTime());
   }
 
+  // Num intervalo que vira a meia-noite, o horário antes do `de` é o do dia
+  // seguinte. O recomeca prende o instante dentro do intervalo.
   function irParaHora(segundos: number) {
-    void recomeca(parseDay(diaTopo).getTime() + (segundos + 1) * 1000);
+    const dia = parseDay(intervalo?.dia ?? diaTopo);
+    if (intervalo && intervalo.ate < intervalo.de && segundos / 60 < intervalo.de)
+      dia.setDate(dia.getDate() + 1);
+    void recomeca(dia.getTime() + (segundos + 60) * 1000);
+  }
+
+  // O intervalo novo vale para o dia que estava à vista.
+  function aplicaIntervalo(de: number, ate: number) {
+    intervalo = { dia: intervalo?.dia ?? diaTopo, de, ate };
+    void recomeca();
+  }
+
+  // Volta à rolagem infinita sem sair de onde estava: a busca parte da
+  // detecção do topo da vista, como no desfazer.
+  function limpaIntervalo() {
+    const ms = rolagem.ini > 0 ? noTopo?.det.instanteMs : undefined;
+    const topo = ms != null ? ms + 1 : limites?.ate;
+    intervalo = null;
+    void recomeca(topo != null && topo <= Date.now() ? topo : null);
   }
 
   // --- ciclo de vida ----------------------------------------------------------
@@ -820,9 +926,28 @@
 <div class="tela" style:--cab-h="{cabH}px" style:--barra-h="{barraH}px">
   <div class="barra" bind:this={barraEl}>
     <div class="quando">
-      <NavDia value={diaTopo} days={diasComDeteccao} oQue="detecção" onchange={irParaDia} />
-      <Relogio ms={topoMs} onir={irParaHora} />
+      <NavDia
+        value={intervalo?.dia ?? diaTopo}
+        days={diasComDeteccao}
+        oQue="detecção"
+        onchange={irParaDia}
+      />
+      <Relogio ms={topoMs} onir={irParaHora} segundos={false} />
+      {#if !intervalo}
+        <IntervaloDeHorario
+          intervalo={null}
+          onaplicar={aplicaIntervalo}
+          onlimpar={limpaIntervalo}
+        />
+      {/if}
     </div>
+
+    <!-- Ligado, o chip não cabe na linha do dia no celular: ganha uma só dele. -->
+    {#if intervalo}
+      <div class="intervalo">
+        <IntervaloDeHorario {intervalo} onaplicar={aplicaIntervalo} onlimpar={limpaIntervalo} />
+      </div>
+    {/if}
 
     <div class="familias" role="group" aria-label="famílias">
       {#each ORDEM_FAMILIAS as f (f)}
@@ -911,6 +1036,14 @@
       {/if}
     </div>
   </div>
+
+  {#if limites && intervalo && fimAcima && carregado && lista.length}
+    <div class="ponta">
+      <span>fim do intervalo <strong class="mono">{horaDoMinuto(intervalo.ate)}</strong></span>
+      <span>· {diaLongo(limites.ate - 1)}</span>
+      <button class="ghost" onclick={limpaIntervalo}>limpar intervalo</button>
+    </div>
+  {/if}
 
   {#if horaGrudada}
     <div class="grudada" aria-hidden="true">
@@ -1013,8 +1146,21 @@
     <p class="empty">
       Nenhuma {camsMarcadas?.length === 0 ? 'câmera marcada' : 'família marcada'}.
     </p>
+  {:else if !lista.length && fimAbaixo && fimAcima && intervalo}
+    <div class="empty">
+      <p>
+        Nenhuma detecção entre {horaDoMinuto(intervalo.de)} e {horaDoMinuto(intervalo.ate)}.
+      </p>
+      <button class="ghost" onclick={limpaIntervalo}>limpar intervalo</button>
+    </div>
   {:else if !lista.length && fimAbaixo && fimAcima}
     <p class="empty">Nenhuma detecção com esses filtros.</p>
+  {:else if fimAbaixo && lista.length && limites && intervalo}
+    <div class="ponta">
+      <span>início do intervalo <strong class="mono">{horaDoMinuto(intervalo.de)}</strong></span>
+      <span>· {diaLongo(limites.de)}</span>
+      <button class="ghost" onclick={limpaIntervalo}>limpar intervalo</button>
+    </div>
   {:else if fimAbaixo && lista.length}
     <p class="fim muted small">Não há detecções mais antigas.</p>
   {:else if !fimAbaixo}
@@ -1131,6 +1277,11 @@
   }
   .barra .rotulo {
     display: none;
+  }
+  /* O intervalo ligado: no celular, uma 3ª linha inteira. */
+  .intervalo {
+    grid-column: 1 / 4;
+    grid-row: 3;
   }
 
   .familias {
@@ -1468,6 +1619,37 @@
     padding: 16px 0;
   }
 
+  /* As pontas do intervalo, no começo e no fim da lista: dizem onde ela para
+     e oferecem a volta à rolagem infinita ali mesmo. */
+  .ponta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 4px 8px;
+    margin: 10px 0;
+    padding: 10px 12px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    color: var(--dim);
+    font-size: 13px;
+    text-align: center;
+  }
+  .ponta strong {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .ponta button,
+  .empty button {
+    min-height: 34px;
+    padding: 4px 12px;
+    font-size: 13px;
+    color: var(--accent);
+  }
+  .empty p {
+    margin: 0 0 12px;
+  }
+
   @media (min-width: 720px) {
     .tela {
       padding: 0 18px 8px;
@@ -1484,6 +1666,16 @@
 
     .barra .rotulo {
       display: inline;
+    }
+
+    /* Da largura do tablet para cima, o chip cabe na linha do dia. */
+    .barra:has(.intervalo) .quando {
+      grid-column: 1;
+    }
+    .intervalo {
+      grid-column: 2;
+      grid-row: 1;
+      justify-self: start;
     }
 
     .hora {
