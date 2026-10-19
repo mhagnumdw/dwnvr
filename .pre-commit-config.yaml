@@ -85,6 +85,88 @@ repos:
       - id: detect-private-key
         priority: conferir
 
+  # Arquivo acima de 5000 tokens (bytes/4, a conta aproximada) interrompe o
+  # commit: maior que isso, um agente já não o lê inteiro e passa a editar
+  # pedaços. A conta é do staged, não do working tree. O arquivo que já
+  # passava do limite no HEAD pode continuar, desde que não cresça: o hook
+  # barra o arquivo novo grande e o grande que engorda, e a divisão do que
+  # já existe fica para quando alguém o tocar. Por isso, na CI, onde o staged
+  # é o próprio HEAD, ele não acha nada. Fica de fora o que ninguém escreve
+  # à mão nem por agente: lockfile (go.sum, package-lock.json), código de
+  # terceiros copiado (web/src/vendor/) e o gerado do `exclude` global.
+  - repo: local
+    hooks:
+      - id: limite-de-tokens
+        priority: conferir
+        name: arquivo até 5000 tokens
+        language: system
+        types: [text]
+        exclude: ^(go\.sum|web/package-lock\.json|web/src/vendor/)
+        # Uma chamada só, com todos os arquivos: sem isso o prek divide em
+        # lotes paralelos, e as instruções saem uma vez por lote.
+        require_serial: true
+        entry: |
+          bash -c '
+            set -eu
+            limite=5000
+            barrados=""
+            for f in "$@"; do
+              bytes=$(git cat-file -s ":$f" 2>/dev/null || wc -c < "$f")
+              tokens=$((bytes / 4))
+              [ "$tokens" -gt "$limite" ] || continue
+              antes=$(git cat-file -s "HEAD:$f" 2>/dev/null || echo 0)
+              if [ $((antes / 4)) -gt "$limite" ]; then
+                [ "$bytes" -gt "$antes" ] || continue
+                barrados="$barrados  $f: $tokens tokens ($bytes bytes), já passava do limite e cresceu $((bytes - antes)) bytes\n"
+              else
+                barrados="$barrados  $f: $tokens tokens ($bytes bytes)\n"
+              fi
+            done
+            [ -n "$barrados" ] || exit 0
+            echo "Arquivo acima de $limite tokens (bytes/4, até $((limite * 4)) bytes) no commit:"
+            printf "%b\n" "$barrados"
+            cat <<"FIM"
+          Maior que isso, um agente não lê o arquivo inteiro e passa a editar
+          pedaços sem ver o resto. Divida antes de commitar:
+
+          1. Liste as responsabilidades do arquivo (cada tipo, tela, etapa ou
+             assunto) e mova cada uma, inteira, para um arquivo próprio, com um
+             nome que diga o que ela é. Não corte uma função no meio para caber,
+             e não tire comentário nem compacte o código só para baixar a conta.
+          2. Conforme o tipo:
+             - .go: arquivo novo no mesmo pacote e com o mesmo `package`, então
+               nenhum import muda. Um por tipo ou assunto, por exemplo
+               server.go -> server.go + rotas_gravacoes.go. O _test.go segue o
+               código que testa (store_test.go -> store_test.go +
+               indice_test.go), e o ajudante de teste que os dois usam vai para
+               um ajudantes_test.go.
+             - .svelte: o pedaço da tela com marcação própria vira componente em
+               web/src/components/ (dados entram por props, ações saem por
+               callback); estado e lógica sem marcação vão para um .svelte.ts em
+               web/src/lib/.
+             - .ts: um módulo por assunto em web/src/lib/, e quem importava passa
+               a importar do módulo novo.
+             - .py: um módulo por assunto, na mesma pasta.
+             - .md: a seção grande vira um documento próprio em docs/, e o
+               original fica com um resumo de duas linhas e o link. Link e
+               âncora que apontavam para a seção passam a apontar para o arquivo
+               novo.
+          3. Confira na §Repercussões do AGENTS.md o que acompanha o arquivo novo
+             ou movido (§Estrutura do web/README.md, árvore do README.md, índice
+             docs/README.md, links relativos).
+          4. Cada arquivo que sobrar abaixo do limite: wc -c ARQUIVO (em bytes, até
+             20000). Depois git add do original e dos novos, e commite de novo.
+
+          Arquivo que já passava do limite no HEAD pode ficar como está, mas não
+          crescer: a mudança que o engorda é a hora de dividi-lo.
+
+          Arquivo que não é escrito à mão nem por agente (lockfile, código gerado,
+          código de terceiros copiado) entra no exclude do hook limite-de-tokens
+          no .pre-commit-config.yaml, com o motivo. Nunca git commit --no-verify.
+          FIM
+            exit 1
+          ' --
+
   # Markdown. As regras estão no .markdownlint-cli2.yaml. O --no-globs faz o
   # hook olhar só os arquivos do commit, e não o `globs` da config, que é o
   # repositório inteiro.

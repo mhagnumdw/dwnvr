@@ -137,6 +137,9 @@ leve, reativa e responsiva, com ótima usabilidade no mobile e no desktop
   não garante o commit. Em teste, nada de literal com usuário e senha: monte a
   URL com `url.UserPassword`, ponha a senha numa variável e use os literais que o
   `.betterleaks.toml` libera (`senha`, `troque-me`; `admin` em `_test.go`).
+- Arquivo de até 5000 tokens (20000 bytes): o hook `limite-de-tokens` barra o
+  arquivo novo maior que isso e o que já passava e cresce. Planeje a divisão ao
+  escrever, não quando o commit falhar; a mensagem do hook diz como dividir.
 - Nunca `git commit --no-verify`. Regra de lint não se desliga para passar:
   corrija; se não houver como, desligue só naquela linha, com o motivo nela.
 
