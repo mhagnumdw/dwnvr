@@ -135,7 +135,9 @@ repos:
              e não tire comentário nem compacte o código só para baixar a conta.
           2. Conforme o tipo:
              - .go: arquivo novo no mesmo pacote e com o mesmo `package`, então
-               nenhum import muda. Um por tipo ou assunto, por exemplo
+               quem usa o pacote não muda nada. O import vale por arquivo: cada
+               um declara o que usa (o goimports do hook golangci-lint-fmt
+               ajusta). Um por tipo ou assunto, por exemplo
                server.go -> server.go + rotas_gravacoes.go. O _test.go segue o
                código que testa (store_test.go -> store_test.go +
                indice_test.go), e o ajudante de teste que os dois usam vai para
