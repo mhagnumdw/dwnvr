@@ -132,7 +132,8 @@
     const dia = params.get('dia') ?? '';
     const de = minutoDaURL('de');
     const ate = minutoDaURL('ate');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || de === null || ate === null) return null;
+    // A ida e volta recusa o dia que não existe: 2026-02-31 viraria 03/03.
+    if (dayKey(parseDay(dia)) !== dia || de === null || ate === null) return null;
     return { dia, de, ate };
   }
   let intervalo = $state<Intervalo | null>(intervaloDaURL());
