@@ -2,6 +2,27 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.11.0](https://github.com/mhagnumdw/dwnvr/compare/v0.10.0...v0.11.0) (2026-10-20)
+
+### Added
+
+- feat(web): calendário de Detecções mostra quantas detecções cada dia tem ([#40](https://github.com/mhagnumdw/dwnvr/pull/40)) ([55ec4073](https://github.com/mhagnumdw/dwnvr/commit/55ec4073e1d5e413ebeaaee820a7a4a5ef7756cb))
+- feat(web): Detecções mostra só um intervalo de horário ([#39](https://github.com/mhagnumdw/dwnvr/pull/39)) ([e6d3e172](https://github.com/mhagnumdw/dwnvr/commit/e6d3e1720941d12fbea3dd902a948d9a01247c08))
+- feat(web): Detecções abre com 1 coluna no celular ([#38](https://github.com/mhagnumdw/dwnvr/pull/38)) ([97b5e94d](https://github.com/mhagnumdw/dwnvr/commit/97b5e94d635673b03eb0980b9cfe03598d094dd1))
+
+### Fixed
+
+- fix(detect): base Python 3.12.15, com o Debian em dia ([#42](https://github.com/mhagnumdw/dwnvr/pull/42)) ([c8a61939](https://github.com/mhagnumdw/dwnvr/commit/c8a61939badba05e73f9d49718e9a8ceef74bbae))
+- fix(web): trocar de dia em Gravações mantém o horário e o zoom da timeline ([#36](https://github.com/mhagnumdw/dwnvr/pull/36)) ([43ced75f](https://github.com/mhagnumdw/dwnvr/commit/43ced75f786eb9d369bf598210f84d7707eb7a19))
+
+### CI/Build
+
+- ci: Trivy semanal na imagem do detector de objetos ([#41](https://github.com/mhagnumdw/dwnvr/pull/41)) ([d216e997](https://github.com/mhagnumdw/dwnvr/commit/d216e997c458d59a8db8c1d82a939ceb94bde211))
+
+### Other
+
+- revert(web): Detecções volta a abrir com 2 colunas no celular ([6dce5bfd](https://github.com/mhagnumdw/dwnvr/commit/6dce5bfd5814e24f37456cb805a87b44bed8c561))
+
 ## [v0.10.0](https://github.com/mhagnumdw/dwnvr/compare/v0.9.0...v0.10.0) (2026-10-18)
 
 ### Added
