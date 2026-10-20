@@ -30,6 +30,7 @@ pode ser rodado outra vez para conferir.
 - [Ruleset na `main`](#ruleset-na-main)
 - [Merge do PR sem merge commit](#merge-do-pr-sem-merge-commit)
 - [govulncheck semanal](#govulncheck-semanal)
+- [Trivy semanal na imagem do detector](#trivy-semanal-na-imagem-do-detector)
 - [Codecov](#codecov)
 
 ## Conferir o estado
@@ -41,6 +42,7 @@ gh api repos/$REPO/actions/permissions/workflow              # token dos workflo
 gh api "repos/$REPO/dependabot/alerts?state=open" --jq 'length'
 gh api repos/$REPO/code-scanning/default-setup --jq '.state' # configured = CodeQL ligado
 gh api "repos/$REPO/code-scanning/alerts?state=open" --jq 'length'
+gh api "repos/$REPO/code-scanning/alerts?state=open&tool_name=Trivy" --jq 'length'
 gh api repos/$REPO/private-vulnerability-reporting
 gh api repos/$REPO/rules/branches/main --jq '.[].type'       # deletion, non_fast_forward
 gh api repos/$REPO --jq '.allow_merge_commit'                # false
@@ -81,7 +83,8 @@ corrigida, quando ela existe. Não depende de `dependabot.yml`, e não sobe
 versão por outro motivo.
 
 A imagem Docker não entra: o Dependabot não tem alert nem security update para
-`docker`, só atualização de versão.
+`docker`, só atualização de versão. Quem olha a imagem é o
+[Trivy semanal](#trivy-semanal-na-imagem-do-detector).
 
 ```sh
 gh api -X PUT repos/$REPO/vulnerability-alerts       # alerts; vem primeiro
@@ -285,6 +288,33 @@ docker pull -q ghcr.io/$REPO:latest
 id=$(docker create ghcr.io/$REPO:latest)
 docker cp -q "$id:/dwnvr" ./dwnvr && docker rm "$id"
 "$(go env GOPATH)/bin/govulncheck" -mode=binary ./dwnvr
+```
+
+## Trivy semanal na imagem do detector
+
+O [`.github/workflows/trivy.yml`](../.github/workflows/trivy.yml) roda toda
+segunda na imagem `latest` do `dwnvr-detect`, em amd64 e em arm64. Ele acusa
+falha HIGH ou CRITICAL que já tem correção, nos pacotes do Debian da base e nos
+pacotes do Python. O achado vai para a aba Security, em Code scanning (ferramenta
+Trivy, uma categoria por arquitetura), e o job falha, o que manda e-mail. O
+cabeçalho do arquivo diz por que só essa imagem.
+
+A correção quase sempre é a base: subir a tag `python:3.12.X-slim-trixie` nas
+duas linhas `FROM` do `dwnvr-detect/Dockerfile` e fazer uma release. A tag de
+um patch do Python deixa de ser reconstruída quando sai o seguinte, e a imagem
+que a usa fica com os pacotes do Debian daquele dia. O alerta fecha sozinho no
+primeiro run depois da release.
+
+```sh
+gh workflow run trivy.yml   # rodar agora, sem esperar a segunda
+```
+
+O mesmo teste local, sem o GitHub, com o
+[binário da release do Trivy](https://github.com/aquasecurity/trivy/releases):
+
+```sh
+trivy image --image-src remote --platform linux/arm64 --scanners vuln \
+  --ignore-unfixed --severity HIGH,CRITICAL ghcr.io/$REPO-detect:latest
 ```
 
 ## Codecov
