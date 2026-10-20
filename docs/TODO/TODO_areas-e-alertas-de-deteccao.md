@@ -4,8 +4,8 @@ Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
 Etapa 0 feita (`2de9b5a`).**
 
 **Próximo passo:** a [Etapa 1](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora)
-(filtrar Detecções por uma área desenhada na hora), começando pelo mock do
-editor, na branch `areas-e-alertas`.
+(filtrar Detecções por uma área desenhada na hora), com o mock já decidido:
+o código, começando pelo `internal/area`, na branch `areas-e-alertas`.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -272,33 +272,35 @@ marcas" em §Detecções).
 quadro de uma câmera e ver só as detecções com objeto dentro dela. É a
 pergunta "quem passou pelo portão nesta semana?".
 
-**Como fica** (a fechar no mock):
+**Como fica**, decidido no mock em 20/10/2026:
 
-- **Duas entradas.** Na folha de uma detecção, "filtrar por área" desenha
-  sobre aquele quadro, e a câmera já é a dela. Na barra, um botão de área pede
-  a câmera e abre o quadro da detecção mais recente dela, ou o keyframe do
-  último segmento quando ela não tem detecção.
-- **O editor**, em três variantes:
-  - **A - polígono livre:** cada toque põe um vértice, e tocar no primeiro
-    fecha a área;
-  - **B - retângulo que vira polígono:** começa com um retângulo no meio, cada
-    canto se arrasta, e a alça no meio de cada aresta cria um vértice. Nunca há
-    área "aberta", e o dedo não precisa de precisão para começar;
-  - **C - pincel numa grade:** o dedo pinta células, como num desenho.
-
-  Em todas, arrastar um vértice ajusta, e há desfazer e limpar. No celular, em
-  retrato e deitado, na tela cheia: o palco da folha já vai à tela cheia.
+- **Duas entradas.** Na folha de uma detecção, o botão "filtrar por área" fica
+  ao lado de "ocultar câmera", desenha sobre aquele quadro, e a câmera já é a
+  dela. Na barra, um botão de área pede a câmera num popover e abre o quadro
+  da detecção mais recente dela, ou o keyframe do último segmento quando ela
+  não tem detecção. No celular o botão fica na 1ª linha, junto do intervalo;
+  se apertar em alguma largura, muda de lugar. No desktop ele vem logo depois
+  do intervalo, com o nome escrito.
+- **O editor é o polígono livre** (a variante A do mock): cada toque põe um
+  vértice, e tocar no primeiro fecha a área. Arrastar um vértice ajusta, e há
+  desfazer e limpar. No celular, em retrato e deitado, na tela cheia; deitado,
+  os controles vão para uma coluna à direita. No desktop, um modal. Foram
+  descartados o retângulo que vira polígono (B) e o pincel numa grade (C), que
+  trocaria o polígono por uma grade nas Etapas 2 e 3.
 - **Aplicado, um chip na barra**, como o do intervalo de horário: a câmera e
-  "área desenhada". Tocar reabre o editor, e o ✕ limpa. A barra do celular já
-  tem duas linhas, três com o intervalo: o mock decide onde o botão e o chip
-  cabem.
-- **O seletor da regra** (`encosta` ou `pisa`) no editor, enquanto a padrão
-  não for escolhida. A grade muda na hora, e é assim que se compara.
+  "área". Tocar reabre o editor, e o ✕ limpa. No celular, com o intervalo
+  também ligado, os dois chips dividem a 3ª linha; sozinho, ele a ocupa
+  inteira. No desktop, os dois chips na mesma linha, como o intervalo hoje.
+- **A regra é escolha do usuário**, num seletor do editor: `encosta` (a caixa
+  toca a área) ou `pisa` (o pé, meio da base da caixa, está dentro), com
+  `pisa` de padrão. O nome `pisa` fica por ora e pode mudar na tela depois. Com casos
+  reais de 16 a 20/10/2026, de 20% a 43% do que a `encosta` mostra é gente que
+  só aparece por cima da área, perto da câmera, ou um falso positivo parado
+  na borda; o preço da `pisa` é desenhar a área cobrindo todo o chão onde o pé
+  pode estar.
 - **A câmera do filtro passa a ser a da área:** as outras saem da lista
-  enquanto o filtro estiver ligado.
-- **O contorno da área** nas miniaturas e na folha, para mostrar por que a
-  detecção entrou: decidir no mock, porque na miniatura pequena ele pode
-  poluir.
+  enquanto o filtro estiver ligado, e o botão de câmeras fica preso nela.
+- **O contorno da área**, fino e tracejado, nas miniaturas; na folha, sempre.
 
 **Servidor:**
 
@@ -333,9 +335,8 @@ tamanho da imagem, que tem de dar o mesmo que sem filtro; câmera 4:3, em que a
 caixa e a área são fração da imagem, e não da miniatura 16:9; link colado em
 outra aba; o dedo no celular, em retrato e deitado.
 
-**A etapa fecha com a regra padrão escolhida** (`RegraDaAreaPadrao`). O
-seletor sai, a menos que o mantenedor prefira mantê-lo. Se a resposta for
-"depende da câmera", a regra vira campo da área na Etapa 2.
+**A regra padrão é a `pisa`** (`RegraDaAreaPadrao`), e o seletor fica. Na
+Etapa 2, a regra vira campo de cada área cadastrada.
 
 **Repercussões:** `docs/api.md` (§Detecções), `web/src/lib/api.ts`,
 §Estrutura do `web/README.md` (o editor), árvore do `README.md`
@@ -343,13 +344,13 @@ seletor sai, a menos que o mantenedor prefira mantê-lo. Se a resposta for
 
 **Não é mudança incompatível:** os parâmetros são novos e opcionais.
 
-- [ ] mock do editor (A, B, C), nos dois contextos, celular e desktop
+- [x] mock do editor (A, B, C), nos dois contextos, celular e desktop
 - [ ] `internal/area`, com teste das duas regras
 - [ ] `area=` e `regra=` na API, com teste
 - [ ] o editor, o chip e a URL
 - [ ] a medição no hardware de referência
 - [ ] teste do mantenedor no celular e no desktop
-- [ ] a regra padrão escolhida
+- [x] a regra padrão escolhida: `pisa`, e o seletor fica
 - [ ] docs
 
 ## Etapa 2 - áreas cadastradas na câmera
@@ -362,7 +363,7 @@ por elas sem desenhar de novo.
 
 ```json
 "areas": [
-  { "id": "k3f9a2", "nome": "Portão", "pontos": [[0.12, 0.3], [0.55, 0.3], [0.55, 0.8], [0.12, 0.8]] }
+  { "id": "k3f9a2", "nome": "Portão", "regra": "pisa", "pontos": [[0.12, 0.3], [0.55, 0.3], [0.55, 0.8], [0.12, 0.8]] }
 ]
 ```
 
@@ -373,6 +374,8 @@ por elas sem desenhar de novo.
   `MaxAreasPorCamera` áreas; de 3 a `MaxPontosDaArea` pontos; coordenadas de 0
   a 1. A API recusa com o motivo, e o boot tira a área inválida e avisa, como
   já faz com os outros campos.
+- A `regra` é a da Etapa 1, escolhida no editor, e vale para o filtro e para o
+  alerta daquela área. Ausente, é a `RegraDaAreaPadrao`.
 - Muda com a gravação no ar (`trocaCamera`).
 
 **Como fica** (a fechar no mock). O mock já desenha o formulário final, com as
