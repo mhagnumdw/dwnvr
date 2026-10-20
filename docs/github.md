@@ -41,8 +41,8 @@ gh api repos/$REPO/vulnerability-alerts -i | head -1         # 204 = Dependabot 
 gh api repos/$REPO/actions/permissions/workflow              # token dos workflows
 gh api "repos/$REPO/dependabot/alerts?state=open" --jq 'length'
 gh api repos/$REPO/code-scanning/default-setup --jq '.state' # configured = CodeQL ligado
-gh api "repos/$REPO/code-scanning/alerts?state=open" --jq 'length'
-gh api "repos/$REPO/code-scanning/alerts?state=open&tool_name=Trivy" --jq 'length'
+gh api --paginate "repos/$REPO/code-scanning/alerts?state=open" --jq '.[].number' | wc -l
+gh api --paginate "repos/$REPO/code-scanning/alerts?state=open&tool_name=Trivy" --jq '.[].number' | wc -l
 gh api repos/$REPO/private-vulnerability-reporting
 gh api repos/$REPO/rules/branches/main --jq '.[].type'       # deletion, non_fast_forward
 gh api repos/$REPO --jq '.allow_merge_commit'                # false
