@@ -4,8 +4,9 @@ Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
 Etapa 0 feita (`2de9b5a`).**
 
 **Próximo passo:** a [Etapa 1](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora)
-(filtrar Detecções por uma área desenhada na hora), com o mock já decidido:
-o código, começando pelo `internal/area`, na branch `areas-e-alertas`.
+(filtrar Detecções por uma área desenhada na hora), com o mock e o
+[modelo de dados](#o-modelo-de-dados) já decididos: o código, começando pelo
+`internal/area`, na branch `areas-e-alertas`.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -197,11 +198,34 @@ três cuidados seguram o custo:
 | Termo | O que é |
 | --- | --- |
 | **área** | um polígono sobre a imagem de uma câmera, em fração do quadro. Várias por câmera, cada uma com nome |
-| **regra da área** | quando um objeto conta como dentro: `encosta` ou `pisa` |
+| **regra da área** | quando um objeto conta como dentro: `encosta` ou `pisa`, que no JSON são `touch` e `foot` |
 | **alerta** | o aviso de que uma detecção passou na regra de alerta da câmera |
 | **meio** | por onde o alerta sai: e-mail, depois outros |
 | **registro** | a linha do alerta no log e no card Alertas. Todo alerta tem, com meio configurado ou não |
 | **silêncio** | o tempo, depois de um alerta, em que a mesma câmera e família não alertam de novo |
+
+## O modelo de dados
+
+Decidido em 20/10/2026. Chave e valor novos em en-US (ver o `AGENTS.md`); o
+que já existe em português, como a família `"pessoa"`, entra como é. Os nomes
+no Go seguem em português (`Area`, `RegraDaArea`).
+
+| Etapa | Onde mora | O quê |
+| --- | --- | --- |
+| 1 | só na URL e na query | `area=<cam>:<x>,<y>,...` em milésimos e `rule=touch\|foot` |
+| 2 | `cameras.json`, dentro da câmera | `areas`: `id`, `name`, `rule`, `points` |
+| 3 | `cameras.json`, dentro da câmera | `alert`: `enabled`, `families`, `areas` |
+| 3 | memória e log | o registro dos alertas: some num reinício |
+| 4 | `dwnvr.yaml` | seção `alerts.email` |
+| 5 | dentro do `alert` | `schedules`, com a estrutura ainda a rever |
+
+- **Área e alerta dentro da câmera**, e não num arquivo próprio: aproveitam o
+  `ConfereCamera`, o `trocaCamera` e o `GET /api/cameras`, que já leva tudo ao
+  viewer. O preço é o downgrade, que vai nas notas da release.
+- **Os pontos em fração, com 4 casas**, como a `caixa`, que se compara com a
+  área sem conversão. Na query, milésimos inteiros, para a URL ficar curta.
+- **O histórico dos alertas fica só na memória** por ora. Gravá-lo é o item
+  "Marcar em Detecções o que alertou", de [Depois](#depois).
 
 ## As duas regras
 
@@ -310,7 +334,8 @@ pergunta "quem passou pelo portão nesta semana?".
   `parametros.go`;
 - `GET /api/deteccoes` e `GET /api/deteccoes/dias` aceitam
   `area=<cam>:<x>,<y>,<x>,<y>,...`, em milésimos do quadro (inteiros de 0 a
-  1000), e `regra=`;
+  1000), e `rule=touch` (encosta) ou `rule=foot` (pisa), com `foot` de
+  padrão;
 - o filtro tira da detecção o objeto que não está na área, como o de família
   já faz, e a detecção que fica sem objeto sai da página;
 - marca sem caixa, de antes de a caixa existir, fica de fora com o filtro
@@ -322,7 +347,7 @@ pergunta "quem passou pelo portão nesta semana?".
 
 - o editor é um componente próprio, num chunk à parte (`import()`), que a
   Etapa 2 reaproveita: quem não desenha área não baixa nada;
-- a URL leva `area=` e `regra=`, e o link colado em outra aba mostra a mesma
+- a URL leva `area=` e `rule=`, e o link colado em outra aba mostra a mesma
   lista;
 - o viewer também usa: o filtro não grava nada.
 
@@ -346,7 +371,7 @@ Etapa 2, a regra vira campo de cada área cadastrada.
 
 - [x] mock do editor (A, B, C), nos dois contextos, celular e desktop
 - [ ] `internal/area`, com teste das duas regras
-- [ ] `area=` e `regra=` na API, com teste
+- [ ] `area=` e `rule=` na API, com teste
 - [ ] o editor, o chip e a URL
 - [ ] a medição no hardware de referência
 - [ ] teste do mantenedor no celular e no desktop
@@ -359,11 +384,12 @@ Etapa 2, a regra vira campo de cada área cadastrada.
 às áreas dela, como "Portão" e "Garagem". Em Detecções, qualquer pessoa filtra
 por elas sem desenhar de novo.
 
-**O dado** (proposta), no `cameras.json`:
+**O dado**, no `cameras.json`, dentro da câmera:
 
 ```json
 "areas": [
-  { "id": "k3f9a2", "nome": "Portão", "regra": "pisa", "pontos": [[0.12, 0.3], [0.55, 0.3], [0.55, 0.8], [0.12, 0.8]] }
+  { "id": "k3f9a2", "name": "Portão", "rule": "foot",
+    "points": [[0.12, 0.30], [0.55, 0.30], [0.55, 0.80], [0.12, 0.80]] }
 ]
 ```
 
@@ -374,7 +400,7 @@ por elas sem desenhar de novo.
   `MaxAreasPorCamera` áreas; de 3 a `MaxPontosDaArea` pontos; coordenadas de 0
   a 1. A API recusa com o motivo, e o boot tira a área inválida e avisa, como
   já faz com os outros campos.
-- A `regra` é a da Etapa 1, escolhida no editor, e vale para o filtro e para o
+- A `rule` é a da Etapa 1, escolhida no editor, e vale para o filtro e para o
   alerta daquela área. Ausente, é a `RegraDaAreaPadrao`.
 - Muda com a gravação no ar (`trocaCamera`).
 
@@ -423,16 +449,16 @@ versão velha não conhece o campo.
 detectar", com as famílias e as áreas que contam. Nesta etapa o alerta vai para
 o log e para o card Alertas do Diagnóstico; o e-mail é a Etapa 4.
 
-**O dado** (proposta), no `cameras.json`:
+**O dado**, no `cameras.json`, dentro da câmera:
 
 ```json
-"alerta": { "ligado": true, "familias": ["pessoa"], "areas": ["k3f9a2"] }
+"alert": { "enabled": true, "families": ["pessoa"], "areas": ["k3f9a2"] }
 ```
 
 - `areas` vazio é a imagem inteira. A tela diz isso por extenso, "em qualquer
   lugar da imagem" ou "só nas áreas marcadas", porque desmarcar todas as áreas
   não pode parecer "sem alerta".
-- `familias` começa em `pessoa`, a de maior prioridade. Uma câmera voltada para
+- `families` começa em `pessoa`, a de maior prioridade. Uma câmera voltada para
   a rua, com `veiculo`, daria até ~450 alertas por dia antes do silêncio: é
   quanto uma câmera assim marca de veículo na instalação de teste.
 - Desligar guarda o resto, para religar sem refazer.
@@ -535,7 +561,7 @@ desligado.
 - [ ] a simulação do silêncio sobre o histórico real
 - [ ] `internal/alerta`: o contrato, a regra, o silêncio e o envio, com teste
 - [ ] a avaliação no `Recorder.olhou`, sem segurar a fila
-- [ ] o campo `alerta`, com validação
+- [ ] o campo `alert`, com validação
 - [ ] a seção Alertas no cadastro
 - [ ] o card Alertas e o Aviso de meio falhando
 - [ ] na instalação de teste, por deploy manual, com detecções reais
@@ -546,17 +572,29 @@ desligado.
 **O que muda para quem usa:** o alerta chega por e-mail, com o quadro da
 detecção.
 
-**A configuração** fica no `dwnvr.yaml`, numa seção nova e opcional, com as
-chaves no estilo do arquivo (`username` e `password`, como nos blocos `server`
-e `go2rtc`):
+**A configuração** fica no `dwnvr.yaml`, numa seção nova e opcional,
+`alerts.email`, com as chaves no estilo do arquivo (`username` e `password`,
+como nos blocos `server` e `go2rtc`):
+
+```yaml
+alerts:
+  email:
+    host: smtp.gmail.com
+    port: 587
+    security: starttls        # starttls | tls | none
+    username: alertas@exemplo.com
+    password: "..."
+    from: "dwnvr <alertas@exemplo.com>"
+    to: [fulano@exemplo.com]  # opcional
+```
 
 | Campo | O que é |
 | --- | --- |
-| servidor e porta | o SMTP do provedor |
-| segurança | STARTTLS (porta 587), TLS direto (465) ou nenhuma, só para rede local |
-| usuário e senha | a conta que envia |
-| remetente | o `From`, como `dwnvr <alertas@exemplo.com>` |
-| destinatários | **opcional**: recebem o alerta de toda câmera com alerta ligado |
+| `host` e `port` | o SMTP do provedor |
+| `security` | STARTTLS (porta 587), TLS direto (465) ou nenhuma, só para rede local |
+| `username` e `password` | a conta que envia |
+| `from` | o `From`, como `dwnvr <alertas@exemplo.com>` |
+| `to` | **opcional**: recebem o alerta de toda câmera com alerta ligado |
 
 Sem destinatário, o e-mail fica configurado e ninguém recebe; o card Alertas
 diz isso. A senha fica no servidor: não vai à tela nem ao log.
@@ -610,20 +648,22 @@ com comentário, uma seção nova no `docs/configuracao.md` e a §Configuração
 **O que muda para quem usa:** por câmera, em que dias e horas o alerta sai.
 Sem horário, ele sai sempre.
 
-**O dado** (proposta), dentro do `alerta`:
+**O dado** (proposta), dentro do `alert`. A estrutura ainda vai ser revista
+com o mantenedor quando a etapa chegar (20/10/2026); as chaves já estão em
+en-US:
 
 ```json
-"horarios": [
-  { "dias": [1, 2, 3, 4, 5], "de": "22:00", "ate": "06:00" },
-  { "dias": [0, 6], "de": "00:00", "ate": "00:00" }
+"schedules": [
+  { "days": [1, 2, 3, 4, 5], "from": "22:00", "to": "06:00" },
+  { "days": [0, 6], "from": "00:00", "to": "00:00" }
 ]
 ```
 
-- `dias` vai de 0 (domingo) a 6 (sábado), como o Go e o JavaScript contam.
-- O "até" menor que o "de" termina no dia seguinte, e o dia da faixa é o do
+- `days` vai de 0 (domingo) a 6 (sábado), como o Go e o JavaScript contam.
+- O `to` menor que o `from` termina no dia seguinte, e o dia da faixa é o do
   início: sexta das 22:00 às 06:00 cobre a madrugada de sábado. É a mesma regra
   do intervalo de Detecções.
-- O "de" igual ao "até" é o dia inteiro.
+- O `from` igual ao `to` é o dia inteiro.
 - Vale o instante do onset, no fuso do servidor, o mesmo que vira o dia das
   gravações.
 
@@ -648,7 +688,7 @@ por câmera do `docs/configuracao.md`, `docs/deteccao.md` e
 **Não é mudança incompatível:** o campo é novo e opcional.
 
 - [ ] mock (A, B, C), celular e desktop
-- [ ] o campo `horarios`, com validação e teste da virada do dia
+- [ ] o campo `schedules`, com validação e teste da virada do dia
 - [ ] a seção no cadastro
 - [ ] teste do mantenedor no celular e no desktop
 - [ ] docs
