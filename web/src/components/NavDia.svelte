@@ -16,10 +16,12 @@
     value: string;
     days?: string[];
     oQue?: string | undefined;
+    contagens?: Record<string, number> | undefined;
     onchange: (dia: string) => void;
+    onabrir?: (() => void) | undefined;
   }
 
-  let { value, days = [], oQue, onchange }: Props = $props();
+  let { value, days = [], oQue, contagens, onchange, onabrir }: Props = $props();
 
   function vizinho(n: number) {
     const d = parseDay(value);
@@ -44,7 +46,7 @@
   >
     <Icone nome="chevronEsq" tamanho={18} />
   </button>
-  <DayPicker {value} {days} {oQue} {onchange} />
+  <DayPicker {value} {days} {oQue} {contagens} {onchange} {onabrir} />
   <button
     class="ghost"
     onclick={() => {

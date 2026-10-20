@@ -373,6 +373,9 @@
   // modo permissivo do seletor: até a resposta chegar, ou se ela falhar, todo
   // dia até hoje vale.
   let diasComDeteccao = $state.raw<string[]>([]);
+  // Quantas detecções do filtro cada dia tem, que o calendário mostra no dia.
+  // Não segue o intervalo de horário: é o dia inteiro.
+  let deteccoesPorDia = $state.raw<Record<string, number>>({});
   // Segura a primeira consulta até a câmera da URL ser resolvida: antes disso o
   // filtro é "todas", e a consulta sairia à toa - e, com o disco frio, é a mais
   // cara da tela.
@@ -382,16 +385,23 @@
     if (camerasResolvidas) void carregaDias(filtro);
   });
 
-  async function carregaDias(f: FiltroDeDeteccoes | null) {
+  // `manter` é a releitura de quando o calendário abre: a lista que já está lá
+  // é do mesmo filtro, e um soluço da rede não a troca pelo modo permissivo.
+  async function carregaDias(f: FiltroDeDeteccoes | null, manter = false) {
     if (!f) {
       diasComDeteccao = [];
+      deteccoesPorDia = {};
       return;
     }
     try {
       const r = await api.diasDeDeteccao(f);
-      if (f === filtro) diasComDeteccao = r.dias;
+      if (f !== filtro) return;
+      diasComDeteccao = r.dias;
+      deteccoesPorDia = r.deteccoesPorDia;
     } catch {
-      if (f === filtro) diasComDeteccao = [];
+      if (f !== filtro || manter) return;
+      diasComDeteccao = [];
+      deteccoesPorDia = {};
     }
   }
 
@@ -930,7 +940,13 @@
         value={intervalo?.dia ?? diaTopo}
         days={diasComDeteccao}
         oQue="detecção"
+        contagens={deteccoesPorDia}
         onchange={irParaDia}
+        onabrir={() => {
+          // A contagem de hoje cresce com a tela aberta, e a lista só é lida
+          // quando o filtro muda.
+          if (camerasResolvidas) void carregaDias(filtro, true);
+        }}
       />
       <Relogio ms={topoMs} onir={irParaHora} segundos={false} />
       {#if !intervalo}
