@@ -370,8 +370,8 @@ Etapa 2, a regra vira campo de cada área cadastrada.
 **Não é mudança incompatível:** os parâmetros são novos e opcionais.
 
 - [x] mock do editor (A, B, C), nos dois contextos, celular e desktop
-- [ ] `internal/area`, com teste das duas regras
-- [ ] `area=` e `rule=` na API, com teste
+- [x] `internal/area`, com teste das duas regras
+- [x] `area=` e `rule=` na API, com teste
 - [ ] o editor, o chip e a URL
 - [ ] a medição no hardware de referência
 - [ ] teste do mantenedor no celular e no desktop
