@@ -150,9 +150,9 @@ func (s *Server) handleDiasDeDeteccao(w http.ResponseWriter, r *http.Request) {
 // diasComDeteccao percorre os dias com gravação e conta, em cada um, as
 // detecções do filtro; o dia sem nenhuma fica de fora. Contar obriga a ler
 // todas as câmeras de cada dia: no hardware de referência, com o cache de
-// disco frio, a primeira chamada leva ~1,5 s, e as seguintes saem da memória
-// do store. Dia sem gravação fica de fora mesmo com marca - a rolagem também
-// não o alcança, porque anda pelos mesmos diasDasCameras.
+// disco frio, a primeira chamada leva ~1,3 s, e as seguintes saem da memória
+// do store em ~5 ms. Dia sem gravação fica de fora mesmo com marca - a
+// rolagem também não o alcança, porque anda pelos mesmos diasDasCameras.
 func diasComDeteccao(cams []*store.Camera, familias map[string]bool) ([]string, map[string]int, error) {
 	dias := []string{}
 	porDia := map[string]int{}

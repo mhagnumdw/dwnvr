@@ -613,10 +613,11 @@ de fora mesmo com marca, porque a rolagem também não chega nele.
 ```
 
 Ele usa a mesma memória da rolagem, e contar obriga a ler todas as câmeras de
-cada dia. Medido no Orange Pi Zero 3 com 30 dias, nove câmeras e 10 MB de
-eventos, com o cache de disco frio: lendo todas as câmeras, a primeira chamada
-levava ~1,5 s, e as seguintes saem da memória em ~1 ms. A tela relê a lista a
-cada abertura do calendário, porque o dia corrente cresce com ela aberta.
+cada dia. Medido no Orange Pi Zero 3 com 28 dias, nove câmeras, 13 MB de
+eventos e 18.772 detecções, com o cache de disco frio: a primeira chamada levou
+1,2 s e 1,3 s, e as seguintes saem da memória em ~5 ms. Parar na primeira
+câmera com marca, sem contar, levava 0,4 s. A tela relê a lista a cada abertura
+do calendário, porque o dia corrente cresce com ela aberta.
 
 **`/api/deteccoes/quadro`** serve o arquivo como ele está no disco, sem
 redimensionar nem reencodar: `t` é o `instanteMs` da detecção. Ele nunca muda
