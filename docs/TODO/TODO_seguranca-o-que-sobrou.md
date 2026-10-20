@@ -27,9 +27,9 @@ versão: o lychee já derrubou o run dele pelo formato da tag.
   `SameSite`; e um path traversal que o `validGen` já impede). Serviria de
   guarda para código novo (`InsecureSkipVerify`, `exec` com entrada externa,
   `http.Server` sem timeout). O CodeQL cobre boa parte disso.
-- **Scan das imagens publicadas** (Trivy ou Grype): a do dwnvr é `scratch`
-  com um binário estático, e o que ele acharia o govulncheck acha; a do
-  `dwnvr-detect` tem a base Debian. O Dependabot já sobe a base.
+- **Trivy na imagem do dwnvr.** É `scratch` com um binário estático, e o que
+  ele acharia o govulncheck acha, com menos alarme falso. A do `dwnvr-detect`
+  já tem o seu ([`github.md`](../github.md#trivy-semanal-na-imagem-do-detector)).
 - **`dwnvr-detect` com `pyproject.toml` e `uv.lock`.** O ecossistema `uv` do
   Dependabot recompila o lock, em vez de trocar linha, e daria ao `pip` um PR
   que funciona. Muda como o detector de objetos é empacotado, para resolver um
