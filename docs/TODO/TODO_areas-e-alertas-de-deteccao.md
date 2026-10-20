@@ -1,10 +1,11 @@
 # TODO - áreas na imagem, filtro por área e alertas de detecção
 
-Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: plano. Nada
-implementado.**
+Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
+Etapa 0 feita (`2de9b5a`).**
 
-**Próximo passo:** a [Etapa 0](#etapa-0---toda-caixa-que-virou-marca-fica-gravada)
-(toda caixa que virou marca fica gravada), na branch `areas-e-alertas`.
+**Próximo passo:** a [Etapa 1](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora)
+(filtrar Detecções por uma área desenhada na hora), começando pelo mock do
+editor, na branch `areas-e-alertas`.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -23,7 +24,7 @@ Tudo com a interface pensada para o celular e para o desktop.
 
 ## Checklist
 
-- [ ] [Etapa 0 - toda caixa que virou marca fica gravada](#etapa-0---toda-caixa-que-virou-marca-fica-gravada)
+- [x] [Etapa 0 - toda caixa que virou marca fica gravada](#etapa-0---toda-caixa-que-virou-marca-fica-gravada)
 - [ ] [Etapa 1 - filtrar Detecções por uma área desenhada na hora](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora)
 - [ ] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
 - [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro)
@@ -260,7 +261,10 @@ marcas" em §Detecções).
 - [x] a timeline junta por família no instante
 - [x] docs
 - [x] print de uma detecção com duas caixas da mesma família
-- [ ] a medição do primeiro dia no ar
+- [x] ~~a medição do primeiro dia no ar~~: dispensada em 20/10/2026. O
+  mantenedor viu no ar, no primeiro dia, duas caixas de pessoa no mesmo quadro,
+  e isso basta para fechar a etapa; a contagem por câmera e por dia não mudaria
+  nada do que vem depois.
 
 ## Etapa 1 - filtrar Detecções por uma área desenhada na hora
 
