@@ -1,6 +1,7 @@
 <!--
   Seletor de dia: das gravações, ou das detecções. `oQue` é o material que os
-  dias marcados têm, e só muda o que o leitor de tela anuncia.
+  dias marcados têm, e só muda o que o leitor de tela anuncia. Com `contagens`,
+  o dia mostra quanto material tem, no lugar da bolinha que só diz que tem.
 
   Existe porque o `<input type="date">` nativo não sabe marcar quais dias têm
   material - e é essa marcação, não a escolha da data, que resolve a navegação
@@ -21,7 +22,13 @@
     days?: string[];
     // Undefined explícito: o NavDia repassa o dele, que pode não ter vindo.
     oQue?: string | undefined;
+    // Dia -> quanto material ele tem. O dia de `days` que faltar aqui fica
+    // com a bolinha.
+    contagens?: Record<string, number> | undefined;
     onchange?: (dia: string) => void;
+    // Avisa a abertura: quem passa `contagens` aproveita para atualizá-las,
+    // porque a tela fica aberta e o dia corrente não para de crescer.
+    onabrir?: (() => void) | undefined;
   }
 
   // Uma célula do mês; nulo é o vão antes do dia 1.
@@ -29,12 +36,20 @@
     numero: number;
     chave: string;
     gravado: boolean;
+    contagem: number | undefined;
     selecionado: boolean;
     hoje: boolean;
     rotulo: string;
   }
 
-  let { value = dayKey(), days = [], oQue = 'gravação', onchange }: Props = $props();
+  let {
+    value = dayKey(),
+    days = [],
+    oQue = 'gravação',
+    contagens,
+    onchange,
+    onabrir,
+  }: Props = $props();
 
   let aberto = $state(false);
   let raizEl = $state<HTMLDivElement | null>(null);
@@ -120,6 +135,7 @@
     irPara(limitar(value || hoje));
     desloc = 0;
     aberto = true;
+    onabrir?.();
     focarCelula();
     void tick().then(caberNaTela);
   }
@@ -225,10 +241,12 @@
     for (let d = 1; d <= total; d++) {
       const chave = `${viewYear}-${pad(viewMonth + 1)}-${pad(d)}`;
       const gravado = temGravacao(chave);
+      const contagem = gravado && !permissivo ? contagens?.[chave] : undefined;
       lista.push({
         numero: d,
         chave,
         gravado,
+        contagem,
         selecionado: chave === value,
         hoje: chave === hoje,
         // O estado inteiro no próprio rótulo, e não num `aria-pressed` por
@@ -237,6 +255,7 @@
         rotulo:
           `${d} de ${MESES[viewMonth] ?? ''} de ${viewYear}` +
           (permissivo ? '' : `, ${gravado ? 'com' : 'sem'} ${oQue}`) +
+          (contagem === undefined ? '' : `: ${contagem}`) +
           (chave === value ? ', selecionado' : ''),
       });
     }
@@ -358,6 +377,7 @@
               type="button"
               class="celula dia"
               class:gravado={item.gravado}
+              class:contado={item.contagem !== undefined}
               class:hoje={item.hoje}
               class:selecionado={item.selecionado}
               data-dia={item.chave}
@@ -371,7 +391,9 @@
               tabindex={item.chave === diaFocado ? 0 : -1}
             >
               <span class="num">{item.numero}</span>
-              {#if item.gravado && !permissivo}
+              {#if item.contagem !== undefined}
+                <span class="contagem mono" aria-hidden="true">{item.contagem}</span>
+              {:else if item.gravado && !permissivo}
                 <span class="ponto" aria-hidden="true"></span>
               {/if}
             </button>
@@ -536,6 +558,10 @@
     background: #fff;
   }
 
+  .celula.dia.selecionado .contagem {
+    color: #fff;
+  }
+
   /* Contorno por fora da célula: por dentro ele sumiria no fundo do dia
      selecionado, que é justamente onde o foco costuma começar. */
   .celula.dia:focus-visible {
@@ -550,6 +576,23 @@
     background: var(--accent);
     position: absolute;
     bottom: 3px;
+  }
+
+  /* No lugar da bolinha. O número do dia sobe para abrir espaço: 1537, o
+     maior dia visto numa instalação real, cabe na célula de 280 / 7 px. */
+  .celula.contado .num {
+    line-height: 1;
+    margin-top: -6px;
+  }
+
+  .contagem {
+    position: absolute;
+    bottom: 2px;
+    font-size: 9px;
+    line-height: 1;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+    color: var(--accent);
   }
 
   .footer {

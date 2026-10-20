@@ -3,8 +3,10 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -167,7 +169,9 @@ func TestPaginaDeDeteccoesRecusaParametroRuim(t *testing.T) {
 }
 
 // O calendário só oferece dia com detecção do filtro: o dia que só gravou
-// fica de fora, e o filtro de câmera e de família tira o dia que esvaziou.
+// fica de fora, e o filtro de câmera e de família tira o dia que esvaziou. A
+// contagem é de detecções, não de marcas: pessoa e veículo no mesmo quadro de
+// hoje contam uma vez só.
 func TestDiasDeDeteccao(t *testing.T) {
 	s, hoje := cenarioDeDeteccoes(t)
 	anteontem := hoje.AddDate(0, 0, -2)
@@ -175,22 +179,28 @@ func TestDiasDeDeteccao(t *testing.T) {
 
 	ontem := hoje.AddDate(0, 0, -1).Format(store.DayLayout)
 	dia := hoje.Format(store.DayLayout)
-	for q, want := range map[string][]string{
-		"":                                   {ontem, dia},
-		"familias=animal":                    {dia},
-		"cams=cam_b&familias=veiculo":        {ontem},
-		"cams=cam_b&familias=animal,veiculo": {ontem, dia},
+	for q, want := range map[string]map[string]int{
+		"":                                   {ontem: 3, dia: 4},
+		"familias=animal":                    {dia: 1},
+		"familias=pessoa,veiculo":            {ontem: 3, dia: 3},
+		"cams=cam_b&familias=veiculo":        {ontem: 1},
+		"cams=cam_b&familias=animal,veiculo": {ontem: 1, dia: 1},
 	} {
 		rec := httptest.NewRecorder()
 		s.handleDiasDeDeteccao(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?"+q, nil))
 		var out struct {
-			Dias []string `json:"dias"`
+			Dias            []string       `json:"dias"`
+			DeteccoesPorDia map[string]int `json:"deteccoesPorDia"`
 		}
-		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || out.Dias == nil {
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || out.Dias == nil || out.DeteccoesPorDia == nil {
 			t.Fatalf("%s: resposta ilegível ou sem lista: %s", q, rec.Body.String())
 		}
-		if !iguais(out.Dias, want) {
-			t.Errorf("%s: %v, esperado %v", q, out.Dias, want)
+		wantDias := slices.Sorted(maps.Keys(want))
+		if !iguais(out.Dias, wantDias) {
+			t.Errorf("%s: %v, esperado %v", q, out.Dias, wantDias)
+		}
+		if !maps.Equal(out.DeteccoesPorDia, want) {
+			t.Errorf("%s: %v, esperado %v", q, out.DeteccoesPorDia, want)
 		}
 	}
 

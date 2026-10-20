@@ -542,7 +542,7 @@ rola.
 | --- | --- | --- |
 | `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias` | uma página de detecções, da mais nova para a mais velha |
 | `GET /api/deteccoes/quadro` | `cam`, `t` | o JPEG do quadro que o detector olhou, `immutable` |
-| `GET /api/deteccoes/dias` | `cams`, `familias` | os dias com pelo menos uma detecção, em ordem crescente |
+| `GET /api/deteccoes/dias` | `cams`, `familias` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
 
 **`/api/deteccoes`** pagina por cursor, e não por número de página: o dia
 corrente ganha detecção nova a todo momento, e "página 3" mudaria de conteúdo
@@ -599,19 +599,25 @@ detecções: 0,85 MB em memória, e uma página de 60 em 0,2 ms depois da primei
 leitura. O dia sai da memória quando a retenção o apaga.
 
 **`/api/deteccoes/dias`** é o que o calendário da tela de Detecções deixa
-escolher. `cams` e `familias` são os mesmos de `/api/deteccoes`, e o dia entra
-se tiver ao menos uma marca do filtro. Dia sem gravação fica de fora mesmo com
-marca, porque a rolagem também não chega nele.
+escolher, com o número que ele mostra em cada dia. `cams` e `familias` são os
+mesmos de `/api/deteccoes`, e o dia entra se tiver ao menos uma detecção do
+filtro. `deteccoesPorDia` conta detecções, não marcas, como `/api/deteccoes`
+as monta: pessoa e carro no mesmo quadro contam uma vez. Dia sem gravação fica
+de fora mesmo com marca, porque a rolagem também não chega nele.
 
 ```json
-{ "dias": ["2026-10-03", "2026-10-04", "2026-10-05"] }
+{
+  "dias": ["2026-10-03", "2026-10-04", "2026-10-05"],
+  "deteccoesPorDia": { "2026-10-03": 508, "2026-10-04": 294, "2026-10-05": 462 }
+}
 ```
 
-Ele usa a mesma memória da rolagem, e o dia entra na lista na primeira câmera
-que tiver marca: as outras câmeras daquele dia nem são lidas. Medido no Orange
-Pi Zero 3 com 30 dias, nove câmeras e 10 MB de eventos, com o cache de disco
-frio: a primeira chamada levou 0,5 s e 0,7 s (numa terceira medição, 2,3 s), e
-as seguintes ~1 ms. Lendo todas as câmeras de cada dia, eram ~1,5 s.
+Ele usa a mesma memória da rolagem, e contar obriga a ler todas as câmeras de
+cada dia. Medido no Orange Pi Zero 3 com 28 dias, nove câmeras, 13 MB de
+eventos e 18.772 detecções, com o cache de disco frio: a primeira chamada levou
+1,2 s e 1,3 s, e as seguintes saem da memória em ~5 ms. Parar na primeira
+câmera com marca, sem contar, levava 0,4 s. A tela relê a lista a cada abertura
+do calendário, porque o dia corrente cresce com ela aberta.
 
 **`/api/deteccoes/quadro`** serve o arquivo como ele está no disco, sem
 redimensionar nem reencodar: `t` é o `instanteMs` da detecção. Ele nunca muda

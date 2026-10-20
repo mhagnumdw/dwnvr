@@ -121,7 +121,8 @@ func (s *Server) handleDeteccoes(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDiasDeDeteccao devolve os dias com pelo menos uma detecção, em ordem
-// crescente. É o que o calendário da tela de Detecções deixa escolher.
+// crescente, e quantas detecções cada um tem. É o que o calendário da tela de
+// Detecções deixa escolher, e o número que ele mostra em cada dia.
 //
 //	cams=a,b     só estas câmeras; sem ele, todas.
 //	familias=... só estas famílias; sem ele, todas.
@@ -138,37 +139,53 @@ func (s *Server) handleDiasDeDeteccao(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dias, err := diasComDeteccao(cams, familias)
+	dias, porDia, err := diasComDeteccao(cams, familias)
 	if err != nil {
 		s.fail(w, "lendo os dias com detecção", err)
 		return
 	}
-	writeJSON(w, map[string]any{"dias": dias})
+	writeJSON(w, map[string]any{"dias": dias, "deteccoesPorDia": porDia})
 }
 
-// diasComDeteccao percorre os dias com gravação e fica com os que têm marca de
-// objeto do filtro. Um dia entra na primeira câmera que tiver marca, e as
-// outras câmeras daquele dia nem são lidas: no hardware de referência, com o
-// cache de disco frio, isso levou a primeira chamada de ~1,5 s para ~0,6 s.
-// Dia sem gravação fica de fora mesmo com marca - a rolagem também não o
-// alcança, porque anda pelos mesmos diasDasCameras.
-func diasComDeteccao(cams []*store.Camera, familias map[string]bool) ([]string, error) {
-	out := []string{}
+// diasComDeteccao percorre os dias com gravação e conta, em cada um, as
+// detecções do filtro; o dia sem nenhuma fica de fora. Contar obriga a ler
+// todas as câmeras de cada dia: no hardware de referência, com o cache de
+// disco frio, a primeira chamada leva ~1,3 s, e as seguintes saem da memória
+// do store em ~5 ms. Dia sem gravação fica de fora mesmo com marca - a
+// rolagem também não o alcança, porque anda pelos mesmos diasDasCameras.
+func diasComDeteccao(cams []*store.Camera, familias map[string]bool) ([]string, map[string]int, error) {
+	dias := []string{}
+	porDia := map[string]int{}
 	for _, dia := range diasDasCameras(cams) {
+		n := 0
 		for _, cam := range cams {
 			marcas, err := cam.ObjetosDoDia(dia)
 			if err != nil {
-				return nil, fmt.Errorf("%s, %s: %w", cam.ID, dia, err)
+				return nil, nil, fmt.Errorf("%s, %s: %w", cam.ID, dia, err)
 			}
-			if slices.ContainsFunc(marcas, func(m store.Evento) bool {
-				return familias == nil || familias[m.Familia]
-			}) {
-				out = append(out, dia)
-				break
-			}
+			n += contaDeteccoes(marcas, familias)
+		}
+		if n > 0 {
+			dias = append(dias, dia)
+			porDia[dia] = n
 		}
 	}
-	return out, nil
+	return dias, porDia, nil
+}
+
+// contaDeteccoes conta as detecções de uma câmera num dia como o agrupa as
+// monta: uma por instante, por mais famílias que o quadro tenha.
+func contaDeteccoes(marcas []store.Evento, familias map[string]bool) int {
+	n := 0
+	ultimo := int64(-1)
+	for _, m := range marcas {
+		if familias != nil && !familias[m.Familia] || m.InstanteMs == ultimo {
+			continue
+		}
+		n++
+		ultimo = m.InstanteMs
+	}
+	return n
 }
 
 // paginaDeDeteccoesDe junta as câmeras dia a dia, a partir do dia do cursor e

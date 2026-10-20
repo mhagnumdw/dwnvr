@@ -227,8 +227,9 @@ export const api = {
     return request<PaginaDeDeteccoes>(`deteccoes?${q}`);
   },
 
-  // Os dias com pelo menos uma detecção do filtro, em ordem crescente: é o que
-  // o calendário da tela de Detecções deixa escolher.
+  // Os dias com pelo menos uma detecção do filtro, em ordem crescente, e
+  // quantas cada um tem: é o que o calendário da tela de Detecções deixa
+  // escolher, e o número que ele mostra em cada dia.
   diasDeDeteccao: ({ cams, familias }: FiltroDeDeteccoes) => {
     const q = new URLSearchParams();
     if (cams?.length) q.set('cams', cams.join(','));
@@ -712,4 +713,6 @@ export interface PedidoDeDeteccoes extends FiltroDeDeteccoes {
 
 export interface DiasDeDeteccao {
   dias: string[];
+  // Dia -> quantas detecções do filtro. Só os dias de `dias`.
+  deteccoesPorDia: Record<string, number>;
 }
