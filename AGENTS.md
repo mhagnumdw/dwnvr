@@ -31,6 +31,13 @@ leve, reativa e responsiva, com ótima usabilidade no mobile e no desktop
   nunca numa constante solta.
 - **JSON legível.** Chave por extenso (`instanteMs`, não `t`), mesmo ficando
   maior. Exceção: o `index/{dia}.ndjson`, abreviado por volume.
+- **Chave e valor novos em en-US**, no JSON (API, `cameras.json`,
+  `usuarios.json`, `eventos/`) e no YAML (`dwnvr.yaml`, compose): `rule`, não
+  `regra`; `"touch"`, não `"encosta"`. Vale para o valor que é enumeração, e
+  não para o texto que o usuário digita (o nome de uma área). O que já existe
+  em português (`instanteMs`, `familia`, `"pessoa"`, `detectMecanismo`) fica
+  como está, porque renomear quebra o arquivo gravado e quem lê a API; campo
+  novo que guarda um valor desses o repete como ele é.
 - **O termo diz o que é.** "Detector de objetos" (o modelo), nunca "detector"
   solto: confunde com a detecção de movimento. Prefira o verbo do que acontece
   ("descartada", não "poupada"). Não mude o significado de um conceito do
