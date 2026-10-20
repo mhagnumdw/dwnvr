@@ -156,6 +156,125 @@ func TestPaginaDeDeteccoesFiltra(t *testing.T) {
 	}
 }
 
+// portaoEmMilesimos é a área do teste do filtro: X de 0,4 a 0,6 e Y de 0,5 a
+// 0,7, como a query a manda.
+const portaoEmMilesimos = "cam_teste:400,500,600,500,600,700,400,700"
+
+// cenarioDeArea acrescenta ao cenarioDeDeteccoes marcas com caixa, de hoje:
+//
+//	cam_teste 5: pessoa com o pé no portão, e um veículo longe dele
+//	cam_teste 6: pessoa na frente, cobrindo o portão, com o pé abaixo
+//	cam_b     5: pessoa no mesmo lugar, mas em outra câmera
+//
+// As marcas do cenarioDeDeteccoes não têm caixa.
+func cenarioDeArea(t *testing.T) (*Server, time.Time) {
+	t.Helper()
+	s, hoje := cenarioDeDeteccoes(t)
+	marca := func(cam string, min int64, familia string, caixa [4]float64) {
+		t.Helper()
+		ev := store.Evento{InstanteMs: hoje.UnixMilli() + min*60_000, Familia: familia, Classe: "x",
+			Score: 0.9, Caixa: &caixa}
+		if err := s.store.Camera(cam).AppendEvento(ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	marca("cam_teste", 5, "pessoa", [4]float64{0.45, 0.3, 0.55, 0.65})
+	marca("cam_teste", 5, "veiculo", [4]float64{0.05, 0.05, 0.15, 0.2})
+	marca("cam_teste", 6, "pessoa", [4]float64{0.35, 0.2, 0.65, 0.95})
+	marca("cam_b", 5, "pessoa", [4]float64{0.45, 0.3, 0.55, 0.65})
+	return s, hoje
+}
+
+// O filtro de área tira o objeto que está fora, como o de família, e fica só
+// com a câmera da área. A marca sem caixa sai: não há como saber onde estava.
+func TestPaginaDeDeteccoesFiltraPorArea(t *testing.T) {
+	s, hoje := cenarioDeArea(t)
+
+	p := getPagina(t, s, "area="+portaoEmMilesimos)
+	if got := rotulos(p, hoje); !iguais(got, []string{"cam_teste@5"}) {
+		t.Errorf("foot, o padrão: %v", got)
+	}
+	if o := p.Deteccoes[0].Objetos; len(o) != 1 || o[0].Familia != "pessoa" {
+		t.Errorf("o veículo fora da área continuou na detecção: %+v", o)
+	}
+
+	p = getPagina(t, s, "area="+portaoEmMilesimos+"&rule=touch")
+	if got := rotulos(p, hoje); !iguais(got, []string{"cam_teste@6", "cam_teste@5"}) {
+		t.Errorf("touch: %v", got)
+	}
+
+	// A imagem inteira dá o mesmo que sem área, salvo as marcas sem caixa.
+	for _, regra := range []string{"touch", "foot"} {
+		p = getPagina(t, s, "area=cam_teste:0,0,1000,0,1000,1000,0,1000&rule="+regra)
+		if got := rotulos(p, hoje); !iguais(got, []string{"cam_teste@6", "cam_teste@5"}) {
+			t.Errorf("imagem inteira, %s: %v", regra, got)
+		}
+		if o := p.Deteccoes[1].Objetos; len(o) != 2 {
+			t.Errorf("imagem inteira, %s: a detecção do minuto 5 perdeu objeto: %+v", regra, o)
+		}
+	}
+
+	p = getPagina(t, s, "area="+portaoEmMilesimos+"&rule=touch&familias=veiculo")
+	if got := rotulos(p, hoje); len(got) != 0 {
+		t.Errorf("família e área juntas: %v", got)
+	}
+
+	p = getPagina(t, s, "cams=cam_teste,cam_b&area="+portaoEmMilesimos)
+	if got := rotulos(p, hoje); !iguais(got, []string{"cam_teste@5"}) {
+		t.Errorf("cams com a câmera da área: %v", got)
+	}
+}
+
+// O calendário segue a área, como segue câmeras e famílias.
+func TestDiasDeDeteccaoPorArea(t *testing.T) {
+	s, hoje := cenarioDeArea(t)
+	dia := hoje.Format(store.DayLayout)
+	for q, want := range map[string]map[string]int{
+		"area=" + portaoEmMilesimos:                      {dia: 1},
+		"area=" + portaoEmMilesimos + "&rule=touch":      {dia: 2},
+		"area=cam_teste:0,0,100,0,100,100,0,100":         {},
+		"area=" + portaoEmMilesimos + "&familias=animal": {},
+	} {
+		rec := httptest.NewRecorder()
+		s.handleDiasDeDeteccao(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?"+q, nil))
+		var out struct {
+			DeteccoesPorDia map[string]int `json:"deteccoesPorDia"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("%s: resposta ilegível: %s", q, rec.Body.String())
+		}
+		if !maps.Equal(out.DeteccoesPorDia, want) {
+			t.Errorf("%s: %v, esperado %v", q, out.DeteccoesPorDia, want)
+		}
+	}
+}
+
+func TestFiltroDeAreaRecusaParametroRuim(t *testing.T) {
+	s, _ := cenarioDeArea(t)
+	for _, q := range []string{
+		"rule=foot", // regra sem área
+		"area=" + portaoEmMilesimos + "&rule=pisa", // o nome da tela não é o do JSON
+		"area=semCamera",
+		"area=:0,0,1000,0,0,1000",
+		"area=cam_teste:0,0,1000,0,1000",   // X sem Y
+		"area=cam_teste:0,0,1000,0",        // dois pontos
+		"area=cam_teste:0,0,1001,0,0,1000", // fora do quadro
+		"area=cam_teste:0,0,x,0,0,1000",
+		"area=fantasma:0,0,1000,0,0,1000",
+		"cams=cam_b&area=" + portaoEmMilesimos, // a câmera da área fora de cams
+	} {
+		for nome, h := range map[string]http.HandlerFunc{
+			"deteccoes": s.handleDeteccoes, "dias": s.handleDiasDeDeteccao,
+		} {
+			rec := httptest.NewRecorder()
+			h(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes?"+q, nil))
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("%s, %s: HTTP %d, esperado 400", nome, q, rec.Code)
+			}
+		}
+	}
+}
+
 func TestPaginaDeDeteccoesRecusaParametroRuim(t *testing.T) {
 	s, _ := cenarioDeDeteccoes(t)
 	for _, q := range []string{"cams=../etc", "familias=fantasma", "limite=0",
