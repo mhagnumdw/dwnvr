@@ -235,6 +235,9 @@ família.
   vídeo já desenham o que vier.
 - O calendário (`contaDeteccoes`) conta instantes, e o funil conta olhadas:
   nenhum dos dois muda.
+- A cauda de Gravações (`caudaDeEventos`) descartava o que já tinha por
+  instante e família. Passa a comparar a caixa: a rodada que caísse entre as
+  duas linhas da mesma família perderia a segunda até recarregar a página.
 
 **Descartado:** aninhar as outras caixas na linha da família. Deixaria os
 leitores de hoje intactos, mas o filtro, o alerta e a API teriam de olhar em
@@ -253,10 +256,10 @@ marcas extras no mesmo instante, e a timeline mostra dois ícones.
 `docs/api.md` (`/api/rec/events`, e "Pessoa e carro no mesmo quadro são duas
 marcas" em §Detecções).
 
-- [ ] uma linha por objeto no `Recorder.olhou`, com teste
-- [ ] a timeline junta por família no instante
-- [ ] docs
-- [ ] print de uma detecção com duas caixas da mesma família
+- [x] uma linha por objeto no `Recorder.olhou`, com teste
+- [x] a timeline junta por família no instante
+- [x] docs
+- [x] print de uma detecção com duas caixas da mesma família
 - [ ] a medição do primeiro dia no ar
 
 ## Etapa 1 - filtrar Detecções por uma área desenhada na hora

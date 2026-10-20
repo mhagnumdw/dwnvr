@@ -129,7 +129,8 @@ O `eventos/` segue o mesmo desenho, append-only e um arquivo por dia, e só
 nasce na primeira marca: câmera sem detecção não ganha diretório vazio. Cada
 linha é um instante, e não um intervalo. A de movimento leva só o instante; a
 de objeto leva também a família, a classe, a confiança, o quadro olhado e a
-caixa em fração do quadro:
+caixa em fração do quadro. É uma linha por objeto: duas pessoas que chegam
+juntas são duas linhas de `pessoa` no mesmo instante, cada uma com a sua caixa:
 
 ```json
 {"instanteMs":1786220571900}
@@ -157,7 +158,7 @@ arquivo, e abrir um é dar dois cliques nele. O preço é o `readdir` da pasta,
 que a cota precisa para somar bytes: a conta de cada dia é feita uma vez e
 memorizada, e as gravações seguintes a mantêm em dia.
 
-As duas marcas de famílias diferentes do mesmo instante apontam para o mesmo
+Todas as marcas do mesmo instante, de qualquer família, apontam para o mesmo
 arquivo: o quadro é um só. Marca sem `temQuadro` é marca sem imagem - de antes
 desta versão, ou de uma olhada em que o quadro não voltou.
 

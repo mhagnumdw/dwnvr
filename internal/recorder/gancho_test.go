@@ -582,6 +582,66 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 	}
 }
 
+// TestUmaLinhaPorObjeto: duas pessoas e uma moto chegando juntas são três
+// linhas no mesmo instante, e não uma por família. A pessoa de menor
+// confiança é a que o filtro por área pode precisar. A caixa abaixo do corte
+// não vira marca, e o quadro continua um só.
+func TestUmaLinhaPorObjeto(t *testing.T) {
+	idx := store.New(t.TempDir()).Camera("cam_teste")
+	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
+	r := newRecorder(cam, go2rtc.New(config.Go2RTC{}), idx, mudo())
+
+	agora := time.Now().UnixMilli()
+	r.olhou(detect.Olhada{
+		Pedaco: detect.Pedaco{OnsetMs: agora, QuadroMs: agora + 1400},
+		// Fora de ordem de propósito: a gravação ordena por família e confiança.
+		Achados: []detect.Achado{
+			{Classe: "motorcycle", Score: 0.71, Caixa: [4]float64{0.60, 0.40, 0.72, 0.66}},
+			{Classe: "person", Score: 0.55, Caixa: [4]float64{0.18, 0.30, 0.24, 0.64}},
+			{Classe: "cat", Score: 0.30, Caixa: [4]float64{0.80, 0.70, 0.85, 0.80}},
+			{Classe: "person", Score: 0.87, Caixa: [4]float64{0.41, 0.32, 0.47, 0.62}},
+		},
+		Quadro: []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+	})
+
+	dia := time.Now().Format(store.DayLayout)
+	evs, err := idx.LoadEventos(dia)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type linha struct {
+		familia, classe string
+		score           float64
+		caixa           [4]float64
+	}
+	want := []linha{
+		{"pessoa", "person", 0.87, [4]float64{0.41, 0.32, 0.47, 0.62}},
+		{"pessoa", "person", 0.55, [4]float64{0.18, 0.30, 0.24, 0.64}},
+		{"veiculo", "motorcycle", 0.71, [4]float64{0.60, 0.40, 0.72, 0.66}},
+	}
+	if len(evs) != len(want) {
+		t.Fatalf("%d linhas, esperadas %d: %+v", len(evs), len(want), evs)
+	}
+	for i, ev := range evs {
+		got := linha{ev.Familia, ev.Classe, ev.Score, *ev.Caixa}
+		if got != want[i] {
+			t.Errorf("linha %d: %+v, esperada %+v", i, got, want[i])
+		}
+		if ev.InstanteMs != agora || ev.QuadroMs != agora+1400 || !ev.TemQuadro {
+			t.Errorf("linha %d: instante %d, quadro %d, temQuadro %v; esperados %d, %d e true",
+				i, ev.InstanteMs, ev.QuadroMs, ev.TemQuadro, agora, agora+1400)
+		}
+	}
+
+	quadros, err := os.ReadDir(filepath.Dir(idx.QuadroPath(dia, agora)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(quadros) != 1 {
+		t.Errorf("%d quadros gravados, esperado 1 para as três linhas", len(quadros))
+	}
+}
+
 // TestRecortadorNasceEMorreComADeteccao: com o detector configurado, a câmera
 // com a detecção desligada não guarda GOP, e desligar a detecção devolve os
 // buffers. O que já foi contado como sem vídeo não zera na troca.
