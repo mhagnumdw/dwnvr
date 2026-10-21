@@ -60,6 +60,12 @@
     { id: 'deteccao', rotulo: 'Detecção' },
   ];
   let aba = $state('gravacao');
+  // No cadastro, o rodapé guia aba a aba e o "salvar" só aparece na última:
+  // quem cadastra passa por tudo. Na edição se vai direto a uma coisa, e as
+  // abas bastam.
+  const indiceDaAba = $derived(ABAS.findIndex((a) => a.id === aba));
+  const guiado = $derived(!!editing?._novo && indiceDaAba < ABAS.length - 1);
+  const irPara = (passo: number) => (aba = ABAS[indiceDaAba + passo]?.id ?? aba);
 
   const novos = $derived(cameras.streams.filter((s) => !s.registered));
   const faixas = $derived(cameras.faixas);
@@ -550,9 +556,12 @@
 
 {#if editing}
   <Modal onclose={() => (editing = null)}>
+    <!-- No cadastro, antes da última aba, o envio é o "próximo": o Enter num
+         campo avança, e a validação do navegador barra o campo vazio antes de
+         sair da aba dele. -->
     <form
       class="fields"
-      onsubmit={(e) => (e.preventDefault(), salvar())}
+      onsubmit={(e) => (e.preventDefault(), guiado ? irPara(1) : salvar())}
       oninvalidcapture={campoInvalido}
     >
       <h3>{editing._novo ? 'Cadastrar' : 'Editar'} {editing.id}</h3>
@@ -694,7 +703,13 @@
       </div>
 
       <div class="row">
-        {#if !editing._novo}
+        {#if editing._novo}
+          {#if indiceDaAba > 0}
+            <button type="button" class="ghost passo" onclick={() => irPara(-1)}>
+              <Icone nome="chevronEsq" tamanho={16} traco={2.4} />voltar
+            </button>
+          {/if}
+        {:else}
           <button
             type="button"
             class="danger"
@@ -706,9 +721,15 @@
         {/if}
         <span class="spacer"></span>
         <button type="button" class="ghost" onclick={() => (editing = null)}>cancelar</button>
-        <button class="primary" type="submit" disabled={saving}>
-          {saving ? 'salvando…' : 'salvar'}
-        </button>
+        {#if guiado}
+          <button class="primary passo" type="submit">
+            próximo<Icone nome="chevronDir" tamanho={16} traco={2.4} />
+          </button>
+        {:else}
+          <button class="primary" type="submit" disabled={saving}>
+            {saving ? 'salvando…' : 'salvar'}
+          </button>
+        {/if}
       </div>
     </form>
   </Modal>
@@ -965,6 +986,11 @@
   }
   .paineis {
     display: grid;
+  }
+  button.passo {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
   .paineis > * {
     grid-area: 1 / 1;
