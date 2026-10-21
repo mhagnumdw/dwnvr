@@ -377,10 +377,10 @@ Etapa 2, a regra vira campo de cada área cadastrada.
 - [x] `internal/area`, com teste das duas regras
 - [x] `area=` e `rule=` na API, com teste
 - [x] o editor, o chip e a URL
-- [ ] a medição no hardware de referência
-- [ ] teste do mantenedor no celular e no desktop
+- [ ] a medição no hardware de referência, que fica para bem depois
+- [x] teste do mantenedor no celular e no desktop, em 20/10/2026
 - [x] a regra padrão escolhida: `pisa`, e o seletor fica
-- [ ] docs
+- [x] docs
 
 ## Etapa 2 - áreas cadastradas na câmera
 
