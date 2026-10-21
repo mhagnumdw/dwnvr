@@ -64,7 +64,8 @@ src/routes/      as telas, o login e a de definir a senha pelo link de
 src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  horário digitado, o campo de horário e o intervalo de
                  horário de Detecções (o botão, o chip e os campos De e
-                 Até), modal e confirmação,
+                 Até), modal e confirmação, a fileira de abas de um
+                 formulário,
                  o estado de "nenhuma câmera cadastrada", seletor de dia e as
                  setas de dia anterior e próximo,
                  caixas do detector sobre o vídeo (chunk à parte), a folha

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import {
     cameras,
     loadCameras,
@@ -26,6 +26,7 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import SemCameras from '../components/SemCameras.svelte';
   import Icone from '../components/Icone.svelte';
+  import Abas from '../components/Abas.svelte';
 
   // A câmera no formulário, com o que a tela sabe do áudio dela. Os campos com
   // `_` não vão para a API.
@@ -51,6 +52,35 @@
   let apagarGravacoes = $state(false); // checkbox do diálogo de remoção
   let saving = $state(false);
   let error = $state('');
+
+  // As abas do formulário. Ele sempre abre na primeira: é onde estão o nome e a
+  // cota, o que se procura ao cadastrar.
+  const ABAS = [
+    { id: 'gravacao', rotulo: 'Gravação' },
+    { id: 'deteccao', rotulo: 'Detecção' },
+  ];
+  let aba = $state('gravacao');
+  // No cadastro, o rodapé guia aba a aba e o "salvar" só aparece na última:
+  // quem cadastra passa por tudo. Na edição se vai direto a uma coisa, e as
+  // abas bastam.
+  const indiceDaAba = $derived(ABAS.findIndex((a) => a.id === aba));
+  const guiado = $derived(!!editing?._novo && indiceDaAba < ABAS.length - 1);
+  // Depois da troca, o foco vai para o painel novo: o de antes fica `inert` e
+  // o botão clicado pode sumir do rodapé, e sem isto o foco cai no <body> e o
+  // Tab recomeça do topo. Avançando, vai ao primeiro campo, e quem digitava no
+  // Enter segue digitando. Voltando, vai à aba: no celular, o foco no campo de
+  // texto abriria o teclado sem ninguém pedir.
+  async function irPara(passo: number) {
+    aba = ABAS[indiceDaAba + passo]?.id ?? aba;
+    await tick();
+    const alvo =
+      passo > 0
+        ? document
+            .getElementById(`cam-painel-${aba}`)
+            ?.querySelector<HTMLElement>('input, select, textarea, button')
+        : document.getElementById(`cam-aba-${aba}`);
+    alvo?.focus();
+  }
 
   const novos = $derived(cameras.streams.filter((s) => !s.registered));
   const faixas = $derived(cameras.faixas);
@@ -145,12 +175,14 @@
       _novo: true,
       ...audioConhecido(s),
     };
+    aba = 'gravacao';
     void sondarAudio(streamName);
   }
 
   function editar(cam: CameraCadastrada) {
     const s = cameras.streams.find((x) => x.name === cam.id);
     editing = { ...cam, _novo: false, ...audioConhecido(s) };
+    aba = 'gravacao';
     void sondarAudio(cam.id);
   }
 
@@ -187,6 +219,20 @@
     } finally {
       if (editing === form) form._sondando = false;
     }
+  }
+
+  // Campo inválido numa aba escondida: o navegador recusa o envio, mas não tem
+  // como mostrar o balão num campo invisível, e o "salvar" parece não fazer
+  // nada. O primeiro campo inválido traz a aba dele para a frente e mostra o
+  // motivo; os seguintes do mesmo envio ficam para o próximo clique.
+  async function campoInvalido(e: Event) {
+    const campo = e.target as HTMLInputElement;
+    const painel = campo.closest<HTMLElement>('[role="tabpanel"]');
+    const dono = painel?.dataset['aba'];
+    if (!dono || dono === aba) return;
+    aba = dono;
+    await tick();
+    campo.reportValidity();
   }
 
   async function salvar() {
@@ -525,122 +571,163 @@
 
 {#if editing}
   <Modal onclose={() => (editing = null)}>
-    <form class="fields" onsubmit={(e) => (e.preventDefault(), salvar())}>
+    <!-- No cadastro, antes da última aba, o envio é o "próximo": o Enter num
+         campo avança, e a validação do navegador barra o campo vazio antes de
+         sair da aba dele. -->
+    <form
+      class="fields"
+      onsubmit={(e) => {
+        e.preventDefault();
+        void (guiado ? irPara(1) : salvar());
+      }}
+      oninvalidcapture={campoInvalido}
+    >
       <h3>{editing._novo ? 'Cadastrar' : 'Editar'} {editing.id}</h3>
 
-      <label>
-        Nome
-        <input bind:value={editing.name} required />
-      </label>
+      <Abas abas={ABAS} bind:ativa={aba} prefixo="cam" />
 
-      <label class="check">
-        <input type="checkbox" bind:checked={editing.enabled} />
-        Gravar esta câmera
-      </label>
+      <!-- Os painéis ficam um em cima do outro na mesma célula do grid, e o
+           escondido só some da vista: o formulário fica com a altura do maior
+           e não pula ao trocar de aba, e os campos dele continuam no envio. -->
+      <div class="paineis">
+        <div
+          class="fields"
+          role="tabpanel"
+          id="cam-painel-gravacao"
+          aria-labelledby="cam-aba-gravacao"
+          data-aba="gravacao"
+          inert={aba !== 'gravacao'}
+        >
+          <label>
+            Nome
+            <input bind:value={editing.name} required />
+          </label>
 
-      <label>
-        Áudio
-        <select bind:value={editing.audio}>
-          <option value="none">nenhum - custo zero</option>
-          <option value="flac" disabled={audioBloqueado}>
-            FLAC - ~0,6% de CPU, +260 kbps de disco
-          </option>
-          <option value="aac" disabled={audioBloqueado}>
-            AAC - ~10% de CPU, +64 kbps (exige fonte ffmpeg no go2rtc)
-          </option>
-        </select>
-        {#if editing._sondando}
-          <small class="muted">Verificando se esta câmera entrega áudio...</small>
-        {:else if editing._sondaErro}
-          <small class="muted">
-            Não deu para verificar o áudio desta câmera ({editing._sondaErro}). As opções estão
-            liberadas; o Diagnóstico avisa se o áudio não chegar.
-          </small>
-        {:else if !editing._hasAudio}
-          <small class="muted">
-            Esta câmera não entrega trilha de áudio. Remova o <code>#media=video</code>
-            da fonte no go2rtc.yaml para habilitá-la.
-          </small>
-        {:else if editing._audioCodecs.length}
-          <small class="muted">
-            Esta câmera entrega {editing._audioCodecs.join(', ')}.
-          </small>
-        {/if}
-      </label>
+          <label class="check">
+            <input type="checkbox" bind:checked={editing.enabled} />
+            Gravar esta câmera
+          </label>
 
-      <label>
-        Cota em disco (MB)
-        <!-- step=1 porque no input nativo o step também é a régua de validação:
-             com step=100 o browser recusava 20480 (20 GiB), que é exatamente o
-             tipo de número que se digita numa cota. O min vem da API: sem
-             resposta, o input fica sem ele e quem recusa é o servidor. -->
-        <input
-          type="number"
-          bind:value={editing.quotaMB}
-          min={faixas?.quotaMB?.min}
-          step="1"
-          required
-        />
-        <!-- O campo é em MB porque é assim que a cota é guardada, mas quem digita
-             20480 quer saber que isso são 20 GB. -->
-        <small class="muted">
-          = {bytesDeMB(editing.quotaMB)} ·
-          {#if estimaDias(editing, editing.quotaMB)}
-            ≈ {dias(estimaDias(editing, editing.quotaMB))} no consumo médio medido
-          {:else}
-            a estimativa aparece após a primeira medição de taxa
+          <label>
+            Áudio
+            <select bind:value={editing.audio}>
+              <option value="none">nenhum - custo zero</option>
+              <option value="flac" disabled={audioBloqueado}>
+                FLAC - ~0,6% de CPU, +260 kbps de disco
+              </option>
+              <option value="aac" disabled={audioBloqueado}>
+                AAC - ~10% de CPU, +64 kbps (exige fonte ffmpeg no go2rtc)
+              </option>
+            </select>
+            {#if editing._sondando}
+              <small class="muted">Verificando se esta câmera entrega áudio...</small>
+            {:else if editing._sondaErro}
+              <small class="muted">
+                Não deu para verificar o áudio desta câmera ({editing._sondaErro}). As opções estão
+                liberadas; o Diagnóstico avisa se o áudio não chegar.
+              </small>
+            {:else if !editing._hasAudio}
+              <small class="muted">
+                Esta câmera não entrega trilha de áudio. Remova o <code>#media=video</code>
+                da fonte no go2rtc.yaml para habilitá-la.
+              </small>
+            {:else if editing._audioCodecs.length}
+              <small class="muted">
+                Esta câmera entrega {editing._audioCodecs.join(', ')}.
+              </small>
+            {/if}
+          </label>
+
+          <label>
+            Cota em disco (MB)
+            <!-- step=1 porque no input nativo o step também é a régua de validação:
+                 com step=100 o browser recusava 20480 (20 GiB), que é exatamente o
+                 tipo de número que se digita numa cota. O min vem da API: sem
+                 resposta, o input fica sem ele e quem recusa é o servidor. -->
+            <input
+              type="number"
+              bind:value={editing.quotaMB}
+              min={faixas?.quotaMB?.min}
+              step="1"
+              required
+            />
+            <!-- O campo é em MB porque é assim que a cota é guardada, mas quem digita
+                 20480 quer saber que isso são 20 GB. -->
+            <small class="muted">
+              = {bytesDeMB(editing.quotaMB)} ·
+              {#if estimaDias(editing, editing.quotaMB)}
+                ≈ {dias(estimaDias(editing, editing.quotaMB))} no consumo médio medido
+              {:else}
+                a estimativa aparece após a primeira medição de taxa
+              {/if}
+            </small>
+          </label>
+
+          <label>
+            Duração do segmento (s)
+            <input
+              type="number"
+              bind:value={editing.segmentSeconds}
+              min={faixas?.segmentSeconds?.min}
+              max={faixas?.segmentSeconds?.max}
+              step="10"
+            />
+            <small class="muted">o corte real espera o próximo keyframe</small>
+          </label>
+        </div>
+
+        <div
+          class="fields"
+          role="tabpanel"
+          id="cam-painel-deteccao"
+          aria-labelledby="cam-aba-deteccao"
+          data-aba="deteccao"
+          inert={aba !== 'deteccao'}
+        >
+          <label class="check">
+            <input type="checkbox" bind:checked={editing.detect} />
+            Marcar movimento na timeline
+          </label>
+
+          {#if editing.detect}
+            <label>
+              Sensibilidade
+              <select bind:value={editing.detectSensibilidade}>
+                {#each NIVEIS as n, i (i)}
+                  <option value={i + 1}>{i + 1} - {n.rotulo}</option>
+                {/each}
+              </select>
+              <!-- O custo é o que o usuário paga de verdade, e ele é POR CÂMERA:
+                   com dez câmeras no nível 4 são 500 olhadas por hora, não 50. -->
+              <small class="muted">
+                ≈ {nivel(editing.detectSensibilidade)?.porHora} marcas por hora nesta câmera
+              </small>
+            </label>
+
+            <label>
+              Mecanismo
+              <select bind:value={editing.detectMecanismo}>
+                <option value="kleinberg-p">estatístico (recomendado)</option>
+                <option value="periodico">periódico</option>
+              </select>
+              <small class="muted">
+                {editing.detectMecanismo === 'periodico'
+                  ? 'dispara em intervalo fixo, ignorando a imagem - custo previsível, mas pega menos'
+                  : 'dispara quando a imagem destoa do normal da própria câmera'}
+              </small>
+            </label>
           {/if}
-        </small>
-      </label>
-
-      <label>
-        Duração do segmento (s)
-        <input
-          type="number"
-          bind:value={editing.segmentSeconds}
-          min={faixas?.segmentSeconds?.min}
-          max={faixas?.segmentSeconds?.max}
-          step="10"
-        />
-        <small class="muted">o corte real espera o próximo keyframe</small>
-      </label>
-
-      <label class="check">
-        <input type="checkbox" bind:checked={editing.detect} />
-        Marcar movimento na timeline
-      </label>
-
-      {#if editing.detect}
-        <label>
-          Sensibilidade
-          <select bind:value={editing.detectSensibilidade}>
-            {#each NIVEIS as n, i (i)}
-              <option value={i + 1}>{i + 1} - {n.rotulo}</option>
-            {/each}
-          </select>
-          <!-- O custo é o que o usuário paga de verdade, e ele é POR CÂMERA:
-               com dez câmeras no nível 4 são 500 olhadas por hora, não 50. -->
-          <small class="muted">
-            ≈ {nivel(editing.detectSensibilidade)?.porHora} marcas por hora nesta câmera
-          </small>
-        </label>
-
-        <label>
-          Mecanismo
-          <select bind:value={editing.detectMecanismo}>
-            <option value="kleinberg-p">estatístico (recomendado)</option>
-            <option value="periodico">periódico</option>
-          </select>
-          <small class="muted">
-            {editing.detectMecanismo === 'periodico'
-              ? 'dispara em intervalo fixo, ignorando a imagem - custo previsível, mas pega menos'
-              : 'dispara quando a imagem destoa do normal da própria câmera'}
-          </small>
-        </label>
-      {/if}
+        </div>
+      </div>
 
       <div class="row">
-        {#if !editing._novo}
+        {#if editing._novo}
+          {#if indiceDaAba > 0}
+            <button type="button" class="ghost passo" onclick={() => void irPara(-1)}>
+              <Icone nome="chevronEsq" tamanho={16} traco={2.4} />voltar
+            </button>
+          {/if}
+        {:else}
           <button
             type="button"
             class="danger"
@@ -652,9 +739,15 @@
         {/if}
         <span class="spacer"></span>
         <button type="button" class="ghost" onclick={() => (editing = null)}>cancelar</button>
-        <button class="primary" type="submit" disabled={saving}>
-          {saving ? 'salvando…' : 'salvar'}
-        </button>
+        {#if guiado}
+          <button class="primary passo" type="submit">
+            próximo<Icone nome="chevronDir" tamanho={16} traco={2.4} />
+          </button>
+        {:else}
+          <button class="primary" type="submit" disabled={saving}>
+            {saving ? 'salvando…' : 'salvar'}
+          </button>
+        {/if}
       </div>
     </form>
   </Modal>
@@ -907,6 +1000,21 @@
   .fields {
     display: grid;
     gap: 14px;
+    align-content: start;
+  }
+  .paineis {
+    display: grid;
+  }
+  button.passo {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .paineis > * {
+    grid-area: 1 / 1;
+  }
+  .paineis > [inert] {
+    visibility: hidden;
   }
 
   label {
