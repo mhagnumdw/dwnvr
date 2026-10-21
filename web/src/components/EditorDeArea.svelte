@@ -6,7 +6,10 @@
   No celular ocupa a tela inteira: em pé, o quadro em cima e os controles
   embaixo; deitado, os controles numa coluna à direita. No desktop é um modal.
 
-  Vem num chunk à parte (`import()`): quem não desenha área não o baixa.
+  Vem num chunk à parte (`import()`): quem não desenha área não o baixa. O
+  cadastro da câmera (aba Áreas) o abre com o nome da área, as outras áreas da
+  câmera em cinza, o "apagar área" e o "atualizar o quadro"; Detecções, sem
+  nada disso.
 -->
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
@@ -24,7 +27,18 @@
     caixas?: { caixa: Caixa; cor: string }[];
     inicial?: { pontos: Ponto[]; regra: Regra } | null;
     erro?: string;
-    onaplicar: (pontos: Ponto[], regra: Regra) => void;
+    // Com string, o nome vira campo, obrigatório e diferente dos `nomesEmUso`.
+    nome?: string | null;
+    nomesEmUso?: string[];
+    // As outras áreas da câmera, em cinza: para não desenhar uma por cima da
+    // outra sem querer.
+    outras?: { name: string; points: Ponto[] }[];
+    // De quando é o quadro de fundo, e como pedir um mais novo.
+    quadro?: { legenda: string; atualizando: boolean; onatualizar: () => void } | null;
+    titulo?: string;
+    rotuloAplicar?: string;
+    onaplicar: (pontos: Ponto[], regra: Regra, nome: string) => void;
+    onapagar?: (() => void) | null;
     onfechar: () => void;
   }
 
@@ -34,7 +48,14 @@
     caixas = [],
     inicial = null,
     erro = '',
+    nome = null,
+    nomesEmUso = [],
+    outras = [],
+    quadro = null,
+    titulo = 'Área',
+    rotuloAplicar = 'aplicar',
     onaplicar,
+    onapagar = null,
     onfechar,
   }: Props = $props();
 
@@ -49,6 +70,8 @@
   let pontos = $state<Ponto[]>(ini ? ini.pontos.map((p): Ponto => [p[0], p[1]]) : []);
   let fechada = $state(!!ini && ini.pontos.length >= MIN_PONTOS);
   let regra = $state<Regra>(ini?.regra ?? 'foot');
+  const comNome = untrack(() => nome !== null);
+  let nomeAtual = $state(untrack(() => nome ?? ''));
   let historico = $state<{ pontos: Ponto[]; fechada: boolean }[]>([]);
   let arrasto: number | null = null;
 
@@ -69,7 +92,17 @@
     return { w: pw, h: pw / proporcao };
   });
 
-  const valida = $derived(fechada && pontos.length >= MIN_PONTOS);
+  const desenhada = $derived(fechada && pontos.length >= MIN_PONTOS);
+  // A mesma régua do servidor (config.confereAreas): sem distinguir maiúscula.
+  const erroDoNome = $derived.by(() => {
+    if (!comNome) return '';
+    const n = nomeAtual.trim().toLowerCase();
+    if (!n) return 'Dê um nome à área.';
+    if (nomesEmUso.some((u) => u.trim().toLowerCase() === n))
+      return 'Já existe uma área com esse nome.';
+    return '';
+  });
+  const valida = $derived(desenhada && !erroDoNome);
 
   let svg = $state<SVGSVGElement | null>(null);
 
@@ -141,7 +174,7 @@
   }
 
   function aplica() {
-    if (valida) onaplicar(pontos, regra);
+    if (valida) onaplicar(pontos, regra, nomeAtual.trim());
   }
 
   function tecla(e: KeyboardEvent) {
@@ -149,12 +182,19 @@
   }
 
   const situacao = $derived(
-    valida
-      ? `${pontos.length} pontos`
+    desenhada
+      ? erroDoNome || `${pontos.length} pontos`
       : pontos.length < MIN_PONTOS
         ? `Toque pelo menos ${MIN_PONTOS} pontos.`
         : 'Toque no ponto verde para fechar.',
   );
+
+  // Onde vai o nome de uma área em cinza: a média dos vértices, que cai dentro
+  // de qualquer área que não seja muito torta.
+  const centro = (pts: Ponto[]): Ponto => [
+    pts.reduce((s, p) => s + p[0], 0) / pts.length,
+    pts.reduce((s, p) => s + p[1], 0) / pts.length,
+  ];
 
   // O pé de cada caixa, com a regra `pisa`: o meio da borda de baixo.
   const pe = (c: Caixa): Ponto => [(c[0] + c[2]) / 2, Math.min(1, c[3])];
@@ -172,13 +212,13 @@
 
 <svelte:window onresize={mede} onkeydown={tecla} />
 
-<div class="editor {modo}" role="dialog" aria-modal="true" aria-label="desenhar uma área">
+<div class="editor {modo}" role="dialog" aria-modal="true" aria-label={titulo}>
   <div class="janela">
     <div class="topo">
       <button class="ghost" onclick={onfechar} aria-label="cancelar">
         <Icone nome="fechar" tamanho={16} />
       </button>
-      <b>Área</b>
+      <b>{titulo}</b>
       <span class="muted small camera">{camera}</span>
     </div>
 
@@ -218,6 +258,14 @@
           role="application"
           aria-label="toque para pôr os pontos da área"
         >
+          {#each outras as o, i (i)}
+            {@const [cx, cy] = centro(o.points)}
+            <polygon
+              points={pontosSVG(o.points.map(([x, y]): Ponto => [x * palco.w, y * palco.h]))}
+              class="outra"
+            />
+            <text x={cx * palco.w} y={cy * palco.h} class="rotulo">{o.name}</text>
+          {/each}
           {#each caixas as c, i (i)}
             {@const [x1, y1, x2, y2] = c.caixa}
             <rect
@@ -268,9 +316,30 @@
 
     <div class="controles">
       <div class="titulo">
-        <b>Área</b>
+        <b>{titulo}</b>
         <span class="muted small camera">{camera}</span>
       </div>
+      {#if quadro}
+        <div class="quadro small">
+          <span class="muted">{quadro.legenda}</span>
+          <button class="ghost" onclick={quadro.onatualizar} disabled={quadro.atualizando}>
+            {quadro.atualizando ? 'buscando…' : 'atualizar o quadro'}
+          </button>
+        </div>
+      {/if}
+      {#if comNome}
+        <label class="nome">
+          Nome
+          <input
+            bind:value={nomeAtual}
+            maxlength="40"
+            placeholder="Portão, Garagem…"
+            onkeydown={(e) => {
+              if (e.key === 'Enter') aplica();
+            }}
+          />
+        </label>
+      {/if}
       <div class="regras" role="radiogroup" aria-label="quando o objeto conta como dentro">
         {#each Object.entries(REGRAS) as [id, r] (id)}
           <button
@@ -281,13 +350,18 @@
           >
         {/each}
       </div>
-      <p class="dica">{REGRAS[regra].dica}</p>
-      <p class="situacao small" class:ok={valida}>{situacao}</p>
+      <p class="dica regra">{REGRAS[regra].dica}</p>
+      <p class="situacao small" class:ok={valida} class:erro={desenhada && !!erroDoNome}>
+        {situacao}
+      </p>
       <div class="acoes">
         <button class="ghost" onclick={desfaz} disabled={!historico.length}>desfazer</button>
         <button class="ghost" onclick={limpa} disabled={!pontos.length}>limpar</button>
+        {#if onapagar}
+          <button class="ghost danger" onclick={onapagar}>apagar área</button>
+        {/if}
         <span class="spacer"></span>
-        <button class="primary" onclick={aplica} disabled={!valida}>aplicar</button>
+        <button class="primary" onclick={aplica} disabled={!valida}>{rotuloAplicar}</button>
       </div>
       <p class="dica">
         Toque para pôr um ponto; toque no primeiro para fechar. Arraste um ponto para ajustar.
@@ -392,6 +466,23 @@
     stroke-dasharray: 5 5;
     opacity: 0.7;
   }
+  .outra {
+    fill: none;
+    stroke: #9aa3ad;
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+    opacity: 0.8;
+  }
+  .rotulo {
+    fill: #fff;
+    font-size: 12px;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    paint-order: stroke;
+    stroke: rgba(0, 0, 0, 0.7);
+    stroke-width: 3;
+    pointer-events: none;
+  }
   .vertice {
     fill: var(--accent);
     stroke: #fff;
@@ -443,13 +534,44 @@
   .situacao {
     font-size: 14px;
   }
+  /* As duas dicas têm tamanhos diferentes: a altura de duas linhas fica
+     reservada, e trocar a regra não mexe no quadro nem nos botões. */
+  .dica.regra {
+    min-height: calc(2 * 1.4em);
+  }
   .situacao.ok {
     color: var(--ok);
+  }
+  .situacao.erro {
+    color: var(--warn);
   }
 
   .acoes {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .quadro {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .quadro button {
+    min-height: 36px;
+    padding: 4px 10px;
+    margin-left: auto;
+  }
+  .nome {
+    display: grid;
+    gap: 5px;
+    font-size: 13px;
+    color: var(--dim);
+  }
+  .nome input {
+    width: 100%;
+    color: var(--fg);
+    font-size: 15px;
   }
 
   /* Deitado: o quadro na altura toda, e os controles numa coluna à direita,
@@ -514,7 +636,21 @@
   .desktop .situacao {
     min-width: 180px;
   }
-  .desktop .dica:last-child {
+  /* A dica da regra numa linha só dela: dividindo a linha com o nome, o
+     tamanho dela mudava a largura do campo e empurrava os botões. */
+  .desktop .dica:last-child,
+  .desktop .dica.regra,
+  .desktop .quadro {
     flex-basis: 100%;
+  }
+  .desktop .dica.regra {
+    min-height: 0;
+  }
+  .desktop .nome {
+    flex: 1 1 220px;
+  }
+  /* Na base, junto ao campo do nome, e não no meio do rótulo + campo. */
+  .desktop .regras {
+    align-self: flex-end;
   }
 </style>

@@ -36,6 +36,7 @@
   import { avisar, fecharAviso } from '../lib/snackbar.svelte.ts';
   import { REGRAS, areaDaQuery, areaNaQuery, pontosSVG } from '../lib/area.ts';
   import type { AreaDoFiltro, Ponto, Regra } from '../lib/area.ts';
+  import { ultimoSegmento } from '../lib/thumbs.ts';
 
   // Uma linha da grade: o cabeçalho da hora, ou uma fileira de miniaturas.
   // `primeira` é o índice na `lista` da primeira miniatura da fileira.
@@ -932,17 +933,14 @@
         ed.caixas = caixasDe(recente);
         return;
       }
-      const dias = await api.days(cam);
-      const dia = dias.days.at(-1)?.day;
-      const t = dia ? await api.timeline(cam, dia) : null;
-      const ultimo = t?.segments.at(-1);
+      const ultimo = await ultimoSegmento(cam);
       ed = aindaAberto();
       if (!ed) return;
-      if (!ultimo) {
+      if (ultimo === null) {
         ed.erro = 'esta câmera ainda não tem gravação para desenhar em cima';
         return;
       }
-      ed.fundo = { tipo: 'video', url: mediaURL.thumb(cam, ultimo[0]) };
+      ed.fundo = { tipo: 'video', url: mediaURL.thumb(cam, ultimo) };
     } catch (e) {
       const ed = aindaAberto();
       if (ed) ed.erro = `não deu para buscar um quadro: ${mensagemDe(e)}`;
