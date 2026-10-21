@@ -185,55 +185,66 @@ func cenarioDeArea(t *testing.T) (*Server, time.Time) {
 	return s, hoje
 }
 
-// O filtro de área tira o objeto que está fora, como o de família, e fica só
-// com a câmera da área. A marca sem caixa sai: não há como saber onde estava.
+// O filtro de área tira o objeto que está fora, como o de família, mas só na
+// câmera da área: as outras câmeras seguem inteiras. A marca sem caixa da
+// câmera da área sai: não há como saber onde estava.
 func TestPaginaDeDeteccoesFiltraPorArea(t *testing.T) {
 	s, hoje := cenarioDeArea(t)
+	camB := []string{"cam_b@3", "cam_b@1", "cam_b@-1439"}
 
 	p := getPagina(t, s, "area="+portaoEmMilesimos)
-	if got := rotulos(p, hoje); !iguais(got, []string{"cam_teste@5"}) {
+	if got := rotulos(p, hoje); !iguais(got, append([]string{"cam_b@5", "cam_teste@5"}, camB...)) {
 		t.Errorf("foot, o padrão: %v", got)
 	}
-	if o := p.Deteccoes[0].Objetos; len(o) != 1 || o[0].Familia != "pessoa" {
+	if o := p.Deteccoes[1].Objetos; len(o) != 1 || o[0].Familia != "pessoa" {
 		t.Errorf("o veículo fora da área continuou na detecção: %+v", o)
 	}
 
 	p = getPagina(t, s, "area="+portaoEmMilesimos+"&rule=touch")
-	if got := rotulos(p, hoje); !iguais(got, []string{"cam_teste@6", "cam_teste@5"}) {
+	if got := rotulos(p, hoje); !iguais(got, append([]string{"cam_teste@6", "cam_b@5", "cam_teste@5"}, camB...)) {
 		t.Errorf("touch: %v", got)
 	}
 
 	// A imagem inteira dá o mesmo que sem área, salvo as marcas sem caixa.
 	for _, regra := range []string{"touch", "foot"} {
 		p = getPagina(t, s, "area=cam_teste:0,0,1000,0,1000,1000,0,1000&rule="+regra)
-		if got := rotulos(p, hoje); !iguais(got, []string{"cam_teste@6", "cam_teste@5"}) {
+		if got := rotulos(p, hoje); !iguais(got, append([]string{"cam_teste@6", "cam_b@5", "cam_teste@5"}, camB...)) {
 			t.Errorf("imagem inteira, %s: %v", regra, got)
 		}
-		if o := p.Deteccoes[1].Objetos; len(o) != 2 {
+		if o := p.Deteccoes[2].Objetos; len(o) != 2 {
 			t.Errorf("imagem inteira, %s: a detecção do minuto 5 perdeu objeto: %+v", regra, o)
 		}
 	}
 
 	p = getPagina(t, s, "area="+portaoEmMilesimos+"&rule=touch&familias=veiculo")
-	if got := rotulos(p, hoje); len(got) != 0 {
+	if got := rotulos(p, hoje); !iguais(got, []string{"cam_b@-1439"}) {
 		t.Errorf("família e área juntas: %v", got)
 	}
 
-	p = getPagina(t, s, "cams=cam_teste,cam_b&area="+portaoEmMilesimos)
+	// A câmera da área desmarcada some da lista, com área ou sem.
+	p = getPagina(t, s, "cams=cam_b&area="+portaoEmMilesimos)
+	if got := rotulos(p, hoje); !iguais(got, append([]string{"cam_b@5"}, camB...)) {
+		t.Errorf("a câmera da área fora de cams: %v", got)
+	}
+
+	p = getPagina(t, s, "cams=cam_teste&area="+portaoEmMilesimos)
 	if got := rotulos(p, hoje); !iguais(got, []string{"cam_teste@5"}) {
-		t.Errorf("cams com a câmera da área: %v", got)
+		t.Errorf("só a câmera da área: %v", got)
 	}
 }
 
-// O calendário segue a área, como segue câmeras e famílias.
+// O calendário segue a área, como segue câmeras e famílias, e conta as outras
+// câmeras inteiras.
 func TestDiasDeDeteccaoPorArea(t *testing.T) {
 	s, hoje := cenarioDeArea(t)
 	dia := hoje.Format(store.DayLayout)
+	ontem := hoje.AddDate(0, 0, -1).Format(store.DayLayout)
 	for q, want := range map[string]map[string]int{
-		"area=" + portaoEmMilesimos:                      {dia: 1},
-		"area=" + portaoEmMilesimos + "&rule=touch":      {dia: 2},
-		"area=cam_teste:0,0,100,0,100,100,0,100":         {},
-		"area=" + portaoEmMilesimos + "&familias=animal": {},
+		"area=" + portaoEmMilesimos:                      {ontem: 1, dia: 4},
+		"area=" + portaoEmMilesimos + "&rule=touch":      {ontem: 1, dia: 5},
+		"area=cam_teste:0,0,100,0,100,100,0,100":         {ontem: 1, dia: 3},
+		"area=" + portaoEmMilesimos + "&familias=animal": {dia: 1},
+		"area=" + portaoEmMilesimos + "&cams=cam_teste":  {dia: 1},
 	} {
 		rec := httptest.NewRecorder()
 		s.handleDiasDeDeteccao(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?"+q, nil))
@@ -261,7 +272,6 @@ func TestFiltroDeAreaRecusaParametroRuim(t *testing.T) {
 		"area=cam_teste:0,0,1001,0,0,1000", // fora do quadro
 		"area=cam_teste:0,0,x,0,0,1000",
 		"area=fantasma:0,0,1000,0,0,1000",
-		"cams=cam_b&area=" + portaoEmMilesimos, // a câmera da área fora de cams
 	} {
 		for nome, h := range map[string]http.HandlerFunc{
 			"deteccoes": s.handleDeteccoes, "dias": s.handleDiasDeDeteccao,

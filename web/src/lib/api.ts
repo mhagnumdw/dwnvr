@@ -10,6 +10,9 @@
 // rede, então o tipo é a promessa do servidor, e mudar um lado pede mudar o
 // outro.
 
+import { areaNaQuery } from './area.ts';
+import type { AreaDoFiltro } from './area.ts';
+
 let onUnauthorized = () => {
   // ninguém pediu aviso ainda: o App registra o dele ao montar
 };
@@ -238,26 +241,33 @@ export const api = {
   // Uma página das detecções de objeto de todas as câmeras, da mais nova para a
   // mais velha. `antes` e `depois` são o cursor (um ou nenhum); `cams` e
   // `familias` nulos querem dizer "todas".
-  deteccoes: ({ antes, depois, limite, cams, familias }: PedidoDeDeteccoes) => {
-    const q = new URLSearchParams();
+  deteccoes: ({ antes, depois, limite, ...filtro }: PedidoDeDeteccoes) => {
+    const q = queryDoFiltro(filtro);
     if (antes != null) q.set('antes', String(antes));
     if (depois != null) q.set('depois', String(depois));
     if (limite) q.set('limite', String(limite));
-    if (cams?.length) q.set('cams', cams.join(','));
-    if (familias?.length) q.set('familias', familias.join(','));
     return request<PaginaDeDeteccoes>(`deteccoes?${q}`);
   },
 
   // Os dias com pelo menos uma detecção do filtro, em ordem crescente, e
   // quantas cada um tem: é o que o calendário da tela de Detecções deixa
   // escolher, e o número que ele mostra em cada dia.
-  diasDeDeteccao: ({ cams, familias }: FiltroDeDeteccoes) => {
-    const q = new URLSearchParams();
-    if (cams?.length) q.set('cams', cams.join(','));
-    if (familias?.length) q.set('familias', familias.join(','));
-    return request<DiasDeDeteccao>(`deteccoes/dias?${q}`);
-  },
+  diasDeDeteccao: (filtro: FiltroDeDeteccoes) =>
+    request<DiasDeDeteccao>(`deteccoes/dias?${queryDoFiltro(filtro)}`),
 };
+
+// O filtro que a lista e o calendário de Detecções dividem. A área restringe
+// só a câmera dela; as outras de `cams` seguem inteiras.
+function queryDoFiltro({ cams, familias, area }: FiltroDeDeteccoes) {
+  const q = new URLSearchParams();
+  if (cams?.length) q.set('cams', cams.join(','));
+  if (familias?.length) q.set('familias', familias.join(','));
+  if (area) {
+    q.set('area', areaNaQuery(area));
+    q.set('rule', area.regra);
+  }
+  return q;
+}
 
 // URLs de mídia são montadas, não buscadas: vão direto num <video>, num <img>
 // ou no SourceBuffer.
@@ -735,6 +745,9 @@ export interface PaginaDeDeteccoes {
 export interface FiltroDeDeteccoes {
   cams?: readonly string[] | null;
   familias?: readonly string[] | null;
+  // Na câmera desta área, só os objetos dentro dela. As outras câmeras não
+  // mudam.
+  area?: AreaDoFiltro | null;
 }
 
 // `antes` e `depois` são o cursor: um ou nenhum.
