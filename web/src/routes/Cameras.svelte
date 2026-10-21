@@ -65,7 +65,22 @@
   // abas bastam.
   const indiceDaAba = $derived(ABAS.findIndex((a) => a.id === aba));
   const guiado = $derived(!!editing?._novo && indiceDaAba < ABAS.length - 1);
-  const irPara = (passo: number) => (aba = ABAS[indiceDaAba + passo]?.id ?? aba);
+  // Depois da troca, o foco vai para o painel novo: o de antes fica `inert` e
+  // o botão clicado pode sumir do rodapé, e sem isto o foco cai no <body> e o
+  // Tab recomeça do topo. Avançando, vai ao primeiro campo, e quem digitava no
+  // Enter segue digitando. Voltando, vai à aba: no celular, o foco no campo de
+  // texto abriria o teclado sem ninguém pedir.
+  async function irPara(passo: number) {
+    aba = ABAS[indiceDaAba + passo]?.id ?? aba;
+    await tick();
+    const alvo =
+      passo > 0
+        ? document
+            .getElementById(`cam-painel-${aba}`)
+            ?.querySelector<HTMLElement>('input, select, textarea, button')
+        : document.getElementById(`cam-aba-${aba}`);
+    alvo?.focus();
+  }
 
   const novos = $derived(cameras.streams.filter((s) => !s.registered));
   const faixas = $derived(cameras.faixas);
@@ -561,7 +576,10 @@
          sair da aba dele. -->
     <form
       class="fields"
-      onsubmit={(e) => (e.preventDefault(), guiado ? irPara(1) : salvar())}
+      onsubmit={(e) => {
+        e.preventDefault();
+        void (guiado ? irPara(1) : salvar());
+      }}
       oninvalidcapture={campoInvalido}
     >
       <h3>{editing._novo ? 'Cadastrar' : 'Editar'} {editing.id}</h3>
@@ -705,7 +723,7 @@
       <div class="row">
         {#if editing._novo}
           {#if indiceDaAba > 0}
-            <button type="button" class="ghost passo" onclick={() => irPara(-1)}>
+            <button type="button" class="ghost passo" onclick={() => void irPara(-1)}>
               <Icone nome="chevronEsq" tamanho={16} traco={2.4} />voltar
             </button>
           {/if}
