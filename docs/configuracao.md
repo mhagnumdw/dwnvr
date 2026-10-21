@@ -90,7 +90,8 @@ o limite de tentativas no login.
 
 O que continua impedindo o boot é o que não tem padrão seguro: um arquivo que
 não se consegue ler, o `storage.root` vazio e o ID de câmera que viraria um
-caminho fora do diretório de gravações.
+caminho fora do diretório de gravações ou que tem vírgula (ela separa os IDs
+no `cams=` da API).
 
 A tela de Câmeras e a API usam as mesmas faixas, mas lá o valor ruim é
 **recusado** em vez de trocado, porque há alguém na frente da tela para ler a
