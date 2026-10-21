@@ -177,6 +177,17 @@ cair, mas não abre outra.
 | `POST /api/email/teste` | `{"to"}` | **só admin**: manda um e-mail de teste para o endereço, pela seção `smtp` |
 | `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
+No `POST /api/cameras`, cada área sem `id` ganha um gerado pelo servidor, e a
+resposta traz a câmera com eles. Uma área inválida recusa o save inteiro com
+`400` e o motivo, como os outros campos:
+
+```text
+areas[1] "Garagem" fora do aceito: use de 3 a 20 pontos, com as coordenadas de 0 a 1
+```
+
+O formato das `areas` está em
+[Política por câmera](configuracao.md#política-por-câmera).
+
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
 consumindo: o go2rtc só preenche o `medias` do produtor enquanto existe
 consumidor, e num stream ocioso ele nem abre a conexão com a câmera. É por isso

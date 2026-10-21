@@ -11,7 +11,7 @@
 // outro.
 
 import { areaNaQuery } from './area.ts';
-import type { AreaDoFiltro } from './area.ts';
+import type { AreaDoFiltro, Ponto, Regra } from './area.ts';
 
 let onUnauthorized = () => {
   // ninguém pediu aviso ainda: o App registra o dele ao montar
@@ -407,6 +407,15 @@ export interface Camera {
   detect?: boolean;
   detectMecanismo?: string;
   detectSensibilidade?: number;
+  areas?: AreaDaCamera[];
+}
+
+// Uma área cadastrada na câmera. A área nova vai sem `id`, e o servidor dá um.
+export interface AreaDaCamera {
+  id?: string;
+  name: string;
+  rule?: Regra;
+  points: Ponto[];
 }
 
 // A câmera da listagem: para o admin, com a pasta das gravações.

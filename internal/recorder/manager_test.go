@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/area"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
@@ -116,5 +117,17 @@ func TestSetEmPlenoVooNaoCorre(t *testing.T) {
 
 	if got := m.Status()[0].Name; got != "Teste "+string(rune('A'+199%26)) {
 		t.Errorf("nome no Status: %q, esperava o do último Set", got)
+	}
+}
+
+// TestAreaNaoReiniciaAGravacao: a área é do filtro, e desenhar ou apagar uma
+// não pode abrir buraco na gravação.
+func TestAreaNaoReiniciaAGravacao(t *testing.T) {
+	cam := config.Camera{ID: "cam_teste", Audio: config.AudioNone, SegmentSeconds: 30, StallSeconds: 5}
+	comArea := cam
+	comArea.Areas = []config.Area{{ID: "k3f9a2", Name: "Portão",
+		Points: []area.Ponto{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}}
+	if recordingParamsChanged(cam, comArea) {
+		t.Error("mudar as áreas reiniciaria a gravação")
 	}
 }

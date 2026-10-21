@@ -24,6 +24,7 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cam = cam.ComIDsNasAreas()
 	if err := validateCamera(s.cfg, cam); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
