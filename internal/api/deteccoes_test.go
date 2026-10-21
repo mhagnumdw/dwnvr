@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/area"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
@@ -260,8 +261,80 @@ func TestDiasDeDeteccaoPorArea(t *testing.T) {
 	}
 }
 
+// cadastraAreas dá às câmeras do cenarioDeArea as áreas do cadastro:
+//
+//	cam_teste/portao: o portão de portaoEmMilesimos, com a foot
+//	cam_teste/canto:  o canto de cima à esquerda, com a touch, onde está o veículo
+//	cam_b/portao:     o mesmo portão, na outra câmera
+func cadastraAreas(s *Server) {
+	portao := []area.Ponto{{0.4, 0.5}, {0.6, 0.5}, {0.6, 0.7}, {0.4, 0.7}}
+	canto := []area.Ponto{{0, 0}, {0.2, 0}, {0.2, 0.25}, {0, 0.25}}
+	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Areas: []config.Area{
+		{ID: "portao", Name: "Portão", Rule: "foot", Points: portao},
+		{ID: "canto", Name: "Canto", Rule: "touch", Points: canto},
+	}})
+	s.mgr.Set(config.Camera{ID: "cam_b", Name: "B", Enabled: true, Areas: []config.Area{
+		{ID: "portao", Name: "Portão", Points: portao},
+	}})
+}
+
+// As áreas cadastradas filtram como a desenhada, cada uma com a regra dela, e
+// as de uma câmera somam: qualquer uma serve. A desenhada entra na soma.
+func TestPaginaDeDeteccoesFiltraPorAreaCadastrada(t *testing.T) {
+	s, hoje := cenarioDeArea(t)
+	cadastraAreas(s)
+	camB := []string{"cam_b@3", "cam_b@1", "cam_b@-1439"}
+
+	p := getPagina(t, s, "areas=cam_teste/portao")
+	if got := rotulos(p, hoje); !iguais(got, append([]string{"cam_b@5", "cam_teste@5"}, camB...)) {
+		t.Errorf("o portão: %v", got)
+	}
+	if o := p.Deteccoes[1].Objetos; len(o) != 1 || o[0].Familia != "pessoa" {
+		t.Errorf("o veículo fora do portão continuou na detecção: %+v", o)
+	}
+
+	p = getPagina(t, s, "areas=cam_teste/portao,cam_teste/canto")
+	if got := rotulos(p, hoje); !iguais(got, append([]string{"cam_b@5", "cam_teste@5"}, camB...)) {
+		t.Errorf("portão e canto: %v", got)
+	}
+	if o := p.Deteccoes[1].Objetos; len(o) != 2 {
+		t.Errorf("portão e canto: a soma perdeu o veículo do canto: %+v", o)
+	}
+
+	p = getPagina(t, s, "areas=cam_teste/canto&area="+portaoEmMilesimos)
+	if o := p.Deteccoes[1].Objetos; len(o) != 2 {
+		t.Errorf("a desenhada e a cadastrada: a soma perdeu objeto: %+v", o)
+	}
+
+	// Cada câmera com a área dela: a pessoa de cam_b@5 está no portão, e as
+	// marcas sem caixa das duas saem.
+	p = getPagina(t, s, "areas=cam_teste/portao,cam_b/portao")
+	if got := rotulos(p, hoje); !iguais(got, []string{"cam_b@5", "cam_teste@5"}) {
+		t.Errorf("uma área em cada câmera: %v", got)
+	}
+}
+
+func TestDiasDeDeteccaoPorAreaCadastrada(t *testing.T) {
+	s, hoje := cenarioDeArea(t)
+	cadastraAreas(s)
+	rec := httptest.NewRecorder()
+	s.handleDiasDeDeteccao(rec, httptest.NewRequest(http.MethodGet,
+		"/api/deteccoes/dias?areas=cam_teste/portao", nil))
+	var out struct {
+		DeteccoesPorDia map[string]int `json:"deteccoesPorDia"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("resposta ilegível: %s", rec.Body.String())
+	}
+	want := map[string]int{hoje.AddDate(0, 0, -1).Format(store.DayLayout): 1, hoje.Format(store.DayLayout): 4}
+	if !maps.Equal(out.DeteccoesPorDia, want) {
+		t.Errorf("%v, esperado %v", out.DeteccoesPorDia, want)
+	}
+}
+
 func TestFiltroDeAreaRecusaParametroRuim(t *testing.T) {
 	s, _ := cenarioDeArea(t)
+	cadastraAreas(s)
 	for _, q := range []string{
 		"rule=foot", // regra sem área
 		"area=" + portaoEmMilesimos + "&rule=pisa", // o nome da tela não é o do JSON
@@ -272,6 +345,14 @@ func TestFiltroDeAreaRecusaParametroRuim(t *testing.T) {
 		"area=cam_teste:0,0,1001,0,0,1000", // fora do quadro
 		"area=cam_teste:0,0,x,0,0,1000",
 		"area=fantasma:0,0,1000,0,0,1000",
+		"areas=cam_teste/fantasma", // a área apagada
+		"areas=fantasma/portao",
+		"areas=cam_teste",
+		"areas=cam_teste/",
+		"areas=/portao",
+		"areas=cam_teste/portao,",               // item vazio
+		"areas=cam_teste/portao,cam_b/fantasma", // uma boa e uma apagada
+		"areas=",
 	} {
 		for nome, h := range map[string]http.HandlerFunc{
 			"deteccoes": s.handleDeteccoes, "dias": s.handleDiasDeDeteccao,

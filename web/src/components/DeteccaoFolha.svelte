@@ -68,9 +68,9 @@
     onanterior?: (() => void) | null;
     onproxima?: (() => void) | null;
     onocultar?: (() => void) | null;
-    // A área do filtro, quando ela é desta câmera: o contorno vai sobre o
-    // quadro, e diz por que a detecção entrou.
-    area?: readonly Ponto[] | null;
+    // As áreas do filtro nesta câmera: o contorno vai sobre o quadro, e diz
+    // por que a detecção entrou.
+    areas?: readonly (readonly Ponto[])[] | null;
     // Abre o editor de área sobre este quadro. Nulo sem quadro.
     onarea?: (() => void) | null;
   }
@@ -82,7 +82,7 @@
     onanterior = null,
     onproxima = null,
     onocultar = null,
-    area = null,
+    areas = null,
     onarea = null,
   }: Props = $props();
 
@@ -137,7 +137,7 @@
     if (!iw || !ih) return;
     const s = Math.min(w / iw, h / ih);
     g.translate((w - iw * s) / 2, (h - ih * s) / 2);
-    if (area) desenhaContorno(g, area, iw * s, ih * s);
+    for (const a of areas ?? []) desenhaContorno(g, a, iw * s, ih * s);
     desenha(g, dispoe(g, det.objetos, iw * s, ih * s, true));
   }
 

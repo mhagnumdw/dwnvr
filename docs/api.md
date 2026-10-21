@@ -554,9 +554,9 @@ rola.
 
 | Endpoint | Parâmetros | Devolve |
 | --- | --- | --- |
-| `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias`, `area`, `rule` | uma página de detecções, da mais nova para a mais velha |
+| `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias`, `area`, `rule`, `areas` | uma página de detecções, da mais nova para a mais velha |
 | `GET /api/deteccoes/quadro` | `cam`, `t` | o JPEG do quadro que o detector olhou, `immutable` |
-| `GET /api/deteccoes/dias` | `cams`, `familias`, `area`, `rule` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
+| `GET /api/deteccoes/dias` | `cams`, `familias`, `area`, `rule`, `areas` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
 
 **`/api/deteccoes`** pagina por cursor, e não por número de página: o dia
 corrente ganha detecção nova a todo momento, e "página 3" mudaria de conteúdo
@@ -581,6 +581,15 @@ entre um pedido e outro.
   padrão, conta o meio da borda de baixo da caixa, onde ficam os pés e as
   rodas: a área se desenha no chão, e quem passa na frente dela, perto da
   câmera, não conta. `rule` sem `area` é erro.
+- `areas=<cam>/<id>`: o mesmo, com uma área cadastrada na câmera (o campo
+  `areas` de `POST /api/cameras`) e a regra do cadastro, como
+  `areas=cam_teste1/k3f9a2`. Várias vão separadas por vírgula, como as
+  câmeras de `cams` (`areas=cam_a/k3f9a2,cam_b/p0rt40`). O servidor resolve
+  pelo cadastro de agora: editar a área muda o filtro dali em diante, inclusive
+  sobre o passado. Área que a câmera não tem mais é erro.
+
+As áreas de uma câmera **somam**, a de `area` junto: o objeto fica se está em
+qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
 
 ```json
 {
@@ -626,8 +635,8 @@ detecções: 0,85 MB em memória, e uma página de 60 em 0,2 ms depois da primei
 leitura. O dia sai da memória quando a retenção o apaga.
 
 **`/api/deteccoes/dias`** é o que o calendário da tela de Detecções deixa
-escolher, com o número que ele mostra em cada dia. `cams`, `familias`, `area` e
-`rule` são os mesmos de `/api/deteccoes`, e o dia entra se tiver ao menos uma detecção do
+escolher, com o número que ele mostra em cada dia. `cams`, `familias`, `area`,
+`rule` e `areas` são os mesmos de `/api/deteccoes`, e o dia entra se tiver ao menos uma detecção do
 filtro. `deteccoesPorDia` conta detecções, não marcas, como `/api/deteccoes`
 as monta: pessoa e carro no mesmo quadro contam uma vez. Dia sem gravação fica
 de fora mesmo com marca, porque a rolagem também não chega nele.

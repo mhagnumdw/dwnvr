@@ -440,9 +440,11 @@ por elas sem desenhar de novo.
   filtro a apontar para a área salva.
 
 **Em Detecções:** o botão de área lista as áreas cadastradas, por câmera, mais
-"desenhar uma área". Escolher várias soma: qualquer uma serve. A URL leva
-`areas=<cam>/<id>`, e o servidor resolve pelo cadastro: editar a área muda o
-filtro dali em diante, inclusive sobre o passado.
+"desenhar uma área". Escolher várias soma: qualquer uma serve, a desenhada
+junto. A URL leva `areas=<cam>/<id>,<cam>/<id>`, separadas por vírgula como as
+câmeras de `cams`, e o servidor resolve pelo cadastro: editar a área muda o
+filtro dali em diante, inclusive sobre o passado. O link com uma área que não existe mais
+abre sem ela, e a API a recusa.
 
 **O enquadramento:** se a câmera for movida, a área fica no lugar errado. A
 doc diz para redesenhar, e o editor sempre mostra o quadro atual.
@@ -460,7 +462,8 @@ versão velha não conhece o campo.
 - [x] o campo `areas`, com validação e teste
 - [x] a aba Áreas no formulário da câmera, com o editor da Etapa 1
 - [x] a linha do card com as áreas (a miniatura e "2 áreas"); o chip "alerta: pessoa" entra na Etapa 3
-- [ ] o filtro por área cadastrada em Detecções
+- [x] o filtro por área cadastrada em Detecções
+- [ ] "salvar como área da câmera" no editor de Detecções (a opção X, admin)
 - [ ] teste do mantenedor no celular e no desktop
 - [ ] docs
 

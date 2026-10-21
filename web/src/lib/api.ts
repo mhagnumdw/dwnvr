@@ -235,9 +235,9 @@ export const api = {
     request<DiasDeDeteccao>(`deteccoes/dias?${queryDoFiltro(filtro)}`),
 };
 
-// O filtro que a lista e o calendário de Detecções dividem. A área restringe
-// só a câmera dela; as outras de `cams` seguem inteiras.
-function queryDoFiltro({ cams, familias, area }: FiltroDeDeteccoes) {
+// O filtro que a lista e o calendário de Detecções dividem. As áreas restringem
+// só a câmera delas; as outras de `cams` seguem inteiras.
+function queryDoFiltro({ cams, familias, area, areas }: FiltroDeDeteccoes) {
   const q = new URLSearchParams();
   if (cams?.length) q.set('cams', cams.join(','));
   if (familias?.length) q.set('familias', familias.join(','));
@@ -245,6 +245,7 @@ function queryDoFiltro({ cams, familias, area }: FiltroDeDeteccoes) {
     q.set('area', areaNaQuery(area));
     q.set('rule', area.regra);
   }
+  if (areas?.length) q.set('areas', areas.join(','));
   return q;
 }
 
@@ -724,6 +725,9 @@ export interface FiltroDeDeteccoes {
   // Na câmera desta área, só os objetos dentro dela. As outras câmeras não
   // mudam.
   area?: AreaDoFiltro | null;
+  // O mesmo, com as áreas cadastradas: `<cam>/<id>`. As de uma câmera somam,
+  // a `area` junto: qualquer uma serve.
+  areas?: readonly string[] | null;
 }
 
 // `antes` e `depois` são o cursor: um ou nenhum.
