@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/area"
+	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
@@ -68,6 +69,7 @@ type paginaDeDeteccoes struct {
 //	familias=... só estas famílias; sem ele, todas.
 //	area=...     na câmera da área, só os objetos dentro dela; ver filtroDaQuery.
 //	rule=...     a regra da área: touch ou foot (o padrão).
+//	areas=...    o mesmo, com áreas cadastradas: <câmera>/<id>,<câmera>/<id>.
 //
 // A página nunca parte um instante ao meio: se a última detecção empata com
 // outras no mesmo milissegundo, em outra câmera, elas vêm juntas e a página
@@ -123,7 +125,7 @@ func (s *Server) handleDeteccoes(w http.ResponseWriter, r *http.Request) {
 // crescente, e quantas detecções cada um tem. É o que o calendário da tela de
 // Detecções deixa escolher, e o número que ele mostra em cada dia.
 //
-//	cams, familias, area e rule: os mesmos de handleDeteccoes.
+//	cams, familias, area, rule e areas: os mesmos de handleDeteccoes.
 func (s *Server) handleDiasDeDeteccao(w http.ResponseWriter, r *http.Request) {
 	cams, filtro, err := s.filtroDaQuery(r.URL.Query())
 	if err != nil {
@@ -291,19 +293,24 @@ func diasDasCameras(cams []*store.Camera) []string {
 type filtroDeObjetos struct {
 	// familias nil é "todas".
 	familias map[string]bool
-	// regra nil é "sem área". Com ela, a área vale só para as marcas de
-	// camDaArea: ver daCamera.
-	regra     area.RegraDaArea
-	area      area.Area
-	camDaArea string
+	// porCamera são as áreas de cada câmera: o objeto fica se está em
+	// qualquer uma delas. A câmera fora do mapa segue sem filtro de área.
+	porCamera map[string][]areaComRegra
+	// areas são as da câmera das marcas: ver daCamera.
+	areas []areaComRegra
 }
 
-// daCamera é o filtro das marcas de uma câmera: a área só vale na câmera
-// dela, e as outras passam só pelo filtro de família.
+// areaComRegra é uma área com a regra dela: a desenhada na hora, com o `rule`
+// da query, ou a cadastrada, com a regra do cadastro.
+type areaComRegra struct {
+	regra area.RegraDaArea
+	area  area.Area
+}
+
+// daCamera é o filtro das marcas de uma câmera: as áreas só valem na câmera
+// delas, e as outras passam só pelo filtro de família.
 func (f filtroDeObjetos) daCamera(cam string) filtroDeObjetos {
-	if cam != f.camDaArea {
-		f.regra = nil
-	}
+	f.areas = f.porCamera[cam]
 	return f
 }
 
@@ -313,19 +320,41 @@ func (f filtroDeObjetos) passa(m store.Evento) bool {
 	if f.familias != nil && !f.familias[m.Familia] {
 		return false
 	}
-	if f.regra != nil {
-		return m.Caixa != nil && f.regra.Dentro(f.area, *m.Caixa)
+	if len(f.areas) == 0 {
+		return true
 	}
-	return true
+	if m.Caixa == nil {
+		return false
+	}
+	for _, a := range f.areas {
+		if a.regra.Dentro(a.area, *m.Caixa) {
+			return true
+		}
+	}
+	return false
+}
+
+// soma acrescenta uma área à câmera dela.
+func (f *filtroDeObjetos) soma(cam string, a areaComRegra) {
+	if f.porCamera == nil {
+		f.porCamera = map[string][]areaComRegra{}
+	}
+	f.porCamera[cam] = append(f.porCamera[cam], a)
 }
 
 // filtroDaQuery resolve os parâmetros que a lista e o calendário dividem:
-// `cams`, `familias`, `area` e `rule`.
+// `cams`, `familias`, `area`, `rule` e `areas`.
 //
 // `area=<cam>:<x>,<y>,<x>,<y>,...` é uma área desenhada sobre a imagem da
 // câmera, com X e Y em milésimos do quadro (inteiros de 0 a 1000), para a URL
-// ficar curta. Ela restringe só a câmera dela: as outras de `cams` seguem
-// inteiras, e a câmera da área fora de `cams` não aparece, com área ou sem.
+// ficar curta. `areas=<cam>/<id>,<cam>/<id>` são áreas cadastradas, resolvidas
+// pelo cadastro de agora: editar a área muda o filtro, inclusive sobre o
+// passado. Nem o id da câmera nem o da área têm vírgula ou barra
+// (ValidateCameraID e o id gerado da área).
+//
+// As áreas de uma câmera somam, a desenhada junto: qualquer uma serve. Elas
+// restringem só a câmera delas: as outras de `cams` seguem inteiras, e a
+// câmera da área fora de `cams` não aparece, com área ou sem.
 func (s *Server) filtroDaQuery(q url.Values) ([]*store.Camera, filtroDeObjetos, error) {
 	var f filtroDeObjetos
 	cams, err := s.camerasDoFiltro(q.Get("cams"))
@@ -334,6 +363,11 @@ func (s *Server) filtroDaQuery(q url.Values) ([]*store.Camera, filtroDeObjetos, 
 	}
 	if f.familias, err = familiasDoFiltro(q.Get("familias")); err != nil {
 		return nil, f, err
+	}
+	if q.Has("areas") {
+		if err := s.areasCadastradasDoFiltro(&f, q.Get("areas")); err != nil {
+			return nil, f, err
+		}
 	}
 	if !q.Has("area") {
 		if q.Has("rule") {
@@ -349,11 +383,48 @@ func (s *Server) filtroDaQuery(q url.Values) ([]*store.Camera, filtroDeObjetos, 
 	if !s.knownCamera(cam) {
 		return nil, f, fmt.Errorf("câmera %q da área não cadastrada", cam)
 	}
-	if f.regra, err = area.NovaRegra(q.Get("rule")); err != nil {
+	regra, err := area.NovaRegra(q.Get("rule"))
+	if err != nil {
 		return nil, f, err
 	}
-	f.area, f.camDaArea = a, cam
+	f.soma(cam, areaComRegra{regra: regra, area: a})
 	return cams, f, nil
+}
+
+// areasCadastradasDoFiltro resolve cada `<cam>/<id>` de `areas=` pelo
+// cadastro. A área que não existe mais é recusada, como a câmera que não
+// existe: o filtro em silêncio mostraria outra lista sem dizer.
+func (s *Server) areasCadastradasDoFiltro(f *filtroDeObjetos, lista string) error {
+	cadastro := map[string]config.Camera{}
+	for _, c := range s.mgr.Cameras() {
+		cadastro[c.ID] = c
+	}
+	for item := range strings.SplitSeq(lista, ",") {
+		camID, id, ok := strings.Cut(item, "/")
+		if !ok || camID == "" || id == "" {
+			return fmt.Errorf("parâmetro areas inválido: %q não é <câmera>/<id>", item)
+		}
+		cam, ok := cadastro[camID]
+		if !ok {
+			return fmt.Errorf("câmera %q da área não cadastrada", camID)
+		}
+		i := slices.IndexFunc(cam.Areas, func(a config.Area) bool { return a.ID == id })
+		if i < 0 {
+			return fmt.Errorf("a câmera %q não tem a área %q", camID, id)
+		}
+		// O cadastro já passou pelo ConfereCamera: a regra e os pontos valem.
+		cad := cam.Areas[i]
+		regra, err := area.NovaRegra(cad.Rule)
+		if err != nil {
+			return fmt.Errorf("área %q da câmera %q: %w", id, camID, err)
+		}
+		a, err := area.Nova(cad.Points)
+		if err != nil {
+			return fmt.Errorf("área %q da câmera %q: %w", id, camID, err)
+		}
+		f.soma(camID, areaComRegra{regra: regra, area: a})
+	}
+	return nil
 }
 
 // areaDoFiltro lê `<cam>:<x>,<y>,...`, em milésimos, e devolve a câmera e a
