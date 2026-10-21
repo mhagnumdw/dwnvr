@@ -7,7 +7,7 @@
 // O caminho preferido é WebCodecs, que decodifica o keyframe direto. Onde ele
 // não existir, um <video> escondido faz o mesmo trabalho.
 
-import { mediaURL } from './api.ts';
+import { api, mediaURL } from './api.ts';
 
 const cache = new Map<string, Promise<ImageBitmap | null>>();
 const MAX_CACHE = 240; // ~algumas telas de tira; acima disso a RAM do celular sofre
@@ -93,6 +93,24 @@ export function thumbnail(cam: string, t: number): Promise<ImageBitmap | null> {
     }
   }
   return p;
+}
+
+// O começo do último segmento gravado da câmera, ou null se ela não tem
+// gravação. É o quadro mais recente que o servidor tem pronto: o keyframe do
+// segmento.
+export async function ultimoSegmento(cam: string): Promise<number | null> {
+  const dias = await api.days(cam);
+  const dia = dias.days.at(-1)?.day;
+  if (!dia) return null;
+  const t = await api.timeline(cam, dia);
+  return t.segments.at(-1)?.[0] ?? null;
+}
+
+// O keyframe de um segmento na resolução da câmera, para desenhar em cima
+// (o editor de área). Fora do cache e da fila da tira: é um quadro só, pedido
+// por quem o espera. A densidade infinita faz o `reduzida` não reduzir.
+export async function quadroCheio(cam: string, t: number): Promise<ImageBitmap> {
+  return decode(await baixar(mediaURL.thumb(cam, t)), Infinity);
 }
 
 export function clearThumbnails() {

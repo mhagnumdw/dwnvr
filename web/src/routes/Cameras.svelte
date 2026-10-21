@@ -9,9 +9,10 @@
     HEALTH_POLL_MS,
   } from '../lib/state.svelte.ts';
   import { api, mensagemDe } from '../lib/api.ts';
-  import type { Camera, CameraCadastrada, Orfa, Stream } from '../lib/api.ts';
+  import type { AreaDaCamera, Camera, CameraCadastrada, Orfa, Stream } from '../lib/api.ts';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.ts';
   import {
+    hhmm,
     dias,
     kbps,
     bytes,
@@ -27,6 +28,11 @@
   import SemCameras from '../components/SemCameras.svelte';
   import Icone from '../components/Icone.svelte';
   import Abas from '../components/Abas.svelte';
+  import MiniaturaDasAreas from '../components/MiniaturaDasAreas.svelte';
+  import type EditorDeAreaT from '../components/EditorDeArea.svelte';
+  import { REGRAS, REGRA_PADRAO, MAX_AREAS, pontosSVG } from '../lib/area.ts';
+  import type { Ponto, Regra } from '../lib/area.ts';
+  import { quadroCheio, ultimoSegmento } from '../lib/thumbs.ts';
 
   // A câmera no formulário, com o que a tela sabe do áudio dela. Os campos com
   // `_` não vão para a API.
@@ -54,11 +60,23 @@
   let error = $state('');
 
   // As abas do formulário. Ele sempre abre na primeira: é onde estão o nome e a
-  // cota, o que se procura ao cadastrar.
-  const ABAS = [
+  // cota, o que se procura ao cadastrar. A de Áreas só existe com a marcação de
+  // movimento ligada e o detector de objetos configurado: sem os dois a câmera
+  // não tem detecção, e a área não teria o que filtrar. Desligar a marcação
+  // esconde a aba, mas não apaga as áreas.
+  const comAreas = $derived(!!editing?.detect && !!cameras.detector);
+  const ABAS = $derived([
     { id: 'gravacao', rotulo: 'Gravação' },
     { id: 'deteccao', rotulo: 'Detecção' },
-  ];
+    ...(comAreas
+      ? [
+          {
+            id: 'areas',
+            rotulo: editing?.areas?.length ? `Áreas (${editing.areas.length})` : 'Áreas',
+          },
+        ]
+      : []),
+  ]);
   let aba = $state('gravacao');
   // No cadastro, o rodapé guia aba a aba e o "salvar" só aparece na última:
   // quem cadastra passa por tudo. Na edição se vai direto a uma coisa, e as
@@ -235,6 +253,134 @@
     campo.reportValidity();
   }
 
+  // --- a aba Áreas ----------------------------------------------------------
+
+  // O quadro de fundo das áreas: o keyframe do último segmento, decodificado
+  // aqui na resolução da câmera. Só é buscado quando a aba abre, e sai da
+  // memória quando o formulário fecha.
+  let quadro = $state<{
+    cam: string;
+    t: number | null;
+    url: string;
+    proporcao: number;
+    buscando: boolean;
+    erro: string;
+  } | null>(null);
+  // Cada busca tem o seu número: a resposta de uma busca já trocada por outra,
+  // ou de um formulário já fechado, é descartada.
+  let busca = 0;
+
+  function soltaQuadro() {
+    busca++;
+    if (quadro?.url) URL.revokeObjectURL(quadro.url);
+    quadro = null;
+  }
+
+  async function urlDoQuadro(bmp: ImageBitmap) {
+    const c = document.createElement('canvas');
+    c.width = bmp.width;
+    c.height = bmp.height;
+    c.getContext('2d')?.drawImage(bmp, 0, 0);
+    const blob = await new Promise<Blob | null>((r) => {
+      c.toBlob(r, 'image/jpeg', 0.9);
+    });
+    if (!blob) throw new Error('não deu para guardar o quadro');
+    return URL.createObjectURL(blob);
+  }
+
+  async function buscaQuadro(cam: string, novo: boolean) {
+    const minha = ++busca;
+    const antes = quadro?.cam === cam ? quadro : null;
+    if (!antes && quadro?.url) URL.revokeObjectURL(quadro.url);
+    quadro = {
+      cam,
+      t: antes?.t ?? null,
+      url: antes?.url ?? '',
+      proporcao: antes?.proporcao ?? 16 / 9,
+      buscando: true,
+      erro: '',
+    };
+    const q = quadro;
+    // A câmera nova ainda não gravou, e o servidor nem a conhece.
+    if (novo) {
+      q.buscando = false;
+      q.erro =
+        'Esta câmera ainda não gravou nada. Salve, e depois do primeiro minuto de gravação volte aqui, em editar, na aba Áreas, para desenhar sobre a imagem dela.';
+      return;
+    }
+    try {
+      const t = await ultimoSegmento(cam);
+      if (t === null) throw new Error('esta câmera ainda não tem gravação para desenhar em cima');
+      const bmp = await quadroCheio(cam, t);
+      const proporcao = bmp.width / bmp.height;
+      const url = await urlDoQuadro(bmp).finally(() => {
+        bmp.close();
+      });
+      if (minha !== busca) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      if (q.url) URL.revokeObjectURL(q.url);
+      q.t = t;
+      q.url = url;
+      q.proporcao = proporcao;
+    } catch (e) {
+      if (minha === busca) q.erro = mensagemDe(e);
+    } finally {
+      if (minha === busca) q.buscando = false;
+    }
+  }
+
+  $effect(() => {
+    const cam = editing?.id;
+    if (aba === 'areas' && cam && quadro?.cam !== cam) void buscaQuadro(cam, !!editing?._novo);
+  });
+  $effect(() => {
+    if (!editing) soltaQuadro();
+  });
+  onDestroy(soltaQuadro);
+
+  const legendaDoQuadro = (t: number | null) =>
+    t === null ? '' : `quadro de ${ddmm(t)}, ${hhmm(t)}`;
+
+  // O editor vem num chunk à parte, como em Detecções.
+  let EditorDeArea = $state<typeof EditorDeAreaT | null>(null);
+  // A área aberta no editor: o índice dela, ou null para uma nova.
+  let areaAberta = $state<{ indice: number | null } | null>(null);
+
+  function abreArea(indice: number | null) {
+    if (!EditorDeArea)
+      void import('../components/EditorDeArea.svelte').then((m) => {
+        EditorDeArea = m.default;
+      });
+    areaAberta = { indice };
+  }
+
+  // 4 casas bastam ao dedo (um décimo de pixel num quadro de 1080p) e deixam
+  // o cameras.json legível.
+  const quatroCasas = (v: number) => Math.round(v * 1e4) / 1e4;
+
+  function aplicaArea(pontos: Ponto[], regra: Regra, nome: string) {
+    if (!editing || !areaAberta) return;
+    const areas = editing.areas ?? [];
+    const i = areaAberta.indice;
+    const nova: AreaDaCamera = {
+      ...(i === null ? {} : areas[i]),
+      name: nome,
+      rule: regra,
+      points: pontos.map(([x, y]): Ponto => [quatroCasas(x), quatroCasas(y)]),
+    };
+    editing.areas = i === null ? [...areas, nova] : areas.map((a, j) => (j === i ? nova : a));
+    areaAberta = null;
+  }
+
+  function apagaArea() {
+    if (!editing || areaAberta?.indice == null) return;
+    const i = areaAberta.indice;
+    editing.areas = (editing.areas ?? []).filter((_, j) => j !== i);
+    areaAberta = null;
+  }
+
   async function salvar() {
     if (!editing) return;
     saving = true;
@@ -401,6 +547,17 @@
             <span class="chip retain" title={AJUDA_CABEM}>cabem ≈ {dias(st.retainDays)}</span>
           {/if}
         </div>
+
+        <!-- As áreas só mostram: quem muda é o "editar". Com a mesma condição
+             da aba, para o card não falar de áreas que não filtram nada. -->
+        {#if cam.areas?.length && cam.detect && cameras.detector}
+          <div class="row wrap chips">
+            <span class="chip areas-chip">
+              <MiniaturaDasAreas cam={cam.id} areas={cam.areas} />
+              {cam.areas.length === 1 ? '1 área' : `${cam.areas.length} áreas`}
+            </span>
+          </div>
+        {/if}
 
         <!-- Onde os arquivos estão de verdade. Toda vez que a pergunta sai do
              navegador - fazer backup, olhar o disco por ssh, entender de onde
@@ -570,7 +727,13 @@
 </div>
 
 {#if editing}
-  <Modal onclose={() => (editing = null)}>
+  <!-- O Escape do editor de área fecha só o editor: o formulário de baixo
+       fica. -->
+  <Modal
+    onclose={() => {
+      if (!areaAberta) editing = null;
+    }}
+  >
     <!-- No cadastro, antes da última aba, o envio é o "próximo": o Enter num
          campo avança, e a validação do navegador barra o campo vazio antes de
          sair da aba dele. -->
@@ -718,6 +881,63 @@
             </label>
           {/if}
         </div>
+
+        {#if comAreas}
+          {@const areas = editing.areas ?? []}
+          <div
+            class="fields"
+            role="tabpanel"
+            id="cam-painel-areas"
+            aria-labelledby="cam-aba-areas"
+            data-aba="areas"
+            inert={aba !== 'areas'}
+          >
+            <p class="muted small explica-areas">
+              Pedaços da imagem com nome, como "Portão". Em Detecções, qualquer pessoa filtra por
+              eles. Se a câmera for movida, redesenhe.
+            </p>
+            {#if quadro?.erro}
+              <p class="small aviso-areas">{quadro.erro}</p>
+            {/if}
+            {#if areas.length}
+              <div class="areas">
+                {#each areas as a, i (a.id ?? `nova-${i}`)}
+                  <div class="area-item">
+                    <div class="miniatura" style:aspect-ratio={quadro?.proporcao ?? 16 / 9}>
+                      {#if quadro?.url}<img src={quadro.url} alt="" />{/if}
+                      <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+                        <polygon points={pontosSVG(a.points)} />
+                      </svg>
+                    </div>
+                    <span class="nome-area">
+                      <b>{a.name}</b>
+                      <span class="muted small">{REGRAS[a.rule ?? REGRA_PADRAO].nome}</span>
+                    </span>
+                    <button
+                      type="button"
+                      class="ghost small"
+                      onclick={() => abreArea(i)}
+                      disabled={!quadro || quadro.buscando}>editar</button
+                    >
+                  </div>
+                {/each}
+              </div>
+            {/if}
+            {#if !editing._novo}
+              <button
+                type="button"
+                class="ghost nova-area"
+                onclick={() => abreArea(null)}
+                disabled={!quadro?.url || areas.length >= MAX_AREAS}
+              >
+                <Icone nome="mais" tamanho={16} traco={2.4} />nova área
+              </button>
+              {#if areas.length >= MAX_AREAS}
+                <small class="muted">Até {MAX_AREAS} áreas por câmera.</small>
+              {/if}
+            {/if}
+          </div>
+        {/if}
       </div>
 
       <div class="row">
@@ -751,6 +971,35 @@
       </div>
     </form>
   </Modal>
+
+  {#if areaAberta && EditorDeArea}
+    {@const areas = editing.areas ?? []}
+    {@const i = areaAberta.indice}
+    {@const atual = i === null ? null : areas[i]}
+    <EditorDeArea
+      camera={editing.name}
+      titulo={atual ? 'Editar área' : 'Nova área'}
+      rotuloAplicar={atual ? 'salvar' : 'criar área'}
+      fundo={quadro?.url ? { tipo: 'imagem', url: quadro.url } : null}
+      erro={quadro?.erro ?? ''}
+      inicial={atual ? { pontos: atual.points, regra: atual.rule ?? REGRA_PADRAO } : null}
+      nome={atual?.name ?? ''}
+      nomesEmUso={areas.filter((_, j) => j !== i).map((a) => a.name)}
+      outras={areas.filter((_, j) => j !== i).map((a) => ({ name: a.name, points: a.points }))}
+      quadro={quadro
+        ? {
+            legenda: legendaDoQuadro(quadro.t),
+            atualizando: quadro.buscando,
+            onatualizar: () => {
+              if (editing) void buscaQuadro(editing.id, false);
+            },
+          }
+        : null}
+      onaplicar={aplicaArea}
+      onapagar={atual ? apagaArea : null}
+      onfechar={() => (areaAberta = null)}
+    />
+  {/if}
 {/if}
 
 {#if removendo}
@@ -861,6 +1110,12 @@
   }
   .chip.warn {
     color: var(--warn);
+  }
+  .chip.areas-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 4px;
   }
   .err {
     color: var(--bad);
@@ -1004,6 +1259,60 @@
   }
   .paineis {
     display: grid;
+  }
+  .explica-areas,
+  .aviso-areas {
+    margin: 0;
+  }
+  .aviso-areas {
+    color: var(--warn);
+  }
+  .areas {
+    display: grid;
+    gap: 8px;
+  }
+  .area-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .miniatura {
+    position: relative;
+    flex: none;
+    width: 96px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #000;
+  }
+  .miniatura img,
+  .miniatura svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .miniatura polygon {
+    fill: rgba(47, 129, 247, 0.22);
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+  .nome-area {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+  }
+  .nome-area b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  button.nova-area {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-self: start;
   }
   button.passo {
     display: inline-flex;

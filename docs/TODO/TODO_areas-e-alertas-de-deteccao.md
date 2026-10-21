@@ -428,6 +428,13 @@ por elas sem desenhar de novo.
   navegador em tamanho cheio, com um "atualizar o quadro". O `thumbs.ts`
   reduz a imagem para a tira de miniaturas, e assim não serve. A outra opção é
   o quadro da última detecção, de 480 px;
+- **a aba Áreas só existe com a detecção**, decidido em 21/10/2026: com a
+  marcação de movimento ligada na aba Detecção e o detector de objetos
+  configurado. Sem os dois a câmera não tem detecção, e a área não teria o que
+  filtrar. Desligar a marcação esconde a aba, mas não apaga as áreas.
+- **o cadastro guiado passa por Áreas**, decidido em 21/10/2026: deixa claro
+  que a opção existe. A câmera nova ainda não gravou, então a aba só avisa que
+  dá para desenhar depois de salvar, em editar.
 - **"salvar como área da câmera" existe** (a opção X): um botão no editor da
   Etapa 1, só para o admin, que pede o nome, grava no cadastro e passa o
   filtro a apontar para a área salva.
@@ -451,7 +458,8 @@ versão velha não conhece o campo.
 - [x] mock do cadastro (A, B, C), já com as seções de alerta e de horários
 - [x] as abas no formulário da câmera, num PR à parte para a `main` (#45)
 - [x] o campo `areas`, com validação e teste
-- [ ] o cadastro na tela Câmeras
+- [x] a aba Áreas no formulário da câmera, com o editor da Etapa 1
+- [x] a linha do card com as áreas (a miniatura e "2 áreas"); o chip "alerta: pessoa" entra na Etapa 3
 - [ ] o filtro por área cadastrada em Detecções
 - [ ] teste do mantenedor no celular e no desktop
 - [ ] docs

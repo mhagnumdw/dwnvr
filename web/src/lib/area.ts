@@ -23,9 +23,11 @@ export type Regra = keyof typeof REGRAS;
 // A padrão, a mesma do RegraDaAreaPadrao do servidor.
 export const REGRA_PADRAO: Regra = 'foot';
 
-// Os mesmos limites do internal/area/parametros.go.
+// Os mesmos limites do internal/area/parametros.go (MAX_AREAS é o
+// MaxAreasPorCamera).
 export const MIN_PONTOS = 3;
 export const MAX_PONTOS = 20;
+export const MAX_AREAS = 8;
 
 export interface AreaDoFiltro {
   cam: string;
