@@ -164,7 +164,7 @@ esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo
 
 | Mexeu em | Confira |
 | --- | --- |
-| `web/src/`, `web/index.html`, `web/public/` | `make web`, depois commitar `internal/api/dist/` inteiro, assets antigos incluídos (o hook `interface-atualizada` e a CI conferem) |
+| `web/src/`, `web/index.html`, `web/public/` | `make web`, depois commitar `internal/api/dist/` inteiro, com a remoção dos assets antigos (o hook `interface-atualizada` e a CI conferem) |
 | arquivo em `web/src/{lib,routes,components,vendor}` | §Estrutura do `web/README.md` |
 | rota em `internal/api/server.go`, inclusive entrar/sair do `requireAuth` | `docs/api.md` · `web/src/lib/api.ts` (tipos do JSON no fim; `api` para JSON, `mediaURL` para URL montada) |
 | formato do JSON de resposta ou de erro | a tela em `web/src/routes/` |
