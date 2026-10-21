@@ -18,6 +18,7 @@
   import SeletorCameras from '../components/SeletorCameras.svelte';
   import Icone from '../components/Icone.svelte';
   import SeloDeFamilias from '../components/SeloDeFamilias.svelte';
+  import type EditorDeAreaT from '../components/EditorDeArea.svelte';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
   import type { Caixa, Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
   import { cameras, loadCameras } from '../lib/state.svelte.ts';
@@ -33,6 +34,8 @@
   import { CAIXA_FOLGA_PX } from '../lib/caixas.ts';
   import { hhmmss, ddmm, dayKey, parseDay, horaDoMinuto } from '../lib/format.ts';
   import { avisar, fecharAviso } from '../lib/snackbar.svelte.ts';
+  import { REGRAS, areaDaQuery, areaNaQuery, pontosSVG } from '../lib/area.ts';
+  import type { AreaDoFiltro, Ponto, Regra } from '../lib/area.ts';
 
   // Uma linha da grade: o cabeçalho da hora, ou uma fileira de miniaturas.
   // `primeira` é o índice na `lista` da primeira miniatura da fileira.
@@ -138,6 +141,10 @@
   }
   let intervalo = $state<Intervalo | null>(intervaloDaURL());
 
+  // A área desenhada na hora: `area` e `rule`, os mesmos nomes da API. Ela
+  // restringe só a câmera dela; as outras câmeras marcadas não mudam.
+  let area = $state<AreaDoFiltro | null>(areaDaQuery(params.get('area'), params.get('rule')));
+
   let desktop = $state(window.innerWidth >= DESKTOP_PX);
   const faixa = $derived(desktop ? COLUNAS.desktop : COLUNAS.celular);
   const colunas = $derived(
@@ -154,6 +161,8 @@
       dia: intervalo?.dia,
       de: intervalo ? horaDoMinuto(intervalo.de) : null,
       ate: intervalo ? horaDoMinuto(intervalo.ate) : null,
+      area: area ? areaNaQuery(area) : null,
+      rule: area?.regra ?? null,
     });
   });
 
@@ -192,7 +201,7 @@
   // se pergunta ao servidor.
   const filtro = $derived.by((): FiltroDeDeteccoes | null => {
     if (camsMarcadas?.length === 0 || familiasMarcadas?.length === 0) return null;
-    return { cams: camsMarcadas, familias: familiasMarcadas };
+    return { cams: camsMarcadas, familias: familiasMarcadas, area };
   });
 
   // O intervalo em instantes: `de` incluído, `ate` excluído (o minuto final
@@ -875,6 +884,102 @@
     void recomeca(topo != null && topo <= Date.now() ? topo : null);
   }
 
+  // --- a área desenhada na hora ----------------------------------------------
+
+  // O editor vem num chunk à parte: quem não desenha área não o baixa.
+  let EditorDeArea = $state<typeof EditorDeAreaT | null>(null);
+  let editor = $state<{
+    cam: string;
+    fundo: { tipo: 'imagem' | 'video'; url: string } | null;
+    caixas: { caixa: Caixa; cor: string }[];
+    erro: string;
+  } | null>(null);
+  let areaAberta = $state(false);
+  let areaEl = $state<HTMLDivElement | undefined>();
+
+  const caixasDe = (d: Deteccao) =>
+    d.objetos.flatMap((o) => (o.caixa ? [{ caixa: o.caixa, cor: familia(o.familia).cor }] : []));
+
+  // Abre o editor sobre um quadro da câmera: o da detecção dada, ou o da mais
+  // recente dela com quadro, ou o keyframe do último segmento quando ela não
+  // tem detecção nenhuma.
+  async function abreEditor(cam: string, det: Deteccao | null = null) {
+    areaAberta = false;
+    aberto = null;
+    if (!EditorDeArea)
+      void import('../components/EditorDeArea.svelte').then((m) => {
+        EditorDeArea = m.default;
+      });
+    if (det?.temQuadro) {
+      editor = {
+        cam,
+        fundo: { tipo: 'imagem', url: mediaURL.quadro(cam, det.instanteMs) },
+        caixas: caixasDe(det),
+        erro: '',
+      };
+      return;
+    }
+    editor = { cam, fundo: null, caixas: [], erro: '' };
+    // O editor pode ter fechado, ou trocado de câmera, durante a busca.
+    const aindaAberto = () => (editor?.cam === cam ? editor : null);
+    try {
+      const r = await api.deteccoes({ cams: [cam], limite: 20 });
+      const recente = r.deteccoes.find((d) => d.temQuadro);
+      let ed = aindaAberto();
+      if (!ed) return;
+      if (recente) {
+        ed.fundo = { tipo: 'imagem', url: mediaURL.quadro(cam, recente.instanteMs) };
+        ed.caixas = caixasDe(recente);
+        return;
+      }
+      const dias = await api.days(cam);
+      const dia = dias.days.at(-1)?.day;
+      const t = dia ? await api.timeline(cam, dia) : null;
+      const ultimo = t?.segments.at(-1);
+      ed = aindaAberto();
+      if (!ed) return;
+      if (!ultimo) {
+        ed.erro = 'esta câmera ainda não tem gravação para desenhar em cima';
+        return;
+      }
+      ed.fundo = { tipo: 'video', url: mediaURL.thumb(cam, ultimo[0]) };
+    } catch (e) {
+      const ed = aindaAberto();
+      if (ed) ed.erro = `não deu para buscar um quadro: ${mensagemDe(e)}`;
+    }
+  }
+
+  function aplicaArea(pontos: Ponto[], regra: Regra) {
+    if (!editor) return;
+    const cam = editor.cam;
+    area = { cam, pontos, regra };
+    editor = null;
+    // Desenhar a área numa câmera desmarcada é pedir para vê-la: ela volta à
+    // lista. Desmarcá-la depois a tira, com a área ou sem.
+    if (camsMarcadas && !camsMarcadas.includes(cam)) {
+      const novas = [...camsMarcadas, cam];
+      camsMarcadas = novas.length === cameras.list.length ? null : novas;
+    }
+    void recomeca();
+  }
+
+  // Volta à lista sem área sem sair de onde estava, como o limpaIntervalo.
+  function limpaArea() {
+    const ms = rolagem.ini > 0 ? noTopo?.det.instanteMs : undefined;
+    area = null;
+    void recomeca(ms != null ? ms + 1 : null);
+  }
+
+  function cliqueFora(e: MouseEvent) {
+    foraDasCameras(e);
+    foraDaArea(e);
+  }
+
+  function foraDaArea(e: MouseEvent) {
+    if (areaAberta && areaEl && !(e.target instanceof Node && areaEl.contains(e.target)))
+      areaAberta = false;
+  }
+
   // --- ciclo de vida ----------------------------------------------------------
 
   function redimensiona() {
@@ -906,6 +1011,7 @@
         'cams',
         cameras.list.map((c) => c.id),
       );
+      if (area && !existe(area.cam)) area = null;
       camerasResolvidas = true;
       await recomeca();
     })();
@@ -929,7 +1035,7 @@
     rolou();
   }}
   onresize={redimensiona}
-  onclick={foraDasCameras}
+  onclick={cliqueFora}
   onkeydown={tecla}
 />
 
@@ -956,12 +1062,64 @@
           onlimpar={limpaIntervalo}
         />
       {/if}
+      {#if !area}
+        <div class="botao-area" bind:this={areaEl}>
+          <button
+            class="ghost abre-area"
+            onclick={() => (areaAberta = !areaAberta)}
+            aria-expanded={areaAberta}
+            aria-label="filtrar por área"
+            title="mostrar só as detecções dentro de uma área desenhada sobre a imagem"
+          >
+            <Icone nome="area" tamanho={16} traco={2.2} />
+            <span class="rotulo">área</span>
+          </button>
+          {#if areaAberta}
+            <div class="popover popover-area" role="dialog" aria-label="câmera da área">
+              <p class="muted small">Desenhar a área sobre a imagem de qual câmera?</p>
+              <div class="lista-cams">
+                {#each cameras.list as c (c.id)}
+                  <button class="ghost" onclick={() => void abreEditor(c.id)}>{c.name}</button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
 
-    <!-- Ligado, o chip não cabe na linha do dia no celular: ganha uma só dele. -->
-    {#if intervalo}
-      <div class="intervalo">
-        <IntervaloDeHorario {intervalo} onaplicar={aplicaIntervalo} onlimpar={limpaIntervalo} />
+    <!-- Ligados, os chips não cabem na linha do dia no celular: ganham uma
+         linha só deles, que dividem quando são dois. -->
+    {#if intervalo !== null || area !== null}
+      <div class="chips">
+        {#if intervalo}
+          <div class="lugar-chip">
+            <IntervaloDeHorario {intervalo} onaplicar={aplicaIntervalo} onlimpar={limpaIntervalo} />
+          </div>
+        {/if}
+        {#if area}
+          {@const a = area}
+          <span class="lugar-chip chip-area">
+            <button
+              class="ghost reabre"
+              onclick={() => void abreEditor(a.cam)}
+              title="mudar a área ({REGRAS[a.regra].nome})"
+              aria-label="área em {nomes[a.cam] ?? a.cam}, regra {REGRAS[a.regra].nome}; mudar"
+            >
+              <Icone nome="area" tamanho={14} traco={2.4} />
+              <span class="nome-area">{nomes[a.cam] ?? a.cam}</span>
+              <span class="muted">· área</span>
+            </button>
+            <button
+              class="ghost limpa"
+              onclick={limpaArea}
+              aria-label="limpar a área"
+              title="limpar a área"
+            >
+              <Icone nome="fechar" tamanho={16} traco={2.2} />
+            </button>
+          </span>
+        {/if}
       </div>
     {/if}
 
@@ -1111,6 +1269,16 @@
                       }}
                     />
                   {/if}
+                  {#if area?.cam === d.cam}
+                    <svg
+                      class="contorno"
+                      viewBox="0 0 1 1"
+                      preserveAspectRatio="none"
+                      aria-hidden="true"
+                    >
+                      <polygon points={pontosSVG(area.pontos)} />
+                    </svg>
+                  {/if}
                   {#each d.objetos as o, j (j)}
                     {#if o.caixa}
                       {@const lado = ladoDoScore(d.cam, o.caixa, colunas >= (desktop ? 7 : 4))}
@@ -1198,8 +1366,22 @@
       onocultar={() => {
         void ocultaCamera(d.cam);
       }}
+      area={area?.cam === d.cam ? area.pontos : null}
+      onarea={() => void abreEditor(d.cam, d)}
     />
   {/key}
+{/if}
+
+{#if editor && EditorDeArea}
+  <EditorDeArea
+    camera={nomes[editor.cam] ?? editor.cam}
+    fundo={editor.fundo}
+    caixas={editor.caixas}
+    erro={editor.erro}
+    inicial={area?.cam === editor.cam ? area : null}
+    onaplicar={aplicaArea}
+    onfechar={() => (editor = null)}
+  />
 {/if}
 
 {#if menu}
@@ -1294,10 +1476,96 @@
   .barra .rotulo {
     display: none;
   }
-  /* O intervalo ligado: no celular, uma 3ª linha inteira. */
-  .intervalo {
+  /* O intervalo e a área ligados: no celular, uma 3ª linha inteira, que os
+     dois chips dividem. */
+  .chips {
     grid-column: 1 / 4;
     grid-row: 3;
+    display: flex;
+    gap: 6px;
+  }
+  .lugar-chip {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .botao-area {
+    flex: none;
+  }
+  .abre-area {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 11px;
+    color: var(--dim);
+  }
+  .popover-area {
+    left: 10px;
+    right: auto;
+    top: 100%;
+    width: min(300px, calc(100% - 20px));
+  }
+  .popover-area p {
+    margin: 0;
+  }
+  .lista-cams {
+    display: grid;
+    gap: 4px;
+    max-height: 50vh;
+    overflow: auto;
+  }
+  .lista-cams button {
+    text-align: left;
+    border: 0;
+  }
+
+  /* O chip da área, com a forma do chip do intervalo. */
+  .chip-area {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--ativo-fundo);
+    overflow: hidden;
+  }
+  .chip-area button {
+    min-height: 42px;
+    border: 0;
+    border-radius: 0;
+  }
+  .reabre {
+    flex: 1;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 4px 0 11px;
+    white-space: nowrap;
+  }
+  .nome-area {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chip-area .limpa {
+    padding: 0 10px;
+    color: var(--dim);
+  }
+
+  /* O contorno da área sobre a miniatura: fino e tracejado, para não cobrir
+     o objeto. */
+  .contorno {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .contorno polygon {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 3;
+    vector-effect: non-scaling-stroke;
   }
 
   .familias {
@@ -1684,14 +1952,24 @@
       display: inline;
     }
 
-    /* Da largura do tablet para cima, o chip cabe na linha do dia. */
-    .barra:has(.intervalo) .quando {
+    /* Da largura do tablet para cima, os chips cabem na linha do dia. */
+    .barra:has(.chips) .quando {
       grid-column: 1;
     }
-    .intervalo {
+    .chips {
       grid-column: 2;
       grid-row: 1;
       justify-self: start;
+    }
+    .lugar-chip {
+      flex: none;
+    }
+    .botao-area {
+      position: relative;
+    }
+    .popover-area {
+      left: 0;
+      top: calc(100% + 6px);
     }
 
     .hora {
@@ -1707,8 +1985,10 @@
 
   /* Linha única quando tudo cabe: a barra inteira mede ~1000 px. A folga
      cobre fonte do sistema um pouco mais larga que a medida. */
+  /* Com os chips ligados ela não cabe mais, e fica nas duas linhas do
+     tablet. */
   @media (min-width: 1060px) {
-    .barra {
+    .barra:not(:has(.chips)) {
       display: flex;
     }
     .quando {

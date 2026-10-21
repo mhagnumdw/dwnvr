@@ -559,12 +559,12 @@ entre um pedido e outro.
 - `limite`: quantas, de 1 a 200. Padrão 60.
 - `cams=cam_a,cam_b` e `familias=pessoa,veiculo`: só essas. Sem eles, todas.
   Câmera não cadastrada ou família desconhecida é erro.
-- `area=<cam>:<x>,<y>,<x>,<y>,...`: só os objetos dentro de uma área desenhada
-  sobre a imagem da câmera, como `area=cam_teste1:400,500,600,500,600,700`. X e
-  Y vão em milésimos do quadro, inteiros de 0 a 1000, para a URL ficar curta;
-  são de 3 a 20 pontos, e a área pode ser côncava. A área é de uma câmera só, e
-  a lista passa a ser só dela: com `cams` junto, a câmera da área tem de estar
-  nele.
+- `area=<cam>:<x>,<y>,<x>,<y>,...`: na câmera `<cam>`, só os objetos dentro
+  de uma área desenhada sobre a imagem dela, como
+  `area=cam_teste1:400,500,600,500,600,700`. X e Y vão em milésimos do quadro,
+  inteiros de 0 a 1000, para a URL ficar curta; são de 3 a 20 pontos, e a área
+  pode ser côncava. A área restringe só a câmera dela: as outras câmeras de
+  `cams` vêm inteiras, e a câmera da área fora de `cams` não aparece.
 - `rule=touch` ou `rule=foot`: quando um objeto conta como dentro da área. Com
   `touch`, basta a caixa ter algum ponto em comum com ela. Com `foot`, o
   padrão, conta o meio da borda de baixo da caixa, onde ficam os pés e as

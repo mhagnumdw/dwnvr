@@ -130,8 +130,17 @@ type pisa struct{}
 
 func (pisa) Nome() string { return "foot" }
 
+// Dentro prende o pé no quadro antes do teste: o detector de objetos devolve
+// caixa que passa um pouco da borda (256 de 7.038 caixas reais, de -0,029 a
+// 1,0115), e quem está cortado embaixo ficaria com o pé fora até da área do
+// tamanho da imagem.
 func (pisa) Dentro(a Area, caixa [4]float64) bool {
-	return contem(a, Ponto{(caixa[0] + caixa[2]) / 2, caixa[3]})
+	return contem(a, Ponto{noQuadro((caixa[0] + caixa[2]) / 2), noQuadro(caixa[3])})
+}
+
+// noQuadro prende a coordenada entre 0 e 1.
+func noQuadro(v float64) float64 {
+	return min(max(v, 0), 1)
 }
 
 // --- geometria --------------------------------------------------------------

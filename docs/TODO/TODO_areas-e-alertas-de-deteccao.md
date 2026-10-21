@@ -322,8 +322,12 @@ pergunta "quem passou pelo portão nesta semana?".
   só aparece por cima da área, perto da câmera, ou um falso positivo parado
   na borda; o preço da `pisa` é desenhar a área cobrindo todo o chão onde o pé
   pode estar.
-- **A câmera do filtro passa a ser a da área:** as outras saem da lista
-  enquanto o filtro estiver ligado, e o botão de câmeras fica preso nela.
+- **A área restringe só a câmera dela** (decisão do mantenedor, 20/10/2026,
+  depois de ver a tela): as outras câmeras marcadas seguem na lista,
+  inteiras. Desmarcar a câmera da área no botão de câmeras a tira da lista,
+  como qualquer outra; desenhar a área numa câmera desmarcada a marca de
+  volta. Uma área só por vez nesta etapa; várias, uma por câmera, ficam para
+  a Etapa 2.
 - **O contorno da área**, fino e tracejado, nas miniaturas; na folha, sempre.
 
 **Servidor:**
@@ -372,7 +376,7 @@ Etapa 2, a regra vira campo de cada área cadastrada.
 - [x] mock do editor (A, B, C), nos dois contextos, celular e desktop
 - [x] `internal/area`, com teste das duas regras
 - [x] `area=` e `rule=` na API, com teste
-- [ ] o editor, o chip e a URL
+- [x] o editor, o chip e a URL
 - [ ] a medição no hardware de referência
 - [ ] teste do mantenedor no celular e no desktop
 - [x] a regra padrão escolhida: `pisa`, e o seletor fica

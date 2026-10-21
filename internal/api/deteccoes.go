@@ -66,7 +66,7 @@ type paginaDeDeteccoes struct {
 //	limite=<N>   quantas; padrão limitePadraoDeDeteccoes.
 //	cams=a,b     só estas câmeras; sem ele, todas.
 //	familias=... só estas famílias; sem ele, todas.
-//	area=...     só os objetos dentro de uma área; ver filtroDaQuery.
+//	area=...     na câmera da área, só os objetos dentro dela; ver filtroDaQuery.
 //	rule=...     a regra da área: touch ou foot (o padrão).
 //
 // A página nunca parte um instante ao meio: se a última detecção empata com
@@ -155,7 +155,7 @@ func diasComDeteccao(cams []*store.Camera, filtro filtroDeObjetos) ([]string, ma
 			if err != nil {
 				return nil, nil, fmt.Errorf("%s, %s: %w", cam.ID, dia, err)
 			}
-			n += contaDeteccoes(marcas, filtro)
+			n += contaDeteccoes(marcas, filtro.daCamera(cam.ID))
 		}
 		if n > 0 {
 			dias = append(dias, dia)
@@ -223,7 +223,7 @@ func paginaDeDeteccoesDe(cams []*store.Camera, filtro filtroDeObjetos,
 			if err != nil {
 				return out, fmt.Errorf("%s, %s: %w", cam.ID, dia, err)
 			}
-			doDia = agrupa(doDia, cam.ID, marcas, filtro, passaDoCursor)
+			doDia = agrupa(doDia, cam.ID, marcas, filtro.daCamera(cam.ID), passaDoCursor)
 		}
 		sort.Slice(doDia, func(a, b int) bool { return vemAntes(doDia[a], doDia[b]) })
 		out.Deteccoes = append(out.Deteccoes, doDia...)
@@ -291,9 +291,20 @@ func diasDasCameras(cams []*store.Camera) []string {
 type filtroDeObjetos struct {
 	// familias nil é "todas".
 	familias map[string]bool
-	// regra nil é "sem área"; com ela, a área é a da câmera do filtro.
-	regra area.RegraDaArea
-	area  area.Area
+	// regra nil é "sem área". Com ela, a área vale só para as marcas de
+	// camDaArea: ver daCamera.
+	regra     area.RegraDaArea
+	area      area.Area
+	camDaArea string
+}
+
+// daCamera é o filtro das marcas de uma câmera: a área só vale na câmera
+// dela, e as outras passam só pelo filtro de família.
+func (f filtroDeObjetos) daCamera(cam string) filtroDeObjetos {
+	if cam != f.camDaArea {
+		f.regra = nil
+	}
+	return f
 }
 
 // passa diz se a marca fica. Com área, a marca sem caixa, de antes de a caixa
@@ -313,8 +324,8 @@ func (f filtroDeObjetos) passa(m store.Evento) bool {
 //
 // `area=<cam>:<x>,<y>,<x>,<y>,...` é uma área desenhada sobre a imagem da
 // câmera, com X e Y em milésimos do quadro (inteiros de 0 a 1000), para a URL
-// ficar curta. A área é de uma câmera só, então a lista passa a ser só dela:
-// com `cams` junto, a câmera da área tem de estar nele.
+// ficar curta. Ela restringe só a câmera dela: as outras de `cams` seguem
+// inteiras, e a câmera da área fora de `cams` não aparece, com área ou sem.
 func (s *Server) filtroDaQuery(q url.Values) ([]*store.Camera, filtroDeObjetos, error) {
 	var f filtroDeObjetos
 	cams, err := s.camerasDoFiltro(q.Get("cams"))
@@ -338,14 +349,11 @@ func (s *Server) filtroDaQuery(q url.Values) ([]*store.Camera, filtroDeObjetos, 
 	if !s.knownCamera(cam) {
 		return nil, f, fmt.Errorf("câmera %q da área não cadastrada", cam)
 	}
-	if q.Has("cams") && !slices.ContainsFunc(cams, func(c *store.Camera) bool { return c.ID == cam }) {
-		return nil, f, fmt.Errorf("a câmera %q da área não está em cams", cam)
-	}
 	if f.regra, err = area.NovaRegra(q.Get("rule")); err != nil {
 		return nil, f, err
 	}
-	f.area = a
-	return []*store.Camera{s.store.Camera(cam)}, f, nil
+	f.area, f.camDaArea = a, cam
+	return cams, f, nil
 }
 
 // areaDoFiltro lê `<cam>:<x>,<y>,...`, em milésimos, e devolve a câmera e a

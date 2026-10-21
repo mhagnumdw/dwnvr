@@ -72,6 +72,9 @@ func TestImagemInteiraEOMesmoQueSemFiltro(t *testing.T) {
 		{"cortada à esquerda", [4]float64{0, 0.2, 0.1, 0.5}, true, true},
 		{"cortada à direita", [4]float64{0.9, 0.2, 1, 0.5}, true, true},
 		{"a imagem toda", [4]float64{0, 0, 1, 1}, true, true},
+		// O detector de objetos devolve caixa que passa um pouco da borda.
+		{"passando da borda de baixo", [4]float64{0.4, 0.5, 0.6, 1.0015}, true, true},
+		{"passando das laterais", [4]float64{-0.0293, 0.5, 1.0115, 0.9}, true, true},
 	})
 }
 
