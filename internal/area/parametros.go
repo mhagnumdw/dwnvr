@@ -26,3 +26,8 @@ const (
 	// a tolerância só absorve esse erro, sem engordar a área.
 	ToleranciaDaBorda = 1e-9
 )
+
+// MaxAreasPorCamera segura o tamanho do cadastro: oito áreas de 20 pontos
+// ocupam ~3 KB dos 16 KB que o POST /api/cameras lê. Passa do que uma câmera
+// de casa tem para vigiar (portão, garagem, quintal, calçada).
+const MaxAreasPorCamera = 8

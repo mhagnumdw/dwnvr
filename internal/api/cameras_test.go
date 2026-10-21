@@ -10,11 +10,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/area"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
@@ -262,5 +264,31 @@ func TestSalvarGuardaOQueACameraDefine(t *testing.T) {
 	}
 	if !maps.Equal(got, want) {
 		t.Errorf("cam_teste no cameras.json\n %v\nesperava\n %v", got, want)
+	}
+}
+
+// A área chega da tela sem id: o servidor dá um, e é ele que vai para o
+// cameras.json. A área inválida recusa o save inteiro, com o motivo.
+func TestSaveDaCameraComAreas(t *testing.T) {
+	s, _ := testServer(t)
+	comGo2RTC(t, s)
+
+	pontos := []area.Ponto{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}
+	saveCamera(t, s, config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+		Areas: []config.Area{{Name: "Portão", Points: pontos}}})
+	cams, _, err := s.cfg.LoadCameras()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cams) != 1 || len(cams[0].Areas) != 1 || cams[0].Areas[0].ID == "" {
+		t.Fatalf("no arquivo: %+v", cams)
+	}
+
+	b, _ := json.Marshal(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+		Areas: []config.Area{{Name: "Portão", Points: pontos[:2]}}})
+	rec := httptest.NewRecorder()
+	s.handleSaveCamera(rec, httptest.NewRequest(http.MethodPost, "/api/cameras", bytes.NewReader(b)))
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "pontos") {
+		t.Errorf("HTTP %d: %s, esperava 400 falando dos pontos", rec.Code, rec.Body.String())
 	}
 }

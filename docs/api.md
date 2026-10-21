@@ -164,6 +164,17 @@ cair, mas não abre outra.
 | `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos e últimos avisos do log |
 | `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
+No `POST /api/cameras`, cada área sem `id` ganha um gerado pelo servidor, e a
+resposta traz a câmera com eles. Uma área inválida recusa o save inteiro com
+`400` e o motivo, como os outros campos:
+
+```text
+areas[1] "Garagem" fora do aceito: use de 3 a 20 pontos, com as coordenadas de 0 a 1
+```
+
+O formato das `areas` está em
+[Política por câmera](configuracao.md#política-por-câmera).
+
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
 consumindo: o go2rtc só preenche o `medias` do produtor enquanto existe
 consumidor, e num stream ocioso ele nem abre a conexão com a câmera. É por isso

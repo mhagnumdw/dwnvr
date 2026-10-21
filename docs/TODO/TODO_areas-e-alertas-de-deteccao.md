@@ -449,8 +449,8 @@ voltar para uma versão anterior e salvar a câmera apaga as áreas dela, porque
 versão velha não conhece o campo.
 
 - [x] mock do cadastro (A, B, C), já com as seções de alerta e de horários
-- [ ] as abas no formulário da câmera, num PR à parte para a `main`
-- [ ] o campo `areas`, com validação e teste
+- [x] as abas no formulário da câmera, num PR à parte para a `main` (#45)
+- [x] o campo `areas`, com validação e teste
 - [ ] o cadastro na tela Câmeras
 - [ ] o filtro por área cadastrada em Detecções
 - [ ] teste do mantenedor no celular e no desktop

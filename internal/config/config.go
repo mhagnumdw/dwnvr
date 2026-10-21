@@ -24,6 +24,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/mhagnumdw/dwnvr/internal/area"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 )
 
@@ -169,6 +170,11 @@ type Camera struct {
 	// o número de detecções por hora, e cada detecção é o gasto de CPU inteiro
 	// da feature.
 	DetectSensibilidade int `json:"detectSensibilidade,omitempty"`
+
+	// Areas são as áreas desenhadas sobre a imagem desta câmera, que o filtro
+	// de Detecções e o alerta usam. Mudar uma área não reinicia a gravação:
+	// o recordingParamsChanged não olha para elas.
+	Areas []Area `json:"areas,omitempty"`
 }
 
 func defaults() Config {
@@ -317,6 +323,7 @@ func (c *Config) ConfereCamera(cam Camera) (Camera, []Aviso) {
 		confereFaixa(&av, base("detectSensibilidade"), &cam.DetectSensibilidade,
 			faixaSensibilidade, 0, c.Defaults.DetectSensibilidade)
 	}
+	cam.Areas = confereAreas(cam, &av)
 	return cam, av
 }
 
@@ -413,6 +420,16 @@ func (c *Config) Resolve(cam Camera) Camera {
 	if cam.Name == "" {
 		cam.Name = cam.ID
 	}
+	// A cópia: o slice é o mesmo da câmera crua que o Manager guarda, e a regra
+	// escrita aqui mudaria a dela.
+	if len(cam.Areas) > 0 {
+		cam.Areas = slices.Clone(cam.Areas)
+		for i := range cam.Areas {
+			if cam.Areas[i].Rule == "" {
+				cam.Areas[i].Rule = area.RegraDaAreaPadrao
+			}
+		}
+	}
 	return cam
 }
 
@@ -486,7 +503,7 @@ func (c *Config) LoadCameras() ([]Camera, []Aviso, error) {
 			return nil, nil, fmt.Errorf("câmera #%d: %w", i, err)
 		}
 		var av []Aviso
-		cams[i], av = c.ConfereCamera(cams[i])
+		cams[i], av = c.ConfereCamera(cams[i].ComIDsNasAreas())
 		avisos = append(avisos, av...)
 	}
 	return cams, avisos, nil
