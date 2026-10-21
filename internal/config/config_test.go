@@ -138,6 +138,17 @@ func TestIDInvalidoAindaRecusa(t *testing.T) {
 	}
 }
 
+// TestIDComVirgulaRecusa: a vírgula separa os IDs no `cams=` da API, então uma
+// câmera com vírgula no ID nunca seria filtrada sozinha.
+func TestIDComVirgulaRecusa(t *testing.T) {
+	if _, _, err := carrega(t, "", `[{"id":"cam_a,cam_b"}]`); err == nil {
+		t.Error("ID com vírgula aceito no boot")
+	}
+	if err := ValidateCameraID("cam,a"); err == nil {
+		t.Error("ValidateCameraID aceitou vírgula")
+	}
+}
+
 // TestValorRuimNoYamlSobeComOPadrao: o mesmo vale para o dwnvr.yaml, mas lá o
 // zero também é inválido, porque o padrão é o próprio valor escrito.
 func TestValorRuimNoYamlSobeComOPadrao(t *testing.T) {

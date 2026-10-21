@@ -511,7 +511,8 @@ func (c *Config) SessionSecret() ([]byte, error) {
 }
 
 // ValidateCameraID recusa nomes que virariam caminho perigoso: o ID da câmera
-// é usado diretamente como nome de diretório dentro do storage.
+// é usado diretamente como nome de diretório dentro do storage. Recusa também
+// a vírgula, que separa os IDs nas listas da API (`cams=a,b`).
 func ValidateCameraID(id string) error {
 	if id == "" {
 		return errors.New("id vazio")
@@ -521,6 +522,9 @@ func ValidateCameraID(id string) error {
 	}
 	if strings.ContainsAny(id, `/\:`) {
 		return fmt.Errorf("id %q inválido: contém separador de caminho", id)
+	}
+	if strings.Contains(id, ",") {
+		return fmt.Errorf("id %q inválido: não pode conter vírgula", id)
 	}
 	return nil
 }

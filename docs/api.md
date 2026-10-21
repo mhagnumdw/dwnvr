@@ -8,7 +8,8 @@ Convenções que valem para tudo:
 - **Instantes são epoch em milissegundos.** Nunca há string de data-hora, exceto
   no atalho `day=AAAA-MM-DD`, que é interpretado no fuso local do servidor.
 - **`cam`** é sempre o id da câmera cadastrada. Câmera desconhecida é erro, não
-  resposta vazia.
+  resposta vazia. O id não tem caminho (`/`, `\`, `:`) nem vírgula, que separa
+  os ids nas listas (`cams=a,b`): o `POST /api/cameras` o recusa com `400`.
 - Erros vêm como HTTP 4xx com a mensagem em texto.
 
 ## Sessão
