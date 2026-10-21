@@ -408,21 +408,29 @@ por elas sem desenhar de novo.
   alerta daquela área. Ausente, é a `RegraDaAreaPadrao`.
 - Muda com a gravação no ar (`trocaCamera`).
 
-**Como fica** (a fechar no mock). O mock já desenha o formulário final, com as
-seções do alerta e dos horários, para a tela não ser refeita a cada etapa:
+**Como fica**, decidido no mock em 21/10/2026:
 
-- **onde as áreas ficam no cadastro**, em três variantes:
-  - **A - seção no formulário:** a lista das áreas, cada uma com a miniatura e
-    o nome, e "nova área" abrindo o editor em tela cheia;
-  - **B - botão no card da câmera:** "áreas (2)", com uma folha própria, fora
-    do formulário;
-  - **C - formulário em abas:** gravação, detecção, áreas e alertas.
+- **O formulário da câmera vira abas** (a variante C): Gravação, Detecção,
+  Áreas e Alerta, com os horários dentro de Alerta. O mantenedor já pensava em
+  abas para o cadastro. Foram descartadas a seção no fim do formulário (A),
+  que o dobrava de tamanho, e a folha própria aberta por um botão no card (B),
+  que abria uma segunda porta para a mesma câmera.
+- **As abas vêm antes, num PR à parte para a `main`**, só com o que existe
+  hoje (Gravação e Detecção). Esta branch se rebaseia sobre ele antes de mexer
+  no formulário, e as abas Áreas e Alerta entram aqui.
+- **Da B fica só o card:** uma linha nova com as áreas da câmera (a miniatura
+  com os contornos e "2 áreas") e o estado do alerta ("alerta: pessoa" ou
+  "alerta desligado"). Só mostra: quem muda é o "editar".
+- **Na aba Áreas:** a lista, cada área com a miniatura, o nome e a regra, e
+  "nova área", que abre o editor da Etapa 1 com o nome, a regra e "apagar
+  área". As outras áreas da câmera aparecem em cinza no editor.
 - **o quadro de fundo:** o keyframe do último segmento, decodificado no
   navegador em tamanho cheio, com um "atualizar o quadro". O `thumbs.ts`
   reduz a imagem para a tira de miniaturas, e assim não serve. A outra opção é
   o quadro da última detecção, de 480 px;
-- **"salvar como área da câmera"**, a partir da área desenhada na Etapa 1, só
-  para o admin: decidir no mock.
+- **"salvar como área da câmera" existe** (a opção X): um botão no editor da
+  Etapa 1, só para o admin, que pede o nome, grava no cadastro e passa o
+  filtro a apontar para a área salva.
 
 **Em Detecções:** o botão de área lista as áreas cadastradas, por câmera, mais
 "desenhar uma área". Escolher várias soma: qualquer uma serve. A URL leva
@@ -440,7 +448,8 @@ doc diz para redesenhar, e o editor sempre mostra o quadro atual.
 voltar para uma versão anterior e salvar a câmera apaga as áreas dela, porque a
 versão velha não conhece o campo.
 
-- [ ] mock do cadastro (A, B, C), já com as seções de alerta e de horários
+- [x] mock do cadastro (A, B, C), já com as seções de alerta e de horários
+- [ ] as abas no formulário da câmera, num PR à parte para a `main`
 - [ ] o campo `areas`, com validação e teste
 - [ ] o cadastro na tela Câmeras
 - [ ] o filtro por área cadastrada em Detecções
