@@ -1,12 +1,12 @@
 # TODO - áreas na imagem, filtro por área e alertas de detecção
 
 Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
-Etapa 0 feita (`2de9b5a`).**
+Etapas 0, 1 e 2 feitas**, na branch `areas-e-alertas`; da 1, falta só a
+medição no hardware de referência.
 
-**Próximo passo:** a [Etapa 1](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora)
-(filtrar Detecções por uma área desenhada na hora), com o mock e o
-[modelo de dados](#o-modelo-de-dados) já decididos: o código, começando pelo
-`internal/area`, na branch `areas-e-alertas`.
+**Próximo passo:** a [Etapa 3](#etapa-3---o-alerta-contrato-regra-e-registro)
+(o alerta: contrato, regra e registro), começando pela simulação do silêncio
+sobre o histórico real de marcas, que fixa o `SilencioDoAlertaMs`.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -26,8 +26,8 @@ Tudo com a interface pensada para o celular e para o desktop.
 ## Checklist
 
 - [x] [Etapa 0 - toda caixa que virou marca fica gravada](#etapa-0---toda-caixa-que-virou-marca-fica-gravada)
-- [ ] [Etapa 1 - filtrar Detecções por uma área desenhada na hora](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora)
-- [ ] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
+- [x] [Etapa 1 - filtrar Detecções por uma área desenhada na hora](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora), menos a medição no hardware de referência
+- [x] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
 - [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro)
 - [ ] [Etapa 4 - o e-mail](#etapa-4---o-e-mail)
 - [ ] [Etapa 5 - os horários do alerta](#etapa-5---os-horários-do-alerta)
@@ -467,8 +467,10 @@ versão velha não conhece o campo.
 - [x] a linha do card com as áreas (a miniatura e "2 áreas"); o chip "alerta: pessoa" entra na Etapa 3
 - [x] o filtro por área cadastrada em Detecções
 - [x] "salvar como área da câmera" no editor de Detecções (a opção X, admin)
-- [ ] teste do mantenedor no celular e no desktop
-- [ ] docs
+- [x] teste do mantenedor no celular e no desktop, em 21 e 22/10/2026. Os
+  ajustes de layout por tamanho de tela ficam para o fim da feature, numa
+  lista do mantenedor
+- [x] docs
 
 ## Etapa 3 - o alerta: contrato, regra e registro
 
