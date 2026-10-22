@@ -30,7 +30,7 @@
   import Abas from '../components/Abas.svelte';
   import MiniaturaDasAreas from '../components/MiniaturaDasAreas.svelte';
   import type EditorDeAreaT from '../components/EditorDeArea.svelte';
-  import { REGRAS, REGRA_PADRAO, MAX_AREAS, pontosSVG } from '../lib/area.ts';
+  import { REGRAS, REGRA_PADRAO, MAX_AREAS, pontosDoCadastro, pontosSVG } from '../lib/area.ts';
   import type { Ponto, Regra } from '../lib/area.ts';
   import { quadroCheio, ultimoSegmento } from '../lib/thumbs.ts';
 
@@ -356,10 +356,6 @@
     areaAberta = { indice };
   }
 
-  // 4 casas bastam ao dedo (um décimo de pixel num quadro de 1080p) e deixam
-  // o cameras.json legível.
-  const quatroCasas = (v: number) => Math.round(v * 1e4) / 1e4;
-
   function aplicaArea(pontos: Ponto[], regra: Regra, nome: string) {
     if (!editing || !areaAberta) return;
     const areas = editing.areas ?? [];
@@ -368,7 +364,7 @@
       ...(i === null ? {} : areas[i]),
       name: nome,
       rule: regra,
-      points: pontos.map(([x, y]): Ponto => [quatroCasas(x), quatroCasas(y)]),
+      points: pontosDoCadastro(pontos),
     };
     editing.areas = i === null ? [...areas, nova] : areas.map((a, j) => (j === i ? nova : a));
     areaAberta = null;

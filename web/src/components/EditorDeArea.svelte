@@ -8,14 +8,15 @@
 
   Vem num chunk à parte (`import()`): quem não desenha área não o baixa. O
   cadastro da câmera (aba Áreas) o abre com o nome da área, as outras áreas da
-  câmera em cinza, o "apagar área" e o "atualizar o quadro"; Detecções, sem
-  nada disso.
+  câmera em cinza, o "apagar área" e o "atualizar o quadro". Detecções o abre
+  com as áreas da câmera em cinza e, para o admin, o "salvar na câmera", que
+  pede o nome e grava a área no cadastro.
 -->
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import Icone from './Icone.svelte';
   import type { Caixa } from '../lib/api.ts';
-  import { REGRAS, MIN_PONTOS, MAX_PONTOS, pontosSVG } from '../lib/area.ts';
+  import { REGRAS, MIN_PONTOS, MAX_PONTOS, MAX_AREAS, pontosSVG } from '../lib/area.ts';
   import type { Ponto, Regra } from '../lib/area.ts';
 
   interface Props {
@@ -38,6 +39,12 @@
     titulo?: string;
     rotuloAplicar?: string;
     onaplicar: (pontos: Ponto[], regra: Regra, nome: string) => void;
+    // O "salvar na câmera": pede o nome e grava. Rejeita com a mensagem que o
+    // editor mostra. `cheia` é a câmera que já tem MAX_AREAS áreas.
+    salvar?: {
+      cheia: boolean;
+      onsalvar: (pontos: Ponto[], regra: Regra, nome: string) => Promise<void>;
+    } | null;
     onapagar?: (() => void) | null;
     onfechar: () => void;
   }
@@ -55,6 +62,7 @@
     titulo = 'Área',
     rotuloAplicar = 'aplicar',
     onaplicar,
+    salvar = null,
     onapagar = null,
     onfechar,
   }: Props = $props();
@@ -70,7 +78,13 @@
   let pontos = $state<Ponto[]>(ini ? ini.pontos.map((p): Ponto => [p[0], p[1]]) : []);
   let fechada = $state(!!ini && ini.pontos.length >= MIN_PONTOS);
   let regra = $state<Regra>(ini?.regra ?? 'foot');
-  const comNome = untrack(() => nome !== null);
+  // O nome é campo desde o começo no cadastro, e só depois do "salvar na
+  // câmera" em Detecções.
+  const nomeDesdeOComeco = untrack(() => nome !== null);
+  let pedindoNome = $state(false);
+  const comNome = $derived(nomeDesdeOComeco || pedindoNome);
+  let salvando = $state(false);
+  let erroAoSalvar = $state('');
   let nomeAtual = $state(untrack(() => nome ?? ''));
   let historico = $state<{ pontos: Ponto[]; fechada: boolean }[]>([]);
   let arrasto: number | null = null;
@@ -174,7 +188,35 @@
   }
 
   function aplica() {
-    if (valida) onaplicar(pontos, regra, nomeAtual.trim());
+    if (!valida) return;
+    if (pedindoNome) void salva();
+    else onaplicar(pontos, regra, nomeAtual.trim());
+  }
+
+  async function salva() {
+    if (!salvar || salvando) return;
+    salvando = true;
+    erroAoSalvar = '';
+    try {
+      await salvar.onsalvar(pontos, regra, nomeAtual.trim());
+    } catch (e) {
+      erroAoSalvar = e instanceof Error ? e.message : String(e);
+    } finally {
+      salvando = false;
+    }
+  }
+
+  let campoDoNome = $state<HTMLInputElement | null>(null);
+  async function pedeNome() {
+    pedindoNome = true;
+    erroAoSalvar = '';
+    await tick();
+    campoDoNome?.focus();
+  }
+
+  function voltaDoNome() {
+    pedindoNome = false;
+    erroAoSalvar = '';
   }
 
   function tecla(e: KeyboardEvent) {
@@ -183,7 +225,7 @@
 
   const situacao = $derived(
     desenhada
-      ? erroDoNome || `${pontos.length} pontos`
+      ? erroAoSalvar || erroDoNome || `${pontos.length} pontos`
       : pontos.length < MIN_PONTOS
         ? `Toque pelo menos ${MIN_PONTOS} pontos.`
         : 'Toque no ponto verde para fechar.',
@@ -331,7 +373,9 @@
         <label class="nome">
           Nome
           <input
+            bind:this={campoDoNome}
             bind:value={nomeAtual}
+            oninput={() => (erroAoSalvar = '')}
             maxlength="40"
             placeholder="Portão, Garagem…"
             onkeydown={(e) => {
@@ -351,7 +395,11 @@
         {/each}
       </div>
       <p class="dica regra">{REGRAS[regra].dica}</p>
-      <p class="situacao small" class:ok={valida} class:erro={desenhada && !!erroDoNome}>
+      <p
+        class="situacao small"
+        class:ok={valida && !erroAoSalvar}
+        class:erro={desenhada && (!!erroDoNome || !!erroAoSalvar)}
+      >
         {situacao}
       </p>
       <div class="acoes">
@@ -361,7 +409,24 @@
           <button class="ghost danger" onclick={onapagar}>apagar área</button>
         {/if}
         <span class="spacer"></span>
-        <button class="primary" onclick={aplica} disabled={!valida}>{rotuloAplicar}</button>
+        {#if pedindoNome}
+          <button class="ghost" onclick={voltaDoNome} disabled={salvando}>voltar</button>
+          <button class="primary" onclick={aplica} disabled={!valida || salvando}>
+            {salvando ? 'salvando…' : 'salvar área'}
+          </button>
+        {:else}
+          {#if salvar}
+            <button
+              class="ghost"
+              onclick={pedeNome}
+              disabled={!desenhada || salvar.cheia}
+              title={salvar.cheia
+                ? `a câmera já tem ${MAX_AREAS} áreas`
+                : 'grava a área no cadastro da câmera, com um nome'}>salvar na câmera</button
+            >
+          {/if}
+          <button class="primary" onclick={aplica} disabled={!valida}>{rotuloAplicar}</button>
+        {/if}
       </div>
       <p class="dica">
         Toque para pôr um ponto; toque no primeiro para fechar. Arraste um ponto para ajustar.

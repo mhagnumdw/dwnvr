@@ -92,7 +92,8 @@ da edição.
 
 As `areas` não são política de gravação: são os trechos da imagem, como
 "Portão" e "Garagem", por onde Detecções filtra. Mudar uma área não reinicia a
-gravação.
+gravação. O admin as desenha na aba Áreas do cadastro da câmera, ou em
+Detecções, com o "salvar na câmera" do editor de área.
 
 ```json
 "areas": [
