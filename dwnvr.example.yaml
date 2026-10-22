@@ -128,8 +128,8 @@ defaults:
   #   1 muito baixa    6 marcas/hora   pega  2,8% do que passa
   #   2 baixa         12 marcas/hora   pega  9,2%
   #   3 média         25 marcas/hora   pega 22,3%
-  #   4 alta          50 marcas/hora   pega 41,5%   <- padrão
-  #   5 muito alta   100 marcas/hora   pega 57,4%
+  #   4 alta          50 marcas/hora   pega 41,5%
+  #   5 muito alta   100 marcas/hora   pega 57,4%   <- padrão
   #
   # As duas colunas são medidas, não estimadas: ver docs/configuracao.md.
-  detectSensibilidade: 4
+  detectSensibilidade: 5

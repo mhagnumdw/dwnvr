@@ -32,12 +32,13 @@ package detect
 
 // --- os cinco níveis de sensibilidade ---------------------------------------
 
-// NivelPadrao é o 4 (alto). No Orange Pi Zero 3, com o modelo do dwnvr-detect,
-// ele custa ~9% de um núcleo POR CÂMERA (50 olhadas por hora, de ~6,5 s cada)
-// e entrega um terço das chegadas com a família certa na timeline. O nível 5
-// dobra esse custo, e com muitas câmeras numa placa de quatro núcleos deixa de
-// caber ao lado da gravação.
-const NivelPadrao = 4
+// NivelPadrao é o 5 (muito alto). No Orange Pi Zero 3, com o modelo do
+// dwnvr-detect, ele custa ~17% de um núcleo POR CÂMERA (100 olhadas por hora,
+// de ~6,5 s cada): medido com 9 câmeras nele, o dwnvr-detect ficou em 157% de
+// um núcleo, 39% da placa de quatro, ao lado da gravação. É o dobro do nível 4,
+// e pega 57,4% das chegadas contra 41,5%. Quem tem muitas câmeras numa placa
+// menor desce para o 4.
+const NivelPadrao = 5
 
 // NivelMin e NivelMax são a faixa que a UI oferece.
 const (
