@@ -171,7 +171,7 @@
       // "padrao".
       detect: cameras.padrao?.detect ?? false,
       detectMecanismo: cameras.padrao?.detectMecanismo ?? 'kleinberg-p',
-      detectSensibilidade: cameras.padrao?.detectSensibilidade ?? 4,
+      detectSensibilidade: cameras.padrao?.detectSensibilidade ?? 5,
       _novo: true,
       ...audioConhecido(s),
     };

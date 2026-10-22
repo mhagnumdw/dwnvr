@@ -132,8 +132,8 @@ são 300 marcas por hora, não 50:
 | 1 - muito baixa | 6 | 2,8% |
 | 2 - baixa | 12 | 9,2% |
 | 3 - média | 25 | 22,3% |
-| **4 - alta** | **50** | **41,5%** |
-| 5 - muito alta | 100 | 57,4% |
+| 4 - alta | 50 | 41,5% |
+| **5 - muito alta** | **100** | **57,4%** |
 
 "Pega" é a fatia das chegadas de pessoa, veículo ou animal em que o gatilho
 dispara a tempo. As duas colunas são medidas, não estimadas: centenas de horas
@@ -175,9 +175,10 @@ Sem a `url`, as câmeras com `detect` marcam só movimento, e o dwnvr não guard
 um byte de vídeo a mais por isso.
 
 **O que ele custa.** No Orange Pi Zero 3, cada olhada leva ~6,5 s de um núcleo
-e o container ocupa ~230 MB. No nível 4 isso é ~9% de um núcleo por câmera,
-contínuo. As olhadas passam por uma **fila com dois lugares por câmera**: se
-uma câmera dispara de novo com os dois ocupados, a marca nova fica só como
+e o container ocupa ~230 MB. No nível 5, o padrão, isso é ~17% de um núcleo
+por câmera, contínuo; no 4, a metade. As olhadas passam por uma **fila com
+dois lugares por câmera**: se uma câmera dispara de novo com os dois ocupados,
+a marca nova fica só como
 movimento. Isso impede a câmera mais agitada de ocupar a vez das outras, e é o
 que segura a entrega de `pessoa` perto do teto medido. Se o
 detector cair, a gravação e a faixa de movimento seguem como se ele não

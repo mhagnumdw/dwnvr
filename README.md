@@ -300,7 +300,7 @@ olha as câmeras com a detecção de movimento ligada.
    cadastro dela;
 2. na aba **Detecção** do formulário, marque **Marcar movimento na timeline**;
 3. escolha a **Sensibilidade**: quanto maior, mais movimento ela pega e mais
-   marcas por hora ela gera - a tela mostra quantas. O padrão é o 4;
+   marcas por hora ela gera - a tela mostra quantas. O padrão é o 5;
 4. deixe o **Mecanismo** em *estatístico (recomendado)* e clique em **salvar**.
 
 O resultado aparece alguns segundos depois na aba **Gravações**: uma faixa
