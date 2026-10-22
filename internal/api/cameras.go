@@ -45,16 +45,22 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 	s.cadastro.Lock()
 	defer s.cadastro.Unlock()
 
+	// O que a câmera não definia e chega igual ao default não vai para o
+	// cameras.json: a tela manda a câmera resolvida, e gravá-la assim a
+	// prenderia aos defaults de hoje (ver TiraDefaultsNovos). Fica aqui dentro
+	// porque compara com o cadastro, que só fica parado sob o lock.
 	cams := s.mgr.Cameras()
 	found := false
 	for i := range cams {
 		if cams[i].ID == cam.ID {
+			cam = s.cfg.TiraDefaultsNovos(cam, &cams[i])
 			cams[i] = cam
 			found = true
 			break
 		}
 	}
 	if !found {
+		cam = s.cfg.TiraDefaultsNovos(cam, nil)
 		cams = append(cams, cam)
 
 		// Câmera nova pode não ser nova no disco: uma removida sem apagar as
@@ -79,7 +85,7 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 	s.mgr.Set(cam)
 
 	resolvida := s.cfg.Resolve(cam)
-	s.log.Info("câmera salva", "cam", cam.ID, "habilitada", cam.Enabled, "audio", cam.Audio,
+	s.log.Info("câmera salva", "cam", cam.ID, "habilitada", cam.Enabled, "audio", resolvida.Audio,
 		"detect", *resolvida.Detect, "detect_mecanismo", resolvida.DetectMecanismo,
 		"detect_sensibilidade", resolvida.DetectSensibilidade)
 	writeJSON(w, map[string]any{"ok": true, "camera": resolvida})

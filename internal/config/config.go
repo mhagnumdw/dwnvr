@@ -416,6 +416,50 @@ func (c *Config) Resolve(cam Camera) Camera {
 	return cam
 }
 
+// TiraDefaultsNovos é a volta do Resolve na hora de gravar: zera o campo que
+// chega igual ao default e que a câmera não definia antes. `antes` é a câmera
+// como estava no cadastro, ou nil quando ela é nova.
+//
+// A tela edita a câmera como o GET /api/cameras a mostra, já resolvida, e a
+// devolve inteira. Gravada assim, ela passava a ter no cameras.json o valor de
+// cada default, e mudar o defaults do dwnvr.yaml não chegava mais a ela.
+//
+// O campo que a câmera já definia fica, mesmo igual ao default: alguém o
+// escolheu. O preço é que a tela não consegue fixar numa câmera um valor
+// igual ao default de hoje; ele segue o default.
+func (c *Config) TiraDefaultsNovos(cam Camera, antes *Camera) Camera {
+	var a Camera
+	if antes != nil {
+		a = *antes
+	}
+	d := c.Defaults
+	if a.SegmentSeconds <= 0 && cam.SegmentSeconds == d.SegmentSeconds {
+		cam.SegmentSeconds = 0
+	}
+	if a.QuotaMB <= 0 && cam.QuotaMB == d.QuotaMB {
+		cam.QuotaMB = 0
+	}
+	if a.MaxDays <= 0 && cam.MaxDays == d.MaxDays {
+		cam.MaxDays = 0
+	}
+	if a.Audio == "" && cam.Audio == d.Audio {
+		cam.Audio = ""
+	}
+	if a.StallSeconds <= 0 && cam.StallSeconds == d.StallSeconds {
+		cam.StallSeconds = 0
+	}
+	if a.Detect == nil && cam.Detect != nil && *cam.Detect == d.Detect {
+		cam.Detect = nil
+	}
+	if a.DetectMecanismo == "" && cam.DetectMecanismo == d.DetectMecanismo {
+		cam.DetectMecanismo = ""
+	}
+	if a.DetectSensibilidade <= 0 && cam.DetectSensibilidade == d.DetectSensibilidade {
+		cam.DetectSensibilidade = 0
+	}
+	return cam
+}
+
 // LoadCameras lê o cameras.json. Ausente significa "nenhuma câmera cadastrada".
 //
 // Só o ID inválido impede o boot, porque ele vira nome de diretório no disco.

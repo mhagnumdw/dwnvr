@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 )
@@ -64,6 +65,28 @@ func TestDetectDesligadoNaCameraVenceODefault(t *testing.T) {
 	}
 	if b := cfg.Resolve(cams[1]); !*b.Detect {
 		t.Error("cam_b sem o campo não herdou o default ligado")
+	}
+}
+
+// TestTiraDefaultsNovosDesfazOResolve: a câmera nova, resolvida, volta a ter
+// só o id, o nome e o enabled. Um campo que entrar no Resolve e ficar de fora
+// do TiraDefaultsNovos falha aqui. O maxDays vai no yaml porque o default
+// dele é zero, e com zero o teste não o veria.
+func TestTiraDefaultsNovosDesfazOResolve(t *testing.T) {
+	cfg, _, err := carrega(t, "defaults:\n  maxDays: 7\n", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	crua := Camera{ID: "cam_a", Name: "A", Enabled: true}
+	resolvida := cfg.Resolve(crua)
+	if got := cfg.TiraDefaultsNovos(resolvida, nil); !reflect.DeepEqual(got, crua) {
+		t.Errorf("câmera nova gravada como %+v, esperava %+v", got, crua)
+	}
+
+	// A câmera que já definia cada campo, com o mesmo valor do default, fica
+	// como estava: o valor foi escolhido por alguém.
+	if got := cfg.TiraDefaultsNovos(resolvida, &resolvida); !reflect.DeepEqual(got, resolvida) {
+		t.Errorf("câmera definida gravada como %+v, esperava %+v", got, resolvida)
 	}
 }
 
