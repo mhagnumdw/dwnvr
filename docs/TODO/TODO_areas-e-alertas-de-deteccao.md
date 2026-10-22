@@ -1,12 +1,12 @@
 # TODO - áreas na imagem, filtro por área e alertas de detecção
 
 Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
-Etapa 0 feita (`2de9b5a`).**
+Etapas 0, 1 e 2 feitas**, na branch `areas-e-alertas`; da 1, falta só a
+medição no hardware de referência.
 
-**Próximo passo:** a [Etapa 1](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora)
-(filtrar Detecções por uma área desenhada na hora), com o mock e o
-[modelo de dados](#o-modelo-de-dados) já decididos: o código, começando pelo
-`internal/area`, na branch `areas-e-alertas`.
+**Próximo passo:** a [Etapa 3](#etapa-3---o-alerta-contrato-regra-e-registro)
+(o alerta: contrato, regra e registro), começando pela simulação do silêncio
+sobre o histórico real de marcas, que fixa o `SilencioDoAlertaMs`.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -26,8 +26,8 @@ Tudo com a interface pensada para o celular e para o desktop.
 ## Checklist
 
 - [x] [Etapa 0 - toda caixa que virou marca fica gravada](#etapa-0---toda-caixa-que-virou-marca-fica-gravada)
-- [ ] [Etapa 1 - filtrar Detecções por uma área desenhada na hora](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora)
-- [ ] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
+- [x] [Etapa 1 - filtrar Detecções por uma área desenhada na hora](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora), menos a medição no hardware de referência
+- [x] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
 - [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro)
 - [ ] [Etapa 4 - o e-mail](#etapa-4---o-e-mail)
 - [ ] [Etapa 5 - os horários do alerta](#etapa-5---os-horários-do-alerta)
@@ -428,14 +428,26 @@ por elas sem desenhar de novo.
   navegador em tamanho cheio, com um "atualizar o quadro". O `thumbs.ts`
   reduz a imagem para a tira de miniaturas, e assim não serve. A outra opção é
   o quadro da última detecção, de 480 px;
+- **a aba Áreas só existe com a detecção**, decidido em 21/10/2026: com a
+  marcação de movimento ligada na aba Detecção e o detector de objetos
+  configurado. Sem os dois a câmera não tem detecção, e a área não teria o que
+  filtrar. Desligar a marcação esconde a aba, mas não apaga as áreas.
+- **o cadastro guiado passa por Áreas**, decidido em 21/10/2026: deixa claro
+  que a opção existe. A câmera nova ainda não gravou, então a aba só avisa que
+  dá para desenhar depois de salvar, em editar.
 - **"salvar como área da câmera" existe** (a opção X): um botão no editor da
   Etapa 1, só para o admin, que pede o nome, grava no cadastro e passa o
-  filtro a apontar para a área salva.
+  filtro a apontar para a área salva. Na tela ele é o "salvar na câmera", ao
+  lado do "aplicar"; o editor de Detecções mostra em cinza as áreas que a
+  câmera já tem, para todo mundo. A tela relê o cadastro antes e manda a
+  câmera inteira pelo `POST /api/cameras`, sem endpoint novo.
 
 **Em Detecções:** o botão de área lista as áreas cadastradas, por câmera, mais
-"desenhar uma área". Escolher várias soma: qualquer uma serve. A URL leva
-`areas=<cam>/<id>`, e o servidor resolve pelo cadastro: editar a área muda o
-filtro dali em diante, inclusive sobre o passado.
+"desenhar uma área". Escolher várias soma: qualquer uma serve, a desenhada
+junto. A URL leva `areas=<cam>/<id>,<cam>/<id>`, separadas por vírgula como as
+câmeras de `cams`, e o servidor resolve pelo cadastro: editar a área muda o
+filtro dali em diante, inclusive sobre o passado. O link com uma área que não existe mais
+abre sem ela, e a API a recusa.
 
 **O enquadramento:** se a câmera for movida, a área fica no lugar errado. A
 doc diz para redesenhar, e o editor sempre mostra o quadro atual.
@@ -449,12 +461,16 @@ voltar para uma versão anterior e salvar a câmera apaga as áreas dela, porque
 versão velha não conhece o campo.
 
 - [x] mock do cadastro (A, B, C), já com as seções de alerta e de horários
-- [ ] as abas no formulário da câmera, num PR à parte para a `main`
-- [ ] o campo `areas`, com validação e teste
-- [ ] o cadastro na tela Câmeras
-- [ ] o filtro por área cadastrada em Detecções
-- [ ] teste do mantenedor no celular e no desktop
-- [ ] docs
+- [x] as abas no formulário da câmera, num PR à parte para a `main` (#45)
+- [x] o campo `areas`, com validação e teste
+- [x] a aba Áreas no formulário da câmera, com o editor da Etapa 1
+- [x] a linha do card com as áreas (a miniatura e "2 áreas"); o chip "alerta: pessoa" entra na Etapa 3
+- [x] o filtro por área cadastrada em Detecções
+- [x] "salvar como área da câmera" no editor de Detecções (a opção X, admin)
+- [x] teste do mantenedor no celular e no desktop, em 21 e 22/10/2026. Os
+  ajustes de layout por tamanho de tela ficam para o fim da feature, numa
+  lista do mantenedor
+- [x] docs
 
 ## Etapa 3 - o alerta: contrato, regra e registro
 
