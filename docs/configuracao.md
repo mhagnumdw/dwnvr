@@ -65,6 +65,22 @@ uma câmera em wi-fi ruim precisa de mais tolerância que uma no cabo.
 Os valores de `defaults` no `dwnvr.yaml` valem para qualquer câmera que não
 defina o campo.
 
+Salvar a câmera pela tela não a prende aos `defaults` de hoje: o campo que ela
+não definia e chega igual ao default fica fora do `cameras.json`, e continua
+seguindo o `dwnvr.yaml`. O campo que ela já definia fica, mesmo igual ao
+default. Duas consequências:
+
+- pela tela, não dá para fixar numa câmera um valor igual ao default de hoje:
+  isso só se faz escrevendo o campo no `cameras.json`;
+- uma câmera salva por uma versão anterior pode ter todos os campos gravados,
+  com os defaults da época, e só volta a seguir o `dwnvr.yaml` quando eles
+  saem do `cameras.json`.
+
+Nos dois casos, pare o dwnvr antes de editar o `cameras.json` e suba de novo
+depois. O arquivo só é lido no boot, e salvar qualquer câmera pela tela com o
+dwnvr no ar regrava o arquivo inteiro com o que ele tem na memória, por cima
+da edição.
+
 ## Valor fora da faixa
 
 Um número fora da faixa **não impede o dwnvr de subir**. Gravar com o padrão é

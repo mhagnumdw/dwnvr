@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -50,7 +52,9 @@ func comGo2RTC(t *testing.T, s *Server) *atomic.Int32 {
 	return &abertas
 }
 
-func saveCamera(t *testing.T, s *Server, cam config.Camera) {
+// saveCamera faz o POST /api/cameras. `cam` é uma config.Camera, ou o JSON da
+// câmera como a tela o manda.
+func saveCamera(t *testing.T, s *Server, cam any) {
 	t.Helper()
 	b, _ := json.Marshal(cam)
 	rec := httptest.NewRecorder()
@@ -159,5 +163,104 @@ func TestRecadastroLeAsGravacoesQueJaEstaoNoDisco(t *testing.T) {
 
 	if got := s.store.Camera("cam_a").TotalBytes(); got != 1000 {
 		t.Errorf("índice de cam_a com %d bytes depois do recadastro, esperava 1000", got)
+	}
+}
+
+// comDefaultsDeVerdade é o testServer com os defaults de quem não escreveu
+// dwnvr.yaml, todos preenchidos, e o go2rtc fora do ar: o GET lista as
+// câmeras sem os streams, e o POST salva sem conferir o stream.
+func comDefaultsDeVerdade(t *testing.T) *Server {
+	t.Helper()
+	s, _ := testServer(t)
+	s.cfg.Defaults = configPadrao(t).Defaults
+	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"})
+	return s
+}
+
+// respostaDoGet é o GET /api/cameras do admin, com cada câmera e o padrao no
+// JSON genérico: a tela edita esse objeto e o devolve inteiro, e o teste faz
+// o mesmo, sem passar pela config.Camera.
+func respostaDoGet(t *testing.T, s *Server) (cams map[string]map[string]any, padrao map[string]any) {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	s.requireAuth(s.handleCameras)(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
+	var got struct {
+		Cameras []map[string]any `json:"cameras"`
+		Padrao  map[string]any   `json:"padrao"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
+	}
+	cams = map[string]map[string]any{}
+	for _, c := range got.Cameras {
+		cams[fmt.Sprint(c["id"])] = c
+	}
+	return cams, got.Padrao
+}
+
+// noArquivo é cada câmera do cameras.json, lido do disco: é o arquivo que
+// decide se o default do dwnvr.yaml ainda chega à câmera.
+func noArquivo(t *testing.T, s *Server) map[string]map[string]any {
+	t.Helper()
+	b, err := os.ReadFile(s.cfg.CamerasPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lista []map[string]any
+	if err := json.Unmarshal(b, &lista); err != nil {
+		t.Fatalf("cameras.json %s (%v)", b, err)
+	}
+	cams := map[string]map[string]any{}
+	for _, c := range lista {
+		cams[fmt.Sprint(c["id"])] = c
+	}
+	return cams
+}
+
+func chaves(m map[string]any) []string {
+	return slices.Sorted(maps.Keys(m))
+}
+
+// A tela edita a câmera como o GET a mostra, já com os defaults aplicados, e
+// a devolve inteira. Salvar sem mudar nada gravava cada default no
+// cameras.json, e mudar o defaults do dwnvr.yaml não chegava mais à câmera. A
+// câmera nova, que a tela monta a partir do padrao, era gravada do mesmo jeito.
+func TestSalvarSemMudarNadaNaoPrendeOsDefaults(t *testing.T) {
+	s := comDefaultsDeVerdade(t)
+	cams, padrao := respostaDoGet(t, s)
+
+	saveCamera(t, s, cams["cam_teste"])
+	padrao["id"], padrao["name"], padrao["enabled"] = "cam_a", "A", true
+	saveCamera(t, s, padrao)
+
+	arquivo := noArquivo(t, s)
+	for _, id := range []string{"cam_teste", "cam_a"} {
+		if got, want := chaves(arquivo[id]), []string{"enabled", "id", "name"}; !slices.Equal(got, want) {
+			t.Errorf("%s no cameras.json com %v, esperava só %v", id, got, want)
+		}
+	}
+}
+
+// O que a câmera já definia fica no arquivo, mesmo igual ao default; o que a
+// pessoa mudou entra; o resto segue o default.
+func TestSalvarGuardaOQueACameraDefine(t *testing.T) {
+	s := comDefaultsDeVerdade(t)
+	d := s.cfg.Defaults
+	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+		QuotaMB: d.QuotaMB, Audio: config.AudioAAC})
+
+	cams, _ := respostaDoGet(t, s)
+	cam := cams["cam_teste"]
+	cam["segmentSeconds"], cam["detect"] = 60, !d.Detect
+	saveCamera(t, s, cam)
+
+	got := noArquivo(t, s)["cam_teste"]
+	want := map[string]any{
+		"id": "cam_teste", "name": "Teste", "enabled": true,
+		"quotaMB": float64(d.QuotaMB), "audio": config.AudioAAC,
+		"segmentSeconds": float64(60), "detect": !d.Detect,
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("cam_teste no cameras.json\n %v\nesperava\n %v", got, want)
 	}
 }

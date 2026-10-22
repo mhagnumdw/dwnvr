@@ -155,7 +155,7 @@ cair, mas não abre outra.
 | Endpoint | Parâmetros | O que faz |
 | --- | --- | --- |
 | `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs; para o viewer, só as câmeras e o `detector` |
-| `POST /api/cameras` | corpo JSON | **só admin**: cadastra ou altera (upsert por id) |
+| `POST /api/cameras` | corpo JSON | **só admin**: cadastra ou altera (upsert por id); o campo que a câmera não definia e chega igual ao default não é gravado (ver [Política por câmera](configuracao.md#política-por-câmera)) |
 | `DELETE /api/cameras` | `id`, `recordings=1` | **só admin**: descadastra; com `recordings=1` apaga as gravações junto |
 | `GET /api/streams/probe` | `src` | **só admin**: diz se um stream entrega áudio, abrindo-o se preciso |
 | `POST /api/go2rtc/restart` | - | **só admin**: reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
