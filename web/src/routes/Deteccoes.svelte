@@ -21,7 +21,7 @@
   import type EditorDeAreaT from '../components/EditorDeArea.svelte';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
   import type { Caixa, Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
-  import { cameras, loadCameras } from '../lib/state.svelte.ts';
+  import { cameras, ehAdmin, loadCameras } from '../lib/state.svelte.ts';
   import { paramsAtuais, escrever, linkGravacoes } from '../lib/rota.svelte.ts';
   import {
     FAMILIAS,
@@ -34,7 +34,15 @@
   import { CAIXA_FOLGA_PX } from '../lib/caixas.ts';
   import { hhmmss, ddmm, dayKey, parseDay, horaDoMinuto } from '../lib/format.ts';
   import { avisar, fecharAviso } from '../lib/snackbar.svelte.ts';
-  import { REGRAS, REGRA_PADRAO, areaDaQuery, areaNaQuery, pontosSVG } from '../lib/area.ts';
+  import {
+    REGRAS,
+    REGRA_PADRAO,
+    MAX_AREAS,
+    areaDaQuery,
+    areaNaQuery,
+    pontosDoCadastro,
+    pontosSVG,
+  } from '../lib/area.ts';
   import type { AreaDoFiltro, Ponto, Regra } from '../lib/area.ts';
   import { ultimoSegmento } from '../lib/thumbs.ts';
 
@@ -993,6 +1001,36 @@
     void recomeca();
   }
 
+  // O "salvar na câmera" do editor, só do admin: grava a área desenhada no
+  // cadastro e o filtro passa a apontar para ela, como se tivesse sido
+  // marcada no popover. Relê o cadastro antes, para não devolver ao servidor
+  // uma câmera que alguém mudou depois que esta tela abriu.
+  async function salvaArea(pontos: Ponto[], regra: Regra, nome: string) {
+    if (!editor) return;
+    const id = editor.cam;
+    // O editor pode ter fechado durante a gravação.
+    const aindaAberto = () => editor?.cam === id;
+    try {
+      await loadCameras();
+      const cadastro = cameras.list.find((c) => c.id === id);
+      if (!cadastro) throw new Error('a câmera saiu do cadastro');
+      const { dir: _dir, ...cam } = cadastro;
+      const nova = { name: nome, rule: regra, points: pontosDoCadastro(pontos) };
+      const r = await api.saveCamera({ ...cam, areas: [...(cam.areas ?? []), nova] });
+      const salva = r.camera.areas?.find((a) => a.name === nome);
+      await loadCameras();
+      if (aindaAberto()) editor = null;
+      if (area?.cam === id) area = null;
+      if (salva?.id) {
+        areasMarcadas = [...areasMarcadas, `${id}/${salva.id}`];
+        marcaCamera(id);
+      }
+      void recomeca();
+    } catch (e) {
+      throw new Error(`não deu para salvar: ${mensagemDe(e)}`, { cause: e });
+    }
+  }
+
   // Liga ou desliga uma área cadastrada. O popover fica aberto: escolher
   // várias soma.
   function alternaArea(k: string) {
@@ -1516,12 +1554,16 @@
 {/snippet}
 
 {#if editor && EditorDeArea}
+  {@const daCamera = cameras.list.find((c) => c.id === editor?.cam)?.areas ?? []}
   <EditorDeArea
     camera={nomes[editor.cam] ?? editor.cam}
     fundo={editor.fundo}
     caixas={editor.caixas}
     erro={editor.erro}
     inicial={area?.cam === editor.cam ? area : null}
+    outras={daCamera}
+    nomesEmUso={daCamera.map((a) => a.name)}
+    salvar={ehAdmin() ? { cheia: daCamera.length >= MAX_AREAS, onsalvar: salvaArea } : null}
     onaplicar={aplicaArea}
     onfechar={() => (editor = null)}
   />

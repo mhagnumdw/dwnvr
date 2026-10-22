@@ -437,7 +437,10 @@ por elas sem desenhar de novo.
   dá para desenhar depois de salvar, em editar.
 - **"salvar como área da câmera" existe** (a opção X): um botão no editor da
   Etapa 1, só para o admin, que pede o nome, grava no cadastro e passa o
-  filtro a apontar para a área salva.
+  filtro a apontar para a área salva. Na tela ele é o "salvar na câmera", ao
+  lado do "aplicar"; o editor de Detecções mostra em cinza as áreas que a
+  câmera já tem, para todo mundo. A tela relê o cadastro antes e manda a
+  câmera inteira pelo `POST /api/cameras`, sem endpoint novo.
 
 **Em Detecções:** o botão de área lista as áreas cadastradas, por câmera, mais
 "desenhar uma área". Escolher várias soma: qualquer uma serve, a desenhada
@@ -463,7 +466,7 @@ versão velha não conhece o campo.
 - [x] a aba Áreas no formulário da câmera, com o editor da Etapa 1
 - [x] a linha do card com as áreas (a miniatura e "2 áreas"); o chip "alerta: pessoa" entra na Etapa 3
 - [x] o filtro por área cadastrada em Detecções
-- [ ] "salvar como área da câmera" no editor de Detecções (a opção X, admin)
+- [x] "salvar como área da câmera" no editor de Detecções (a opção X, admin)
 - [ ] teste do mantenedor no celular e no desktop
 - [ ] docs
 

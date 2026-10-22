@@ -63,6 +63,11 @@ export function areaDaQuery(area: string | null, regra: string | null): AreaDoFi
   return { cam: area.slice(0, i), pontos, regra: ehRegra(regra) ? regra : REGRA_PADRAO };
 }
 
+// Os pontos como vão para o cameras.json: 4 casas bastam ao dedo (um décimo
+// de pixel num quadro de 1080p) e deixam o arquivo legível.
+export const pontosDoCadastro = (pontos: readonly Ponto[]) =>
+  pontos.map(([x, y]): Ponto => [Math.round(x * 1e4) / 1e4, Math.round(y * 1e4) / 1e4]);
+
 // Os pontos no `points` de um <polygon> com viewBox 0 0 1 1.
 export const pontosSVG = (pontos: readonly Ponto[]) =>
   pontos.map(([x, y]) => `${x},${y}`).join(' ');
