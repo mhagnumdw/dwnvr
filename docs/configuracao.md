@@ -70,12 +70,16 @@ não definia e chega igual ao default fica fora do `cameras.json`, e continua
 seguindo o `dwnvr.yaml`. O campo que ela já definia fica, mesmo igual ao
 default. Duas consequências:
 
-- pela tela, não dá para fixar numa câmera um valor igual ao default de hoje.
-  Para isso, escreva o campo no `cameras.json`;
+- pela tela, não dá para fixar numa câmera um valor igual ao default de hoje:
+  isso só se faz escrevendo o campo no `cameras.json`;
 - uma câmera salva por uma versão anterior pode ter todos os campos gravados,
-  com os defaults da época. Para ela voltar a seguir o `dwnvr.yaml`, pare o
-  dwnvr, tire os campos do `cameras.json` e suba de novo: o arquivo só é lido
-  no boot.
+  com os defaults da época, e só volta a seguir o `dwnvr.yaml` quando eles
+  saem do `cameras.json`.
+
+Nos dois casos, pare o dwnvr antes de editar o `cameras.json` e suba de novo
+depois. O arquivo só é lido no boot, e salvar qualquer câmera pela tela com o
+dwnvr no ar regrava o arquivo inteiro com o que ele tem na memória, por cima
+da edição.
 
 ## Valor fora da faixa
 
