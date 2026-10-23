@@ -426,7 +426,14 @@ export interface AlertaDaCamera {
   areas?: string[];
 }
 
-// Uma área cadastrada na câmera. A área nova vai sem `id`, e o servidor dá um.
+// Onde o alerta vale, como a aba Alerta mostra. Não vai ao servidor, que só
+// guarda as áreas: "só nas áreas marcadas" sem nenhuma marcada é um estado da
+// tela, que ele leria como a imagem inteira.
+export type OndeDoAlerta = 'tudo' | 'areas';
+
+// Uma área cadastrada na câmera. A área nova da aba Áreas já vai com `id`,
+// para o alerta poder marcá-la; a do "salvar na câmera" de Detecções vai sem,
+// e o servidor dá um.
 export interface AreaDaCamera {
   id?: string;
   name: string;

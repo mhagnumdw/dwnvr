@@ -322,7 +322,7 @@ nem a espera nem a goroutine de envio nascem.
 
 | Onde | O quê |
 | --- | --- |
-| `cameras.json`, pela tela de Câmeras | `detect`, `detectMecanismo`, `detectSensibilidade` e `areas` |
+| `cameras.json`, pela tela de Câmeras | `detect`, `detectMecanismo`, `detectSensibilidade`, `areas` e `alert` |
 | `dwnvr.yaml` | `defaults` desses três, e `detector.url` |
 | env do `dwnvr-detect` | `DETECT_THREADS`, `DETECT_MODELO`, `DETECT_PORTA` |
 
