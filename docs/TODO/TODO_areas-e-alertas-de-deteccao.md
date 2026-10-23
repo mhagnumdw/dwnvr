@@ -560,6 +560,10 @@ carro que está lá. As saídas:
 Não alertar "a primeira olhada depois de subir" não serve: ela pode acontecer
 horas depois, e ser justamente a chegada que importa.
 
+**Escolhida a b** (decisão do mantenedor, 22/10/2026), numa branch à parte da
+`main`: ela conserta a timeline sozinha, sem depender do alerta. Esta branch a
+recebe por rebase.
+
 **No Diagnóstico**, só para o admin:
 
 - **o card Alertas**, que só existe com alguma câmera com alerta ligado: os
