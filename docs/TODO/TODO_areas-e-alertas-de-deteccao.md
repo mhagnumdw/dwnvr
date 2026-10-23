@@ -2,13 +2,13 @@
 
 Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
 Etapas 0, 1 e 2 feitas**, na branch `areas-e-alertas`; da 1, falta só a
-medição no hardware de referência. **A Etapa 3 está no meio:** o campo
-`alert`, o `internal/alerta`, a aba Alerta e a marca gravada na detecção, com o
-`alert=1` no `/api/deteccoes`, estão feitos.
+medição no hardware de referência. **A Etapa 3 está feita, menos a
+instalação de teste:** o campo `alert`, o `internal/alerta`, a aba Alerta, a
+marca gravada na detecção e o "só alertas" em Detecções.
 
-**Próximo passo:** na [Etapa 3](#etapa-3---o-alerta-contrato-regra-e-registro)
-(o alerta: contrato, regra e registro), o botão "só alertas" em Detecções e o
-bloco "alertou" na folha.
+**Próximo passo:** a [Etapa 4](#etapa-4---os-horários-do-alerta) (os horários
+do alerta), começando pelo mock. A instalação de teste da Etapa 3 fica para
+depois: por ora o mantenedor segue desenvolvendo e testando na bancada local.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -30,7 +30,7 @@ Tudo com a interface pensada para o celular e para o desktop.
 - [x] [Etapa 0 - toda caixa que virou marca fica gravada](#etapa-0---toda-caixa-que-virou-marca-fica-gravada)
 - [x] [Etapa 1 - filtrar Detecções por uma área desenhada na hora](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora), menos a medição no hardware de referência
 - [x] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
-- [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro), em andamento: faltam a tela de Detecções, a instalação de teste e as docs
+- [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro), menos a instalação de teste
 - [ ] [Etapa 4 - os horários do alerta](#etapa-4---os-horários-do-alerta)
 - [ ] [Etapa 5 - o e-mail](#etapa-5---o-e-mail)
 
@@ -515,8 +515,12 @@ e-mail, a 5.
   confirmação diz que o alerta será desligado.
 - **A tela não salva o alerta incompleto** (23/10/2026): ligado sem família, ou
   com "só nas áreas marcadas" e nenhuma marcada, ela diz o que falta.
-- **O viewer não recebe o `alert`** no `GET /api/cameras` (23/10/2026): ele não
-  edita câmera, e a tela dele não mostra o alerta.
+- **O viewer recebe do `alert` só o ligado** no `GET /api/cameras`,
+  `"alert":{"enabled":true}`, sem as famílias e as áreas. Em 23/10/2026 ele não
+  recebia nada; no mesmo dia, com o alerta gravado na detecção, o mantenedor
+  decidiu que o viewer vê em Detecções o mesmo que o admin: o botão "só
+  alertas", o sino e o bloco "alertou". O ligado é o que faz o botão aparecer;
+  o que alertou vem marcado em cada detecção.
 
 **Onde avalia:** dentro do `Recorder.olhou`, depois de montar as linhas e
 antes de gravá-las, para a marca `alert` entrar na escrita (no passo 2 era
@@ -689,9 +693,11 @@ desligado.
   escrita; sai a lista em memória e o `GET /api/alertas`
 - [x] `alert` e `alertAreas` no `/api/deteccoes` e o filtro `alert=1`, que o
   viewer também recebe (decisão do mantenedor, 23/10/2026)
-- [ ] o botão "só alertas" em Detecções e o bloco "alertou" na folha
-- [ ] na instalação de teste, por deploy manual, com detecções reais
-- [ ] docs
+- [x] o botão "só alertas" em Detecções e o bloco "alertou" na folha, também
+  para o viewer, que passa a receber o `alert.enabled`
+- [ ] na instalação de teste, por deploy manual, com detecções reais: adiada
+  (decisão do mantenedor, 23/10/2026), por ora segue na bancada local
+- [x] docs
 
 ## Etapa 4 - os horários do alerta
 

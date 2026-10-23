@@ -354,8 +354,9 @@ detectar, por exemplo, uma pessoa no portão:
    (pessoa, veículo, animal) e onde (a imagem inteira ou só as áreas marcadas),
    e clique em **salvar**.
 
-Por enquanto o alerta vai só para o log do dwnvr: o envio por e-mail ainda não
-existe. E ele avisa do que a detecção marcar, que não é toda chegada: não é
+Por enquanto o alerta vai só para o log do dwnvr e fica marcado na detecção:
+na aba **Detecções**, o botão **só alertas** mostra só as que alertaram, com a
+área em que o objeto caiu. O envio por e-mail ainda não existe. E ele avisa do que a detecção marcar, que não é toda chegada: não é
 alarme. Os limites estão em [`docs/deteccao.md`](docs/deteccao.md#o-alerta).
 
 ## Atualizar
@@ -668,7 +669,6 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── probe.go        descobre se um stream ocioso entrega áudio, com cache
 │   │   ├── recordings.go   dias, timeline, init, segmentos, thumbnail, HLS, exportação
 │   │   ├── deteccoes.go    as detecções de todas as câmeras, paginadas, e o quadro de cada uma
-│   │   ├── alertas.go      os últimos alertas, para o Diagnóstico
 │   │   ├── live.go         proxy do go2rtc, com a credencial ficando no servidor
 │   │   ├── diagnostico_servidor.go  a máquina que grava, para o Diagnóstico: temperatura, memória, storage, go2rtc, detector
 │   │   ├── diagnostico_processo.go  o próprio dwnvr, para o Diagnóstico: CPU, memória, arquivos abertos, UID

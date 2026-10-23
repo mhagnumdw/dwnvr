@@ -127,8 +127,8 @@
   </div>
 
   <small class="muted">
-    Vai para o log do dwnvr e para o card Alertas do Diagnóstico. O envio por e-mail ainda não
-    existe.
+    Fica marcado na detecção, e se vê em Detecções com o filtro "só alertas". O envio por e-mail
+    ainda não existe.
   </small>
   <small class="limite">
     O alerta avisa do que a detecção marcar, e ela não pega toda chegada: não é alarme.

@@ -209,9 +209,6 @@ export const api = {
   // últimos avisos do log. À parte do health porque custa um teste de escrita
   // no disco - só a pede quem abriu o card "Este servidor".
   servidor: () => request<Servidor>('health/servidor'),
-  // Os últimos alertas, para o card Alertas. À parte do health porque a lista
-  // pesa: o health leva só o total, e a tela pede a lista quando ele muda.
-  alertas: () => request<ListaDeAlertas>('alertas'),
 
   // Um e-mail de teste pela seção smtp. O erro do servidor de e-mail vem como
   // ele respondeu.
@@ -263,7 +260,7 @@ export const api = {
 
 // O filtro que a lista e o calendário de Detecções dividem. As áreas restringem
 // só a câmera delas; as outras de `cams` seguem inteiras.
-function queryDoFiltro({ cams, familias, area, areas }: FiltroDeDeteccoes) {
+function queryDoFiltro({ cams, familias, area, areas, soAlertas }: FiltroDeDeteccoes) {
   const q = new URLSearchParams();
   if (cams?.length) q.set('cams', cams.join(','));
   if (familias?.length) q.set('familias', familias.join(','));
@@ -272,6 +269,7 @@ function queryDoFiltro({ cams, familias, area, areas }: FiltroDeDeteccoes) {
     q.set('rule', area.regra);
   }
   if (areas?.length) q.set('areas', areas.join(','));
+  if (soAlertas) q.set('alert', '1');
   return q;
 }
 
@@ -758,6 +756,11 @@ export interface ObjetoNoQuadro {
   classe: string;
   score: number;
   caixa?: Caixa;
+  // O objeto passou na regra de alerta da câmera, na hora em que foi olhado, e
+  // caiu nas áreas do alerta destes ids. Sem áreas no alerta, `alertAreas` não
+  // vem. O id de uma área apagada desde então continua vindo.
+  alert?: boolean;
+  alertAreas?: string[];
 }
 
 // Uma olhada do detector numa câmera: o instante do onset e tudo o que ele
@@ -768,25 +771,6 @@ export interface Deteccao {
   quadroMs?: number;
   temQuadro: boolean;
   objetos: ObjetoNoQuadro[];
-}
-
-// --- os alertas (card Alertas do Diagnóstico)
-
-// Um alerta tem o formato de uma detecção, só com os objetos que passaram na
-// regra, e cada um traz os nomes das áreas do alerta em que caiu. Sem áreas no
-// alerta, o `areas` não vem.
-export interface ObjetoDoAlerta extends ObjetoNoQuadro {
-  areas?: string[];
-}
-
-export interface Alerta extends Omit<Deteccao, 'objetos'> {
-  objetos: ObjetoDoAlerta[];
-}
-
-// Do mais novo para o mais velho; `total` conta desde que o dwnvr subiu.
-export interface ListaDeAlertas {
-  total: number;
-  recent: Alerta[];
 }
 
 export interface PaginaDeDeteccoes {
@@ -804,6 +788,9 @@ export interface FiltroDeDeteccoes {
   // O mesmo, com as áreas cadastradas: `<cam>/<id>`. As de uma câmera somam,
   // a `area` junto: qualquer uma serve.
   areas?: readonly string[] | null;
+  // Só as detecções em que algum objeto que fica alertou; elas vêm inteiras,
+  // com o objeto que não alertou.
+  soAlertas?: boolean;
 }
 
 // `antes` e `depois` são o cursor: um ou nenhum.
