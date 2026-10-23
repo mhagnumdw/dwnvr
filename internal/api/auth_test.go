@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/limite"
 	"github.com/mhagnumdw/dwnvr/internal/usuarios"
@@ -263,10 +264,12 @@ func TestPapelPorRota(t *testing.T) {
 }
 
 // O viewer recebe só as câmeras e o detector: nada do go2rtc, das
-// órfãs, do padrão, das faixas nem do caminho no disco.
+// órfãs, do padrão, das faixas, do caminho no disco nem do alerta.
 func TestCamerasEnxutoParaOViewer(t *testing.T) {
 	s, _ := testServer(t)
 	comAutenticacao(t, s, maria)
+	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}})
 	req := httptest.NewRequest(http.MethodGet, "/api/cameras", nil)
 	req.AddCookie(cookieDe(t, s, "maria"))
 	rec := httptest.NewRecorder()
@@ -287,7 +290,7 @@ func TestCamerasEnxutoParaOViewer(t *testing.T) {
 	if err := json.Unmarshal(resp["cameras"], &cams); err != nil || len(cams) != 1 {
 		t.Fatalf("câmeras: %s (%v)", resp["cameras"], err)
 	}
-	if cams[0]["id"] != "cam_teste" || cams[0]["dir"] != nil {
+	if cams[0]["id"] != "cam_teste" || cams[0]["dir"] != nil || cams[0]["alert"] != nil {
 		t.Errorf("câmera do viewer: %v", cams[0])
 	}
 }

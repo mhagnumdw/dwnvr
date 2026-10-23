@@ -498,6 +498,16 @@ e-mail, a 5.
 - Desligar guarda o resto, para religar sem refazer.
 - A seção só aparece com o detector de objetos configurado e a marcação de
   movimento ligada na câmera: sem marca de objeto, não há o que avisar.
+- **O alerta nunca passa para a imagem inteira sem ninguém ver** (decisão do
+  mantenedor, 23/10/2026). A área que a câmera não tem é recusada pela API, e o
+  boot a tira com aviso. O alerta ligado que fica sem nenhuma das áreas que
+  tinha, ou sem família, é desligado, também com aviso. Na tela, apagar uma
+  área que o alerta usa pede confirmação, e, se for a última dele, a
+  confirmação diz que o alerta será desligado.
+- **A tela não salva o alerta incompleto** (23/10/2026): ligado sem família, ou
+  com "só nas áreas marcadas" e nenhuma marcada, ela diz o que falta.
+- **O viewer não recebe o `alert`** no `GET /api/cameras` (23/10/2026): ele não
+  edita câmera, e a tela dele não mostra o alerta.
 
 **Onde avalia:** no `Recorder.olhou`, logo depois do `Marcador`, com todas as
 caixas que viraram marca e o quadro olhado. Vale o instante do onset, que é a
@@ -569,12 +579,14 @@ esses pontos estão em
 
 - **o card Alertas**, que só existe com alguma câmera com alerta ligado: os
   últimos `AlertasNaTela` alertas, de memória (somem num reinício), cada um com
-  a hora, a câmera, o que foi visto, as áreas e o resultado em cada meio; e os
-  números desde que o dwnvr subiu: enviados, descartados e falhas;
-- **um Aviso `bad` só quando um meio falha**, com o "desde quando" dos outros
-  avisos, como "Alertas por e-mail falhando desde 13:58 (12min): o erro. As
-  detecções seguem gravadas, mas ninguém está sendo avisado." Vem do
-  `/api/health`, como os outros.
+  a hora, a câmera, o que foi visto e as áreas; e o total desde que o dwnvr
+  subiu.
+
+**O Aviso de meio falhando fica para a [Etapa 5](#etapa-5---o-e-mail)**
+(decisão do mantenedor, 23/10/2026), com o resultado em cada meio e os
+descartados no card: até o e-mail, não há meio que possa falhar, e nada disso
+teria como ser visto funcionando. O contrato já leva o resultado de cada envio,
+testado com um meio falso.
 
 **No cadastro da câmera**, a seção Alertas desenhada no mock da Etapa 2:
 ligar, famílias, onde (a imagem inteira ou as áreas marcadas) e para onde vai,
@@ -597,11 +609,11 @@ desligado.
 
 - [x] ~~a simulação do silêncio sobre o histórico real~~: feita em 22/10/2026,
   e o silêncio ficou para depois do plano
+- [x] o campo `alert`, com validação
 - [ ] `internal/alerta`: o contrato, a regra e o envio, com teste
 - [ ] a avaliação no `Recorder.olhou`, sem segurar a fila
-- [ ] o campo `alert`, com validação
 - [ ] a seção Alertas no cadastro
-- [ ] o card Alertas e o Aviso de meio falhando
+- [ ] o card Alertas
 - [ ] na instalação de teste, por deploy manual, com detecções reais
 - [ ] docs
 
@@ -708,6 +720,13 @@ assunto com acento.
 hora para a instalação inteira. O teto protege a conta, porque o provedor
 bloqueia quem dispara demais. O que passa dele é contado e vira Aviso.
 
+**O Aviso de meio falhando**, que veio da Etapa 3: um Aviso `bad` só quando um
+meio falha, com o "desde quando" dos outros avisos, como "Alertas por e-mail
+falhando desde 13:58 (12min): o erro. As detecções seguem gravadas, mas
+ninguém está sendo avisado." Vem do `/api/health`, como os outros. No card
+Alertas entram, junto, o resultado em cada meio e os números de enviados,
+descartados e falhas.
+
 **Testar:**
 
 - um botão "enviar e-mail de teste" no card Alertas, só para o admin
@@ -728,6 +747,7 @@ com comentário, uma seção nova no `docs/configuracao.md` e a §Configuração
 - [ ] o meio `email`, com teste contra o Mailpit
 - [ ] o quadro com as caixas e a área desenhadas, medido
 - [ ] o teto por hora e o Aviso
+- [ ] o Aviso de meio falhando, e no card o resultado em cada meio
 - [ ] o botão de teste
 - [ ] docs, com o exemplo do Gmail
 

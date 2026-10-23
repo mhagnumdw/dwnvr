@@ -12,6 +12,7 @@
 
 import { areaNaQuery } from './area.ts';
 import type { AreaDoFiltro, Ponto, Regra } from './area.ts';
+import type { NomeDaFamilia } from './icones.ts';
 
 let onUnauthorized = () => {
   // ninguém pediu aviso ainda: o App registra o dele ao montar
@@ -385,6 +386,16 @@ export interface Camera {
   detectMecanismo?: string;
   detectSensibilidade?: number;
   areas?: AreaDaCamera[];
+  // Só o admin recebe: o viewer não edita câmera.
+  alert?: AlertaDaCamera;
+}
+
+// Quando uma detecção da câmera vira alerta. Sem `areas`, vale a imagem
+// inteira; desligado, guarda o resto para religar.
+export interface AlertaDaCamera {
+  enabled: boolean;
+  families?: NomeDaFamilia[];
+  areas?: string[];
 }
 
 // Uma área cadastrada na câmera. A área nova vai sem `id`, e o servidor dá um.

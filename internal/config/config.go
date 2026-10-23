@@ -175,6 +175,10 @@ type Camera struct {
 	// de Detecções e o alerta usam. Mudar uma área não reinicia a gravação:
 	// o recordingParamsChanged não olha para elas.
 	Areas []Area `json:"areas,omitempty"`
+
+	// Alert diz quando uma detecção desta câmera vira alerta. Ausente é sem
+	// alerta, como desligado. Também não reinicia a gravação.
+	Alert *AlertaDaCamera `json:"alert,omitempty"`
 }
 
 func defaults() Config {
@@ -324,6 +328,7 @@ func (c *Config) ConfereCamera(cam Camera) (Camera, []Aviso) {
 			faixaSensibilidade, 0, c.Defaults.DetectSensibilidade)
 	}
 	cam.Areas = confereAreas(cam, &av)
+	cam.Alert = confereAlerta(cam, &av)
 	return cam, av
 }
 

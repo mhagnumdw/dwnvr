@@ -296,14 +296,17 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 }
 
 // camerasDoViewer é o /api/cameras do viewer: as câmeras, sem o caminho
-// no disco, e se há detector de objetos. O resto só serve à tela Câmeras, que
-// é do admin, e o go2rtc nem é consultado: cada abertura da tela custaria duas
-// chamadas a ele.
+// no disco e sem o alerta, e se há detector de objetos. O resto só serve à
+// tela Câmeras, que é do admin, e o go2rtc nem é consultado: cada abertura da
+// tela custaria duas chamadas a ele.
 func (s *Server) camerasDoViewer(w http.ResponseWriter) {
 	raw := s.mgr.Cameras()
 	cams := make([]config.Camera, len(raw))
 	for i, c := range raw {
 		cams[i] = s.cfg.Resolve(c)
+		// O alerta só se edita no cadastro, e a tela do viewer não o mostra:
+		// quem vigia o quê fica com o admin.
+		cams[i].Alert = nil
 	}
 	writeJSON(w, map[string]any{"cameras": cams, "detector": s.mgr.Detector() != nil})
 }
