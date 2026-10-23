@@ -342,6 +342,22 @@ O detector de objetos usa metade dos núcleos da máquina, até 4 threads, e
 deixa a outra metade para a gravação. Para outro número, ponha no `.env`, como
 por exemplo `DETECT_THREADS=2`, e rode o `up -d` de novo.
 
+### Ligar o alerta <!-- omit in toc -->
+
+Com o detector de objetos ligado, cada câmera pode avisar quando
+detectar, por exemplo, uma pessoa no portão:
+
+1. na aba **Câmeras**, clique em **editar** na câmera;
+2. se quiser que o alerta valha só num pedaço da imagem, desenhe esse pedaço na
+   aba **Áreas**;
+3. na aba **Alerta**, marque **Avisar quando detectar**, escolha o que avisa
+   (pessoa, veículo, animal) e onde (a imagem inteira ou só as áreas marcadas),
+   e clique em **salvar**.
+
+Por enquanto o alerta vai só para o log do dwnvr: o envio por e-mail ainda não
+existe. E ele avisa do que a detecção marcar, que não é toda chegada: não é
+alarme. Os limites estão em [`docs/deteccao.md`](docs/deteccao.md#o-alerta).
+
 ## Atualizar
 
 Atualiza o dwnvr para a última versão - e, junto, o `dwnvr-detect`, se

@@ -436,6 +436,9 @@ por elas sem desenhar de novo.
   marcação de movimento ligada na aba Detecção e o detector de objetos
   configurado. Sem os dois a câmera não tem detecção, e a área não teria o que
   filtrar. Desligar a marcação esconde a aba, mas não apaga as áreas.
+  **Revisto em 23/10/2026** (decisão do mantenedor): as abas Áreas e Alerta
+  aparecem sempre, e sem detecção dizem o que falta, porque escondidas
+  ninguém saberia que existem;
 - **o cadastro guiado passa por Áreas**, decidido em 21/10/2026: deixa claro
   que a opção existe. A câmera nova ainda não gravou, então a aba só avisa que
   dá para desenhar depois de salvar, em editar.
@@ -496,8 +499,9 @@ e-mail, a 5.
   a rua, com `veiculo`, daria até ~450 alertas por dia: é quanto uma câmera
   assim marca de veículo na instalação de teste.
 - Desligar guarda o resto, para religar sem refazer.
-- A seção só aparece com o detector de objetos configurado e a marcação de
-  movimento ligada na câmera: sem marca de objeto, não há o que avisar.
+- A seção só funciona com o detector de objetos configurado e a marcação de
+  movimento ligada na câmera: sem marca de objeto, não há o que avisar. Sem
+  eles, ela diz o que falta (decisão do mantenedor, 23/10/2026).
 - **O alerta nunca passa para a imagem inteira sem ninguém ver** (decisão do
   mantenedor, 23/10/2026). A área que a câmera não tem é recusada pela API, e o
   boot a tira com aviso. O alerta ligado que fica sem nenhuma das áreas que
@@ -603,6 +607,15 @@ que até a Etapa 5 é "só o registro". E uma linha que diga o limite: o alerta
 avisa do que a detecção marcar, e ela não pega toda chegada (item 5 de
 [O que o código já diz](#o-que-o-código-já-diz)).
 
+- Ela é a aba **Alerta**, a última, e vem num chunk à parte. Ela e a aba Áreas
+  aparecem sempre: sem a marcação de movimento, mostram como ligá-la, com um
+  botão para a aba Detecção; sem o detector de objetos, apontam para a doc de
+  como configurá-lo. O que a câmera já tem fica guardado.
+- A área nova ganha o `id` na tela, e não no servidor, para o alerta poder
+  marcá-la antes de a câmera ser salva.
+- No card, "alerta: pessoa, veículo" com o alerta ligado e "alerta desligado"
+  com um alerta guardado; sem alerta, nada.
+
 **Custo zero desligado:** sem câmera com alerta ligado, nada nasce: nem a
 `Central`, nem channel, nem goroutine, nem card, nem os bytes da seção, que
 ficam num chunk à parte. A `Central` nasce com a primeira câmera que liga o
@@ -625,7 +638,8 @@ desligado.
 - [x] `internal/alerta`: o contrato, a regra e o envio, com teste
 - [x] a avaliação depois do `Recorder.olhou`, sem segurar a fila, com o
   registro no log e no `GET /api/alertas`
-- [ ] a seção Alertas no cadastro
+- [x] a aba Alerta no cadastro, o chip "alerta: pessoa" no card e a
+  confirmação ao apagar uma área que o alerta usa
 - [ ] o card Alertas
 - [ ] na instalação de teste, por deploy manual, com detecções reais
 - [ ] docs
