@@ -560,9 +560,10 @@ carro que está lá. As saídas:
 Não alertar "a primeira olhada depois de subir" não serve: ela pode acontecer
 horas depois, e ser justamente a chegada que importa.
 
-**Escolhida a b** (decisão do mantenedor, 22/10/2026), numa branch à parte da
-`main`: ela conserta a timeline sozinha, sem depender do alerta. Esta branch a
-recebe por rebase.
+**Escolhida a a** (decisão do mantenedor, 22/10/2026). A b chegou a ser
+escolhida e desenhada, mas os pontos negativos dela pesaram mais. O desenho e
+esses pontos estão em
+[`TODO_olhada-de-aquecimento.md`](TODO_olhada-de-aquecimento.md).
 
 **No Diagnóstico**, só para o admin:
 
