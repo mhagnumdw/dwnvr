@@ -106,6 +106,14 @@ type Evento struct {
 	// diferentes do mesmo instante apontam para o MESMO arquivo: o quadro é
 	// um só.
 	TemQuadro bool `json:"temQuadro,omitempty"`
+
+	// Alert diz que este objeto passou na regra de alerta da câmera, na hora
+	// em que foi olhado. AlertAreas são os ids das áreas do alerta em que ele
+	// caiu, e não os nomes: renomear a área segue valendo, e a apagada a tela
+	// mostra como "área apagada". Vazio quando o alerta vale na imagem
+	// inteira. Linha de antes do alerta não tem nenhum dos dois.
+	Alert      bool     `json:"alert,omitempty"`
+	AlertAreas []string `json:"alertAreas,omitempty"`
 }
 
 // EhObjeto diz se a linha é marca de objeto, e não onset de movimento.

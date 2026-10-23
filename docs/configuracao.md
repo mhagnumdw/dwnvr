@@ -119,7 +119,7 @@ O `alert` também não é política de gravação: diz quando uma detecção da 
 vira alerta. O admin o liga na aba Alerta do cadastro da câmera, que só
 funciona com a marcação de movimento ligada e o detector de objetos
 configurado; sem eles, a aba diz o que falta. Por ora o alerta
-vai só para o log e para o `GET /api/alertas` (ver
+vai só para o log e fica marcado na detecção, que Detecções filtra (ver
 [`deteccao.md`](deteccao.md#o-alerta)). Mudar o alerta não reinicia a
 gravação.
 

@@ -46,6 +46,10 @@ type objetoNoQuadro struct {
 	Classe  string      `json:"classe"`
 	Score   float64     `json:"score"`
 	Caixa   *[4]float64 `json:"caixa,omitempty"`
+	// Alert e AlertAreas vêm como gravados: o objeto passou na regra de
+	// alerta da câmera, nas áreas destes ids. Ver store.Evento.
+	Alert      bool     `json:"alert,omitempty"`
+	AlertAreas []string `json:"alertAreas,omitempty"`
 }
 
 type paginaDeDeteccoes struct {
@@ -70,6 +74,7 @@ type paginaDeDeteccoes struct {
 //	area=...     na câmera da área, só os objetos dentro dela; ver filtroDaQuery.
 //	rule=...     a regra da área: touch ou foot (o padrão).
 //	areas=...    o mesmo, com áreas cadastradas: <câmera>/<id>,<câmera>/<id>.
+//	alert=1      só as detecções com objeto que alertou; ver filtroDaQuery.
 //
 // A página nunca parte um instante ao meio: se a última detecção empata com
 // outras no mesmo milissegundo, em outra câmera, elas vêm juntas e a página
@@ -125,7 +130,7 @@ func (s *Server) handleDeteccoes(w http.ResponseWriter, r *http.Request) {
 // crescente, e quantas detecções cada um tem. É o que o calendário da tela de
 // Detecções deixa escolher, e o número que ele mostra em cada dia.
 //
-//	cams, familias, area, rule e areas: os mesmos de handleDeteccoes.
+//	cams, familias, area, rule, areas e alert: os mesmos de handleDeteccoes.
 func (s *Server) handleDiasDeDeteccao(w http.ResponseWriter, r *http.Request) {
 	cams, filtro, err := s.filtroDaQuery(r.URL.Query())
 	if err != nil {
@@ -168,12 +173,13 @@ func diasComDeteccao(cams []*store.Camera, filtro filtroDeObjetos) ([]string, ma
 }
 
 // contaDeteccoes conta as detecções de uma câmera num dia como o agrupa as
-// monta: uma por instante, por mais famílias que o quadro tenha.
+// monta: uma por instante, por mais famílias que o quadro tenha, e com
+// `alert=1` só o instante em que algum objeto que fica alertou.
 func contaDeteccoes(marcas []store.Evento, filtro filtroDeObjetos) int {
 	n := 0
 	ultimo := int64(-1)
 	for _, m := range marcas {
-		if m.InstanteMs == ultimo || !filtro.passa(m) {
+		if m.InstanteMs == ultimo || !filtro.passa(m) || filtro.soAlertas && !m.Alert {
 			continue
 		}
 		n++
@@ -256,12 +262,14 @@ func paginaDeDeteccoesDe(cams []*store.Camera, filtro filtroDeObjetos,
 func agrupa(em []deteccao, cam string, marcas []store.Evento,
 	filtro filtroDeObjetos, passaDoCursor func(int64) bool) []deteccao {
 
+	inicio := len(em)
 	aberta := -1 // índice, em `em`, da detecção do instante corrente
 	for _, m := range marcas {
 		if !passaDoCursor(m.InstanteMs) || !filtro.passa(m) {
 			continue
 		}
-		obj := objetoNoQuadro{Familia: m.Familia, Classe: m.Classe, Score: m.Score, Caixa: m.Caixa}
+		obj := objetoNoQuadro{Familia: m.Familia, Classe: m.Classe, Score: m.Score, Caixa: m.Caixa,
+			Alert: m.Alert, AlertAreas: m.AlertAreas}
 		if aberta >= 0 && em[aberta].InstanteMs == m.InstanteMs {
 			d := &em[aberta]
 			d.Objetos = append(d.Objetos, obj)
@@ -272,7 +280,15 @@ func agrupa(em []deteccao, cam string, marcas []store.Evento,
 			TemQuadro: m.TemQuadro, Objetos: []objetoNoQuadro{obj}})
 		aberta = len(em) - 1
 	}
-	return em
+	if !filtro.soAlertas {
+		return em
+	}
+	// Com `alert=1` a detecção fica inteira, com o objeto que não alertou: a
+	// tela o mostra apagado, "não entrou no alerta".
+	novas := slices.DeleteFunc(em[inicio:], func(d deteccao) bool {
+		return !slices.ContainsFunc(d.Objetos, func(o objetoNoQuadro) bool { return o.Alert })
+	})
+	return em[:inicio+len(novas)]
 }
 
 // diasDasCameras é a união dos dias com gravação das câmeras, em ordem
@@ -298,6 +314,9 @@ type filtroDeObjetos struct {
 	porCamera map[string][]areaComRegra
 	// areas são as da câmera das marcas: ver daCamera.
 	areas []areaComRegra
+	// soAlertas deixa só a detecção em que algum objeto que fica alertou. É
+	// por detecção, e não por objeto: o que não alertou fica nela.
+	soAlertas bool
 }
 
 // areaComRegra é uma área com a regra dela: a desenhada na hora, com o `rule`
@@ -343,7 +362,7 @@ func (f *filtroDeObjetos) soma(cam string, a areaComRegra) {
 }
 
 // filtroDaQuery resolve os parâmetros que a lista e o calendário dividem:
-// `cams`, `familias`, `area`, `rule` e `areas`.
+// `cams`, `familias`, `area`, `rule`, `areas` e `alert`.
 //
 // `area=<cam>:<x>,<y>,<x>,<y>,...` é uma área desenhada sobre a imagem da
 // câmera, com X e Y em milésimos do quadro (inteiros de 0 a 1000), para a URL
@@ -355,11 +374,22 @@ func (f *filtroDeObjetos) soma(cam string, a areaComRegra) {
 // As áreas de uma câmera somam, a desenhada junto: qualquer uma serve. Elas
 // restringem só a câmera delas: as outras de `cams` seguem inteiras, e a
 // câmera da área fora de `cams` não aparece, com área ou sem.
+//
+// `alert=1` deixa só as detecções em que algum objeto que passou nos outros
+// filtros alertou, pela marca gravada na hora: mudar o alerta da câmera não
+// muda o passado. Com `familias=veiculo`, a detecção que alertou só pela
+// pessoa sai, porque a pessoa sai.
 func (s *Server) filtroDaQuery(q url.Values) ([]*store.Camera, filtroDeObjetos, error) {
 	var f filtroDeObjetos
 	cams, err := s.camerasDoFiltro(q.Get("cams"))
 	if err != nil {
 		return nil, f, err
+	}
+	if q.Has("alert") {
+		if q.Get("alert") != "1" {
+			return nil, f, errors.New("parâmetro alert inválido (só alert=1)")
+		}
+		f.soAlertas = true
 	}
 	if f.familias, err = familiasDoFiltro(q.Get("familias")); err != nil {
 		return nil, f, err

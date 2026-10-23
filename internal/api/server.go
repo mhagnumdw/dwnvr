@@ -167,7 +167,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/reconnects/reset", s.requireAdmin(s.handleZerarReconexoes))
 	mux.HandleFunc("GET /api/health/servidor", s.requireAdmin(s.handleDiagnosticoServidor))
 	mux.HandleFunc("POST /api/email/teste", s.requireAdmin(s.handleTesteEmail))
-	mux.HandleFunc("GET /api/alertas", s.requireAdmin(s.handleAlertas))
 	mux.HandleFunc("DELETE /api/rec", s.requireAdmin(s.handleDeleteRecordings))
 
 	// Gravações
@@ -398,9 +397,9 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		resp["detector"] = d
 	}
 
-	// Do alerta vai só o total, que diz à tela que o card existe e quando
-	// reler a lista no /api/alertas. Some enquanto nenhuma câmera ligou o
-	// alerta.
+	// Do alerta vai só o total desde que o dwnvr subiu: o alerta em si fica
+	// gravado na detecção, e se vê em Detecções. Some enquanto nenhuma câmera
+	// ligou o alerta.
 	if c := s.mgr.Alertas(); c != nil {
 		resp["alerts"] = map[string]int64{"total": c.Total()}
 	}

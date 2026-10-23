@@ -175,7 +175,6 @@ cair, mas não abre outra.
 | `POST /api/reconnects/reset` | - | **só admin**: zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
 | `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos, servidor de e-mail e últimos avisos do log |
 | `POST /api/email/teste` | `{"to"}` | **só admin**: manda um e-mail de teste para o endereço, pela seção `smtp` |
-| `GET /api/alertas` | - | **só admin**: os últimos alertas, do mais novo para o mais velho, e o total desde que o dwnvr subiu |
 | `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
 No `POST /api/cameras`, cada área sem `id` ganha um gerado pelo servidor, e a
@@ -387,24 +386,8 @@ o alerta seja desligado, e não vem antes:
 "alerts": { "total": 12 }
 ```
 
-A lista vem à parte, no `GET /api/alertas`, porque pesa: o `/api/health` é
-relido a cada poucos segundos, e a tela pede a lista só quando o total muda.
-Cada alerta tem o formato de uma detecção do `GET /api/deteccoes`, e cada
-objeto traz em `areas` os nomes das áreas do alerta em que caiu, como estavam
-na hora; sem áreas no alerta, o campo não vem. Os objetos são só os que
-passaram na regra. A lista guarda os últimos 50, de memória, e some num
-reinício:
-
-```json
-{
-  "total": 12,
-  "recent": [
-    { "cam": "portao", "instanteMs": 1761234567000, "quadroMs": 1761234569000, "temQuadro": true,
-      "objetos": [ { "familia": "pessoa", "classe": "person", "score": 0.87,
-                     "caixa": [0.31, 0.22, 0.45, 0.91], "areas": ["Portão"] } ] }
-  ]
-}
-```
+Os alertas em si ficam gravados na detecção, e se leem no `GET /api/deteccoes`
+(`alert` e `alertAreas` em cada objeto, e o filtro `alert=1`).
 
 `DELETE /api/rec` aceitar câmera já removida é deliberado: descadastrar sem
 apagar deixa gravações órfãs, e sem esse endpoint não haveria como recuperar o
@@ -637,9 +620,9 @@ rola.
 
 | Endpoint | Parâmetros | Devolve |
 | --- | --- | --- |
-| `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias`, `area`, `rule`, `areas` | uma página de detecções, da mais nova para a mais velha |
+| `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias`, `area`, `rule`, `areas`, `alert` | uma página de detecções, da mais nova para a mais velha |
 | `GET /api/deteccoes/quadro` | `cam`, `t` | o JPEG do quadro que o detector olhou, `immutable` |
-| `GET /api/deteccoes/dias` | `cams`, `familias`, `area`, `rule`, `areas` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
+| `GET /api/deteccoes/dias` | `cams`, `familias`, `area`, `rule`, `areas`, `alert` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
 
 **`/api/deteccoes`** pagina por cursor, e não por número de página: o dia
 corrente ganha detecção nova a todo momento, e "página 3" mudaria de conteúdo
@@ -671,6 +654,11 @@ entre um pedido e outro.
   pelo cadastro de agora: editar a área muda o filtro dali em diante, inclusive
   sobre o passado. Área que a câmera não tem mais é erro.
 
+- `alert=1`: só as detecções em que algum objeto alertou (ver abaixo). O
+  filtro é por detecção: o objeto que não alertou fica nela. Ele vale sobre o
+  que sobra dos outros filtros: com `familias=veiculo`, a detecção que alertou
+  só pela pessoa sai, porque a pessoa sai. Outro valor é erro.
+
 As áreas de uma câmera **somam**, a de `area` junto: o objeto fica se está em
 qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
 
@@ -683,7 +671,8 @@ qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
       "quadroMs": 1786220572851,
       "temQuadro": true,
       "objetos": [
-        { "familia": "pessoa", "classe": "person", "score": 0.87, "caixa": [0.5156, 0.2611, 0.6734, 0.9778] },
+        { "familia": "pessoa", "classe": "person", "score": 0.87, "caixa": [0.5156, 0.2611, 0.6734, 0.9778],
+          "alert": true, "alertAreas": ["k3f9a2"] },
         { "familia": "veiculo", "classe": "car", "score": 0.61, "caixa": [0.05, 0.4, 0.3, 0.7] }
       ]
     }
@@ -699,6 +688,12 @@ objetos. O filtro de família e o de área tiram objetos, e a detecção que fic
 sem nenhum sai da página. Com área, a marca sem caixa, gravada antes de a
 caixa existir, fica de fora: não há como saber onde ela estava.
 `caixa` e `quadroMs` são os mesmos de `/api/rec/events`.
+
+`alert` diz que o objeto passou na regra de alerta da câmera na hora em que foi
+olhado, e `alertAreas`, os ids das áreas do alerta em que ele caiu; sem áreas
+no alerta, ou sem alerta, o campo não vem. É o que foi gravado: mudar o alerta
+da câmera não muda o passado, e o id de uma área apagada continua vindo. O
+viewer também os recebe.
 
 O próximo cursor é o `instanteMs` da última detecção da página. A página **não
 parte um instante ao meio**: se a última empata, no mesmo milissegundo, com a de
@@ -719,7 +714,7 @@ leitura. O dia sai da memória quando a retenção o apaga.
 
 **`/api/deteccoes/dias`** é o que o calendário da tela de Detecções deixa
 escolher, com o número que ele mostra em cada dia. `cams`, `familias`, `area`,
-`rule` e `areas` são os mesmos de `/api/deteccoes`, e o dia entra se tiver ao menos uma detecção do
+`rule`, `areas` e `alert` são os mesmos de `/api/deteccoes`, e o dia entra se tiver ao menos uma detecção do
 filtro. `deteccoesPorDia` conta detecções, não marcas, como `/api/deteccoes`
 as monta: pessoa e carro no mesmo quadro contam uma vez. Dia sem gravação fica
 de fora mesmo com marca, porque a rolagem também não chega nele.

@@ -28,9 +28,8 @@ func pede(t *testing.T, h http.HandlerFunc, rota string) map[string]json.RawMess
 }
 
 // O /api/health só fala de alerta depois que alguma câmera o liga, e então
-// leva só o total. A lista vem do /api/alertas, com o formato de uma
-// detecção.
-func TestAlertasNoHealthENaLista(t *testing.T) {
+// leva só o total.
+func TestAlertasNoHealth(t *testing.T) {
 	s, _ := testServer(t)
 	if _, ok := pede(t, s.handleHealth, "/api/health")["alerts"]; ok {
 		t.Fatal("o /api/health falou de alerta sem câmera com alerta")
@@ -43,29 +42,10 @@ func TestAlertasNoHealthENaLista(t *testing.T) {
 	sim := true
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
 		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}})
-	s.mgr.Alertas().Recebe(alerta.Alerta{Camera: "cam_teste", InstanteMs: 1000, QuadroMs: 2400, TemQuadro: true,
-		Objetos: []alerta.Objeto{{Familia: "pessoa", Classe: "person", Score: 0.87,
-			Caixa: [4]float64{0.1, 0.2, 0.3, 0.6}, Areas: []string{"Portão"}}}})
+	s.mgr.Alertas().Recebe(alerta.Alerta{Camera: "cam_teste", InstanteMs: 1000,
+		Objetos: []alerta.Objeto{{Familia: "pessoa", Classe: "person", Score: 0.87}}})
 
 	if got := string(pede(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":1}` {
 		t.Errorf("alerts no /api/health: %s", got)
-	}
-	lista := pede(t, s.handleAlertas, "/api/alertas")
-	if string(lista["total"]) != "1" {
-		t.Errorf("total %s", lista["total"])
-	}
-	want := `[{"cam":"cam_teste","instanteMs":1000,"quadroMs":2400,"temQuadro":true,"objetos":[` +
-		`{"familia":"pessoa","classe":"person","score":0.87,"caixa":[0.1,0.2,0.3,0.6],"areas":["Portão"]}]}]`
-	if got := string(lista["recent"]); got != want {
-		t.Errorf("recent\n %s\nesperava\n %s", got, want)
-	}
-}
-
-// Sem alerta, a lista vem vazia, e não nula: a tela não precisa testar.
-func TestAlertasSemCentral(t *testing.T) {
-	s, _ := testServer(t)
-	lista := pede(t, s.handleAlertas, "/api/alertas")
-	if string(lista["total"]) != "0" || string(lista["recent"]) != "[]" {
-		t.Errorf("lista %s %s", lista["total"], lista["recent"])
 	}
 }

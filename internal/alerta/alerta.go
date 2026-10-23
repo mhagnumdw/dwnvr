@@ -15,34 +15,30 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/config"
 )
 
-// Alerta é uma olhada que passou na regra de alerta da câmera. O JSON tem o
-// formato de uma detecção do /api/deteccoes, com as áreas em que cada objeto
-// caiu: o alerta é uma detecção, e a tela a desenha com o mesmo código.
+// Alerta é uma olhada que passou na regra de alerta da câmera, como os meios a
+// recebem. O que fica gravado é a marca `alert` em cada linha de objeto (ver
+// store.Evento); isto é o que sai pelo log e, na Etapa 5, pelo e-mail.
 type Alerta struct {
-	Camera string `json:"cam"`
+	Camera, NomeDaCamera string
 	// InstanteMs é o onset, a hora da cena, e não a da resposta do detector
 	// de objetos, que chega de segundos a meio minuto depois.
-	InstanteMs int64    `json:"instanteMs"`
-	QuadroMs   int64    `json:"quadroMs,omitempty"`
-	TemQuadro  bool     `json:"temQuadro"`
-	Objetos    []Objeto `json:"objetos"`
-
-	// NomeDaCamera e Quadro são para os meios: o e-mail leva o nome no
-	// assunto e o quadro no anexo. Não vão ao JSON: a tela tem o nome pelo
-	// cadastro, e o quadro pelo /api/deteccoes/quadro.
-	NomeDaCamera string `json:"-"`
-	Quadro       []byte `json:"-"`
+	InstanteMs int64
+	QuadroMs   int64
+	TemQuadro  bool
+	Objetos    []Objeto
+	// Quadro é o JPEG olhado, que o e-mail leva no anexo.
+	Quadro []byte
 }
 
 // Objeto é uma marca que passou na regra. Areas são os nomes das áreas do
-// alerta em que ela caiu, como estavam na hora; vazio quando o alerta vale na
-// imagem inteira.
+// alerta em que ela caiu, como estavam na hora, que é o que o log e o e-mail
+// mostram; vazio quando o alerta vale na imagem inteira.
 type Objeto struct {
-	Familia string     `json:"familia"`
-	Classe  string     `json:"classe"`
-	Score   float64    `json:"score"`
-	Caixa   [4]float64 `json:"caixa"`
-	Areas   []string   `json:"areas,omitempty"`
+	Familia string
+	Classe  string
+	Score   float64
+	Caixa   [4]float64
+	Areas   []string
 }
 
 // Notificador é um meio de avisar alguém: o e-mail, e depois Telegram, ntfy e

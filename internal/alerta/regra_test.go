@@ -148,3 +148,31 @@ func TestVariasFamilias(t *testing.T) {
 		t.Errorf("alertou: %v, objetos %+v", ok, a.Objetos)
 	}
 }
+
+// TestMarcaAsLinhas: a Avalia marca, nas linhas que o Recorder vai gravar, o
+// objeto que passou, com o id das áreas, e não o nome. O que não passou fica
+// como estava.
+func TestMarcaAsLinhas(t *testing.T) {
+	r := NovaRegra(camera([]detect.Familia{detect.Pessoa}, "esq", "chao"))
+	linhas := []store.Evento{pessoaNaEsquerda, pessoaNaDireita, motoNaEsquerda}
+	if _, ok := r.Avalia(linhas, nil); !ok {
+		t.Fatal("não alertou")
+	}
+	esperado := []struct {
+		alert bool
+		areas []string
+	}{{true, []string{"esq"}}, {true, []string{"chao"}}, {false, nil}}
+	for i, e := range esperado {
+		if linhas[i].Alert != e.alert || !slices.Equal(linhas[i].AlertAreas, e.areas) {
+			t.Errorf("linha %d: alert %v em %v, esperava %v em %v", i,
+				linhas[i].Alert, linhas[i].AlertAreas, e.alert, e.areas)
+		}
+	}
+
+	// Sem áreas no alerta, a marca vem sem `alertAreas`.
+	linhas = []store.Evento{pessoaNaDireita}
+	NovaRegra(camera([]detect.Familia{detect.Pessoa})).Avalia(linhas, nil)
+	if !linhas[0].Alert || linhas[0].AlertAreas != nil {
+		t.Errorf("imagem inteira: alert %v em %v", linhas[0].Alert, linhas[0].AlertAreas)
+	}
+}
