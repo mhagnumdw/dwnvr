@@ -5,8 +5,7 @@ Etapas 0, 1 e 2 feitas**, na branch `areas-e-alertas`; da 1, falta só a
 medição no hardware de referência.
 
 **Próximo passo:** a [Etapa 3](#etapa-3---o-alerta-contrato-regra-e-registro)
-(o alerta: contrato, regra e registro), começando pela simulação do silêncio
-sobre o histórico real de marcas, que fixa o `SilencioDoAlertaMs`.
+(o alerta: contrato, regra e registro), começando pelo `internal/alerta`.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -29,8 +28,8 @@ Tudo com a interface pensada para o celular e para o desktop.
 - [x] [Etapa 1 - filtrar Detecções por uma área desenhada na hora](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora), menos a medição no hardware de referência
 - [x] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
 - [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro)
-- [ ] [Etapa 4 - o e-mail](#etapa-4---o-e-mail)
-- [ ] [Etapa 5 - os horários do alerta](#etapa-5---os-horários-do-alerta)
+- [ ] [Etapa 4 - os horários do alerta](#etapa-4---os-horários-do-alerta)
+- [ ] [Etapa 5 - o e-mail](#etapa-5---o-e-mail)
 
 ## Decisões do mantenedor
 
@@ -71,8 +70,9 @@ Conferido na `a9a87f2`. É o que muda a conta das etapas:
    - um alerta por chegada, e não um por olhada: o carro parado na garagem
      avisa uma vez;
    - quem anda pela cena muda de lugar a cada olhada e marca de novo em cada
-     uma: sem um freio, uma pessoa atravessando o quintal viraria vários
-     e-mails (ver o silêncio, na Etapa 3);
+     uma: uma pessoa atravessando o quintal vira vários alertas. O freio
+     (o silêncio) ficou para depois do plano (ver
+     [O silêncio, medido e adiado](#o-silêncio-medido-e-adiado));
    - a memória do rastreio não sobrevive a um reinício: depois dele, o objeto
      parado aparece uma vez como se tivesse acabado de chegar. Na timeline já é
      assim.
@@ -126,8 +126,8 @@ flowchart LR
     e0["Etapa 0<br>todas as caixas"] --> e1["Etapa 1<br>área desenhada<br>em Detecções"]
     e1 --> e2["Etapa 2<br>áreas da câmera"]
     e2 --> e3["Etapa 3<br>o alerta"]
-    e3 --> e4["Etapa 4<br>o e-mail"]
-    e4 --> e5["Etapa 5<br>os horários"]
+    e3 --> e4["Etapa 4<br>os horários"]
+    e4 --> e5["Etapa 5<br>o e-mail"]
     e5 -.-> depois["depois<br>cada pessoa escolhe<br>outros meios"]
 ```
 
@@ -151,8 +151,12 @@ componente.
 caixas só começa no deploy dela: quanto antes, mais dado certo para testar o
 filtro da Etapa 1.
 
-**O e-mail vem logo depois do motor do alerta**, e os horários depois dele: o
-e-mail é o que faz o alerta chegar a alguém, e os horários refinam quando.
+**Os horários vêm logo depois do motor do alerta, e o e-mail por último**
+(decisão do mantenedor, 22/10/2026, que inverteu a ordem do plano): o primeiro
+e-mail de verdade já sai só nas horas escolhidas para a câmera. Na ordem
+contrária, até os horários existirem, ele chegaria dezenas de vezes por dia
+nas câmeras movimentadas (ver
+[O silêncio, medido e adiado](#o-silêncio-medido-e-adiado)).
 
 ### Como entregar
 
@@ -202,7 +206,7 @@ três cuidados seguram o custo:
 | **alerta** | o aviso de que uma detecção passou na regra de alerta da câmera |
 | **meio** | por onde o alerta sai: e-mail, depois outros |
 | **registro** | a linha do alerta no log e no card Alertas. Todo alerta tem, com meio configurado ou não |
-| **silêncio** | o tempo, depois de um alerta, em que a mesma câmera e família não alertam de novo |
+| **silêncio** | o tempo, depois de um alerta, em que a mesma câmera e família não alertam de novo. Adiado: ver [O silêncio, medido e adiado](#o-silêncio-medido-e-adiado) |
 
 ## O modelo de dados
 
@@ -216,8 +220,8 @@ no Go seguem em português (`Area`, `RegraDaArea`).
 | 2 | `cameras.json`, dentro da câmera | `areas`: `id`, `name`, `rule`, `points` |
 | 3 | `cameras.json`, dentro da câmera | `alert`: `enabled`, `families`, `areas` |
 | 3 | memória e log | o registro dos alertas: some num reinício |
-| 4 | `dwnvr.yaml` | seção `alerts.email` |
-| 5 | dentro do `alert` | `schedules`, com a estrutura ainda a rever |
+| 4 | dentro do `alert` | `schedules`, com a estrutura ainda a rever |
+| 5 | `dwnvr.yaml` | seção `alerts.email` |
 
 - **Área e alerta dentro da câmera**, e não num arquivo próprio: aproveitam o
   `ConfereCamera`, o `trocaCamera` e o `GET /api/cameras`, que já leva tudo ao
@@ -476,7 +480,8 @@ versão velha não conhece o campo.
 
 **O que muda para quem usa:** no cadastro da câmera, "avisar quando
 detectar", com as famílias e as áreas que contam. Nesta etapa o alerta vai para
-o log e para o card Alertas do Diagnóstico; o e-mail é a Etapa 4.
+o log e para o card Alertas do Diagnóstico; os horários são a Etapa 4, e o
+e-mail, a 5.
 
 **O dado**, no `cameras.json`, dentro da câmera:
 
@@ -488,8 +493,8 @@ o log e para o card Alertas do Diagnóstico; o e-mail é a Etapa 4.
   lugar da imagem" ou "só nas áreas marcadas", porque desmarcar todas as áreas
   não pode parecer "sem alerta".
 - `families` começa em `pessoa`, a de maior prioridade. Uma câmera voltada para
-  a rua, com `veiculo`, daria até ~450 alertas por dia antes do silêncio: é
-  quanto uma câmera assim marca de veículo na instalação de teste.
+  a rua, com `veiculo`, daria até ~450 alertas por dia: é quanto uma câmera
+  assim marca de veículo na instalação de teste.
 - Desligar guarda o resto, para religar sem refazer.
 - A seção só aparece com o detector de objetos configurado e a marcação de
   movimento ligada na câmera: sem marca de objeto, não há o que avisar.
@@ -521,7 +526,7 @@ type Notificador interface {
 
 // Notificadores é o mapa de construtores: um meio novo entra numa linha.
 var Notificadores = map[string]func(c config.Alertas) (Notificador, error){
-	"email": NovoEmail, // Etapa 4
+	"email": NovoEmail, // Etapa 5
 }
 ```
 
@@ -532,13 +537,12 @@ var Notificadores = map[string]func(c config.Alertas) (Notificador, error){
   áreas, e entra no card Alertas. Esse é o **registro**, que existe com meio
   configurado ou sem. É ele que se testa nesta etapa.
 
-**O silêncio:** por câmera e família, um alerta abre um silêncio de
-`SilencioDoAlertaMs`, em que a mesma câmera e família não alertam de novo. O que
-cai nele é contado como silenciado. É por família, e não por câmera, porque
-`pessoa` vale mais: o gato de um minuto atrás não pode calar a pessoa de agora.
-**O número sai de uma simulação** sobre o histórico real de marcas, antes de
-ser fixado: quantos alertas por dia cada câmera daria com 1, 5 e 15 min de
-silêncio, com as áreas e as famílias que seriam usadas de verdade.
+**Sem silêncio, por ora** (decisão do mantenedor, 22/10/2026): toda olhada com
+objeto que passa na regra da câmera vira alerta (a partir da Etapa 4, só
+dentro do horário dela). Duas pessoas na mesma olhada são um alerta só, com os
+dois objetos. O que já se mediu e as opções estão em
+[O silêncio, medido e adiado](#o-silêncio-medido-e-adiado); o mantenedor volta
+a eles depois do plano inteiro, se o alerta incomodar no uso.
 
 **O objeto parado depois de um reinício** vira chegada na primeira olhada
 (item 1 de [O que o código já diz](#o-que-o-código-já-diz)). Com a família
@@ -561,8 +565,7 @@ horas depois, e ser justamente a chegada que importa.
 - **o card Alertas**, que só existe com alguma câmera com alerta ligado: os
   últimos `AlertasNaTela` alertas, de memória (somem num reinício), cada um com
   a hora, a câmera, o que foi visto, as áreas e o resultado em cada meio; e os
-  números desde que o dwnvr subiu: enviados, silenciados, descartados e
-  falhas;
+  números desde que o dwnvr subiu: enviados, descartados e falhas;
 - **um Aviso `bad` só quando um meio falha**, com o "desde quando" dos outros
   avisos, como "Alertas por e-mail falhando desde 13:58 (12min): o erro. As
   detecções seguem gravadas, mas ninguém está sendo avisado." Vem do
@@ -570,7 +573,7 @@ horas depois, e ser justamente a chegada que importa.
 
 **No cadastro da câmera**, a seção Alertas desenhada no mock da Etapa 2:
 ligar, famílias, onde (a imagem inteira ou as áreas marcadas) e para onde vai,
-que até a Etapa 4 é "só o registro". E uma linha que diga o limite: o alerta
+que até a Etapa 5 é "só o registro". E uma linha que diga o limite: o alerta
 avisa do que a detecção marcar, e ela não pega toda chegada (item 5 de
 [O que o código já diz](#o-que-o-código-já-diz)).
 
@@ -587,8 +590,9 @@ seção sobre o alerta e os termos novos no vocabulário), `docs/api.md`
 **Não é mudança incompatível:** o campo é novo e opcional, e o alerta vem
 desligado.
 
-- [ ] a simulação do silêncio sobre o histórico real
-- [ ] `internal/alerta`: o contrato, a regra, o silêncio e o envio, com teste
+- [x] ~~a simulação do silêncio sobre o histórico real~~: feita em 22/10/2026,
+  e o silêncio ficou para depois do plano
+- [ ] `internal/alerta`: o contrato, a regra e o envio, com teste
 - [ ] a avaliação no `Recorder.olhou`, sem segurar a fila
 - [ ] o campo `alert`, com validação
 - [ ] a seção Alertas no cadastro
@@ -596,7 +600,57 @@ desligado.
 - [ ] na instalação de teste, por deploy manual, com detecções reais
 - [ ] docs
 
-## Etapa 4 - o e-mail
+## Etapa 4 - os horários do alerta
+
+**O que muda para quem usa:** por câmera, em que dias e horas o alerta sai.
+Sem horário, ele sai sempre.
+
+**O dado** (proposta), dentro do `alert`. A estrutura ainda vai ser revista
+com o mantenedor quando a etapa chegar (20/10/2026); as chaves já estão em
+en-US:
+
+```json
+"schedules": [
+  { "days": [1, 2, 3, 4, 5], "from": "22:00", "to": "06:00" },
+  { "days": [0, 6], "from": "00:00", "to": "00:00" }
+]
+```
+
+- `days` vai de 0 (domingo) a 6 (sábado), como o Go e o JavaScript contam.
+- O `to` menor que o `from` termina no dia seguinte, e o dia da faixa é o do
+  início: sexta das 22:00 às 06:00 cobre a madrugada de sábado. É a mesma regra
+  do intervalo de Detecções.
+- O `from` igual ao `to` é o dia inteiro.
+- Vale o instante do onset, no fuso do servidor, o mesmo que vira o dia das
+  gravações.
+
+**Como fica** (a fechar no mock), em três variantes:
+
+- **A - a grade da semana:** 7 dias x 24 horas, pintada de hora em hora com o
+  dedo ou o mouse. No celular, os dias viram colunas e as horas, linhas.
+- **B - um dia por linha:** cada dia com as faixas dele, "+ faixa" e "copiar
+  para os outros dias".
+- **C - faixas com os dias em chips:** cada faixa tem os dias (D S T Q Q S S)
+  e o De e o Até do `CampoHora`, com a semana desenhada embaixo como prévia e
+  atalhos (sempre, toda noite, fim de semana).
+
+Recomendo a C: reaproveita o De e o Até que já existem, vai ao minuto, cabe no
+celular sem gesto de pintar, e a prévia mostra a semana inteira de uma vez. A
+A é a mais visual, e a mais difícil no dedo.
+
+**Repercussões:** `config.ConfereCamera` (dias e horas válidos), §Política
+por câmera do `docs/configuracao.md`, `docs/deteccao.md` e
+`web/src/lib/api.ts`.
+
+**Não é mudança incompatível:** o campo é novo e opcional.
+
+- [ ] mock (A, B, C), celular e desktop
+- [ ] o campo `schedules`, com validação e teste da virada do dia
+- [ ] a seção no cadastro
+- [ ] teste do mantenedor no celular e no desktop
+- [ ] docs
+
+## Etapa 5 - o e-mail
 
 **O que muda para quem usa:** o alerta chega por e-mail, com o quadro da
 detecção.
@@ -672,56 +726,6 @@ com comentário, uma seção nova no `docs/configuracao.md` e a §Configuração
 - [ ] o botão de teste
 - [ ] docs, com o exemplo do Gmail
 
-## Etapa 5 - os horários do alerta
-
-**O que muda para quem usa:** por câmera, em que dias e horas o alerta sai.
-Sem horário, ele sai sempre.
-
-**O dado** (proposta), dentro do `alert`. A estrutura ainda vai ser revista
-com o mantenedor quando a etapa chegar (20/10/2026); as chaves já estão em
-en-US:
-
-```json
-"schedules": [
-  { "days": [1, 2, 3, 4, 5], "from": "22:00", "to": "06:00" },
-  { "days": [0, 6], "from": "00:00", "to": "00:00" }
-]
-```
-
-- `days` vai de 0 (domingo) a 6 (sábado), como o Go e o JavaScript contam.
-- O `to` menor que o `from` termina no dia seguinte, e o dia da faixa é o do
-  início: sexta das 22:00 às 06:00 cobre a madrugada de sábado. É a mesma regra
-  do intervalo de Detecções.
-- O `from` igual ao `to` é o dia inteiro.
-- Vale o instante do onset, no fuso do servidor, o mesmo que vira o dia das
-  gravações.
-
-**Como fica** (a fechar no mock), em três variantes:
-
-- **A - a grade da semana:** 7 dias x 24 horas, pintada de hora em hora com o
-  dedo ou o mouse. No celular, os dias viram colunas e as horas, linhas.
-- **B - um dia por linha:** cada dia com as faixas dele, "+ faixa" e "copiar
-  para os outros dias".
-- **C - faixas com os dias em chips:** cada faixa tem os dias (D S T Q Q S S)
-  e o De e o Até do `CampoHora`, com a semana desenhada embaixo como prévia e
-  atalhos (sempre, toda noite, fim de semana).
-
-Recomendo a C: reaproveita o De e o Até que já existem, vai ao minuto, cabe no
-celular sem gesto de pintar, e a prévia mostra a semana inteira de uma vez. A
-A é a mais visual, e a mais difícil no dedo.
-
-**Repercussões:** `config.ConfereCamera` (dias e horas válidos), §Política
-por câmera do `docs/configuracao.md`, `docs/deteccao.md` e
-`web/src/lib/api.ts`.
-
-**Não é mudança incompatível:** o campo é novo e opcional.
-
-- [ ] mock (A, B, C), celular e desktop
-- [ ] o campo `schedules`, com validação e teste da virada do dia
-- [ ] a seção no cadastro
-- [ ] teste do mantenedor no celular e no desktop
-- [ ] docs
-
 ## Depois
 
 Sem data. Cada item vira plano próprio quando chegar a vez.
@@ -750,9 +754,67 @@ Sem data. Cada item vira plano próprio quando chegar a vez.
 - **Notificação do navegador (push):** exige service worker, que o dwnvr evita
   de propósito (ver "Instalável como app, sem service worker" no
   `web/README.md`).
+- **O silêncio**, se o alerta incomodar no uso: ver a seção abaixo.
+
+## O silêncio, medido e adiado
+
+Decidido em 22/10/2026: o alerta sai sem silêncio. O mantenedor volta a este
+assunto depois de o plano inteiro estar feito, e só se o alerta incomodar no
+uso. Fica aqui o que já se sabe, para não refazer.
+
+**O problema.** A marca é de chegada (item 1 de
+[O que o código já diz](#o-que-o-código-já-diz)): quem anda pela cena muda de
+lugar e marca de novo a cada olhada. Uma pessoa 20 minutos no quintal, marcada
+a cada minuto, são uns 20 alertas sobre ela.
+
+**O que o silêncio faz.** Depois de um alerta, a mesma câmera e família não
+alertam de novo por um tempo. A detecção segue gravada em Detecções e na
+timeline: só o aviso não sai, e o card Alertas conta o que ficou de fora. É por
+câmera e família: a pessoa no Portão não cala a do Fundo, e o gato de um minuto
+atrás não cala a pessoa de agora.
+
+**As duas formas de contar o tempo:**
+
+| Forma | Como conta | A favor | Contra |
+| --- | --- | --- | --- |
+| fixo | o tempo corre a partir do alerta | lembra que a cena continua | a presença longa vira um alerta a cada N minutos |
+| deslizante | cada marca que cai no silêncio o reinicia | um alerta por episódio | numa câmera sempre movimentada ele nunca fecha, e quem chega no meio não avisa |
+
+E a duração: mais longa manda menos alerta, e cala a segunda chegada que cair
+dentro dela.
+
+**Medido em 22/10/2026**, sobre 15 a 19/10/2026 da instalação de teste, no
+nível 4, antes de o padrão virar 5: `pessoa` nas 9 câmeras, na imagem inteira,
+o dia todo. Uma olhada é o conjunto das marcas de objeto de um mesmo
+`instanteMs` no `eventos/{dia}.ndjson`, e o teste de área é o do
+`internal/area`.
+
+| Silêncio | Alertas por dia, somadas as 9 câmeras |
+| --- | --- |
+| nenhum | 629 |
+| fixo, 1 min | 430 |
+| fixo, 5 min | 247 |
+| fixo, 15 min | 146 |
+| deslizante, 5 min | 173 |
+| deslizante, 15 min | 85 |
+| fixo, 5 min, só das 22h às 6h | 12,6 |
+
+- De dia, numa casa com gente, o silêncio não segura o volume: com 15 min
+  fixo, as três câmeras mais movimentadas ainda dão de 27 a 37 alertas por dia
+  cada. De dia, o freio é a câmera, a área e o horário.
+- De noite o volume é pequeno, e o silêncio só segura a rajada sobre a mesma
+  pessoa.
+- Só nas áreas de teste de 4 câmeras: 113 por dia com 5 min fixo, e 70 com
+  15 min.
+- O nível 5 marca mais chegadas que o 4, e os números devem subir.
+
+A recomendação, na época, foi o deslizante com 5 min. Sem silêncio, o único
+freio do volume de e-mails é o teto por hora da Etapa 5.
 
 ## Os limites, para a doc do alerta
 
+- **Um alerta por olhada.** Sem silêncio, quem fica andando pela cena gera
+  vários alertas seguidos, um a cada olhada que o marcar de novo.
 - **Não é alarme.** O alerta avisa do que a detecção marcou, e ela não marca
   toda chegada (item 5 de [O que o código já diz](#o-que-o-código-já-diz)).
   Subir a sensibilidade pega mais, e custa mais CPU.
