@@ -77,7 +77,7 @@ src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  do total), o botão de entrar e sair da tela cheia, o
                  `<Icone>` que desenha qualquer ícone da interface pelo nome,
                  a snackbar, o selo das famílias de objeto no canto de uma
-                 miniatura, o editor de área (o polígono sobre o quadro,
+                 miniatura (com o sino, na detecção que alertou), o editor de área (o polígono sobre o quadro,
                  chunk à parte), a miniatura das áreas de uma câmera e a
                  aba Alerta do cadastro da câmera (chunk à parte)
 src/vendor/      player de live do go2rtc (MIT), em JavaScript, com os tipos

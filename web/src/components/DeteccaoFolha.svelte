@@ -54,11 +54,17 @@
   // piso também. Nos dois casos o `grid-auto-rows` do Modal põe a folha para
   // rolar, que é o pior caso - e não o quadro cobrindo os botões, que era o
   // defeito.
+  //
+  // A detecção que alertou ganha o bloco "alertou" acima dos objetos, e a
+  // conta soma a altura dele: `BLOCO_PX` é o bloco com o título (14 de espaço
+  // + 2 de borda + 16 de padding + 21 do título) e `LINHA_DO_BLOCO_PX`, cada
+  // objeto dele (20 da linha + 4 de espaço).
   const LARGURA_MAX_PX = 880;
   const LARGURA_MIN_PX = 360;
   const RESTO_PX = 188;
   const RESPIRO_PX = 30;
-  const largura = `clamp(${LARGURA_MIN_PX}px, calc((var(--altura-max) - ${RESTO_PX}px) * 16 / 9 + ${RESPIRO_PX}px), ${LARGURA_MAX_PX}px)`;
+  const BLOCO_PX = 53;
+  const LINHA_DO_BLOCO_PX = 24;
 
   interface Props {
     det: Deteccao;
@@ -71,6 +77,9 @@
     // As áreas do filtro nesta câmera: o contorno vai sobre o quadro, e diz
     // por que a detecção entrou.
     areas?: readonly (readonly Ponto[])[] | null;
+    // As áreas em que a detecção alertou, pelo id gravado na marca, com o
+    // nome e o contorno de agora; `pontos` nulo é a área apagada desde então.
+    areasDoAlerta?: readonly { id: string; nome: string; pontos: readonly Ponto[] | null }[];
     // Abre o editor de área sobre este quadro. Nulo sem quadro.
     onarea?: (() => void) | null;
   }
@@ -83,6 +92,7 @@
     onproxima = null,
     onocultar = null,
     areas = null,
+    areasDoAlerta = [],
     onarea = null,
   }: Props = $props();
 
@@ -107,6 +117,17 @@
       (a, b) => familia(a.familia).prioridade - familia(b.familia).prioridade || b.score - a.score,
     ),
   );
+  // Com alerta, o bloco "alertou" leva os objetos que passaram na regra, e os
+  // outros ficam embaixo, como "não entrou no alerta".
+  const doAlerta = $derived(objetos.filter((o) => o.alert));
+  const foraDoAlerta = $derived(objetos.filter((o) => !o.alert));
+  const alertou = $derived(doAlerta.length > 0);
+  const nomeDaArea = (id: string) => areasDoAlerta.find((a) => a.id === id)?.nome ?? 'área apagada';
+
+  const largura = $derived.by(() => {
+    const resto = RESTO_PX + (alertou ? BLOCO_PX + doAlerta.length * LINHA_DO_BLOCO_PX : 0);
+    return `clamp(${LARGURA_MIN_PX}px, calc((var(--altura-max) - ${resto}px) * 16 / 9 + ${RESPIRO_PX}px), ${LARGURA_MAX_PX}px)`;
+  });
   // As caixas do vídeo acendem quando a reprodução passa pelo quadro olhado,
   // e a camada de Gravações acha esse quadro em `quadroMs` de cada marca.
   const marcas = $derived.by(() => {
@@ -137,8 +158,15 @@
     if (!iw || !ih) return;
     const s = Math.min(w / iw, h / ih);
     g.translate((w - iw * s) / 2, (h - ih * s) / 2);
-    for (const a of areas ?? []) desenhaContorno(g, a, iw * s, ih * s);
-    desenha(g, dispoe(g, det.objetos, iw * s, ih * s, true));
+    // O contorno das áreas do filtro e das do alerta, uma vez cada.
+    const contornos = [...(areas ?? [])];
+    for (const a of areasDoAlerta)
+      if (a.pontos && !contornos.includes(a.pontos)) contornos.push(a.pontos);
+    for (const a of contornos) desenhaContorno(g, a, iw * s, ih * s);
+    // O objeto que não entrou no alerta fica no quadro, mas apagado.
+    desenha(g, dispoe(g, det.objetos, iw * s, ih * s, true), (it) =>
+      alertou && !it.marca.alert ? 0.35 : 1,
+    );
   }
 
   onMount(() => {
@@ -316,8 +344,33 @@
     </div>
   </div>
 
+  {#if alertou}
+    <div class="bloco-alerta small">
+      <span class="titulo"><Icone nome="sino" tamanho={16} traco={2.4} />alertou</span>
+      {#each doAlerta as o, i (i)}
+        {@const icone = iconeDa(o, true) ?? iconeDa(o, false)}
+        <span class="linha-alerta">
+          <span class="objeto">
+            {#if icone}<img
+                src={iconeURL(icone, 14, familia(o.familia).cor)}
+                alt=""
+                width="14"
+                height="14"
+              />{/if}
+            <span>{NOME_DA_CLASSE[o.classe] ?? o.classe} {score(o.score)}</span>
+          </span>
+          {#each o.alertAreas ?? [] as id (id)}
+            <span class="chip-area">{nomeDaArea(id)}</span>
+          {:else}
+            <span class="muted">imagem inteira</span>
+          {/each}
+        </span>
+      {/each}
+    </div>
+  {/if}
+
   <div class="objetos small">
-    {#each objetos as o, i (i)}
+    {#each alertou ? foraDoAlerta : objetos as o, i (i)}
       {@const icone = iconeDa(o, true) ?? iconeDa(o, false)}
       <span class="objeto">
         {#if icone}<img
@@ -329,6 +382,9 @@
         <span>{NOME_DA_CLASSE[o.classe] ?? o.classe} {score(o.score)}</span>
       </span>
     {/each}
+    {#if alertou && foraDoAlerta.length}
+      <span class="muted">não entrou no alerta</span>
+    {/if}
     <!-- Mora aqui, e não no cabeçalho: lá ele deixava pouco espaço e o nome
          da câmera saía cortado no celular. -->
     {#if onarea}
@@ -525,6 +581,41 @@
 
   .objeto img {
     display: block;
+  }
+
+  /* Na cor do sino (o --warn, #d29922), como o "só alertas" de Detecções. */
+  .bloco-alerta {
+    display: grid;
+    gap: 4px;
+    padding: 8px 10px;
+    border: 1px solid rgba(210, 153, 34, 0.4);
+    border-radius: 8px;
+    background: rgba(210, 153, 34, 0.06);
+  }
+
+  .titulo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--warn);
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .linha-alerta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* O tracejado é o do contorno da área sobre o quadro. */
+  .chip-area {
+    padding: 0 7px;
+    border: 1px dashed var(--accent);
+    border-radius: 999px;
+    font-size: 12px;
+    white-space: nowrap;
   }
 
   .acoes {
