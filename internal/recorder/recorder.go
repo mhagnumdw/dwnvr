@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/alerta"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/fmp4"
@@ -445,16 +446,17 @@ func (r *Recorder) ofereceA(f *detect.Fila) func(detect.Pedaco) {
 }
 
 // olhou recebe a resposta do detector a um pedaço desta câmera, na goroutine
-// da fila, grava o que virou marca e devolve as linhas gravadas, para o alerta
-// ver os mesmos números que Detecções mostra.
-func (r *Recorder) olhou(o detect.Olhada) []store.Evento {
+// da fila, e grava o que virou marca. Com a regra de alerta da câmera, nil
+// quando ela não alerta, devolve o alerta da olhada, com os mesmos números das
+// linhas gravadas, que é o que Detecções mostra.
+func (r *Recorder) olhou(o detect.Olhada, regra *alerta.Regra) (alerta.Alerta, bool) {
 	if errors.Is(o.Erro, detect.ErrPedacoRecusado) {
 		r.recusados.Add(1)
-		return nil
+		return alerta.Alerta{}, false
 	}
 	if o.Erro != nil {
 		r.falhas.Add(1)
-		return nil
+		return alerta.Alerta{}, false
 	}
 	if r.marcador == nil {
 		r.marcador = detect.NovoMarcador(detect.MarcadorPadrao)
@@ -462,7 +464,7 @@ func (r *Recorder) olhou(o detect.Olhada) []store.Evento {
 	marcas := r.marcador.Olha(o.Achados)
 	if len(marcas) == 0 {
 		r.semObjeto.Add(1)
-		return nil
+		return alerta.Alerta{}, false
 	}
 	r.comObjeto.Add(1)
 
@@ -501,15 +503,24 @@ func (r *Recorder) olhou(o detect.Olhada) []store.Evento {
 		for i, v := range a.Caixa {
 			caixa[i] = math.Round(v*10000) / 10000
 		}
-		ev := store.Evento{InstanteMs: o.Pedaco.OnsetMs, Familia: string(f), Classe: a.Classe,
-			Score: math.Round(a.Score*1000) / 1000, QuadroMs: o.Pedaco.QuadroMs, Caixa: &caixa,
-			TemQuadro: temQuadro}
+		linhas = append(linhas, store.Evento{InstanteMs: o.Pedaco.OnsetMs, Familia: string(f),
+			Classe: a.Classe, Score: math.Round(a.Score*1000) / 1000, QuadroMs: o.Pedaco.QuadroMs,
+			Caixa: &caixa, TemQuadro: temQuadro})
+	}
+
+	// A regra do alerta roda antes da escrita, para a marca `alert` entrar
+	// na linha do objeto que passou.
+	var al alerta.Alerta
+	var alertou bool
+	if regra != nil {
+		al, alertou = regra.Avalia(linhas, o.Quadro)
+	}
+	for _, ev := range linhas {
 		if err := r.idx.AppendEvento(ev); err != nil {
 			r.log.Warn("falha ao gravar marca de objeto", "erro", err)
 		}
-		linhas = append(linhas, ev)
 	}
-	return linhas
+	return al, alertou
 }
 
 // funil monta as fatias. NaFila sai por diferença, porque é a única que não é

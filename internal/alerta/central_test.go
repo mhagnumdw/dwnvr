@@ -19,9 +19,8 @@ func alertaDe(instanteMs int64) Alerta {
 		Objetos: []Objeto{{Familia: "pessoa", Classe: "person", Score: 0.87, Areas: []string{"Portão"}}}}
 }
 
-// TestRegistroSemMeio: sem meio, o alerta vai ao log e à lista, e nada mais
-// nasce. A lista vem do mais novo para o mais velho, sem o quadro, e guarda
-// só os últimos AlertasNaTela.
+// TestRegistroSemMeio: sem meio, o alerta é contado e vai ao log, e nada mais
+// nasce.
 func TestRegistroSemMeio(t *testing.T) {
 	var log strings.Builder
 	c := NovaCentral(nil, slog.New(slog.NewTextHandler(&log, nil)))
@@ -30,22 +29,12 @@ func TestRegistroSemMeio(t *testing.T) {
 	}
 
 	c.Recebe(alertaDe(1))
+	c.Recebe(alertaDe(2))
 	if !strings.Contains(log.String(), "msg=alerta cam=cam_a familias=pessoa objetos=1 areas=Portão") {
 		t.Errorf("log: %s", log.String())
 	}
-	if r := c.Recentes(); len(r) != 1 || r[0].InstanteMs != 1 || r[0].Quadro != nil {
-		t.Errorf("recentes %+v", r)
-	}
-
-	for i := range AlertasNaTela + 4 {
-		c.Recebe(alertaDe(int64(i + 2)))
-	}
-	r := c.Recentes()
-	if len(r) != AlertasNaTela || c.Total() != AlertasNaTela+5 {
-		t.Fatalf("%d na lista e %d no total, esperava %d e %d", len(r), c.Total(), AlertasNaTela, AlertasNaTela+5)
-	}
-	if r[0].InstanteMs != AlertasNaTela+5 || r[AlertasNaTela-1].InstanteMs != 6 {
-		t.Errorf("lista de %d a %d, esperava de %d a 6", r[0].InstanteMs, r[AlertasNaTela-1].InstanteMs, AlertasNaTela+5)
+	if c.Total() != 2 {
+		t.Errorf("total %d, esperava 2", c.Total())
 	}
 	// Roda sem meio volta na hora, e nenhuma goroutine fica para trás.
 	c.Roda(context.Background())

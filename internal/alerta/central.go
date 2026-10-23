@@ -10,11 +10,12 @@ import (
 	"time"
 )
 
-// Central recebe os alertas de todas as câmeras, guarda o registro deles e os
+// Central recebe os alertas de todas as câmeras, conta, põe no log e os
 // entrega aos meios.
 //
-// O registro é a linha no log e a lista dos últimos AlertasNaTela, de memória:
-// some num reinício. Ele existe com meio configurado ou sem.
+// O registro do alerta é a linha no log e a marca `alert` na linha do objeto,
+// que o Recorder grava antes de a Central receber. Ele existe com meio
+// configurado ou sem.
 //
 // Recebe é chamado da goroutine da fila do detector de objetos e nunca espera:
 // o que pode esperar é o envio, na goroutine do Roda. Sem meio, não há espera
@@ -28,13 +29,8 @@ type Central struct {
 
 	total, descartados atomic.Int64
 
-	mu sync.Mutex
-	// recentes é um anel: prox é onde entra o próximo, e cheio diz que ele já
-	// deu a volta.
-	recentes [AlertasNaTela]Alerta
-	prox     int
-	cheio    bool
-	estados  []EstadoDoMeio
+	mu      sync.Mutex
+	estados []EstadoDoMeio
 }
 
 // EstadoDoMeio é o que se sabe dos envios de um meio desde que o dwnvr subiu.
@@ -63,9 +59,9 @@ func NovaCentral(meios []Notificador, log *slog.Logger) *Central {
 	return c
 }
 
-// Recebe registra o alerta e o põe na espera dos meios. Com a espera cheia, o
-// alerta é descartado e contado: ele já está no registro, e esperar aqui
-// pararia as olhadas de todas as câmeras.
+// Recebe conta o alerta, põe no log e o põe na espera dos meios. Com a espera
+// cheia, o alerta é descartado e contado: ele já está gravado na detecção, e
+// esperar aqui pararia as olhadas de todas as câmeras.
 func (c *Central) Recebe(a Alerta) {
 	c.total.Add(1)
 	attrs := []any{"cam", a.Camera, "familias", familiasDe(a), "objetos", len(a.Objetos)}
@@ -73,16 +69,6 @@ func (c *Central) Recebe(a Alerta) {
 		attrs = append(attrs, "areas", areas)
 	}
 	c.log.Info("alerta", attrs...)
-
-	// O registro não guarda o quadro: são dezenas de KB por alerta, e a tela
-	// o lê do disco.
-	reg := a
-	reg.Quadro = nil
-	c.mu.Lock()
-	c.recentes[c.prox] = reg
-	c.prox = (c.prox + 1) % AlertasNaTela
-	c.cheio = c.cheio || c.prox == 0
-	c.mu.Unlock()
 
 	if c.espera == nil {
 		return
@@ -138,27 +124,11 @@ func (c *Central) envia(ctx context.Context, a Alerta) {
 }
 
 // Total é quantos alertas a Central recebeu desde que nasceu. É o que o
-// /api/health leva: a tela relê a lista só quando ele muda.
+// /api/health leva.
 func (c *Central) Total() int64 { return c.total.Load() }
 
 // Descartados são os alertas que não couberam na espera dos meios.
 func (c *Central) Descartados() int64 { return c.descartados.Load() }
-
-// Recentes devolve os últimos AlertasNaTela alertas, do mais novo para o mais
-// velho, sem o quadro.
-func (c *Central) Recentes() []Alerta {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	n := c.prox
-	if c.cheio {
-		n = AlertasNaTela
-	}
-	out := make([]Alerta, n)
-	for i := range n {
-		out[i] = c.recentes[(c.prox-1-i+AlertasNaTela)%AlertasNaTela]
-	}
-	return out
-}
 
 // Meios devolve o estado de cada meio, na ordem em que foram construídos.
 func (c *Central) Meios() []EstadoDoMeio {

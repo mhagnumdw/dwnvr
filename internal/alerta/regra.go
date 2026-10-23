@@ -18,9 +18,9 @@ type Regra struct {
 }
 
 type areaDaRegra struct {
-	nome  string
-	area  area.Area
-	regra area.RegraDaArea
+	id, nome string
+	area     area.Area
+	regra    area.RegraDaArea
 }
 
 // NovaRegra monta a regra da câmera já conferida pelo ConfereCamera, ou
@@ -44,7 +44,7 @@ func NovaRegra(cam config.Camera) *Regra {
 		if errPontos != nil || errRegra != nil {
 			continue
 		}
-		r.areas = append(r.areas, areaDaRegra{nome: a.Name, area: poligono, regra: regra})
+		r.areas = append(r.areas, areaDaRegra{id: a.ID, nome: a.Name, area: poligono, regra: regra})
 	}
 	// O ConfereCamera já desligou o alerta que perdeu as áreas; isto só
 	// garante que ele nunca passe para a imagem inteira por outro caminho.
@@ -54,28 +54,31 @@ func NovaRegra(cam config.Camera) *Regra {
 	return r
 }
 
-// Avalia diz se as marcas de uma olhada viram alerta. Passa cada marca de uma
-// família do alerta que cai na imagem inteira, ou em alguma das áreas, cada
-// uma pela própria regra. Todas as que passam vão no mesmo alerta: duas
+// Avalia diz se as marcas de uma olhada viram alerta, e marca nelas os
+// objetos que passam: `Alert` e, com áreas, `AlertAreas`. Passa cada marca de
+// uma família do alerta que cai na imagem inteira, ou em alguma das áreas,
+// cada uma pela própria regra. Todas as que passam vão no mesmo alerta: duas
 // pessoas na mesma olhada são um alerta só.
 //
-// As marcas são as linhas que o Recorder acabou de gravar, todas do mesmo
-// onset: o alerta tem os mesmos números que Detecções mostra.
+// As marcas são as linhas que o Recorder vai gravar, todas do mesmo onset, e
+// a avaliação vem antes da escrita para a marca entrar nela: o alerta tem os
+// mesmos números que Detecções mostra.
 func (r *Regra) Avalia(marcas []store.Evento, quadro []byte) (Alerta, bool) {
 	var objetos []Objeto
-	for _, m := range marcas {
+	for i, m := range marcas {
 		if m.Caixa == nil || !slices.Contains(r.familias, detect.Familia(m.Familia)) {
 			continue
 		}
-		var nomes []string
+		var ids, nomes []string
 		for _, a := range r.areas {
 			if a.regra.Dentro(a.area, *m.Caixa) {
-				nomes = append(nomes, a.nome)
+				ids, nomes = append(ids, a.id), append(nomes, a.nome)
 			}
 		}
-		if len(r.areas) > 0 && len(nomes) == 0 {
+		if len(r.areas) > 0 && len(ids) == 0 {
 			continue
 		}
+		marcas[i].Alert, marcas[i].AlertAreas = true, ids
 		objetos = append(objetos, Objeto{Familia: m.Familia, Classe: m.Classe, Score: m.Score,
 			Caixa: *m.Caixa, Areas: nomes})
 	}

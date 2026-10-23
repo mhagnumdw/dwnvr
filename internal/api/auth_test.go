@@ -233,7 +233,7 @@ func TestPapelPorRota(t *testing.T) {
 	soAdmin := []string{
 		"POST /api/cameras", "DELETE /api/cameras?id=cam_teste", "GET /api/streams/probe?src=x",
 		"POST /api/go2rtc/restart", "GET /api/health", "POST /api/reconnects/reset",
-		"GET /api/health/servidor", "GET /api/alertas", "DELETE /api/rec?cam=cam_teste",
+		"GET /api/health/servidor", "DELETE /api/rec?cam=cam_teste",
 		"GET /api/usuarios", "POST /api/usuarios", "POST /api/usuarios/link",
 		"DELETE /api/usuarios?username=maria", "DELETE /api/usuarios/avatar?username=maria",
 	}

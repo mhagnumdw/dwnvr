@@ -49,8 +49,8 @@ type Manager struct {
 	// alerta não tem entrada, e a olhada dela não faz conta nenhuma.
 	regras map[string]*alerta.Regra
 	// alertas nasce com a primeira regra e fica até o dwnvr parar, para o
-	// card não perder o histórico quando o último alerta é desligado. Nil é
-	// "nenhuma câmera ligou o alerta": nada do alerta existe.
+	// total do /api/health não voltar a zero quando o último alerta é
+	// desligado. Nil é "nenhuma câmera ligou o alerta": nada do alerta existe.
 	alertas *alerta.Central
 
 	// fila leva os pedaços de vídeo de todas as câmeras ao detector de
@@ -75,9 +75,9 @@ func NewManager(cfg *config.Config, client *go2rtc.Client, st *store.Store, log 
 	return m
 }
 
-// olhou entrega a resposta do detector ao recorder da câmera e, depois das
-// marcas gravadas, passa-as ao alerta. Câmera que saiu do ar enquanto o pedaço
-// dela esperava simplesmente não recebe.
+// olhou entrega a resposta do detector ao recorder da câmera, com a regra de
+// alerta dela, e passa à Central o alerta que sair. Câmera que saiu do ar
+// enquanto o pedaço dela esperava simplesmente não recebe.
 func (m *Manager) olhou(o detect.Olhada) {
 	m.mu.RLock()
 	r := m.recs[o.Pedaco.Camera]
@@ -86,11 +86,7 @@ func (m *Manager) olhou(o detect.Olhada) {
 	if r == nil {
 		return
 	}
-	marcas := r.rec.olhou(o)
-	if regra == nil || len(marcas) == 0 {
-		return
-	}
-	if a, ok := regra.Avalia(marcas, o.Quadro); ok {
+	if a, ok := r.rec.olhou(o, regra); ok {
 		alertas.Recebe(a)
 	}
 }

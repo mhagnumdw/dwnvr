@@ -153,9 +153,10 @@ func comAlerta(t *testing.T) *Manager {
 	return m
 }
 
-// TestOlhadaViraAlerta: a olhada passa pelo Recorder, que grava as marcas, e o
-// alerta sai com os mesmos números delas. A pessoa fora da área e a moto, que
-// não é da família, não entram; a olhada só com elas não alerta.
+// TestOlhadaViraAlerta: a olhada passa pelo Recorder, que marca na linha do
+// objeto que passou na regra o `alert` e o id da área, e a Central conta o
+// alerta. A pessoa fora da área e a moto, que não é da família, são gravadas
+// sem marca; a olhada só com elas não alerta.
 func TestOlhadaViraAlerta(t *testing.T) {
 	m := comAlerta(t)
 	agora := time.Now().UnixMilli()
@@ -172,13 +173,18 @@ func TestOlhadaViraAlerta(t *testing.T) {
 	if c == nil || c.Total() != 1 {
 		t.Fatalf("central %v, esperava um alerta", c)
 	}
-	a := c.Recentes()[0]
-	if a.Camera != "cam_teste" || a.InstanteMs != agora || a.QuadroMs != agora+1400 || !a.TemQuadro {
-		t.Errorf("alerta %+v", a)
+	linhas, err := m.store.Camera("cam_teste").ObjetosDoDia(time.Now().Format(store.DayLayout))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(a.Objetos) != 1 || a.Objetos[0].Score != 0.877 || len(a.Objetos[0].Areas) != 1 ||
-		a.Objetos[0].Areas[0] != "Portão" {
-		t.Errorf("objetos %+v, esperava só a pessoa do Portão, com o score gravado", a.Objetos)
+	if len(linhas) != 3 {
+		t.Fatalf("%d linhas, esperava as 3 marcas", len(linhas))
+	}
+	for i, l := range linhas {
+		// Só a primeira, a pessoa de 0,877 no Portão, alertou.
+		if l.Alert != (i == 0) || l.Alert != (len(l.AlertAreas) == 1 && l.AlertAreas[0] == "esq") {
+			t.Errorf("linha %d (%s %.3f): alert %v em %v", i, l.Familia, l.Score, l.Alert, l.AlertAreas)
+		}
 	}
 
 	// Lugar novo para o rastreio, mas fora da área: marca, e não alerta.

@@ -64,7 +64,7 @@ como ela funciona por dentro, e por quê.
 | **área** | um polígono desenhado sobre a imagem de uma câmera, com nome. Não muda o que é olhado nem o que vira marca: serve de filtro em Detecções e decide o alerta |
 | **alerta** | o aviso de que uma olhada trouxe marca que passa na regra de alerta da câmera |
 | **meio** | por onde o alerta sai: o e-mail, depois outros |
-| **registro** | a linha do alerta no log e na lista dos últimos alertas. Todo alerta tem, com meio configurado ou não |
+| **registro** | a linha do alerta no log e a marca `alert` na linha do objeto. Todo alerta tem, com meio configurado ou não |
 
 ## O caminho de um quadro até a marca
 
@@ -270,7 +270,7 @@ O alerta é o campo `alert` da câmera (ver
 avisam e, se houver, as áreas em que o objeto precisa cair, cada uma pela
 própria regra. Sem áreas, vale a imagem inteira.
 
-**Quando sai.** A cada olhada, logo depois de as marcas serem gravadas, e com
+**Quando sai.** A cada olhada, logo antes de as marcas serem gravadas, e com
 os mesmos números delas: passa cada marca de uma família do alerta que cai na
 imagem inteira ou numa das áreas. Todas as que passam vão num alerta só, com o
 instante do onset, que é a hora da cena: duas pessoas chegando juntas são um
@@ -283,15 +283,24 @@ envio aos meios, fica numa goroutine própria, com uma espera de
 `AlertasNaEspera`: com ela cheia, o alerta é descartado e contado, e já está no
 registro.
 
-**O registro** é uma linha `INFO` no log e a lista dos últimos
-`AlertasNaTela` alertas, de memória, que some num reinício:
+**O registro** é a marca na linha de cada objeto que passou, no
+`eventos/{dia}.ndjson`, e uma linha `INFO` no log. A marca é `"alert":true` e,
+com áreas no alerta, `"alertAreas"` com o id das áreas em que o objeto caiu; o
+objeto que não passou fica sem nada:
+
+```json
+{"instanteMs":1792525050142,"familia":"pessoa","classe":"person","score":0.566,"quadroMs":1792525050171,"caixa":[0.2276,0.3703,0.2784,0.4249],"temQuadro":true,"alert":true,"alertAreas":["calcad"]}
+```
 
 ```text
 level=INFO msg=alerta cam=portao familias=pessoa objetos=2 areas=Portão
 ```
 
-A lista sai no `GET /api/alertas`, e o `/api/health` leva só o total (ver
-[`api.md`](api.md)).
+A marca é o que valia na hora: mudar o alerta da câmera não muda o passado. Ela
+fica onde a detecção já fica, com a retenção do vídeo, e se vê em Detecções,
+com o filtro "só alertas" (`alert=1` no `/api/deteccoes`, ver
+[`api.md`](api.md)). O `/api/health` leva só o total desde que o dwnvr
+subiu.
 
 **Desligado, nada.** Sem nenhuma câmera com o alerta ligado, nada do alerta
 existe; a olhada de uma câmera sem alerta custa um `if`. Sem meio configurado,
@@ -351,7 +360,6 @@ Os números do alerta, que são escolha de desenho e não medida, ficam em
 
 | Número | Valor | O que é |
 | --- | --- | --- |
-| `AlertasNaTela` | 50 | quantos alertas o registro lembra |
 | `AlertasNaEspera` | 32 | quantos esperam a vez de sair pelos meios |
 | `PrazoDoEnvio` | 30 s | quanto um envio pode levar antes de contar como falha |
 

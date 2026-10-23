@@ -2,10 +2,13 @@
 
 Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
 Etapas 0, 1 e 2 feitas**, na branch `areas-e-alertas`; da 1, falta só a
-medição no hardware de referência.
+medição no hardware de referência. **A Etapa 3 está no meio:** o campo
+`alert`, o `internal/alerta`, a aba Alerta e a marca gravada na detecção, com o
+`alert=1` no `/api/deteccoes`, estão feitos.
 
-**Próximo passo:** a [Etapa 3](#etapa-3---o-alerta-contrato-regra-e-registro)
-(o alerta: contrato, regra e registro), começando pelo `internal/alerta`.
+**Próximo passo:** na [Etapa 3](#etapa-3---o-alerta-contrato-regra-e-registro)
+(o alerta: contrato, regra e registro), o botão "só alertas" em Detecções e o
+bloco "alertou" na folha.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -27,7 +30,7 @@ Tudo com a interface pensada para o celular e para o desktop.
 - [x] [Etapa 0 - toda caixa que virou marca fica gravada](#etapa-0---toda-caixa-que-virou-marca-fica-gravada)
 - [x] [Etapa 1 - filtrar Detecções por uma área desenhada na hora](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora), menos a medição no hardware de referência
 - [x] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
-- [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro)
+- [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro), em andamento: faltam a tela de Detecções, a instalação de teste e as docs
 - [ ] [Etapa 4 - os horários do alerta](#etapa-4---os-horários-do-alerta)
 - [ ] [Etapa 5 - o e-mail](#etapa-5---o-e-mail)
 
@@ -52,7 +55,9 @@ Tomadas em 20/10/2026:
    câmeras quer receber (ver [Depois](#depois)).
 6. **Antes do SMTP, o alerta vai para o log e para um card Alertas no
    Diagnóstico.** Os Avisos continuam sendo o que está errado no sistema: só
-   ganham uma linha quando um meio de envio falha.
+   ganham uma linha quando um meio de envio falha. Em 23/10/2026 o card deu
+   lugar à marca gravada na detecção e ao filtro "só alertas" em Detecções
+   (ver a Etapa 3).
 7. **Um contrato para os meios de envio**, para Telegram, WhatsApp e outros
    entrarem depois sem mexer no resto.
 8. **Horários por câmera**, por dia da semana.
@@ -205,7 +210,7 @@ três cuidados seguram o custo:
 | **regra da área** | quando um objeto conta como dentro: `encosta` ou `pisa`, que no JSON são `touch` e `foot` |
 | **alerta** | o aviso de que uma detecção passou na regra de alerta da câmera |
 | **meio** | por onde o alerta sai: e-mail, depois outros |
-| **registro** | a linha do alerta no log e no card Alertas. Todo alerta tem, com meio configurado ou não |
+| **registro** | a linha do alerta no log e a marca `alert` na detecção. Todo alerta tem, com meio configurado ou não |
 | **silêncio** | o tempo, depois de um alerta, em que a mesma câmera e família não alertam de novo. Adiado: ver [O silêncio, medido e adiado](#o-silêncio-medido-e-adiado) |
 
 ## O modelo de dados
@@ -483,7 +488,7 @@ versão velha não conhece o campo.
 
 **O que muda para quem usa:** no cadastro da câmera, "avisar quando
 detectar", com as famílias e as áreas que contam. Nesta etapa o alerta vai para
-o log e para o card Alertas do Diagnóstico; os horários são a Etapa 4, e o
+o log e fica marcado na detecção, visto em Detecções; os horários são a Etapa 4, e o
 e-mail, a 5.
 
 **O dado**, no `cameras.json`, dentro da câmera:
@@ -513,15 +518,17 @@ e-mail, a 5.
 - **O viewer não recebe o `alert`** no `GET /api/cameras` (23/10/2026): ele não
   edita câmera, e a tela dele não mostra o alerta.
 
-**Onde avalia:** logo depois do `Recorder.olhou`, que devolve as linhas que
-acabou de gravar: o alerta tem os mesmos números que Detecções mostra. Quem
-avalia é o `Manager.olhou`, que já chama o `Recorder.olhou`, com a `Regra` da
-câmera montada no `Set`; câmera sem alerta não tem regra, e a olhada dela custa
-um `if`. Vale o instante do onset, que é a hora da cena, e não o da resposta.
+**Onde avalia:** dentro do `Recorder.olhou`, depois de montar as linhas e
+antes de gravá-las, para a marca `alert` entrar na escrita (no passo 2 era
+depois da escrita; mudou em 23/10/2026, com a marca gravada): o alerta tem os
+mesmos números que Detecções mostra. O `Manager.olhou` passa ao
+`Recorder.olhou` a `Regra` da câmera, montada no `Set`, e entrega à `Central` o
+alerta que voltar; câmera sem alerta não tem regra, e a olhada dela custa um
+`if`. Vale o instante do onset, que é a hora da cena, e não o da resposta.
 
 **O alerta nunca segura a fila do detector de objetos.** O `olhou` roda na
 goroutine da fila: esperar um servidor SMTP ali pararia as olhadas de todas as
-câmeras. A `Central` faz o registro em memória e põe o alerta num channel com
+câmeras. A `Central` conta o alerta, põe no log e o põe num channel com
 buffer (`AlertasNaEspera`), e uma goroutine de envio o entrega aos meios. Com o
 channel cheio, o alerta é descartado e contado. Sem meio, o channel e a
 goroutine nem nascem: até a Etapa 5, nenhum.
@@ -552,13 +559,12 @@ var Notificadores = map[string]func(cfg *config.Config) (Notificador, error){
   objetos que passaram na regra (família, classe, confiança, caixa e as áreas
   em que caíram) e o JPEG do quadro olhado.
 - Todo alerta vira uma linha `INFO` no log, com a câmera, as famílias e as
-  áreas, e entra no card Alertas. Esse é o **registro**, que existe com meio
-  configurado ou sem. É ele que se testa nesta etapa.
-- **A lista vem num endpoint próprio, o `GET /api/alertas`**, com cada alerta
-  no formato de uma detecção do `/api/deteccoes` e as áreas em cada objeto. O
-  `/api/health` leva só `alerts.total` (decisão do mantenedor, 23/10/2026): ele
-  é relido a cada 5 s pelo Diagnóstico e a cada 30 s pelo sino, e a lista
-  inteira pesaria em toda leitura. A tela relê a lista quando o total muda.
+  áreas, e fica marcado na detecção (ver abaixo, "O alerta fica gravado na
+  detecção"). Esse é o **registro**, que existe com meio configurado ou sem.
+  É ele que se testa nesta etapa.
+- O `/api/health` leva só `alerts.total` (decisão do mantenedor, 23/10/2026):
+  ele é relido a cada 5 s pelo Diagnóstico e a cada 30 s pelo sino. A lista
+  em memória do `GET /api/alertas`, do passo 2, sai com a marca gravada.
 
 **Sem silêncio, por ora** (decisão do mantenedor, 22/10/2026): toda olhada com
 objeto que passa na regra da câmera vira alerta (a partir da Etapa 4, só
@@ -588,16 +594,51 @@ escolhida e desenhada, mas os pontos negativos dela pesaram mais. O desenho e
 esses pontos estão em
 [`TODO_olhada-de-aquecimento.md`](TODO_olhada-de-aquecimento.md).
 
-**No Diagnóstico**, só para o admin:
+**O alerta fica gravado na detecção, e se vê em Detecções** (decisão do
+mantenedor, 23/10/2026). O card Alertas no Diagnóstico, com a lista em
+memória, foi trocado por isto depois de dois mocks (o card, e o alerta dentro
+de Detecções): os dois mostravam a mesma coisa, e a lista em memória sumia num
+reinício.
 
-- **o card Alertas**, que só existe com alguma câmera com alerta ligado: os
-  últimos `AlertasNaTela` alertas, de memória (somem num reinício), cada um com
-  a hora, a câmera, o que foi visto e as áreas; e o total desde que o dwnvr
-  subiu.
+- **O dado:** na linha do objeto que alertou, no `eventos/{dia}.ndjson`,
+  `"alert":true` e, com áreas no alerta, `"alertAreas":[<id>]`, o id da área
+  (e não o nome: renomear segue, apagar vira "área apagada"). O objeto que não
+  passou na regra não ganha nada. Arquivo antigo vale como está, sem marca.
+  Antes e depois, com a detecção real das 16:37:30 de 20/10 na Frente (alerta
+  em pessoa e veículo, só na Calçada):
+
+  ```json
+  {"instanteMs":1792525050142,"familia":"pessoa","classe":"person","score":0.566,"quadroMs":1792525050171,"caixa":[0.2276,0.3703,0.2784,0.4249],"temQuadro":true}
+  {"instanteMs":1792525050142,"familia":"pessoa","classe":"person","score":0.566,"quadroMs":1792525050171,"caixa":[0.2276,0.3703,0.2784,0.4249],"temQuadro":true,"alert":true,"alertAreas":["calcad"]}
+  ```
+
+  A pessoa de 0,40 do mesmo quadro, fora da Calçada, fica sem marca.
+- **Onde:** na linha do objeto, e não numa linha própria, num arquivo
+  `alertas/{dia}` ou num arquivo global. A marca é por objeto, só a linha dele
+  a diz sem apontar "qual objeto"; sai na mesma escrita; a retenção é a do
+  vídeo; e Detecções já lê esse arquivo. O resultado do envio (Etapa 5) chega
+  depois e não caberia aí de qualquer jeito: se um dia for guardado, ganha
+  lugar próprio.
+- **A ordem muda:** a regra roda antes de gravar as linhas (hoje roda depois),
+  para a marca entrar na escrita. A `Central` fica com o total, o log e os
+  meios; o anel `recentes`, o `AlertasNaTela` e o `GET /api/alertas` saem. O
+  `/api/health` mantém só `alerts.total`.
+- **A API:** o objeto do `/api/deteccoes` traz `alert` e `alertAreas` (ids,
+  como gravados; a tela põe o nome pelo `GET /api/cameras`), e o filtro
+  `alert=1` deixa só as detecções com objeto que alertou.
+- **A tela, variante A do mock:** um botão com o sino na linha de
+  pessoa/veículo/animal, "só alertas" no desktop, que soma com os outros
+  filtros e vai no link. Desligado, a grade é a de hoje e a miniatura que
+  alertou ganha o sino no selo. Ligado: só alertas, o contorno tracejado das
+  áreas do alerta, o nome da área na legenda e a caixa que não entrou no
+  alerta tracejada e apagada. Na folha, o contorno das áreas sobre a imagem e
+  um bloco "alertou" com cada objeto, score e área; o objeto de fora aparece
+  embaixo, "não entrou no alerta".
 
 **O Aviso de meio falhando fica para a [Etapa 5](#etapa-5---o-e-mail)**
 (decisão do mantenedor, 23/10/2026), com o resultado em cada meio e os
-descartados no card: até o e-mail, não há meio que possa falhar, e nada disso
+descartados (que iam no card Alertas, que saiu: o lugar se decide na Etapa 5):
+até o e-mail, não há meio que possa falhar, e nada disso
 teria como ser visto funcionando. O contrato já leva o resultado de cada envio,
 testado com um meio falso.
 
@@ -617,14 +658,16 @@ avisa do que a detecção marcar, e ela não pega toda chegada (item 5 de
   com um alerta guardado; sem alerta, nada.
 
 **Custo zero desligado:** sem câmera com alerta ligado, nada nasce: nem a
-`Central`, nem channel, nem goroutine, nem card, nem os bytes da seção, que
-ficam num chunk à parte. A `Central` nasce com a primeira câmera que liga o
-alerta e fica até o dwnvr parar, para o card não perder o histórico quando o
-alerta é desligado.
+`Central`, nem channel, nem goroutine, nem os bytes da seção, que ficam num
+chunk à parte. A `Central` nasce com a primeira câmera que liga o alerta e fica
+até o dwnvr parar, para o total do `/api/health` não voltar a zero quando o
+alerta é desligado. A marca na linha só existe no objeto que alertou: a linha
+de quem não liga o alerta fica igual.
 
 **Repercussões:** `docs/deteccao.md` (sai o "não avisa ninguém", e entram uma
 seção sobre o alerta e os termos novos no vocabulário), `docs/api.md`
-(`/api/health`, `/api/alertas` e o campo da câmera), §Política por câmera do
+(`/api/health`, `alert` e `alertAreas` no `/api/deteccoes` e o campo da
+câmera), §Política por câmera do
 `docs/configuracao.md`, §Detecção de movimento e de objetos do `README.md`,
 `web/src/lib/api.ts`, `web/README.md` e a árvore do `README.md`
 (`internal/alerta/`).
@@ -637,10 +680,16 @@ desligado.
 - [x] o campo `alert`, com validação
 - [x] `internal/alerta`: o contrato, a regra e o envio, com teste
 - [x] a avaliação depois do `Recorder.olhou`, sem segurar a fila, com o
-  registro no log e no `GET /api/alertas`
+  registro no log e no `GET /api/alertas` (os dois trocados logo abaixo)
 - [x] a aba Alerta no cadastro, o chip "alerta: pessoa" no card e a
   confirmação ao apagar uma área que o alerta usa
-- [ ] o card Alertas
+- [ ] ~~o card Alertas~~: trocado em 23/10/2026 pelo alerta gravado na
+  detecção, com o filtro "só alertas" em Detecções
+- [x] a marca `alert`/`alertAreas` na linha do objeto, com a regra antes da
+  escrita; sai a lista em memória e o `GET /api/alertas`
+- [x] `alert` e `alertAreas` no `/api/deteccoes` e o filtro `alert=1`, que o
+  viewer também recebe (decisão do mantenedor, 23/10/2026)
+- [ ] o botão "só alertas" em Detecções e o bloco "alertou" na folha
 - [ ] na instalação de teste, por deploy manual, com detecções reais
 - [ ] docs
 
@@ -723,8 +772,9 @@ alerts:
 | `from` | o `From`, como `dwnvr <alertas@exemplo.com>` |
 | `to` | **opcional**: recebem o alerta de toda câmera com alerta ligado |
 
-Sem destinatário, o e-mail fica configurado e ninguém recebe; o card Alertas
-diz isso. A senha fica no servidor: não vai à tela nem ao log.
+Sem destinatário, o e-mail fica configurado e ninguém recebe, e a tela diz
+isso. O card Alertas saiu em 23/10/2026 (ver a Etapa 3): onde isto aparece se
+decide nesta etapa. A senha fica no servidor: não vai à tela nem ao log.
 
 **A mensagem:**
 
@@ -750,13 +800,15 @@ bloqueia quem dispara demais. O que passa dele é contado e vira Aviso.
 **O Aviso de meio falhando**, que veio da Etapa 3: um Aviso `bad` só quando um
 meio falha, com o "desde quando" dos outros avisos, como "Alertas por e-mail
 falhando desde 13:58 (12min): o erro. As detecções seguem gravadas, mas
-ninguém está sendo avisado." Vem do `/api/health`, como os outros. No card
-Alertas entram, junto, o resultado em cada meio e os números de enviados,
-descartados e falhas.
+ninguém está sendo avisado." Vem do `/api/health`, como os outros. Junto,
+entram o resultado em cada meio e os números de enviados, descartados e
+falhas. O card Alertas saiu em 23/10/2026 (ver a Etapa 3): onde isto aparece
+se decide nesta etapa.
 
 **Testar:**
 
-- um botão "enviar e-mail de teste" no card Alertas, só para o admin
+- um botão "enviar e-mail de teste", só para o admin (o lugar dele se decide
+  nesta etapa: ia no card Alertas, que saiu)
   (`POST /api/alertas/teste`), que mostra o erro do servidor SMTP como ele
   veio;
 - para desenvolver sem mandar e-mail de verdade, o Mailpit num container, com
@@ -774,7 +826,7 @@ com comentário, uma seção nova no `docs/configuracao.md` e a §Configuração
 - [ ] o meio `email`, com teste contra o Mailpit
 - [ ] o quadro com as caixas e a área desenhadas, medido
 - [ ] o teto por hora e o Aviso
-- [ ] o Aviso de meio falhando, e no card o resultado em cada meio
+- [ ] o Aviso de meio falhando, e o resultado em cada meio (onde, a decidir)
 - [ ] o botão de teste
 - [ ] docs, com o exemplo do Gmail
 
@@ -821,7 +873,7 @@ a cada minuto, são uns 20 alertas sobre ela.
 
 **O que o silêncio faz.** Depois de um alerta, a mesma câmera e família não
 alertam de novo por um tempo. A detecção segue gravada em Detecções e na
-timeline: só o aviso não sai, e o card Alertas conta o que ficou de fora. É por
+timeline: só o aviso não sai, e o que ficou de fora é contado. É por
 câmera e família: a pessoa no Portão não cala a do Fundo, e o gato de um minuto
 atrás não cala a pessoa de agora.
 

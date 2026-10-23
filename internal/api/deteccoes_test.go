@@ -366,10 +366,81 @@ func TestFiltroDeAreaRecusaParametroRuim(t *testing.T) {
 	}
 }
 
+// cenarioDeAlerta acrescenta ao cenarioDeDeteccoes marcas com o alerta
+// gravado:
+//
+//	hoje,  cam_teste 7: pessoa que alertou no portão, e um veículo que não
+//	hoje,  cam_b     8: pessoa que não alertou
+//	ontem, cam_b     4: pessoa que alertou na imagem inteira
+func cenarioDeAlerta(t *testing.T) (*Server, time.Time) {
+	t.Helper()
+	s, hoje := cenarioDeDeteccoes(t)
+	marca := func(cam string, base time.Time, min int64, familia string, alertou bool, areas ...string) {
+		t.Helper()
+		ev := store.Evento{InstanteMs: base.UnixMilli() + min*60_000, Familia: familia, Classe: "x",
+			Score: 0.9, Alert: alertou, AlertAreas: areas}
+		if err := s.store.Camera(cam).AppendEvento(ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ontem := hoje.AddDate(0, 0, -1)
+	marca("cam_teste", hoje, 7, "pessoa", true, "portao")
+	marca("cam_teste", hoje, 7, "veiculo", false)
+	marca("cam_b", hoje, 8, "pessoa", false)
+	marca("cam_b", ontem, 4, "pessoa", true)
+	return s, hoje
+}
+
+// `alert=1` deixa só a detecção com objeto que alertou, e inteira: o veículo
+// que não entrou no alerta segue nela, sem a marca. A marca vem como gravada,
+// com o id da área. Com a família do objeto que alertou fora, a detecção sai.
+func TestPaginaDeDeteccoesSoAlertas(t *testing.T) {
+	s, hoje := cenarioDeAlerta(t)
+
+	p := getPagina(t, s, "alert=1")
+	if got := rotulos(p, hoje); !iguais(got, []string{"cam_teste@7", "cam_b@-1436"}) {
+		t.Fatalf("só alertas: %v", got)
+	}
+	o := p.Deteccoes[0].Objetos
+	if len(o) != 2 || !o[0].Alert || !slices.Equal(o[0].AlertAreas, []string{"portao"}) ||
+		o[1].Alert || o[1].AlertAreas != nil {
+		t.Errorf("objetos do minuto 7: %+v", o)
+	}
+	if o := p.Deteccoes[1].Objetos; len(o) != 1 || !o[0].Alert || o[0].AlertAreas != nil {
+		t.Errorf("alerta na imagem inteira: %+v", o)
+	}
+
+	if got := rotulos(getPagina(t, s, "alert=1&familias=veiculo"), hoje); len(got) != 0 {
+		t.Errorf("veículo que não alertou: %v", got)
+	}
+	if got := rotulos(getPagina(t, s, "alert=1&cams=cam_b"), hoje); !iguais(got, []string{"cam_b@-1436"}) {
+		t.Errorf("só alertas da cam_b: %v", got)
+	}
+
+	// Sem o filtro, a marca vem do mesmo jeito.
+	p = getPagina(t, s, "cams=cam_teste&familias=pessoa")
+	if o := p.Deteccoes[0].Objetos; rotulos(p, hoje)[0] != "cam_teste@7" || !o[0].Alert {
+		t.Errorf("sem o filtro: %v %+v", rotulos(p, hoje), o)
+	}
+
+	rec := httptest.NewRecorder()
+	s.handleDiasDeDeteccao(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?alert=1", nil))
+	var dias struct {
+		DeteccoesPorDia map[string]int `json:"deteccoesPorDia"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &dias); err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]int{hoje.Format(store.DayLayout): 1,
+		hoje.AddDate(0, 0, -1).Format(store.DayLayout): 1}; !maps.Equal(dias.DeteccoesPorDia, want) {
+		t.Errorf("calendário: %v, esperado %v", dias.DeteccoesPorDia, want)
+	}
+}
+
 func TestPaginaDeDeteccoesRecusaParametroRuim(t *testing.T) {
 	s, _ := cenarioDeDeteccoes(t)
 	for _, q := range []string{"cams=../etc", "familias=fantasma", "limite=0",
-		"limite=999", "antes=x", "antes=1&depois=2"} {
+		"limite=999", "antes=x", "antes=1&depois=2", "alert=0", "alert=true"} {
 		rec := httptest.NewRecorder()
 		s.handleDeteccoes(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes?"+q, nil))
 		if rec.Code != http.StatusBadRequest {
