@@ -159,9 +159,10 @@ cair, mas não abre outra.
 | `DELETE /api/cameras` | `id`, `recordings=1` | **só admin**: descadastra; com `recordings=1` apaga as gravações junto |
 | `GET /api/streams/probe` | `src` | **só admin**: diz se um stream entrega áudio, abrindo-o se preciso |
 | `POST /api/go2rtc/restart` | - | **só admin**: reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
-| `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes e relógio |
+| `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes e relógio; com alerta ligado, o total de alertas |
 | `POST /api/reconnects/reset` | - | **só admin**: zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
 | `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos e últimos avisos do log |
+| `GET /api/alertas` | - | **só admin**: os últimos alertas, do mais novo para o mais velho, e o total desde que o dwnvr subiu |
 | `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
 No `POST /api/cameras`, cada área sem `id` ganha um gerado pelo servidor, e a
@@ -362,6 +363,33 @@ olhada que ele responde o apaga. Pedaço recusado (vídeo corrompido) não conta
 "foraDoAr": {
   "desde": "2026-09-29T14:02:10-03:00",
   "erro": "dial tcp 172.18.0.3:8480: connect: connection refused"
+}
+```
+
+Depois que alguma câmera liga o alerta, o `/api/health` traz o total de
+alertas desde que o dwnvr subiu. O campo fica até o dwnvr reiniciar, mesmo que
+o alerta seja desligado, e não vem antes:
+
+```json
+"alerts": { "total": 12 }
+```
+
+A lista vem à parte, no `GET /api/alertas`, porque pesa: o `/api/health` é
+relido a cada poucos segundos, e a tela pede a lista só quando o total muda.
+Cada alerta tem o formato de uma detecção do `GET /api/deteccoes`, e cada
+objeto traz em `areas` os nomes das áreas do alerta em que caiu, como estavam
+na hora; sem áreas no alerta, o campo não vem. Os objetos são só os que
+passaram na regra. A lista guarda os últimos 50, de memória, e some num
+reinício:
+
+```json
+{
+  "total": 12,
+  "recent": [
+    { "cam": "portao", "instanteMs": 1761234567000, "quadroMs": 1761234569000, "temQuadro": true,
+      "objetos": [ { "familia": "pessoa", "classe": "person", "score": 0.87,
+                     "caixa": [0.31, 0.22, 0.45, 0.91], "areas": ["Portão"] } ] }
+  ]
 }
 ```
 

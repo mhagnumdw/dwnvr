@@ -12,6 +12,7 @@ como ela funciona por dentro, e por quê.
 - [O caminho de um quadro até a marca](#o-caminho-de-um-quadro-até-a-marca)
 - [O dwnvr-detect](#o-dwnvr-detect)
 - [Carro parado não vira marca a cada olhada](#carro-parado-não-vira-marca-a-cada-olhada)
+- [O alerta](#o-alerta)
 - [Os parâmetros, e onde eles moram](#os-parâmetros-e-onde-eles-moram)
 - [O custo](#o-custo)
 - [Quando o dwnvr-detect cai](#quando-o-dwnvr-detect-cai)
@@ -27,6 +28,9 @@ como ela funciona por dentro, e por quê.
   ícone na timeline e caixa sobre o vídeo
 - mostra no Diagnóstico o que aconteceu com cada movimento marcado (o funil) e
   como está a fila do detector
+- com o alerta ligado na câmera, registra cada olhada que traz uma das
+  famílias escolhidas, na imagem inteira ou nas áreas marcadas (ver
+  [O alerta](#o-alerta))
 
 **Não faz:**
 
@@ -36,7 +40,9 @@ como ela funciona por dentro, e por quê.
   quem decodifica é o `dwnvr-detect`, num container à parte
 - **não olha todo quadro.** O detector de objetos olha um quadro por movimento
   marcado, não um fluxo contínuo
-- **não avisa ninguém.** Não há notificação nem alarme: é uma marca na timeline
+- **não é alarme.** O alerta avisa do que a detecção marcou, e ela não marca
+  toda chegada. Por ora ele só fica registrado: ainda não sai por e-mail nem
+  por outro meio
 - **não reconhece rosto nem placa**, e não aprende com a sua casa. O modelo é
   um só, com as 80 classes do COCO, e o dwnvr usa 12 delas
 
@@ -55,6 +61,10 @@ como ela funciona por dentro, e por quê.
 | **chegada** | um objeto aparecendo onde antes não havia. É o que a marca de objeto registra - não a presença |
 | **rastreio** | a memória, por câmera, dos lugares já ocupados por objeto parado |
 | **funil** | o destino de cada onset: descartado, olhado sem novidade, com objeto, ainda em andamento ou sem resposta |
+| **área** | um polígono desenhado sobre a imagem de uma câmera, com nome. Não muda o que é olhado nem o que vira marca: serve de filtro em Detecções e decide o alerta |
+| **alerta** | o aviso de que uma olhada trouxe marca que passa na regra de alerta da câmera |
+| **meio** | por onde o alerta sai: o e-mail, depois outros |
+| **registro** | a linha do alerta no log e na lista dos últimos alertas. Todo alerta tem, com meio configurado ou não |
 
 ## O caminho de um quadro até a marca
 
@@ -253,13 +263,66 @@ liberado depois de 5 olhadas. Volta, e marca de novo.
   E a memória não sobrevive a um reinício: depois dele, cada objeto parado
   aparece uma vez como se tivesse acabado de chegar.
 
+## O alerta
+
+O alerta é o campo `alert` da câmera (ver
+[`configuracao.md`](configuracao.md#política-por-câmera)): as famílias que
+avisam e, se houver, as áreas em que o objeto precisa cair, cada uma pela
+própria regra. Sem áreas, vale a imagem inteira.
+
+**Quando sai.** A cada olhada, logo depois de as marcas serem gravadas, e com
+os mesmos números delas: passa cada marca de uma família do alerta que cai na
+imagem inteira ou numa das áreas. Todas as que passam vão num alerta só, com o
+instante do onset, que é a hora da cena: duas pessoas chegando juntas são um
+alerta com as duas. Como a marca é de chegada, o carro parado avisa uma vez, e
+quem anda pela cena avisa a cada olhada que o marca de novo.
+
+**Ele nunca segura a fila do detector de objetos.** A avaliação roda na
+goroutine da fila, e por isso só faz contas em memória. O que pode esperar, o
+envio aos meios, fica numa goroutine própria, com uma espera de
+`AlertasNaEspera`: com ela cheia, o alerta é descartado e contado, e já está no
+registro.
+
+**O registro** é uma linha `INFO` no log e a lista dos últimos
+`AlertasNaTela` alertas, de memória, que some num reinício:
+
+```text
+level=INFO msg=alerta cam=portao familias=pessoa objetos=2 areas=Portão
+```
+
+A lista sai no `GET /api/alertas`, e o `/api/health` leva só o total (ver
+[`api.md`](api.md)).
+
+**Desligado, nada.** Sem nenhuma câmera com o alerta ligado, nada do alerta
+existe; a olhada de uma câmera sem alerta custa um `if`. Sem meio configurado,
+nem a espera nem a goroutine de envio nascem.
+
+### Os limites do alerta <!-- omit in toc -->
+
+- **Um alerta por olhada.** Não há silêncio: quem fica andando pela cena gera
+  vários alertas seguidos, um a cada olhada que o marcar de novo.
+- **Não é alarme.** Ele avisa do que a detecção marcou, e ela não marca toda
+  chegada. Subir a sensibilidade pega mais, e custa mais CPU.
+- **Chega atrasado:** de segundos a meio minuto depois da cena, que é o tempo
+  da janela do pico, da fila e da olhada.
+- **A fila descarta:** numa câmera agitada, o pedaço que não cabe na fila vira
+  só movimento, e não alerta.
+- **Falso positivo vira alerta falso:** o que o modelo confunde com gente, num
+  lugar novo, avisa. A área e as famílias são o freio.
+- **Depois de um reinício**, o objeto parado aparece uma vez como se tivesse
+  acabado de chegar (ver [o rastreio](#carro-parado-não-vira-marca-a-cada-olhada)),
+  e avisa se for de uma família e de uma área do alerta.
+- **Com o detector de objetos fora do ar, nenhum alerta sai.** O aviso que já
+  existe diz desde quando.
+- **Câmera movida, área errada:** é preciso redesenhar.
+
 ## Os parâmetros, e onde eles moram
 
 **O que o usuário escolhe** - ver [`configuracao.md`](configuracao.md):
 
 | Onde | O quê |
 | --- | --- |
-| `cameras.json`, pela tela de Câmeras | `detect`, `detectMecanismo`, `detectSensibilidade` |
+| `cameras.json`, pela tela de Câmeras | `detect`, `detectMecanismo`, `detectSensibilidade` e `areas` |
 | `dwnvr.yaml` | `defaults` desses três, e `detector.url` |
 | env do `dwnvr-detect` | `DETECT_THREADS`, `DETECT_MODELO`, `DETECT_PORTA` |
 
@@ -282,6 +345,15 @@ novo faz a medição deixar de valer em silêncio:
 | `PausaDepoisDeFalhaMs` | 30 s | a pausa da fila depois de uma olhada que falhou |
 | `TetoDoGOPBytes` | 4 MB | o maior GOP guardado por câmera; freio de RAM |
 | `FamiliasPadrao` | 12 classes | quais classes do COCO viram `pessoa`, `veiculo` ou `animal` |
+
+Os números do alerta, que são escolha de desenho e não medida, ficam em
+[`internal/alerta/parametros.go`](../internal/alerta/parametros.go):
+
+| Número | Valor | O que é |
+| --- | --- | --- |
+| `AlertasNaTela` | 50 | quantos alertas o registro lembra |
+| `AlertasNaEspera` | 32 | quantos esperam a vez de sair pelos meios |
+| `PrazoDoEnvio` | 30 s | quanto um envio pode levar antes de contar como falha |
 
 ## O custo
 
@@ -378,6 +450,9 @@ e [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO/TODO_recalibrar-modelo
 | `internal/detect/marcador.go` | o corte por família e o rastreio |
 | `internal/detect/parametros.go` | todos os números, com o porquê de cada um |
 | `internal/recorder/recorder.go` | o gancho no gravador e o funil |
+| `internal/area/area.go` | "o objeto está dentro da área?": as regras `foot` e `touch` |
+| `internal/alerta/regra.go` | quando as marcas de uma olhada viram alerta |
+| `internal/alerta/central.go` | o registro e a entrega aos meios |
 | `internal/store/store.go` | `eventos/{dia}.ndjson` |
 | `dwnvr-detect/servidor.py` | decodificar e rodar o modelo |
 | `web/src/components/Timeline.svelte` | a faixa de calor e as marcas de objeto |
