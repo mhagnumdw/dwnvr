@@ -445,15 +445,16 @@ func (r *Recorder) ofereceA(f *detect.Fila) func(detect.Pedaco) {
 }
 
 // olhou recebe a resposta do detector a um pedaço desta câmera, na goroutine
-// da fila, e grava o que virou marca.
-func (r *Recorder) olhou(o detect.Olhada) {
+// da fila, grava o que virou marca e devolve as linhas gravadas, para o alerta
+// ver os mesmos números que Detecções mostra.
+func (r *Recorder) olhou(o detect.Olhada) []store.Evento {
 	if errors.Is(o.Erro, detect.ErrPedacoRecusado) {
 		r.recusados.Add(1)
-		return
+		return nil
 	}
 	if o.Erro != nil {
 		r.falhas.Add(1)
-		return
+		return nil
 	}
 	if r.marcador == nil {
 		r.marcador = detect.NovoMarcador(detect.MarcadorPadrao)
@@ -461,7 +462,7 @@ func (r *Recorder) olhou(o detect.Olhada) {
 	marcas := r.marcador.Olha(o.Achados)
 	if len(marcas) == 0 {
 		r.semObjeto.Add(1)
-		return
+		return nil
 	}
 	r.comObjeto.Add(1)
 
@@ -488,6 +489,7 @@ func (r *Recorder) olhou(o detect.Olhada) {
 		fb := slices.Index(detect.Familias, detect.FamiliasPadrao[b.Classe])
 		return cmp.Or(cmp.Compare(fa, fb), cmp.Compare(b.Score, a.Score))
 	})
+	linhas := make([]store.Evento, 0, len(marcas))
 	for _, a := range marcas {
 		f, ok := detect.FamiliasPadrao[a.Classe]
 		if !ok {
@@ -505,7 +507,9 @@ func (r *Recorder) olhou(o detect.Olhada) {
 		if err := r.idx.AppendEvento(ev); err != nil {
 			r.log.Warn("falha ao gravar marca de objeto", "erro", err)
 		}
+		linhas = append(linhas, ev)
 	}
+	return linhas
 }
 
 // funil monta as fatias. NaFila sai por diferença, porque é a única que não é

@@ -509,15 +509,18 @@ e-mail, a 5.
 - **O viewer não recebe o `alert`** no `GET /api/cameras` (23/10/2026): ele não
   edita câmera, e a tela dele não mostra o alerta.
 
-**Onde avalia:** no `Recorder.olhou`, logo depois do `Marcador`, com todas as
-caixas que viraram marca e o quadro olhado. Vale o instante do onset, que é a
-hora da cena, e não o da resposta.
+**Onde avalia:** logo depois do `Recorder.olhou`, que devolve as linhas que
+acabou de gravar: o alerta tem os mesmos números que Detecções mostra. Quem
+avalia é o `Manager.olhou`, que já chama o `Recorder.olhou`, com a `Regra` da
+câmera montada no `Set`; câmera sem alerta não tem regra, e a olhada dela custa
+um `if`. Vale o instante do onset, que é a hora da cena, e não o da resposta.
 
 **O alerta nunca segura a fila do detector de objetos.** O `olhou` roda na
 goroutine da fila: esperar um servidor SMTP ali pararia as olhadas de todas as
-câmeras. O alerta vai para um canal com buffer (`AlertasNaEspera`), e uma
-goroutine de envio o entrega aos meios. Com o canal cheio, o alerta é
-descartado e contado.
+câmeras. A `Central` faz o registro em memória e põe o alerta num channel com
+buffer (`AlertasNaEspera`), e uma goroutine de envio o entrega aos meios. Com o
+channel cheio, o alerta é descartado e contado. Sem meio, o channel e a
+goroutine nem nascem: até a Etapa 5, nenhum.
 
 **O contrato**, num pacote novo `internal/alerta` (o que em Java seria uma
 interface):
@@ -534,8 +537,9 @@ type Notificador interface {
 	Nome() string
 }
 
-// Notificadores é o mapa de construtores: um meio novo entra numa linha.
-var Notificadores = map[string]func(c config.Alertas) (Notificador, error){
+// Notificadores é o mapa de construtores: um meio novo entra numa linha. O
+// construtor devolve nil quando o meio não está configurado no dwnvr.yaml.
+var Notificadores = map[string]func(cfg *config.Config) (Notificador, error){
 	"email": NovoEmail, // Etapa 5
 }
 ```
@@ -546,6 +550,11 @@ var Notificadores = map[string]func(c config.Alertas) (Notificador, error){
 - Todo alerta vira uma linha `INFO` no log, com a câmera, as famílias e as
   áreas, e entra no card Alertas. Esse é o **registro**, que existe com meio
   configurado ou sem. É ele que se testa nesta etapa.
+- **A lista vem num endpoint próprio, o `GET /api/alertas`**, com cada alerta
+  no formato de uma detecção do `/api/deteccoes` e as áreas em cada objeto. O
+  `/api/health` leva só `alerts.total` (decisão do mantenedor, 23/10/2026): ele
+  é relido a cada 5 s pelo Diagnóstico e a cada 30 s pelo sino, e a lista
+  inteira pesaria em toda leitura. A tela relê a lista quando o total muda.
 
 **Sem silêncio, por ora** (decisão do mantenedor, 22/10/2026): toda olhada com
 objeto que passa na regra da câmera vira alerta (a partir da Etapa 4, só
@@ -594,12 +603,15 @@ que até a Etapa 5 é "só o registro". E uma linha que diga o limite: o alerta
 avisa do que a detecção marcar, e ela não pega toda chegada (item 5 de
 [O que o código já diz](#o-que-o-código-já-diz)).
 
-**Custo zero desligado:** sem câmera com alerta ligado, nada nasce: nem canal,
-nem goroutine, nem card, nem os bytes da seção, que ficam num chunk à parte.
+**Custo zero desligado:** sem câmera com alerta ligado, nada nasce: nem a
+`Central`, nem channel, nem goroutine, nem card, nem os bytes da seção, que
+ficam num chunk à parte. A `Central` nasce com a primeira câmera que liga o
+alerta e fica até o dwnvr parar, para o card não perder o histórico quando o
+alerta é desligado.
 
 **Repercussões:** `docs/deteccao.md` (sai o "não avisa ninguém", e entram uma
 seção sobre o alerta e os termos novos no vocabulário), `docs/api.md`
-(`/api/health` e o campo da câmera), §Política por câmera do
+(`/api/health`, `/api/alertas` e o campo da câmera), §Política por câmera do
 `docs/configuracao.md`, §Detecção de movimento e de objetos do `README.md`,
 `web/src/lib/api.ts`, `web/README.md` e a árvore do `README.md`
 (`internal/alerta/`).
@@ -610,8 +622,9 @@ desligado.
 - [x] ~~a simulação do silêncio sobre o histórico real~~: feita em 22/10/2026,
   e o silêncio ficou para depois do plano
 - [x] o campo `alert`, com validação
-- [ ] `internal/alerta`: o contrato, a regra e o envio, com teste
-- [ ] a avaliação no `Recorder.olhou`, sem segurar a fila
+- [x] `internal/alerta`: o contrato, a regra e o envio, com teste
+- [x] a avaliação depois do `Recorder.olhou`, sem segurar a fila, com o
+  registro no log e no `GET /api/alertas`
 - [ ] a seção Alertas no cadastro
 - [ ] o card Alertas
 - [ ] na instalação de teste, por deploy manual, com detecções reais

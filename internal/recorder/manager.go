@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/alerta"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
@@ -44,6 +45,14 @@ type Manager struct {
 	recs map[string]*running
 	cams map[string]config.Camera
 
+	// regras é o alerta de cada câmera que alerta, montado no Set. Câmera sem
+	// alerta não tem entrada, e a olhada dela não faz conta nenhuma.
+	regras map[string]*alerta.Regra
+	// alertas nasce com a primeira regra e fica até o dwnvr parar, para o
+	// card não perder o histórico quando o último alerta é desligado. Nil é
+	// "nenhuma câmera ligou o alerta": nada do alerta existe.
+	alertas *alerta.Central
+
 	// fila leva os pedaços de vídeo de todas as câmeras ao detector de
 	// objetos. Nil sem `detector.url`: aí ninguém olha, e nenhum recorder
 	// guarda GOP.
@@ -58,6 +67,7 @@ func NewManager(cfg *config.Config, client *go2rtc.Client, st *store.Store, log 
 	m := &Manager{
 		cfg: cfg, client: client, store: st, log: log,
 		recs: map[string]*running{}, cams: map[string]config.Camera{},
+		regras: map[string]*alerta.Regra{},
 	}
 	if cfg.Detector.URL != "" {
 		m.fila = detect.NovaFila(detect.Detectores["sidecar"](cfg.Detector.URL), m.olhou, log)
@@ -65,14 +75,23 @@ func NewManager(cfg *config.Config, client *go2rtc.Client, st *store.Store, log 
 	return m
 }
 
-// olhou entrega a resposta do detector ao recorder da câmera. Câmera que saiu
-// do ar enquanto o pedaço dela esperava simplesmente não recebe.
+// olhou entrega a resposta do detector ao recorder da câmera e, depois das
+// marcas gravadas, passa-as ao alerta. Câmera que saiu do ar enquanto o pedaço
+// dela esperava simplesmente não recebe.
 func (m *Manager) olhou(o detect.Olhada) {
 	m.mu.RLock()
 	r := m.recs[o.Pedaco.Camera]
+	regra, alertas := m.regras[o.Pedaco.Camera], m.alertas
 	m.mu.RUnlock()
-	if r != nil {
-		r.rec.olhou(o)
+	if r == nil {
+		return
+	}
+	marcas := r.rec.olhou(o)
+	if regra == nil || len(marcas) == 0 {
+		return
+	}
+	if a, ok := regra.Avalia(marcas, o.Quadro); ok {
+		alertas.Recebe(a)
 	}
 }
 
@@ -100,9 +119,21 @@ func (m *Manager) Start(ctx context.Context, cams []config.Camera) {
 // recorder conforme a configuração pedir.
 func (m *Manager) Set(raw config.Camera) {
 	cam := m.cfg.Resolve(raw)
+	// Sem detector de objetos não há olhada, e o alerta não teria o que
+	// avisar: nem a regra nasce.
+	var regra *alerta.Regra
+	if m.fila != nil {
+		regra = alerta.NovaRegra(cam)
+	}
 
 	m.mu.Lock()
 	m.cams[cam.ID] = raw
+	if regra != nil {
+		m.regras[cam.ID] = regra
+		m.ligaAlertasLocked()
+	} else {
+		delete(m.regras, cam.ID)
+	}
 	old := m.recs[cam.ID]
 	m.mu.Unlock()
 
@@ -131,6 +162,30 @@ func (m *Manager) Set(raw config.Camera) {
 	}
 
 	m.start(cam)
+}
+
+// ligaAlertasLocked cria a Central na primeira câmera que liga o alerta, com
+// os meios do dwnvr.yaml, e sobe a goroutine de envio. Antes do Start não há
+// ctx para ela; o Start chama o Set de cada câmera depois de criá-lo. Com o
+// m.mu travado.
+func (m *Manager) ligaAlertasLocked() {
+	if m.alertas != nil {
+		return
+	}
+	m.alertas = alerta.NovaCentral(alerta.Meios(m.cfg, m.log), m.log)
+	if m.ctx != nil {
+		c := m.alertas
+		m.wg.Go(func() {
+			c.Roda(m.ctx)
+		})
+	}
+}
+
+// Alertas devolve a Central, ou nil enquanto nenhuma câmera ligou o alerta.
+func (m *Manager) Alertas() *alerta.Central {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.alertas
 }
 
 // recordingParamsChanged diz se a mudança exige reabrir a conexão. Nome, cota e
@@ -219,6 +274,7 @@ func (m *Manager) Remove(id string) {
 	m.stop(id)
 	m.mu.Lock()
 	delete(m.cams, id)
+	delete(m.regras, id)
 	m.mu.Unlock()
 	m.log.Info("câmera removida do gerenciador", "cam", id)
 }

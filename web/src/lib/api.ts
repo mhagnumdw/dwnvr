@@ -209,6 +209,9 @@ export const api = {
   // últimos avisos do log. À parte do health porque custa um teste de escrita
   // no disco - só a pede quem abriu o card "Este servidor".
   servidor: () => request<Servidor>('health/servidor'),
+  // Os últimos alertas, para o card Alertas. À parte do health porque a lista
+  // pesa: o health leva só o total, e a tela pede a lista quando ele muda.
+  alertas: () => request<ListaDeAlertas>('alertas'),
 
   // Um e-mail de teste pela seção smtp. O erro do servidor de e-mail vem como
   // ele respondeu.
@@ -580,9 +583,10 @@ export interface Detector {
 }
 
 // `disk` some quando o storage não responde; `detector`, sem detector de
-// objetos configurado; `go2rtc`, enquanto ele responde. `uptime`, `clock` e
-// `reconnectsWindowHours` faltam em servidor anterior a eles, para onde a tela
-// do `npm run dev` pode estar apontada.
+// objetos configurado; `go2rtc`, enquanto ele responde; `alerts`, antes de
+// alguma câmera ligar o alerta. `uptime`, `clock` e `reconnectsWindowHours`
+// faltam em servidor anterior a eles, para onde a tela do `npm run dev` pode
+// estar apontada.
 export interface Saude {
   cameras: CameraNaSaude[];
   disk?: Disco;
@@ -596,6 +600,7 @@ export interface Saude {
   // Só com problema no usuarios.json: `error` é o arquivo ilegível no boot, e
   // `warnings`, as entradas que não valem.
   users?: { error?: string; warnings?: string[] };
+  alerts?: { total: number };
 }
 
 // --- o servidor (card "Este servidor" do Diagnóstico)
@@ -756,6 +761,25 @@ export interface Deteccao {
   quadroMs?: number;
   temQuadro: boolean;
   objetos: ObjetoNoQuadro[];
+}
+
+// --- os alertas (card Alertas do Diagnóstico)
+
+// Um alerta tem o formato de uma detecção, só com os objetos que passaram na
+// regra, e cada um traz os nomes das áreas do alerta em que caiu. Sem áreas no
+// alerta, o `areas` não vem.
+export interface ObjetoDoAlerta extends ObjetoNoQuadro {
+  areas?: string[];
+}
+
+export interface Alerta extends Omit<Deteccao, 'objetos'> {
+  objetos: ObjetoDoAlerta[];
+}
+
+// Do mais novo para o mais velho; `total` conta desde que o dwnvr subiu.
+export interface ListaDeAlertas {
+  total: number;
+  recent: Alerta[];
 }
 
 export interface PaginaDeDeteccoes {

@@ -116,7 +116,9 @@ Detecções, com o "salvar na câmera" do editor de área.
 Se a câmera for movida, a área fica no lugar errado: redesenhe.
 
 O `alert` também não é política de gravação: diz quando uma detecção da câmera
-vira alerta. Mudar o alerta não reinicia a gravação.
+vira alerta. Por ora o alerta vai só para o log e para o `GET /api/alertas`
+(ver [`deteccao.md`](deteccao.md#o-alerta)). Mudar o alerta não reinicia a
+gravação.
 
 ```json
 "alert": { "enabled": true, "families": ["pessoa"], "areas": ["k3f9a2"] }
