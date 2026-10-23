@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/mhagnumdw/dwnvr/internal/area"
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/store"
@@ -290,5 +292,32 @@ func TestSaveDaCameraComAreas(t *testing.T) {
 	s.handleSaveCamera(rec, httptest.NewRequest(http.MethodPost, "/api/cameras", bytes.NewReader(b)))
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "pontos") {
 		t.Errorf("HTTP %d: %s, esperava 400 falando dos pontos", rec.Code, rec.Body.String())
+	}
+}
+
+// O alerta vai ao cameras.json como chegou. O que aponta para uma área que a
+// câmera não tem recusa o save inteiro, com o motivo: a tela tira a área do
+// alerta antes de apagá-la.
+func TestSaveDaCameraComAlerta(t *testing.T) {
+	s, _ := testServer(t)
+	comGo2RTC(t, s)
+
+	portao := config.Area{ID: "k3f9a2", Name: "Portão", Points: []area.Ponto{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}
+	alerta := &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}, Areas: []string{"k3f9a2"}}
+	saveCamera(t, s, config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+		Areas: []config.Area{portao}, Alert: alerta})
+	cams, _, err := s.cfg.LoadCameras()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cams) != 1 || !reflect.DeepEqual(cams[0].Alert, alerta) {
+		t.Fatalf("no arquivo: %+v", cams)
+	}
+
+	b, _ := json.Marshal(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Alert: alerta})
+	rec := httptest.NewRecorder()
+	s.handleSaveCamera(rec, httptest.NewRequest(http.MethodPost, "/api/cameras", bytes.NewReader(b)))
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "alert.areas[0]") {
+		t.Errorf("HTTP %d: %s, esperava 400 falando de alert.areas[0]", rec.Code, rec.Body.String())
 	}
 }

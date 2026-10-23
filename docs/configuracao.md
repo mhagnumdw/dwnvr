@@ -65,6 +65,7 @@ Tudo que é política de gravação é **por câmera**, não global:
 | `detectMecanismo` | quem decide disparar | `kleinberg-p` ou `periodico` |
 | `detectSensibilidade` | o nível, que é o custo em CPU | de 1 a 5 |
 | `areas` | as áreas desenhadas sobre a imagem - ver abaixo | até 8 |
+| `alert` | quando uma detecção vira alerta - ver abaixo | |
 
 Ser por câmera não é preciosismo: numa instalação real as câmeras não são
 iguais. A do portão merece alta resolução e cota grande; a do corredor não. E o
@@ -114,6 +115,19 @@ Detecções, com o "salvar na câmera" do editor de área.
 
 Se a câmera for movida, a área fica no lugar errado: redesenhe.
 
+O `alert` também não é política de gravação: diz quando uma detecção da câmera
+vira alerta. Mudar o alerta não reinicia a gravação.
+
+```json
+"alert": { "enabled": true, "families": ["pessoa"], "areas": ["k3f9a2"] }
+```
+
+- `families` são as famílias que alertam: `pessoa`, `veiculo` ou `animal`. Com
+  o alerta ligado, pelo menos uma.
+- `areas` são os `id` das áreas da câmera em que o objeto precisa cair, cada
+  uma pela própria `rule`. Vazio ou ausente é a imagem inteira.
+- `enabled` desligado guarda as famílias e as áreas, para religar sem refazer.
+
 ## Valor fora da faixa
 
 Um número fora da faixa **não impede o dwnvr de subir**. Gravar com o padrão é
@@ -138,6 +152,10 @@ o `server.loginAttemptsPerMinute`, onde zero desliga a trava global de disco e
 o limite de tentativas no login.
 
 Com as `areas` é igual: a área inválida sai, com um aviso, e as outras ficam.
+No `alert`, sai com um aviso a família desconhecida e a área que a câmera não
+tem. O alerta ligado que fica sem nenhuma família, ou sem nenhuma das áreas que
+tinha, é desligado, também com aviso: sem as áreas, ele valeria na imagem
+inteira.
 
 O que continua impedindo o boot é o que não tem padrão seguro: um arquivo que
 não se consegue ler, o `storage.root` vazio e o ID de câmera que viraria um

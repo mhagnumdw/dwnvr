@@ -120,8 +120,8 @@ func TestSetEmPlenoVooNaoCorre(t *testing.T) {
 	}
 }
 
-// TestAreaNaoReiniciaAGravacao: a área é do filtro, e desenhar ou apagar uma
-// não pode abrir buraco na gravação.
+// TestAreaNaoReiniciaAGravacao: a área é do filtro e do alerta, e desenhar ou
+// apagar uma não pode abrir buraco na gravação.
 func TestAreaNaoReiniciaAGravacao(t *testing.T) {
 	cam := config.Camera{ID: "cam_teste", Audio: config.AudioNone, SegmentSeconds: 30, StallSeconds: 5}
 	comArea := cam

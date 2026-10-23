@@ -166,7 +166,7 @@ cair, mas não abre outra.
 
 | Endpoint | Parâmetros | O que faz |
 | --- | --- | --- |
-| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs; para o viewer, só as câmeras e o `detector` |
+| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs; para o viewer, só as câmeras (sem o `alert`) e o `detector` |
 | `POST /api/cameras` | corpo JSON | **só admin**: cadastra ou altera (upsert por id); o campo que a câmera não definia e chega igual ao default não é gravado (ver [Política por câmera](configuracao.md#política-por-câmera)) |
 | `DELETE /api/cameras` | `id`, `recordings=1` | **só admin**: descadastra; com `recordings=1` apaga as gravações junto |
 | `GET /api/streams/probe` | `src` | **só admin**: diz se um stream entrega áudio, abrindo-o se preciso |
@@ -185,7 +185,14 @@ resposta traz a câmera com eles. Uma área inválida recusa o save inteiro com
 areas[1] "Garagem" fora do aceito: use de 3 a 20 pontos, com as coordenadas de 0 a 1
 ```
 
-O formato das `areas` está em
+O `alert` aponta para as áreas pelo `id`, e o que a câmera não tem também
+recusa o save. Por isso a tela tira a área do alerta antes de apagá-la:
+
+```text
+alert.areas[0] "sumiu" fora do aceito: use o id de uma área desta câmera
+```
+
+O formato das `areas` e do `alert` está em
 [Política por câmera](configuracao.md#política-por-câmera).
 
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
