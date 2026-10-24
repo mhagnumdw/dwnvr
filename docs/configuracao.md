@@ -131,7 +131,33 @@ gravação.
   o alerta ligado, pelo menos uma.
 - `areas` são os `id` das áreas da câmera em que o objeto precisa cair, cada
   uma pela própria `rule`. Vazio ou ausente é a imagem inteira.
-- `enabled` desligado guarda as famílias e as áreas, para religar sem refazer.
+- `schedules` são os horários em que o alerta sai, somados; vazio ou ausente é
+  a qualquer hora. Ver abaixo.
+- `enabled` desligado guarda as famílias, as áreas e os horários, para religar
+  sem refazer.
+
+Cada horário tem os dias e um De e um Até, ao minuto. A quarta com três
+horários:
+
+```json
+"schedules": [
+  { "days": [3], "from": "00:00", "to": "05:15" },
+  { "days": [3], "from": "12:00", "to": "13:00" },
+  { "days": [3], "from": "18:30", "to": "23:59" }
+]
+```
+
+- `days` vai de 0 (domingo) a 6 (sábado). Vários horários podem ter o mesmo
+  dia, e os que se sobrepõem valem pela soma.
+- `from` e `to` são `HH:MM`, e as duas pontas entram: "até 13:00" inclui o
+  minuto 13:00, e o dia inteiro é `00:00` até `23:59`.
+- Nenhum horário atravessa a meia-noite: o `to` é maior que o `from`, nunca
+  igual. A noite são dois horários, um até `23:59` e outro a partir de `00:00`
+  do dia seguinte.
+- Vale a hora em que a detecção aconteceu, no fuso do servidor, o mesmo que
+  decide o dia das gravações. A detecção continua sendo gravada a qualquer
+  hora: o horário decide só o alerta.
+- Até 84 horários por câmera.
 
 ## Valor fora da faixa
 
@@ -157,10 +183,13 @@ o `server.loginAttemptsPerMinute`, onde zero desliga a trava global de disco e
 o limite de tentativas no login.
 
 Com as `areas` é igual: a área inválida sai, com um aviso, e as outras ficam.
-No `alert`, sai com um aviso a família desconhecida e a área que a câmera não
-tem. O alerta ligado que fica sem nenhuma família, ou sem nenhuma das áreas que
-tinha, é desligado, também com aviso: sem as áreas, ele valeria na imagem
-inteira.
+No `alert`, sai com um aviso a família desconhecida, a área que a câmera não
+tem e o horário inválido: sem dia, com dia fora de 0 a 6, com hora que não é
+`HH:MM` ou com o `to` que não fica depois do `from`. O dia repetido num horário
+conta uma vez, também com aviso. O alerta ligado que fica sem nenhuma família,
+sem nenhuma das áreas que tinha ou sem nenhum dos horários que tinha é
+desligado, também com aviso: sem as áreas, ele valeria na imagem inteira, e sem
+os horários, a qualquer hora.
 
 O que continua impedindo o boot é o que não tem padrão seguro: um arquivo que
 não se consegue ler, o `storage.root` vazio e o ID de câmera que viraria um

@@ -192,6 +192,12 @@ recusa o save. Por isso a tela tira a área do alerta antes de apagá-la:
 alert.areas[0] "sumiu" fora do aceito: use o id de uma área desta câmera
 ```
 
+O horário do alerta que atravessa a meia-noite recusa do mesmo jeito:
+
+```text
+alert.schedules[0].to "06:00" fora do aceito: use uma hora depois do from 22:00; a noite são dois horários, até 23:59 e a partir de 00:00
+```
+
 O formato das `areas` e do `alert` está em
 [Política por câmera](configuracao.md#política-por-câmera).
 

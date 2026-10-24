@@ -794,7 +794,7 @@ alerta no `docs/deteccao.md`, o campo da câmera no `docs/api.md` e
 
 - [x] mock (A, B; ao minuto e hora cheia), celular e desktop: A ao minuto, em
   23/10/2026, e nada atravessa a meia-noite, em 24/10/2026
-- [ ] o campo `schedules`, com validação e teste
+- [x] o campo `schedules`, com validação e teste
 - [ ] o horário na `Regra`, com teste
 - [ ] a seção no cadastro: a grade, a lista e os atalhos
 - [ ] teste do mantenedor no celular e no desktop
