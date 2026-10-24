@@ -74,6 +74,10 @@ func run(log *slog.Logger, cfgPath string) error {
 		return err
 	}
 	avisaConfig(log, cfgPath, avisos)
+	if cfg.SMTP.Recusa != "" {
+		log.Warn("e-mail desligado: a seção smtp do dwnvr.yaml não serve até ser corrigida",
+			"arquivo", cfgPath, "problema", cfg.SMTP.Recusa)
+	}
 	cams, avisos, err := cfg.LoadCameras()
 	if err != nil {
 		return err

@@ -49,6 +49,24 @@ go2rtc:
 # detector:
 #   url: http://dwnvr-detect:8480
 
+# O servidor de e-mail, opcional: é por ele que o link de definir a senha vai
+# direto para a pessoa, pela tela Usuários. Serve qualquer provedor que fale
+# SMTP; sem esta seção, o dwnvr não envia e-mail nenhum. Uma seção com
+# problema não impede o dwnvr de subir: o e-mail fica desligado, e o motivo vai
+# para o log. Ver docs/configuracao.md, "E-mail", com o passo a passo do Gmail.
+# smtp:
+#   host: smtp.gmail.com
+#   # starttls (o padrão, porta 587), tls (porta 465) ou none (porta 25, sem
+#   # TLS: com login, só para um servidor na própria máquina).
+#   security: starttls
+#   # port: 587
+#   # A conta que envia; os dois juntos, ou nenhum se o servidor não pede
+#   # login. No Gmail, a senha é uma senha de app, e não a da conta.
+#   username: dwnvr.exemplo@gmail.com
+#   password: troque-me
+#   # O remetente. Vazio usa o username.
+#   # from: "dwnvr <dwnvr.exemplo@gmail.com>"
+
 storage:
   # Onde o dwnvr escreve - o caminho que o processo enxerga. Em container é um
   # caminho de dentro dele, e quem escolhe o disco do host é o volume do

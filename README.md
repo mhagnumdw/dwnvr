@@ -577,6 +577,11 @@ O detector de objetos é opcional: um container à parte, `dwnvr-detect`,
 apontado por `detector.url` no `dwnvr.yaml`. Sem ele, a detecção marca só
 movimento.
 
+O e-mail também é opcional: com a seção `smtp` do `dwnvr.yaml`, de qualquer
+provedor, o link de definir a senha vai direto para a pessoa. Detalhes, com o
+passo a passo do Gmail, em
+[`docs/configuracao.md`](docs/configuracao.md#e-mail).
+
 ## Documentação
 
 | Documento | Para quê |
@@ -654,6 +659,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   ├── buildinfo/          versão, commit e data injetados no build
 │   ├── config/             leitura do dwnvr.yaml (infra) e do cameras.json (câmeras)
 │   ├── detect/             a detecção: do tamanho dos quadros à marca de objeto
+│   ├── email/              envia e-mail pelo servidor SMTP da seção smtp, só com a biblioteca padrão
 │   ├── fmp4/               leitor de caixas MP4 - o coração do "sem decodificar"
 │   │   ├── box.go          percorre as caixas sem tocar em mídia
 │   │   ├── moov.go         lê o init segment (ftyp+moov) e suas trilhas
