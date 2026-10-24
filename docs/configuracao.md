@@ -359,7 +359,11 @@ com a resposta do servidor do jeito que ela veio.
    tem 16 caracteres e é a `password`. O `username` é o endereço da conta.
 
 O `host` é `smtp.gmail.com`, e a `security` e a porta padrão (`starttls`, 587)
-já servem. Duas coisas que o Google diz e que param o envio:
+já servem. Isso foi conferido em 24/10/2026, com uma conta nova e uma senha de
+app: chegaram o "Testar o e-mail" do Diagnóstico e o link de definir a senha
+mandado pelo "Enviar por e-mail" da tela Usuários.
+
+Duas coisas que o Google diz e que param o envio:
 
 - trocar a senha da conta revoga todas as senhas de app, e o dwnvr passa a
   receber "login recusado" até você gerar outra;
