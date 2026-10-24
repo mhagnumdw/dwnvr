@@ -796,9 +796,9 @@ alerta no `docs/deteccao.md`, o campo da câmera no `docs/api.md` e
   23/10/2026, e nada atravessa a meia-noite, em 24/10/2026
 - [x] o campo `schedules`, com validação e teste
 - [x] o horário na `Regra`, com teste
-- [ ] a seção no cadastro: a grade, a lista e os atalhos
+- [x] a seção no cadastro: a grade, a lista e os atalhos
 - [ ] teste do mantenedor no celular e no desktop
-- [ ] docs
+- [x] docs
 
 ## Etapa 5 - o e-mail
 

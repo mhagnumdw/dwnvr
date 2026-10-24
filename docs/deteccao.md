@@ -329,7 +329,8 @@ nem a espera nem a goroutine de envio nascem.
 - **Câmera movida, área errada:** é preciso redesenhar.
 - **O horário é o do servidor.** Com o fuso errado nele, o alerta sai nas
   horas erradas, como a timeline vira o dia na hora errada (ver
-  [`operacao.md`](operacao.md#problemas-comuns)).
+  [`operacao.md`](operacao.md#problemas-comuns)). A seção Horários da aba
+  Alerta mostra qual fuso vale.
 - **O objeto parado que chegou fora do horário** não avisa quando o horário
   começa: a marca é de chegada (ver
   [o rastreio](#carro-parado-não-vira-marca-a-cada-olhada)), e ele já foi

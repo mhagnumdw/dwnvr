@@ -159,6 +159,12 @@ horários:
   hora: o horário decide só o alerta.
 - Até 84 horários por câmera.
 
+Na tela, os horários ficam na seção Horários da aba Alerta, em duas formas que
+andam juntas: a grade da semana, em que se marca a hora inteira, e a lista, em
+que se digita ao minuto. Marcar na grade refaz a lista, com os dias de mesmo
+horário num horário só. Desmarcar "Limitar o alerta a alguns horários" apaga os
+horários ao salvar.
+
 ## Valor fora da faixa
 
 Um número fora da faixa **não impede o dwnvr de subir**. Gravar com o padrão é
