@@ -5,6 +5,7 @@ package recorder
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -12,10 +13,12 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/alerta"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/fmp4"
@@ -443,15 +446,17 @@ func (r *Recorder) ofereceA(f *detect.Fila) func(detect.Pedaco) {
 }
 
 // olhou recebe a resposta do detector a um pedaço desta câmera, na goroutine
-// da fila, e grava o que virou marca.
-func (r *Recorder) olhou(o detect.Olhada) {
+// da fila, e grava o que virou marca. Com a regra de alerta da câmera, nil
+// quando ela não alerta, devolve o alerta da olhada, com os mesmos números das
+// linhas gravadas, que é o que Detecções mostra.
+func (r *Recorder) olhou(o detect.Olhada, regra *alerta.Regra) (alerta.Alerta, bool) {
 	if errors.Is(o.Erro, detect.ErrPedacoRecusado) {
 		r.recusados.Add(1)
-		return
+		return alerta.Alerta{}, false
 	}
 	if o.Erro != nil {
 		r.falhas.Add(1)
-		return
+		return alerta.Alerta{}, false
 	}
 	if r.marcador == nil {
 		r.marcador = detect.NovoMarcador(detect.MarcadorPadrao)
@@ -459,11 +464,11 @@ func (r *Recorder) olhou(o detect.Olhada) {
 	marcas := r.marcador.Olha(o.Achados)
 	if len(marcas) == 0 {
 		r.semObjeto.Add(1)
-		return
+		return alerta.Alerta{}, false
 	}
 	r.comObjeto.Add(1)
 
-	// O quadro é gravado UMA vez, antes das linhas, e as duas famílias do
+	// O quadro é gravado UMA vez, antes das linhas, e todas as linhas do
 	// mesmo instante apontam para o mesmo arquivo. Falhar aqui não cancela a
 	// marca: melhor uma detecção sem miniatura do que uma detecção perdida.
 	var temQuadro bool
@@ -476,17 +481,19 @@ func (r *Recorder) olhou(o detect.Olhada) {
 		}
 	}
 
-	// Uma linha por família, com a classe de maior confiança: duas pessoas
-	// chegando juntas são uma chegada de `pessoa` na timeline.
-	melhor := map[detect.Familia]detect.Achado{}
+	// Uma linha por objeto que virou marca, todas no instante do onset: duas
+	// pessoas chegando juntas são duas linhas de `pessoa`, e o filtro por área
+	// acha a detecção por qualquer uma delas. Quem quer uma chegada por família,
+	// como a timeline, junta na leitura. A ordem é a das famílias e, dentro
+	// delas, a da confiança: quem lê a linha crua vê primeiro o que mais importa.
+	slices.SortStableFunc(marcas, func(a, b detect.Achado) int {
+		fa := slices.Index(detect.Familias, detect.FamiliasPadrao[a.Classe])
+		fb := slices.Index(detect.Familias, detect.FamiliasPadrao[b.Classe])
+		return cmp.Or(cmp.Compare(fa, fb), cmp.Compare(b.Score, a.Score))
+	})
+	linhas := make([]store.Evento, 0, len(marcas))
 	for _, a := range marcas {
-		f := detect.FamiliasPadrao[a.Classe]
-		if b, ok := melhor[f]; !ok || a.Score > b.Score {
-			melhor[f] = a
-		}
-	}
-	for _, f := range detect.Familias {
-		a, ok := melhor[f]
+		f, ok := detect.FamiliasPadrao[a.Classe]
 		if !ok {
 			continue
 		}
@@ -496,13 +503,24 @@ func (r *Recorder) olhou(o detect.Olhada) {
 		for i, v := range a.Caixa {
 			caixa[i] = math.Round(v*10000) / 10000
 		}
-		ev := store.Evento{InstanteMs: o.Pedaco.OnsetMs, Familia: string(f), Classe: a.Classe,
-			Score: math.Round(a.Score*1000) / 1000, QuadroMs: o.Pedaco.QuadroMs, Caixa: &caixa,
-			TemQuadro: temQuadro}
+		linhas = append(linhas, store.Evento{InstanteMs: o.Pedaco.OnsetMs, Familia: string(f),
+			Classe: a.Classe, Score: math.Round(a.Score*1000) / 1000, QuadroMs: o.Pedaco.QuadroMs,
+			Caixa: &caixa, TemQuadro: temQuadro})
+	}
+
+	// A regra do alerta roda antes da escrita, para a marca `alert` entrar
+	// na linha do objeto que passou.
+	var al alerta.Alerta
+	var alertou bool
+	if regra != nil {
+		al, alertou = regra.Avalia(linhas, o.Quadro)
+	}
+	for _, ev := range linhas {
 		if err := r.idx.AppendEvento(ev); err != nil {
 			r.log.Warn("falha ao gravar marca de objeto", "erro", err)
 		}
 	}
+	return al, alertou
 }
 
 // funil monta as fatias. NaFila sai por diferença, porque é a única que não é

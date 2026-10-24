@@ -10,6 +10,10 @@
 // rede, então o tipo é a promessa do servidor, e mudar um lado pede mudar o
 // outro.
 
+import { areaNaQuery } from './area.ts';
+import type { AreaDoFiltro, Ponto, Regra } from './area.ts';
+import type { NomeDaFamilia } from './icones.ts';
+
 let onUnauthorized = () => {
   // ninguém pediu aviso ainda: o App registra o dele ao montar
 };
@@ -161,8 +165,9 @@ export const api = {
     }),
 
   cameras: () => request<RespostaCameras>('cameras'),
+  // Devolve a câmera como ficou, já com o id das áreas novas.
   saveCamera: (cam: Camera) =>
-    request<unknown>('cameras', { method: 'POST', body: JSON.stringify(cam) }),
+    request<{ camera: Camera }>('cameras', { method: 'POST', body: JSON.stringify(cam) }),
   // As gravações só vão junto se forem pedidas: o padrão é preservá-las.
   deleteCamera: (id: string, { recordings = false } = {}) =>
     request<unknown>(`cameras?id=${encodeURIComponent(id)}${recordings ? '&recordings=1' : ''}`, {
@@ -217,26 +222,35 @@ export const api = {
   // Uma página das detecções de objeto de todas as câmeras, da mais nova para a
   // mais velha. `antes` e `depois` são o cursor (um ou nenhum); `cams` e
   // `familias` nulos querem dizer "todas".
-  deteccoes: ({ antes, depois, limite, cams, familias }: PedidoDeDeteccoes) => {
-    const q = new URLSearchParams();
+  deteccoes: ({ antes, depois, limite, ...filtro }: PedidoDeDeteccoes) => {
+    const q = queryDoFiltro(filtro);
     if (antes != null) q.set('antes', String(antes));
     if (depois != null) q.set('depois', String(depois));
     if (limite) q.set('limite', String(limite));
-    if (cams?.length) q.set('cams', cams.join(','));
-    if (familias?.length) q.set('familias', familias.join(','));
     return request<PaginaDeDeteccoes>(`deteccoes?${q}`);
   },
 
   // Os dias com pelo menos uma detecção do filtro, em ordem crescente, e
   // quantas cada um tem: é o que o calendário da tela de Detecções deixa
   // escolher, e o número que ele mostra em cada dia.
-  diasDeDeteccao: ({ cams, familias }: FiltroDeDeteccoes) => {
-    const q = new URLSearchParams();
-    if (cams?.length) q.set('cams', cams.join(','));
-    if (familias?.length) q.set('familias', familias.join(','));
-    return request<DiasDeDeteccao>(`deteccoes/dias?${q}`);
-  },
+  diasDeDeteccao: (filtro: FiltroDeDeteccoes) =>
+    request<DiasDeDeteccao>(`deteccoes/dias?${queryDoFiltro(filtro)}`),
 };
+
+// O filtro que a lista e o calendário de Detecções dividem. As áreas restringem
+// só a câmera delas; as outras de `cams` seguem inteiras.
+function queryDoFiltro({ cams, familias, area, areas, soAlertas }: FiltroDeDeteccoes) {
+  const q = new URLSearchParams();
+  if (cams?.length) q.set('cams', cams.join(','));
+  if (familias?.length) q.set('familias', familias.join(','));
+  if (area) {
+    q.set('area', areaNaQuery(area));
+    q.set('rule', area.regra);
+  }
+  if (areas?.length) q.set('areas', areas.join(','));
+  if (soAlertas) q.set('alert', '1');
+  return q;
+}
 
 // URLs de mídia são montadas, não buscadas: vão direto num <video>, num <img>
 // ou no SourceBuffer.
@@ -372,6 +386,43 @@ export interface Camera {
   detect?: boolean;
   detectMecanismo?: string;
   detectSensibilidade?: number;
+  areas?: AreaDaCamera[];
+  // Só o admin recebe: o viewer não edita câmera.
+  alert?: AlertaDaCamera;
+}
+
+// Quando uma detecção da câmera vira alerta. Sem `areas`, vale a imagem
+// inteira; sem `schedules`, a qualquer hora; desligado, guarda o resto para
+// religar.
+export interface AlertaDaCamera {
+  enabled: boolean;
+  families?: NomeDaFamilia[];
+  areas?: string[];
+  schedules?: HorarioDoAlerta[];
+}
+
+// Um horário do alerta: os dias, de 0 (domingo) a 6 (sábado), e o De e o Até
+// em "HH:MM", com as duas pontas incluídas. O `to` é sempre maior que o
+// `from`: a noite são dois horários, um até 23:59 e outro a partir de 00:00.
+export interface HorarioDoAlerta {
+  days: number[];
+  from: string;
+  to: string;
+}
+
+// Onde o alerta vale, como a aba Alerta mostra. Não vai ao servidor, que só
+// guarda as áreas: "só nas áreas marcadas" sem nenhuma marcada é um estado da
+// tela, que ele leria como a imagem inteira.
+export type OndeDoAlerta = 'tudo' | 'areas';
+
+// Uma área cadastrada na câmera. A área nova da aba Áreas já vai com `id`,
+// para o alerta poder marcá-la; a do "salvar na câmera" de Detecções vai sem,
+// e o servidor dá um.
+export interface AreaDaCamera {
+  id?: string;
+  name: string;
+  rule?: Regra;
+  points: Ponto[];
 }
 
 // A câmera da listagem: para o admin, com a pasta das gravações.
@@ -523,9 +574,10 @@ export interface Detector {
 }
 
 // `disk` some quando o storage não responde; `detector`, sem detector de
-// objetos configurado; `go2rtc`, enquanto ele responde. `uptime`, `clock` e
-// `reconnectsWindowHours` faltam em servidor anterior a eles, para onde a tela
-// do `npm run dev` pode estar apontada.
+// objetos configurado; `go2rtc`, enquanto ele responde; `alerts`, antes de
+// alguma câmera ligar o alerta. `uptime`, `clock` e `reconnectsWindowHours`
+// faltam em servidor anterior a eles, para onde a tela do `npm run dev` pode
+// estar apontada.
 export interface Saude {
   cameras: CameraNaSaude[];
   disk?: Disco;
@@ -534,6 +586,7 @@ export interface Saude {
   clock?: Relogio;
   reconnectsWindowHours?: number;
   go2rtc?: { error: string; since: string };
+  alerts?: { total: number };
 }
 
 // --- o servidor (card "Este servidor" do Diagnóstico)
@@ -681,6 +734,11 @@ export interface ObjetoNoQuadro {
   classe: string;
   score: number;
   caixa?: Caixa;
+  // O objeto passou na regra de alerta da câmera, na hora em que foi olhado, e
+  // caiu nas áreas do alerta destes ids. Sem áreas no alerta, `alertAreas` não
+  // vem. O id de uma área apagada desde então continua vindo.
+  alert?: boolean;
+  alertAreas?: string[];
 }
 
 // Uma olhada do detector numa câmera: o instante do onset e tudo o que ele
@@ -702,6 +760,15 @@ export interface PaginaDeDeteccoes {
 export interface FiltroDeDeteccoes {
   cams?: readonly string[] | null;
   familias?: readonly string[] | null;
+  // Na câmera desta área, só os objetos dentro dela. As outras câmeras não
+  // mudam.
+  area?: AreaDoFiltro | null;
+  // O mesmo, com as áreas cadastradas: `<cam>/<id>`. As de uma câmera somam,
+  // a `area` junto: qualquer uma serve.
+  areas?: readonly string[] | null;
+  // Só as detecções em que algum objeto que fica alertou; elas vêm inteiras,
+  // com o objeto que não alertou.
+  soAlertas?: boolean;
 }
 
 // `antes` e `depois` são o cursor: um ou nenhum.

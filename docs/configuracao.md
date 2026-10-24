@@ -56,6 +56,8 @@ Tudo que é política de gravação é **por câmera**, não global:
 | `detect` | marcar movimento na timeline - ver abaixo | |
 | `detectMecanismo` | quem decide disparar | `kleinberg-p` ou `periodico` |
 | `detectSensibilidade` | o nível, que é o custo em CPU | de 1 a 5 |
+| `areas` | as áreas desenhadas sobre a imagem - ver abaixo | até 8 |
+| `alert` | quando uma detecção vira alerta - ver abaixo | |
 
 Ser por câmera não é preciosismo: numa instalação real as câmeras não são
 iguais. A do portão merece alta resolução e cota grande; a do corredor não. E o
@@ -81,6 +83,80 @@ depois. O arquivo só é lido no boot, e salvar qualquer câmera pela tela com o
 dwnvr no ar regrava o arquivo inteiro com o que ele tem na memória, por cima
 da edição.
 
+As `areas` não são política de gravação: são os trechos da imagem, como
+"Portão" e "Garagem", por onde Detecções filtra. Mudar uma área não reinicia a
+gravação. O admin as desenha na aba Áreas do cadastro da câmera, ou em
+Detecções, com o "salvar na câmera" do editor de área.
+
+```json
+"areas": [
+  { "id": "k3f9a2", "name": "Portão", "rule": "foot",
+    "points": [[0.12, 0.30], [0.55, 0.30], [0.55, 0.80], [0.12, 0.80]] }
+]
+```
+
+- `points` são de 3 a 20 vértices, em fração do quadro (de 0 a 1, com o Y
+  crescendo para baixo), e valem em qualquer resolução da câmera.
+- `rule` decide quando o objeto conta como dentro: `foot`, o padrão, quando o
+  meio da base da caixa está na área; `touch`, quando a caixa encosta nela.
+- `name` não pode ficar vazio nem se repetir na câmera.
+- `id` é curto, só letras minúsculas e dígitos, e o servidor gera quando a área
+  chega sem ele. Os links apontam para ele, e renomear a área não os quebra.
+  Uma área escrita à mão sem `id` ganha um a cada boot, até a câmera ser salva
+  pela tela.
+
+Se a câmera for movida, a área fica no lugar errado: redesenhe.
+
+O `alert` também não é política de gravação: diz quando uma detecção da câmera
+vira alerta. O admin o liga na aba Alerta do cadastro da câmera, que só
+funciona com a marcação de movimento ligada e o detector de objetos
+configurado; sem eles, a aba diz o que falta. Por ora o alerta
+vai só para o log e fica marcado na detecção, que Detecções filtra (ver
+[`deteccao.md`](deteccao.md#o-alerta)). Mudar o alerta não reinicia a
+gravação.
+
+```json
+"alert": { "enabled": true, "families": ["pessoa"], "areas": ["k3f9a2"] }
+```
+
+- `families` são as famílias que alertam: `pessoa`, `veiculo` ou `animal`. Com
+  o alerta ligado, pelo menos uma.
+- `areas` são os `id` das áreas da câmera em que o objeto precisa cair, cada
+  uma pela própria `rule`. Vazio ou ausente é a imagem inteira.
+- `schedules` são os horários em que o alerta sai, somados; vazio ou ausente é
+  a qualquer hora. Ver abaixo.
+- `enabled` desligado guarda as famílias, as áreas e os horários, para religar
+  sem refazer.
+
+Cada horário tem os dias e um De e um Até, ao minuto. A quarta com três
+horários:
+
+```json
+"schedules": [
+  { "days": [3], "from": "00:00", "to": "05:15" },
+  { "days": [3], "from": "12:00", "to": "13:00" },
+  { "days": [3], "from": "18:30", "to": "23:59" }
+]
+```
+
+- `days` vai de 0 (domingo) a 6 (sábado). Vários horários podem ter o mesmo
+  dia, e os que se sobrepõem valem pela soma.
+- `from` e `to` são `HH:MM`, e as duas pontas entram: "até 13:00" inclui o
+  minuto 13:00, e o dia inteiro é `00:00` até `23:59`.
+- Nenhum horário atravessa a meia-noite: o `to` é maior que o `from`, nunca
+  igual. A noite são dois horários, um até `23:59` e outro a partir de `00:00`
+  do dia seguinte.
+- Vale a hora em que a detecção aconteceu, no fuso do servidor, o mesmo que
+  decide o dia das gravações. A detecção continua sendo gravada a qualquer
+  hora: o horário decide só o alerta.
+- Até 84 horários por câmera.
+
+Na tela, os horários ficam na seção Horários da aba Alerta, em duas formas que
+andam juntas: a grade da semana, em que se marca a hora inteira, e a lista, em
+que se digita ao minuto. Marcar na grade refaz a lista, com os dias de mesmo
+horário num horário só. Desmarcar "Limitar o alerta a alguns horários" apaga os
+horários ao salvar.
+
 ## Valor fora da faixa
 
 Um número fora da faixa **não impede o dwnvr de subir**. Gravar com o padrão é
@@ -103,6 +179,15 @@ No `dwnvr.yaml` o zero é inválido, porque ali o padrão é o próprio valor. A
 exceções são o `maxDays`, onde zero é "sem limite", e o `storage.minFreeMB` e
 o `server.loginAttemptsPerMinute`, onde zero desliga a trava global de disco e
 o limite de tentativas no login.
+
+Com as `areas` é igual: a área inválida sai, com um aviso, e as outras ficam.
+No `alert`, sai com um aviso a família desconhecida, a área que a câmera não
+tem e o horário inválido: sem dia, com dia fora de 0 a 6, com hora que não é
+`HH:MM` ou com o `to` que não fica depois do `from`. O dia repetido num horário
+conta uma vez, também com aviso. O alerta ligado que fica sem nenhuma família,
+sem nenhuma das áreas que tinha ou sem nenhum dos horários que tinha é
+desligado, também com aviso: sem as áreas, ele valeria na imagem inteira, e sem
+os horários, a qualquer hora.
 
 O que continua impedindo o boot é o que não tem padrão seguro: um arquivo que
 não se consegue ler, o `storage.root` vazio e o ID de câmera que viraria um

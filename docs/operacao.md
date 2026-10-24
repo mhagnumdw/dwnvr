@@ -217,9 +217,9 @@ para a versão anterior é trocar a tag e subir de novo.
 `.env`, ou o `user:` sumiu do compose. Descubra o seu com `id -u; id -g`. Para consertar o que já foi gravado:
 `sudo chown -R 1000:1000 /mnt/storage/dwnvr`.
 
-**A timeline vira o dia no horário errado.** Falta `TZ` no `.env`. A imagem não
-tem `/usr/share/zoneinfo` - a base de fusos vai embutida no binário, mas alguém
-precisa dizer qual fuso usar.
+**A timeline vira o dia no horário errado, ou o alerta sai nas horas
+erradas.** Falta `TZ` no `.env`. A imagem não tem `/usr/share/zoneinfo` - a
+base de fusos vai embutida no binário, mas alguém precisa dizer qual fuso usar.
 
 **O container não enxerga o go2rtc.** Dentro do container, `localhost` é o
 próprio container. Use `host.docker.internal` (com `extra_hosts:

@@ -48,6 +48,13 @@ var (
 // por dia por endereço, contra uma a cada 0,77 s sem limite.
 const LoginAttemptsPerMinutePadrao = 2
 
+// MaxHorariosDoAlerta é o que a grade da tela gera no pior caso: as horas
+// marcadas uma sim, outra não dão 12 horários por dia, e com cada dia de um
+// jeito são 84 na semana. Os 84, mesmo com os sete dias em cada um, ocupam
+// uns 4,5 KB dos 16 KB que o POST /api/cameras lê, ao lado dos ~3 KB das oito
+// áreas.
+const MaxHorariosDoAlerta = 84
+
 // TrustedProxiesPadrao são o loopback e a faixa que o Docker usa para as
 // redes do compose. É por ela que chegam os dois caminhos de HTTPS da doc: o
 // `tailscale serve`, pelo gateway da rede, e o Caddy do compose, pelo IP do

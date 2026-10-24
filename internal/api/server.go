@@ -296,14 +296,22 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 }
 
 // camerasDoViewer é o /api/cameras do viewer: as câmeras, sem o caminho
-// no disco, e se há detector de objetos. O resto só serve à tela Câmeras, que
-// é do admin, e o go2rtc nem é consultado: cada abertura da tela custaria duas
-// chamadas a ele.
+// no disco e só com o "alerta ligado", e se há detector de objetos. O resto só serve à
+// tela Câmeras, que é do admin, e o go2rtc nem é consultado: cada abertura da
+// tela custaria duas chamadas a ele.
 func (s *Server) camerasDoViewer(w http.ResponseWriter) {
 	raw := s.mgr.Cameras()
 	cams := make([]config.Camera, len(raw))
 	for i, c := range raw {
 		cams[i] = s.cfg.Resolve(c)
+		// Do alerta vai só o ligado, que faz Detecções mostrar o "só alertas".
+		// As famílias e as áreas dele ficam com o admin: o que alertou vem
+		// marcado em cada detecção.
+		if a := cams[i].Alert; a != nil && a.Enabled {
+			cams[i].Alert = &config.AlertaDaCamera{Enabled: true}
+		} else {
+			cams[i].Alert = nil
+		}
 	}
 	writeJSON(w, map[string]any{"cameras": cams, "detector": s.mgr.Detector() != nil})
 }
@@ -384,6 +392,13 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// lista delas. Some sem detector configurado.
 	if d := s.mgr.Detector(); d != nil {
 		resp["detector"] = d
+	}
+
+	// Do alerta vai só o total desde que o dwnvr subiu: o alerta em si fica
+	// gravado na detecção, e se vê em Detecções. Some enquanto nenhuma câmera
+	// ligou o alerta.
+	if c := s.mgr.Alertas(); c != nil {
+		resp["alerts"] = map[string]int64{"total": c.Total()}
 	}
 
 	// O relógio, ao contrário dos uptimes acima, vai como instante mesmo - e é
