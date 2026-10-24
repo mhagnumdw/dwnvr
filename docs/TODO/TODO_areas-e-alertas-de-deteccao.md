@@ -6,9 +6,10 @@ medição no hardware de referência. **A Etapa 3 está feita, menos a
 instalação de teste:** o campo `alert`, o `internal/alerta`, a aba Alerta, a
 marca gravada na detecção e o "só alertas" em Detecções.
 
-**Próximo passo:** a [Etapa 4](#etapa-4---os-horários-do-alerta) (os horários
-do alerta), começando pelo mock. A instalação de teste da Etapa 3 fica para
-depois: por ora o mantenedor segue desenvolvendo e testando na bancada local.
+**Próximo passo:** implementar a [Etapa 4](#etapa-4---os-horários-do-alerta)
+(os horários do alerta), com o dado e a tela decididos no mock em 23 e
+24/10/2026. A instalação de teste da Etapa 3 fica para depois: por ora o
+mantenedor segue desenvolvendo e testando na bancada local.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -122,7 +123,8 @@ Conferido na `a9a87f2`. É o que muda a conta das etapas:
     detecção que caia no colo de quem usa.
 13. **O De e o Até já existem**: o `IntervaloDeHorario` e o `CampoHora` de
     Detecções, com a regra de que o "até" menor que o "de" termina no dia
-    seguinte. Os horários do alerta reaproveitam os dois, e a regra.
+    seguinte. Os horários do alerta reaproveitam o `CampoHora`, mas não a
+    regra: nenhum horário do alerta atravessa a meia-noite (24/10/2026).
 
 ## A sequência
 
@@ -209,6 +211,7 @@ três cuidados seguram o custo:
 | **área** | um polígono sobre a imagem de uma câmera, em fração do quadro. Várias por câmera, cada uma com nome |
 | **regra da área** | quando um objeto conta como dentro: `encosta` ou `pisa`, que no JSON são `touch` e `foot` |
 | **alerta** | o aviso de que uma detecção passou na regra de alerta da câmera |
+| **horário** | um item do `schedules`: os dias, um De e um Até, dentro de um dia só. Sem nenhum, o alerta sai sempre |
 | **meio** | por onde o alerta sai: e-mail, depois outros |
 | **registro** | a linha do alerta no log e a marca `alert` na detecção. Todo alerta tem, com meio configurado ou não |
 | **silêncio** | o tempo, depois de um alerta, em que a mesma câmera e família não alertam de novo. Adiado: ver [O silêncio, medido e adiado](#o-silêncio-medido-e-adiado) |
@@ -224,8 +227,8 @@ no Go seguem em português (`Area`, `RegraDaArea`).
 | 1 | só na URL e na query | `area=<cam>:<x>,<y>,...` em milésimos e `rule=touch\|foot` |
 | 2 | `cameras.json`, dentro da câmera | `areas`: `id`, `name`, `rule`, `points` |
 | 3 | `cameras.json`, dentro da câmera | `alert`: `enabled`, `families`, `areas` |
-| 3 | memória e log | o registro dos alertas: some num reinício |
-| 4 | dentro do `alert` | `schedules`, com a estrutura ainda a rever |
+| 3 | `eventos/{dia}.ndjson`, na linha do objeto | `alert` e `alertAreas`, a marca de quem alertou |
+| 4 | dentro do `alert` | `schedules`: `days`, `from`, `to` |
 | 5 | `dwnvr.yaml` | seção `alerts.email` |
 
 - **Área e alerta dentro da câmera**, e não num arquivo próprio: aproveitam o
@@ -233,8 +236,8 @@ no Go seguem em português (`Area`, `RegraDaArea`).
   viewer. O preço é o downgrade, que vai nas notas da release.
 - **Os pontos em fração, com 4 casas**, como a `caixa`, que se compara com a
   área sem conversão. Na query, milésimos inteiros, para a URL ficar curta.
-- **O histórico dos alertas fica só na memória** por ora. Gravá-lo é o item
-  "Marcar em Detecções o que alertou", de [Depois](#depois).
+- **O alerta fica gravado na detecção** (decisão de 23/10/2026, na Etapa 3),
+  e não numa lista em memória: a marca vai na linha do objeto que alertou.
 
 ## As duas regras
 
@@ -702,50 +705,98 @@ desligado.
 ## Etapa 4 - os horários do alerta
 
 **O que muda para quem usa:** por câmera, em que dias e horas o alerta sai.
-Sem horário, ele sai sempre.
+Sem horário, ele sai sempre. A detecção continua gravando o dia inteiro: o
+horário decide só o alerta.
 
-**O dado** (proposta), dentro do `alert`. A estrutura ainda vai ser revista
-com o mantenedor quando a etapa chegar (20/10/2026); as chaves já estão em
-en-US:
+**O dado**, decidido com o mantenedor em 23 e 24/10/2026, dentro do `alert`.
+O exemplo é o dele, a quarta com três horários:
 
 ```json
 "schedules": [
-  { "days": [1, 2, 3, 4, 5], "from": "22:00", "to": "06:00" },
-  { "days": [0, 6], "from": "00:00", "to": "00:00" }
+  { "days": [3], "from": "00:00", "to": "05:15" },
+  { "days": [3], "from": "12:00", "to": "13:00" },
+  { "days": [3], "from": "18:30", "to": "23:59" }
 ]
 ```
 
+- Cada item é um **horário**: os dias e um De e um Até, ao minuto (`HH:MM`).
+  Os horários se somam, e vários podem ter o mesmo dia.
 - `days` vai de 0 (domingo) a 6 (sábado), como o Go e o JavaScript contam.
-- O `to` menor que o `from` termina no dia seguinte, e o dia da faixa é o do
-  início: sexta das 22:00 às 06:00 cobre a madrugada de sábado. É a mesma regra
-  do intervalo de Detecções.
-- O `from` igual ao `to` é o dia inteiro.
+- **As duas pontas entram**, como no intervalo de Detecções: "até 13:00"
+  inclui o minuto 13:00, e o dia inteiro é `00:00` até `23:59`.
+- **Nenhum horário atravessa a meia-noite** (decisão do mantenedor,
+  24/10/2026): o `to` é maior que o `from`, nunca igual. A noite são dois
+  horários, um até 23:59 e outro a partir de 00:00 do dia seguinte. É a
+  diferença para o intervalo de Detecções, em que o "até" menor que o "de"
+  termina no dia seguinte.
+- Sem `schedules`, ou com a lista vazia, o alerta sai sempre.
 - Vale o instante do onset, no fuso do servidor, o mesmo que vira o dia das
   gravações.
+- O nome fica `schedules`. O `activeHours` só caberia na hora cheia, que foi
+  descartada.
 
-**Como fica** (a fechar no mock), em três variantes:
+**A validação**, no `ConfereCamera`, segue a da área:
 
-- **A - a grade da semana:** 7 dias x 24 horas, pintada de hora em hora com o
-  dedo ou o mouse. No celular, os dias viram colunas e as horas, linhas.
-- **B - um dia por linha:** cada dia com as faixas dele, "+ faixa" e "copiar
-  para os outros dias".
-- **C - faixas com os dias em chips:** cada faixa tem os dias (D S T Q Q S S)
-  e o De e o Até do `CampoHora`, com a semana desenhada embaixo como prévia e
-  atalhos (sempre, toda noite, fim de semana).
+- o horário inválido sai com um Aviso: sem dia, dia fora de 0 a 6, hora que
+  não é `HH:MM` ou `to` que não é maior que o `from`;
+- se todos saem, o alerta é desligado, como o que perde as áreas: sem horário
+  ele valeria o tempo todo, e quem marcou só a noite receberia o dia;
+- no máximo 84 horários por câmera, no `parametros.go`: é o que a grade pintada
+  em xadrez gera (12 por dia), e o teto só barra o JSON editado à mão;
+- dia repetido num horário conta uma vez, e horários que se sobrepõem valem
+  pela soma.
 
-Recomendo a C: reaproveita o De e o Até que já existem, vai ao minuto, cabe no
-celular sem gesto de pintar, e a prévia mostra a semana inteira de uma vez. A
-A é a mais visual, e a mais difícil no dedo.
+**A avaliação:** a `Regra` monta os horários uma vez, no `NovaRegra`, e o
+`Avalia` confere o instante do onset antes das famílias e das áreas. Fora do
+horário nenhum objeto alerta, e a linha fica sem a marca. Mudar o horário não
+mexe no que já foi gravado: a marca é da hora em que a detecção aconteceu. Sem
+`schedules`, o teste não existe. O viewer continua recebendo só o
+`alert.enabled`.
 
-**Repercussões:** `config.ConfereCamera` (dias e horas válidos), §Política
-por câmera do `docs/configuracao.md`, `docs/deteccao.md` e
+**Como fica**, decidido no mock em 23 e 24/10/2026 (variante A, ao minuto):
+
+- A seção **Horários** fica dentro da aba Alerta, depois do "onde", com a caixa
+  **"Limitar o alerta a alguns horários"**. Desmarcada, diz "O alerta vale a
+  qualquer hora", e o salvar apaga o `schedules` (decisão do mantenedor,
+  23/10/2026). Marcada e sem nenhum horário válido, o salvar barra.
+- Embaixo da caixa, o fuso do servidor ("America/Fortaleza (UTC−03:00)"), que o
+  `/api/health` já manda.
+- **A grade da semana.** No desktop, os dias em linhas e as horas em colunas;
+  no celular, virada, com os dias em colunas. Clicar numa hora marca ou
+  desmarca; arrastar com o mouse marca um retângulo, no modo da primeira
+  célula; o dia e a hora nas bordas marcam a linha ou a coluna inteira. No
+  celular só o toque parado marca, porque arrastar rola a folha. A hora pela
+  metade fica tracejada, com só o pedaço marcado pintado. Na folha de 460 px do
+  desktop a célula fica com 15 x 18 px: miúda, mas o mouse acerta.
+- **A lista digitada**, embaixo da grade: cada horário com os dias em botões
+  (dom a sáb), o De e o Até do `CampoHora`, o ✕ e uma linha que diz como o
+  dwnvr lê o horário ("seg a sex · 22:00 às 23:59"). Embaixo, "novo horário"
+  e os atalhos "+ toda noite" (dois horários todo dia, 22:00 às 23:59 e 00:00
+  às 05:59) e "+ fim de semana" (sáb e dom, o dia inteiro).
+- **Grade e lista andam juntas.** Digitar repinta a grade. Pintar refaz a
+  lista inteira na forma canônica: cada dia com as horas dele, e os dias com o
+  mesmo horário num horário só. O horário pela metade (sem dia ou sem hora) vai
+  para o fim, e o minuto que sobra sozinho sai (o 13:00 de "12:30 até 13:00"
+  depois de apagar a hora 12).
+- O mouse ou o foco num horário contorna as horas dele na grade.
+- O "Até" que não fica depois do "De" avisa ao sair do campo, e diz como fazer
+  a noite com dois horários.
+- Ficaram de fora a variante B (o resumo na aba e um editor próprio, com a
+  grade grande) e a hora cheia.
+
+**Repercussões:** `config.ConfereCamera` e o `parametros.go`, a `Regra` do
+`internal/alerta`, `AbaDoAlerta.svelte` (a seção e a grade), `CampoHora`
+(reaproveitado), §Política por câmera do `docs/configuracao.md`, a seção do
+alerta no `docs/deteccao.md`, o campo da câmera no `docs/api.md` e
 `web/src/lib/api.ts`.
 
 **Não é mudança incompatível:** o campo é novo e opcional.
 
-- [ ] mock (A, B, C), celular e desktop
-- [ ] o campo `schedules`, com validação e teste da virada do dia
-- [ ] a seção no cadastro
+- [x] mock (A, B; ao minuto e hora cheia), celular e desktop: A ao minuto, em
+  23/10/2026, e nada atravessa a meia-noite, em 24/10/2026
+- [ ] o campo `schedules`, com validação e teste
+- [ ] o horário na `Regra`, com teste
+- [ ] a seção no cadastro: a grade, a lista e os atalhos
 - [ ] teste do mantenedor no celular e no desktop
 - [ ] docs
 
@@ -857,8 +908,8 @@ Sem data. Cada item vira plano próprio quando chegar a vez.
     número.
 - **Regra por área:** famílias e horários diferentes em cada área, como
   "pessoa no portão a qualquer hora, veículo na garagem só à noite".
-- **Marcar em Detecções o que alertou**, e filtrar por isso. Pede gravar o
-  alerta enviado, e não só lembrar dele.
+- ~~**Marcar em Detecções o que alertou**, e filtrar por isso~~: feito na
+  Etapa 3 (23/10/2026), com a marca na linha do objeto e o "só alertas".
 - **Um link para abrir a detecção** no alerta: pede um campo com o endereço
   público do dwnvr.
 - **Notificação do navegador (push):** exige service worker, que o dwnvr evita
