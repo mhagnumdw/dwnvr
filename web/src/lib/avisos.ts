@@ -159,6 +159,15 @@ export function avisosDe(health: EstadoDaSaude): Aviso[] {
       texto: `Detector de objetos inacessível ${desde(f.desde, agora)}: ${f.erro}. As câmeras seguem gravando e marcando movimento, mas nenhuma marca de objeto é criada enquanto isso.`,
     });
   }
+  // A seção smtp recusada no boot desliga o e-mail até alguém corrigir o
+  // dwnvr.yaml e reiniciar: sem este aviso, só o log diria. Amarelo, porque a
+  // gravação e a detecção seguem normais.
+  if (health.smtp) {
+    out.push({
+      nivel: 'warn',
+      texto: `E-mail desligado: ${health.smtp.error}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
+    });
+  }
   return out;
 }
 

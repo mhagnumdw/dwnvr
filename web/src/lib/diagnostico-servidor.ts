@@ -220,6 +220,23 @@ function detector(d: NonNullable<Servidor['detector']>) {
   return itens;
 }
 
+const SEGURANCA: Record<string, string> = {
+  starttls: 'STARTTLS',
+  tls: 'TLS direto',
+  none: 'sem TLS',
+};
+
+// smtp é a seção smtp como ficou valendo; recusada, só o motivo. A conferência
+// de verdade é o e-mail de teste, logo abaixo no card.
+function smtp(s: NonNullable<Servidor['smtp']>): ItemDoCard[] {
+  if (s.error) return [{ rotulo: 'situação', valor: `desligado: ${s.error}`, alerta: true }];
+  return [
+    { rotulo: 'servidor', valor: `${s.host ?? '?'}:${s.port ?? '?'}` },
+    { rotulo: 'segurança', valor: SEGURANCA[s.security ?? ''] ?? s.security ?? '?' },
+    { rotulo: 'remetente', valor: s.from ?? '?' },
+  ];
+}
+
 // grupos monta o card. Grupo sem fonte - kernel sem PSI, servidor fora do
 // Linux, instalação sem detector de objetos - some em vez de aparecer vazio.
 // `anterior` é a leitura de antes, para a CPU do processo.
@@ -243,6 +260,7 @@ export function grupos(info: Servidor, anterior: Servidor | null): GrupoDoCard[]
   out.push({ titulo: 'Armazenamento', itens: storage(info.storage) });
   out.push({ titulo: 'go2rtc', itens: go2rtc(info.go2rtc) });
   if (info.detector) out.push({ titulo: 'Detector de objetos', itens: detector(info.detector) });
+  if (info.smtp) out.push({ titulo: 'E-mail', itens: smtp(info.smtp) });
   return out;
 }
 

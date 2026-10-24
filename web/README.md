@@ -70,7 +70,8 @@ src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  setas de dia anterior e próximo,
                  caixas do detector sobre o vídeo (chunk à parte), a folha
                  que abre uma detecção com o quadro e o trecho gravado,
-                 o card fechável de diagnóstico com o "copiar",
+                 o card fechável de diagnóstico com o "copiar", o teste
+                 de e-mail do Diagnóstico (chunk à parte),
                  o campo de senha com o olho, o avatar (a foto ou as
                  iniciais), o botão que abre a lista de câmeras (marcadas
                  do total), o botão de entrar e sair da tela cheia, o

@@ -53,7 +53,9 @@ go2rtc:
 # direto para a pessoa, pela tela Usuários. Serve qualquer provedor que fale
 # SMTP; sem esta seção, o dwnvr não envia e-mail nenhum. Uma seção com
 # problema não impede o dwnvr de subir: o e-mail fica desligado, e o motivo vai
-# para o log. Ver docs/configuracao.md, "E-mail", com o passo a passo do Gmail.
+# para o log e para os avisos da tela de Diagnóstico. O teste fica no card
+# "Este servidor" de lá. Ver docs/configuracao.md, "E-mail", com o passo a
+# passo do Gmail.
 # smtp:
 #   host: smtp.gmail.com
 #   # starttls (o padrão, porta 587), tls (porta 465) ou none (porta 25, sem

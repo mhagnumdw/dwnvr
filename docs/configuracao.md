@@ -334,13 +334,18 @@ log.
 
 Uma seção com problema **não impede o dwnvr de subir**. Não há padrão que
 substitua um servidor errado, então o e-mail fica desligado até o
-`dwnvr.yaml` ser corrigido, e o motivo vai para o log, que aparece também na
-tela de Diagnóstico:
+`dwnvr.yaml` ser corrigido. O motivo vira aviso no card Avisos do Diagnóstico
+e no sino do header, e vai também para o log:
 
 ```text
 e-mail desligado: a seção smtp do dwnvr.yaml não serve até ser corrigida
 arquivo=/etc/dwnvr/dwnvr.yaml problema="smtp.security \"ssl\" fora do aceito: use starttls, tls ou none"
 ```
+
+Para conferir sem cadastrar ninguém, abra o card **Este servidor** do
+Diagnóstico: ele mostra o servidor, a segurança e o remetente que ficaram
+valendo, e o **Testar o e-mail** manda um para o endereço que você digitar,
+com a resposta do servidor do jeito que ela veio.
 
 ### Com o Gmail
 

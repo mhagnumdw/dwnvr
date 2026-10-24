@@ -99,6 +99,8 @@ export const health = $state<EstadoDaSaude>({
   // { error, since } enquanto o go2rtc não responde ao dwnvr; nulo quando ele
   // responde, e também contra servidor antigo.
   go2rtc: null,
+  // { error } com a seção smtp recusada no boot; nulo sem problema.
+  smtp: null,
   updatedAt: 0,
 });
 
@@ -111,6 +113,7 @@ export interface EstadoDaSaude {
   detector: Detector | null;
   reconnectsWindowHours: number | null;
   go2rtc: { error: string; since: string } | null;
+  smtp: { error: string } | null;
   updatedAt: number;
 }
 
@@ -297,6 +300,7 @@ export async function loadHealth() {
     health.detector = data.detector ?? null;
     health.reconnectsWindowHours = data.reconnectsWindowHours ?? null;
     health.go2rtc = data.go2rtc ?? null;
+    health.smtp = data.smtp ?? null;
     health.updatedAt = Date.now();
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.
