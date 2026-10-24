@@ -29,6 +29,7 @@
     ddmm,
     duracao,
     gravadoSeHouverBuraco,
+    horaDoMinuto,
   } from '../lib/format.ts';
   import { AJUDA_RETIDO, AJUDA_CABEM, AJUDA_SENSIBILIDADE, NIVEIS, nivel } from '../lib/ajudas.ts';
   import Modal from '../components/Modal.svelte';
@@ -41,6 +42,8 @@
   import type AbaDoAlertaT from '../components/AbaDoAlerta.svelte';
   import { familia } from '../lib/icones.ts';
   import { REGRAS, REGRA_PADRAO, MAX_AREAS, pontosDoCadastro, pontosSVG } from '../lib/area.ts';
+  import { MAX_HORARIOS, doServidor, paraOServidor, valido } from '../lib/horarios.ts';
+  import type { Horario } from '../lib/horarios.ts';
   import type { Ponto, Regra } from '../lib/area.ts';
   import { quadroCheio, ultimoSegmento } from '../lib/thumbs.ts';
 
@@ -445,11 +448,27 @@
   // marcadas" sem nenhuma marcada, o salvar recusa.
   let ondeDoAlerta = $state<OndeDoAlerta>('tudo');
   let erroDoAlerta = $state('');
+  // Os horários como a aba os edita, em minutos. Com a caixa desmarcada, o
+  // salvar apaga o `schedules`: vazio é a qualquer hora.
+  let limitaHorarios = $state(false);
+  let horariosDoAlerta = $state<Horario[]>([]);
 
   function abreOAlerta() {
     ondeDoAlerta = editing?.alert?.areas?.length ? 'areas' : 'tudo';
+    horariosDoAlerta = doServidor(editing?.alert?.schedules);
+    limitaHorarios = horariosDoAlerta.length > 0;
     erroDoAlerta = '';
   }
+
+  // "America/Fortaleza (UTC−03:00)": o fuso em que os horários valem, que é o
+  // do servidor e não o do navegador.
+  const fusoDoServidor = $derived.by(() => {
+    const c = health.clock;
+    if (!c) return '';
+    const s = Math.abs(c.offsetSeconds);
+    const utc = `UTC${c.offsetSeconds < 0 ? '−' : '+'}${horaDoMinuto(Math.floor(s / 60))}`;
+    return c.zone ? `${c.zone} (${utc})` : utc;
+  });
 
   // O que falta no alerta ligado para ele poder ser salvo. Com a aba escondida
   // não há o que conferir: o alerta fica como estava.
@@ -459,6 +478,14 @@
     if (!al.families?.length) return 'Marque ao menos uma família para o alerta.';
     if (ondeDoAlerta === 'areas' && !al.areas?.length)
       return 'Marque ao menos uma área para o alerta, ou escolha em qualquer lugar da imagem.';
+    if (limitaHorarios) {
+      if (horariosDoAlerta.some((h) => !valido(h)))
+        return 'Há um horário sem dia, sem hora ou com o "Até" que não fica depois do "De": corrija ou remova.';
+      if (!horariosDoAlerta.length)
+        return 'Marque ao menos um horário, ou desmarque "Limitar o alerta a alguns horários".';
+      if (horariosDoAlerta.length > MAX_HORARIOS)
+        return `São até ${MAX_HORARIOS} horários por câmera: junte ou remova alguns.`;
+    }
     return '';
   }
 
@@ -476,6 +503,11 @@
       const { _novo, _hasAudio, _audioCodecs, _sondando, _sondaErro, ...cam } = editing;
       // Na imagem inteira, as áreas marcadas antes não valem mais.
       if (cam.alert && ondeDoAlerta === 'tudo') cam.alert = { ...cam.alert, areas: [] };
+      if (cam.alert)
+        cam.alert = {
+          ...cam.alert,
+          schedules: limitaHorarios ? paraOServidor(horariosDoAlerta) : [],
+        };
       await api.saveCamera(cam);
       await loadCameras();
       editing = null;
@@ -1096,8 +1128,11 @@
             <AbaDoAlerta
               bind:alerta={editing.alert}
               bind:onde={ondeDoAlerta}
+              bind:limitaHorarios
+              bind:horarios={horariosDoAlerta}
               bind:erro={erroDoAlerta}
               areas={editing.areas ?? []}
+              fuso={fusoDoServidor}
             />
           {/if}
         </div>

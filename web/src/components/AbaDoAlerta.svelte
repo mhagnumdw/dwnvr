@@ -1,6 +1,6 @@
 <!--
-  A aba Alerta do cadastro da câmera: ligar, as famílias que avisam e onde, a
-  imagem inteira ou só as áreas marcadas.
+  A aba Alerta do cadastro da câmera: ligar, as famílias que avisam, onde (a
+  imagem inteira ou só as áreas marcadas) e quando (HorariosDoAlerta).
 
   Vem num chunk à parte (`import()`), como o editor de área: quem não tem
   detecção não baixa a aba. Quem confere o alerta incompleto ao salvar é o
@@ -10,19 +10,28 @@
   import type { AlertaDaCamera, AreaDaCamera, OndeDoAlerta } from '../lib/api.ts';
   import { FAMILIAS, NOMES_DAS_FAMILIAS, iconeURL } from '../lib/icones.ts';
   import type { NomeDaFamilia } from '../lib/icones.ts';
+  import type { Horario } from '../lib/horarios.ts';
+  import HorariosDoAlerta from './HorariosDoAlerta.svelte';
 
   interface Props {
     alerta: AlertaDaCamera | undefined;
-    // Mora no formulário, e não no `alerta`: é o salvar dele que confere.
+    // Os três moram no formulário, e não no `alerta`: é o salvar dele que
+    // confere.
     onde?: OndeDoAlerta;
+    limitaHorarios?: boolean;
+    horarios?: Horario[];
     areas: AreaDaCamera[];
+    fuso: string;
     erro?: string;
   }
 
   let {
     alerta = $bindable(),
     onde = $bindable('tudo'),
+    limitaHorarios = $bindable(false),
+    horarios = $bindable([]),
     areas,
+    fuso,
     erro = $bindable(''),
   }: Props = $props();
 
@@ -125,6 +134,14 @@
       </div>
     {/if}
   </div>
+
+  <HorariosDoAlerta
+    bind:limita={limitaHorarios}
+    bind:horarios
+    {fuso}
+    marcaIncompletos={!!erro}
+    onmuda={() => (erro = '')}
+  />
 
   <small class="muted">
     Fica marcado na detecção, e se vê em Detecções com o filtro "só alertas". O envio por e-mail
