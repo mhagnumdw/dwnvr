@@ -1,15 +1,16 @@
 # TODO - áreas na imagem, filtro por área e alertas de detecção
 
 Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
-Etapas 0, 1 e 2 feitas**, na branch `areas-e-alertas`; da 1, falta só a
+Etapas 0, 1, 2 e 4 feitas**, na branch `areas-e-alertas`; da 1, falta só a
 medição no hardware de referência. **A Etapa 3 está feita, menos a
 instalação de teste:** o campo `alert`, o `internal/alerta`, a aba Alerta, a
 marca gravada na detecção e o "só alertas" em Detecções.
 
-**Próximo passo:** implementar a [Etapa 4](#etapa-4---os-horários-do-alerta)
-(os horários do alerta), com o dado e a tela decididos no mock em 23 e
-24/10/2026. A instalação de teste da Etapa 3 fica para depois: por ora o
-mantenedor segue desenvolvendo e testando na bancada local.
+**Próximo passo:** a [Etapa 5](#etapa-5---o-e-mail) (o e-mail), começando
+por decidir onde ficam o resultado de cada meio, o Aviso de meio falhando e o
+botão de teste, que iam no card Alertas. A instalação de teste da Etapa 3
+fica para depois: por ora o mantenedor segue desenvolvendo e testando na
+bancada local.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -32,7 +33,7 @@ Tudo com a interface pensada para o celular e para o desktop.
 - [x] [Etapa 1 - filtrar Detecções por uma área desenhada na hora](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora), menos a medição no hardware de referência
 - [x] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
 - [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro), menos a instalação de teste
-- [ ] [Etapa 4 - os horários do alerta](#etapa-4---os-horários-do-alerta)
+- [x] [Etapa 4 - os horários do alerta](#etapa-4---os-horários-do-alerta)
 - [ ] [Etapa 5 - o e-mail](#etapa-5---o-e-mail)
 
 ## Decisões do mantenedor
@@ -797,7 +798,8 @@ alerta no `docs/deteccao.md`, o campo da câmera no `docs/api.md` e
 - [x] o campo `schedules`, com validação e teste
 - [x] o horário na `Regra`, com teste
 - [x] a seção no cadastro: a grade, a lista e os atalhos
-- [ ] teste do mantenedor no celular e no desktop
+- [x] teste do mantenedor no celular e no desktop, em 24/10/2026, na bancada
+  local
 - [x] docs
 
 ## Etapa 5 - o e-mail
