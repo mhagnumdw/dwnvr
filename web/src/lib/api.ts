@@ -392,11 +392,22 @@ export interface Camera {
 }
 
 // Quando uma detecção da câmera vira alerta. Sem `areas`, vale a imagem
-// inteira; desligado, guarda o resto para religar.
+// inteira; sem `schedules`, a qualquer hora; desligado, guarda o resto para
+// religar.
 export interface AlertaDaCamera {
   enabled: boolean;
   families?: NomeDaFamilia[];
   areas?: string[];
+  schedules?: HorarioDoAlerta[];
+}
+
+// Um horário do alerta: os dias, de 0 (domingo) a 6 (sábado), e o De e o Até
+// em "HH:MM", com as duas pontas incluídas. O `to` é sempre maior que o
+// `from`: a noite são dois horários, um até 23:59 e outro a partir de 00:00.
+export interface HorarioDoAlerta {
+  days: number[];
+  from: string;
+  to: string;
 }
 
 // Onde o alerta vale, como a aba Alerta mostra. Não vai ao servidor, que só
