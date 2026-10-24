@@ -3,6 +3,7 @@ package alerta
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/area"
 	"github.com/mhagnumdw/dwnvr/internal/config"
@@ -54,6 +55,9 @@ func TestRegraSoNasceComAlertaLigado(t *testing.T) {
 		"sem marcação":        func(c *config.Camera) { c.Detect = &nao },
 		"marcação ausente":    func(c *config.Camera) { c.Detect = nil },
 		"áreas que sumiram":   func(c *config.Camera) { c.Alert.Areas = []string{"sumiu"} },
+		"horários que não valem": func(c *config.Camera) {
+			c.Alert.Schedules = []config.HorarioDoAlerta{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "06:00"}}
+		},
 	}
 	for nome, muda := range casos {
 		t.Run(nome, func(t *testing.T) {
@@ -174,5 +178,76 @@ func TestMarcaAsLinhas(t *testing.T) {
 	NovaRegra(camera([]detect.Familia{detect.Pessoa})).Avalia(linhas, nil)
 	if !linhas[0].Alert || linhas[0].AlertAreas != nil {
 		t.Errorf("imagem inteira: alert %v em %v", linhas[0].Alert, linhas[0].AlertAreas)
+	}
+}
+
+// quarta são os três horários da quarta do exemplo da doc, mais o sábado
+// inteiro.
+var quarta = []config.HorarioDoAlerta{
+	{Days: []time.Weekday{time.Wednesday}, From: "00:00", To: "05:15"},
+	{Days: []time.Weekday{time.Wednesday}, From: "12:00", To: "13:00"},
+	{Days: []time.Weekday{time.Wednesday}, From: "18:30", To: "23:59"},
+	{Days: []time.Weekday{time.Saturday}, From: "00:00", To: "23:59"},
+}
+
+// em é o instante, no fuso do servidor, de um dia da semana de outubro de
+// 2026 (o dia 18 é um domingo), na hora, no minuto e no segundo dados.
+func em(dia time.Weekday, hora, minuto, segundo int) int64 {
+	return time.Date(2026, 10, 18+int(dia), hora, minuto, segundo, 0, time.Local).UnixMilli()
+}
+
+// TestNoHorario: o onset precisa cair num dos horários, com as duas pontas
+// incluídas ao minuto, e fora deles nenhuma linha ganha a marca.
+func TestNoHorario(t *testing.T) {
+	casos := map[string]struct {
+		instanteMs int64
+		alerta     bool
+	}{
+		"de madrugada":             {em(time.Wednesday, 3, 0, 0), true},
+		"no primeiro minuto":       {em(time.Wednesday, 0, 0, 0), true},
+		"no último minuto":         {em(time.Wednesday, 5, 15, 59), true},
+		"no minuto seguinte":       {em(time.Wednesday, 5, 16, 0), false},
+		"entre dois horários":      {em(time.Wednesday, 11, 59, 59), false},
+		"no De do segundo":         {em(time.Wednesday, 12, 0, 0), true},
+		"no Até do segundo":        {em(time.Wednesday, 13, 0, 59), true},
+		"depois do segundo":        {em(time.Wednesday, 13, 1, 0), false},
+		"no fim do dia":            {em(time.Wednesday, 23, 59, 59), true},
+		"na meia-noite seguinte":   {em(time.Thursday, 0, 0, 0), false},
+		"na hora certa, outro dia": {em(time.Tuesday, 3, 0, 0), false},
+		"no sábado inteiro":        {em(time.Saturday, 14, 30, 0), true},
+	}
+	for nome, c := range casos {
+		t.Run(nome, func(t *testing.T) {
+			cam := camera([]detect.Familia{detect.Pessoa})
+			cam.Alert.Schedules = quarta
+			linha := pessoaNaEsquerda
+			linha.InstanteMs = c.instanteMs
+			linhas := []store.Evento{linha}
+			_, ok := NovaRegra(cam).Avalia(linhas, nil)
+			if ok != c.alerta || linhas[0].Alert != c.alerta {
+				t.Errorf("alertou %v, linha com alert %v; esperava %v", ok, linhas[0].Alert, c.alerta)
+			}
+		})
+	}
+}
+
+// TestHorarioComAreas: dentro do horário, a área ainda decide; fora, nem a
+// pessoa na área alerta.
+func TestHorarioComAreas(t *testing.T) {
+	cam := camera([]detect.Familia{detect.Pessoa}, "esq")
+	cam.Alert.Schedules = quarta
+	r := NovaRegra(cam)
+	for _, c := range []struct {
+		instanteMs int64
+		objetos    int
+	}{{em(time.Wednesday, 3, 0, 0), 1}, {em(time.Wednesday, 8, 0, 0), 0}} {
+		linhas := []store.Evento{pessoaNaEsquerda, pessoaNaDireita}
+		for i := range linhas {
+			linhas[i].InstanteMs = c.instanteMs
+		}
+		a, _ := r.Avalia(linhas, nil)
+		if len(a.Objetos) != c.objetos || linhas[0].Alert != (c.objetos > 0) || linhas[1].Alert {
+			t.Errorf("às %s: objetos %+v, linhas %+v", time.UnixMilli(c.instanteMs).Format("15:04"), a.Objetos, linhas)
+		}
 	}
 }
