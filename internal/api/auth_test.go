@@ -162,7 +162,7 @@ func TestTrocarACredencialDoDonoDerrubaAsSessoesDele(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return New(cfg, nil, nil, nil, nil, cad, acessos, segredo, log)
+		return New(cfg, nil, nil, nil, nil, cad, acessos, nil, segredo, log)
 	}
 	antes := subir("admin", "senha")
 	dono, _ := antes.quem("admin")

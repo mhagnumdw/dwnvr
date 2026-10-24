@@ -22,7 +22,7 @@ func cadastroVazio(t *testing.T) *Cadastro {
 // O caminho inteiro: criar, abrir o link, definir a senha e entrar com ela.
 func TestConviteDoCriarAoLogin(t *testing.T) {
 	c := cadastroVazio(t)
-	conv, err := c.Criar("maria", "  Maria  ")
+	conv, err := c.Criar("maria", "  Maria  ", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestConviteDoCriarAoLogin(t *testing.T) {
 
 func TestCriarRecusa(t *testing.T) {
 	c := cadastroVazio(t)
-	if _, err := c.Criar("maria", "Maria"); err != nil {
+	if _, err := c.Criar("maria", "Maria", ""); err != nil {
 		t.Fatal(err)
 	}
 	casos := map[string][2]string{
@@ -78,7 +78,7 @@ func TestCriarRecusa(t *testing.T) {
 	}
 	for nome, caso := range casos {
 		var recusado Recusado
-		if _, err := c.Criar(caso[0], caso[1]); !errors.As(err, &recusado) {
+		if _, err := c.Criar(caso[0], caso[1], ""); !errors.As(err, &recusado) {
 			t.Errorf("%s: err=%v, esperava Recusado", nome, err)
 		}
 	}
@@ -90,7 +90,7 @@ func TestCriarRecusa(t *testing.T) {
 // Link novo apaga a senha e invalida o link anterior: só o mais recente vale.
 func TestNovoLinkApagaASenhaEOLinkAnterior(t *testing.T) {
 	c := cadastroVazio(t)
-	primeiro, _ := c.Criar("maria", "Maria")
+	primeiro, _ := c.Criar("maria", "Maria", "")
 	if _, err := c.DefinirSenha(context.Background(), primeiro.Token, "uma senha boa"); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestNovoLinkApagaASenhaEOLinkAnterior(t *testing.T) {
 
 func TestLinkVence(t *testing.T) {
 	c := cadastroVazio(t)
-	conv, _ := c.Criar("maria", "Maria")
+	conv, _ := c.Criar("maria", "Maria", "")
 
 	c.agora = func() time.Time { return time.Now().Add(ValidadeDoLink + time.Second) }
 	if _, err := c.Conferir(conv.Token); !errors.Is(err, ErrLinkInvalido) {
@@ -139,7 +139,7 @@ func TestLinkVence(t *testing.T) {
 
 func TestSenhaForaDoTamanho(t *testing.T) {
 	c := cadastroVazio(t)
-	conv, _ := c.Criar("maria", "Maria")
+	conv, _ := c.Criar("maria", "Maria", "")
 	// Conta caracteres, e não bytes: "ação" tem 4 caracteres e 6 bytes.
 	for _, s := range []string{"1234567", "açãoaçã", strings.Repeat("a", SenhaMaxima+1)} {
 		var recusado Recusado
@@ -156,7 +156,7 @@ func TestSenhaForaDoTamanho(t *testing.T) {
 func TestRemover(t *testing.T) {
 	c := cadastroVazio(t)
 	for _, u := range [][2]string{{"maria", "Maria"}, {"jose", "José"}} {
-		if _, err := c.Criar(u[0], u[1]); err != nil {
+		if _, err := c.Criar(u[0], u[1], ""); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/api"
 	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/email"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/logbuf"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
@@ -148,9 +149,21 @@ func run(log *slog.Logger, cfgPath string) error {
 		log.Warn("últimos acessos ilegíveis; recomeçam vazios", "erro", err)
 	}
 
+	// Sem a seção smtp ligada, nada de e-mail é montado. Vai como interface
+	// nil, e não como um *email.SMTP nil, que a API leria como ligado.
+	var envio email.Enviador
+	if cfg.SMTP.Ligado() {
+		if smtp, err := email.NovoSMTP(cfg.SMTP); err != nil {
+			log.Warn("e-mail desligado", "arquivo", cfgPath, "problema", err)
+		} else {
+			envio = smtp
+			log.Info("e-mail ligado", "servidor", cfg.SMTP.Host, "remetente", cfg.SMTP.From)
+		}
+	}
+
 	srv := &http.Server{
 		Addr:    cfg.Server.Listen,
-		Handler: api.New(cfg, st, client, mgr, ret, cad, acessos, secret, log).Handler(),
+		Handler: api.New(cfg, st, client, mgr, ret, cad, acessos, envio, secret, log).Handler(),
 		// Sem WriteTimeout: exportação e proxy de live são respostas longas por
 		// natureza, e um teto aqui as cortaria no meio.
 		ReadHeaderTimeout: 10 * time.Second,

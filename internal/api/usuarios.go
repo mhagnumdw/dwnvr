@@ -15,8 +15,11 @@ import (
 // usuarioNaTela é a pessoa como a tela Usuários a vê: sem a senha guardada e
 // sem o hash do token.
 type usuarioNaTela struct {
-	Usuario  string         `json:"username"`
-	Nome     string         `json:"name"`
+	Usuario string `json:"username"`
+	Nome    string `json:"name"`
+	// Só de quem tem e-mail válido: o escrito errado à mão no arquivo não
+	// aparece, como se não houvesse.
+	Email    string         `json:"email,omitempty"`
 	Papel    usuarios.Papel `json:"role"`
 	Situacao string         `json:"status"`
 	Avatar   string         `json:"avatar,omitempty"`
@@ -50,8 +53,8 @@ func ms(t time.Time) int64 {
 }
 
 func (s *Server) naTela(u usuarios.Usuario, agora time.Time) usuarioNaTela {
-	v := usuarioNaTela{Usuario: u.Usuario, Nome: u.Nome, Papel: u.Papel, Situacao: u.Situacao(agora),
-		Avatar: u.Avatar}
+	v := usuarioNaTela{Usuario: u.Usuario, Nome: u.Nome, Email: u.EmailValido(), Papel: u.Papel,
+		Situacao: u.Situacao(agora), Avatar: u.Avatar}
 	// Acesso de antes da criação da conta é de quem teve o mesmo usuário
 	// antes. O Esquecer do Criar só chega ao disco na gravação seguinte, e uma
 	// queda nesse meio-tempo traria o acesso antigo de volta no boot.
@@ -121,6 +124,9 @@ func (s *Server) handleUsuarios(w http.ResponseWriter, r *http.Request) {
 		"inviteValidityMs":  usuarios.ValidadeDoLink.Milliseconds(),
 		"maxNameLength":     usuarios.TamanhoMaximoDoNome,
 		"maxUsernameLength": usuarios.TamanhoMaximoDoUsuario,
+		"maxEmailLength":    usuarios.TamanhoMaximoDoEmail,
+		// Sem a seção smtp ligada, a tela esconde o que é de e-mail.
+		"emailEnabled": s.envio != nil,
 	}
 	if !s.cfg.Server.AuthEnabled() {
 		writeJSON(w, resp)
@@ -139,7 +145,7 @@ func (s *Server) handleUsuarios(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCriarUsuario cria um viewer, ainda sem senha, e devolve o
-// token do link para ela definir a sua.
+// token do link para ela definir a sua. O e-mail é opcional.
 func (s *Server) handleCriarUsuario(w http.ResponseWriter, r *http.Request) {
 	if s.semCadastro(w) {
 		return
@@ -147,11 +153,12 @@ func (s *Server) handleCriarUsuario(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Usuario string `json:"username"`
 		Nome    string `json:"name"`
+		Email   string `json:"email"`
 	}
 	if !lerCorpo(w, r, &req) {
 		return
 	}
-	c, err := s.usuarios.Criar(req.Usuario, req.Nome)
+	c, err := s.usuarios.Criar(req.Usuario, req.Nome, req.Email)
 	if err != nil {
 		s.recusa(w, "criando o usuário", err)
 		return
@@ -182,6 +189,72 @@ func (s *Server) handleNovoLink(w http.ResponseWriter, r *http.Request) {
 	s.derrubarPessoa(req.Usuario, "link novo")
 	s.log.Info("link novo gerado pela interface", "usuario", req.Usuario, "por", pessoaDe(r).Usuario)
 	writeJSON(w, s.conviteNaTela(c))
+}
+
+// handleTrocarEmail troca o e-mail de alguém, ou o apaga, com email vazio.
+// Vale também com o e-mail desligado: guardar não envia nada.
+func (s *Server) handleTrocarEmail(w http.ResponseWriter, r *http.Request) {
+	if s.semCadastro(w) {
+		return
+	}
+	var req struct {
+		Usuario string `json:"username"`
+		Email   string `json:"email"`
+	}
+	if !lerCorpo(w, r, &req) {
+		return
+	}
+	u, err := s.usuarios.TrocarEmail(req.Usuario, req.Email)
+	if err != nil {
+		s.recusa(w, "trocando o e-mail", err)
+		return
+	}
+	s.log.Info("e-mail trocado pela interface", "usuario", req.Usuario, "por", pessoaDe(r).Usuario)
+	writeJSON(w, map[string]any{"user": s.naTela(u, time.Now())})
+}
+
+// handleEnviarLink manda por e-mail o link que está na tela do admin. O
+// servidor não sabe por qual endereço é acessado, então o link vem pronto da
+// tela, que o monta com o endereço do navegador do admin; aqui ele só é
+// conferido, e tem de ser o link em aberto daquela pessoa. O log diz para
+// quem foi, nunca o link: o token é a credencial.
+func (s *Server) handleEnviarLink(w http.ResponseWriter, r *http.Request) {
+	if s.semCadastro(w) || s.semEmail(w) {
+		return
+	}
+	var req struct {
+		Usuario string `json:"username"`
+		Link    string `json:"url"`
+	}
+	if !lerCorpo(w, r, &req) {
+		return
+	}
+	token, ok := tokenDoLink(req.Link)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "link inválido: mande o link como a tela o mostra")
+		return
+	}
+	u, err := s.conviteValido(token)
+	if err != nil {
+		s.recusa(w, "conferindo o link", err)
+		return
+	}
+	if u.Usuario != req.Usuario {
+		writeError(w, http.StatusBadRequest, "o link não é desta pessoa")
+		return
+	}
+	para := u.EmailValido()
+	if para == "" {
+		writeError(w, http.StatusBadRequest, u.Nome+" não tem e-mail cadastrado")
+		return
+	}
+	if err := s.envio.Enviar(r.Context(), mensagemDoConvite(u, para, req.Link)); err != nil {
+		s.log.Warn("o link não foi por e-mail", "usuario", u.Usuario, "por", pessoaDe(r).Usuario, "erro", err)
+		writeError(w, http.StatusBadGateway, "o e-mail não foi: "+err.Error())
+		return
+	}
+	s.log.Info("link enviado por e-mail", "usuario", u.Usuario, "por", pessoaDe(r).Usuario)
+	writeJSON(w, map[string]string{"sentTo": para})
 }
 
 // handleRemoverUsuario apaga a pessoa e derruba o que ela tem aberto.

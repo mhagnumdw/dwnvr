@@ -39,8 +39,8 @@ func hashDoToken(token string) string {
 }
 
 // Criar cadastra um viewer, ainda sem senha, e devolve o link para ela
-// definir a sua.
-func (c *Cadastro) Criar(usuario, nome string) (Convite, error) {
+// definir a sua. O e-mail é opcional: vazio, o link só vai pela tela.
+func (c *Cadastro) Criar(usuario, nome, email string) (Convite, error) {
 	if err := ValidarUsuario(usuario); err != nil {
 		return Convite{}, err
 	}
@@ -48,11 +48,14 @@ func (c *Cadastro) Criar(usuario, nome string) (Convite, error) {
 	if err != nil {
 		return Convite{}, err
 	}
+	if email, err = ValidarEmail(email); err != nil {
+		return Convite{}, err
+	}
 	token, link, err := c.novoLink()
 	if err != nil {
 		return Convite{}, err
 	}
-	u := Usuario{Usuario: usuario, Nome: nome, Papel: PapelViewer, Link: link,
+	u := Usuario{Usuario: usuario, Nome: nome, Email: email, Papel: PapelViewer, Link: link,
 		CriadoEm: c.agora().Truncate(time.Second)}
 
 	err = c.Alterar(func(a *Arquivo) error {
@@ -64,6 +67,9 @@ func (c *Cadastro) Criar(usuario, nome string) (Convite, error) {
 		if slices.ContainsFunc(a.Usuarios, func(o Usuario) bool { return o.Usuario == usuario }) {
 			return Recusado("já existe alguém com este usuário")
 		}
+		if email != "" && emailEmUso(a, email, usuario) {
+			return Recusado("já existe alguém com este e-mail")
+		}
 		a.Usuarios = append(a.Usuarios, u)
 		return nil
 	})
@@ -71,6 +77,29 @@ func (c *Cadastro) Criar(usuario, nome string) (Convite, error) {
 		return Convite{}, err
 	}
 	return Convite{Usuario: u, Token: token}, nil
+}
+
+// TrocarEmail troca o e-mail da pessoa, ou o apaga, com email vazio. Não
+// mexe no link nem na senha.
+func (c *Cadastro) TrocarEmail(usuario, email string) (Usuario, error) {
+	email, err := ValidarEmail(email)
+	if err != nil {
+		return Usuario{}, err
+	}
+	var u Usuario
+	err = c.Alterar(func(a *Arquivo) error {
+		i := c.indice(a, usuario)
+		if i < 0 {
+			return ErrNaoExiste
+		}
+		if email != "" && emailEmUso(a, email, usuario) {
+			return Recusado("já existe alguém com este e-mail")
+		}
+		a.Usuarios[i].Email = email
+		u = a.Usuarios[i]
+		return nil
+	})
+	return u, err
 }
 
 // NovoLink gera outro link para a pessoa. A senha dela deixa de valer na hora,

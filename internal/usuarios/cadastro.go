@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/mail"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -54,7 +56,10 @@ type Usuario struct {
 	// ValidarUsuario).
 	Usuario string `json:"username"`
 	// Nome é o de exibição.
-	Nome  string `json:"name"`
+	Nome string `json:"name"`
+	// Email é para onde vai o link de convite, ou vazio. Único entre as
+	// pessoas, sem diferença de maiúscula e minúscula (ver ValidarEmail).
+	Email string `json:"email,omitempty"`
 	Papel Papel  `json:"role"`
 	// Senha é o valor guardado (ver GerarSenha), nunca a senha. Vazia é
 	// "ainda não definiu": ninguém entra com este usuário.
@@ -135,6 +140,40 @@ func ValidarNome(nome string) (string, error) {
 	return nome, nil
 }
 
+// ValidarEmail confere o e-mail da pessoa: um endereço só, sem nome na
+// frente, como "fulano@exemplo.com". Vazio vale: é a pessoa sem e-mail.
+func ValidarEmail(email string) (string, error) {
+	email = strings.TrimSpace(email)
+	switch {
+	case email == "":
+		return "", nil
+	case len(email) > TamanhoMaximoDoEmail:
+		return "", Recusado(fmt.Sprintf("e-mail com mais de %d caracteres", TamanhoMaximoDoEmail))
+	}
+	if a, err := mail.ParseAddress(email); err != nil || a.Address != email {
+		return "", Recusado("e-mail inválido: escreva só o endereço, como fulano@exemplo.com")
+	}
+	return email, nil
+}
+
+// EmailValido é o e-mail da pessoa, se ele passa no ValidarEmail, ou vazio: o
+// escrito errado à mão no arquivo conta como sem e-mail, e não sai dele.
+func (u Usuario) EmailValido() string {
+	if e, err := ValidarEmail(u.Email); err == nil && e == u.Email {
+		return e
+	}
+	return ""
+}
+
+// emailEmUso diz se outra pessoa, que não exceto, já tem o e-mail. Conta toda
+// entrada do arquivo, até a ignorada: ela pode voltar a valer quando alguém a
+// corrigir.
+func emailEmUso(a *Arquivo, email, exceto string) bool {
+	return slices.ContainsFunc(a.Usuarios, func(u Usuario) bool {
+		return u.Usuario != exceto && strings.EqualFold(u.Email, email)
+	})
+}
+
 // ValidarSenha confere só o tamanho, em caracteres: sem regra de composição,
 // como pede o NIST SP 800-63B.
 func ValidarSenha(senha string) error {
@@ -192,11 +231,25 @@ func Abrir(caminho, dono string) (c *Cadastro, avisos []string, err error) {
 	}
 
 	vistos := map[string]bool{}
+	emails := map[string]string{} // o e-mail em minúsculas, e de quem é
 	for i, u := range c.arq.Usuarios {
 		if motivo := c.motivoParaIgnorar(u, vistos); motivo != "" {
 			avisos = append(avisos, fmt.Sprintf("usuário #%d (%q) ignorado: %s", i, u.Usuario, motivo))
 		}
 		vistos[u.Usuario] = true
+		if u.Email == "" {
+			continue
+		}
+		if u.EmailValido() == "" {
+			avisos = append(avisos, fmt.Sprintf("usuário %q: e-mail %q ignorado, a pessoa fica sem e-mail", u.Usuario, u.Email))
+			continue
+		}
+		chave := strings.ToLower(u.Email)
+		if outro, ok := emails[chave]; ok {
+			avisos = append(avisos, fmt.Sprintf("usuário %q: o e-mail %q é o mesmo de %q", u.Usuario, u.Email, outro))
+			continue
+		}
+		emails[chave] = u.Usuario
 	}
 	return c, avisos, nil
 }
