@@ -268,12 +268,15 @@ liberado depois de 5 olhadas. Volta, e marca de novo.
 O alerta é o campo `alert` da câmera (ver
 [`configuracao.md`](configuracao.md#política-por-câmera)): as famílias que
 avisam e, se houver, as áreas em que o objeto precisa cair, cada uma pela
-própria regra. Sem áreas, vale a imagem inteira.
+própria regra, e os horários em que ele sai. Sem áreas, vale a imagem
+inteira; sem horários, a qualquer hora.
 
 **Quando sai.** A cada olhada, logo antes de as marcas serem gravadas, e com
-os mesmos números delas: passa cada marca de uma família do alerta que cai na
-imagem inteira ou numa das áreas. Todas as que passam vão num alerta só, com o
-instante do onset, que é a hora da cena: duas pessoas chegando juntas são um
+os mesmos números delas. Com horários, o onset precisa cair num deles, ao
+minuto e no fuso do servidor; fora, nenhum objeto passa, e a detecção é
+gravada sem a marca. Dentro, passa cada marca de uma família do alerta que cai
+na imagem inteira ou numa das áreas. Todas as que passam vão num alerta só, com
+o instante do onset, que é a hora da cena: duas pessoas chegando juntas são um
 alerta com as duas. Como a marca é de chegada, o carro parado avisa uma vez, e
 quem anda pela cena avisa a cada olhada que o marca de novo.
 
@@ -324,6 +327,13 @@ nem a espera nem a goroutine de envio nascem.
 - **Com o detector de objetos fora do ar, nenhum alerta sai.** O aviso que já
   existe diz desde quando.
 - **Câmera movida, área errada:** é preciso redesenhar.
+- **O horário é o do servidor.** Com o fuso errado nele, o alerta sai nas
+  horas erradas, como a timeline vira o dia na hora errada (ver
+  [`operacao.md`](operacao.md#problemas-comuns)).
+- **O objeto parado que chegou fora do horário** não avisa quando o horário
+  começa: a marca é de chegada (ver
+  [o rastreio](#carro-parado-não-vira-marca-a-cada-olhada)), e ele já foi
+  visto.
 
 ## Os parâmetros, e onde eles moram
 
