@@ -46,6 +46,10 @@ const (
 	// TamanhoMaximoDoUsuario é o teto do nome de login.
 	TamanhoMaximoDoUsuario = 32
 
+	// TamanhoMaximoDoEmail é o teto do e-mail da pessoa, o de um endereço
+	// pela RFC 5321.
+	TamanhoMaximoDoEmail = 254
+
 	// LadoDoAvatar é o lado, em pixels, do quadrado que o navegador corta e
 	// reduz da foto escolhida. 256 dá nitidez ao maior desenho do avatar na
 	// tela (88 px) em celular de densidade 3.

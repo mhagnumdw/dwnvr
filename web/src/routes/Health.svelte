@@ -36,6 +36,7 @@
     coletadoEm,
   } from '../lib/diagnostico-servidor.ts';
   import CardDiagnostico from '../components/CardDiagnostico.svelte';
+  import type TesteDeEmailT from '../components/TesteDeEmail.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import MarcaGitHub from '../components/MarcaGitHub.svelte';
   import Icone from '../components/Icone.svelte';
@@ -368,6 +369,17 @@
   });
 
   const gruposServidor = $derived(servidor ? gruposDoServidor(servidor, servidorAnterior) : []);
+
+  // O teste de e-mail é chunk à parte: só baixa com a seção smtp ligada.
+  const emailLigado = $derived(!!servidor?.smtp && !servidor.smtp.error);
+  let TesteDeEmail = $state<typeof TesteDeEmailT | null>(null);
+  $effect(() => {
+    if (emailLigado && !TesteDeEmail) {
+      void import('../components/TesteDeEmail.svelte').then((m) => {
+        TesteDeEmail = m.default;
+      });
+    }
+  });
   const logServidor = $derived(servidor?.log);
   const coletadoServidor = $derived(servidor ? coletadoEm(servidor.coletadoEm) : '');
 
@@ -1201,6 +1213,7 @@
       bind:aberto={servidorAberto}
       texto={textoDoServidor}
     >
+      {#if emailLigado && TesteDeEmail}<TesteDeEmail />{/if}
       {#if logServidor}
         <section class="log">
           <p class="titulo muted">

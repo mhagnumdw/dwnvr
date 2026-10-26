@@ -100,13 +100,16 @@ sessões](operacao.md#trocar-a-senha-e-derrubar-as-sessões).
 
 ### O link de convite
 
-Sem e-mail, quem entra pela primeira vez entra por um link: o admin cria a
-pessoa na tela Usuários, e ela define a própria senha. O link é
+Quem entra pela primeira vez entra por um link: o admin cria a pessoa na
+tela Usuários, e ela define a própria senha. Com o e-mail ligado, o link pode
+ir direto para ela (ver [Usuários](#usuários)). O link é
 `<endereço>/#convite?token=<token>`, com 32 bytes aleatórios no token. O
 endereço é o pelo qual o admin está acessando. O token fica no fragmento da
 URL, que não sai do navegador, e vai ao servidor no corpo de um POST: não
 aparece em log do dwnvr nem de proxy nenhum. O `usuarios.json` guarda só o
-SHA-256 dele.
+SHA-256 dele. Mandado por e-mail, o link fica guardado na caixa de saída da
+conta que envia e na de entrada da pessoa: como vale minutos e uma vez só, o
+que sobra lá é link morto.
 
 O link vale 10 minutos (`usuarios.ValidadeDoLink`) e uma vez só. Cada pessoa
 tem um link por vez: gerar outro invalida o anterior. Vencido, usado,
@@ -159,9 +162,10 @@ cair, mas não abre outra.
 | `DELETE /api/cameras` | `id`, `recordings=1` | **só admin**: descadastra; com `recordings=1` apaga as gravações junto |
 | `GET /api/streams/probe` | `src` | **só admin**: diz se um stream entrega áudio, abrindo-o se preciso |
 | `POST /api/go2rtc/restart` | - | **só admin**: reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
-| `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes e relógio |
+| `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes, relógio e o problema da seção `smtp` |
 | `POST /api/reconnects/reset` | - | **só admin**: zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
-| `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos e últimos avisos do log |
+| `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos, servidor de e-mail e últimos avisos do log |
+| `POST /api/email/teste` | `{"to"}` | **só admin**: manda um e-mail de teste para o endereço, pela seção `smtp` |
 | `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
@@ -351,6 +355,21 @@ olhada que ele responde o apaga. Pedaço recusado (vídeo corrompido) não conta
 apagar deixa gravações órfãs, e sem esse endpoint não haveria como recuperar o
 espaço pela interface.
 
+A seção `smtp` do `dwnvr.yaml` com problema deixa o e-mail desligado (ver
+[E-mail](configuracao.md#e-mail)), e o `/api/health` traz o motivo, para o card
+Avisos e o sino. Sem problema, o campo não vem.
+
+```json
+"smtp": { "error": "smtp.security \"ssl\" fora do aceito: use starttls, tls ou none" }
+```
+
+O `POST /api/email/teste` devolve `{"sentTo": "..."}`. Endereço vazio, com nome
+ou mais de um é `400`; com o e-mail desligado, `409` com o motivo. Se o
+servidor de e-mail recusar, é `502`, com a resposta dele do jeito que veio, como
+`o e-mail não foi: o servidor recusou o login: 535 5.7.8 Username and Password
+not accepted`. Entregue ao servidor não é entregue na caixa: spam e caixa
+cheia o dwnvr não vê.
+
 O `uptime` do `/api/health` vai em **segundos** (`appSeconds`, `machineSeconds`)
 e o `clock` vai em **instante**. A diferença é proposital: duração não tem como
 ser mal interpretada por um navegador de fuso ou de relógio diferente, enquanto
@@ -417,6 +436,10 @@ sem cgroup, fora do Linux).
     "ok": true, "ms": 128, "modelo": "modelo.onnx", "entrada": "512x288",
     "threads": 2, "url": "http://dwnvr-detect:8480"
   },
+  "smtp": {
+    "host": "smtp.gmail.com", "port": 587, "security": "starttls",
+    "from": "dwnvr <dwnvr.exemplo@gmail.com>"
+  },
   "log": {
     "total": 37,
     "linhas": [{ "em": "2026-09-22T18:37:12-03:00", "nivel": "WARN", "texto": "conexão caiu cam=garagem erro=EOF" }]
@@ -442,6 +465,9 @@ sem cgroup, fora do Linux).
   movimento em câmera nenhuma, ao contrário do `foraDoAr` do `/api/health`, que
   só aparece depois de uma olhada falhar.
 - As `url` vêm sem usuário e senha.
+- `smtp` só vem com a seção `smtp` no `dwnvr.yaml`, sem o login e sem a senha.
+  Não há sonda: conferir o servidor de e-mail é mandar um, e para isso existe o
+  `POST /api/email/teste`. Com a seção recusada, traz o `error`.
 - `pressao` é o PSI do kernel: a porcentagem do tempo em que alguma tarefa
   (`some`) ou todas (`full`) ficaram paradas esperando CPU, memória ou disco,
   em média de 10, 60 e 300 segundos.
@@ -633,8 +659,10 @@ Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem 
 | Endpoint | O que faz |
 | --- | --- |
 | `GET /api/usuarios` | as pessoas, com a situação de cada uma, e o dono à parte |
-| `POST /api/usuarios` | cria um viewer, `{"username", "name"}`, e devolve o token do link |
+| `POST /api/usuarios` | cria um viewer, `{"username", "name", "email"}`, e devolve o token do link; o e-mail é opcional |
 | `POST /api/usuarios/link` | link novo, `{"username"}`: apaga a senha atual e derruba a pessoa na hora |
+| `POST /api/usuarios/link/email` | manda o link por e-mail, `{"username", "url"}`, para o e-mail da pessoa |
+| `POST /api/usuarios/email` | troca o e-mail de alguém, `{"username", "email"}`; vazio apaga |
 | `DELETE /api/usuarios?username=` | remove a pessoa, e a foto dela, e a derruba na hora |
 | `DELETE /api/usuarios/avatar?username=` | tira a foto de alguém; trocar, só a própria pessoa |
 
@@ -644,13 +672,15 @@ Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem 
   "authRequired": true,
   "owner": { "username": "admin", "name": "admin", "avatar": "", "lastAccessMs": 1791986400000 },
   "users": [
-    { "username": "maria", "name": "Maria", "role": "viewer", "status": "invitePending",
+    { "username": "maria", "name": "Maria", "email": "maria@exemplo.com", "role": "viewer", "status": "invitePending",
       "inviteExpiresAtMs": 1791587903000, "createdAtMs": 1791587303000, "avatar": "4d1e0b62a7c3f915",
       "lastAccessMs": 1791500000000 }
   ],
   "inviteValidityMs": 600000,
   "maxNameLength": 60,
-  "maxUsernameLength": 32
+  "maxUsernameLength": 32,
+  "maxEmailLength": 254,
+  "emailEnabled": true
 }
 ```
 
@@ -672,6 +702,23 @@ Criar e o link novo devolvem
 `{"user": {...}, "token": "..."}`: o token só existe nessa resposta, e a
 tela monta o link com ele. Usuário fora do formato, repetido ou igual ao do
 dono, e nome vazio, são `400` com o motivo; pessoa que não existe é `404`.
+
+O `email` é um endereço só, sem nome na frente, e é **único** entre as
+pessoas, sem diferença de maiúscula e minúscula: e-mail inválido ou de outra
+pessoa é `400`. O `POST /api/usuarios/email` devolve `{"user": {...}}` e vale
+mesmo com o e-mail desligado, porque guardar não envia nada. Um e-mail
+escrito errado à mão no `usuarios.json` vira aviso no log e não vem na
+listagem, mas continua no arquivo. O `emailEnabled` diz se a seção `smtp` está
+ligada; sem ela, a tela esconde o que é de e-mail.
+
+O `POST /api/usuarios/link/email` recebe o link do jeito que a tela o mostra,
+porque o servidor não sabe por qual endereço é acessado: a tela o monta com o
+do navegador do admin. O servidor confere que é o link em aberto daquela
+pessoa (`http` ou `https`, sem usuário nem query, só o `#convite?token=`) e
+manda para o e-mail dela. Devolve `{"sentTo": "..."}`. Link de outra pessoa,
+em outra forma, ou pessoa sem e-mail, são `400`; link vencido ou usado, `410`;
+e-mail desligado, `409`; servidor de e-mail recusando, `502` com a resposta
+dele. O log diz para quem foi, nunca o link.
 
 ## Minha conta
 

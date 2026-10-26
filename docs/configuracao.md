@@ -9,6 +9,7 @@ CPU e em disco.
 - [Retenção](#retenção)
 - [Áudio](#áudio)
 - [Limite de tentativas no login](#limite-de-tentativas-no-login)
+- [E-mail](#e-mail)
 
 ## Os dois arquivos
 
@@ -298,3 +299,78 @@ Dois casos fazem o padrão errar:
 - **Docker rootless** (não testado). Pelo que diz a documentação dele, toda
   conexão chega ao container com o endereço do gateway, que está na lista.
   Como no caso de cima, o header passa a ser aceito de qualquer aparelho.
+
+## E-mail
+
+```yaml
+smtp:
+  host: smtp.gmail.com
+  username: dwnvr.exemplo@gmail.com
+  password: troque-me
+```
+
+Com esta seção, o dwnvr envia e-mail: hoje, o link de definir a senha, que o
+admin manda da tela Usuários direto para a pessoa. Sem ela, o dwnvr não abre
+conexão nenhuma, e a tela não mostra nada de e-mail. Serve qualquer provedor
+que fale SMTP.
+
+| Campo | O que é | Sem escrever |
+| --- | --- | --- |
+| `host` | o servidor de e-mail, só o nome ou o IP | obrigatório |
+| `security` | `starttls`, `tls` ou `none` | `starttls` |
+| `port` | a porta | a da `security`: 587, 465 ou 25 |
+| `username` e `password` | a conta que envia; os dois juntos, ou nenhum se o servidor não pede login | sem login |
+| `from` | o remetente, como `dwnvr <dwnvr.exemplo@gmail.com>` | o `username`, quando ele é um endereço |
+
+- **`starttls`**: a conexão começa sem TLS e passa para TLS antes do login. Se
+  o servidor não oferecer o STARTTLS, o dwnvr não envia nada, nem a senha.
+- **`tls`**: TLS desde o primeiro byte, na porta 465.
+- **`none`**: sem TLS, para um servidor na rede de casa. Com login, só vale
+  para `localhost`, `127.0.0.1` ou `::1`, porque a senha não sai sem TLS.
+
+O certificado do servidor é sempre conferido, sem opção para desligar. O login
+é o `AUTH PLAIN`, o mais comum. A senha fica no servidor: não vai à tela nem ao
+log.
+
+Uma seção com problema **não impede o dwnvr de subir**. Não há padrão que
+substitua um servidor errado, então o e-mail fica desligado até o
+`dwnvr.yaml` ser corrigido. O motivo vira aviso no card Avisos do Diagnóstico
+e no sino do header, e vai também para o log:
+
+```text
+e-mail desligado: a seção smtp do dwnvr.yaml não serve até ser corrigida
+arquivo=/etc/dwnvr/dwnvr.yaml problema="smtp.security \"ssl\" fora do aceito: use starttls, tls ou none"
+```
+
+Para conferir sem cadastrar ninguém, abra o card **Este servidor** do
+Diagnóstico: ele mostra o servidor, a segurança e o remetente que ficaram
+valendo, e o **Testar o e-mail** manda um para o endereço que você digitar,
+com a resposta do servidor do jeito que ela veio.
+
+### Com o Gmail
+
+1. **Crie uma conta só para o dwnvr**, e não use a sua. A senha de app dá
+   acesso à conta inteira e fica escrita no `dwnvr.yaml`: numa conta só dele,
+   é só isso que ela abre.
+2. **Ligue a verificação em duas etapas** nessa conta. Sem ela, o Google não
+   oferece a senha de app.
+3. **Gere uma senha de app**, como explica a
+   [ajuda do Google](https://support.google.com/accounts/answer/185833). Ela
+   tem 16 caracteres e é a `password`. O `username` é o endereço da conta.
+
+O `host` é `smtp.gmail.com`, e a `security` e a porta padrão (`starttls`, 587)
+já servem. Isso foi conferido em 24/10/2026, com uma conta nova e uma senha de
+app: chegaram o "Testar o e-mail" do Diagnóstico e o link de definir a senha
+mandado pelo "Enviar por e-mail" da tela Usuários.
+
+Duas coisas que o Google diz e que param o envio:
+
+- trocar a senha da conta revoga todas as senhas de app, e o dwnvr passa a
+  receber "login recusado" até você gerar outra;
+- uma conta comum envia até 500 e-mails por dia
+  ([limites do Gmail](https://support.google.com/mail/answer/22839)).
+
+Nos outros provedores, o `host`, a porta e a `security` estão na ajuda de
+cada um. Os de e-mail transacional, como a Brevo, pedem um domínio seu para o
+remetente: com um endereço `@gmail.com`, a Brevo troca o remetente por um
+endereço dela.

@@ -114,10 +114,23 @@ export const api = {
   // Usuários, só do admin. Criar e o link novo devolvem o token do link, que
   // só existe nessa resposta.
   usuarios: () => request<Usuarios>('usuarios'),
-  criarUsuario: (usuario: string, nome: string) =>
+  criarUsuario: (usuario: string, nome: string, email: string) =>
     request<Convite>('usuarios', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, name: nome }),
+      body: JSON.stringify({ username: usuario, name: nome, email }),
+    }),
+  // Vazio apaga o e-mail.
+  trocarEmail: (usuario: string, email: string) =>
+    request<{ user: Usuario }>('usuarios/email', {
+      method: 'POST',
+      body: JSON.stringify({ username: usuario, email }),
+    }),
+  // O link vai inteiro, como a tela o mostra: o servidor não sabe por qual
+  // endereço é acessado, e só confere que é o link em aberto da pessoa.
+  enviarLink: (usuario: string, url: string) =>
+    request<{ sentTo: string }>('usuarios/link/email', {
+      method: 'POST',
+      body: JSON.stringify({ username: usuario, url }),
     }),
   novoLink: (usuario: string) =>
     request<Convite>('usuarios/link', {
@@ -191,6 +204,14 @@ export const api = {
   // últimos avisos do log. À parte do health porque custa um teste de escrita
   // no disco - só a pede quem abriu o card "Este servidor".
   servidor: () => request<Servidor>('health/servidor'),
+
+  // Um e-mail de teste pela seção smtp. O erro do servidor de e-mail vem como
+  // ele respondeu.
+  testarEmail: (para: string) =>
+    request<{ sentTo: string }>('email/teste', {
+      method: 'POST',
+      body: JSON.stringify({ to: para }),
+    }),
 
   days: (cam: string) => request<Dias>('rec/days?cam=' + encodeURIComponent(cam)),
 
@@ -308,6 +329,7 @@ export type SituacaoDoUsuario = 'active' | 'invitePending' | 'inviteExpired';
 export interface Usuario {
   username: string;
   name: string;
+  email?: string;
   role: Papel;
   status: SituacaoDoUsuario;
   avatar?: string;
@@ -326,6 +348,9 @@ export interface Usuarios {
   inviteValidityMs: number;
   maxNameLength: number;
   maxUsernameLength: number;
+  maxEmailLength: number;
+  // Se a seção smtp está ligada. Servidor anterior a ela não manda.
+  emailEnabled?: boolean;
 }
 
 // O token só existe nesta resposta: a tela monta o link com ele.
@@ -534,6 +559,8 @@ export interface Saude {
   clock?: Relogio;
   reconnectsWindowHours?: number;
   go2rtc?: { error: string; since: string };
+  // Só com a seção smtp recusada no boot: o e-mail fica desligado.
+  smtp?: { error: string };
 }
 
 // --- o servidor (card "Este servidor" do Diagnóstico)
@@ -617,6 +644,9 @@ export interface Servidor {
     erro?: string;
     url: string;
   };
+  // Só com a seção smtp no dwnvr.yaml; sem o login e sem a senha. `error` é o
+  // motivo de o e-mail estar desligado.
+  smtp?: { host?: string; port?: number; security?: string; from?: string; error?: string };
   log?: { total: number; linhas: LinhaDoLog[] };
 }
 

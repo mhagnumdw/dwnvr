@@ -41,7 +41,15 @@ var (
 	// uma conta de senha inteira (0,77 s de CPU num Orange Pi Zero 3). 12 por
 	// minuto, uma a cada 5 s, já é muito para quem digita a senha.
 	FaixaLoginAttemptsPerMinute = Faixa{Min: 0, Max: 12, Unidade: "por minuto"}
+
+	// FaixaPortaSMTP é a das portas TCP.
+	FaixaPortaSMTP = Faixa{Min: 1, Max: 65535}
 )
+
+// PortaSMTPPadrao é a porta de cada smtp.security, a que os provedores usam:
+// 587 é a da submissão com STARTTLS (RFC 6409), 465 a do TLS direto
+// (RFC 8314), e 25 a do SMTP sem TLS, de relay na rede local.
+var PortaSMTPPadrao = map[string]int{"starttls": 587, "tls": 465, "none": 25}
 
 // LoginAttemptsPerMinutePadrao: depois da rajada, uma tentativa a cada 30 s.
 // Quem digitou errado espera pouco, e quem testa senhas fica em umas 2.900
