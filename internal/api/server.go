@@ -15,6 +15,7 @@ import (
 
 	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/email"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/limite"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
@@ -36,6 +37,9 @@ type Server struct {
 	usuarios *usuarios.Cadastro
 	// acessos é o último acesso de cada pessoa, que a sessao anota.
 	acessos *usuarios.Acessos
+	// envio manda os e-mails. É nil sem a seção smtp ligada: aí as rotas de
+	// e-mail respondem 409, e a tela esconde o que é de e-mail.
+	envio email.Enviador
 	// abertas são as conexões que não voltam a apresentar o cookie (o ao vivo
 	// e o aviso de sessão), para derrubar quem é removido. Ver derrubar.go.
 	abertas conexoes
@@ -73,10 +77,11 @@ type Server struct {
 // login a partir da config.
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 	mgr *recorder.Manager, ret *retention.Manager, cad *usuarios.Cadastro,
-	acessos *usuarios.Acessos, secret []byte, log *slog.Logger) *Server {
+	acessos *usuarios.Acessos, envio email.Enviador, secret []byte, log *slog.Logger) *Server {
 
 	s := &Server{cfg: cfg, store: st, client: client, mgr: mgr, ret: ret,
-		usuarios: cad, acessos: acessos, sessionSecret: secret, log: log, startedAt: time.Now()}
+		usuarios: cad, acessos: acessos, envio: envio, sessionSecret: secret, log: log,
+		startedAt: time.Now()}
 	s.limiteLogin, s.proxies = limiteDoLogin(cfg.Server)
 	return s
 }
@@ -133,6 +138,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/usuarios", s.requireAdmin(s.handleUsuarios))
 	mux.HandleFunc("POST /api/usuarios", s.requireAdmin(s.handleCriarUsuario))
 	mux.HandleFunc("POST /api/usuarios/link", s.requireAdmin(s.handleNovoLink))
+	mux.HandleFunc("POST /api/usuarios/link/email", s.requireAdmin(s.handleEnviarLink))
+	mux.HandleFunc("POST /api/usuarios/email", s.requireAdmin(s.handleTrocarEmail))
 	mux.HandleFunc("DELETE /api/usuarios", s.requireAdmin(s.handleRemoverUsuario))
 	mux.HandleFunc("DELETE /api/usuarios/avatar", s.requireAdmin(s.handleTirarAvatarDe))
 
@@ -159,6 +166,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/health", s.requireAdmin(s.handleHealth))
 	mux.HandleFunc("POST /api/reconnects/reset", s.requireAdmin(s.handleZerarReconexoes))
 	mux.HandleFunc("GET /api/health/servidor", s.requireAdmin(s.handleDiagnosticoServidor))
+	mux.HandleFunc("POST /api/email/teste", s.requireAdmin(s.handleTesteEmail))
 	mux.HandleFunc("DELETE /api/rec", s.requireAdmin(s.handleDeleteRecordings))
 
 	// Gravações
@@ -416,6 +424,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		if desde, erro := s.client.Inacessivel(); !desde.IsZero() {
 			resp["go2rtc"] = map[string]any{"error": erro, "since": desde}
 		}
+	}
+
+	// A seção smtp com problema vira Aviso na tela, e não só linha no log: o
+	// e-mail fica desligado até alguém corrigir o dwnvr.yaml e reiniciar.
+	if s.cfg.SMTP.Recusa != "" {
+		resp["smtp"] = map[string]any{"error": s.cfg.SMTP.Recusa}
 	}
 
 	writeJSON(w, resp)

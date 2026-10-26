@@ -13,7 +13,7 @@ import (
 // comSenha cria a pessoa e define a senha dela pelo link.
 func comSenha(t *testing.T, c *Cadastro, usuario, senha string) Usuario {
 	t.Helper()
-	conv, err := c.Criar(usuario, usuario)
+	conv, err := c.Criar(usuario, usuario, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestTrocarSenha(t *testing.T) {
 
 func TestMudarNome(t *testing.T) {
 	c := cadastroVazio(t)
-	if _, err := c.Criar("maria", "Maria"); err != nil {
+	if _, err := c.Criar("maria", "Maria", ""); err != nil {
 		t.Fatal(err)
 	}
 	if nome, err := c.MudarNome("maria", "  Maria Clara "); err != nil || nome != "Maria Clara" {
@@ -119,7 +119,7 @@ func TestConferirAvatar(t *testing.T) {
 
 func TestAvatar(t *testing.T) {
 	c := cadastroVazio(t)
-	if _, err := c.Criar("maria", "Maria"); err != nil {
+	if _, err := c.Criar("maria", "Maria", ""); err != nil {
 		t.Fatal(err)
 	}
 	foto := fotoDeTeste(t, LadoDoAvatar, LadoDoAvatar)
@@ -178,7 +178,7 @@ func TestAvatar(t *testing.T) {
 
 func TestRemoverApagaOAvatar(t *testing.T) {
 	c := cadastroVazio(t)
-	if _, err := c.Criar("maria", "Maria"); err != nil {
+	if _, err := c.Criar("maria", "Maria", ""); err != nil {
 		t.Fatal(err)
 	}
 	id, err := c.TrocarAvatar("maria", fotoDeTeste(t, 32, 32))

@@ -51,7 +51,10 @@ type servidorInfo struct {
 	// Detector some sem `detector.url`: quem não usa a detecção de objetos
 	// não paga nem a ida até ele.
 	Detector *detectorInfo `json:"detector,omitempty"`
-	Log      *logInfo      `json:"log,omitempty"`
+	// SMTP some sem a seção smtp. Vai sem sonda: conferir o servidor de
+	// e-mail é mandar um, e isso é o botão de teste.
+	SMTP *smtpInfo `json:"smtp,omitempty"`
+	Log  *logInfo  `json:"log,omitempty"`
 }
 
 // coleta é o instante da leitura no relógio do servidor, com o fuso dele. Vai
@@ -184,6 +187,7 @@ func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Reques
 		Memoria:    coletarMemoria(f),
 		Pressao:    coletarPressao(f),
 		Storage:    coletarMontagem(f, s.cfg.Storage.Root),
+		SMTP:       smtpNoDiagnostico(s.cfg.SMTP),
 	}
 
 	// As sondas esperam por fora - disco e rede - e juntas podem somar alguns

@@ -21,7 +21,7 @@ import (
 func TestTrocarASenhaPelaConta(t *testing.T) {
 	s, _ := testServer(t)
 	comAutenticacao(t, s)
-	conv, err := s.usuarios.Criar("maria", "Maria")
+	conv, err := s.usuarios.Criar("maria", "Maria", "")
 	if err != nil {
 		t.Fatal(err)
 	}

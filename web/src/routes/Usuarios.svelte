@@ -16,16 +16,20 @@
   import Avatar from '../components/Avatar.svelte';
   import Icone from '../components/Icone.svelte';
 
-  type Acao = 'link' | 'foto' | 'remover';
+  type Acao = 'link' | 'foto' | 'remover' | 'email';
 
   // Nulo até a API responder.
   let dados = $state<Usuarios | null>(null);
   let erro = $state('');
 
   // O link recém-gerado. Ver mostrarLink.
-  let gerado = $state<{ username: string; name: string; url: string; venceEmMs: number } | null>(
-    null,
-  );
+  let gerado = $state<{
+    username: string;
+    name: string;
+    email: string; // vazio sem e-mail
+    url: string;
+    venceEmMs: number;
+  } | null>(null);
 
   // O relógio da contagem dos links, num tique de um segundo. Só anda com um
   // link aberto na tela.
@@ -68,11 +72,32 @@
     gerado = {
       username: r.user.username,
       name: r.user.name,
+      email: r.user.email ?? '',
       url: `${location.origin}${location.pathname}#convite?token=${r.token}`,
       // O link novo sempre vem com o prazo; sem ele, conta como vencido.
       venceEmMs: r.user.inviteExpiresAtMs ?? 0,
     };
     copiado = '';
+    envio = null;
+  }
+
+  // O link por e-mail: vai o mesmo link da tela, para o e-mail da pessoa. O
+  // resultado fica no card, e mandar de novo é tocar de novo.
+  let envio = $state<{ ok: boolean; texto: string } | null>(null);
+  let enviando = $state(false);
+
+  async function enviarPorEmail() {
+    if (!gerado) return;
+    enviando = true;
+    envio = null;
+    try {
+      const r = await api.enviarLink(gerado.username, gerado.url);
+      envio = { ok: true, texto: `enviado para ${r.sentTo}` };
+    } catch (e) {
+      envio = { ok: false, texto: mensagemDe(e) };
+    } finally {
+      enviando = false;
+    }
   }
 
   // O Compartilhar abre o menu do sistema (e-mail, WhatsApp). Só existe onde o
@@ -106,12 +131,12 @@
 
   // ---- criar ----------------------------------------------------------------
 
-  let novo = $state<{ username: string; name: string } | null>(null); // com o formulário aberto
+  let novo = $state<{ username: string; name: string; email: string } | null>(null); // com o formulário aberto
   let salvando = $state(false);
   let erroNovo = $state('');
 
   function abrirNovo() {
-    novo = { username: '', name: '' };
+    novo = { username: '', name: '', email: '' };
     erroNovo = '';
   }
 
@@ -121,7 +146,7 @@
     salvando = true;
     erroNovo = '';
     try {
-      mostrarLink(await api.criarUsuario(novo.username, novo.name));
+      mostrarLink(await api.criarUsuario(novo.username, novo.name, novo.email));
       novo = null;
       await carregar();
     } catch (err) {
@@ -144,6 +169,11 @@
   function pedir(acao: Acao, u: Usuario) {
     menu = null;
     erroAcao = '';
+    if (acao === 'email') {
+      editandoEmail = { u, email: u.email ?? '' };
+      erroEmail = '';
+      return;
+    }
     // Link novo para quem ainda não tem senha não derruba ninguém: só troca
     // um link por outro, e dispensa a confirmação.
     if (acao === 'link' && u.status !== 'active') void executar(acao, u);
@@ -155,7 +185,7 @@
     try {
       if (acao === 'link') mostrarLink(await api.novoLink(u.username));
       else if (acao === 'foto') await api.tirarAvatarDe(u.username);
-      else {
+      else if (acao === 'remover') {
         await api.removerUsuario(u.username);
         if (gerado?.username === u.username) gerado = null;
       }
@@ -163,6 +193,30 @@
       erroAcao = mensagemDe(e);
     }
     await carregar();
+  }
+
+  // ---- o e-mail de quem já existe ------------------------------------------
+
+  let editandoEmail = $state<{ u: Usuario; email: string } | null>(null);
+  let salvandoEmail = $state(false);
+  let erroEmail = $state('');
+
+  async function salvarEmail(e: SubmitEvent) {
+    e.preventDefault();
+    if (!editandoEmail) return;
+    salvandoEmail = true;
+    erroEmail = '';
+    try {
+      const { user } = await api.trocarEmail(editandoEmail.u.username, editandoEmail.email);
+      // O link aberto no card passa a ir para o e-mail novo.
+      if (gerado?.username === user.username) gerado.email = user.email ?? '';
+      editandoEmail = null;
+      await carregar();
+    } catch (err) {
+      erroEmail = mensagemDe(err);
+    } finally {
+      salvandoEmail = false;
+    }
   }
 
   const voce = $derived(session.pessoa?.username);
@@ -214,8 +268,15 @@
         <div class="row wrap">
           <button onclick={aoCopiar}>Copiar</button>
           {#if podeCompartilhar}<button onclick={compartilhar}>Compartilhar</button>{/if}
+          {#if dados.emailEnabled && gerado.email && gerado.venceEmMs > agora}
+            <button onclick={enviarPorEmail} disabled={enviando}
+              >{enviando ? 'enviando…' : 'Enviar por e-mail'}</button
+            >
+          {/if}
           <span class="small muted">{copiado}</span>
+          {#if envio?.ok}<span class="small muted">{envio.texto}</span>{/if}
         </div>
+        {#if envio && !envio.ok}<p class="small erro">{envio.texto}</p>{/if}
       </div>
     {/if}
 
@@ -257,6 +318,7 @@
               <div class="muted small login">
                 @{u.username}{u.role === 'admin' ? ' · administrador' : ''}
               </div>
+              {#if u.email}<div class="muted small login">{u.email}</div>{/if}
               <!-- Quem está ativo tem o último acesso no chip, que é o que se
                    quer saber no dia a dia, e aqui a data em que definiu a senha.
                    Quem tem link aberto ou vencido tem o link no chip, e aqui o
@@ -316,6 +378,15 @@
               >
                 {u.status === 'active' ? 'Redefinir senha' : 'Gerar link novo'}
               </button>
+              {#if dados.emailEnabled}
+                <button
+                  class="ghost"
+                  role="menuitem"
+                  onclick={() => {
+                    pedir('email', u);
+                  }}>{u.email ? 'Alterar o e-mail' : 'Cadastrar o e-mail'}</button
+                >
+              {/if}
               <!-- O admin não troca a foto de ninguém; só tira uma que não sirva. -->
               {#if u.avatar}
                 <button
@@ -371,6 +442,20 @@
           spellcheck="false"
         />
       </label>
+      {#if dados.emailEnabled}
+        <label>
+          E-mail, para receber o link (opcional)
+          <input
+            type="email"
+            bind:value={novo.email}
+            maxlength={dados.maxEmailLength}
+            placeholder="joao@exemplo.com"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+          />
+        </label>
+      {/if}
       <p class="small muted">
         O dwnvr gera um link que vale {minutos} minutos, para a pessoa definir a própria senha. Ela vê
         o ao vivo, as gravações e as detecções; o cadastro de câmeras, os usuários e o diagnóstico do
@@ -382,6 +467,36 @@
         <button type="button" class="ghost" onclick={() => (novo = null)}>cancelar</button>
         <button class="primary" type="submit" disabled={salvando}>
           {salvando ? 'criando…' : 'criar e gerar o link'}
+        </button>
+      </div>
+    </form>
+  </Modal>
+{/if}
+
+{#if editandoEmail && dados}
+  {@const alvo = editandoEmail.u}
+  <Modal onclose={() => (editandoEmail = null)}>
+    <form class="fields" onsubmit={salvarEmail}>
+      <h3>E-mail de {alvo.name}</h3>
+      <label>
+        Para onde vai o link de definir a senha
+        <input
+          type="email"
+          bind:value={editandoEmail.email}
+          maxlength={dados.maxEmailLength}
+          placeholder="joao@exemplo.com"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck="false"
+        />
+      </label>
+      <p class="small muted">Vazio apaga o e-mail. A senha e o link de {alvo.name} não mudam.</p>
+      {#if erroEmail}<p class="small erro">{erroEmail}</p>{/if}
+      <div class="row">
+        <span class="spacer"></span>
+        <button type="button" class="ghost" onclick={() => (editandoEmail = null)}>cancelar</button>
+        <button class="primary" type="submit" disabled={salvandoEmail}>
+          {salvandoEmail ? 'salvando…' : 'salvar'}
         </button>
       </div>
     </form>

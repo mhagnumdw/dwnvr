@@ -577,6 +577,11 @@ O detector de objetos é opcional: um container à parte, `dwnvr-detect`,
 apontado por `detector.url` no `dwnvr.yaml`. Sem ele, a detecção marca só
 movimento.
 
+O e-mail também é opcional: com a seção `smtp` do `dwnvr.yaml`, de qualquer
+provedor, o link de definir a senha vai direto para a pessoa. Detalhes, com o
+passo a passo do Gmail, em
+[`docs/configuracao.md`](docs/configuracao.md#e-mail).
+
 ## Documentação
 
 | Documento | Para quê |
@@ -640,6 +645,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── auth.go         login e sessão por pessoa, em cookie assinado (HMAC), sem estado no servidor
 │   │   ├── endereco.go     o endereço de quem fez a requisição, atrás de proxy ou não, para o limite do login
 │   │   ├── usuarios.go     a tela Usuários e o link de convite
+│   │   ├── email.go        o e-mail de teste do Diagnóstico e as peças do link de convite por e-mail
 │   │   ├── conta.go        a Minha conta: a própria senha, o nome e a foto, e o serviço das fotos
 │   │   ├── derrubar.go     fecha o ao vivo e o aviso de sessão de quem é removido ou ganha link novo
 │   │   ├── cameras.go      cadastro de câmeras, cruzado com os streams do go2rtc
@@ -654,6 +660,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   ├── buildinfo/          versão, commit e data injetados no build
 │   ├── config/             leitura do dwnvr.yaml (infra) e do cameras.json (câmeras)
 │   ├── detect/             a detecção: do tamanho dos quadros à marca de objeto
+│   ├── email/              envia e-mail pelo servidor SMTP da seção smtp, só com a biblioteca padrão
 │   ├── fmp4/               leitor de caixas MP4 - o coração do "sem decodificar"
 │   │   ├── box.go          percorre as caixas sem tocar em mídia
 │   │   ├── moov.go         lê o init segment (ftyp+moov) e suas trilhas
@@ -668,7 +675,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   ├── recorder/           um recorder por câmera: corta em keyframe e grava
 │   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram
 │   ├── store/              layout em disco e índice NDJSON
-│   └── usuarios/           o usuarios.json, o papel de cada um, o link de convite, a senha em hash (PBKDF2, uma conta por vez), a foto e o último acesso
+│   └── usuarios/           o usuarios.json, o papel e o e-mail de cada um, o link de convite, a senha em hash (PBKDF2, uma conta por vez), a foto e o último acesso
 ├── dwnvr-detect/           o detector de objetos, opcional, num container à parte (ver dwnvr-detect/README.md)
 ├── web/                    interface Svelte 5 + TypeScript + Vite (ver web/README.md)
 ├── docs/                   documentação longa (ver docs/README.md)
