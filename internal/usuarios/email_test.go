@@ -33,7 +33,7 @@ func TestEmailSoOEndereco(t *testing.T) {
 }
 
 // TestEmailUnico: duas pessoas não têm o mesmo e-mail, nem com outra caixa,
-// para o login pelo e-mail saber quem entra (ver TODO_login-com-email.md).
+// para um futuro login pelo e-mail saber quem entra.
 func TestEmailUnico(t *testing.T) {
 	c := cadastroVazio(t)
 	if _, err := c.Criar("maria", "Maria", "Maria@Exemplo.com"); err != nil {
