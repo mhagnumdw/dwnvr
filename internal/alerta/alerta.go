@@ -17,7 +17,7 @@ import (
 
 // Alerta é uma olhada que passou na regra de alerta da câmera, como os meios a
 // recebem. O que fica gravado é a marca `alert` em cada linha de objeto (ver
-// store.Evento); isto é o que sai pelo log e, na Etapa 5, pelo e-mail.
+// store.Evento); isto é o que sai pelo log e pelos meios, como o e-mail.
 type Alerta struct {
 	Camera, NomeDaCamera string
 	// InstanteMs é o onset, a hora da cena, e não a da resposta do detector
@@ -54,9 +54,10 @@ type Notificador interface {
 }
 
 // Notificadores é o mapa de construtores: um meio novo entra numa linha. O
-// construtor devolve nil quando o meio não está configurado no dwnvr.yaml. O
-// e-mail entra na Etapa 5 do TODO das áreas e alertas.
-var Notificadores = map[string]func(cfg *config.Config) (Notificador, error){}
+// construtor devolve nil quando o meio não está configurado no dwnvr.yaml.
+var Notificadores = map[string]func(cfg *config.Config) (Notificador, error){
+	"email": NovoEmail,
+}
 
 // Meios constrói os meios configurados, em ordem de nome. O que falha ao
 // nascer fica de fora e vai ao log: um e-mail mal configurado não pode calar

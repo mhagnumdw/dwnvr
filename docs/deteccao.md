@@ -41,8 +41,8 @@ como ela funciona por dentro, e por quê.
 - **não olha todo quadro.** O detector de objetos olha um quadro por movimento
   marcado, não um fluxo contínuo
 - **não é alarme.** O alerta avisa do que a detecção marcou, e ela não marca
-  toda chegada. Por ora ele só fica registrado: ainda não sai por e-mail nem
-  por outro meio
+  toda chegada. E o e-mail dele chega de segundos a meio minuto depois da
+  cena
 - **não reconhece rosto nem placa**, e não aprende com a sua casa. O modelo é
   um só, com as 80 classes do COCO, e o dwnvr usa 12 delas
 
@@ -304,6 +304,15 @@ fica onde a detecção já fica, com a retenção do vídeo, e se vê em Detecç
 com o filtro "só alertas" (`alert=1` no `/api/deteccoes`, ver
 [`api.md`](api.md)). O `/api/health` leva só o total desde que o dwnvr
 subiu.
+
+**Por e-mail**, com a lista `alerts.email.to` e a seção `smtp` do
+`dwnvr.yaml` (ver
+[`configuracao.md`](configuracao.md#alerta-por-e-mail)): uma mensagem só para
+a lista inteira. O assunto diz a família de maior prioridade, a câmera e a
+hora do onset, como "Pessoa em Garagem às 14:32"; o corpo, o dia, cada objeto,
+com a confiança, e as áreas em que caiu; e o quadro olhado vai anexo, em JPEG.
+Sem link para abrir a detecção: o servidor não sabe o endereço pelo qual é
+acessado. O envio que falha vai ao log, e o alerta segue no registro.
 
 **Desligado, nada.** Sem nenhuma câmera com o alerta ligado, nada do alerta
 existe; a olhada de uma câmera sem alerta custa um `if`. Sem meio configurado,

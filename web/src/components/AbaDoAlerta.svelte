@@ -144,8 +144,8 @@
   />
 
   <small class="muted">
-    Fica marcado na detecção, e se vê em Detecções com o filtro "só alertas". O envio por e-mail
-    ainda não existe.
+    Fica marcado na detecção, e se vê em Detecções com o filtro "só alertas". Com a lista
+    alerts.email.to no dwnvr.yaml, também vai por e-mail.
   </small>
   <small class="limite">
     O alerta avisa do que a detecção marcar, e ela não pega toda chegada: não é alarme.

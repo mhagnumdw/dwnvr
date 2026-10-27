@@ -936,7 +936,7 @@ sai igual.
 - [x] decidir os quatro pontos acima, em 27/10/2026
 - [x] a seção `alerts.email.to` no `dwnvr.yaml`, com validação
 - [x] o anexo no `internal/email`, sem mudar a mensagem sem anexo
-- [ ] o meio `email` no `Notificadores`, com teste contra o servidor falso
+- [x] o meio `email` no `Notificadores`, com teste de um `Enviador` falso (o SMTP de verdade, com o anexo, é testado no `internal/email`) e conferido no Mailpit
 - [ ] o quadro com as caixas e a área desenhadas, medido
 - [ ] o teto por hora e o Aviso do alerta que não saiu
 - [ ] o Aviso de meio falhando, e os números do meio

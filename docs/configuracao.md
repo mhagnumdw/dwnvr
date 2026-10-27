@@ -480,8 +480,8 @@ alerts:
 A lista de quem recebe o alerta de detecção de toda câmera com alerta ligado
 (ver o `alert` em [Política por câmera](#política-por-câmera)), numa mensagem
 só para todos: cinco endereços são um envio. O alerta sai pela seção `smtp`,
-a mesma do link de definir a senha; aqui fica só quem recebe. Por ora, a lista
-é conferida no boot, mas o alerta ainda não sai por e-mail.
+a mesma do link de definir a senha; aqui fica só quem recebe. A mensagem, com
+o quadro anexo, está em [O alerta](deteccao.md#o-alerta).
 
 | Campo | O que é | Sem escrever |
 | --- | --- | --- |
