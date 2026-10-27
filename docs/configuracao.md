@@ -32,6 +32,13 @@ pessoa fica ao lado, em `avatares/`, um JPEG de até 32 KB por pessoa. Se ele fi
 dwnvr sobe do mesmo jeito, só o dono entra, e nada é gravado por cima dele até
 ser corrigido.
 
+Quem edita o `usuarios.json` à mão vê o resultado no log e nos Avisos da tela
+Diagnóstico, ao reiniciar: o arquivo ilegível, a pessoa ignorada (usuário fora
+do formato, repetido, igual ao do dono ou com papel desconhecido), o e-mail
+ilegível e o e-mail repetido. A pessoa entra pelo usuário ou pelo e-mail (ver
+[O login](api.md#o-login)), e o e-mail repetido não serve para entrar: não diz
+quem está entrando.
+
 Também ao lado fica o `acessos.json`, `0600`, com o último acesso de cada
 pessoa, que a tela Usuários mostra. Ele nasce no primeiro acesso e é gravado
 em segundo plano, no máximo a cada 5 minutos e ao desligar: numa queda de
@@ -262,7 +269,7 @@ todo, e o login de quem é da casa espera atrás.
 O limite é **por endereço**, e não por usuário: por usuário, qualquer um que
 alcance a tela travaria o login do dono só errando a senha dele de propósito.
 Como é por endereço, quem tenta de muitos endereços ao mesmo tempo não é
-contido por ele.
+contido por ele. Entrar pelo e-mail conta no mesmo limite.
 
 ### De onde vem o endereço
 

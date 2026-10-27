@@ -61,6 +61,14 @@ O `POST /api/login` devolve o mesmo `user`, junto com `"ok": true`.
 
 ### O login
 
+O `username` do `POST /api/login` aceita o usuário ou o e-mail da pessoa, sem
+diferença de maiúscula e minúscula no e-mail. O usuário não tem `@`, então com
+`@` é sempre e-mail. Entrar pelo e-mail é entrar como a pessoa: o `user` da
+resposta, a sessão, o último acesso e o log ficam com o usuário. O dono não tem
+e-mail e entra só pelo usuário. O e-mail que não acha ninguém, inclusive o
+repetido no `usuarios.json` editado à mão, responde como a senha errada:
+`401` com `{"error": "usuário ou senha inválidos"}`.
+
 Toda tentativa custa uma conta de senha de 0,77 s num Orange Pi Zero 3
 (PBKDF2-SHA256, 600.000 iterações), uma por vez no processo inteiro: algumas
 tentativas simultâneas não ocupam os núcleos da gravação, só esperam a vez. O
@@ -361,6 +369,19 @@ Avisos e o sino. Sem problema, o campo não vem.
 
 ```json
 "smtp": { "error": "smtp.security \"ssl\" fora do aceito: use starttls, tls ou none" }
+```
+
+O `usuarios.json` com problema também vira aviso, só com a autenticação ligada.
+O `error` é o arquivo ilegível no boot: só o dono entra até ele ser corrigido.
+Os `warnings` são as entradas que não valem: a pessoa ignorada, o e-mail
+ilegível e o e-mail repetido, que não serve para entrar. Corrigir pela tela de
+Usuários tira o aviso na hora; corrigir no arquivo pede reiniciar o dwnvr. Sem
+problema, o campo não vem.
+
+```json
+"users": {
+  "warnings": ["usuário \"ana\": o e-mail \"casa@exemplo.com\" é o mesmo de \"maria\", e nenhum dos dois entra pelo e-mail"]
+}
 ```
 
 O `POST /api/email/teste` devolve `{"sentTo": "..."}`. Endereço vazio, com nome

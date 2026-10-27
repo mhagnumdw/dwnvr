@@ -74,6 +74,23 @@ func (s *Server) quem(usuario string) (pessoa, bool) {
 		credencial: u.Senha}, true
 }
 
+// quemEntra acha a pessoa pelo que ela digitou no login: o usuário ou, com
+// "@", o e-mail. O usuário não aceita "@" (ver usuarios.ValidarUsuario), então
+// não há dúvida de qual dos dois veio. O dono não tem e-mail: entra só pelo
+// usuário.
+func (s *Server) quemEntra(digitado string) (p pessoa, existe, peloEmail bool) {
+	if !strings.Contains(digitado, "@") {
+		p, existe = s.quem(digitado)
+		return p, existe, false
+	}
+	u, ok := s.usuarios.BuscarPorEmail(strings.TrimSpace(digitado))
+	if !ok {
+		return pessoa{}, false, true
+	}
+	p, existe = s.quem(u.Usuario)
+	return p, existe, true
+}
+
 // chaveDaSessao é a chave que assina os cookies de uma pessoa. Sai do
 // .session-secret, do login e da credencial dela: trocar a senha, ou gerar um
 // link novo, muda a chave, e todo cookie dela emitido antes deixa de bater com
@@ -231,7 +248,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p, existe := s.quem(req.Username)
+	p, existe, peloEmail := s.quemEntra(req.Username)
 	guardado := ""
 	if existe && !p.Dono {
 		guardado = p.credencial
@@ -254,7 +271,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	s.setSessionCookie(w, r, p)
 	s.acessos.Registrar(p.Usuario)
-	s.log.Info("login aceito", "usuario", p.Usuario, "de", r.RemoteAddr, encaminhado(r))
+	// A sessão, o último acesso e o log ficam com o usuário, mesmo entrando
+	// pelo e-mail.
+	via := slog.Attr{} // vazio, o slog não escreve
+	if peloEmail {
+		via = slog.Bool("pelo_email", true)
+	}
+	s.log.Info("login aceito", "usuario", p.Usuario, via, "de", r.RemoteAddr, encaminhado(r))
 	writeJSON(w, map[string]any{"ok": true, "user": p})
 }
 

@@ -203,6 +203,9 @@ type Cadastro struct {
 	// fica vazio e Alterar recusa: gravar por cima apagaria quem está no
 	// arquivo.
 	ilegivel error
+	// avisos são os problemas das entradas do arquivo (ver avisosDe), refeitos
+	// a cada alteração: corrigir pela tela tira o aviso sem reiniciar.
+	avisos []string
 
 	// agora é o relógio dos links. Os testes o trocam para vencer um link sem
 	// esperar.
@@ -212,7 +215,8 @@ type Cadastro struct {
 // Abrir lê o usuarios.json. Arquivo que não existe é cadastro vazio.
 //
 // Entrada inválida não impede o boot nem some do arquivo: fica de fora de
-// Buscar e vira aviso, para o log. Arquivo ilegível também não impede o boot,
+// Buscar e vira aviso, para o log e para os Avisos do Diagnóstico (ver
+// Avisos). Arquivo ilegível também não impede o boot,
 // porque a gravação não pode parar por causa dele: vem o erro, e o cadastro
 // vem vazio e recusa gravar. Só o dono entra até o arquivo ser corrigido.
 func Abrir(caminho, dono string) (c *Cadastro, avisos []string, err error) {
@@ -230,9 +234,16 @@ func Abrir(caminho, dono string) (c *Cadastro, avisos []string, err error) {
 		return c, nil, c.ilegivel
 	}
 
+	c.avisos = c.avisosDe(&c.arq)
+	return c, slices.Clone(c.avisos), nil
+}
+
+// avisosDe lista o que não vale nas entradas do arquivo, que só a edição à
+// mão deixa gravar: a entrada ignorada, o e-mail ilegível e o repetido.
+func (c *Cadastro) avisosDe(arq *Arquivo) (avisos []string) {
 	vistos := map[string]bool{}
 	emails := map[string]string{} // o e-mail em minúsculas, e de quem é
-	for i, u := range c.arq.Usuarios {
+	for i, u := range arq.Usuarios {
 		if motivo := c.motivoParaIgnorar(u, vistos); motivo != "" {
 			avisos = append(avisos, fmt.Sprintf("usuário #%d (%q) ignorado: %s", i, u.Usuario, motivo))
 		}
@@ -246,12 +257,25 @@ func Abrir(caminho, dono string) (c *Cadastro, avisos []string, err error) {
 		}
 		chave := strings.ToLower(u.Email)
 		if outro, ok := emails[chave]; ok {
-			avisos = append(avisos, fmt.Sprintf("usuário %q: o e-mail %q é o mesmo de %q", u.Usuario, u.Email, outro))
+			avisos = append(avisos, fmt.Sprintf("usuário %q: o e-mail %q é o mesmo de %q, e nenhum dos dois entra pelo e-mail",
+				u.Usuario, u.Email, outro))
 			continue
 		}
 		emails[chave] = u.Usuario
 	}
-	return c, avisos, nil
+	return avisos
+}
+
+// Avisos lista o que não vale nas entradas do arquivo agora (ver avisosDe).
+func (c *Cadastro) Avisos() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return slices.Clone(c.avisos)
+}
+
+// Ilegivel diz por que o arquivo não pôde ser lido no boot, ou nil.
+func (c *Cadastro) Ilegivel() error {
+	return c.ilegivel // só o Abrir escreve
 }
 
 // motivoParaIgnorar diz por que a entrada não vale, ou "" se vale. vistos são
@@ -279,6 +303,29 @@ func (c *Cadastro) Buscar(usuario string) (Usuario, bool) {
 		return c.arq.Usuarios[i], true
 	}
 	return Usuario{}, false
+}
+
+// BuscarPorEmail acha a pessoa pelo e-mail, sem diferença de maiúscula e
+// minúscula. O e-mail repetido no arquivo não acha ninguém, porque não diz
+// quem está entrando; conta toda entrada, até a ignorada, como o emailEmUso.
+// A entrada ignorada não é achada, como no Buscar.
+func (c *Cadastro) BuscarPorEmail(email string) (Usuario, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	achou := -1
+	for i, u := range c.arq.Usuarios {
+		if e := u.EmailValido(); e == "" || !strings.EqualFold(e, email) {
+			continue
+		}
+		if achou >= 0 {
+			return Usuario{}, false
+		}
+		achou = i
+	}
+	if achou < 0 || c.indice(&c.arq, c.arq.Usuarios[achou].Usuario) != achou {
+		return Usuario{}, false
+	}
+	return c.arq.Usuarios[achou], true
 }
 
 // indice acha a entrada válida da pessoa no arquivo, ou -1.
@@ -357,5 +404,6 @@ func (c *Cadastro) Alterar(f func(*Arquivo) error) error {
 		return err
 	}
 	c.arq = novo
+	c.avisos = c.avisosDe(&c.arq)
 	return nil
 }

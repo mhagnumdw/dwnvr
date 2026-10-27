@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -118,5 +119,46 @@ func TestEmailRuimNoArquivoNaoSome(t *testing.T) {
 	}
 	if maria, _ := relido.Buscar("maria"); maria.Email != "Maria <maria@exemplo.com>" {
 		t.Errorf("o e-mail ruim virou %q no arquivo", maria.Email)
+	}
+}
+
+// TestBuscarPorEmail: acha sem diferença de caixa; o e-mail repetido no
+// arquivo e a entrada ignorada não acham ninguém.
+func TestBuscarPorEmail(t *testing.T) {
+	caminho := filepath.Join(t.TempDir(), "usuarios.json")
+	arquivo := `{"owner":{},"users":[
+		{"username":"maria","name":"Maria","role":"viewer","email":"Maria@Exemplo.com","createdAt":"2026-10-24T10:00:00Z"},
+		{"username":"joao","name":"João","role":"viewer","email":"joao@exemplo.com","createdAt":"2026-10-24T10:00:00Z"},
+		{"username":"ana","name":"Ana","role":"viewer","email":"JOAO@exemplo.com","createdAt":"2026-10-24T10:00:00Z"},
+		{"username":"Zé","name":"Zé","role":"viewer","email":"ze@exemplo.com","createdAt":"2026-10-24T10:00:00Z"}
+	]}`
+	if err := os.WriteFile(caminho, []byte(arquivo), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, avisos, err := Abrir(caminho, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u, ok := c.BuscarPorEmail("maria@exemplo.com"); !ok || u.Usuario != "maria" {
+		t.Errorf("maria pelo e-mail: %+v, %v", u, ok)
+	}
+	for _, email := range []string{"joao@exemplo.com", "ze@exemplo.com", "ninguem@exemplo.com", ""} {
+		if u, ok := c.BuscarPorEmail(email); ok {
+			t.Errorf("%q achou %q", email, u.Usuario)
+		}
+	}
+	if !slices.ContainsFunc(avisos, func(a string) bool { return strings.Contains(a, "nenhum dos dois entra pelo e-mail") }) {
+		t.Errorf("o aviso do repetido não diz que ninguém entra pelo e-mail: %q", avisos)
+	}
+
+	// Tirar o repetido pela tela tira o aviso e solta o e-mail, sem reiniciar.
+	if _, err := c.TrocarEmail("ana", ""); err != nil {
+		t.Fatal(err)
+	}
+	if u, ok := c.BuscarPorEmail("JOAO@exemplo.com"); !ok || u.Usuario != "joao" {
+		t.Errorf("joao depois de tirar o repetido: %+v, %v", u, ok)
+	}
+	if av := c.Avisos(); len(av) != 1 || !strings.Contains(av[0], `"Zé"`) {
+		t.Errorf("avisos depois de tirar o repetido: %q", av)
 	}
 }

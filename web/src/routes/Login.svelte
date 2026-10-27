@@ -66,7 +66,7 @@
 
     <input
       bind:value={username}
-      placeholder="usuário"
+      placeholder="usuário ou e-mail"
       autocomplete="username"
       autocapitalize="none"
       autocorrect="off"

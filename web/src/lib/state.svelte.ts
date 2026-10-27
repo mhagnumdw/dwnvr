@@ -101,6 +101,8 @@ export const health = $state<EstadoDaSaude>({
   go2rtc: null,
   // { error } com a seção smtp recusada no boot; nulo sem problema.
   smtp: null,
+  // { error?, warnings? } com problema no usuarios.json; nulo sem problema.
+  users: null,
   updatedAt: 0,
 });
 
@@ -114,6 +116,7 @@ export interface EstadoDaSaude {
   reconnectsWindowHours: number | null;
   go2rtc: { error: string; since: string } | null;
   smtp: { error: string } | null;
+  users: { error?: string; warnings?: string[] } | null;
   updatedAt: number;
 }
 
@@ -301,6 +304,7 @@ export async function loadHealth() {
     health.reconnectsWindowHours = data.reconnectsWindowHours ?? null;
     health.go2rtc = data.go2rtc ?? null;
     health.smtp = data.smtp ?? null;
+    health.users = data.users ?? null;
     health.updatedAt = Date.now();
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.
