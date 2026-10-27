@@ -33,7 +33,7 @@
   <p class="titulo muted">Testar o e-mail</p>
   <form class="row" onsubmit={enviar}>
     <input
-      type="email"
+      inputmode="email"
       bind:value={para}
       required
       placeholder="fulano@exemplo.com"

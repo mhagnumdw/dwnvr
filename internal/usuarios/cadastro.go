@@ -242,7 +242,7 @@ func Abrir(caminho, dono string) (c *Cadastro, avisos []string, err error) {
 // mão deixa gravar: a entrada ignorada, o e-mail ilegível e o repetido.
 func (c *Cadastro) avisosDe(arq *Arquivo) (avisos []string) {
 	vistos := map[string]bool{}
-	emails := map[string]string{} // o e-mail em minúsculas, e de quem é
+	var comEmail []Usuario // os de e-mail válido até aqui, sem repetido
 	for i, u := range arq.Usuarios {
 		if motivo := c.motivoParaIgnorar(u, vistos); motivo != "" {
 			avisos = append(avisos, fmt.Sprintf("usuário #%d (%q) ignorado: %s", i, u.Usuario, motivo))
@@ -255,13 +255,16 @@ func (c *Cadastro) avisosDe(arq *Arquivo) (avisos []string) {
 			avisos = append(avisos, fmt.Sprintf("usuário %q: e-mail %q ignorado, a pessoa fica sem e-mail", u.Usuario, u.Email))
 			continue
 		}
-		chave := strings.ToLower(u.Email)
-		if outro, ok := emails[chave]; ok {
+		// EqualFold, como no BuscarPorEmail e no emailEmUso: com ToLower, um
+		// par que só o EqualFold iguala ("s" e "ſ") não entraria pelo e-mail
+		// e não teria aviso.
+		i := slices.IndexFunc(comEmail, func(o Usuario) bool { return strings.EqualFold(o.Email, u.Email) })
+		if i >= 0 {
 			avisos = append(avisos, fmt.Sprintf("usuário %q: o e-mail %q é o mesmo de %q, e nenhum dos dois entra pelo e-mail",
-				u.Usuario, u.Email, outro))
+				u.Usuario, u.Email, comEmail[i].Usuario))
 			continue
 		}
-		emails[chave] = u.Usuario
+		comEmail = append(comEmail, u)
 	}
 	return avisos
 }

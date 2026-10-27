@@ -130,7 +130,9 @@ func TestBuscarPorEmail(t *testing.T) {
 		{"username":"maria","name":"Maria","role":"viewer","email":"Maria@Exemplo.com","createdAt":"2026-10-24T10:00:00Z"},
 		{"username":"joao","name":"João","role":"viewer","email":"joao@exemplo.com","createdAt":"2026-10-24T10:00:00Z"},
 		{"username":"ana","name":"Ana","role":"viewer","email":"JOAO@exemplo.com","createdAt":"2026-10-24T10:00:00Z"},
-		{"username":"Zé","name":"Zé","role":"viewer","email":"ze@exemplo.com","createdAt":"2026-10-24T10:00:00Z"}
+		{"username":"Zé","name":"Zé","role":"viewer","email":"ze@exemplo.com","createdAt":"2026-10-24T10:00:00Z"},
+		{"username":"os","name":"Os","role":"viewer","email":"os@exemplo.com","createdAt":"2026-10-24T10:00:00Z"},
+		{"username":"os2","name":"Os 2","role":"viewer","email":"oſ@exemplo.com","createdAt":"2026-10-24T10:00:00Z"}
 	]}`
 	if err := os.WriteFile(caminho, []byte(arquivo), 0o600); err != nil {
 		t.Fatal(err)
@@ -142,13 +144,16 @@ func TestBuscarPorEmail(t *testing.T) {
 	if u, ok := c.BuscarPorEmail("maria@exemplo.com"); !ok || u.Usuario != "maria" {
 		t.Errorf("maria pelo e-mail: %+v, %v", u, ok)
 	}
-	for _, email := range []string{"joao@exemplo.com", "ze@exemplo.com", "ninguem@exemplo.com", ""} {
+	for _, email := range []string{"joao@exemplo.com", "ze@exemplo.com", "ninguem@exemplo.com", "", "os@exemplo.com"} {
 		if u, ok := c.BuscarPorEmail(email); ok {
 			t.Errorf("%q achou %q", email, u.Usuario)
 		}
 	}
-	if !slices.ContainsFunc(avisos, func(a string) bool { return strings.Contains(a, "nenhum dos dois entra pelo e-mail") }) {
-		t.Errorf("o aviso do repetido não diz que ninguém entra pelo e-mail: %q", avisos)
+	// O repetido que só o EqualFold iguala ("s" e "ſ") também tem aviso.
+	for _, de := range []string{`o mesmo de "joao"`, `o mesmo de "os"`} {
+		if !slices.ContainsFunc(avisos, func(a string) bool { return strings.Contains(a, de+", e nenhum dos dois entra pelo e-mail") }) {
+			t.Errorf("sem o aviso %q: %q", de, avisos)
+		}
 	}
 
 	// Tirar o repetido pela tela tira o aviso e solta o e-mail, sem reiniciar.
@@ -158,7 +163,7 @@ func TestBuscarPorEmail(t *testing.T) {
 	if u, ok := c.BuscarPorEmail("JOAO@exemplo.com"); !ok || u.Usuario != "joao" {
 		t.Errorf("joao depois de tirar o repetido: %+v, %v", u, ok)
 	}
-	if av := c.Avisos(); len(av) != 1 || !strings.Contains(av[0], `"Zé"`) {
+	if av := c.Avisos(); len(av) != 2 || !strings.Contains(av[0], `"Zé"`) {
 		t.Errorf("avisos depois de tirar o repetido: %q", av)
 	}
 }

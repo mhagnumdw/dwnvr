@@ -75,11 +75,12 @@ func (s *Server) quem(usuario string) (pessoa, bool) {
 }
 
 // quemEntra acha a pessoa pelo que ela digitou no login: o usuário ou, com
-// "@", o e-mail. O usuário não aceita "@" (ver usuarios.ValidarUsuario), então
-// não há dúvida de qual dos dois veio. O dono não tem e-mail: entra só pelo
-// usuário.
+// "@", o e-mail. O usuário do cadastro não aceita "@" (ver
+// usuarios.ValidarUsuario), então não há dúvida de qual dos dois veio. O dono
+// não tem e-mail e entra só pelo usuário, que o dwnvr.yaml deixa ter "@": o
+// dele vale antes de procurar um e-mail.
 func (s *Server) quemEntra(digitado string) (p pessoa, existe, peloEmail bool) {
-	if !strings.Contains(digitado, "@") {
+	if !strings.Contains(digitado, "@") || digitado == s.cfg.Server.Username {
 		p, existe = s.quem(digitado)
 		return p, existe, false
 	}

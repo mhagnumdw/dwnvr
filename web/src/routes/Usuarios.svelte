@@ -454,7 +454,7 @@
           ? 'E-mail, para entrar e receber o link (opcional)'
           : 'E-mail, para entrar (opcional)'}
         <input
-          type="email"
+          inputmode="email"
           bind:value={novo.email}
           maxlength={dados.maxEmailLength}
           placeholder="joao@exemplo.com"
@@ -491,7 +491,7 @@
           ? 'Para entrar e receber o link de definir a senha'
           : 'Para entrar, no lugar do usuário'}
         <input
-          type="email"
+          inputmode="email"
           bind:value={editandoEmail.email}
           maxlength={dados.maxEmailLength}
           placeholder="joao@exemplo.com"

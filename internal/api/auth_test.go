@@ -415,6 +415,19 @@ func TestLoginPeloEmail(t *testing.T) {
 		t.Errorf("o log do login pelo e-mail: %s", log.String())
 	}
 
+	// O usuário do dono pode ter "@" no dwnvr.yaml, e continua entrando,
+	// mesmo que alguém do cadastro tenha o mesmo texto como e-mail.
+	s.cfg.Server.Username = "admin@casa"
+	if err := s.usuarios.Alterar(func(a *usuarios.Arquivo) error {
+		a.Usuarios[0].Email = "Admin@Casa"
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if rec := entrar("admin@casa", "senha"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"owner":true`) {
+		t.Errorf("dono com @ no usuário: status %d, %s", rec.Code, rec.Body.String())
+	}
+
 	senhaErrada := entrar("maria", "outra").Body.String()
 	for _, caso := range [][2]string{
 		{"maria@exemplo.com", "outra"},

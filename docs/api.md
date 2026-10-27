@@ -62,10 +62,11 @@ O `POST /api/login` devolve o mesmo `user`, junto com `"ok": true`.
 ### O login
 
 O `username` do `POST /api/login` aceita o usuário ou o e-mail da pessoa, sem
-diferença de maiúscula e minúscula no e-mail. O usuário não tem `@`, então com
-`@` é sempre e-mail. Entrar pelo e-mail é entrar como a pessoa: o `user` da
-resposta, a sessão, o último acesso e o log ficam com o usuário. O dono não tem
-e-mail e entra só pelo usuário. O e-mail que não acha ninguém, inclusive o
+diferença de maiúscula e minúscula no e-mail. O usuário do cadastro não tem
+`@`, então com `@` é e-mail. Entrar pelo e-mail é entrar como a pessoa: o
+`user` da resposta, a sessão, o último acesso e o log ficam com o usuário. O
+dono não tem e-mail e entra só pelo usuário, que no `dwnvr.yaml` pode ter `@`:
+o dele vale antes de procurar um e-mail. O e-mail que não acha ninguém, inclusive o
 repetido no `usuarios.json` editado à mão, responde como a senha errada:
 `401` com `{"error": "usuário ou senha inválidos"}`.
 
