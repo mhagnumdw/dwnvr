@@ -378,15 +378,13 @@
               >
                 {u.status === 'active' ? 'Redefinir senha' : 'Gerar link novo'}
               </button>
-              {#if dados.emailEnabled}
-                <button
-                  class="ghost"
-                  role="menuitem"
-                  onclick={() => {
-                    pedir('email', u);
-                  }}>{u.email ? 'Alterar o e-mail' : 'Cadastrar o e-mail'}</button
-                >
-              {/if}
+              <button
+                class="ghost"
+                role="menuitem"
+                onclick={() => {
+                  pedir('email', u);
+                }}>{u.email ? 'Alterar o e-mail' : 'Cadastrar o e-mail'}</button
+              >
               <!-- O admin não troca a foto de ninguém; só tira uma que não sirva. -->
               {#if u.avatar}
                 <button
@@ -416,6 +414,15 @@
   {/if}
 </div>
 
+<!-- O e-mail serve para entrar mesmo sem a seção smtp; só o envio do link
+     depende dela, e a tela avisa isso onde o e-mail é escrito. -->
+{#snippet semEnvio()}
+  <p class="small muted sem-envio">
+    <Icone nome="info" tamanho={14} />
+    O envio de e-mail não está configurado neste dwnvr: o link não vai por e-mail, só copiado.
+  </p>
+{/snippet}
+
 {#if novo && dados}
   <Modal onclose={() => (novo = null)}>
     <form class="fields" onsubmit={criar}>
@@ -442,20 +449,21 @@
           spellcheck="false"
         />
       </label>
-      {#if dados.emailEnabled}
-        <label>
-          E-mail, para receber o link (opcional)
-          <input
-            type="email"
-            bind:value={novo.email}
-            maxlength={dados.maxEmailLength}
-            placeholder="joao@exemplo.com"
-            autocapitalize="none"
-            autocorrect="off"
-            spellcheck="false"
-          />
-        </label>
-      {/if}
+      <label>
+        {dados.emailEnabled
+          ? 'E-mail, para entrar e receber o link (opcional)'
+          : 'E-mail, para entrar (opcional)'}
+        <input
+          inputmode="email"
+          bind:value={novo.email}
+          maxlength={dados.maxEmailLength}
+          placeholder="joao@exemplo.com"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck="false"
+        />
+      </label>
+      {#if !dados.emailEnabled}{@render semEnvio()}{/if}
       <p class="small muted">
         O dwnvr gera um link que vale {minutos} minutos, para a pessoa definir a própria senha. Ela vê
         o ao vivo, as gravações e as detecções; o cadastro de câmeras, os usuários e o diagnóstico do
@@ -479,9 +487,11 @@
     <form class="fields" onsubmit={salvarEmail}>
       <h3>E-mail de {alvo.name}</h3>
       <label>
-        Para onde vai o link de definir a senha
+        {dados.emailEnabled
+          ? 'Para entrar e receber o link de definir a senha'
+          : 'Para entrar, no lugar do usuário'}
         <input
-          type="email"
+          inputmode="email"
           bind:value={editandoEmail.email}
           maxlength={dados.maxEmailLength}
           placeholder="joao@exemplo.com"
@@ -491,6 +501,7 @@
         />
       </label>
       <p class="small muted">Vazio apaga o e-mail. A senha e o link de {alvo.name} não mudam.</p>
+      {#if !dados.emailEnabled}{@render semEnvio()}{/if}
       {#if erroEmail}<p class="small erro">{erroEmail}</p>{/if}
       <div class="row">
         <span class="spacer"></span>
@@ -565,6 +576,18 @@
 
   .erro {
     color: var(--bad);
+  }
+
+  /* O ícone fica centrado na primeira linha quando o texto quebra: 13px com o
+     line-height 1.5 do body dão 19,5px de linha, e o ícone tem 14. */
+  .sem-envio {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+  }
+  .sem-envio :global(svg) {
+    flex: none;
+    margin-top: 3px;
   }
 
   /* A borda de destaque é o --accent translúcido, a mesma da pílula de versão. */

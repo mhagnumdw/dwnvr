@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -369,6 +370,116 @@ func TestLogin(t *testing.T) {
 		if rec, _ := entrar(caso[0], caso[1]); rec.Code != http.StatusUnauthorized || rec.Header().Get("Set-Cookie") != "" {
 			t.Errorf("%q com %q: status %d, Set-Cookie %q", caso[0], caso[1], rec.Code, rec.Header().Get("Set-Cookie"))
 		}
+	}
+}
+
+// Entrar pelo e-mail é entrar como a pessoa: o cookie e o log ficam com o
+// usuário. O e-mail que não acha ninguém, inclusive o repetido no arquivo,
+// responde igual à senha errada.
+func TestLoginPeloEmail(t *testing.T) {
+	s, _ := testServer(t)
+	var log strings.Builder
+	s.log = slog.New(slog.NewTextHandler(&log, nil))
+	guardada, err := usuarios.GerarSenha(context.Background(), "senha da maria")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := maria
+	m.Senha, m.Email = guardada, "Maria@Exemplo.com"
+	// O repetido só entra no arquivo editado à mão; o Alterar daqui não confere.
+	ana := usuarios.Usuario{Usuario: "ana", Nome: "Ana", Papel: usuarios.PapelViewer, Senha: guardada, Email: "casa@exemplo.com"}
+	bia := ana
+	bia.Usuario, bia.Nome = "bia", "Bia"
+	comAutenticacao(t, s, m, ana, bia,
+		usuarios.Usuario{Usuario: "ze", Nome: "Zé", Papel: usuarios.PapelViewer, Email: "ze@exemplo.com"})
+
+	entrar := func(login, senha string) *httptest.ResponseRecorder {
+		corpo, _ := json.Marshal(map[string]string{"username": login, "password": senha})
+		rec := httptest.NewRecorder()
+		s.handleLogin(rec, httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(corpo))))
+		return rec
+	}
+
+	for _, login := range []string{"maria@exemplo.com", " MARIA@exemplo.com "} {
+		rec := entrar(login, "senha da maria")
+		c, err := http.ParseSetCookie(rec.Header().Get("Set-Cookie"))
+		if rec.Code != http.StatusOK || err != nil {
+			t.Errorf("%q: status %d, %v", login, rec.Code, err)
+			continue
+		}
+		if p, _, ok := s.tokenPessoa(c.Value); !ok || p.Usuario != "maria" {
+			t.Errorf("%q: cookie de %+v", login, p)
+		}
+	}
+	if !strings.Contains(log.String(), `msg="login aceito" usuario=maria pelo_email=true`) {
+		t.Errorf("o log do login pelo e-mail: %s", log.String())
+	}
+
+	// O usuário do dono pode ter "@" no dwnvr.yaml, e continua entrando,
+	// mesmo que alguém do cadastro tenha o mesmo texto como e-mail.
+	s.cfg.Server.Username = "admin@casa"
+	if err := s.usuarios.Alterar(func(a *usuarios.Arquivo) error {
+		a.Usuarios[0].Email = "Admin@Casa"
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if rec := entrar("admin@casa", "senha"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"owner":true`) {
+		t.Errorf("dono com @ no usuário: status %d, %s", rec.Code, rec.Body.String())
+	}
+
+	senhaErrada := entrar("maria", "outra").Body.String()
+	for _, caso := range [][2]string{
+		{"maria@exemplo.com", "outra"},
+		{"ninguem@exemplo.com", "senha da maria"},
+		{"casa@exemplo.com", "senha da maria"}, // de quem? ana ou bia
+		{"ze@exemplo.com", ""},                 // ainda não definiu a senha
+		{"@", ""},
+	} {
+		rec := entrar(caso[0], caso[1])
+		if rec.Code != http.StatusUnauthorized || rec.Header().Get("Set-Cookie") != "" || rec.Body.String() != senhaErrada {
+			t.Errorf("%q com %q: status %d, Set-Cookie %q, corpo %s", caso[0], caso[1], rec.Code,
+				rec.Header().Get("Set-Cookie"), rec.Body.String())
+		}
+	}
+}
+
+// O usuarios.json com problema vira aviso no /api/health, para o card Avisos
+// e o sino; sem problema, o campo nem vem.
+func TestCadastroComProblemaViraAviso(t *testing.T) {
+	s, _ := testServer(t)
+	comAutenticacao(t, s, maria)
+	_, resp := pedirComo(t, s, "admin", http.MethodGet, "/api/health", nil)
+	if _, tem := resp["users"]; tem {
+		t.Errorf("users no health sem problema nenhum: %v", resp["users"])
+	}
+
+	if err := os.WriteFile(s.cfg.UsuariosPath(), []byte(`{"owner":{},"users":[
+		{"username":"maria","name":"Maria","role":"viewer","email":"casa@exemplo.com"},
+		{"username":"ana","name":"Ana","role":"viewer","email":"casa@exemplo.com"}
+	]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cad, _, err := usuarios.Abrir(s.cfg.UsuariosPath(), "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.usuarios = cad
+	_, resp = pedirComo(t, s, "admin", http.MethodGet, "/api/health", nil)
+	users, _ := resp["users"].(map[string]any)
+	avisos, _ := users["warnings"].([]any)
+	if len(avisos) != 1 || !strings.Contains(avisos[0].(string), `o mesmo de "maria"`) || users["error"] != nil {
+		t.Errorf("users %v", resp["users"])
+	}
+
+	if err := os.WriteFile(s.cfg.UsuariosPath(), []byte(`{"users":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.usuarios, _, _ = usuarios.Abrir(s.cfg.UsuariosPath(), "admin")
+	_, resp = pedirComo(t, s, "admin", http.MethodGet, "/api/health", nil)
+	users, _ = resp["users"].(map[string]any)
+	if erro, _ := users["error"].(string); !strings.Contains(erro, "ilegível") {
+		t.Errorf("arquivo ilegível: users %v", resp["users"])
 	}
 }
 

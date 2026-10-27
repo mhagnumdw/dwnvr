@@ -168,6 +168,20 @@ export function avisosDe(health: EstadoDaSaude): Aviso[] {
       texto: `E-mail desligado: ${health.smtp.error}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
     });
   }
+  // O usuarios.json editado à mão. Ilegível é vermelho: só o dono entra. A
+  // entrada que não vale é amarela, uma linha por problema.
+  if (health.users?.error) {
+    out.push({
+      nivel: 'bad',
+      texto: `Cadastro de usuários ilegível: ${health.users.error}. Só o dono do dwnvr.yaml entra até o arquivo ser corrigido e o dwnvr reiniciado.`,
+    });
+  }
+  for (const w of health.users?.warnings ?? []) {
+    out.push({
+      nivel: 'warn',
+      texto: `Cadastro de usuários: ${w}. Corrija o usuarios.json e reinicie o dwnvr.`,
+    });
+  }
   return out;
 }
 

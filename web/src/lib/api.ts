@@ -561,6 +561,9 @@ export interface Saude {
   go2rtc?: { error: string; since: string };
   // Só com a seção smtp recusada no boot: o e-mail fica desligado.
   smtp?: { error: string };
+  // Só com problema no usuarios.json: `error` é o arquivo ilegível no boot, e
+  // `warnings`, as entradas que não valem.
+  users?: { error?: string; warnings?: string[] };
 }
 
 // --- o servidor (card "Este servidor" do Diagnóstico)

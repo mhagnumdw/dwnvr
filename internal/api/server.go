@@ -432,6 +432,22 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		resp["smtp"] = map[string]any{"error": s.cfg.SMTP.Recusa}
 	}
 
+	// O usuarios.json editado à mão com problema também: a entrada ignorada
+	// não entra, e o e-mail repetido não serve para entrar. Sem autenticação o
+	// cadastro inteiro é ignorado, e o aviso não diria nada.
+	if s.cfg.Server.AuthEnabled() {
+		u := map[string]any{}
+		if err := s.usuarios.Ilegivel(); err != nil {
+			u["error"] = err.Error()
+		}
+		if avisos := s.usuarios.Avisos(); len(avisos) > 0 {
+			u["warnings"] = avisos
+		}
+		if len(u) > 0 {
+			resp["users"] = u
+		}
+	}
+
 	writeJSON(w, resp)
 }
 
