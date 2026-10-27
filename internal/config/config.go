@@ -50,6 +50,7 @@ type Config struct {
 	Defaults Defaults `yaml:"defaults"`
 	Detector Detector `yaml:"detector"`
 	SMTP     SMTP     `yaml:"smtp"`
+	Alerts   Alerts   `yaml:"alerts"`
 
 	// dir é o diretório do dwnvr.yaml; cameras.json fica ao lado dele.
 	dir string `yaml:"-"`
@@ -213,7 +214,9 @@ func defaults() Config {
 // storage.root vazio. Um valor fora da faixa volta ao padrão do código e vira
 // Aviso, porque gravar com o padrão é melhor que não gravar nada. A seção smtp
 // com problema também não impede o boot, mas não vira Aviso: não há padrão que
-// substitua um servidor errado, e o e-mail fica desligado (ver SMTP.Recusa).
+// substitua um servidor errado, e o e-mail fica desligado (ver SMTP.Recusa). A
+// lista alerts.email.to fica só com os endereços que servem (ver
+// AlertsEmail.Avisos).
 func Load(path string) (*Config, []Aviso, error) {
 	cfg := defaults()
 	cfg.dir = filepath.Dir(path)
@@ -233,6 +236,7 @@ func Load(path string) (*Config, []Aviso, error) {
 		return nil, nil, errors.New("storage.root não pode ser vazio")
 	}
 	cfg.SMTP.Recusa = cfg.SMTP.confere()
+	cfg.Alerts.Email.Avisos = cfg.Alerts.Email.confere(cfg.SMTP)
 	return &cfg, cfg.confere(), nil
 }
 

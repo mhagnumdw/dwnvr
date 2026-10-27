@@ -934,7 +934,7 @@ e `web/src/lib/api.ts`. Os limites do alerta, mais abaixo, ganham o do teto.
 sai igual.
 
 - [x] decidir os quatro pontos acima, em 27/10/2026
-- [ ] a seção `alerts.email.to` no `dwnvr.yaml`, com validação
+- [x] a seção `alerts.email.to` no `dwnvr.yaml`, com validação
 - [ ] o anexo no `internal/email`, sem mudar a mensagem sem anexo
 - [ ] o meio `email` no `Notificadores`, com teste contra o servidor falso
 - [ ] o quadro com as caixas e a área desenhadas, medido

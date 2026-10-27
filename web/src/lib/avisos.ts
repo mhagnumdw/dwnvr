@@ -182,6 +182,15 @@ export function avisosDe(health: EstadoDaSaude): Aviso[] {
       texto: `Cadastro de usuários: ${w}. Corrija o usuarios.json e reinicie o dwnvr.`,
     });
   }
+  // A seção alerts do dwnvr.yaml: o endereço que ficou de fora da lista, ou a
+  // lista sem a seção smtp. Amarelo, como a smtp recusada: o alerta segue
+  // gravado na detecção.
+  for (const w of health.alerts?.warnings ?? []) {
+    out.push({
+      nivel: 'warn',
+      texto: `Alertas por e-mail: ${w}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
+    });
+  }
   return out;
 }
 

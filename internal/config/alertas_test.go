@@ -274,3 +274,66 @@ func TestMinutoDoDia(t *testing.T) {
 		}
 	}
 }
+
+// TestAlertsEmailSemSecao: quem não configura não paga nada, e não recebe
+// aviso por isso.
+func TestAlertsEmailSemSecao(t *testing.T) {
+	cfg, err := carregaYaml(t, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := cfg.Alerts.Email; len(e.To) != 0 || len(e.Avisos) != 0 {
+		t.Errorf("alerts.email %+v, esperado vazio e sem aviso", e)
+	}
+}
+
+// TestAlertsEmailTiraOQueNaoServe: o endereço inválido sai com aviso, o
+// repetido sai calado, e os outros seguem, na ordem escrita.
+func TestAlertsEmailTiraOQueNaoServe(t *testing.T) {
+	cfg, err := carregaYaml(t, `
+smtp:
+  host: smtp.gmail.com
+  username: dwnvr@exemplo.com
+  password: troque-me
+alerts:
+  email:
+    to:
+      - fulano@exemplo.com
+      - "Ciclana <ciclana@exemplo.com>"
+      - " beltrano@exemplo.com "
+      - sem-arroba
+      - Fulano@Exemplo.com
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := cfg.Alerts.Email
+	if want := []string{"fulano@exemplo.com", "beltrano@exemplo.com"}; !slices.Equal(e.To, want) {
+		t.Errorf("to %q, esperado %q", e.To, want)
+	}
+	if len(e.Avisos) != 2 || !strings.Contains(e.Avisos[0], `"Ciclana <ciclana@exemplo.com>"`) ||
+		!strings.Contains(e.Avisos[1], `"sem-arroba"`) {
+		t.Errorf("avisos %q, esperado um para o nome na frente e um para o sem arroba", e.Avisos)
+	}
+}
+
+// TestAlertsEmailSemSMTP: a lista sem a seção smtp não impede o boot, e vira
+// aviso. Com a seção recusada, o aviso é o dela, que diz o motivo.
+func TestAlertsEmailSemSMTP(t *testing.T) {
+	cfg, err := carregaYaml(t, "alerts:\n  email:\n    to: [fulano@exemplo.com]\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if av := cfg.Alerts.Email.Avisos; len(av) != 1 || !strings.Contains(av[0], "falta a seção smtp") {
+		t.Errorf("avisos %q, esperado o da seção smtp que falta", av)
+	}
+
+	cfg, err = carregaYaml(t, "smtp:\n  host: smtp.gmail.com\n  security: ssl\n"+
+		"alerts:\n  email:\n    to: [fulano@exemplo.com]\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SMTP.Recusa == "" || len(cfg.Alerts.Email.Avisos) != 0 {
+		t.Errorf("recusa %q e avisos %q; esperado só a recusa", cfg.SMTP.Recusa, cfg.Alerts.Email.Avisos)
+	}
+}

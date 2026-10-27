@@ -69,6 +69,15 @@ go2rtc:
 #   # O remetente. Vazio usa o username.
 #   # from: "dwnvr <dwnvr.exemplo@gmail.com>"
 
+# Quem recebe por e-mail o alerta de detecção de toda câmera com alerta ligado
+# (aba Alerta do cadastro da câmera), numa mensagem só para todos. Opcional, e
+# só serve com a seção smtp acima. Só o endereço, sem nome na frente: o que não
+# for endereço fica de fora da lista e vira aviso no Diagnóstico. Ver
+# docs/configuracao.md, "Alerta por e-mail".
+# alerts:
+#   email:
+#     to: [fulano@exemplo.com, ciclana@exemplo.com]
+
 storage:
   # Onde o dwnvr escreve - o caminho que o processo enxerga. Em container é um
   # caminho de dentro dele, e quem escolhe o disco do host é o volume do

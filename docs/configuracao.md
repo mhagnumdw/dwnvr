@@ -468,3 +468,33 @@ Nos outros provedores, o `host`, a porta e a `security` estão na ajuda de
 cada um. Os de e-mail transacional, como a Brevo, pedem um domínio seu para o
 remetente: com um endereço `@gmail.com`, a Brevo troca o remetente por um
 endereço dela.
+
+## Alerta por e-mail
+
+```yaml
+alerts:
+  email:
+    to: [fulano@exemplo.com, ciclana@exemplo.com]
+```
+
+A lista de quem recebe o alerta de detecção de toda câmera com alerta ligado
+(ver o `alert` em [Política por câmera](#política-por-câmera)), numa mensagem
+só para todos: cinco endereços são um envio. O alerta sai pela seção `smtp`,
+a mesma do link de definir a senha; aqui fica só quem recebe. Por ora, a lista
+é conferida no boot, mas o alerta ainda não sai por e-mail.
+
+| Campo | O que é | Sem escrever |
+| --- | --- | --- |
+| `alerts.email.to` | quem recebe; só o endereço, sem nome na frente | o alerta fica só no log e marcado na detecção |
+
+Nada aqui impede o dwnvr de subir. Viram aviso no card Avisos do Diagnóstico e
+no sino do header, e vão também para o log:
+
+- **o que não é endereço**, como `Fulano <fulano@exemplo.com>`, que sai da
+  lista enquanto os outros seguem. O endereço repetido sai calado;
+- **a lista sem a seção `smtp`**, que não tem por onde sair. Com a seção
+  recusada, o aviso é o dela, que diz o motivo.
+
+```text
+alertas por e-mail: alerts.email.to "Fulano <fulano@exemplo.com>" não é um endereço de e-mail e ficou de fora da lista arquivo=/etc/dwnvr/dwnvr.yaml
+```

@@ -103,6 +103,9 @@ export const health = $state<EstadoDaSaude>({
   smtp: null,
   // { error?, warnings? } com problema no usuarios.json; nulo sem problema.
   users: null,
+  // { total?, warnings? }: o total depois que alguma câmera liga o alerta, e
+  // os warnings com problema na seção alerts do dwnvr.yaml; nulo sem nenhum.
+  alerts: null,
   updatedAt: 0,
 });
 
@@ -117,6 +120,7 @@ export interface EstadoDaSaude {
   go2rtc: { error: string; since: string } | null;
   smtp: { error: string } | null;
   users: { error?: string; warnings?: string[] } | null;
+  alerts: { total?: number; warnings?: string[] } | null;
   updatedAt: number;
 }
 
@@ -305,6 +309,7 @@ export async function loadHealth() {
     health.go2rtc = data.go2rtc ?? null;
     health.smtp = data.smtp ?? null;
     health.users = data.users ?? null;
+    health.alerts = data.alerts ?? null;
     health.updatedAt = Date.now();
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.

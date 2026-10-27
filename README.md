@@ -597,7 +597,10 @@ movimento.
 O e-mail também é opcional: com a seção `smtp` do `dwnvr.yaml`, de qualquer
 provedor, o link de definir a senha vai direto para a pessoa. Detalhes, com o
 passo a passo do Gmail, em
-[`docs/configuracao.md`](docs/configuracao.md#e-mail).
+[`docs/configuracao.md`](docs/configuracao.md#e-mail). A lista
+`alerts.email.to`, também opcional, diz quem recebe o alerta de detecção
+por e-mail (ver
+[`docs/configuracao.md`](docs/configuracao.md#alerta-por-e-mail)).
 
 ## Documentação
 

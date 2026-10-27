@@ -402,11 +402,19 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		resp["detector"] = d
 	}
 
-	// Do alerta vai só o total desde que o dwnvr subiu: o alerta em si fica
-	// gravado na detecção, e se vê em Detecções. Some enquanto nenhuma câmera
-	// ligou o alerta.
+	// Do alerta vai o total desde que o dwnvr subiu, que some enquanto nenhuma
+	// câmera ligou o alerta: o alerta em si fica gravado na detecção, e se vê
+	// em Detecções. E os avisos da seção alerts do dwnvr.yaml, para o card
+	// Avisos, que valem mesmo sem câmera com alerta: são da configuração.
+	alerts := map[string]any{}
 	if c := s.mgr.Alertas(); c != nil {
-		resp["alerts"] = map[string]int64{"total": c.Total()}
+		alerts["total"] = c.Total()
+	}
+	if av := s.cfg.Alerts.Email.Avisos; len(av) > 0 {
+		alerts["warnings"] = av
+	}
+	if len(alerts) > 0 {
+		resp["alerts"] = alerts
 	}
 
 	// O relógio, ao contrário dos uptimes acima, vai como instante mesmo - e é

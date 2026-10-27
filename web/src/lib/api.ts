@@ -600,9 +600,9 @@ export interface Detector {
 
 // `disk` some quando o storage não responde; `detector`, sem detector de
 // objetos configurado; `go2rtc`, enquanto ele responde; `alerts`, antes de
-// alguma câmera ligar o alerta. `uptime`, `clock` e `reconnectsWindowHours`
-// faltam em servidor anterior a eles, para onde a tela do `npm run dev` pode
-// estar apontada.
+// alguma câmera ligar o alerta, se a seção alerts não tem problema. `uptime`,
+// `clock` e `reconnectsWindowHours` faltam em servidor anterior a eles, para
+// onde a tela do `npm run dev` pode estar apontada.
 export interface Saude {
   cameras: CameraNaSaude[];
   disk?: Disco;
@@ -616,7 +616,9 @@ export interface Saude {
   // Só com problema no usuarios.json: `error` é o arquivo ilegível no boot, e
   // `warnings`, as entradas que não valem.
   users?: { error?: string; warnings?: string[] };
-  alerts?: { total: number };
+  // `total` some antes de alguma câmera ligar o alerta; `warnings` são os
+  // problemas da seção alerts do dwnvr.yaml, que valem sem câmera nenhuma.
+  alerts?: { total?: number; warnings?: string[] };
 }
 
 // --- o servidor (card "Este servidor" do Diagnóstico)

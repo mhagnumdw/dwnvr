@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/mail"
 	"slices"
 	"strings"
 	"time"
@@ -199,4 +200,50 @@ func familiasAceitas() string {
 		nomes[i] = string(f)
 	}
 	return strings.Join(nomes, ", ")
+}
+
+// Alerts é a seção alerts do dwnvr.yaml: para onde vai o alerta de toda câmera
+// que o liga. Opcional: sem ela, o alerta fica só no registro, que é a linha
+// no log e a marca na detecção.
+type Alerts struct {
+	Email AlertsEmail `yaml:"email"`
+}
+
+// AlertsEmail é o alerta por e-mail. Ele sai pela seção smtp, a mesma do link
+// de definir a senha: aqui fica só quem recebe.
+type AlertsEmail struct {
+	// To recebe o alerta de toda câmera com alerta ligado, numa mensagem só
+	// para todos. Só endereços, sem nome: "fulano@exemplo.com".
+	To []string `yaml:"to"`
+
+	// Avisos são os problemas da seção, que não impedem o boot: o endereço que
+	// ficou de fora da lista, e a lista sem a seção smtp. Vão ao log e ao card
+	// Avisos do Diagnóstico.
+	Avisos []string `yaml:"-"`
+}
+
+// confere tira do To o que não é endereço e o repetido, e diz o que tirou. A
+// regra é a do e-mail do cadastro (usuarios.ValidarEmail): o endereço só, sem
+// nome na frente. Um endereço errado não cala os outros.
+func (e *AlertsEmail) confere(smtp SMTP) []string {
+	var avisos []string
+	var to []string
+	for _, p := range e.To {
+		p = strings.TrimSpace(p)
+		if a, err := mail.ParseAddress(p); err != nil || a.Address != p {
+			avisos = append(avisos, fmt.Sprintf(
+				"alerts.email.to %q não é um endereço de e-mail e ficou de fora da lista", p))
+			continue
+		}
+		// O mesmo endereço duas vezes receberia duas cópias da mensagem.
+		if !slices.ContainsFunc(to, func(x string) bool { return strings.EqualFold(x, p) }) {
+			to = append(to, p)
+		}
+	}
+	e.To = to
+	// A seção smtp recusada já tem aviso próprio, que diz o motivo.
+	if len(to) > 0 && smtp.Host == "" {
+		avisos = append(avisos, "falta a seção smtp, e sem ela a lista alerts.email.to não recebe nada")
+	}
+	return avisos
 }

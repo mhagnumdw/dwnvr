@@ -395,6 +395,17 @@ o alerta seja desligado, e não vem antes:
 Os alertas em si ficam gravados na detecção, e se leem no `GET /api/deteccoes`
 (`alert` e `alertAreas` em cada objeto, e o filtro `alert=1`).
 
+A seção `alerts` do `dwnvr.yaml` com problema (ver
+[Alerta por e-mail](configuracao.md#alerta-por-e-mail)) põe os `warnings` no
+mesmo `alerts`, para o card Avisos e o sino, mesmo sem câmera com alerta, e
+então sem o `total`. Sem problema, eles não vêm.
+
+```json
+"alerts": {
+  "warnings": ["falta a seção smtp, e sem ela a lista alerts.email.to não recebe nada"]
+}
+```
+
 `DELETE /api/rec` aceitar câmera já removida é deliberado: descadastrar sem
 apagar deixa gravações órfãs, e sem esse endpoint não haveria como recuperar o
 espaço pela interface.
