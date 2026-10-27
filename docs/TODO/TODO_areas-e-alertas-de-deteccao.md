@@ -7,9 +7,10 @@ instalação de teste:** o campo `alert`, o `internal/alerta`, a aba Alerta, a
 marca gravada na detecção e o "só alertas" em Detecções.
 
 **Próximo passo:** a [Etapa 5](#etapa-5---o-e-mail) (o e-mail), que manda
-pela seção `smtp` do PR #50 e começa pelos quatro pontos de "A decidir antes
-do código". A instalação de teste da Etapa 3 fica para depois: por ora o
-mantenedor segue desenvolvendo e testando na bancada local.
+pela seção `smtp` do PR #50. Os pontos em aberto foram decididos em
+27/10/2026, e a implementação segue pelo checklist dela. A instalação de
+teste da Etapa 3 fica para depois: por ora o mantenedor segue desenvolvendo e
+testando na bancada local.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -867,11 +868,28 @@ que der certo, são decisão do mantenedor (27/10/2026).
   mensagem montada de verdade, na bancada; o repositório não tem nada dele
   hoje.
 
-**O teto por hora**, no `internal/alerta/parametros.go`, para a instalação
-inteira: protege a conta, porque o provedor bloqueia quem dispara demais. O
-Gmail aceita 500 por dia numa conta comum (ver o `docs/configuracao.md`), e a
-mesma conta manda o link de definir a senha: o número sai dessa conta, com o
-motivo ao lado. O que passa dele é descartado, contado e vira Aviso.
+**O teto por hora**, fixo no `internal/alerta/parametros.go`, e não no
+`dwnvr.yaml` (decisão do mantenedor, 27/10/2026), para a instalação inteira:
+protege a conta, porque o provedor bloqueia quem dispara demais. O Gmail
+aceita 500 por dia numa conta comum (ver o `docs/configuracao.md`), e a mesma
+conta manda o link de definir a senha: o número sai dessa conta, com o motivo
+ao lado. O que passa dele é descartado e contado.
+
+**O Aviso do alerta que não saiu** (decisão do mantenedor, 27/10/2026): o
+descarte por fila cheia (`AlertasNaEspera`, 32) e o do teto por hora viram um
+Aviso só, no card Avisos do Diagnóstico e no sino, como "12 alertas não saíram
+por e-mail desde 14:02 (5min), o último às 14:07: a fila de envio encheu. Eles
+estão gravados em Detecções, no filtro só alertas."
+
+- **Amarelo (`warn`):** a gravação e a marca seguem. A fila só enche com o
+  envio lento ou travado, e aí o Aviso vermelho de meio falhando aparece junto
+  e explica o amarelo.
+- **Some uma hora depois do último descarte**, e não no envio seguinte que der
+  certo, como o de meio falhando: o descarte é um evento, e não um estado.
+  Sumindo no envio seguinte, ele sairia da tela em segundos, e o sino, que
+  relê a cada 30 s, podia nem acender.
+- **O `/api/health`** leva a contagem, o primeiro e o último descarte, só com
+  algum meio configurado.
 
 **O Aviso de meio falhando**, que veio da Etapa 3: um Aviso `bad` só quando um
 meio falha, com o "desde quando" dos outros avisos, como "Alertas por e-mail
@@ -879,24 +897,32 @@ falhando desde 13:58 (12min): o erro. As detecções seguem gravadas, mas
 ninguém está sendo avisado." Vem do `/api/health`, como o aviso da seção
 `smtp`, e some no primeiro envio que der certo.
 
-**A decidir antes do código** (o card Alertas saiu em 23/10/2026; ver a Etapa
-3):
+**Decididos em 27/10/2026**, com um mock dos estados da aba Alerta (o card
+Alertas saiu em 23/10/2026; ver a Etapa 3):
 
-1. **Onde ficam os números do meio** (enviados, descartados, falhas e o último
-   resultado). Recomendação: no card Este servidor do Diagnóstico, junto do
-   e-mail que o #50 já mostra lá, só para o admin.
-2. **O botão de teste do alerta.** O "Testar o e-mail" do #50 confere o
-   servidor, mas não a mensagem do alerta nem a lista `to`. Recomendação: um
-   "enviar um alerta de teste" na aba Alerta, que monta a mensagem com o
-   último quadro da câmera e manda para a lista, mostrando a resposta do
-   servidor do jeito que ela veio (`POST /api/alertas/teste`). A alternativa é
-   não ter botão novo e conferir na bancada com o Mailpit.
-3. **A aba Alerta mostra para onde vai**: "por e-mail para 2 endereços",
-   "só no registro: falta a lista `alerts.email.to`" ou "só no registro: o
-   e-mail está desligado". O viewer não recebe a lista.
-4. **Uma mensagem para todos, ou uma por endereço.** Uma só, com a lista no
-   `To`, gasta um envio do teto e mostra a cada um os outros endereços, o que
-   numa família não incomoda. Recomendação: uma só.
+1. **Os números do meio** (enviados, falhas e o último resultado) ficam no card
+   Este servidor do Diagnóstico, junto do e-mail que o #50 já mostra lá, só
+   para o admin. Os descartados vão no Aviso acima.
+2. **O botão "Enviar um alerta de teste" fica na aba Alerta**, dentro do bloco
+   "Para onde vai", abaixo dos endereços (`POST /api/alertas/teste`). Manda o
+   quadro de agora da câmera para a lista, com "[teste]" no assunto; não vira
+   alerta nem marca nada em Detecções. O resultado aparece embaixo do botão:
+   "Enviado às 14:32 para 2 endereços" ou a resposta do servidor do jeito que
+   ela veio. Numa câmera ainda não salva ele fica desligado ("Salve a câmera
+   para testar"); sem lista ou sem e-mail ele não aparece. A alternativa, no
+   card Este servidor, pedia escolher a câmera e ficava longe de onde se
+   configura o alerta.
+3. **A aba Alerta mostra para onde vai**, num bloco "Para onde vai" que troca
+   a frase fixa de hoje ("O envio por e-mail ainda não existe"): "Por e-mail,
+   para 2 endereços", com os endereços (a aba é só do admin); "Só fica
+   marcado na detecção", com o que falta (a lista `alerts.email.to`, ou a
+   seção `smtp`); e, com o meio falhando, o "falhando desde" e o erro, em
+   vermelho, como o Aviso. O viewer não recebe a lista.
+4. **Uma mensagem para todos**, com a lista no `To`: cinco endereços são um
+   envio, e contam um no teto. O `Enviador` do #50 já faz assim, com um `RCPT`
+   por endereço na mesma conexão. Um endereço recusado no `RCPT` para a
+   mensagem de todos, e o erro diz qual: na prática o Gmail não confere a
+   caixa de outro domínio na hora, aceita e devolve depois ao remetente.
 
 **Repercussões:** campo em `internal/config/config.go`: `dwnvr.example.yaml`,
 com comentário, a seção do alerta no `docs/configuracao.md` (ao lado da seção
@@ -907,14 +933,14 @@ e `web/src/lib/api.ts`. Os limites do alerta, mais abaixo, ganham o do teto.
 **Não é mudança incompatível:** a seção é nova e opcional, e o e-mail de hoje
 sai igual.
 
-- [ ] decidir os quatro pontos acima
+- [x] decidir os quatro pontos acima, em 27/10/2026
 - [ ] a seção `alerts.email.to` no `dwnvr.yaml`, com validação
 - [ ] o anexo no `internal/email`, sem mudar a mensagem sem anexo
 - [ ] o meio `email` no `Notificadores`, com teste contra o servidor falso
 - [ ] o quadro com as caixas e a área desenhadas, medido
-- [ ] o teto por hora e o Aviso
+- [ ] o teto por hora e o Aviso do alerta que não saiu
 - [ ] o Aviso de meio falhando, e os números do meio
-- [ ] o botão de teste, se decidido
+- [ ] o bloco "Para onde vai" e o botão de teste, na aba Alerta
 - [ ] docs
 
 ## Depois
