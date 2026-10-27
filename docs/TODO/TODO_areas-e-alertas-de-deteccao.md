@@ -847,7 +847,16 @@ que der certo, são decisão do mantenedor (27/10/2026).
 - o quadro olhado vai anexo em JPEG, com as caixas e a área desenhadas.
   Desenhar é Go puro (`image/jpeg` e `image/draw`) sobre o quadro do
   `Alerta.Quadro`: medir no hardware de referência, em que a ordem esperada é
-  de dezenas de ms;
+  de dezenas de ms. Feito em 27/10/2026 no `internal/alerta/quadro.go`: a
+  Central desenha uma vez por alerta, antes de entregar aos meios, e o meio só
+  monta e manda a mensagem. Só as caixas dos objetos que alertaram (decisão do
+  mantenedor), na cor da família, e o contorno tracejado de todas as áreas do
+  alerta, sem rótulo. A qualidade é a do quadro olhado (75): 85 deu ~25% a
+  mais sem diferença visível. Medido numa máquina de desenvolvimento: ~5 ms e
+  24-43 KB por quadro real de 480×270. No hardware de referência, em
+  27/10/2026, com o dwnvr rodando ao lado (load 3,4) e o benchmark em `Nice`
+  10: 37 a 46 ms por alerta e ~0,8 MB alocados, num quadro real de 480×270.
+  Nos ~26 alertas por hora da instalação de teste, é ~1 s de CPU por hora;
 - sem link para abrir a detecção: o servidor não sabe o endereço pelo qual é
   acessado, e o link de definir a senha usa o do navegador do admin. Fica para
   quando houver um campo para isso.
@@ -937,7 +946,7 @@ sai igual.
 - [x] a seção `alerts.email.to` no `dwnvr.yaml`, com validação
 - [x] o anexo no `internal/email`, sem mudar a mensagem sem anexo
 - [x] o meio `email` no `Notificadores`, com teste de um `Enviador` falso (o SMTP de verdade, com o anexo, é testado no `internal/email`) e conferido no Mailpit
-- [ ] o quadro com as caixas e a área desenhadas, medido
+- [x] o quadro com as caixas e a área desenhadas, medido
 - [ ] o teto por hora e o Aviso do alerta que não saiu
 - [ ] o Aviso de meio falhando, e os números do meio
 - [ ] o bloco "Para onde vai" e o botão de teste, na aba Alerta

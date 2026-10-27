@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"slices"
 
+	"github.com/mhagnumdw/dwnvr/internal/area"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 )
 
@@ -26,8 +27,21 @@ type Alerta struct {
 	QuadroMs   int64
 	TemQuadro  bool
 	Objetos    []Objeto
-	// Quadro é o JPEG olhado, que o e-mail leva no anexo.
+	// Areas são as áreas do alerta, todas, e não só as em que algum objeto
+	// caiu: o contorno delas vai desenhado no quadro. Vazio quando o alerta
+	// vale na imagem inteira.
+	Areas []AreaDoAlerta
+	// Quadro é o JPEG olhado, que o e-mail leva no anexo. A Central o troca
+	// pelo quadro com as caixas e as áreas desenhadas antes de passá-lo aos
+	// meios (ver quadro.go).
 	Quadro []byte
+}
+
+// AreaDoAlerta é uma área do alerta como estava na hora: o nome e o polígono,
+// em fração do quadro.
+type AreaDoAlerta struct {
+	Nome   string
+	Pontos []area.Ponto
 }
 
 // Objeto é uma marca que passou na regra. Areas são os nomes das áreas do

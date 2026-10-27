@@ -357,7 +357,8 @@ detectar, por exemplo, uma pessoa no portão:
 O alerta vai para o log do dwnvr e fica marcado na detecção: na aba
 **Detecções**, o botão **só alertas** mostra só as que alertaram, com a área
 em que o objeto caiu. Com a lista `alerts.email.to` e a seção `smtp` do
-`dwnvr.yaml`, ele também chega por e-mail, com o quadro anexo (ver
+`dwnvr.yaml`, ele também chega por e-mail, com o quadro anexo, já com as caixas
+e as áreas desenhadas (ver
 [`docs/configuracao.md`](docs/configuracao.md#alerta-por-e-mail)). E ele avisa
 do que a detecção marcar, que não é toda chegada: não é alarme. Os limites
 estão em [`docs/deteccao.md`](docs/deteccao.md#o-alerta).

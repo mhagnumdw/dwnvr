@@ -16,6 +16,9 @@ type Regra struct {
 	camera, nome string
 	familias     []detect.Familia
 	areas        []areaDaRegra
+	// contornos são as mesmas áreas como o Alerta as leva, montadas uma vez
+	// aqui: a olhada só passa o slice adiante.
+	contornos []AreaDoAlerta
 
 	// horarios são, por dia da semana, os horários em minutos do dia. Nil é a
 	// qualquer hora; o dia que não está no mapa não alerta.
@@ -54,6 +57,7 @@ func NovaRegra(cam config.Camera) *Regra {
 			continue
 		}
 		r.areas = append(r.areas, areaDaRegra{id: a.ID, nome: a.Name, area: poligono, regra: regra})
+		r.contornos = append(r.contornos, AreaDoAlerta{Nome: a.Name, Pontos: poligono.Pontos})
 	}
 	for _, h := range al.Schedules {
 		de, deOk := config.MinutoDoDia(h.From)
@@ -114,7 +118,7 @@ func (r *Regra) Avalia(marcas []store.Evento, quadro []byte) (Alerta, bool) {
 	}
 	m := marcas[0]
 	return Alerta{Camera: r.camera, NomeDaCamera: r.nome, InstanteMs: m.InstanteMs, QuadroMs: m.QuadroMs,
-		TemQuadro: m.TemQuadro, Objetos: objetos, Quadro: quadro}, true
+		TemQuadro: m.TemQuadro, Objetos: objetos, Areas: r.contornos, Quadro: quadro}, true
 }
 
 // noHorario diz se o instante cai num dos horários do alerta, no fuso do

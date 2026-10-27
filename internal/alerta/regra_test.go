@@ -153,6 +153,27 @@ func TestVariasFamilias(t *testing.T) {
 	}
 }
 
+// TestLevaAsAreasDoAlerta: o alerta leva todas as áreas dele, com os pontos,
+// e não só as em que algum objeto caiu: o quadro desenha o contorno de todas.
+// Na imagem inteira, não leva nenhuma.
+func TestLevaAsAreasDoAlerta(t *testing.T) {
+	r := NovaRegra(camera([]detect.Familia{detect.Pessoa}, "esq", "chao"))
+	a, ok := r.Avalia([]store.Evento{pessoaNaEsquerda}, nil)
+	if !ok || len(a.Areas) != 2 {
+		t.Fatalf("alertou: %v, áreas %+v", ok, a.Areas)
+	}
+	for i, esperada := range []config.Area{metadeEsquerda, chaoDoFundo} {
+		if a.Areas[i].Nome != esperada.Name || !slices.Equal(a.Areas[i].Pontos, esperada.Points) {
+			t.Errorf("área %d: %+v, esperava %s %v", i, a.Areas[i], esperada.Name, esperada.Points)
+		}
+	}
+
+	r = NovaRegra(camera([]detect.Familia{detect.Pessoa}))
+	if a, _ := r.Avalia([]store.Evento{pessoaNaEsquerda}, nil); a.Areas != nil {
+		t.Errorf("na imagem inteira levou as áreas %+v", a.Areas)
+	}
+}
+
 // TestMarcaAsLinhas: a Avalia marca, nas linhas que o Recorder vai gravar, o
 // objeto que passou, com o id das áreas, e não o nome. O que não passou fica
 // como estava.

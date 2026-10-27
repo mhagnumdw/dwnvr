@@ -91,9 +91,25 @@ func (c *Central) Roda(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case a := <-c.espera:
-			c.envia(ctx, a)
+			c.envia(ctx, c.comQuadroDesenhado(a))
 		}
 	}
+}
+
+// comQuadroDesenhado troca o quadro olhado pelo quadro com as caixas e as
+// áreas desenhadas, uma vez por alerta, para todos os meios. Se o desenho
+// falhar, o quadro vai como veio: o alerta não deixa de sair por causa dele.
+func (c *Central) comQuadroDesenhado(a Alerta) Alerta {
+	if len(a.Quadro) == 0 {
+		return a
+	}
+	quadro, err := quadroDesenhado(a)
+	if err != nil {
+		c.log.Warn("o quadro do alerta vai sem desenho", "cam", a.Camera, "erro", err)
+		return a
+	}
+	a.Quadro = quadro
+	return a
 }
 
 // envia passa o alerta a cada meio, cada um com o próprio PrazoDoEnvio: o meio

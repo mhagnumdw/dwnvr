@@ -310,7 +310,11 @@ subiu.
 [`configuracao.md`](configuracao.md#alerta-por-e-mail)): uma mensagem só para
 a lista inteira. O assunto diz a família de maior prioridade, a câmera e a
 hora do onset, como "Pessoa em Garagem às 14:32"; o corpo, o dia, cada objeto,
-com a confiança, e as áreas em que caiu; e o quadro olhado vai anexo, em JPEG.
+com a confiança, e as áreas em que caiu; e o quadro olhado vai anexo, em JPEG,
+com a caixa de cada objeto que alertou, na cor da família, e o contorno
+tracejado das áreas do alerta, como Detecções mostra com o filtro "só
+alertas". O quadro é desenhado uma vez por alerta, na goroutine de envio, e
+todo meio recebe o mesmo; se o desenho falhar, ele vai como foi olhado.
 Sem link para abrir a detecção: o servidor não sabe o endereço pelo qual é
 acessado. O envio que falha vai ao log, e o alerta segue no registro.
 
