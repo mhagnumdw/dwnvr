@@ -6,11 +6,10 @@ medição no hardware de referência. **A Etapa 3 está feita, menos a
 instalação de teste:** o campo `alert`, o `internal/alerta`, a aba Alerta, a
 marca gravada na detecção e o "só alertas" em Detecções.
 
-**Próximo passo:** a [Etapa 5](#etapa-5---o-e-mail) (o e-mail), começando
-por decidir onde ficam o resultado de cada meio, o Aviso de meio falhando e o
-botão de teste, que iam no card Alertas. A instalação de teste da Etapa 3
-fica para depois: por ora o mantenedor segue desenvolvendo e testando na
-bancada local.
+**Próximo passo:** a [Etapa 5](#etapa-5---o-e-mail) (o e-mail), que manda
+pela seção `smtp` do PR #50 e começa pelos quatro pontos de "A decidir antes
+do código". A instalação de teste da Etapa 3 fica para depois: por ora o
+mantenedor segue desenvolvendo e testando na bancada local.
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -230,7 +229,7 @@ no Go seguem em português (`Area`, `RegraDaArea`).
 | 3 | `cameras.json`, dentro da câmera | `alert`: `enabled`, `families`, `areas` |
 | 3 | `eventos/{dia}.ndjson`, na linha do objeto | `alert` e `alertAreas`, a marca de quem alertou |
 | 4 | dentro do `alert` | `schedules`: `days`, `from`, `to` |
-| 5 | `dwnvr.yaml` | seção `alerts.email` |
+| 5 | `dwnvr.yaml` | `alerts.email.to`; o envio é o da seção `smtp`, do PR #50 |
 
 - **Área e alerta dentro da câmera**, e não num arquivo próprio: aproveitam o
   `ConfereCamera`, o `trocaCamera` e o `GET /api/cameras`, que já leva tudo ao
@@ -807,33 +806,37 @@ alerta no `docs/deteccao.md`, o campo da câmera no `docs/api.md` e
 **O que muda para quem usa:** o alerta chega por e-mail, com o quadro da
 detecção.
 
-**A configuração** fica no `dwnvr.yaml`, numa seção nova e opcional,
-`alerts.email`, com as chaves no estilo do arquivo (`username` e `password`,
-como nos blocos `server` e `go2rtc`):
+**O envio já existe.** O PR #50 (26/10/2026, `9cd5d25`) trouxe a seção `smtp`
+do `dwnvr.yaml`, o `internal/email` (o contrato `Enviador`, com o
+`PrazoDoEnvio` de 20 s), o aviso da seção recusada no card Avisos e o "Testar o
+e-mail" do card Este servidor (`POST /api/email/teste`). A Etapa 5 não abre
+outra conexão nem outra configuração de servidor: o meio `email` do alerta é
+uma linha no `Notificadores` que manda pelo mesmo `Enviador` (reescrita em
+27/10/2026; a versão anterior trazia uma seção própria com servidor e senha).
+
+**A configuração** é só a lista de quem recebe, numa seção nova e opcional:
 
 ```yaml
 alerts:
   email:
-    host: smtp.gmail.com
-    port: 587
-    security: starttls        # starttls | tls | none
-    username: alertas@exemplo.com
-    password: "..."
-    from: "dwnvr <alertas@exemplo.com>"
-    to: [fulano@exemplo.com]  # opcional
+    to: [fulano@exemplo.com, ciclana@exemplo.com]
 ```
 
 | Campo | O que é |
 | --- | --- |
-| `host` e `port` | o SMTP do provedor |
-| `security` | STARTTLS (porta 587), TLS direto (465) ou nenhuma, só para rede local |
-| `username` e `password` | a conta que envia |
-| `from` | o `From`, como `dwnvr <alertas@exemplo.com>` |
-| `to` | **opcional**: recebem o alerta de toda câmera com alerta ligado |
+| `alerts.email.to` | recebem o alerta de toda câmera com alerta ligado |
 
-Sem destinatário, o e-mail fica configurado e ninguém recebe, e a tela diz
-isso. O card Alertas saiu em 23/10/2026 (ver a Etapa 3): onde isto aparece se
-decide nesta etapa. A senha fica no servidor: não vai à tela nem ao log.
+- **O meio nasce com as duas coisas:** a seção `smtp` ligada e pelo menos um
+  endereço no `to`. Sem `smtp`, o `to` sozinho vira Aviso ("os alertas não
+  saem por e-mail: falta a seção smtp"), e não erro de boot.
+- **Com o `to` vazio, o meio não nasce**, e a aba Alerta diz que o alerta fica
+  só no registro.
+- **Cada endereço é validado no boot**, com a mesma regra do e-mail do
+  cadastro (`usuarios.ValidarEmail`): endereço só, sem nome na frente. O
+  endereço inválido sai da lista com Aviso, e os outros seguem.
+
+As três regras acima, e a do Aviso de meio falhando sumir no primeiro envio
+que der certo, são decisão do mantenedor (27/10/2026).
 
 **A mensagem:**
 
@@ -841,53 +844,78 @@ decide nesta etapa. A senha fica no servidor: não vai à tela nem ao log.
   como "Pessoa em Garagem às 14:32";
 - o corpo leva o dia, os objetos e as áreas em que caíram;
 - o quadro olhado vai anexo em JPEG, com as caixas e a área desenhadas.
-  Desenhar é Go puro (`image/jpeg` e `image/draw`) sobre um quadro de 480 px:
-  medir no hardware de referência, em que a ordem esperada é de dezenas de ms;
+  Desenhar é Go puro (`image/jpeg` e `image/draw`) sobre o quadro do
+  `Alerta.Quadro`: medir no hardware de referência, em que a ordem esperada é
+  de dezenas de ms;
 - sem link para abrir a detecção: o servidor não sabe o endereço pelo qual é
-  acessado, e o link de convite usa o do navegador do admin. Fica para quando
-  houver um campo para isso.
+  acessado, e o link de definir a senha usa o do navegador do admin. Fica para
+  quando houver um campo para isso.
 
-**Implementação:** biblioteca padrão do Go, sem C e sem dependência nova:
-`net/smtp`; `crypto/tls`, porque a porta 465 pede o `tls.Dial` antes do
-`smtp.NewClient`; `mime/multipart` para o anexo; e `mime.QEncoding` para o
-assunto com acento.
+**Implementação:** biblioteca padrão do Go, sem C e sem dependência nova.
 
-**Limites**, no `parametros.go`: `PrazoDoEnvioMs`, e um teto de e-mails por
-hora para a instalação inteira. O teto protege a conta, porque o provedor
-bloqueia quem dispara demais. O que passa dele é contado e vira Aviso.
+- **O anexo pede mexer no `internal/email`:** a `Mensagem` de hoje é texto
+  puro (`text/plain` em quoted-printable). Ela ganha os anexos, e o `montar`
+  passa a escrever `multipart/mixed` (`mime/multipart`, o JPEG em base64)
+  quando houver anexo. Sem anexo, a mensagem sai byte a byte como hoje, para o
+  link de definir a senha e o teste não mudarem.
+- **Dois prazos, um dentro do outro:** o `alerta.PrazoDoEnvio` (30 s) é o
+  `ctx` de cada envio, e o `email.PrazoDoEnvio` (20 s) é o do `Enviador`. O de
+  dentro vence; o de fora segue valendo para os outros meios.
+- **O teste do meio usa o servidor SMTP falso** do `internal/email`
+  (`servidor_test.go`), que já fala STARTTLS e TLS. O Mailpit num container,
+  com o SMTP na porta 1025 e a caixa de entrada na 8025, serve para olhar a
+  mensagem montada de verdade, na bancada; o repositório não tem nada dele
+  hoje.
+
+**O teto por hora**, no `internal/alerta/parametros.go`, para a instalação
+inteira: protege a conta, porque o provedor bloqueia quem dispara demais. O
+Gmail aceita 500 por dia numa conta comum (ver o `docs/configuracao.md`), e a
+mesma conta manda o link de definir a senha: o número sai dessa conta, com o
+motivo ao lado. O que passa dele é descartado, contado e vira Aviso.
 
 **O Aviso de meio falhando**, que veio da Etapa 3: um Aviso `bad` só quando um
 meio falha, com o "desde quando" dos outros avisos, como "Alertas por e-mail
 falhando desde 13:58 (12min): o erro. As detecções seguem gravadas, mas
-ninguém está sendo avisado." Vem do `/api/health`, como os outros. Junto,
-entram o resultado em cada meio e os números de enviados, descartados e
-falhas. O card Alertas saiu em 23/10/2026 (ver a Etapa 3): onde isto aparece
-se decide nesta etapa.
+ninguém está sendo avisado." Vem do `/api/health`, como o aviso da seção
+`smtp`, e some no primeiro envio que der certo.
 
-**Testar:**
+**A decidir antes do código** (o card Alertas saiu em 23/10/2026; ver a Etapa
+3):
 
-- um botão "enviar e-mail de teste", só para o admin (o lugar dele se decide
-  nesta etapa: ia no card Alertas, que saiu)
-  (`POST /api/alertas/teste`), que mostra o erro do servidor SMTP como ele
-  veio;
-- para desenvolver sem mandar e-mail de verdade, o Mailpit num container, com
-  o SMTP na porta 1025 e a caixa de entrada na 8025;
-- provedores como o Gmail pedem uma senha de app, com a verificação em duas
-  etapas ligada: a doc dá o exemplo.
+1. **Onde ficam os números do meio** (enviados, descartados, falhas e o último
+   resultado). Recomendação: no card Este servidor do Diagnóstico, junto do
+   e-mail que o #50 já mostra lá, só para o admin.
+2. **O botão de teste do alerta.** O "Testar o e-mail" do #50 confere o
+   servidor, mas não a mensagem do alerta nem a lista `to`. Recomendação: um
+   "enviar um alerta de teste" na aba Alerta, que monta a mensagem com o
+   último quadro da câmera e manda para a lista, mostrando a resposta do
+   servidor do jeito que ela veio (`POST /api/alertas/teste`). A alternativa é
+   não ter botão novo e conferir na bancada com o Mailpit.
+3. **A aba Alerta mostra para onde vai**: "por e-mail para 2 endereços",
+   "só no registro: falta a lista `alerts.email.to`" ou "só no registro: o
+   e-mail está desligado". O viewer não recebe a lista.
+4. **Uma mensagem para todos, ou uma por endereço.** Uma só, com a lista no
+   `To`, gasta um envio do teto e mostra a cada um os outros endereços, o que
+   numa família não incomoda. Recomendação: uma só.
 
 **Repercussões:** campo em `internal/config/config.go`: `dwnvr.example.yaml`,
-com comentário, uma seção nova no `docs/configuracao.md` e a §Configuração do
-`README.md`. A rota nova: `docs/api.md` e `web/src/lib/api.ts`.
+com comentário, a seção do alerta no `docs/configuracao.md` (ao lado da seção
+E-mail, que ganha "o alerta" entre os usos) e a §Configuração do `README.md`.
+O `internal/email` ganha o anexo, com teste. Rota nova, se houver: `docs/api.md`
+e `web/src/lib/api.ts`. Os limites do alerta, mais abaixo, ganham o do teto.
 
-**Não é mudança incompatível:** a seção é nova e opcional.
+**Não é mudança incompatível:** a seção é nova e opcional, e o e-mail de hoje
+sai igual.
 
-- [ ] a seção no `dwnvr.yaml`, com validação
-- [ ] o meio `email`, com teste contra o Mailpit
+- [ ] decidir os quatro pontos acima
+- [ ] a seção `alerts.email.to` no `dwnvr.yaml`, com validação
+- [ ] o anexo no `internal/email`, sem mudar a mensagem sem anexo
+- [ ] o meio `email` no `Notificadores`, com teste contra o servidor falso
 - [ ] o quadro com as caixas e a área desenhadas, medido
 - [ ] o teto por hora e o Aviso
-- [ ] o Aviso de meio falhando, e o resultado em cada meio (onde, a decidir)
-- [ ] o botão de teste
-- [ ] docs, com o exemplo do Gmail
+- [ ] o Aviso de meio falhando, e os números do meio
+- [ ] o botão de teste, se decidido
+- [ ] docs
 
 ## Depois
 
@@ -895,9 +923,11 @@ Sem data. Cada item vira plano próprio quando chegar a vez.
 
 - **Cada pessoa escolhe as câmeras** (decisão do mantenedor): o e-mail na
   Minha conta e as câmeras de que ela quer alerta, somados à lista global sem
-  repetir endereço. Pede um campo de e-mail no `usuarios.json` e, já com o SMTP
-  funcionando, um e-mail de confirmação, para não guardar endereço digitado
-  errado.
+  repetir endereço. O campo de e-mail no `usuarios.json` já existe (PR #50,
+  que o PR #51 usa também para entrar), mas só o admin o preenche, na tela
+  Usuários, e ninguém confirma o endereço. Falta a pessoa trocá-lo na Minha
+  conta e, se ela mesma digitar, um e-mail de confirmação, para não guardar
+  endereço digitado errado.
 - **Outros meios**, cada um uma linha no `Notificadores`:
   - **Telegram:** um bot e o chat de destino. O `sendPhoto` manda o quadro, por
     HTTPS;
