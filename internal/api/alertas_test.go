@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/alerta"
 	"github.com/mhagnumdw/dwnvr/internal/config"
@@ -81,5 +82,60 @@ func TestDescarteNoHealth(t *testing.T) {
 	if d == nil || d.OverLimit != 2 || d.QueueFull != 0 || d.LimitPerHour != alerta.AlertasPorHora ||
 		d.Since == "" || d.LastAt == "" {
 		t.Errorf("dropped no /api/health: %+v", d)
+	}
+}
+
+// Com o meio falhando, o /api/health leva o desde quando e o erro, para o
+// Aviso vermelho, e o /api/health/servidor, os números do meio.
+func TestMeioFalhandoNoHealth(t *testing.T) {
+	s, _ := testServer(t)
+	s.cfg.Detector.URL = "http://127.0.0.1:1"
+	// Um servidor de e-mail que não existe: o envio falha na conexão.
+	s.cfg.SMTP = config.SMTP{Host: "127.0.0.1", Port: 1, Security: "none", From: "dwnvr@exemplo.com"}
+	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com"}
+	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
+	sim := true
+	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
+		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}})
+
+	// O meio ainda não tentou: nada falhando, e os números zerados.
+	if got := string(pede(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":0}` {
+		t.Errorf("alerts antes do envio: %s", got)
+	}
+	if got := string(pede(t, s.handleDiagnosticoServidor, "/api/health/servidor")["alertas"]); got != `[{"nome":"email","enviados":0,"falhas":0}]` {
+		t.Errorf("alertas no diagnóstico antes do envio: %s", got)
+	}
+
+	// Sem o Start do Manager, a goroutine de envio é a do teste.
+	go s.mgr.Alertas().Roda(t.Context())
+	s.mgr.Alertas().Recebe(alerta.Alerta{Camera: "cam_teste", InstanteMs: 1000,
+		Objetos: []alerta.Objeto{{Familia: "pessoa", Classe: "person", Score: 0.87}}})
+
+	var alerts struct {
+		Failing []struct{ Name, Since, Error string }
+	}
+	for range 500 {
+		if err := json.Unmarshal(pede(t, s.handleHealth, "/api/health")["alerts"], &alerts); err != nil {
+			t.Fatal(err)
+		}
+		if len(alerts.Failing) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(alerts.Failing) != 1 {
+		t.Fatalf("failing no /api/health: %+v", alerts.Failing)
+	}
+	if f := alerts.Failing[0]; f.Name != "email" || f.Since == "" || f.Error == "" {
+		t.Errorf("failing no /api/health: %+v", f)
+	}
+
+	var meios []meioDoAlertaInfo
+	if err := json.Unmarshal(pede(t, s.handleDiagnosticoServidor, "/api/health/servidor")["alertas"], &meios); err != nil {
+		t.Fatal(err)
+	}
+	if len(meios) != 1 || meios[0].Falhas != 1 || meios[0].Enviados != 0 || meios[0].Ultimo == nil ||
+		meios[0].Erro != alerts.Failing[0].Error {
+		t.Errorf("alertas no diagnóstico: %+v", meios)
 	}
 }

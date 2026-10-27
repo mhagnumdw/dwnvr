@@ -67,6 +67,9 @@ type EstadoDoMeio struct {
 	Nome     string
 	Enviados int64
 	Falhas   int64
+	// Ultimo é o instante da tentativa mais recente, desse certo ou não: com o
+	// Erro vazio, ela deu certo. Zero antes do primeiro envio.
+	Ultimo time.Time
 	// FalhandoDesde é a primeira falha desde o último envio que deu certo, e
 	// Erro, o da falha mais recente. Zerados quando um envio dá certo.
 	FalhandoDesde time.Time
@@ -176,15 +179,17 @@ func (c *Central) envia(ctx context.Context, a Alerta) {
 		err := m.Envia(ctxDoEnvio, a)
 		cancel()
 
+		agora := c.agora()
 		c.mu.Lock()
 		e := &c.estados[i]
+		e.Ultimo = agora
 		if err == nil {
 			e.Enviados++
 			e.FalhandoDesde, e.Erro = time.Time{}, ""
 		} else {
 			e.Falhas++
 			if e.FalhandoDesde.IsZero() {
-				e.FalhandoDesde = time.Now()
+				e.FalhandoDesde = agora
 			}
 			e.Erro = err.Error()
 		}

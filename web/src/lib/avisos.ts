@@ -4,7 +4,7 @@
 // Função pura sobre o `health` de `state.svelte.ts`: chamada dentro de um
 // $derived, o Svelte rastreia os campos que ela lê.
 
-import type { CameraNaSaude, DescarteDosAlertas } from './api.ts';
+import { meioDoAlerta, type CameraNaSaude, type DescarteDosAlertas } from './api.ts';
 import { bytes, bytesDeMB, duracao, hhmmss, ddmm } from './format.ts';
 import type { EstadoDaSaude } from './state.svelte.ts';
 
@@ -189,6 +189,14 @@ export function avisosDe(health: EstadoDaSaude): Aviso[] {
     out.push({
       nivel: 'warn',
       texto: `Alertas por e-mail: ${w}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
+    });
+  }
+  // O meio do alerta falhando: vermelho, porque ninguém está sendo avisado, e
+  // a gravação seguir não muda isso. Some no primeiro envio que der certo.
+  for (const f of health.alerts?.failing ?? []) {
+    out.push({
+      nivel: 'bad',
+      texto: `Alertas ${meioDoAlerta(f.name)} falhando ${desde(f.since, agora)}: ${f.error}. As detecções seguem gravadas, mas ninguém está sendo avisado.`,
     });
   }
   // Os alertas que não saíram pelos meios, por teto ou fila cheia. Amarelo:

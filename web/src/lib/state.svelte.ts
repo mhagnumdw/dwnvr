@@ -9,6 +9,7 @@ import type {
   CameraCadastrada,
   Camera,
   DescarteDosAlertas,
+  MeioFalhando,
   Disco,
   DivergenciasDoGo2rtc,
   Detector,
@@ -104,9 +105,9 @@ export const health = $state<EstadoDaSaude>({
   smtp: null,
   // { error?, warnings? } com problema no usuarios.json; nulo sem problema.
   users: null,
-  // { total?, warnings?, dropped? }: o total depois que alguma câmera liga o
-  // alerta, os warnings com problema na seção alerts do dwnvr.yaml e os
-  // alertas que não saíram pelos meios; nulo sem nenhum.
+  // { total?, warnings?, dropped?, failing? }: o total depois que alguma câmera
+  // liga o alerta, os warnings com problema na seção alerts do dwnvr.yaml, os
+  // alertas que não saíram pelos meios e os meios falhando; nulo sem nenhum.
   alerts: null,
   updatedAt: 0,
 });
@@ -122,7 +123,12 @@ export interface EstadoDaSaude {
   go2rtc: { error: string; since: string } | null;
   smtp: { error: string } | null;
   users: { error?: string; warnings?: string[] } | null;
-  alerts: { total?: number; warnings?: string[]; dropped?: DescarteDosAlertas } | null;
+  alerts: {
+    total?: number;
+    warnings?: string[];
+    dropped?: DescarteDosAlertas;
+    failing?: MeioFalhando[];
+  } | null;
   updatedAt: number;
 }
 

@@ -178,7 +178,7 @@ func TestMeioQueFalha(t *testing.T) {
 	espera()
 	e := estado(func(e EstadoDoMeio) bool { return e.Falhas == 1 })
 	desde := e.FalhandoDesde
-	if desde.IsZero() || e.Erro != "senha recusada" || e.Nome != "teste" {
+	if desde.IsZero() || !e.Ultimo.Equal(desde) || e.Erro != "senha recusada" || e.Nome != "teste" {
 		t.Errorf("estado %+v", e)
 	}
 
@@ -188,6 +188,9 @@ func TestMeioQueFalha(t *testing.T) {
 	if !e.FalhandoDesde.Equal(desde) {
 		t.Errorf("falhando desde %v, esperava o da primeira falha, %v", e.FalhandoDesde, desde)
 	}
+	if !e.Ultimo.After(desde) {
+		t.Errorf("último envio %v, esperava depois da primeira falha, %v", e.Ultimo, desde)
+	}
 
 	meio.mu.Lock()
 	meio.erro = nil
@@ -195,7 +198,7 @@ func TestMeioQueFalha(t *testing.T) {
 	c.Recebe(alertaDe(3))
 	espera()
 	e = estado(func(e EstadoDoMeio) bool { return e.Enviados == 1 })
-	if !e.FalhandoDesde.IsZero() || e.Erro != "" || e.Falhas != 2 {
+	if !e.FalhandoDesde.IsZero() || e.Erro != "" || e.Falhas != 2 || e.Ultimo.IsZero() {
 		t.Errorf("depois do envio que deu certo: %+v", e)
 	}
 

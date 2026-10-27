@@ -916,6 +916,14 @@ falhando desde 13:58 (12min): o erro. As detecções seguem gravadas, mas
 ninguém está sendo avisado." Vem do `/api/health`, como o aviso da seção
 `smtp`, e some no primeiro envio que der certo.
 
+Feito em 27/10/2026: o `/api/health` leva `alerts.failing`, um item por meio
+falhando, com o nome, o desde quando e o erro mais recente. Os números do meio
+vão no `/api/health/servidor` (`alertas`), e o card Este servidor ganha um
+grupo por meio, "Alertas por e-mail", abaixo do grupo E-mail: enviados, falhas
+e o último envio, ok ou falhou com o erro, na hora do servidor. Um grupo à
+parte porque o e-mail do servidor não é o meio do alerta, e um meio novo ganha
+o seu. Os dois somem antes de alguma câmera ligar o alerta.
+
 **Decididos em 27/10/2026**, com um mock dos estados da aba Alerta (o card
 Alertas saiu em 23/10/2026; ver a Etapa 3):
 
@@ -958,7 +966,7 @@ sai igual.
 - [x] o meio `email` no `Notificadores`, com teste de um `Enviador` falso (o SMTP de verdade, com o anexo, é testado no `internal/email`) e conferido no Mailpit
 - [x] o quadro com as caixas e a área desenhadas, medido
 - [x] o teto por hora e o Aviso do alerta que não saiu
-- [ ] o Aviso de meio falhando, e os números do meio
+- [x] o Aviso de meio falhando, e os números do meio
 - [ ] o bloco "Para onde vai" e o botão de teste, na aba Alerta
 - [ ] docs
 

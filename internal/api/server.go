@@ -406,7 +406,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// Do alerta vai o total desde que o dwnvr subiu, que some enquanto nenhuma
 	// câmera ligou o alerta: o alerta em si fica gravado na detecção, e se vê
 	// em Detecções. Com um episódio de descarte valendo, os alertas que não
-	// saíram pelos meios, para o Aviso amarelo. E os avisos da seção alerts do
+	// saíram pelos meios, para o Aviso amarelo; com um meio falhando, o desde
+	// quando e o erro, para o vermelho. E os avisos da seção alerts do
 	// dwnvr.yaml, para o card Avisos, que valem mesmo sem câmera com alerta:
 	// são da configuração.
 	alerts := map[string]any{}
@@ -418,6 +419,17 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 				"limitPerHour": alerta.AlertasPorHora,
 				"since":        d.Desde, "lastAt": d.Ultimo,
 			}
+		}
+		var falhando []map[string]any
+		for _, m := range c.Meios() {
+			if !m.FalhandoDesde.IsZero() {
+				falhando = append(falhando, map[string]any{
+					"name": m.Nome, "since": m.FalhandoDesde, "error": m.Erro,
+				})
+			}
+		}
+		if len(falhando) > 0 {
+			alerts["failing"] = falhando
 		}
 	}
 	if av := s.cfg.Alerts.Email.Avisos; len(av) > 0 {

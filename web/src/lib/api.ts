@@ -614,6 +614,19 @@ export interface DescarteDosAlertas {
   lastAt: string;
 }
 
+// O meio do alerta pelo nome que o servidor dá a ele, como se lê na frase:
+// "Alertas por e-mail". Meio que a tela ainda não conhece sai pelo nome mesmo.
+export const MEIOS_DO_ALERTA: Readonly<Record<string, string>> = { email: 'por e-mail' };
+export const meioDoAlerta = (nome: string) => MEIOS_DO_ALERTA[nome] ?? `por ${nome}`;
+
+// Um meio do alerta falhando desde `since`, com o erro da falha mais recente.
+// Some no primeiro envio que der certo.
+export interface MeioFalhando {
+  name: string;
+  since: string;
+  error: string;
+}
+
 export interface Saude {
   cameras: CameraNaSaude[];
   disk?: Disco;
@@ -629,8 +642,14 @@ export interface Saude {
   users?: { error?: string; warnings?: string[] };
   // `total` some antes de alguma câmera ligar o alerta; `warnings` são os
   // problemas da seção alerts do dwnvr.yaml, que valem sem câmera nenhuma; e
-  // `dropped` só vem durante um episódio de descarte.
-  alerts?: { total?: number; warnings?: string[]; dropped?: DescarteDosAlertas };
+  // `dropped` só vem durante um episódio de descarte, e `failing`, com algum
+  // meio falhando.
+  alerts?: {
+    total?: number;
+    warnings?: string[];
+    dropped?: DescarteDosAlertas;
+    failing?: MeioFalhando[];
+  };
 }
 
 // --- o servidor (card "Este servidor" do Diagnóstico)
@@ -717,7 +736,18 @@ export interface Servidor {
   // Só com a seção smtp no dwnvr.yaml; sem o login e sem a senha. `error` é o
   // motivo de o e-mail estar desligado.
   smtp?: { host?: string; port?: number; security?: string; from?: string; error?: string };
+  // Só com meio do alerta e alguma câmera com o alerta ligado. `ultimo` some
+  // antes do primeiro envio, e `erro`, com o último envio tendo dado certo.
+  alertas?: MeioDoAlerta[];
   log?: { total: number; linhas: LinhaDoLog[] };
+}
+
+export interface MeioDoAlerta {
+  nome: string;
+  enviados: number;
+  falhas: number;
+  ultimo?: string;
+  erro?: string;
 }
 
 // --- gravações

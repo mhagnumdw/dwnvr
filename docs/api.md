@@ -173,7 +173,7 @@ cair, mas não abre outra.
 | `POST /api/go2rtc/restart` | - | **só admin**: reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
 | `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes, relógio, o problema da seção `smtp` e, com alerta ligado, o total de alertas |
 | `POST /api/reconnects/reset` | - | **só admin**: zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
-| `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos, servidor de e-mail e últimos avisos do log |
+| `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos, servidor de e-mail, envios do alerta e últimos avisos do log |
 | `POST /api/email/teste` | `{"to"}` | **só admin**: manda um e-mail de teste para o endereço, pela seção `smtp` |
 | `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
@@ -412,6 +412,20 @@ Aviso amarelo do card Avisos.
 }
 ```
 
+Com um meio falhando, o `failing` traz um item por meio, com o `name`, o
+`since` (a primeira falha desde o último envio que deu certo) e o `error` da
+falha mais recente. Some no primeiro envio que der certo. É dele que sai o
+Aviso vermelho do card Avisos.
+
+```json
+"alerts": {
+  "total": 52,
+  "failing": [
+    { "name": "email", "since": "2026-10-27T13:58:04-03:00", "error": "dial tcp 142.250.0.108:587: connect: connection timed out" }
+  ]
+}
+```
+
 A seção `alerts` do `dwnvr.yaml` com problema (ver
 [Alerta por e-mail](configuracao.md#alerta-por-e-mail)) põe os `warnings` no
 mesmo `alerts`, para o card Avisos e o sino, mesmo sem câmera com alerta, e
@@ -525,6 +539,9 @@ sem cgroup, fora do Linux).
     "host": "smtp.gmail.com", "port": 587, "security": "starttls",
     "from": "dwnvr <dwnvr.exemplo@gmail.com>"
   },
+  "alertas": [
+    { "nome": "email", "enviados": 47, "falhas": 9, "ultimo": "2026-10-02T17:44:37-03:00", "erro": "dial tcp 142.250.0.108:587: connect: connection timed out" }
+  ],
   "log": {
     "total": 37,
     "linhas": [{ "em": "2026-09-22T18:37:12-03:00", "nivel": "WARN", "texto": "conexão caiu cam=garagem erro=EOF" }]
@@ -553,6 +570,9 @@ sem cgroup, fora do Linux).
 - `smtp` só vem com a seção `smtp` no `dwnvr.yaml`, sem o login e sem a senha.
   Não há sonda: conferir o servidor de e-mail é mandar um, e para isso existe o
   `POST /api/email/teste`. Com a seção recusada, traz o `error`.
+- `alertas` são os envios de cada meio do alerta desde que o dwnvr subiu, e só
+  vêm com meio configurado e alguma câmera com o alerta ligado. `ultimo` é a
+  tentativa mais recente e some antes da primeira; `erro` vem só se ela falhou.
 - `pressao` é o PSI do kernel: a porcentagem do tempo em que alguma tarefa
   (`some`) ou todas (`full`) ficaram paradas esperando CPU, memória ou disco,
   em média de 10, 60 e 300 segundos.
