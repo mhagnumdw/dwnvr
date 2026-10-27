@@ -728,9 +728,10 @@ O `email` é um endereço só, sem nome na frente, e é **único** entre as
 pessoas, sem diferença de maiúscula e minúscula: e-mail inválido ou de outra
 pessoa é `400`. O `POST /api/usuarios/email` devolve `{"user": {...}}` e vale
 mesmo com o e-mail desligado, porque guardar não envia nada. Um e-mail
-escrito errado à mão no `usuarios.json` vira aviso no log e não vem na
-listagem, mas continua no arquivo. O `emailEnabled` diz se a seção `smtp` está
-ligada; sem ela, a tela esconde o que é de e-mail.
+escrito errado à mão no `usuarios.json` vira aviso no log e no `/api/health`
+e não vem na listagem, mas continua no arquivo. O `emailEnabled` diz se a
+seção `smtp` está ligada; sem ela, a tela esconde o "Enviar por e-mail" e avisa,
+onde o e-mail é escrito, que o link não vai por e-mail.
 
 O `POST /api/usuarios/link/email` recebe o link do jeito que a tela o mostra,
 porque o servidor não sabe por qual endereço é acessado: a tela o monta com o

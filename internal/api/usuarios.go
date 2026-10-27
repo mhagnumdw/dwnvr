@@ -125,7 +125,8 @@ func (s *Server) handleUsuarios(w http.ResponseWriter, r *http.Request) {
 		"maxNameLength":     usuarios.TamanhoMaximoDoNome,
 		"maxUsernameLength": usuarios.TamanhoMaximoDoUsuario,
 		"maxEmailLength":    usuarios.TamanhoMaximoDoEmail,
-		// Sem a seção smtp ligada, a tela esconde o que é de e-mail.
+		// Sem a seção smtp ligada, a tela esconde o envio por e-mail. O
+		// e-mail da pessoa ela mostra igual, porque serve para entrar.
 		"emailEnabled": s.envio != nil,
 	}
 	if !s.cfg.Server.AuthEnabled() {

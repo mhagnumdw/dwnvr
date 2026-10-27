@@ -318,8 +318,10 @@ smtp:
 
 Com esta seção, o dwnvr envia e-mail: hoje, o link de definir a senha, que o
 admin manda da tela Usuários direto para a pessoa. Sem ela, o dwnvr não abre
-conexão nenhuma, e a tela não mostra nada de e-mail. Serve qualquer provedor
-que fale SMTP.
+conexão nenhuma, e a tela não mostra o "Enviar por e-mail" nem o teste do
+Diagnóstico. O e-mail da pessoa se cadastra do mesmo jeito, porque serve para
+entrar (ver [O login](api.md#o-login)), e a tela avisa que o link não vai por
+e-mail. Serve qualquer provedor que fale SMTP.
 
 | Campo | O que é | Sem escrever |
 | --- | --- | --- |
