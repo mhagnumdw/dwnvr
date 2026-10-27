@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/alerta"
 	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/email"
@@ -404,11 +405,20 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	// Do alerta vai o total desde que o dwnvr subiu, que some enquanto nenhuma
 	// câmera ligou o alerta: o alerta em si fica gravado na detecção, e se vê
-	// em Detecções. E os avisos da seção alerts do dwnvr.yaml, para o card
-	// Avisos, que valem mesmo sem câmera com alerta: são da configuração.
+	// em Detecções. Com um episódio de descarte valendo, os alertas que não
+	// saíram pelos meios, para o Aviso amarelo. E os avisos da seção alerts do
+	// dwnvr.yaml, para o card Avisos, que valem mesmo sem câmera com alerta:
+	// são da configuração.
 	alerts := map[string]any{}
 	if c := s.mgr.Alertas(); c != nil {
 		alerts["total"] = c.Total()
+		if d, ok := c.Descartes(); ok {
+			alerts["dropped"] = map[string]any{
+				"queueFull": d.FilaCheia, "overLimit": d.AcimaDoTeto,
+				"limitPerHour": alerta.AlertasPorHora,
+				"since":        d.Desde, "lastAt": d.Ultimo,
+			}
+		}
 	}
 	if av := s.cfg.Alerts.Email.Avisos; len(av) > 0 {
 		alerts["warnings"] = av

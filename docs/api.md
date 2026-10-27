@@ -395,6 +395,23 @@ o alerta seja desligado, e não vem antes:
 Os alertas em si ficam gravados na detecção, e se leem no `GET /api/deteccoes`
 (`alert` e `alertAreas` em cada objeto, e o filtro `alert=1`).
 
+Com algum meio de envio configurado, o alerta que não sai é descartado e
+contado: `queueFull` não coube na fila de envio, e `overLimit` passou do teto
+de `limitPerHour` (ver [O alerta](deteccao.md#o-alerta)). O `dropped` vem
+enquanto o episódio vale, até uma hora depois do último descarte (`lastAt`);
+o descarte seguinte começa outro, com a contagem do zero. É dele que sai o
+Aviso amarelo do card Avisos.
+
+```json
+"alerts": {
+  "total": 52,
+  "dropped": {
+    "queueFull": 0, "overLimit": 12, "limitPerHour": 15,
+    "since": "2026-10-27T14:02:10-03:00", "lastAt": "2026-10-27T14:07:31-03:00"
+  }
+}
+```
+
 A seção `alerts` do `dwnvr.yaml` com problema (ver
 [Alerta por e-mail](configuracao.md#alerta-por-e-mail)) põe os `warnings` no
 mesmo `alerts`, para o card Avisos e o sino, mesmo sem câmera com alerta, e

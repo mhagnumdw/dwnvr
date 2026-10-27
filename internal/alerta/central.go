@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/mhagnumdw/dwnvr/internal/limite"
 )
 
 // Central recebe os alertas de todas as câmeras, conta, põe no log e os
@@ -18,20 +20,46 @@ import (
 // configurado ou sem.
 //
 // Recebe é chamado da goroutine da fila do detector de objetos e nunca espera:
-// o que pode esperar é o envio, na goroutine do Roda. Sem meio, não há espera
-// nem goroutine de envio.
+// o que pode esperar é o envio, na goroutine do Roda. Sem meio, não há espera,
+// teto nem goroutine de envio.
 type Central struct {
 	log   *slog.Logger
 	meios []Notificador
+	agora func() time.Time
 
-	// espera leva o alerta à goroutine de envio. Nil sem meio.
+	// espera leva o alerta à goroutine de envio, e teto decide se ele entra
+	// nela. Nil sem meio.
 	espera chan Alerta
+	teto   limite.Limitador
 
-	total, descartados atomic.Int64
+	total atomic.Int64
 
-	mu      sync.Mutex
-	estados []EstadoDoMeio
+	mu       sync.Mutex
+	estados  []EstadoDoMeio
+	descarte Descarte
 }
+
+// chaveDoTeto é a única chave do teto: ele vale para a instalação inteira, e
+// não por câmera, porque protege a conta de e-mail.
+const chaveDoTeto = "alertas"
+
+// Descarte é um episódio de alertas que não saíram pelos meios: começa no
+// primeiro descarte e acaba AvisoDoDescarteDura depois do último. É dele que
+// sai o Aviso do alerta que não saiu. Os alertas seguem gravados na detecção.
+type Descarte struct {
+	// FilaCheia são os que não couberam na espera, com o envio lento ou
+	// travado; AcimaDoTeto, os que passaram do AlertasPorHora.
+	FilaCheia, AcimaDoTeto int64
+	Desde, Ultimo          time.Time
+}
+
+// motivoDoDescarte diz por que o alerta não saiu, no log.
+type motivoDoDescarte string
+
+const (
+	filaCheia   motivoDoDescarte = "a fila de envio encheu"
+	acimaDoTeto motivoDoDescarte = "passou do teto de alertas por hora"
+)
 
 // EstadoDoMeio é o que se sabe dos envios de um meio desde que o dwnvr subiu.
 // É dele que sai o Aviso de meio falhando.
@@ -48,9 +76,10 @@ type EstadoDoMeio struct {
 // NovaCentral nasce com a primeira câmera que liga o alerta: quem nunca liga
 // não paga nada.
 func NovaCentral(meios []Notificador, log *slog.Logger) *Central {
-	c := &Central{log: log, meios: meios}
+	c := &Central{log: log, meios: meios, agora: time.Now}
 	if len(meios) > 0 {
 		c.espera = make(chan Alerta, AlertasNaEspera)
+		c.teto = limite.NovoGCRAACada(time.Hour/AlertasPorHora, RajadaDeAlertas)
 		c.estados = make([]EstadoDoMeio, len(meios))
 		for i, m := range meios {
 			c.estados[i].Nome = m.Nome()
@@ -59,9 +88,9 @@ func NovaCentral(meios []Notificador, log *slog.Logger) *Central {
 	return c
 }
 
-// Recebe conta o alerta, põe no log e o põe na espera dos meios. Com a espera
-// cheia, o alerta é descartado e contado: ele já está gravado na detecção, e
-// esperar aqui pararia as olhadas de todas as câmeras.
+// Recebe conta o alerta, põe no log e o põe na espera dos meios. Acima do teto,
+// ou com a espera cheia, o alerta é descartado e contado: ele já está gravado
+// na detecção, e esperar aqui pararia as olhadas de todas as câmeras.
 func (c *Central) Recebe(a Alerta) {
 	c.total.Add(1)
 	attrs := []any{"cam", a.Camera, "familias", familiasDe(a), "objetos", len(a.Objetos)}
@@ -73,10 +102,37 @@ func (c *Central) Recebe(a Alerta) {
 	if c.espera == nil {
 		return
 	}
+	if !c.teto.Permite(chaveDoTeto).Permitido {
+		c.descarta(acimaDoTeto)
+		return
+	}
 	select {
 	case c.espera <- a:
 	default:
-		c.descartados.Add(1)
+		c.descarta(filaCheia)
+	}
+}
+
+// descarta conta o alerta que não saiu no episódio de agora, ou começa outro
+// quando o último descarte já passou do AvisoDoDescarteDura. Só o primeiro de
+// cada episódio vai ao log: numa rajada, seria uma linha por alerta.
+func (c *Central) descarta(motivo motivoDoDescarte) {
+	agora := c.agora()
+	c.mu.Lock()
+	d := &c.descarte
+	novo := d.Ultimo.IsZero() || agora.Sub(d.Ultimo) > AvisoDoDescarteDura
+	if novo {
+		*d = Descarte{Desde: agora}
+	}
+	if motivo == filaCheia {
+		d.FilaCheia++
+	} else {
+		d.AcimaDoTeto++
+	}
+	d.Ultimo = agora
+	c.mu.Unlock()
+	if novo {
+		c.log.Warn("alertas deixaram de sair pelos meios", "motivo", string(motivo))
 	}
 }
 
@@ -143,8 +199,18 @@ func (c *Central) envia(ctx context.Context, a Alerta) {
 // /api/health leva.
 func (c *Central) Total() int64 { return c.total.Load() }
 
-// Descartados são os alertas que não couberam na espera dos meios.
-func (c *Central) Descartados() int64 { return c.descartados.Load() }
+// Descartes devolve o episódio de descarte que ainda vale, e falso quando não
+// há nenhum: nunca houve, ou o último descarte passou do AvisoDoDescarteDura.
+func (c *Central) Descartes() (Descarte, bool) {
+	agora := c.agora()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	d := c.descarte
+	if d.Ultimo.IsZero() || agora.Sub(d.Ultimo) > AvisoDoDescarteDura {
+		return Descarte{}, false
+	}
+	return d, true
+}
 
 // Meios devolve o estado de cada meio, na ordem em que foram construídos.
 func (c *Central) Meios() []EstadoDoMeio {

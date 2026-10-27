@@ -884,6 +884,16 @@ aceita 500 por dia numa conta comum (ver o `docs/configuracao.md`), e a mesma
 conta manda o link de definir a senha: o número sai dessa conta, com o motivo
 ao lado. O que passa dele é descartado e contado.
 
+Feito em 27/10/2026: um ritmo com rajada, e não "no máximo N por hora"
+(decisão do mantenedor): depois de `RajadaDeAlertas` (20) seguidos, passa um a
+cada 4 min (`AlertasPorHora`, 15), e quem chega meia hora depois de uma rajada
+ainda gera e-mail. O pior dia é 20 + 15 × 24 = 380, contra as 500 mensagens
+por dia do Gmail, contadas por mensagem e não por destinatário (conferido na
+página do Google). O teto é o GCRA do `internal/limite`, o mesmo do login, que
+ganhou o `NovoGCRAACada` para um ritmo por hora, com uma chave só para a
+instalação; a Central o recebe como `limite.Limitador`. Ele vale na entrada da
+espera, então o alerta acima do teto não ocupa lugar na fila.
+
 **O Aviso do alerta que não saiu** (decisão do mantenedor, 27/10/2026): o
 descarte por fila cheia (`AlertasNaEspera`, 32) e o do teto por hora viram um
 Aviso só, no card Avisos do Diagnóstico e no sino, como "12 alertas não saíram
@@ -947,7 +957,7 @@ sai igual.
 - [x] o anexo no `internal/email`, sem mudar a mensagem sem anexo
 - [x] o meio `email` no `Notificadores`, com teste de um `Enviador` falso (o SMTP de verdade, com o anexo, é testado no `internal/email`) e conferido no Mailpit
 - [x] o quadro com as caixas e a área desenhadas, medido
-- [ ] o teto por hora e o Aviso do alerta que não saiu
+- [x] o teto por hora e o Aviso do alerta que não saiu
 - [ ] o Aviso de meio falhando, e os números do meio
 - [ ] o bloco "Para onde vai" e o botão de teste, na aba Alerta
 - [ ] docs

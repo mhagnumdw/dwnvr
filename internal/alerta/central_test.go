@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/mhagnumdw/dwnvr/internal/limite"
 )
 
 func mudo() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -70,6 +72,7 @@ func (m *meioDeTeste) Envia(ctx context.Context, a Alerta) error {
 // todos.
 func TestMeioLentoNaoSeguraQuemRecebe(t *testing.T) {
 	c := NovaCentral([]Notificador{&meioDeTeste{}}, mudo())
+	c.teto = tetoDeTeste{passa: true} // só a espera pode descartar
 	// Sem o Roda, ninguém tira da espera: é o meio mais lento possível.
 	inicio := time.Now()
 	for i := range AlertasNaEspera + 5 {
@@ -78,8 +81,67 @@ func TestMeioLentoNaoSeguraQuemRecebe(t *testing.T) {
 	if d := time.Since(inicio); d > time.Second {
 		t.Errorf("o Recebe levou %v", d)
 	}
-	if c.Descartados() != 5 || c.Total() != AlertasNaEspera+5 {
-		t.Errorf("%d descartados e %d no total, esperava 5 e %d", c.Descartados(), c.Total(), AlertasNaEspera+5)
+	d, ok := c.Descartes()
+	if !ok || d.FilaCheia != 5 || d.AcimaDoTeto != 0 || c.Total() != AlertasNaEspera+5 {
+		t.Errorf("descarte %+v e %d no total, esperava 5 na fila cheia e %d", d, c.Total(), AlertasNaEspera+5)
+	}
+}
+
+// tetoDeTeste é um limite.Limitador que deixa passar tudo, ou nada.
+type tetoDeTeste struct{ passa bool }
+
+func (t tetoDeTeste) Permite(string) limite.Resultado { return limite.Resultado{Permitido: t.passa} }
+
+// TestTeto: o teto de verdade deixa passar a rajada inteira, e o seguinte é
+// descartado e contado, sem ocupar lugar na espera.
+func TestTeto(t *testing.T) {
+	c := NovaCentral([]Notificador{&meioDeTeste{}}, mudo())
+	for i := range RajadaDeAlertas + 1 {
+		c.Recebe(alertaDe(int64(i)))
+	}
+	d, ok := c.Descartes()
+	if !ok || d.AcimaDoTeto != 1 || d.FilaCheia != 0 || len(c.espera) != RajadaDeAlertas {
+		t.Errorf("descarte %+v e %d na espera, esperava 1 acima do teto e %d", d, len(c.espera), RajadaDeAlertas)
+	}
+	if c.Total() != RajadaDeAlertas+1 {
+		t.Errorf("total %d: o descartado também conta no registro", c.Total())
+	}
+}
+
+// TestEpisodioDoDescarte: os descartes somam no mesmo episódio enquanto o
+// último tiver menos de AvisoDoDescarteDura; depois disso o episódio some, e
+// o descarte seguinte começa outro, do zero. Só o primeiro de cada um vai ao
+// log.
+func TestEpisodioDoDescarte(t *testing.T) {
+	var log strings.Builder
+	c := NovaCentral([]Notificador{&meioDeTeste{}}, slog.New(slog.NewTextHandler(&log, nil)))
+	c.teto = tetoDeTeste{passa: false}
+	t0 := time.Date(2026, 10, 27, 14, 2, 0, 0, time.Local)
+	agora := t0
+	c.agora = func() time.Time { return agora }
+
+	c.Recebe(alertaDe(1))
+	agora = t0.Add(30 * time.Minute)
+	c.Recebe(alertaDe(2))
+	agora = agora.Add(AvisoDoDescarteDura)
+	d, ok := c.Descartes()
+	if !ok || d.AcimaDoTeto != 2 || !d.Desde.Equal(t0) || !d.Ultimo.Equal(t0.Add(30*time.Minute)) {
+		t.Fatalf("descarte %+v (%v), esperava 2 desde %v", d, ok, t0)
+	}
+	if n := strings.Count(log.String(), "alertas deixaram de sair"); n != 1 {
+		t.Errorf("%d linhas de log, esperava 1: %s", n, log.String())
+	}
+
+	agora = agora.Add(time.Second)
+	if d, ok := c.Descartes(); ok {
+		t.Fatalf("o episódio seguiu depois do AvisoDoDescarteDura: %+v", d)
+	}
+	c.Recebe(alertaDe(3))
+	if d, _ := c.Descartes(); d.AcimaDoTeto != 1 || !d.Desde.Equal(agora) {
+		t.Errorf("o episódio novo não começou do zero: %+v", d)
+	}
+	if n := strings.Count(log.String(), "alertas deixaram de sair"); n != 2 {
+		t.Errorf("%d linhas de log, esperava 2", n)
 	}
 }
 

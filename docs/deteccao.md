@@ -332,6 +332,14 @@ nem a espera nem a goroutine de envio nascem.
   da janela do pico, da fila e da olhada.
 - **A fila descarta:** numa câmera agitada, o pedaço que não cabe na fila vira
   só movimento, e não alerta.
+- **O envio tem teto:** depois de 20 alertas seguidos, passa um a cada 4
+  minutos (15 por hora), para a instalação inteira; o que vem antes disso não
+  é enviado, e um Aviso amarelo diz quantos e por quê. Protege a conta de
+  e-mail: o Gmail para de enviar depois de 500 mensagens num dia, e o pior dia
+  com o teto é 380. A fila de envio cheia, com o envio lento ou travado,
+  também descarta e entra no mesmo Aviso. O alerta que não saiu fica gravado
+  na detecção, como todos. Os números estão no
+  `internal/alerta/parametros.go`.
 - **Falso positivo vira alerta falso:** o que o modelo confunde com gente, num
   lugar novo, avisa. A área e as famílias são o freio.
 - **Depois de um reinício**, o objeto parado aparece uma vez como se tivesse

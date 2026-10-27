@@ -50,3 +50,27 @@ const (
 // quadros reais de 480×270, 85 deu ~25% a mais (de 24-43 KB para 30-54 KB)
 // sem diferença visível no traço nem na imagem, ampliada 4 vezes.
 const QualidadeDoQuadro = detect.QualidadeDoQuadro
+
+// AlertasPorHora e RajadaDeAlertas são o teto de envio dos meios, para a
+// instalação inteira: depois de RajadaDeAlertas seguidos, passa um alerta a
+// cada hora/AlertasPorHora (4 min), e o que vem antes disso é descartado e
+// contado. Um ritmo, e não "no máximo N por hora": depois de uma rajada, quem
+// chega meia hora depois ainda gera e-mail.
+//
+// O teto protege a conta de e-mail, porque o provedor bloqueia quem dispara
+// demais. Uma conta comum do Gmail envia até 500 mensagens por dia, contadas
+// por mensagem e não por destinatário (support.google.com/mail/answer/22839),
+// e a mesma conta manda o link de definir a senha. O pior dia com estes
+// números é 20 + 15 × 24 = 380, e sobram ~120 para o resto. Com 20 por hora,
+// o pior dia seria 500, no limite exato.
+const (
+	AlertasPorHora  = 15
+	RajadaDeAlertas = 20
+)
+
+// AvisoDoDescarteDura é quanto o Aviso do alerta que não saiu fica na tela
+// depois do último descarte. O descarte é um evento, e não um estado: sumindo
+// no envio seguinte, ele sairia em segundos, e o sino, que relê a cada 30 s,
+// podia nem acender. Um descarte depois disso começa outro episódio, com a
+// contagem do zero.
+const AvisoDoDescarteDura = time.Hour

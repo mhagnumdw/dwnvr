@@ -603,6 +603,17 @@ export interface Detector {
 // alguma câmera ligar o alerta, se a seção alerts não tem problema. `uptime`,
 // `clock` e `reconnectsWindowHours` faltam em servidor anterior a eles, para
 // onde a tela do `npm run dev` pode estar apontada.
+// Os alertas que não saíram pelos meios, num episódio que acaba uma hora
+// depois do último descarte: `queueFull` não couberam na fila de envio, e
+// `overLimit` passaram do teto de `limitPerHour`.
+export interface DescarteDosAlertas {
+  queueFull: number;
+  overLimit: number;
+  limitPerHour: number;
+  since: string;
+  lastAt: string;
+}
+
 export interface Saude {
   cameras: CameraNaSaude[];
   disk?: Disco;
@@ -617,8 +628,9 @@ export interface Saude {
   // `warnings`, as entradas que não valem.
   users?: { error?: string; warnings?: string[] };
   // `total` some antes de alguma câmera ligar o alerta; `warnings` são os
-  // problemas da seção alerts do dwnvr.yaml, que valem sem câmera nenhuma.
-  alerts?: { total?: number; warnings?: string[] };
+  // problemas da seção alerts do dwnvr.yaml, que valem sem câmera nenhuma; e
+  // `dropped` só vem durante um episódio de descarte.
+  alerts?: { total?: number; warnings?: string[]; dropped?: DescarteDosAlertas };
 }
 
 // --- o servidor (card "Este servidor" do Diagnóstico)
