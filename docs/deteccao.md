@@ -147,8 +147,9 @@ flowchart TD
 6. **A olhada.** O `dwnvr-detect` decodifica o pedaço, roda o modelo no último
    quadro e devolve as caixas.
 7. **A marca de objeto.** O dwnvr descarta classe fora das famílias, aplica o
-   corte de confiança e o rastreio, e grava no máximo uma marca por família,
-   no instante do onset.
+   corte de confiança e o rastreio, e grava uma marca por objeto que passou,
+   todas no instante do onset. Duas pessoas chegando juntas são duas marcas;
+   a timeline junta as duas numa chegada de `pessoa`.
 
 Todo objeto tem um movimento embaixo, mas nem todo movimento tem objeto.
 

@@ -768,8 +768,11 @@
       if (c !== cam || d !== day) return;
       const onsets = ev.onsets.filter((t) => t > ultimo);
       if (onsets.length) eventos = [...eventos, ...onsets];
-      // Uma olhada grava no máximo uma marca por família.
-      const chave = (o: ObjetoMarcado) => `${o.instanteMs}|${o.familia}`;
+      // Uma olhada grava uma linha por objeto, e duas da mesma família no
+      // mesmo instante só se distinguem pela caixa. Instante e família não
+      // bastam: a rodada que caísse entre as duas gravações perderia a segunda.
+      const chave = (o: ObjetoMarcado) =>
+        `${o.instanteMs}|${o.classe}|${o.score}|${o.caixa?.join(',') ?? ''}`;
       const conhecidos = new Set(objetos.map(chave));
       const novos = ev.objetos.filter((o) => !conhecidos.has(chave(o)));
       if (novos.length) objetos = [...objetos, ...novos];

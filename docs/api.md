@@ -565,7 +565,9 @@ da timeline desenha, e as marcas de objeto que o detector confirmou:
 Os `onsets` são números soltos, e não objetos, pela mesma razão que a timeline
 é compacta: um dia no nível mais sensível tem ~2.400 marcas, e a forma verbosa
 dobraria a resposta para dizer o mesmo. Os `objetos` são dezenas por dia, e vão
-com chave por extenso; o instante de cada um é o do onset que o originou.
+com chave por extenso; o instante de cada um é o do onset que o originou. É um
+por objeto: duas pessoas no mesmo quadro são dois itens de `pessoa` com o mesmo
+`instanteMs`, e a timeline junta os dois numa chegada.
 
 `quadroMs` e `caixa` dizem onde desenhar o objeto sobre o vídeo: `caixa` é
 X1, Y1, X2, Y2 em fração da imagem, de 0 a 1, e vale para o quadro de
@@ -625,9 +627,10 @@ entre um pedido e outro.
 ```
 
 Uma **detecção** é uma olhada do detector numa câmera: o instante do onset e
-tudo o que ele achou naquele quadro. Pessoa e carro no mesmo quadro são duas
-marcas no `eventos/{dia}.ndjson`, mas uma detecção só, com dois objetos. O
-filtro de família tira objetos, e a detecção que fica sem nenhum sai da página.
+tudo o que ele achou naquele quadro. Duas pessoas e um carro no mesmo quadro
+são três marcas no `eventos/{dia}.ndjson`, mas uma detecção só, com três
+objetos. O filtro de família tira objetos, e a detecção que fica sem nenhum
+sai da página.
 `caixa` e `quadroMs` são os mesmos de `/api/rec/events`.
 
 O próximo cursor é o `instanteMs` da última detecção da página. A página **não
