@@ -930,15 +930,11 @@ Alertas saiu em 23/10/2026; ver a Etapa 3):
 1. **Os números do meio** (enviados, falhas e o último resultado) ficam no card
    Este servidor do Diagnóstico, junto do e-mail que o #50 já mostra lá, só
    para o admin. Os descartados vão no Aviso acima.
-2. **O botão "Enviar um alerta de teste" fica na aba Alerta**, dentro do bloco
-   "Para onde vai", abaixo dos endereços (`POST /api/alertas/teste`). Manda o
-   quadro de agora da câmera para a lista, com "[teste]" no assunto; não vira
-   alerta nem marca nada em Detecções. O resultado aparece embaixo do botão:
-   "Enviado às 14:32 para 2 endereços" ou a resposta do servidor do jeito que
-   ela veio. Numa câmera ainda não salva ele fica desligado ("Salve a câmera
-   para testar"); sem lista ou sem e-mail ele não aparece. A alternativa, no
-   card Este servidor, pedia escolher a câmera e ficava longe de onde se
-   configura o alerta.
+2. **O botão "Enviar um alerta de teste" ficou para depois** (decisão do
+   mantenedor, 27/10/2026: preciosismo para o momento). Ele foi desenhado, e o
+   desenho mora em
+   [`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md). Até lá, o envio se
+   confere pelo "Testar o e-mail" do card Este servidor.
 3. **A aba Alerta mostra para onde vai**, num bloco "Para onde vai" que troca
    a frase fixa de hoje ("O envio por e-mail ainda não existe"): "Por e-mail,
    para 2 endereços", com os endereços (a aba é só do admin); "Só fica
@@ -967,7 +963,7 @@ sai igual.
 - [x] o quadro com as caixas e a área desenhadas, medido
 - [x] o teto por hora e o Aviso do alerta que não saiu
 - [x] o Aviso de meio falhando, e os números do meio
-- [ ] o bloco "Para onde vai" e o botão de teste, na aba Alerta
+- [ ] o bloco "Para onde vai", na aba Alerta (o botão de teste foi para o [`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md))
 - [ ] docs
 
 ## Depois
