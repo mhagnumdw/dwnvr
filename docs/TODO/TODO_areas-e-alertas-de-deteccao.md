@@ -8,8 +8,7 @@ de teste dela foi adiado para o
 que era o último item da Etapa 3, virou a Etapa 6 em 28/10/2026, agora com o
 e-mail.
 
-**Próximo passo:** a regra en-US do `AGENTS.md` para a `main`, em
-[Ir para a main](#ir-para-a-main), onde a Etapa 0 já foi; depois, a
+**Próximo passo:** a
 [Etapa 6](#etapa-6---o-teste-na-instalação-de-teste), com a lista da
 [Etapa 7](#etapa-7---o-que-conferir-no-uso-real) em mãos. O resto da branch
 deve ir para a `main`, mas só depois do teste na instalação de teste (ver
@@ -994,15 +993,16 @@ em 28/10/2026, com a recomendação.
   no #52 (`2c3a388`), em 28/10/2026, sem o trecho deste plano e com os
   comentários do recorder falando das caixas, e não do filtro por área, que lá
   ainda não existe.
-- [ ] **A regra de chave e valor novos em en-US no `AGENTS.md`**, a parte de
-  regra do `7cfb0cb`, junto do `e243f79` (o `dist` vai com a remoção dos
-  assets antigos). Só docs.
-- [ ] **O filtro por área, Etapas 1 e 2**: `04f6f5f`, `d0b6f77`, `63b5906`,
-  `64d26b2`, `c4ed484` e `8526b03`, ~3 mil linhas. Não depende do alerta, e é
+- [x] **A regra de chave e valor novos em en-US no `AGENTS.md`**, junto da
+  frase do `dist` que vai com a remoção dos assets antigos. Foi direto para a
+  `main` em `a7c1436`, em 28/10/2026; o commit da regra na branch ficou só com
+  o TODO, e o do `dist` saiu.
+- [ ] **O filtro por área, Etapas 1 e 2**: `c6a2c0d`, `25c0f4c`, `a79b2bc`,
+  `e4160be`, `7829ff0` e `7bb5ff5`, ~3 mil linhas. Não depende do alerta, e é
   o que mais diminui o PR; não é pequeno. Recomendado depois do teste da
   Etapa 6.
-- [ ] **O anexo no `internal/email` (`2d7e069`) e o `NovoGCRAACada`
-  (`846bef6`)**: pequenos, mas na `main` ficariam sem uso até o alerta chegar.
+- [ ] **O anexo no `internal/email` (`a452125`) e o `NovoGCRAACada`
+  (`24e772b`)**: pequenos, mas na `main` ficariam sem uso até o alerta chegar.
   Não recomendado.
 
 **O cuidado:** esses commits também mudam este arquivo. Na ida à `main`, ou o
