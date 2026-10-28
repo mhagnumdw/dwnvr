@@ -401,8 +401,9 @@ smtp:
   password: troque-me
 ```
 
-Com esta seção, o dwnvr envia e-mail: hoje, o link de definir a senha, que o
-admin manda da tela Usuários direto para a pessoa. Sem ela, o dwnvr não abre
+Com esta seção, o dwnvr envia e-mail: o link de definir a senha, que o admin
+manda da tela Usuários direto para a pessoa, e o alerta de detecção, para a
+lista de [Alerta por e-mail](#alerta-por-e-mail). Sem ela, o dwnvr não abre
 conexão nenhuma, e a tela não mostra o "Enviar por e-mail" nem o teste do
 Diagnóstico. O e-mail da pessoa se cadastra do mesmo jeito, porque serve para
 entrar (ver [O login](api.md#o-login)), e a tela avisa que o link não vai por
@@ -498,3 +499,22 @@ no sino do header, e vão também para o log:
 ```text
 alertas por e-mail: alerts.email.to "Fulano <fulano@exemplo.com>" não é um endereço de e-mail e ficou de fora da lista arquivo=/etc/dwnvr/dwnvr.yaml
 ```
+
+O `dwnvr.yaml` só é lido quando o dwnvr sobe: a lista nova vale depois de
+reiniciá-lo.
+
+Para conferir, o bloco **Para onde vai**, no fim da aba Alerta da câmera,
+diz se o alerta sai por e-mail e para quem, ou, se não sai, o que falta no
+`dwnvr.yaml`. Não há um teste do alerta: o **Testar o e-mail** do card Este
+servidor confere a seção `smtp`. Depois que alguma câmera liga o alerta:
+
+- **o envio que falha** vira um Aviso vermelho, com desde quando e o erro do
+  servidor, no card Avisos e no sino, e aparece também no "Para onde vai".
+  Ele some no primeiro envio que der certo;
+- **o alerta que não saiu**, acima do teto de envio ou com a fila de envio
+  cheia, vira um Aviso amarelo, que diz quantos e por quê, e some uma hora
+  depois do último. Ele continua gravado em Detecções. O teto protege a conta
+  de e-mail do limite diário do provedor (ver
+  os limites em [O alerta](deteccao.md#o-alerta));
+- **os números do envio** (enviados, falhas e o último resultado) ficam no
+  grupo **Alertas por e-mail** do card Este servidor.

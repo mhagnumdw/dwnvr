@@ -359,9 +359,10 @@ O alerta vai para o log do dwnvr e fica marcado na detecção: na aba
 em que o objeto caiu. Com a lista `alerts.email.to` e a seção `smtp` do
 `dwnvr.yaml`, ele também chega por e-mail, com o quadro anexo, já com as caixas
 e as áreas desenhadas (ver
-[`docs/configuracao.md`](docs/configuracao.md#alerta-por-e-mail)). E ele avisa
-do que a detecção marcar, que não é toda chegada: não é alarme. Os limites
-estão em [`docs/deteccao.md`](docs/deteccao.md#o-alerta).
+[`docs/configuracao.md`](docs/configuracao.md#alerta-por-e-mail)); o bloco
+**Para onde vai**, no fim da aba Alerta, diz se ele sai por e-mail e para
+quem. E ele avisa do que a detecção marcar, que não é toda chegada: não é
+alarme. Os limites estão em [`docs/deteccao.md`](docs/deteccao.md#o-alerta).
 
 ## Atualizar
 
