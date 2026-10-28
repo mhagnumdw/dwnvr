@@ -1,16 +1,18 @@
 # TODO - áreas na imagem, filtro por área e alertas de detecção
 
 Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
-Etapas 0, 1, 2, 4 e 5 feitas**, na branch `areas-e-alertas`; da 1, falta só a
-medição no hardware de referência. **A Etapa 3 está feita, menos a
-instalação de teste:** o campo `alert`, o `internal/alerta`, a aba Alerta, a
-marca gravada na detecção e o "só alertas" em Detecções. A Etapa 5 (o
-e-mail) fechou em 28/10/2026; o botão de teste dela foi adiado para o
-[`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md).
+Etapas 0 a 5 feitas**, na branch `areas-e-alertas`; da 1, falta só a medição
+no hardware de referência. A Etapa 5 (o e-mail) fechou em 28/10/2026; o botão
+de teste dela foi adiado para o
+[`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md). A instalação de teste,
+que era o último item da Etapa 3, virou a Etapa 6 em 28/10/2026, agora com o
+e-mail.
 
-**Próximo passo:** a instalação de teste da Etapa 3, com detecções reais, que
-agora inclui o e-mail. Por ora o mantenedor segue desenvolvendo e testando na
-bancada local. Ir para a `main` segue em aberto (ver
+**Próximo passo:** decidir o que vai logo para a `main`, em
+[Ir para a main](#ir-para-a-main); depois, a
+[Etapa 6](#etapa-6---o-teste-na-instalação-de-teste), com a lista da
+[Etapa 7](#etapa-7---o-que-conferir-no-uso-real) em mãos. O resto da branch
+deve ir para a `main`, mas só depois do teste na instalação de teste (ver
 [Como entregar](#como-entregar)).
 
 São quatro pedidos, e um se apoia no outro:
@@ -33,9 +35,13 @@ Tudo com a interface pensada para o celular e para o desktop.
 - [x] [Etapa 0 - toda caixa que virou marca fica gravada](#etapa-0---toda-caixa-que-virou-marca-fica-gravada)
 - [x] [Etapa 1 - filtrar Detecções por uma área desenhada na hora](#etapa-1---filtrar-detecções-por-uma-área-desenhada-na-hora), menos a medição no hardware de referência
 - [x] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
-- [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro), menos a instalação de teste
+- [x] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro)
 - [x] [Etapa 4 - os horários do alerta](#etapa-4---os-horários-do-alerta)
 - [x] [Etapa 5 - o e-mail](#etapa-5---o-e-mail)
+- [ ] [Ir para a main](#ir-para-a-main), o que já pode ir antes do resto
+- [ ] [Etapa 6 - o teste na instalação de teste](#etapa-6---o-teste-na-instalação-de-teste)
+- [ ] [Etapa 7 - o que conferir no uso real](#etapa-7---o-que-conferir-no-uso-real)
+- [ ] [Pendências](#pendências)
 
 ## Decisões do mantenedor
 
@@ -137,7 +143,10 @@ flowchart LR
     e2 --> e3["Etapa 3<br>o alerta"]
     e3 --> e4["Etapa 4<br>os horários"]
     e4 --> e5["Etapa 5<br>o e-mail"]
-    e5 -.-> depois["depois<br>cada pessoa escolhe<br>outros meios"]
+    e5 --> main["ir para a main<br>o que já pode ir"]
+    main --> e6["Etapa 6<br>na instalação<br>de teste"]
+    e6 --> e7["Etapa 7<br>o que conferir<br>no uso real"]
+    e7 -.-> depois["depois<br>cada pessoa escolhe<br>outros meios"]
 ```
 
 **Começar pelo filtro de uma área desenhada na hora, a ideia do mantenedor, é
@@ -700,8 +709,10 @@ desligado.
   viewer também recebe (decisão do mantenedor, 23/10/2026)
 - [x] o botão "só alertas" em Detecções e o bloco "alertou" na folha, também
   para o viewer, que passa a receber o `alert.enabled`
-- [ ] na instalação de teste, por deploy manual, com detecções reais: adiada
-  (decisão do mantenedor, 23/10/2026), por ora segue na bancada local
+- [x] ~~na instalação de teste, por deploy manual, com detecções reais~~:
+  adiada em 23/10/2026 e levada em 28/10/2026 para a
+  [Etapa 6](#etapa-6---o-teste-na-instalação-de-teste), que testa as Etapas 3
+  a 5 juntas (decisão do mantenedor)
 - [x] docs
 
 ## Etapa 4 - os horários do alerta
@@ -971,6 +982,222 @@ sai igual.
 - [x] o Aviso de meio falhando, e os números do meio
 - [x] o bloco "Para onde vai", na aba Alerta (o botão de teste foi para o [`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md))
 - [x] docs, em 28/10/2026: a seção Alerta por e-mail do `docs/configuracao.md` (com como conferir), os limites e os números do alerta no `docs/deteccao.md`, e o "Para onde vai" no `README.md`
+
+## Ir para a main
+
+Para diminuir o PR da branch: o que já funciona sem o alerta vai antes para a
+`main`, cada um num commit próprio (pedido do mantenedor, 28/10/2026). O que
+vai e como se decide numa conversa à parte; abaixo, os candidatos levantados
+em 28/10/2026, com a recomendação.
+
+- [ ] **A Etapa 0**, `afbc8f0` (uma linha por objeto que virou marca). Não
+  depende de nada da branch, e o mantenedor já a viu na instalação de teste
+  desde 20/10/2026. A candidata mais forte.
+- [ ] **A regra de chave e valor novos em en-US no `AGENTS.md`**, a parte de
+  regra do `c6b6b77`, junto do `34a2c95` (o `dist` vai com a remoção dos
+  assets antigos). Só docs.
+- [ ] **O filtro por área, Etapas 1 e 2**: `fc711f4`, `0ff0e7e`, `26e11ac`,
+  `cc8805f`, `25b2ba3` e `8b103c9`, ~3 mil linhas. Não depende do alerta, e é
+  o que mais diminui o PR; não é pequeno. Recomendado depois do teste da
+  Etapa 6.
+- [ ] **O anexo no `internal/email` (`d2febc2`) e o `NovoGCRAACada`
+  (`447359c`)**: pequenos, mas na `main` ficariam sem uso até o alerta chegar.
+  Não recomendado.
+
+**O cuidado:** esses commits também mudam este arquivo. Na ida à `main`, ou o
+trecho deste plano sai deles, ou o plano vai junto. Depois de cada um entrar,
+a branch se rebaseia sobre a `main`.
+
+## Etapa 6 - o teste na instalação de teste
+
+**O que muda para quem usa:** nada de novo. As Etapas 0 a 5 deixam a bancada
+local e passam a rodar com câmeras e detecções reais, com o e-mail saindo de
+verdade. Era o último item da Etapa 3, adiado em 23/10/2026 e trazido para cá
+em 28/10/2026 (decisão do mantenedor).
+
+**Como:**
+
+1. A branch na instalação de teste por `make deploy-wip`. Ela se atualiza pela
+   `main`, e a branch só chega lá à mão.
+2. O mantenedor põe `alerts.email.to` no `dwnvr.yaml` de lá; a seção `smtp`
+   já existe.
+3. Áreas e alerta ligados em uma ou duas câmeras, de começo só com `pessoa`.
+4. Alguns dias de uso, conferindo a lista da
+   [Etapa 7](#etapa-7---o-que-conferir-no-uso-real).
+
+**Para voltar:** `make deploy` sobe a imagem da `main`. Ela ignora a seção
+`alerts` do `dwnvr.yaml` e sobe normal, mas **salvar uma câmera por ela apaga
+as áreas e o alerta dessa câmera**, porque não conhece os campos (a ressalva
+da Etapa 2). Antes de voltar, uma cópia do `cameras.json`.
+
+- [ ] a branch na instalação de teste, por `make deploy-wip`
+- [ ] `alerts.email.to` no `dwnvr.yaml` de lá
+- [ ] áreas e alerta ligados nas câmeras escolhidas
+- [ ] a [Etapa 7](#etapa-7---o-que-conferir-no-uso-real) conferida
+
+## Etapa 7 - o que conferir no uso real
+
+Cada pequena feature das Etapas 0 a 5, para marcar durante o teste da
+[Etapa 6](#etapa-6---o-teste-na-instalação-de-teste). "Celular" é retrato e
+deitado; "viewer" é entrar com um usuário que não é admin.
+
+### Detecções: as caixas
+
+- [ ] duas pessoas no mesmo quadro aparecem com as duas caixas na miniatura,
+  na folha e sobre o vídeo de Gravações (Etapa 0)
+- [ ] na timeline, as duas seguem um ícone só de pessoa, numa faixa só
+- [ ] a cauda de Gravações, com a página aberta, não perde a segunda caixa
+  da mesma família
+
+### Detecções: a área desenhada na hora
+
+- [ ] o botão de área na barra pede a câmera e abre o quadro da detecção mais
+  recente dela (ou o do último segmento, sem detecção)
+- [ ] o "filtrar por área" na folha desenha sobre aquele quadro
+- [ ] o editor: um toque por vértice, tocar no primeiro fecha, arrastar o
+  vértice, desfazer e limpar
+- [ ] o editor no celular, em tela cheia e deitado, com os controles à
+  direita; no desktop, em modal
+- [ ] a regra `encosta` × `pisa`, com `pisa` de padrão, separando a pessoa
+  que só aparece por cima da área
+- [ ] o chip da área na barra: tocar reabre o editor e o ✕ limpa; com o
+  intervalo de horário ligado, os dois chips dividem a linha no celular
+- [ ] a área restringe só a câmera dela; as outras marcadas seguem inteiras,
+  e desmarcar a câmera dela a tira da lista
+- [ ] o contorno tracejado da área nas miniaturas e na folha
+- [ ] o calendário segue a área
+- [ ] o link colado em outra aba mostra a mesma lista
+- [ ] área côncava (em L), caixa que só encosta na borda, área do tamanho da
+  imagem (dá o mesmo que sem filtro)
+- [ ] o viewer também filtra por área
+
+### Detecções: as áreas cadastradas
+
+- [ ] o popover por câmera lista as áreas dela, mais "desenhar"
+- [ ] várias áreas somam, e a desenhada soma junto
+- [ ] o chip diz "Portão · câmera" com uma, "N áreas" com várias
+- [ ] renomear a área segue valendo no link; apagar tira a área do link
+- [ ] "salvar na câmera", só para o admin, grava a área desenhada e passa o
+  filtro a apontar para ela
+- [ ] no editor de Detecções, as áreas que a câmera já tem aparecem em cinza
+
+### Detecções: o que alertou
+
+- [ ] o botão "só alertas" (o sino) soma com os outros filtros e vai no link
+- [ ] sem ele, a miniatura que alertou ganha o sino no selo
+- [ ] com ele, o contorno das áreas do alerta, o nome da área na legenda e a
+  caixa que não entrou no alerta tracejada e apagada
+- [ ] na folha, o bloco "alertou", com objeto, score e área, e embaixo o que
+  "não entrou no alerta"
+- [ ] a área apagada aparece como "área apagada" nas detecções antigas
+- [ ] o viewer vê o mesmo: o botão, o sino e o bloco
+
+### Cadastro da câmera: a aba Áreas
+
+- [ ] a lista de áreas, cada uma com a miniatura, o nome e a regra
+- [ ] "nova área" abre o editor com o nome, a regra e "apagar área"; as outras
+  áreas da câmera em cinza
+- [ ] "atualizar o quadro" troca o fundo pelo keyframe do último segmento
+- [ ] nome vazio ou repetido na câmera é recusado com o motivo
+- [ ] sem a marcação de movimento, a aba diz como ligá-la, com o botão para a
+  aba Detecção; sem o detector de objetos, aponta para a doc
+- [ ] no cadastro guiado de uma câmera nova, a aba Áreas só avisa que dá para
+  desenhar depois de salvar
+- [ ] salvar muda a área com a gravação no ar, sem reiniciar
+
+### Cadastro da câmera: a aba Alerta
+
+- [ ] ligar o alerta começa com `pessoa`
+- [ ] "em qualquer lugar da imagem" × "só nas áreas marcadas"
+- [ ] a tela não salva o alerta ligado sem família, nem "só nas áreas
+  marcadas" sem área marcada
+- [ ] desligar guarda famílias, áreas e horários para religar
+- [ ] apagar uma área que o alerta usa pede confirmação; a última avisa que o
+  alerta será desligado
+- [ ] sem a marcação ou sem o detector de objetos, a aba diz o que falta
+- [ ] no card, a miniatura com as áreas e "2 áreas", e "alerta: pessoa,
+  veículo" ou "alerta desligado"
+
+### Cadastro da câmera: os horários
+
+- [ ] "Limitar o alerta a alguns horários" desmarcado diz "O alerta vale a
+  qualquer hora", e salvar apaga os horários
+- [ ] o fuso do servidor embaixo da caixa
+- [ ] a grade: clicar marca a hora, arrastar marca um retângulo, o dia e a
+  hora nas bordas marcam a linha ou a coluna inteira
+- [ ] a grade no celular, com os dias em colunas, e só o toque parado marca
+- [ ] a hora pela metade fica tracejada
+- [ ] a lista digitada: os dias em botões, o De e o Até, o ✕ e a frase de
+  como o dwnvr lê o horário
+- [ ] os atalhos "+ toda noite" e "+ fim de semana"
+- [ ] grade e lista andam juntas, nos dois sentidos
+- [ ] o mouse ou o foco num horário contorna as horas dele na grade
+- [ ] o Até que não fica depois do De avisa ao sair do campo
+- [ ] marcado e sem horário válido, o salvar barra
+- [ ] fora do horário, a detecção grava sem a marca de alerta e nenhum e-mail
+  sai
+
+### Cadastro da câmera: para onde vai
+
+- [ ] "Por e-mail, para N endereços", com os endereços
+- [ ] sem `alerts.email.to` ou sem `smtp`, "Só fica marcado na detecção", com
+  o que falta
+- [ ] com o meio falhando, o "falhando desde" e o erro, em vermelho
+
+### O alerta no servidor
+
+- [ ] cada alerta vira uma linha `INFO` no log, com a câmera, as famílias e
+  as áreas
+- [ ] a linha do objeto que alertou ganha `alert` e `alertAreas` no
+  `eventos/{dia}.ndjson`; a do objeto de fora, não
+- [ ] duas pessoas na mesma olhada são um alerta só
+- [ ] o objeto parado depois de um reinício vira alerta na primeira olhada
+  (a opção a, aceita para medir no uso)
+- [ ] o e-mail lento não atrasa as olhadas das outras câmeras
+- [ ] o `/api/health` leva o `alerts.total`
+- [ ] câmera sem alerta ligado não paga nada: sem `Central`, sem fila, sem
+  goroutine
+
+### O e-mail
+
+- [ ] o assunto como "Pessoa em Garagem às 14:32", e o corpo com o dia, os
+  objetos e as áreas
+- [ ] o anexo: só as caixas que alertaram, na cor da família, e o contorno
+  tracejado das áreas do alerta
+- [ ] uma mensagem para todos os endereços, com a lista no `To`
+- [ ] o link de definir a senha e o "Testar o e-mail" saem como antes
+- [ ] endereço inválido em `alerts.email.to` sai da lista com Aviso, e os
+  outros recebem
+- [ ] `alerts.email.to` sem a seção `smtp` vira Aviso, e não erro de boot
+
+### O teto e os Avisos
+
+- [ ] o teto: 20 alertas seguidos, e depois um a cada 4 min
+- [ ] o Aviso amarelo do alerta que não saiu (teto ou fila cheia), que some
+  uma hora depois do último descarte
+- [ ] o Aviso vermelho de meio falhando, que some no primeiro envio que der
+  certo
+- [ ] o grupo "Alertas por e-mail" no card Este servidor: enviados, falhas e
+  o último envio
+- [ ] o sino do cabeçalho acende com os dois Avisos
+
+### O `cameras.json` editado à mão
+
+- [ ] a área inválida sai no boot, com Aviso
+- [ ] o alerta que fica sem nenhuma das áreas, ou sem família, é desligado
+  com Aviso
+- [ ] o horário inválido sai com Aviso; se todos saem, o alerta é desligado
+
+## Pendências
+
+O que ficou para o fim da feature, sem etapa própria.
+
+- [ ] **Os ajustes de layout por tamanho de tela**, numa lista do mantenedor,
+  vistos no teste das Etapas 1 e 2 (21 e 22/10/2026). A lista ainda não foi
+  escrita.
+- [ ] **O nome da regra `pisa`**: ficou "por ora" na Etapa 1 (20/10/2026). O
+  mantenedor sugeriu "borda inferior" e "pé da caixa"; decidir depois do uso
+  real. A chave gravada (`foot`) não muda.
 
 ## Depois
 
