@@ -957,8 +957,11 @@
       return;
     }
     editor = { cam, fundo: null, caixas: [], erro: '' };
-    // O editor pode ter fechado, ou trocado de câmera, durante a busca.
-    const aindaAberto = () => (editor?.cam === cam ? editor : null);
+    // O editor pode ter fechado, ou ter sido aberto de novo, durante a busca. A
+    // câmera não basta: reaberto na mesma, pela folha de uma detecção, ele já
+    // tem o quadro dela, e a busca velha o trocaria.
+    const alvo = editor;
+    const aindaAberto = () => (editor === alvo ? alvo : null);
     try {
       const r = await api.deteccoes({ cams: [cam], limite: 20 });
       const recente = r.deteccoes.find((d) => d.temQuadro);
@@ -1008,10 +1011,14 @@
   async function salvaArea(pontos: Ponto[], regra: Regra, nome: string) {
     if (!editor) return;
     const id = editor.cam;
-    // O editor pode ter fechado durante a gravação.
-    const aindaAberto = () => editor?.cam === id;
+    // O editor pode ter fechado, ou ter sido aberto de novo, durante a gravação.
+    const alvo = editor;
+    const aindaAberto = () => editor === alvo;
     try {
       await loadCameras();
+      // O loadCameras guarda o erro em vez de lançá-lo: sem parar aqui, a
+      // câmera iria da cópia velha e desfaria no servidor o que mudou depois.
+      if (cameras.error) throw new Error(cameras.error);
       const cadastro = cameras.list.find((c) => c.id === id);
       if (!cadastro) throw new Error('a câmera saiu do cadastro');
       const { dir: _dir, ...cam } = cadastro;
