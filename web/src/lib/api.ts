@@ -501,6 +501,19 @@ export interface RespostaCameras {
   streams?: Stream[];
   go2rtcError?: string;
   go2rtcConfigFile?: DivergenciasDoGo2rtc;
+  alertEmail?: AlertaPorEmail;
+}
+
+// O "Para onde vai" da aba Alerta: `to` com o meio de e-mail, e `failingSince`
+// e `error` com ele falhando, até o primeiro envio que der certo. Sem o meio,
+// `missing` diz as seções do dwnvr.yaml que faltam, e `smtpError`, o motivo da
+// seção smtp recusada.
+export interface AlertaPorEmail {
+  to?: string[];
+  failingSince?: string;
+  error?: string;
+  missing?: ('alerts.email.to' | 'smtp')[];
+  smtpError?: string;
 }
 
 // `erro` vem quando a sonda falhou: aí `hasAudio` é "não sei", e não "não tem".

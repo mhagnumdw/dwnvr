@@ -1,13 +1,15 @@
 <!--
   A aba Alerta do cadastro da câmera: ligar, as famílias que avisam, onde (a
-  imagem inteira ou só as áreas marcadas) e quando (HorariosDoAlerta).
+  imagem inteira ou só as áreas marcadas), quando (HorariosDoAlerta) e para
+  onde vai.
 
   Vem num chunk à parte (`import()`), como o editor de área: quem não tem
   detecção não baixa a aba. Quem confere o alerta incompleto ao salvar é o
   formulário, porque o "salvar" é dele; o motivo volta aqui em `erro`.
 -->
 <script lang="ts">
-  import type { AlertaDaCamera, AreaDaCamera, OndeDoAlerta } from '../lib/api.ts';
+  import type { AlertaDaCamera, AlertaPorEmail, AreaDaCamera, OndeDoAlerta } from '../lib/api.ts';
+  import { desde } from '../lib/avisos.ts';
   import { FAMILIAS, NOMES_DAS_FAMILIAS, iconeURL } from '../lib/icones.ts';
   import type { NomeDaFamilia } from '../lib/icones.ts';
   import type { Horario } from '../lib/horarios.ts';
@@ -22,6 +24,8 @@
     horarios?: Horario[];
     areas: AreaDaCamera[];
     fuso: string;
+    // O "Para onde vai", do /api/cameras. Nulo contra servidor anterior a ele.
+    porEmail: AlertaPorEmail | null;
     erro?: string;
   }
 
@@ -32,6 +36,7 @@
     horarios = $bindable([]),
     areas,
     fuso,
+    porEmail,
     erro = $bindable(''),
   }: Props = $props();
 
@@ -71,6 +76,23 @@
     onde = v;
     erro = '';
   }
+
+  const enderecos = $derived(porEmail?.to ?? []);
+  const semLista = $derived(!!porEmail?.missing?.includes('alerts.email.to'));
+  const semSmtp = $derived(!!porEmail?.missing?.includes('smtp'));
+  // A seção smtp que falta, ou a recusada, com o motivo que o boot deu, e o
+  // que mais falta para o alerta sair por e-mail.
+  const smtpDesligado = $derived(
+    (porEmail?.smtpError
+      ? `${porEmail.smtpError}. Com a seção smtp consertada`
+      : 'falta a seção smtp no dwnvr.yaml. Com ela') +
+      (semLista
+        ? ' e a lista alerts.email.to, o alerta sai por e-mail.'
+        : ', o alerta sai por e-mail para a lista alerts.email.to.'),
+  );
+  const nEnderecos = $derived(
+    `${enderecos.length} ${enderecos.length === 1 ? 'endereço' : 'endereços'}`,
+  );
 </script>
 
 <label class="check">
@@ -143,10 +165,33 @@
     onmuda={() => (erro = '')}
   />
 
-  <small class="muted">
-    Fica marcado na detecção, e se vê em Detecções com o filtro "só alertas". Com a lista
-    alerts.email.to no dwnvr.yaml, também vai por e-mail.
-  </small>
+  <div class="destino">
+    <div class="titulo">Para onde vai</div>
+    {#if enderecos.length && porEmail?.failingSince}
+      <p class="falhando">
+        Por e-mail, para {nEnderecos}, mas falhando {desde(porEmail.failingSince, Date.now())}: {porEmail.error}.
+      </p>
+      <p class="muted">E fica marcado na detecção (filtro "só alertas").</p>
+    {:else if enderecos.length}
+      <div>
+        Por e-mail, para {nEnderecos}:
+        <ul class="enderecos">
+          {#each enderecos as e (e)}<li>{e}</li>{/each}
+        </ul>
+      </div>
+      <p class="muted">E fica marcado na detecção (filtro "só alertas").</p>
+    {:else}
+      <p>Só fica marcado na detecção (filtro "só alertas").</p>
+      {#if semSmtp}
+        <small class="muted">O e-mail do dwnvr está desligado: {smtpDesligado}</small>
+      {:else if semLista}
+        <small class="muted">
+          Para receber por e-mail, ponha os endereços em alerts.email.to no dwnvr.yaml e reinicie o
+          dwnvr.
+        </small>
+      {/if}
+    {/if}
+  </div>
   <small class="limite">
     O alerta avisa do que a detecção marcar, e ela não pega toda chegada: não é alarme.
   </small>
@@ -218,6 +263,36 @@
   small {
     font-size: 12px;
   }
+
+  .destino {
+    display: grid;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font-size: 15px;
+  }
+  .destino p {
+    margin: 0;
+  }
+  .titulo {
+    color: var(--dim);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .enderecos {
+    margin: 2px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--dim);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .falhando {
+    color: var(--bad);
+    overflow-wrap: anywhere;
+  }
+
   .limite {
     color: var(--warn);
   }

@@ -941,6 +941,11 @@ Alertas saiu em 23/10/2026; ver a Etapa 3):
    marcado na detecção", com o que falta (a lista `alerts.email.to`, ou a
    seção `smtp`); e, com o meio falhando, o "falhando desde" e o erro, em
    vermelho, como o Aviso. O viewer não recebe a lista.
+
+   Feito em 28/10/2026: o `GET /api/cameras` do admin leva o `alertEmail`, com
+   a lista, ou com o desde quando e o erro se o meio está falhando; sem o
+   meio, as seções que faltam (`missing`) e o motivo da `smtp` recusada
+   (`smtpError`). As frases ficam com a tela, as do mock.
 4. **Uma mensagem para todos**, com a lista no `To`: cinco endereços são um
    envio, e contam um no teto. O `Enviador` do #50 já faz assim, com um `RCPT`
    por endereço na mesma conexão. Um endereço recusado no `RCPT` para a
@@ -963,7 +968,7 @@ sai igual.
 - [x] o quadro com as caixas e a área desenhadas, medido
 - [x] o teto por hora e o Aviso do alerta que não saiu
 - [x] o Aviso de meio falhando, e os números do meio
-- [ ] o bloco "Para onde vai", na aba Alerta (o botão de teste foi para o [`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md))
+- [x] o bloco "Para onde vai", na aba Alerta (o botão de teste foi para o [`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md))
 - [ ] docs
 
 ## Depois

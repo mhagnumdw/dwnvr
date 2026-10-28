@@ -1137,6 +1137,7 @@
               bind:erro={erroDoAlerta}
               areas={editing.areas ?? []}
               fuso={fusoDoServidor}
+              porEmail={cameras.alertEmail}
             />
           {/if}
         </div>

@@ -70,7 +70,7 @@ type Notificador interface {
 // Notificadores é o mapa de construtores: um meio novo entra numa linha. O
 // construtor devolve nil quando o meio não está configurado no dwnvr.yaml.
 var Notificadores = map[string]func(cfg *config.Config) (Notificador, error){
-	"email": NovoEmail,
+	MeioEmail: NovoEmail,
 }
 
 // Meios constrói os meios configurados, em ordem de nome. O que falha ao

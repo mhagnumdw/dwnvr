@@ -10,8 +10,17 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/alerta"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
+	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 )
+
+// alertEmailDe é o alertEmail do /api/cameras do admin, com o go2rtc fora do
+// ar: ele vem mesmo assim.
+func alertEmailDe(t *testing.T, s *Server) string {
+	t.Helper()
+	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"})
+	return string(pede(t, s.requireAuth(s.handleCameras), "/api/cameras")["alertEmail"])
+}
 
 // pede chama o handler e devolve o corpo como mapa de JSON cru.
 func pede(t *testing.T, h http.HandlerFunc, rota string) map[string]json.RawMessage {
@@ -137,5 +146,35 @@ func TestMeioFalhandoNoHealth(t *testing.T) {
 	if len(meios) != 1 || meios[0].Falhas != 1 || meios[0].Enviados != 0 || meios[0].Ultimo == nil ||
 		meios[0].Erro != alerts.Failing[0].Error {
 		t.Errorf("alertas no diagnóstico: %+v", meios)
+	}
+
+	var porEmail struct{ FailingSince, Error string }
+	if err := json.Unmarshal([]byte(alertEmailDe(t, s)), &porEmail); err != nil {
+		t.Fatal(err)
+	}
+	if porEmail.FailingSince == "" || porEmail.Error != alerts.Failing[0].Error {
+		t.Errorf("alertEmail no /api/cameras com o meio falhando: %+v", porEmail)
+	}
+}
+
+// A aba Alerta diz para onde o alerta vai: sem o meio, as seções que faltam
+// no dwnvr.yaml, com o motivo da smtp recusada; com ele, a lista, mesmo antes
+// de alguma câmera ligar o alerta.
+func TestAlertaPorEmailNasCameras(t *testing.T) {
+	s, _ := testServer(t)
+	if got := alertEmailDe(t, s); got != `{"missing":["alerts.email.to","smtp"]}` {
+		t.Errorf("alertEmail sem o meio: %s", got)
+	}
+
+	s.cfg.SMTP = config.SMTP{Host: "smtp.exemplo.com", Recusa: "smtp.from vazio"}
+	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com"}
+	if got := alertEmailDe(t, s); got != `{"missing":["smtp"],"smtpError":"smtp.from vazio"}` {
+		t.Errorf("alertEmail com a smtp recusada: %s", got)
+	}
+
+	s.cfg.SMTP = config.SMTP{Host: "127.0.0.1", Port: 1, Security: "none", From: "dwnvr@exemplo.com"}
+	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com", "ciclana@exemplo.com"}
+	if got := alertEmailDe(t, s); got != `{"to":["fulano@exemplo.com","ciclana@exemplo.com"]}` {
+		t.Errorf("alertEmail com o meio: %s", got)
 	}
 }

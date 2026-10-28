@@ -249,6 +249,9 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	// entrar.
 	resp["detector"] = s.mgr.Detector() != nil
 
+	// A aba Alerta diz para onde o alerta vai, e só o admin a vê.
+	resp["alertEmail"] = s.alertaPorEmail()
+
 	if orphans, err := s.store.Orphans(registered); err != nil {
 		// Não impede a listagem: no caso comum não há órfão nenhum, e uma falha
 		// ao varrer o storage não deve derrubar a tela de câmeras inteira.

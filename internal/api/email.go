@@ -5,14 +5,17 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/alerta"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/email"
 	"github.com/mhagnumdw/dwnvr/internal/usuarios"
 )
 
-// O que a API faz com o e-mail: o teste do Diagnóstico e as peças do link de
-// convite por e-mail (a rota fica em usuarios.go).
+// O que a API faz com o e-mail: o teste do Diagnóstico, as peças do link de
+// convite por e-mail (a rota fica em usuarios.go) e o alerta por e-mail como a
+// aba Alerta o mostra.
 
 // semEmail recusa o que envia e-mail quando a seção smtp não está ligada,
 // dizendo por quê.
@@ -113,4 +116,32 @@ func smtpNoDiagnostico(c config.SMTP) *smtpInfo {
 		return nil
 	}
 	return &smtpInfo{Host: c.Host, Port: c.Port, Security: c.Security, From: c.From, Error: c.Recusa}
+}
+
+// alertaPorEmail é o "Para onde vai" da aba Alerta: a lista que recebe, com o
+// desde quando e o erro se o meio está falhando; ou, sem o meio, as seções do
+// dwnvr.yaml que faltam, com o motivo da seção smtp recusada. Só o admin a
+// recebe, porque leva os endereços.
+type alertaPorEmail struct {
+	To           []string   `json:"to,omitempty"`
+	FailingSince *time.Time `json:"failingSince,omitempty"`
+	Error        string     `json:"error,omitempty"`
+	Missing      []string   `json:"missing,omitempty"`
+	SMTPError    string     `json:"smtpError,omitempty"`
+}
+
+func (s *Server) alertaPorEmail() alertaPorEmail {
+	if falta := alerta.FaltaParaOEmail(s.cfg); len(falta) > 0 {
+		return alertaPorEmail{Missing: falta, SMTPError: s.cfg.SMTP.Recusa}
+	}
+	a := alertaPorEmail{To: s.cfg.Alerts.Email.To}
+	// O estado do meio só existe depois que alguma câmera ligou o alerta.
+	if c := s.mgr.Alertas(); c != nil {
+		for _, m := range c.Meios() {
+			if m.Nome == alerta.MeioEmail && !m.FalhandoDesde.IsZero() {
+				a.FailingSince, a.Error = &m.FalhandoDesde, m.Erro
+			}
+		}
+	}
+	return a
 }

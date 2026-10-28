@@ -34,7 +34,24 @@ func NovoEmail(cfg *config.Config) (Notificador, error) {
 	return &Email{envio: smtp, para: cfg.Alerts.Email.To}, nil
 }
 
-func (e *Email) Nome() string { return "email" }
+// MeioEmail é o nome do meio de e-mail, no Notificadores e no estado dele.
+const MeioEmail = "email"
+
+func (e *Email) Nome() string { return MeioEmail }
+
+// FaltaParaOEmail diz as seções do dwnvr.yaml que faltam para o alerta sair
+// por e-mail, na ordem "alerts.email.to", "smtp", e nada quando o meio nasce.
+// A seção smtp recusada conta como faltando. As regras são as do NovoEmail.
+func FaltaParaOEmail(cfg *config.Config) []string {
+	var falta []string
+	if len(cfg.Alerts.Email.To) == 0 {
+		falta = append(falta, "alerts.email.to")
+	}
+	if !cfg.SMTP.Ligado() {
+		falta = append(falta, "smtp")
+	}
+	return falta
+}
 
 // Envia monta a mensagem do alerta e a entrega ao servidor, dentro do prazo
 // do ctx e do email.PrazoDoEnvio, o que vencer primeiro.

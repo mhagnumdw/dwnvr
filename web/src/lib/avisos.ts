@@ -40,7 +40,7 @@ export const quando = (ms: number, agora: number) =>
 
 // desde é o "desde quando" de todo aviso que depende de tempo, no formato do
 // "NÃO ESTÁ GRAVANDO": "desde 13:58:12 (12min)".
-function desde(iso: string, agora: number) {
+export function desde(iso: string, agora: number) {
   const ms = Date.parse(iso);
   return `desde ${quando(ms, agora)} (${duracao(agora - ms)})`;
 }

@@ -22,7 +22,8 @@ func (f *enviadorFalso) Enviar(_ context.Context, m email.Mensagem) error {
 }
 
 // TestEmailNasceComAsDuasCoisas: sem a seção smtp ligada ou sem endereço na
-// lista, o meio não nasce, e o alerta fica só no registro.
+// lista, o meio não nasce, e o alerta fica só no registro; o FaltaParaOEmail
+// diz o que falta, e só fica vazio quando o meio nasce.
 func TestEmailNasceComAsDuasCoisas(t *testing.T) {
 	smtp := config.SMTP{Host: "smtp.exemplo.com", Port: 587, Security: "starttls", From: "dwnvr@exemplo.com"}
 	para := []string{"fulano@exemplo.com", "ciclana@exemplo.com"}
@@ -30,14 +31,23 @@ func TestEmailNasceComAsDuasCoisas(t *testing.T) {
 		nome  string
 		cfg   config.Config
 		nasce bool
+		falta []string
 	}{
-		{"sem nada", config.Config{}, false},
-		{"sem a lista", config.Config{SMTP: smtp}, false},
-		{"sem smtp", config.Config{Alerts: config.Alerts{Email: config.AlertsEmail{To: para}}}, false},
+		{"sem nada", config.Config{}, false, []string{"alerts.email.to", "smtp"}},
+		{"sem a lista", config.Config{SMTP: smtp}, false, []string{"alerts.email.to"}},
+		{"sem smtp", config.Config{Alerts: config.Alerts{Email: config.AlertsEmail{To: para}}}, false,
+			[]string{"smtp"}},
 		{"smtp recusado", config.Config{SMTP: config.SMTP{Host: "smtp.exemplo.com", Recusa: "smtp.from vazio"},
-			Alerts: config.Alerts{Email: config.AlertsEmail{To: para}}}, false},
-		{"com as duas", config.Config{SMTP: smtp, Alerts: config.Alerts{Email: config.AlertsEmail{To: para}}}, true},
+			Alerts: config.Alerts{Email: config.AlertsEmail{To: para}}}, false,
+			[]string{"smtp"}},
+		{"smtp recusado e sem a lista", config.Config{SMTP: config.SMTP{Recusa: "smtp.host vazio"}}, false,
+			[]string{"alerts.email.to", "smtp"}},
+		{"com as duas", config.Config{SMTP: smtp, Alerts: config.Alerts{Email: config.AlertsEmail{To: para}}},
+			true, nil},
 	} {
+		if got := FaltaParaOEmail(&c.cfg); !slices.Equal(got, c.falta) {
+			t.Errorf("%s: falta %q, esperado %q", c.nome, got, c.falta)
+		}
 		n, err := NovoEmail(&c.cfg)
 		if err != nil {
 			t.Fatalf("%s: %v", c.nome, err)
@@ -49,7 +59,7 @@ func TestEmailNasceComAsDuasCoisas(t *testing.T) {
 			t.Errorf("%s: para %v", c.nome, e.para)
 		}
 	}
-	if _, ok := Notificadores["email"]; !ok {
+	if _, ok := Notificadores[MeioEmail]; !ok {
 		t.Error("o email não está no mapa de construtores")
 	}
 }

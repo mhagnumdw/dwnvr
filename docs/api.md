@@ -166,7 +166,7 @@ cair, mas não abre outra.
 
 | Endpoint | Parâmetros | O que faz |
 | --- | --- | --- |
-| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs; para o viewer, só as câmeras (do `alert`, só o `enabled` quando ligado) e o `detector` |
+| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs + para onde vai o alerta; para o viewer, só as câmeras (do `alert`, só o `enabled` quando ligado) e o `detector` |
 | `POST /api/cameras` | corpo JSON | **só admin**: cadastra ou altera (upsert por id); o campo que a câmera não definia e chega igual ao default não é gravado (ver [Política por câmera](configuracao.md#política-por-câmera)) |
 | `DELETE /api/cameras` | `id`, `recordings=1` | **só admin**: descadastra; com `recordings=1` apaga as gravações junto |
 | `GET /api/streams/probe` | `src` | **só admin**: diz se um stream entrega áudio, abrindo-o se preciso |
@@ -240,6 +240,27 @@ câmera, a mesma régua com que o `POST /api/cameras` recusa, de onde saem o
 
 E traz o `detector`: `true` quando o detector de objetos está configurado. Sem
 ele, a interface esconde a aba Detecções.
+
+Traz também o `alertEmail`, para onde vai o alerta, que a aba Alerta da câmera
+mostra. Com o meio de e-mail (a seção `smtp` ligada e a lista
+`alerts.email.to`), vem a lista; com o meio falhando, também o desde quando e o
+erro da falha mais recente, que somem no primeiro envio que der certo:
+
+```json
+"alertEmail": {
+  "to": ["fulano@exemplo.com", "ciclana@exemplo.com"],
+  "failingSince": "2026-10-27T13:58:12-03:00",
+  "error": "dial tcp 142.250.0.108:587: connect: connection timed out"
+}
+```
+
+Sem o meio, `missing` diz as seções do `dwnvr.yaml` que faltam, de
+`alerts.email.to` e `smtp`, e `smtpError`, o motivo da seção `smtp` recusada no
+boot:
+
+```json
+"alertEmail": { "missing": ["smtp"], "smtpError": "smtp.from vazio" }
+```
 
 O go2rtc só lê o `go2rtc.yaml` quando sobe. Quando o arquivo diz uma coisa e o
 go2rtc em execução faz outra, o `GET /api/cameras` traz `go2rtcConfigFile`, e a
