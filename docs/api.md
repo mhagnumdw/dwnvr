@@ -177,6 +177,17 @@ cair, mas não abre outra.
 | `POST /api/email/teste` | `{"to"}` | **só admin**: manda um e-mail de teste para o endereço, pela seção `smtp` |
 | `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
+No `POST /api/cameras`, cada área sem `id` ganha um gerado pelo servidor, e a
+resposta traz a câmera com eles. Uma área inválida recusa o save inteiro com
+`400` e o motivo, como os outros campos:
+
+```text
+areas[1] "Garagem" fora do aceito: use de 3 a 20 pontos, com as coordenadas de 0 a 1
+```
+
+O formato das `areas` está em
+[Política por câmera](configuracao.md#política-por-câmera).
+
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
 consumindo: o go2rtc só preenche o `medias` do produtor enquanto existe
 consumidor, e num stream ocioso ele nem abre a conexão com a câmera. É por isso
@@ -591,9 +602,9 @@ rola.
 
 | Endpoint | Parâmetros | Devolve |
 | --- | --- | --- |
-| `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias` | uma página de detecções, da mais nova para a mais velha |
+| `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias`, `area`, `rule`, `areas` | uma página de detecções, da mais nova para a mais velha |
 | `GET /api/deteccoes/quadro` | `cam`, `t` | o JPEG do quadro que o detector olhou, `immutable` |
-| `GET /api/deteccoes/dias` | `cams`, `familias` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
+| `GET /api/deteccoes/dias` | `cams`, `familias`, `area`, `rule`, `areas` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
 
 **`/api/deteccoes`** pagina por cursor, e não por número de página: o dia
 corrente ganha detecção nova a todo momento, e "página 3" mudaria de conteúdo
@@ -607,6 +618,26 @@ entre um pedido e outro.
 - `limite`: quantas, de 1 a 200. Padrão 60.
 - `cams=cam_a,cam_b` e `familias=pessoa,veiculo`: só essas. Sem eles, todas.
   Câmera não cadastrada ou família desconhecida é erro.
+- `area=<cam>:<x>,<y>,<x>,<y>,...`: na câmera `<cam>`, só os objetos dentro
+  de uma área desenhada sobre a imagem dela, como
+  `area=cam_teste1:400,500,600,500,600,700`. X e Y vão em milésimos do quadro,
+  inteiros de 0 a 1000, para a URL ficar curta; são de 3 a 20 pontos, e a área
+  pode ser côncava. A área restringe só a câmera dela: as outras câmeras de
+  `cams` vêm inteiras, e a câmera da área fora de `cams` não aparece.
+- `rule=touch` ou `rule=foot`: quando um objeto conta como dentro da área. Com
+  `touch`, basta a caixa ter algum ponto em comum com ela. Com `foot`, o
+  padrão, conta o meio da borda de baixo da caixa, onde ficam os pés e as
+  rodas: a área se desenha no chão, e quem passa na frente dela, perto da
+  câmera, não conta. `rule` sem `area` é erro.
+- `areas=<cam>/<id>`: o mesmo, com uma área cadastrada na câmera (o campo
+  `areas` de `POST /api/cameras`) e a regra do cadastro, como
+  `areas=cam_teste1/k3f9a2`. Várias vão separadas por vírgula, como as
+  câmeras de `cams` (`areas=cam_a/k3f9a2,cam_b/p0rt40`). O servidor resolve
+  pelo cadastro de agora: editar a área muda o filtro dali em diante, inclusive
+  sobre o passado. Área que a câmera não tem mais é erro.
+
+As áreas de uma câmera **somam**, a de `area` junto: o objeto fica se está em
+qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
 
 ```json
 {
@@ -629,8 +660,9 @@ entre um pedido e outro.
 Uma **detecção** é uma olhada do detector numa câmera: o instante do onset e
 tudo o que ele achou naquele quadro. Duas pessoas e um carro no mesmo quadro
 são três marcas no `eventos/{dia}.ndjson`, mas uma detecção só, com três
-objetos. O filtro de família tira objetos, e a detecção que fica sem nenhum
-sai da página.
+objetos. O filtro de família e o de área tiram objetos, e a detecção que fica
+sem nenhum sai da página. Com área, a marca sem caixa, gravada antes de a
+caixa existir, fica de fora: não há como saber onde ela estava.
 `caixa` e `quadroMs` são os mesmos de `/api/rec/events`.
 
 O próximo cursor é o `instanteMs` da última detecção da página. A página **não
@@ -651,8 +683,8 @@ detecções: 0,85 MB em memória, e uma página de 60 em 0,2 ms depois da primei
 leitura. O dia sai da memória quando a retenção o apaga.
 
 **`/api/deteccoes/dias`** é o que o calendário da tela de Detecções deixa
-escolher, com o número que ele mostra em cada dia. `cams` e `familias` são os
-mesmos de `/api/deteccoes`, e o dia entra se tiver ao menos uma detecção do
+escolher, com o número que ele mostra em cada dia. `cams`, `familias`, `area`,
+`rule` e `areas` são os mesmos de `/api/deteccoes`, e o dia entra se tiver ao menos uma detecção do
 filtro. `deteccoesPorDia` conta detecções, não marcas, como `/api/deteccoes`
 as monta: pessoa e carro no mesmo quadro contam uma vez. Dia sem gravação fica
 de fora mesmo com marca, porque a rolagem também não chega nele.

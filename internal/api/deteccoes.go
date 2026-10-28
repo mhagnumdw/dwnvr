@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"sort"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/area"
+	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
@@ -64,6 +67,9 @@ type paginaDeDeteccoes struct {
 //	limite=<N>   quantas; padrão limitePadraoDeDeteccoes.
 //	cams=a,b     só estas câmeras; sem ele, todas.
 //	familias=... só estas famílias; sem ele, todas.
+//	area=...     na câmera da área, só os objetos dentro dela; ver filtroDaQuery.
+//	rule=...     a regra da área: touch ou foot (o padrão).
+//	areas=...    o mesmo, com áreas cadastradas: <câmera>/<id>,<câmera>/<id>.
 //
 // A página nunca parte um instante ao meio: se a última detecção empata com
 // outras no mesmo milissegundo, em outra câmera, elas vêm juntas e a página
@@ -101,18 +107,13 @@ func (s *Server) handleDeteccoes(w http.ResponseWriter, r *http.Request) {
 		limite = v
 	}
 
-	cams, err := s.camerasDoFiltro(q.Get("cams"))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	familias, err := familiasDoFiltro(q.Get("familias"))
+	cams, filtro, err := s.filtroDaQuery(q)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	pagina, err := paginaDeDeteccoesDe(cams, familias, cursor, descendo, limite)
+	pagina, err := paginaDeDeteccoesDe(cams, filtro, cursor, descendo, limite)
 	if err != nil {
 		s.fail(w, "lendo as detecções", err)
 		return
@@ -124,22 +125,15 @@ func (s *Server) handleDeteccoes(w http.ResponseWriter, r *http.Request) {
 // crescente, e quantas detecções cada um tem. É o que o calendário da tela de
 // Detecções deixa escolher, e o número que ele mostra em cada dia.
 //
-//	cams=a,b     só estas câmeras; sem ele, todas.
-//	familias=... só estas famílias; sem ele, todas.
+//	cams, familias, area, rule e areas: os mesmos de handleDeteccoes.
 func (s *Server) handleDiasDeDeteccao(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	cams, err := s.camerasDoFiltro(q.Get("cams"))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	familias, err := familiasDoFiltro(q.Get("familias"))
+	cams, filtro, err := s.filtroDaQuery(r.URL.Query())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	dias, porDia, err := diasComDeteccao(cams, familias)
+	dias, porDia, err := diasComDeteccao(cams, filtro)
 	if err != nil {
 		s.fail(w, "lendo os dias com detecção", err)
 		return
@@ -153,7 +147,7 @@ func (s *Server) handleDiasDeDeteccao(w http.ResponseWriter, r *http.Request) {
 // disco frio, a primeira chamada leva ~1,3 s, e as seguintes saem da memória
 // do store em ~5 ms. Dia sem gravação fica de fora mesmo com marca - a
 // rolagem também não o alcança, porque anda pelos mesmos diasDasCameras.
-func diasComDeteccao(cams []*store.Camera, familias map[string]bool) ([]string, map[string]int, error) {
+func diasComDeteccao(cams []*store.Camera, filtro filtroDeObjetos) ([]string, map[string]int, error) {
 	dias := []string{}
 	porDia := map[string]int{}
 	for _, dia := range diasDasCameras(cams) {
@@ -163,7 +157,7 @@ func diasComDeteccao(cams []*store.Camera, familias map[string]bool) ([]string, 
 			if err != nil {
 				return nil, nil, fmt.Errorf("%s, %s: %w", cam.ID, dia, err)
 			}
-			n += contaDeteccoes(marcas, familias)
+			n += contaDeteccoes(marcas, filtro.daCamera(cam.ID))
 		}
 		if n > 0 {
 			dias = append(dias, dia)
@@ -175,11 +169,11 @@ func diasComDeteccao(cams []*store.Camera, familias map[string]bool) ([]string, 
 
 // contaDeteccoes conta as detecções de uma câmera num dia como o agrupa as
 // monta: uma por instante, por mais famílias que o quadro tenha.
-func contaDeteccoes(marcas []store.Evento, familias map[string]bool) int {
+func contaDeteccoes(marcas []store.Evento, filtro filtroDeObjetos) int {
 	n := 0
 	ultimo := int64(-1)
 	for _, m := range marcas {
-		if familias != nil && !familias[m.Familia] || m.InstanteMs == ultimo {
+		if m.InstanteMs == ultimo || !filtro.passa(m) {
 			continue
 		}
 		n++
@@ -191,7 +185,7 @@ func contaDeteccoes(marcas []store.Evento, familias map[string]bool) int {
 // paginaDeDeteccoesDe junta as câmeras dia a dia, a partir do dia do cursor e
 // na direção pedida, até encher a página. Cada dia de cada câmera vem da
 // memória do store; só o primeiro pedido de um dia lê o disco.
-func paginaDeDeteccoesDe(cams []*store.Camera, familias map[string]bool,
+func paginaDeDeteccoesDe(cams []*store.Camera, filtro filtroDeObjetos,
 	cursor int64, descendo bool, limite int) (paginaDeDeteccoes, error) {
 
 	dias := diasDasCameras(cams)
@@ -231,7 +225,7 @@ func paginaDeDeteccoesDe(cams []*store.Camera, familias map[string]bool,
 			if err != nil {
 				return out, fmt.Errorf("%s, %s: %w", cam.ID, dia, err)
 			}
-			doDia = agrupa(doDia, cam.ID, marcas, familias, passaDoCursor)
+			doDia = agrupa(doDia, cam.ID, marcas, filtro.daCamera(cam.ID), passaDoCursor)
 		}
 		sort.Slice(doDia, func(a, b int) bool { return vemAntes(doDia[a], doDia[b]) })
 		out.Deteccoes = append(out.Deteccoes, doDia...)
@@ -260,11 +254,11 @@ func paginaDeDeteccoesDe(cams []*store.Camera, familias map[string]bool,
 // e as acrescenta a `em`. As marcas vêm em ordem de instante, então as do
 // mesmo instante estão lado a lado.
 func agrupa(em []deteccao, cam string, marcas []store.Evento,
-	familias map[string]bool, passaDoCursor func(int64) bool) []deteccao {
+	filtro filtroDeObjetos, passaDoCursor func(int64) bool) []deteccao {
 
 	aberta := -1 // índice, em `em`, da detecção do instante corrente
 	for _, m := range marcas {
-		if !passaDoCursor(m.InstanteMs) || familias != nil && !familias[m.Familia] {
+		if !passaDoCursor(m.InstanteMs) || !filtro.passa(m) {
 			continue
 		}
 		obj := objetoNoQuadro{Familia: m.Familia, Classe: m.Classe, Score: m.Score, Caixa: m.Caixa}
@@ -292,6 +286,173 @@ func diasDasCameras(cams []*store.Camera) []string {
 	}
 	slices.Sort(dias)
 	return slices.Compact(dias)
+}
+
+// filtroDeObjetos decide, marca a marca, que objeto fica na detecção. O que
+// sai leva junto a detecção que fica sem objeto nenhum.
+type filtroDeObjetos struct {
+	// familias nil é "todas".
+	familias map[string]bool
+	// porCamera são as áreas de cada câmera: o objeto fica se está em
+	// qualquer uma delas. A câmera fora do mapa segue sem filtro de área.
+	porCamera map[string][]areaComRegra
+	// areas são as da câmera das marcas: ver daCamera.
+	areas []areaComRegra
+}
+
+// areaComRegra é uma área com a regra dela: a desenhada na hora, com o `rule`
+// da query, ou a cadastrada, com a regra do cadastro.
+type areaComRegra struct {
+	regra area.RegraDaArea
+	area  area.Area
+}
+
+// daCamera é o filtro das marcas de uma câmera: as áreas só valem na câmera
+// delas, e as outras passam só pelo filtro de família.
+func (f filtroDeObjetos) daCamera(cam string) filtroDeObjetos {
+	f.areas = f.porCamera[cam]
+	return f
+}
+
+// passa diz se a marca fica. Com área, a marca sem caixa, de antes de a caixa
+// ser gravada, fica de fora: não há como saber onde ela estava.
+func (f filtroDeObjetos) passa(m store.Evento) bool {
+	if f.familias != nil && !f.familias[m.Familia] {
+		return false
+	}
+	if len(f.areas) == 0 {
+		return true
+	}
+	if m.Caixa == nil {
+		return false
+	}
+	for _, a := range f.areas {
+		if a.regra.Dentro(a.area, *m.Caixa) {
+			return true
+		}
+	}
+	return false
+}
+
+// soma acrescenta uma área à câmera dela.
+func (f *filtroDeObjetos) soma(cam string, a areaComRegra) {
+	if f.porCamera == nil {
+		f.porCamera = map[string][]areaComRegra{}
+	}
+	f.porCamera[cam] = append(f.porCamera[cam], a)
+}
+
+// filtroDaQuery resolve os parâmetros que a lista e o calendário dividem:
+// `cams`, `familias`, `area`, `rule` e `areas`.
+//
+// `area=<cam>:<x>,<y>,<x>,<y>,...` é uma área desenhada sobre a imagem da
+// câmera, com X e Y em milésimos do quadro (inteiros de 0 a 1000), para a URL
+// ficar curta. `areas=<cam>/<id>,<cam>/<id>` são áreas cadastradas, resolvidas
+// pelo cadastro de agora: editar a área muda o filtro, inclusive sobre o
+// passado. Nem o id da câmera nem o da área têm vírgula ou barra
+// (ValidateCameraID e o id gerado da área).
+//
+// As áreas de uma câmera somam, a desenhada junto: qualquer uma serve. Elas
+// restringem só a câmera delas: as outras de `cams` seguem inteiras, e a
+// câmera da área fora de `cams` não aparece, com área ou sem.
+func (s *Server) filtroDaQuery(q url.Values) ([]*store.Camera, filtroDeObjetos, error) {
+	var f filtroDeObjetos
+	cams, err := s.camerasDoFiltro(q.Get("cams"))
+	if err != nil {
+		return nil, f, err
+	}
+	if f.familias, err = familiasDoFiltro(q.Get("familias")); err != nil {
+		return nil, f, err
+	}
+	if q.Has("areas") {
+		if err := s.areasCadastradasDoFiltro(&f, q.Get("areas")); err != nil {
+			return nil, f, err
+		}
+	}
+	if !q.Has("area") {
+		if q.Has("rule") {
+			return nil, f, errors.New("parâmetro rule sem area")
+		}
+		return cams, f, nil
+	}
+
+	cam, a, err := areaDoFiltro(q.Get("area"))
+	if err != nil {
+		return nil, f, err
+	}
+	if !s.knownCamera(cam) {
+		return nil, f, fmt.Errorf("câmera %q da área não cadastrada", cam)
+	}
+	regra, err := area.NovaRegra(q.Get("rule"))
+	if err != nil {
+		return nil, f, err
+	}
+	f.soma(cam, areaComRegra{regra: regra, area: a})
+	return cams, f, nil
+}
+
+// areasCadastradasDoFiltro resolve cada `<cam>/<id>` de `areas=` pelo
+// cadastro. A área que não existe mais é recusada, como a câmera que não
+// existe: o filtro em silêncio mostraria outra lista sem dizer.
+func (s *Server) areasCadastradasDoFiltro(f *filtroDeObjetos, lista string) error {
+	cadastro := map[string]config.Camera{}
+	for _, c := range s.mgr.Cameras() {
+		cadastro[c.ID] = c
+	}
+	for item := range strings.SplitSeq(lista, ",") {
+		camID, id, ok := strings.Cut(item, "/")
+		if !ok || camID == "" || id == "" {
+			return fmt.Errorf("parâmetro areas inválido: %q não é <câmera>/<id>", item)
+		}
+		cam, ok := cadastro[camID]
+		if !ok {
+			return fmt.Errorf("câmera %q da área não cadastrada", camID)
+		}
+		i := slices.IndexFunc(cam.Areas, func(a config.Area) bool { return a.ID == id })
+		if i < 0 {
+			return fmt.Errorf("a câmera %q não tem a área %q", camID, id)
+		}
+		// O cadastro já passou pelo ConfereCamera: a regra e os pontos valem.
+		cad := cam.Areas[i]
+		regra, err := area.NovaRegra(cad.Rule)
+		if err != nil {
+			return fmt.Errorf("área %q da câmera %q: %w", id, camID, err)
+		}
+		a, err := area.Nova(cad.Points)
+		if err != nil {
+			return fmt.Errorf("área %q da câmera %q: %w", id, camID, err)
+		}
+		f.soma(camID, areaComRegra{regra: regra, area: a})
+	}
+	return nil
+}
+
+// areaDoFiltro lê `<cam>:<x>,<y>,...`, em milésimos, e devolve a câmera e a
+// área em fração do quadro.
+func areaDoFiltro(v string) (string, area.Area, error) {
+	i := strings.LastIndexByte(v, ':')
+	if i <= 0 {
+		return "", area.Area{}, errors.New("parâmetro area inválido: use <câmera>:<x>,<y>,<x>,<y> e assim por diante")
+	}
+	cam, numeros := v[:i], strings.Split(v[i+1:], ",")
+	if len(numeros)%2 != 0 {
+		return "", area.Area{}, errors.New("parâmetro area inválido: X e Y vão aos pares")
+	}
+	pontos := make([]area.Ponto, 0, len(numeros)/2)
+	for j := 0; j < len(numeros); j += 2 {
+		x, errX := strconv.Atoi(numeros[j])
+		y, errY := strconv.Atoi(numeros[j+1])
+		if errX != nil || errY != nil || x < 0 || x > 1000 || y < 0 || y > 1000 {
+			return "", area.Area{}, fmt.Errorf("parâmetro area inválido: %q,%q não são milésimos de 0 a 1000",
+				numeros[j], numeros[j+1])
+		}
+		pontos = append(pontos, area.Ponto{float64(x) / 1000, float64(y) / 1000})
+	}
+	a, err := area.Nova(pontos)
+	if err != nil {
+		return "", area.Area{}, fmt.Errorf("parâmetro area inválido: %w", err)
+	}
+	return cam, a, nil
 }
 
 // camerasDoFiltro resolve `cams=a,b`. Vazio são todas as cadastradas. Um ID

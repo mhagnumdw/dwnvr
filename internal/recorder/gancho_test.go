@@ -584,7 +584,7 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 
 // TestUmaLinhaPorObjeto: duas pessoas e uma moto chegando juntas são três
 // linhas no mesmo instante, e não uma por família. A pessoa de menor
-// confiança também fica gravada, com a caixa dela. A caixa abaixo do corte
+// confiança é a que o filtro por área pode precisar. A caixa abaixo do corte
 // não vira marca, e o quadro continua um só.
 func TestUmaLinhaPorObjeto(t *testing.T) {
 	idx := store.New(t.TempDir()).Camera("cam_teste")

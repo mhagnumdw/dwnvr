@@ -657,6 +657,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── diagnostico_processo.go  o próprio dwnvr, para o Diagnóstico: CPU, memória, arquivos abertos, UID
 │   │   ├── web.go          serve a SPA embutida
 │   │   └── dist/           build da interface, versionado (ver web/README.md)
+│   ├── area/               o polígono sobre a imagem e as regras de "o objeto está dentro?"
 │   ├── buildinfo/          versão, commit e data injetados no build
 │   ├── config/             leitura do dwnvr.yaml (infra) e do cameras.json (câmeras)
 │   ├── detect/             a detecção: do tamanho dos quadros à marca de objeto

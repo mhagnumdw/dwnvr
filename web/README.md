@@ -54,8 +54,9 @@ src/lib/         api e os tipos do JSON dela, estado (runes), rota e
                  somem sozinhos sobre o vídeo nela, o aviso de que a tela
                  aberta ficou para trás de uma atualização, a snackbar (o
                  aviso curto embaixo da tela), a dica que o toque longo
-                 abre num botão e a altura que um elemento tem até o fim
-                 da janela
+                 abre num botão, a altura que um elemento tem até o fim
+                 da janela e a área desenhada sobre a imagem (a ida e a
+                 volta da query, o contorno)
 src/routes/      as telas, o login e a de definir a senha pelo link de
                  convite; Detecções, Usuários, Minha conta e a do convite
                  são chunk à parte. Detecções só aparece com o detector de
@@ -76,8 +77,9 @@ src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  iniciais), o botão que abre a lista de câmeras (marcadas
                  do total), o botão de entrar e sair da tela cheia, o
                  `<Icone>` que desenha qualquer ícone da interface pelo nome,
-                 a snackbar e o selo das famílias de objeto no canto de uma
-                 miniatura
+                 a snackbar, o selo das famílias de objeto no canto de uma
+                 miniatura, o editor de área (o polígono sobre o quadro,
+                 chunk à parte) e a miniatura das áreas de uma câmera
 src/vendor/      player de live do go2rtc (MIT), em JavaScript, com os tipos
                  dele escritos à mão - ver vendor/README.md
 ```

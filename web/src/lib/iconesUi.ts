@@ -155,6 +155,13 @@ export const ICONES_UI = {
 
   // Detecções e formulários
   caixas: [['rect', { x: 3.75, y: 6, width: 16.5, height: 12, rx: 1.5 }]],
+  // A área: um polígono com três dos vértices marcados, como no editor.
+  area: [
+    ['path', { d: 'M4 8l7-5 9 6-3 11H6z', 'stroke-linejoin': 'round' }],
+    ['circle', { cx: 4, cy: 8, r: 1.6, ...cheio }],
+    ['circle', { cx: 20, cy: 9, r: 1.6, ...cheio }],
+    ['circle', { cx: 6, cy: 20, r: 1.6, ...cheio }],
+  ],
   mais: [['path', { d: 'M12 5v14M5 12h14' }]],
   menos: [['path', { d: 'M5 12h14' }]],
   fechar: [['path', { d: 'M6 6l12 12M18 6L6 18' }]],

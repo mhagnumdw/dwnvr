@@ -479,8 +479,8 @@ func (r *Recorder) olhou(o detect.Olhada) {
 	}
 
 	// Uma linha por objeto que virou marca, todas no instante do onset: duas
-	// pessoas chegando juntas são duas linhas de `pessoa`, cada uma com a sua
-	// caixa na miniatura e no vídeo. Quem quer uma chegada por família,
+	// pessoas chegando juntas são duas linhas de `pessoa`, e o filtro por área
+	// acha a detecção por qualquer uma delas. Quem quer uma chegada por família,
 	// como a timeline, junta na leitura. A ordem é a das famílias e, dentro
 	// delas, a da confiança: quem lê a linha crua vê primeiro o que mais importa.
 	slices.SortStableFunc(marcas, func(a, b detect.Achado) int {

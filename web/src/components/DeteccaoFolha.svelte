@@ -17,6 +17,8 @@
   import { contexto2d } from '../lib/canvas.ts';
   import { Player } from '../lib/player.svelte.ts';
   import { dispoe, desenha } from '../lib/caixas.ts';
+  import { desenhaContorno } from '../lib/area.ts';
+  import type { Ponto } from '../lib/area.ts';
   import { familia, iconeDa, iconeURL, NOME_DA_CLASSE } from '../lib/icones.ts';
   import { hhmmss, ddmm } from '../lib/format.ts';
   import { linkGravacoes } from '../lib/rota.svelte.ts';
@@ -66,6 +68,11 @@
     onanterior?: (() => void) | null;
     onproxima?: (() => void) | null;
     onocultar?: (() => void) | null;
+    // As áreas do filtro nesta câmera: o contorno vai sobre o quadro, e diz
+    // por que a detecção entrou.
+    areas?: readonly (readonly Ponto[])[] | null;
+    // Abre o editor de área sobre este quadro. Nulo sem quadro.
+    onarea?: (() => void) | null;
   }
 
   let {
@@ -75,6 +82,8 @@
     onanterior = null,
     onproxima = null,
     onocultar = null,
+    areas = null,
+    onarea = null,
   }: Props = $props();
 
   let palco = $state<HTMLDivElement | null>(null);
@@ -128,6 +137,7 @@
     if (!iw || !ih) return;
     const s = Math.min(w / iw, h / ih);
     g.translate((w - iw * s) / 2, (h - ih * s) / 2);
+    for (const a of areas ?? []) desenhaContorno(g, a, iw * s, ih * s);
     desenha(g, dispoe(g, det.objetos, iw * s, ih * s, true));
   }
 
@@ -321,9 +331,19 @@
     {/each}
     <!-- Mora aqui, e não no cabeçalho: lá ele deixava pouco espaço e o nome
          da câmera saía cortado no celular. -->
+    {#if onarea}
+      <button
+        class="ghost ocultar"
+        onclick={onarea}
+        aria-label="filtrar as detecções da câmera {camera} por uma área desenhada sobre este quadro"
+      >
+        filtrar por área
+      </button>
+    {/if}
     {#if onocultar}
       <button
         class="ghost ocultar"
+        class:junto={onarea}
         onclick={onocultar}
         aria-label="ocultar a câmera {camera} desta tela"
       >
@@ -368,6 +388,11 @@
     margin-left: auto;
     color: var(--dim);
     font-size: 13px;
+  }
+
+  /* Os dois botões ficam juntos, à direita. */
+  .ocultar.junto {
+    margin-left: 0;
   }
 
   .palco {
