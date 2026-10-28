@@ -1,16 +1,17 @@
 # TODO - áreas na imagem, filtro por área e alertas de detecção
 
 Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
-Etapas 0, 1, 2 e 4 feitas**, na branch `areas-e-alertas`; da 1, falta só a
+Etapas 0, 1, 2, 4 e 5 feitas**, na branch `areas-e-alertas`; da 1, falta só a
 medição no hardware de referência. **A Etapa 3 está feita, menos a
 instalação de teste:** o campo `alert`, o `internal/alerta`, a aba Alerta, a
-marca gravada na detecção e o "só alertas" em Detecções.
+marca gravada na detecção e o "só alertas" em Detecções. A Etapa 5 (o
+e-mail) fechou em 28/10/2026; o botão de teste dela foi adiado para o
+[`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md).
 
-**Próximo passo:** a [Etapa 5](#etapa-5---o-e-mail) (o e-mail), que manda
-pela seção `smtp` do PR #50. Os pontos em aberto foram decididos em
-27/10/2026, e a implementação segue pelo checklist dela. A instalação de
-teste da Etapa 3 fica para depois: por ora o mantenedor segue desenvolvendo e
-testando na bancada local.
+**Próximo passo:** a instalação de teste da Etapa 3, com detecções reais, que
+agora inclui o e-mail. Por ora o mantenedor segue desenvolvendo e testando na
+bancada local. Ir para a `main` segue em aberto (ver
+[Como entregar](#como-entregar)).
 
 São quatro pedidos, e um se apoia no outro:
 
@@ -34,7 +35,7 @@ Tudo com a interface pensada para o celular e para o desktop.
 - [x] [Etapa 2 - áreas cadastradas na câmera](#etapa-2---áreas-cadastradas-na-câmera)
 - [ ] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro), menos a instalação de teste
 - [x] [Etapa 4 - os horários do alerta](#etapa-4---os-horários-do-alerta)
-- [ ] [Etapa 5 - o e-mail](#etapa-5---o-e-mail)
+- [x] [Etapa 5 - o e-mail](#etapa-5---o-e-mail)
 
 ## Decisões do mantenedor
 
@@ -969,7 +970,7 @@ sai igual.
 - [x] o teto por hora e o Aviso do alerta que não saiu
 - [x] o Aviso de meio falhando, e os números do meio
 - [x] o bloco "Para onde vai", na aba Alerta (o botão de teste foi para o [`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md))
-- [ ] docs
+- [x] docs, em 28/10/2026: a seção Alerta por e-mail do `docs/configuracao.md` (com como conferir), os limites e os números do alerta no `docs/deteccao.md`, e o "Para onde vai" no `README.md`
 
 ## Depois
 

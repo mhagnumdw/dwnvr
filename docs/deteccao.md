@@ -302,8 +302,9 @@ level=INFO msg=alerta cam=portao familias=pessoa objetos=2 areas=Portão
 A marca é o que valia na hora: mudar o alerta da câmera não muda o passado. Ela
 fica onde a detecção já fica, com a retenção do vídeo, e se vê em Detecções,
 com o filtro "só alertas" (`alert=1` no `/api/deteccoes`, ver
-[`api.md`](api.md)). O `/api/health` leva só o total desde que o dwnvr
-subiu.
+[`api.md`](api.md)). O `/api/health` leva o total desde que o dwnvr subiu e,
+com um meio configurado, o que alimenta os Avisos: o meio falhando e os alertas
+que não saíram.
 
 **Por e-mail**, com a lista `alerts.email.to` e a seção `smtp` do
 `dwnvr.yaml` (ver
@@ -316,7 +317,10 @@ tracejado das áreas do alerta, como Detecções mostra com o filtro "só
 alertas". O quadro é desenhado uma vez por alerta, na goroutine de envio, e
 todo meio recebe o mesmo; se o desenho falhar, ele vai como foi olhado.
 Sem link para abrir a detecção: o servidor não sabe o endereço pelo qual é
-acessado. O envio que falha vai ao log, e o alerta segue no registro.
+acessado. O envio que falha vai ao log e vira um Aviso vermelho, que some no
+primeiro envio que der certo, e o alerta segue no registro. Como conferir a
+lista e o envio está em
+[`configuracao.md`](configuracao.md#alerta-por-e-mail).
 
 **Desligado, nada.** Sem nenhuma câmera com o alerta ligado, nada do alerta
 existe; a olhada de uma câmera sem alerta custa um `if`. Sem meio configurado,
@@ -394,6 +398,9 @@ Os números do alerta, que são escolha de desenho e não medida, ficam em
 | --- | --- | --- |
 | `AlertasNaEspera` | 32 | quantos esperam a vez de sair pelos meios |
 | `PrazoDoEnvio` | 30 s | quanto um envio pode levar antes de contar como falha |
+| `RajadaDeAlertas` | 20 | quantos saem seguidos antes de o teto valer |
+| `AlertasPorHora` | 15 | o ritmo depois da rajada, um a cada 4 min, para a instalação inteira |
+| `AvisoDoDescarteDura` | 1 h | quanto o Aviso do alerta que não saiu fica depois do último descarte |
 
 ## O custo
 
