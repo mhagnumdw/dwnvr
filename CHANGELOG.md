@@ -2,6 +2,31 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.12.0](https://github.com/mhagnumdw/dwnvr/compare/v0.11.0...v0.12.0) (2026-10-28)
+
+### Pede ação ao atualizar
+
+- Depois de atualizar, toda câmera que segue o padrão de sensibilidade passa do nível 4 para o 5 e gasta o dobro de CPU com a detecção. Isso pode incluir câmera em que o 4 foi escolhido na tela: por ser o padrão, ele não ficou gravado nela. Para manter o 4, escolha-o de novo na câmera ou ponha `detectSensibilidade: 4` no `defaults` do `dwnvr.yaml`. ([ffd01fd8](https://github.com/mhagnumdw/dwnvr/commit/ffd01fd8abff336e5c5cd360f1b5e6ff7c626474))
+
+- Se o ID de alguma câmera tiver vírgula, o dwnvr não sobe depois de atualizar. Antes, renomeie o stream no go2rtc e o `id` no `cameras.json` para um nome sem vírgula, e mova a pasta de gravações dela no storage para o nome novo. ([8d4662db](https://github.com/mhagnumdw/dwnvr/commit/8d4662db2be20606085a1f213878d4c55e72b40c))
+
+### Added
+
+- feat(login): entrar com o e-mail, além do usuário ([#51](https://github.com/mhagnumdw/dwnvr/pull/51)) ([24082d4a](https://github.com/mhagnumdw/dwnvr/commit/24082d4a9de14b56149ed54c52798abb22fadc6c))
+- feat(email): envio de e-mail opcional, com o link de definir a senha direto para a pessoa ([#50](https://github.com/mhagnumdw/dwnvr/pull/50)) ([9cd5d258](https://github.com/mhagnumdw/dwnvr/commit/9cd5d25815256315276a5df0e12436f10f70378c))
+- feat(detect)!: sensibilidade padrão da detecção passa de 4 para 5 ([#48](https://github.com/mhagnumdw/dwnvr/pull/48)) ([ffd01fd8](https://github.com/mhagnumdw/dwnvr/commit/ffd01fd8abff336e5c5cd360f1b5e6ff7c626474))
+- feat(web): formulário da câmera em abas ([#45](https://github.com/mhagnumdw/dwnvr/pull/45)) ([2bd92f48](https://github.com/mhagnumdw/dwnvr/commit/2bd92f48ae683d93f77b9f935d9aa4cdb459a5ac))
+
+### Fixed
+
+- fix(api): salvar a câmera não a prende mais aos valores padrão ([#47](https://github.com/mhagnumdw/dwnvr/pull/47)) ([ee32c601](https://github.com/mhagnumdw/dwnvr/commit/ee32c601a7a85493c4fa5ac050741f6e4366a3bb))
+- fix(api)!: recusa vírgula no ID da câmera ([#46](https://github.com/mhagnumdw/dwnvr/pull/46)) ([8d4662db](https://github.com/mhagnumdw/dwnvr/commit/8d4662db2be20606085a1f213878d4c55e72b40c))
+
+### CI/Build
+
+- build(detect): pillow 12.3.0 → 13.0.0 nas dependências do exporta.py ([e16d0513](https://github.com/mhagnumdw/dwnvr/commit/e16d0513bd3444d3d99afc44b9f9563a0d568de2))
+- build(deps-dev): bump vite from 8.3.0 to 8.3.5 in /web ([#43](https://github.com/mhagnumdw/dwnvr/pull/43)) ([767eed37](https://github.com/mhagnumdw/dwnvr/commit/767eed37954c547af543cd86878e8dc70132789b))
+
 ## [v0.11.0](https://github.com/mhagnumdw/dwnvr/compare/v0.10.0...v0.11.0) (2026-10-20)
 
 ### Added
