@@ -29,6 +29,7 @@ pode ser rodado outra vez para conferir.
 - [Private vulnerability reporting](#private-vulnerability-reporting)
 - [Ruleset na `main`](#ruleset-na-main)
 - [Merge do PR sem merge commit](#merge-do-pr-sem-merge-commit)
+- [Branch apagada depois do merge](#branch-apagada-depois-do-merge)
 - [govulncheck semanal](#govulncheck-semanal)
 - [Trivy semanal na imagem do detector](#trivy-semanal-na-imagem-do-detector)
 - [Codecov](#codecov)
@@ -46,6 +47,7 @@ gh api --paginate "repos/$REPO/code-scanning/alerts?state=open&tool_name=Trivy" 
 gh api repos/$REPO/private-vulnerability-reporting
 gh api repos/$REPO/rules/branches/main --jq '.[].type'       # deletion, non_fast_forward
 gh api repos/$REPO --jq '.allow_merge_commit'                # false
+gh api repos/$REPO --jq '.delete_branch_on_merge'            # true
 ```
 
 ## Secret scanning e push protection
@@ -263,6 +265,18 @@ ligada.
 
 ```sh
 gh repo edit $REPO --enable-merge-commit=false
+```
+
+## Branch apagada depois do merge
+
+Ligado em 28/10/2026. Com o PR aceito, o GitHub apaga a branch dele no
+repositório, e a lista de branches fica só com o que ainda está aberto. A
+branch apagada volta pelo botão "Restore branch" do PR. Não vale para a
+`main`, que o ruleset protege, nem para a branch de PR vindo de fork. A cópia
+local continua, e quem a criou apaga.
+
+```sh
+gh repo edit $REPO --delete-branch-on-merge
 ```
 
 ## govulncheck semanal
