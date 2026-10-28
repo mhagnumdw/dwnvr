@@ -160,6 +160,9 @@
 
   function aperta(e: PointerEvent) {
     e.preventDefault();
+    // O preventDefault segura o foco onde estava: sem soltá-lo, o campo do nome
+    // seguiria focado, e no celular cada toque reabriria o teclado.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     svg?.setPointerCapture(e.pointerId);
     const p = ponto(e);
     const i = perto(p);
