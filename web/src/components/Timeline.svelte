@@ -129,12 +129,22 @@
   // rua isso é comum -, e o grupo é
   // desenhado como UMA marca dividida, e não como duas que se tampam.
   // Dentro do grupo, a família de mais prioridade vem primeiro.
+  //
+  // A timeline marca chegada por família: duas pessoas no mesmo instante são
+  // duas linhas gravadas, mas uma chegada de `pessoa`, com a de maior
+  // confiança - a classe dela é a que o ícone e o tooltip mostram.
   const grupos = $derived.by((): Grupo[] => {
     const out: { t: number; marcas: ObjetoMarcado[] }[] = [];
     for (const o of [...objetos].sort((a, b) => a.instanteMs - b.instanteMs)) {
       const ult = out.at(-1);
-      if (ult?.t === o.instanteMs) ult.marcas.push(o);
-      else out.push({ t: o.instanteMs, marcas: [o] });
+      if (ult?.t !== o.instanteMs) {
+        out.push({ t: o.instanteMs, marcas: [o] });
+        continue;
+      }
+      const i = ult.marcas.findIndex((m) => m.familia === o.familia);
+      const mesma = ult.marcas[i];
+      if (!mesma) ult.marcas.push(o);
+      else if (o.score > mesma.score) ult.marcas[i] = o;
     }
     return out.map((gr) => {
       const prioridades = gr.marcas.map((m) => familia(m.familia).prioridade);

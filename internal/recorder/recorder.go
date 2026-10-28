@@ -5,6 +5,7 @@ package recorder
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -463,7 +465,7 @@ func (r *Recorder) olhou(o detect.Olhada) {
 	}
 	r.comObjeto.Add(1)
 
-	// O quadro é gravado UMA vez, antes das linhas, e as duas famílias do
+	// O quadro é gravado UMA vez, antes das linhas, e todas as linhas do
 	// mesmo instante apontam para o mesmo arquivo. Falhar aqui não cancela a
 	// marca: melhor uma detecção sem miniatura do que uma detecção perdida.
 	var temQuadro bool
@@ -476,17 +478,18 @@ func (r *Recorder) olhou(o detect.Olhada) {
 		}
 	}
 
-	// Uma linha por família, com a classe de maior confiança: duas pessoas
-	// chegando juntas são uma chegada de `pessoa` na timeline.
-	melhor := map[detect.Familia]detect.Achado{}
+	// Uma linha por objeto que virou marca, todas no instante do onset: duas
+	// pessoas chegando juntas são duas linhas de `pessoa`, cada uma com a sua
+	// caixa na miniatura e no vídeo. Quem quer uma chegada por família,
+	// como a timeline, junta na leitura. A ordem é a das famílias e, dentro
+	// delas, a da confiança: quem lê a linha crua vê primeiro o que mais importa.
+	slices.SortStableFunc(marcas, func(a, b detect.Achado) int {
+		fa := slices.Index(detect.Familias, detect.FamiliasPadrao[a.Classe])
+		fb := slices.Index(detect.Familias, detect.FamiliasPadrao[b.Classe])
+		return cmp.Or(cmp.Compare(fa, fb), cmp.Compare(b.Score, a.Score))
+	})
 	for _, a := range marcas {
-		f := detect.FamiliasPadrao[a.Classe]
-		if b, ok := melhor[f]; !ok || a.Score > b.Score {
-			melhor[f] = a
-		}
-	}
-	for _, f := range detect.Familias {
-		a, ok := melhor[f]
+		f, ok := detect.FamiliasPadrao[a.Classe]
 		if !ok {
 			continue
 		}
