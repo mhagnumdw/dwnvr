@@ -165,6 +165,7 @@ export const ICONES_UI = {
   mais: [['path', { d: 'M12 5v14M5 12h14' }]],
   menos: [['path', { d: 'M5 12h14' }]],
   fechar: [['path', { d: 'M6 6l12 12M18 6L6 18' }]],
+  marcado: [['path', { d: 'M5 12.5l4.5 4.5L19 7.5' }]],
   olho: [
     ['path', { d: 'M2.25 12S6 5.25 12 5.25 21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12z' }],
     ['circle', { cx: 12, cy: 12, r: 3 }],

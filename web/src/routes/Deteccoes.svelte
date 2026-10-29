@@ -111,9 +111,11 @@
   const NOVAS_MS = 20000;
   const ATRASO_MS = 5 * 60 * 1000;
 
-  // A altura do menu do ⋮, para abrir para cima quando não cabe embaixo. E
-  // quanto tempo o "desfazer" fica na tela depois de ocultar uma câmera.
-  const MENU_PX = 140;
+  // A altura de cada linha do menu do ⋮, e a do resto dele (bordas, padding e
+  // separadores), para abrir para cima quando não cabe embaixo. E quanto tempo
+  // o "desfazer" fica na tela depois de ocultar uma câmera.
+  const ITEM_DO_MENU_PX = 36;
+  const MOLDURA_DO_MENU_PX = 20;
   const DESFAZER_MS = 6000;
 
   const ORDEM_FAMILIAS = NOMES_DAS_FAMILIAS;
@@ -777,7 +779,15 @@
   function foraDasCameras(e: MouseEvent) {
     const alvoDoClique = e.target instanceof Element ? e.target : null;
     if (camerasAbertas && camsEl && !camsEl.contains(alvoDoClique)) camerasAbertas = false;
-    if (menu && menuEl && !menuEl.contains(alvoDoClique) && !alvoDoClique?.closest('.mais'))
+    // O alvo já fora da página é um item do menu que trocou de página: o
+    // "Filtrar por área" some debaixo do dedo, e o menu tem de ficar.
+    if (
+      menu &&
+      menuEl &&
+      alvoDoClique?.isConnected &&
+      !menuEl.contains(alvoDoClique) &&
+      !alvoDoClique.closest('.mais')
+    )
       menu = null;
   }
 
@@ -788,11 +798,15 @@
   // no meio da rolagem. Por isso mesmo ele fecha quando a tela rola.
   let menu = $state<{
     k: string;
+    det: Deteccao;
     cam: string;
     instanteMs: number;
     x: number;
-    y: number;
-    paraCima: boolean;
+    // Onde o ⋮ está na tela: o menu abre embaixo dele, ou em cima.
+    topo: number;
+    base: number;
+    // A página das áreas: o conteúdo do menu vira a lista delas.
+    areas: boolean;
   } | null>(null);
   let menuEl = $state<HTMLDivElement | null>(null);
 
@@ -802,15 +816,69 @@
       return;
     }
     const r = ev.currentTarget.getBoundingClientRect();
-    const paraCima = r.bottom + MENU_PX > window.innerHeight;
     menu = {
       k: chave(d),
+      det: d,
       cam: d.cam,
       instanteMs: d.instanteMs,
       x: window.innerWidth - r.right,
-      y: paraCima ? window.innerHeight - r.top : r.bottom,
-      paraCima,
+      topo: r.top,
+      base: r.bottom,
+      areas: false,
     };
+  }
+
+  const areasDe = (cam: string) => cameras.list.find((c) => c.id === cam)?.areas ?? [];
+
+  // O menu abre embaixo do ⋮ quando cabe, e senão do lado que tem mais espaço.
+  // A página das áreas pode passar dos dois - são até 8 -, e aí rola dentro.
+  const posicaoDoMenu = $derived.by(() => {
+    if (!menu) return null;
+    const linhas = menu.areas
+      ? areasDe(menu.cam).length + (area?.cam === menu.cam ? 1 : 0) + 2
+      : existe(menu.cam)
+        ? 4
+        : 1;
+    const altura = linhas * ITEM_DO_MENU_PX + MOLDURA_DO_MENU_PX;
+    const embaixo = window.innerHeight - menu.base;
+    const paraCima = altura > embaixo && menu.topo > embaixo;
+    return { paraCima, max: (paraCima ? menu.topo : embaixo) - 8 };
+  });
+
+  // O "Filtrar por área" do ⋮. Sem área cadastrada na câmera não há o que
+  // escolher, e ele vai direto ao editor sobre o quadro daquela detecção, como
+  // o "filtrar por área" da folha. Com área, o menu vira a lista delas.
+  function filtraPorAreaDoMenu() {
+    if (!menu) return;
+    if (areasDe(menu.cam).length) {
+      menu.areas = true;
+      return;
+    }
+    desenhaDoMenu();
+  }
+
+  // Pelo ⋮, a lista recomeça no instante daquele quadro, e não no topo: foi
+  // sobre ele que se pediu o filtro, como no "Ocultar a câmera".
+  function desenhaDoMenu() {
+    const m = menu;
+    if (!m) return;
+    menu = null;
+    void abreEditor(m.cam, m.det, m.instanteMs + 1);
+  }
+
+  function alternaAreaDoMenu(k: string) {
+    const m = menu;
+    if (!m) return;
+    menu = null;
+    alternaArea(k, m.instanteMs + 1);
+  }
+
+  function tiraDesenhadaDoMenu() {
+    const m = menu;
+    if (!m) return;
+    menu = null;
+    area = null;
+    void recomeca(m.instanteMs + 1);
   }
 
   // O aviso de desfazer, na snackbar: a miniatura some debaixo do dedo, e um
@@ -930,6 +998,9 @@
     fundo: { tipo: 'imagem' | 'video'; url: string } | null;
     caixas: { caixa: Caixa; cor: string }[];
     erro: string;
+    // Onde a lista recomeça ao aplicar: no topo, ou no instante do quadro
+    // quando o editor veio do ⋮ dele.
+    ficarEm: number | null;
   } | null>(null);
   let areaAberta = $state(false);
   let areaEl = $state<HTMLDivElement | undefined>();
@@ -940,7 +1011,11 @@
   // Abre o editor sobre um quadro da câmera: o da detecção dada, ou o da mais
   // recente dela com quadro, ou o keyframe do último segmento quando ela não
   // tem detecção nenhuma.
-  async function abreEditor(cam: string, det: Deteccao | null = null) {
+  async function abreEditor(
+    cam: string,
+    det: Deteccao | null = null,
+    ficarEm: number | null = null,
+  ) {
     areaAberta = false;
     aberto = null;
     if (!EditorDeArea)
@@ -953,10 +1028,11 @@
         fundo: { tipo: 'imagem', url: mediaURL.quadro(cam, det.instanteMs) },
         caixas: caixasDe(det),
         erro: '',
+        ficarEm,
       };
       return;
     }
-    editor = { cam, fundo: null, caixas: [], erro: '' };
+    editor = { cam, fundo: null, caixas: [], erro: '', ficarEm };
     // O editor pode ter fechado, ou ter sido aberto de novo, durante a busca. A
     // câmera não basta: reaberto na mesma, pela folha de uma detecção, ele já
     // tem o quadro dela, e a busca velha o trocaria.
@@ -997,11 +1073,11 @@
 
   function aplicaArea(pontos: Ponto[], regra: Regra) {
     if (!editor) return;
-    const cam = editor.cam;
+    const { cam, ficarEm } = editor;
     area = { cam, pontos, regra };
     editor = null;
     marcaCamera(cam);
-    void recomeca();
+    void recomeca(ficarEm);
   }
 
   // O "salvar na câmera" do editor, só do admin: grava a área desenhada no
@@ -1032,25 +1108,25 @@
         areasMarcadas = [...areasMarcadas, `${id}/${salva.id}`];
         marcaCamera(id);
       }
-      void recomeca();
+      void recomeca(alvo.ficarEm);
     } catch (e) {
       throw new Error(`não deu para salvar: ${mensagemDe(e)}`, { cause: e });
     }
   }
 
   // Liga ou desliga uma área cadastrada. O popover fica aberto: escolher
-  // várias soma.
-  function alternaArea(k: string) {
+  // várias soma. `ficarEm` é o instante onde a lista recomeça, pelo ⋮.
+  function alternaArea(k: string, ficarEm: number | null = null) {
     const a = cadastradas.get(k);
     if (!a) return;
     if (areasMarcadas.includes(k)) {
       areasMarcadas = areasMarcadas.filter((x) => x !== k);
-      void recomecaNoLugar();
+      void (ficarEm === null ? recomecaNoLugar() : recomeca(ficarEm));
       return;
     }
     areasMarcadas = [...areasMarcadas, k];
     marcaCamera(a.cam);
-    void recomeca();
+    void recomeca(ficarEm);
   }
 
   // Volta à lista sem sair de onde estava, como o limpaIntervalo: tirar
@@ -1576,43 +1652,91 @@
   />
 {/if}
 
-{#if menu}
+{#if menu && posicaoDoMenu}
   {@const m = menu}
+  {@const p = posicaoDoMenu}
   <div
     class="menu"
     role="menu"
     bind:this={menuEl}
-    style:right="{menu.x}px"
-    style:top={menu.paraCima ? null : `${menu.y + 4}px`}
-    style:bottom={menu.paraCima ? `${menu.y + 4}px` : null}
+    style:right="{m.x}px"
+    style:top={p.paraCima ? null : `${m.base + 4}px`}
+    style:bottom={p.paraCima ? `${window.innerHeight - m.topo + 4}px` : null}
+    style:max-height="{p.max}px"
   >
-    {#if existe(menu.cam)}
-      <a
-        class="item"
+    {#if m.areas}
+      <button class="ghost voltar" role="menuitem" onclick={() => (m.areas = false)}>
+        <Icone nome="chevronEsq" tamanho={14} traco={2.4} />
+        Filtrar por área · <strong>{nomes[m.cam] ?? m.cam}</strong>
+      </button>
+      <hr />
+      {#each areasDe(m.cam) as a (a.id)}
+        {@const k = `${m.cam}/${a.id}`}
+        {@const on = areasMarcadas.includes(k)}
+        <button
+          class="ghost area-do-menu"
+          role="menuitemcheckbox"
+          aria-checked={on}
+          onclick={() => alternaAreaDoMenu(k)}
+        >
+          <span class="marca">
+            {#if on}<Icone nome="marcado" tamanho={14} traco={2.6} />{/if}
+          </span>
+          <span class="nome">{a.name}</span>
+          <span class="muted regra">{REGRAS[a.rule ?? REGRA_PADRAO].nome}</span>
+        </button>
+      {/each}
+      {#if area?.cam === m.cam}
+        <button
+          class="ghost area-do-menu"
+          role="menuitemcheckbox"
+          aria-checked="true"
+          onclick={tiraDesenhadaDoMenu}
+        >
+          <span class="marca"><Icone nome="marcado" tamanho={14} traco={2.6} /></span>
+          <span class="nome">desenhada</span>
+        </button>
+      {/if}
+      <hr />
+      <button class="ghost desenhar" role="menuitem" onclick={desenhaDoMenu}>
+        <Icone nome="area" tamanho={14} traco={2.2} />
+        {area?.cam === m.cam ? 'Redesenhar' : 'Desenhar'} sobre este quadro
+      </button>
+    {:else}
+      {#if existe(m.cam)}
+        <a
+          class="item"
+          role="menuitem"
+          href="#live?cams={encodeURIComponent(m.cam)}"
+          onclick={() => (menu = null)}
+        >
+          Ir para o ao vivo de <strong>{nomes[m.cam] ?? m.cam}</strong>
+        </a>
+        <a
+          class="item"
+          role="menuitem"
+          href={linkGravacoes(m.cam, m.instanteMs)}
+          onclick={() => (menu = null)}
+        >
+          Abrir em Gravações
+        </a>
+        <button class="ghost filtra-area" role="menuitem" onclick={filtraPorAreaDoMenu}>
+          Filtrar por área
+          {#if areasDe(m.cam).length}
+            <Icone nome="chevronDir" tamanho={14} traco={2.4} />
+          {/if}
+        </button>
+      {/if}
+      <button
+        class="ghost"
         role="menuitem"
-        href="#live?cams={encodeURIComponent(menu.cam)}"
-        onclick={() => (menu = null)}
+        onclick={() => {
+          void ocultaCamera(m.cam);
+        }}
       >
-        Ir para o ao vivo de <strong>{nomes[menu.cam] ?? menu.cam}</strong>
-      </a>
-      <a
-        class="item"
-        role="menuitem"
-        href={linkGravacoes(menu.cam, menu.instanteMs)}
-        onclick={() => (menu = null)}
-      >
-        Abrir em Gravações
-      </a>
+        Ocultar a câmera <strong>{nomes[m.cam] ?? m.cam}</strong>
+      </button>
     {/if}
-    <button
-      class="ghost"
-      role="menuitem"
-      onclick={() => {
-        void ocultaCamera(m.cam);
-      }}
-    >
-      Ocultar a câmera <strong>{nomes[menu.cam] ?? menu.cam}</strong>
-    </button>
   </div>
 {/if}
 
@@ -2084,6 +2208,7 @@
     position: fixed;
     z-index: 40;
     max-width: calc(100vw - 20px);
+    overflow-y: auto;
     padding: 4px;
     background: var(--panel);
     border: 1px solid var(--line);
@@ -2107,6 +2232,49 @@
     padding: 8px 10px;
     color: inherit;
     text-decoration: none;
+  }
+
+  .menu hr {
+    margin: 4px 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  /* A página das áreas: a marca, o nome e a regra numa linha. */
+  .menu .voltar,
+  .menu .area-do-menu,
+  .menu .filtra-area,
+  .menu .desenhar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .menu .voltar {
+    color: var(--dim);
+  }
+
+  .menu .filtra-area :global(svg) {
+    margin-left: auto;
+    color: var(--dim);
+  }
+
+  .menu .marca {
+    display: flex;
+    flex: none;
+    width: 14px;
+    color: var(--ok);
+  }
+
+  .menu .area-do-menu .nome {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .menu .regra {
+    margin-left: auto;
+    padding-left: 12px;
+    font-size: 12px;
   }
 
   @media (hover: hover) {
