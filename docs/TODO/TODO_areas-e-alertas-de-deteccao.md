@@ -218,15 +218,15 @@ três cuidados seguram o custo:
 
 ## Vocabulário
 
-| Termo | O que é |
-| --- | --- |
-| **área** | um polígono sobre a imagem de uma câmera, em fração do quadro. Várias por câmera, cada uma com nome |
-| **regra da área** | quando um objeto conta como dentro: `encosta` ou `pisa`, que no JSON são `touch` e `foot` |
-| **alerta** | o aviso de que uma detecção passou na regra de alerta da câmera |
-| **horário** | um item do `schedules`: os dias, um De e um Até, dentro de um dia só. Sem nenhum, o alerta sai sempre |
-| **meio** | por onde o alerta sai: e-mail, depois outros |
-| **registro** | a linha do alerta no log e a marca `alert` na detecção. Todo alerta tem, com meio configurado ou não |
-| **silêncio** | o tempo, depois de um alerta, em que a mesma câmera e família não alertam de novo. Adiado: ver [O silêncio, medido e adiado](#o-silêncio-medido-e-adiado) |
+| Termo             | O que é                                                                                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **área**          | um polígono sobre a imagem de uma câmera, em fração do quadro. Várias por câmera, cada uma com nome                                                       |
+| **regra da área** | quando um objeto conta como dentro: `encosta` ou `pisa`, que no JSON são `touch` e `foot`                                                                 |
+| **alerta**        | o aviso de que uma detecção passou na regra de alerta da câmera                                                                                           |
+| **horário**       | um item do `schedules`: os dias, um De e um Até, dentro de um dia só. Sem nenhum, o alerta sai sempre                                                     |
+| **meio**          | por onde o alerta sai: e-mail, depois outros                                                                                                              |
+| **registro**      | a linha do alerta no log e a marca `alert` na detecção. Todo alerta tem, com meio configurado ou não                                                      |
+| **silêncio**      | o tempo, depois de um alerta, em que a mesma câmera e família não alertam de novo. Adiado: ver [O silêncio, medido e adiado](#o-silêncio-medido-e-adiado) |
 
 ## O modelo de dados
 
@@ -234,14 +234,14 @@ Decidido em 20/10/2026. Chave e valor novos em en-US (ver o `AGENTS.md`); o
 que já existe em português, como a família `"pessoa"`, entra como é. Os nomes
 no Go seguem em português (`Area`, `RegraDaArea`).
 
-| Etapa | Onde mora | O quê |
-| --- | --- | --- |
-| 1 | só na URL e na query | `area=<cam>:<x>,<y>,...` em milésimos e `rule=touch\|foot` |
-| 2 | `cameras.json`, dentro da câmera | `areas`: `id`, `name`, `rule`, `points` |
-| 3 | `cameras.json`, dentro da câmera | `alert`: `enabled`, `families`, `areas` |
-| 3 | `eventos/{dia}.ndjson`, na linha do objeto | `alert` e `alertAreas`, a marca de quem alertou |
-| 4 | dentro do `alert` | `schedules`: `days`, `from`, `to` |
-| 5 | `dwnvr.yaml` | `alerts.email.to`; o envio é o da seção `smtp`, do PR #50 |
+| Etapa | Onde mora                                  | O quê                                                      |
+| ----- | ------------------------------------------ | ---------------------------------------------------------- |
+| 1     | só na URL e na query                       | `area=<cam>:<x>,<y>,...` em milésimos e `rule=touch\|foot` |
+| 2     | `cameras.json`, dentro da câmera           | `areas`: `id`, `name`, `rule`, `points`                    |
+| 3     | `cameras.json`, dentro da câmera           | `alert`: `enabled`, `families`, `areas`                    |
+| 3     | `eventos/{dia}.ndjson`, na linha do objeto | `alert` e `alertAreas`, a marca de quem alertou            |
+| 4     | dentro do `alert`                          | `schedules`: `days`, `from`, `to`                          |
+| 5     | `dwnvr.yaml`                               | `alerts.email.to`; o envio é o da seção `smtp`, do PR #50  |
 
 - **Área e alerta dentro da câmera**, e não num arquivo próprio: aproveitam o
   `ConfereCamera`, o `trocaCamera` e o `GET /api/cameras`, que já leva tudo ao
@@ -253,10 +253,10 @@ no Go seguem em português (`Area`, `RegraDaArea`).
 
 ## As duas regras
 
-| Regra | Conta como dentro quando | A favor | Contra |
-| --- | --- | --- | --- |
-| `encosta` | a caixa e a área têm algum ponto em comum | é o que se espera sem pensar; pega o objeto pela metade na borda | em perspectiva, quem está perto da câmera cobre a área que fica atrás: a pessoa no quintal encosta no portão do fundo |
-| `pisa` | o meio da borda de baixo da caixa, onde ficam os pés e as rodas, está dentro da área | a área se desenha no chão, e quem está na frente dela não conta | com os pés escondidos por um muro, quem conta é a borda do muro; e a tela precisa explicar que a área é o chão |
+| Regra     | Conta como dentro quando                                                             | A favor                                                          | Contra                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `encosta` | a caixa e a área têm algum ponto em comum                                            | é o que se espera sem pensar; pega o objeto pela metade na borda | em perspectiva, quem está perto da câmera cobre a área que fica atrás: a pessoa no quintal encosta no portão do fundo |
+| `pisa`    | o meio da borda de baixo da caixa, onde ficam os pés e as rodas, está dentro da área | a área se desenha no chão, e quem está na frente dela não conta  | com os pés escondidos por um muro, quem conta é a borda do muro; e a tela precisa explicar que a área é o chão        |
 
 As duas são um teste geométrico proporcional aos pontos da área, sem alocar.
 
@@ -632,19 +632,23 @@ reinício.
   ```
 
   A pessoa de 0,40 do mesmo quadro, fora da Calçada, fica sem marca.
+
 - **Onde:** na linha do objeto, e não numa linha própria, num arquivo
   `alertas/{dia}` ou num arquivo global. A marca é por objeto, só a linha dele
   a diz sem apontar "qual objeto"; sai na mesma escrita; a retenção é a do
   vídeo; e Detecções já lê esse arquivo. O resultado do envio (Etapa 5) chega
   depois e não caberia aí de qualquer jeito: se um dia for guardado, ganha
   lugar próprio.
+
 - **A ordem muda:** a regra roda antes de gravar as linhas (hoje roda depois),
   para a marca entrar na escrita. A `Central` fica com o total, o log e os
   meios; o anel `recentes`, o `AlertasNaTela` e o `GET /api/alertas` saem. O
   `/api/health` mantém só `alerts.total`.
+
 - **A API:** o objeto do `/api/deteccoes` traz `alert` e `alertAreas` (ids,
   como gravados; a tela põe o nome pelo `GET /api/cameras`), e o filtro
   `alert=1` deixa só as detecções com objeto que alertou.
+
 - **A tela, variante A do mock:** um botão com o sino na linha de
   pessoa/veículo/animal, "só alertas" no desktop, que soma com os outros
   filtros e vai no link. Desligado, a grade é a de hoje e a miniatura que
@@ -836,8 +840,8 @@ alerts:
     to: [fulano@exemplo.com, ciclana@exemplo.com]
 ```
 
-| Campo | O que é |
-| --- | --- |
+| Campo             | O que é                                           |
+| ----------------- | ------------------------------------------------- |
 | `alerts.email.to` | recebem o alerta de toda câmera com alerta ligado |
 
 - **O meio nasce com as duas coisas:** a seção `smtp` ligada e pelo menos um
@@ -943,11 +947,13 @@ Alertas saiu em 23/10/2026; ver a Etapa 3):
 1. **Os números do meio** (enviados, falhas e o último resultado) ficam no card
    Este servidor do Diagnóstico, junto do e-mail que o #50 já mostra lá, só
    para o admin. Os descartados vão no Aviso acima.
+
 2. **O botão "Enviar um alerta de teste" ficou para depois** (decisão do
    mantenedor, 27/10/2026: preciosismo para o momento). Ele foi desenhado, e o
    desenho mora em
    [`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md). Até lá, o envio se
    confere pelo "Testar o e-mail" do card Este servidor.
+
 3. **A aba Alerta mostra para onde vai**, num bloco "Para onde vai" que troca
    a frase fixa de hoje ("O envio por e-mail ainda não existe"): "Por e-mail,
    para 2 endereços", com os endereços (a aba é só do admin); "Só fica
@@ -959,6 +965,7 @@ Alertas saiu em 23/10/2026; ver a Etapa 3):
    a lista, ou com o desde quando e o erro se o meio está falhando; sem o
    meio, as seções que faltam (`missing`) e o motivo da `smtp` recusada
    (`smtpError`). As frases ficam com a tela, as do mock.
+
 4. **Uma mensagem para todos**, com a lista no `To`: cinco endereços são um
    envio, e contam um no teto. O `Enviador` do #50 já faz assim, com um `RCPT`
    por endereço na mesma conexão. Um endereço recusado no `RCPT` para a
@@ -1040,9 +1047,10 @@ em 28/10/2026 (decisão do mantenedor).
    [Etapa 7](#etapa-7---o-que-conferir-no-uso-real).
 
 **Para voltar:** `make deploy` sobe a imagem da `main`. Ela ignora a seção
-`alerts` do `dwnvr.yaml` e sobe normal, mas **salvar uma câmera por ela apaga
-as áreas e o alerta dessa câmera**, porque não conhece os campos (a ressalva
-da Etapa 2). Antes de voltar, uma cópia do `cameras.json`.
+`alerts` do `dwnvr.yaml` e sobe normal. As áreas ela conhece desde o #53, mas
+o alerta não: **salvar ou remover qualquer câmera por ela apaga o alerta de
+todas**, porque ela regrava o `cameras.json` inteiro a partir do que leu, já
+sem o campo `alert`. Antes de voltar, uma cópia do `cameras.json`.
 
 - [ ] a branch na instalação de teste, por `make deploy-wip`
 - [ ] `alerts.email.to` no `dwnvr.yaml` de lá
@@ -1057,28 +1065,34 @@ deitado; "viewer" é entrar com um usuário que não é admin.
 
 ### Detecções: as caixas
 
-- [ ] duas pessoas no mesmo quadro aparecem com as duas caixas na miniatura,
+- [x] duas pessoas no mesmo quadro aparecem com as duas caixas na miniatura,
   na folha e sobre o vídeo de Gravações (Etapa 0)
-- [ ] na timeline, as duas seguem um ícone só de pessoa, numa faixa só
+- [x] na timeline, as duas seguem um ícone só de pessoa, numa faixa só
 - [ ] a cauda de Gravações, com a página aberta, não perde a segunda caixa
-  da mesma família
+  da mesma família (dw: aguardando acontecer)
 
 ### Detecções: a área desenhada na hora
 
-- [ ] o botão de área na barra pede a câmera e abre o quadro da detecção mais
+- [x] o botão de área na barra pede a câmera e abre o quadro da detecção mais
   recente dela (ou o do último segmento, sem detecção)
-- [ ] o "filtrar por área" na folha desenha sobre aquele quadro
-- [ ] o editor: um toque por vértice, tocar no primeiro fecha, arrastar o
+- [x] o "filtrar por área" na folha desenha sobre aquele quadro
+- [x] o editor: um toque por vértice, tocar no primeiro fecha, arrastar o
   vértice, desfazer e limpar
-- [ ] o editor no celular, em tela cheia e deitado, com os controles à
+- [x] o editor no celular, em tela cheia e deitado, com os controles à
   direita; no desktop, em modal
-- [ ] a regra `encosta` × `pisa`, com `pisa` de padrão, separando a pessoa
+- [x] a regra `encosta` × `pisa`, com `pisa` de padrão, separando a pessoa
   que só aparece por cima da área
-- [ ] o chip da área na barra: tocar reabre o editor e o ✕ limpa; com o
-  intervalo de horário ligado, os dois chips dividem a linha no celular
-- [ ] a área restringe só a câmera dela; as outras marcadas seguem inteiras,
+- [x] os ícones da regra, ao lado do nome: na `pisa`, a pessoa em pé sobre a
+  área deitada no chão; na `encosta`, a pessoa com a mão na área. No seletor
+  do editor, na aba Áreas da câmera e no ⋮ "Filtrar por área"; no celular
+  deitado, os dois botões do seletor cabem lado a lado
+- [x] o chip da área na barra: tocar abre o popover das áreas (sem área
+  cadastrada em nenhuma câmera, vai direto ao editor da desenhada) e o ✕
+  limpa; com o intervalo de horário ligado, os dois chips dividem a linha
+  no celular
+- [x] a área restringe só a câmera dela; as outras marcadas seguem inteiras,
   e desmarcar a câmera dela a tira da lista
-- [ ] o contorno tracejado da área nas miniaturas e na folha
+- [x] o contorno tracejado da área nas miniaturas e na folha
 - [ ] o calendário segue a área
 - [ ] o link colado em outra aba mostra a mesma lista
 - [ ] área côncava (em L), caixa que só encosta na borda, área do tamanho da
@@ -1094,6 +1108,10 @@ deitado; "viewer" é entrar com um usuário que não é admin.
 - [ ] "salvar na câmera", só para o admin, grava a área desenhada e passa o
   filtro a apontar para ela
 - [ ] no editor de Detecções, as áreas que a câmera já tem aparecem em cinza
+- [ ] o "Filtrar por área" do ⋮ da miniatura: com área cadastrada, a lista
+  delas com ✓ nas marcadas (soma, e tocar de novo tira) e "Desenhar sobre este
+  quadro"; sem área, direto ao editor sobre aquele quadro; nos dois, a lista
+  recomeça no instante daquele quadro; o menu abre para cima quando não cabe
 
 ### Detecções: o que alertou
 
@@ -1264,10 +1282,10 @@ atrás não cala a pessoa de agora.
 
 **As duas formas de contar o tempo:**
 
-| Forma | Como conta | A favor | Contra |
-| --- | --- | --- | --- |
-| fixo | o tempo corre a partir do alerta | lembra que a cena continua | a presença longa vira um alerta a cada N minutos |
-| deslizante | cada marca que cai no silêncio o reinicia | um alerta por episódio | numa câmera sempre movimentada ele nunca fecha, e quem chega no meio não avisa |
+| Forma      | Como conta                                | A favor                    | Contra                                                                         |
+| ---------- | ----------------------------------------- | -------------------------- | ------------------------------------------------------------------------------ |
+| fixo       | o tempo corre a partir do alerta          | lembra que a cena continua | a presença longa vira um alerta a cada N minutos                               |
+| deslizante | cada marca que cai no silêncio o reinicia | um alerta por episódio     | numa câmera sempre movimentada ele nunca fecha, e quem chega no meio não avisa |
 
 E a duração: mais longa manda menos alerta, e cala a segunda chegada que cair
 dentro dela.
@@ -1278,15 +1296,15 @@ o dia todo. Uma olhada é o conjunto das marcas de objeto de um mesmo
 `instanteMs` no `eventos/{dia}.ndjson`, e o teste de área é o do
 `internal/area`.
 
-| Silêncio | Alertas por dia, somadas as 9 câmeras |
-| --- | --- |
-| nenhum | 629 |
-| fixo, 1 min | 430 |
-| fixo, 5 min | 247 |
-| fixo, 15 min | 146 |
-| deslizante, 5 min | 173 |
-| deslizante, 15 min | 85 |
-| fixo, 5 min, só das 22h às 6h | 12,6 |
+| Silêncio                      | Alertas por dia, somadas as 9 câmeras |
+| ----------------------------- | ------------------------------------- |
+| nenhum                        | 629                                   |
+| fixo, 1 min                   | 430                                   |
+| fixo, 5 min                   | 247                                   |
+| fixo, 15 min                  | 146                                   |
+| deslizante, 5 min             | 173                                   |
+| deslizante, 15 min            | 85                                    |
+| fixo, 5 min, só das 22h às 6h | 12,6                                  |
 
 - De dia, numa casa com gente, o silêncio não segura o volume: com 15 min
   fixo, as três câmeras mais movimentadas ainda dão de 27 a 37 alertas por dia
