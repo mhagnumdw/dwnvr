@@ -370,11 +370,20 @@
     areaAberta = null;
   }
 
-  function apagaArea() {
-    if (!editing || areaAberta?.indice == null) return;
-    const i = areaAberta.indice;
-    editing.areas = (editing.areas ?? []).filter((_, j) => j !== i);
+  // A área a apagar, à espera da confirmação: o índice dela.
+  let apagandoArea = $state<number | null>(null);
+
+  // O "apagar" da lista e o "apagar área" do editor. Os dois confirmam antes:
+  // área apagada por engano é área para redesenhar. O editor fica por cima de
+  // tudo, então ele fecha antes, e a confirmação aparece sobre o formulário.
+  function apagaArea(i: number) {
     areaAberta = null;
+    apagandoArea = i;
+  }
+
+  function tiraArea(i: number) {
+    if (!editing) return;
+    editing.areas = (editing.areas ?? []).filter((_, j) => j !== i);
   }
 
   async function salvar() {
@@ -915,6 +924,9 @@
                       onclick={() => abreArea(i)}
                       disabled={!quadro || quadro.buscando}>editar</button
                     >
+                    <button type="button" class="ghost small danger" onclick={() => apagaArea(i)}>
+                      apagar
+                    </button>
                   </div>
                 {/each}
               </div>
@@ -992,9 +1004,25 @@
           }
         : null}
       onaplicar={aplicaArea}
-      onapagar={atual ? apagaArea : null}
+      onapagar={atual && i !== null ? () => apagaArea(i) : null}
       onfechar={() => (areaAberta = null)}
     />
+  {/if}
+
+  {#if apagandoArea !== null}
+    {@const i = apagandoArea}
+    <ConfirmDialog
+      title="Apagar a área {editing.areas?.[i]?.name ?? ''}?"
+      confirmLabel="apagar área"
+      danger
+      onconfirm={() => {
+        tiraArea(i);
+        apagandoArea = null;
+      }}
+      oncancel={() => (apagandoArea = null)}
+    >
+      Ela sai da câmera quando você salvar. Até lá, cancelar o formulário a traz de volta.
+    </ConfirmDialog>
   {/if}
 {/if}
 
