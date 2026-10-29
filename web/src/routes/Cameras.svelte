@@ -916,7 +916,10 @@
                     </div>
                     <span class="nome-area">
                       <b>{a.name}</b>
-                      <span class="muted small">{REGRAS[a.rule ?? REGRA_PADRAO].nome}</span>
+                      <span class="muted small regra">
+                        <Icone nome={REGRAS[a.rule ?? REGRA_PADRAO].icone} tamanho={16} />
+                        {REGRAS[a.rule ?? REGRA_PADRAO].nome}
+                      </span>
                     </span>
                     <button
                       type="button"
@@ -1331,6 +1334,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .nome-area .regra {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
   button.nova-area {
     display: inline-flex;

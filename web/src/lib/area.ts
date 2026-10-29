@@ -7,14 +7,16 @@
 
 export type Ponto = [x: number, y: number];
 
-// As regras, com o valor do JSON e da query (en-US) e o nome na tela.
+// As regras, com o valor do JSON e da query (en-US), o nome e o ícone na tela.
 export const REGRAS = {
   foot: {
     nome: 'pisa',
+    icone: 'regraPisa',
     dica: 'conta o pé: o meio da borda de baixo da caixa tem de estar dentro. Desenhe a área no chão.',
   },
   touch: {
     nome: 'encosta',
+    icone: 'regraEncosta',
     dica: 'basta a caixa tocar a área. Pega também quem só passa na frente dela.',
   },
 } as const;

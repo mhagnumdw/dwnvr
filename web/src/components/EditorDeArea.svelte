@@ -398,8 +398,11 @@
             role="radio"
             aria-checked={regra === id}
             class:on={regra === id}
-            onclick={() => (regra = id as Regra)}>{r.nome}</button
+            onclick={() => (regra = id as Regra)}
           >
+            <Icone nome={r.icone} tamanho={20} />
+            {r.nome}
+          </button>
         {/each}
       </div>
       <p class="dica regra">{REGRAS[regra].dica}</p>
@@ -585,6 +588,10 @@
     overflow: hidden;
   }
   .regras button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
     min-height: 40px;
     padding: 6px 16px;
     border: 0;

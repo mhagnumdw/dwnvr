@@ -1683,7 +1683,10 @@
             {#if on}<Icone nome="marcado" tamanho={14} traco={2.6} />{/if}
           </span>
           <span class="nome">{a.name}</span>
-          <span class="muted regra">{REGRAS[a.rule ?? REGRA_PADRAO].nome}</span>
+          <span class="muted regra">
+            <Icone nome={REGRAS[a.rule ?? REGRA_PADRAO].icone} tamanho={16} />
+            {REGRAS[a.rule ?? REGRA_PADRAO].nome}
+          </span>
         </button>
       {/each}
       {#if area?.cam === m.cam}
@@ -2272,6 +2275,9 @@
   }
 
   .menu .regra {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     margin-left: auto;
     padding-left: 12px;
     font-size: 12px;

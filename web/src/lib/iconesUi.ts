@@ -19,6 +19,10 @@ const cheio = { fill: 'currentColor', stroke: 'none' } as const;
 const glifoDoInterruptor = {
   style: 'fill: var(--accent); stroke: var(--bg); stroke-width: 2; paint-order: stroke',
 } as const;
+// A área nos ícones das regras, com as cores do polígono do editor: o azul não
+// segue a cor do texto, para a área ser reconhecida sem legenda.
+const areaDoEditor = { style: 'fill: var(--accent); fill-opacity: 0.32; stroke: none' } as const;
+const bordaDaArea = { style: 'stroke: var(--accent)' } as const;
 const molduraDaTela: readonly Peca[] = [
   ['rect', { x: 2.5, y: 2.5, width: 15, height: 11, rx: 1.6, 'stroke-width': 1.8 }],
   ['path', { d: 'M5 17h4M5 20.5h3', 'stroke-width': 1.8, 'stroke-dasharray': '1.5 2.5' }],
@@ -161,6 +165,36 @@ export const ICONES_UI = {
     ['circle', { cx: 4, cy: 8, r: 1.6, ...cheio }],
     ['circle', { cx: 20, cy: 9, r: 1.6, ...cheio }],
     ['circle', { cx: 6, cy: 20, r: 1.6, ...cheio }],
+  ],
+  // As duas regras da área. A área é o azul translúcido do editor, e o traço
+  // dela se interrompe onde a pessoa passa, para o corpo não se fundir na
+  // borda. `pisa`: a área deitada em perspectiva, é o chão, e a pessoa em pé
+  // sobre ela; `encosta`: a pessoa com a mão na área.
+  regraPisa: [
+    ['path', { d: 'M5.5 13.5h13l4 7.5h-21z', ...areaDoEditor }],
+    ['path', { d: 'M7.8 13.5H5.5l-4 7.5h21l-4-7.5h-2.3', ...bordaDaArea }],
+    ['circle', { cx: 12, cy: 2.98, r: 1.98, ...cheio }],
+    ['rect', { x: 9.93, y: 5.59, width: 4.14, height: 6.84, rx: 1.26, ...cheio }],
+    ['rect', { x: 8.4, y: 6.04, width: 1.26, height: 5.94, rx: 0.63, ...cheio }],
+    ['rect', { x: 14.34, y: 6.04, width: 1.26, height: 5.94, rx: 0.63, ...cheio }],
+    ['rect', { x: 9.93, y: 10.9, width: 1.8, height: 8.1, rx: 0.9, ...cheio }],
+    ['rect', { x: 12.27, y: 10.9, width: 1.8, height: 8.1, rx: 0.9, ...cheio }],
+  ],
+  regraEncosta: [
+    ['rect', { x: 13, y: 3.5, width: 8.5, height: 17, rx: 1.5, ...areaDoEditor }],
+    [
+      'path',
+      {
+        d: 'M13 5.34V5a1.5 1.5 0 0 1 1.5-1.5h5.5A1.5 1.5 0 0 1 21.5 5v14a1.5 1.5 0 0 1-1.5 1.5h-5.5A1.5 1.5 0 0 1 13 19v-7.75',
+        ...bordaDaArea,
+      },
+    ],
+    ['circle', { cx: 6.8, cy: 4.59, r: 2.09, ...cheio }],
+    ['rect', { x: 4.62, y: 7.34, width: 4.37, height: 7.22, rx: 1.33, ...cheio }],
+    ['rect', { x: 3, y: 7.82, width: 1.33, height: 6.27, rx: 0.66, ...cheio }],
+    ['rect', { x: 8.22, y: 7.44, width: 5.51, height: 1.71, rx: 0.85, ...cheio }],
+    ['rect', { x: 4.62, y: 12.95, width: 1.9, height: 8.55, rx: 0.95, ...cheio }],
+    ['rect', { x: 7.08, y: 12.95, width: 1.9, height: 8.55, rx: 0.95, ...cheio }],
   ],
   mais: [['path', { d: 'M12 5v14M5 12h14' }]],
   menos: [['path', { d: 'M5 12h14' }]],
