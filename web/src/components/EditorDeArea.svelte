@@ -360,7 +360,12 @@
     </div>
 
     <div class="controles">
+      <!-- Deitado, o topo some e o título vem para cá: o cancelar vem junto,
+           ou o editor fica sem saída no celular. -->
       <div class="titulo">
+        <button class="ghost" onclick={onfechar} aria-label="cancelar">
+          <Icone nome="fechar" tamanho={16} />
+        </button>
         <b>{titulo}</b>
         <span class="muted small camera">{camera}</span>
       </div>
@@ -462,7 +467,8 @@
     padding: 6px 10px;
     border-bottom: 1px solid var(--line);
   }
-  .topo button {
+  .topo button,
+  .titulo button {
     min-height: 40px;
     padding: 6px 10px;
   }
@@ -658,6 +664,12 @@
     overflow: auto;
     border-top: 0;
     border-left: 1px solid var(--line);
+  }
+  /* Na coluna de altura fixa, o que não cabe tem de rolar, e não encolher: o
+     flex encolhia primeiro, e o seletor da regra sumia (ele corta o que passa
+     da borda) e a dica dela, de três linhas, vazava sobre a situação. */
+  .deitado .controles > * {
+    flex-shrink: 0;
   }
   .deitado .titulo {
     display: flex;
