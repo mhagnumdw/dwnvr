@@ -1,8 +1,9 @@
 # TODO - áreas na imagem, filtro por área e alertas de detecção
 
 Planejado em 20/10/2026, sobre a `a9a87f2` (v0.11.0). **Status: em andamento.
-Etapas 0 a 5 feitas**, na branch `areas-e-alertas`; da 1, falta só a medição
-no hardware de referência. A Etapa 5 (o e-mail) fechou em 28/10/2026; o botão
+Etapas 0 a 5 feitas**: a 0 e o filtro por área (1 e 2) já na `main`, o resto
+na branch `areas-e-alertas`; da 1, falta só a medição no hardware de
+referência. A Etapa 5 (o e-mail) fechou em 28/10/2026; o botão
 de teste dela foi adiado para o
 [`TODO_alerta-de-teste.md`](TODO_alerta-de-teste.md). A instalação de teste,
 que era o último item da Etapa 3, virou a Etapa 6 em 28/10/2026, agora com o
@@ -37,7 +38,7 @@ Tudo com a interface pensada para o celular e para o desktop.
 - [x] [Etapa 3 - o alerta: contrato, regra e registro](#etapa-3---o-alerta-contrato-regra-e-registro)
 - [x] [Etapa 4 - os horários do alerta](#etapa-4---os-horários-do-alerta)
 - [x] [Etapa 5 - o e-mail](#etapa-5---o-e-mail)
-- [ ] [Ir para a main](#ir-para-a-main), o que já pode ir antes do resto
+- [x] [Ir para a main](#ir-para-a-main), o que já podia ir antes do resto
 - [ ] [Etapa 6 - o teste na instalação de teste](#etapa-6---o-teste-na-instalação-de-teste)
 - [ ] [Etapa 7 - o que conferir no uso real](#etapa-7---o-que-conferir-no-uso-real)
 - [ ] [Pendências](#pendências)
@@ -180,9 +181,10 @@ nas câmeras movimentadas (ver
 **Tudo na branch `areas-e-alertas`** (decisão do mantenedor, 20/10/2026),
 criada da `origin/main` na `a9a87f2`. Ela faz para esta feature o papel da
 `main`: recebe só commits fechados, um por mudança, cada um com o `dist` e a
-doc do que mudou. Ir para a `main` fica em aberto, porque ainda não se sabe
-como a feature vai se desenrolar: ela pode ir inteira, em parte, ou não ir. Se
-for, vai commit a commit, por rebase, sem squash e sem merge commit.
+doc do que mudou. A Etapa 0 e o filtro por área (Etapas 1 e 2) já estão na
+`main`, cada um num PR por squash (ver [Ir para a main](#ir-para-a-main)). O
+resto deve ir depois do teste na instalação de teste, também por PR e sem
+merge commit; rebase ou squash, o mantenedor escolhe no PR.
 
 O plano recomendava a `main` aos poucos, um PR por etapa. Com a branch longa,
 três cuidados seguram o custo:
@@ -985,9 +987,9 @@ sai igual.
 ## Ir para a main
 
 Para diminuir o PR da branch: o que já funciona sem o alerta vai antes para a
-`main`, cada um num commit próprio (pedido do mantenedor, 28/10/2026). O que
-vai e como se decide numa conversa à parte; abaixo, os candidatos levantados
-em 28/10/2026, com a recomendação.
+`main`, cada um num commit próprio (pedido do mantenedor, 28/10/2026).
+**Fechada em 28/10/2026**: foram a Etapa 0, a regra en-US e o filtro por
+área; o resto vai com o alerta.
 
 - [x] **A Etapa 0** (uma linha por objeto que virou marca). Foi para a `main`
   no #52 (`2c3a388`), em 28/10/2026, sem o trecho deste plano e com os
@@ -997,20 +999,28 @@ em 28/10/2026, com a recomendação.
   frase do `dist` que vai com a remoção dos assets antigos. Foi direto para a
   `main` em `a7c1436`, em 28/10/2026; o commit da regra na branch ficou só com
   o TODO, e o do `dist` saiu.
-- [ ] **O filtro por área, Etapas 1 e 2**: `c6a2c0d`, `25c0f4c`, `a79b2bc`,
-  `e4160be`, `7829ff0` e `7bb5ff5`, ~3 mil linhas. Não depende do alerta, e é
-  o que mais diminui o PR; não é pequeno. Recomendado depois do teste da
-  Etapa 6.
-- [ ] **O anexo no `internal/email` (`a452125`) e o `NovoGCRAACada`
-  (`24e772b`)**: pequenos, mas na `main` ficariam sem uso até o alerta chegar.
-  Não recomendado.
+- [x] **O filtro por área, Etapas 1 e 2**. Foi para a `main` no #53
+  (`788df18`), em 28/10/2026, por squash (decisão do mantenedor), sem o trecho
+  deste plano e com os comentários sem o alerta. Levou dois fixes achados no
+  PR: tocar no quadro do editor de área solta o foco do campo do nome, que no
+  celular reabria o teclado a cada toque; e salvar na câmera a área desenhada
+  em Detecções para quando a releitura das câmeras falha, em vez de gravar a
+  partir da cópia velha.
+- **Não vai: o anexo no `internal/email` e o `NovoGCRAACada`**
+  (`feat(email): anexo na mensagem, para o quadro do alerta` e
+  `feat(limite): GCRA com ritmo por intervalo, além de por minuto`): na `main`
+  ficariam sem uso até o alerta chegar (decisão do mantenedor, 28/10/2026).
 
 **O cuidado:** esses commits também mudam este arquivo. Na ida à `main`, ou o
 trecho deste plano sai deles, ou o plano vai junto. Depois de cada um entrar,
-a branch se rebaseia sobre a `main`, e o commit que foi sai dela: com a
-Etapa 0, o trecho do plano passou para o commit seguinte, o que fecha a
-Etapa 0, e a volta do filtro por área nos comentários, para o primeiro commit
-do filtro.
+a branch se rebaseia sobre a `main`, e o commit que foi sai dela: o trecho do
+plano passa para o `docs(todo)` seguinte, e o que a `main` tirou dos
+comentários volta no primeiro commit que precisa dele. Com a Etapa 0, a volta
+do filtro por área nos comentários foi para o primeiro commit do filtro. Com o
+filtro por área, saíram os seis commits dele e o
+`chore(web): refaz o dist depois do rebase sobre a main`; as menções ao alerta
+nos comentários do Go voltaram no `feat(api): campo do alerta na câmera`, e o
+texto e os fixes da `main` ficaram.
 
 ## Etapa 6 - o teste na instalação de teste
 
