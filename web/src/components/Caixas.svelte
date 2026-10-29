@@ -62,8 +62,10 @@
   let disposto = '';
   let pedido = 0;
 
-  // Uma olhada grava no máximo uma marca por família.
-  const chave = (o: MarcaAcendivel) => `${o.quadroMs}|${o.familia}`;
+  // Uma olhada grava uma linha por objeto, e duas da mesma família no mesmo
+  // quadro só se distinguem pela caixa. Quadro e família não bastam: a segunda
+  // pessoa sobrescreveria a primeira, e só uma caixa acenderia.
+  const chave = (o: MarcaAcendivel) => `${o.quadroMs}|${o.familia}|${o.caixa.join(',')}`;
   const VIDA_MS = ACENDER_MS + ACESA_MS + ESMAECER_MS;
 
   // Só as marcas que têm caixa e o instante do quadro olhado: sem os dois não
