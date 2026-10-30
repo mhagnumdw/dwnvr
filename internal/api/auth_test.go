@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
+	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/limite"
 	"github.com/mhagnumdw/dwnvr/internal/usuarios"
@@ -264,10 +265,17 @@ func TestPapelPorRota(t *testing.T) {
 }
 
 // O viewer recebe só as câmeras e o detector: nada do go2rtc, das
-// órfãs, do padrão, das faixas nem do caminho no disco.
+// órfãs, do padrão, das faixas nem do caminho no disco, e do alerta só o
+// ligado, sem as famílias nem os horários. A câmera com o alerta desligado vai
+// sem ele.
 func TestCamerasEnxutoParaOViewer(t *testing.T) {
 	s, _ := testServer(t)
 	comAutenticacao(t, s, maria)
+	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa},
+			Schedules: []config.HorarioDoAlerta{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "23:59"}}}})
+	s.mgr.Set(config.Camera{ID: "cam_b", Name: "B", Enabled: true,
+		Alert: &config.AlertaDaCamera{Families: []detect.Familia{detect.Pessoa}}})
 	req := httptest.NewRequest(http.MethodGet, "/api/cameras", nil)
 	req.AddCookie(cookieDe(t, s, "maria"))
 	rec := httptest.NewRecorder()
@@ -285,11 +293,15 @@ func TestCamerasEnxutoParaOViewer(t *testing.T) {
 		t.Errorf("chaves inesperadas: %s", rec.Body.String())
 	}
 	var cams []map[string]any
-	if err := json.Unmarshal(resp["cameras"], &cams); err != nil || len(cams) != 1 {
+	if err := json.Unmarshal(resp["cameras"], &cams); err != nil || len(cams) != 2 {
 		t.Fatalf("câmeras: %s (%v)", resp["cameras"], err)
 	}
-	if cams[0]["id"] != "cam_teste" || cams[0]["dir"] != nil {
-		t.Errorf("câmera do viewer: %v", cams[0])
+	for _, c := range cams {
+		alerta, _ := json.Marshal(c["alert"])
+		want := map[any]string{"cam_teste": `{"enabled":true}`, "cam_b": "null"}[c["id"]]
+		if c["dir"] != nil || string(alerta) != want {
+			t.Errorf("câmera do viewer: %v", c)
+		}
 	}
 }
 

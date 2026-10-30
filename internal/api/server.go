@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/alerta"
 	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/email"
@@ -248,6 +249,9 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	// entrar.
 	resp["detector"] = s.mgr.Detector() != nil
 
+	// A aba Alerta diz para onde o alerta vai, e só o admin a vê.
+	resp["alertEmail"] = s.alertaPorEmail()
+
 	if orphans, err := s.store.Orphans(registered); err != nil {
 		// Não impede a listagem: no caso comum não há órfão nenhum, e uma falha
 		// ao varrer o storage não deve derrubar a tela de câmeras inteira.
@@ -304,14 +308,22 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 }
 
 // camerasDoViewer é o /api/cameras do viewer: as câmeras, sem o caminho
-// no disco, e se há detector de objetos. O resto só serve à tela Câmeras, que
-// é do admin, e o go2rtc nem é consultado: cada abertura da tela custaria duas
-// chamadas a ele.
+// no disco e só com o "alerta ligado", e se há detector de objetos. O resto só serve à
+// tela Câmeras, que é do admin, e o go2rtc nem é consultado: cada abertura da
+// tela custaria duas chamadas a ele.
 func (s *Server) camerasDoViewer(w http.ResponseWriter) {
 	raw := s.mgr.Cameras()
 	cams := make([]config.Camera, len(raw))
 	for i, c := range raw {
 		cams[i] = s.cfg.Resolve(c)
+		// Do alerta vai só o ligado, que faz Detecções mostrar o "só alertas".
+		// As famílias e as áreas dele ficam com o admin: o que alertou vem
+		// marcado em cada detecção.
+		if a := cams[i].Alert; a != nil && a.Enabled {
+			cams[i].Alert = &config.AlertaDaCamera{Enabled: true}
+		} else {
+			cams[i].Alert = nil
+		}
 	}
 	writeJSON(w, map[string]any{"cameras": cams, "detector": s.mgr.Detector() != nil})
 }
@@ -392,6 +404,42 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// lista delas. Some sem detector configurado.
 	if d := s.mgr.Detector(); d != nil {
 		resp["detector"] = d
+	}
+
+	// Do alerta vai o total desde que o dwnvr subiu, que some enquanto nenhuma
+	// câmera ligou o alerta: o alerta em si fica gravado na detecção, e se vê
+	// em Detecções. Com um episódio de descarte valendo, os alertas que não
+	// saíram pelos meios, para o Aviso amarelo; com um meio falhando, o desde
+	// quando e o erro, para o vermelho. E os avisos da seção alerts do
+	// dwnvr.yaml, para o card Avisos, que valem mesmo sem câmera com alerta:
+	// são da configuração.
+	alerts := map[string]any{}
+	if c := s.mgr.Alertas(); c != nil {
+		alerts["total"] = c.Total()
+		if d, ok := c.Descartes(); ok {
+			alerts["dropped"] = map[string]any{
+				"queueFull": d.FilaCheia, "overLimit": d.AcimaDoTeto,
+				"limitPerHour": alerta.AlertasPorHora,
+				"since":        d.Desde, "lastAt": d.Ultimo,
+			}
+		}
+		var falhando []map[string]any
+		for _, m := range c.Meios() {
+			if !m.FalhandoDesde.IsZero() {
+				falhando = append(falhando, map[string]any{
+					"name": m.Nome, "since": m.FalhandoDesde, "error": m.Erro,
+				})
+			}
+		}
+		if len(falhando) > 0 {
+			alerts["failing"] = falhando
+		}
+	}
+	if av := s.cfg.Alerts.Email.Avisos; len(av) > 0 {
+		alerts["warnings"] = av
+	}
+	if len(alerts) > 0 {
+		resp["alerts"] = alerts
 	}
 
 	// O relógio, ao contrário dos uptimes acima, vai como instante mesmo - e é

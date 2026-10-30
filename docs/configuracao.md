@@ -65,6 +65,7 @@ Tudo que é política de gravação é **por câmera**, não global:
 | `detectMecanismo` | quem decide disparar | `kleinberg-p` ou `periodico` |
 | `detectSensibilidade` | o nível, que é o custo em CPU | de 1 a 5 |
 | `areas` | as áreas desenhadas sobre a imagem - ver abaixo | até 8 |
+| `alert` | quando uma detecção vira alerta - ver abaixo | |
 
 Ser por câmera não é preciosismo: numa instalação real as câmeras não são
 iguais. A do portão merece alta resolução e cota grande; a do corredor não. E o
@@ -114,6 +115,56 @@ Detecções, com o "salvar na câmera" do editor de área.
 
 Se a câmera for movida, a área fica no lugar errado: redesenhe.
 
+O `alert` também não é política de gravação: diz quando uma detecção da câmera
+vira alerta. O admin o liga na aba Alerta do cadastro da câmera, que só
+funciona com a marcação de movimento ligada e o detector de objetos
+configurado; sem eles, a aba diz o que falta. Por ora o alerta
+vai só para o log e fica marcado na detecção, que Detecções filtra (ver
+[`deteccao.md`](deteccao.md#o-alerta)). Mudar o alerta não reinicia a
+gravação.
+
+```json
+"alert": { "enabled": true, "families": ["pessoa"], "areas": ["k3f9a2"] }
+```
+
+- `families` são as famílias que alertam: `pessoa`, `veiculo` ou `animal`. Com
+  o alerta ligado, pelo menos uma.
+- `areas` são os `id` das áreas da câmera em que o objeto precisa cair, cada
+  uma pela própria `rule`. Vazio ou ausente é a imagem inteira.
+- `schedules` são os horários em que o alerta sai, somados; vazio ou ausente é
+  a qualquer hora. Ver abaixo.
+- `enabled` desligado guarda as famílias, as áreas e os horários, para religar
+  sem refazer.
+
+Cada horário tem os dias e um De e um Até, ao minuto. A quarta com três
+horários:
+
+```json
+"schedules": [
+  { "days": [3], "from": "00:00", "to": "05:15" },
+  { "days": [3], "from": "12:00", "to": "13:00" },
+  { "days": [3], "from": "18:30", "to": "23:59" }
+]
+```
+
+- `days` vai de 0 (domingo) a 6 (sábado). Vários horários podem ter o mesmo
+  dia, e os que se sobrepõem valem pela soma.
+- `from` e `to` são `HH:MM`, e as duas pontas entram: "até 13:00" inclui o
+  minuto 13:00, e o dia inteiro é `00:00` até `23:59`.
+- Nenhum horário atravessa a meia-noite: o `to` é maior que o `from`, nunca
+  igual. A noite são dois horários, um até `23:59` e outro a partir de `00:00`
+  do dia seguinte.
+- Vale a hora em que a detecção aconteceu, no fuso do servidor, o mesmo que
+  decide o dia das gravações. A detecção continua sendo gravada a qualquer
+  hora: o horário decide só o alerta.
+- Até 84 horários por câmera.
+
+Na tela, os horários ficam na seção Horários da aba Alerta, em duas formas que
+andam juntas: a grade da semana, em que se marca a hora inteira, e a lista, em
+que se digita ao minuto. Marcar na grade refaz a lista, com os dias de mesmo
+horário num horário só. Desmarcar "Limitar o alerta a alguns horários" apaga os
+horários ao salvar.
+
 ## Valor fora da faixa
 
 Um número fora da faixa **não impede o dwnvr de subir**. Gravar com o padrão é
@@ -138,6 +189,13 @@ o `server.loginAttemptsPerMinute`, onde zero desliga a trava global de disco e
 o limite de tentativas no login.
 
 Com as `areas` é igual: a área inválida sai, com um aviso, e as outras ficam.
+No `alert`, sai com um aviso a família desconhecida, a área que a câmera não
+tem e o horário inválido: sem dia, com dia fora de 0 a 6, com hora que não é
+`HH:MM` ou com o `to` que não fica depois do `from`. O dia repetido num horário
+conta uma vez, também com aviso. O alerta ligado que fica sem nenhuma família,
+sem nenhuma das áreas que tinha ou sem nenhum dos horários que tinha é
+desligado, também com aviso: sem as áreas, ele valeria na imagem inteira, e sem
+os horários, a qualquer hora.
 
 O que continua impedindo o boot é o que não tem padrão seguro: um arquivo que
 não se consegue ler, o `storage.root` vazio e o ID de câmera que viraria um
@@ -343,8 +401,9 @@ smtp:
   password: troque-me
 ```
 
-Com esta seção, o dwnvr envia e-mail: hoje, o link de definir a senha, que o
-admin manda da tela Usuários direto para a pessoa. Sem ela, o dwnvr não abre
+Com esta seção, o dwnvr envia e-mail: o link de definir a senha, que o admin
+manda da tela Usuários direto para a pessoa, e o alerta de detecção, para a
+lista de [Alerta por e-mail](#alerta-por-e-mail). Sem ela, o dwnvr não abre
 conexão nenhuma, e a tela não mostra o "Enviar por e-mail" nem o teste do
 Diagnóstico. O e-mail da pessoa se cadastra do mesmo jeito, porque serve para
 entrar (ver [O login](api.md#o-login)), e a tela avisa que o link não vai por
@@ -410,3 +469,52 @@ Nos outros provedores, o `host`, a porta e a `security` estão na ajuda de
 cada um. Os de e-mail transacional, como a Brevo, pedem um domínio seu para o
 remetente: com um endereço `@gmail.com`, a Brevo troca o remetente por um
 endereço dela.
+
+## Alerta por e-mail
+
+```yaml
+alerts:
+  email:
+    to: [fulano@exemplo.com, ciclana@exemplo.com]
+```
+
+A lista de quem recebe o alerta de detecção de toda câmera com alerta ligado
+(ver o `alert` em [Política por câmera](#política-por-câmera)), numa mensagem
+só para todos: cinco endereços são um envio. O alerta sai pela seção `smtp`,
+a mesma do link de definir a senha; aqui fica só quem recebe. A mensagem, com
+o quadro anexo, está em [O alerta](deteccao.md#o-alerta).
+
+| Campo | O que é | Sem escrever |
+| --- | --- | --- |
+| `alerts.email.to` | quem recebe; só o endereço, sem nome na frente | o alerta fica só no log e marcado na detecção |
+
+Nada aqui impede o dwnvr de subir. Viram aviso no card Avisos do Diagnóstico e
+no sino do header, e vão também para o log:
+
+- **o que não é endereço**, como `Fulano <fulano@exemplo.com>`, que sai da
+  lista enquanto os outros seguem. O endereço repetido sai calado;
+- **a lista sem a seção `smtp`**, que não tem por onde sair. Com a seção
+  recusada, o aviso é o dela, que diz o motivo.
+
+```text
+alertas por e-mail: alerts.email.to "Fulano <fulano@exemplo.com>" não é um endereço de e-mail e ficou de fora da lista arquivo=/etc/dwnvr/dwnvr.yaml
+```
+
+O `dwnvr.yaml` só é lido quando o dwnvr sobe: a lista nova vale depois de
+reiniciá-lo.
+
+Para conferir, o bloco **Para onde vai**, no fim da aba Alerta da câmera,
+diz se o alerta sai por e-mail e para quem, ou, se não sai, o que falta no
+`dwnvr.yaml`. Não há um teste do alerta: o **Testar o e-mail** do card Este
+servidor confere a seção `smtp`. Depois que alguma câmera liga o alerta:
+
+- **o envio que falha** vira um Aviso vermelho, com desde quando e o erro do
+  servidor, no card Avisos e no sino, e aparece também no "Para onde vai".
+  Ele some no primeiro envio que der certo;
+- **o alerta que não saiu**, acima do teto de envio ou com a fila de envio
+  cheia, vira um Aviso amarelo, que diz quantos e por quê, e some uma hora
+  depois do último. Ele continua gravado em Detecções. O teto protege a conta
+  de e-mail do limite diário do provedor (ver
+  os limites em [O alerta](deteccao.md#o-alerta));
+- **os números do envio** (enviados, falhas e o último resultado) ficam no
+  grupo **Alertas por e-mail** do card Este servidor.

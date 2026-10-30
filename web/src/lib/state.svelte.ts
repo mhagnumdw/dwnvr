@@ -6,8 +6,11 @@
 
 import { api, mensagemDe } from './api.ts';
 import type {
+  AlertaPorEmail,
   CameraCadastrada,
   Camera,
+  DescarteDosAlertas,
+  MeioFalhando,
   Disco,
   DivergenciasDoGo2rtc,
   Detector,
@@ -57,6 +60,7 @@ export const cameras = $state<{
   detector: boolean | null;
   go2rtcError: string | null;
   go2rtcConfigFile: DivergenciasDoGo2rtc | null;
+  alertEmail: AlertaPorEmail | null;
   loading: boolean;
   error: string | null;
 }>({
@@ -79,6 +83,9 @@ export const cameras = $state<{
   // alteradas, foraDoArquivo }. Nulo quando os dois batem, ou quando o go2rtc
   // não deixa ler o arquivo.
   go2rtcConfigFile: null,
+  // Para onde vai o alerta, que a aba Alerta mostra. Nulo contra servidor
+  // anterior a ele.
+  alertEmail: null,
   loading: true,
   error: null,
 });
@@ -103,6 +110,10 @@ export const health = $state<EstadoDaSaude>({
   smtp: null,
   // { error?, warnings? } com problema no usuarios.json; nulo sem problema.
   users: null,
+  // { total?, warnings?, dropped?, failing? }: o total depois que alguma câmera
+  // liga o alerta, os warnings com problema na seção alerts do dwnvr.yaml, os
+  // alertas que não saíram pelos meios e os meios falhando; nulo sem nenhum.
+  alerts: null,
   updatedAt: 0,
 });
 
@@ -117,6 +128,12 @@ export interface EstadoDaSaude {
   go2rtc: { error: string; since: string } | null;
   smtp: { error: string } | null;
   users: { error?: string; warnings?: string[] } | null;
+  alerts: {
+    total?: number;
+    warnings?: string[];
+    dropped?: DescarteDosAlertas;
+    failing?: MeioFalhando[];
+  } | null;
   updatedAt: number;
 }
 
@@ -173,6 +190,7 @@ export async function logout() {
   cameras.detector = null;
   cameras.go2rtcError = null;
   cameras.go2rtcConfigFile = null;
+  cameras.alertEmail = null;
   cameras.loading = true;
   cameras.error = null;
   health.cameras = [];
@@ -278,6 +296,7 @@ export async function loadCameras() {
     cameras.detector = data.detector;
     cameras.go2rtcError = data.go2rtcError ?? null;
     cameras.go2rtcConfigFile = data.go2rtcConfigFile ?? null;
+    cameras.alertEmail = data.alertEmail ?? null;
   } catch (e) {
     cameras.error = mensagemDe(e);
     // Sem resposta nenhuma, a aba fica de fora: melhor que a tela em branco
@@ -305,6 +324,7 @@ export async function loadHealth() {
     health.go2rtc = data.go2rtc ?? null;
     health.smtp = data.smtp ?? null;
     health.users = data.users ?? null;
+    health.alerts = data.alerts ?? null;
     health.updatedAt = Date.now();
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.

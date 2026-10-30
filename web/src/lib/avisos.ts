@@ -4,7 +4,7 @@
 // Função pura sobre o `health` de `state.svelte.ts`: chamada dentro de um
 // $derived, o Svelte rastreia os campos que ela lê.
 
-import type { CameraNaSaude } from './api.ts';
+import { meioDoAlerta, type CameraNaSaude, type DescarteDosAlertas } from './api.ts';
 import { bytes, bytesDeMB, duracao, hhmmss, ddmm } from './format.ts';
 import type { EstadoDaSaude } from './state.svelte.ts';
 
@@ -40,7 +40,7 @@ export const quando = (ms: number, agora: number) =>
 
 // desde é o "desde quando" de todo aviso que depende de tempo, no formato do
 // "NÃO ESTÁ GRAVANDO": "desde 13:58:12 (12min)".
-function desde(iso: string, agora: number) {
+export function desde(iso: string, agora: number) {
   const ms = Date.parse(iso);
   return `desde ${quando(ms, agora)} (${duracao(agora - ms)})`;
 }
@@ -182,7 +182,52 @@ export function avisosDe(health: EstadoDaSaude): Aviso[] {
       texto: `Cadastro de usuários: ${w}. Corrija o usuarios.json e reinicie o dwnvr.`,
     });
   }
+  // A seção alerts do dwnvr.yaml: o endereço que ficou de fora da lista, ou a
+  // lista sem a seção smtp. Amarelo, como a smtp recusada: o alerta segue
+  // gravado na detecção.
+  for (const w of health.alerts?.warnings ?? []) {
+    out.push({
+      nivel: 'warn',
+      texto: `Alertas por e-mail: ${w}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
+    });
+  }
+  // O meio do alerta falhando: vermelho, porque ninguém está sendo avisado, e
+  // a gravação seguir não muda isso. Some no primeiro envio que der certo.
+  for (const f of health.alerts?.failing ?? []) {
+    out.push({
+      nivel: 'bad',
+      texto: `Alertas ${meioDoAlerta(f.name)} falhando ${desde(f.since, agora)}: ${f.error}. As detecções seguem gravadas, mas ninguém está sendo avisado.`,
+    });
+  }
+  // Os alertas que não saíram pelos meios, por teto ou fila cheia. Amarelo:
+  // eles estão gravados na detecção. Some uma hora depois do último descarte,
+  // e não no envio seguinte: o descarte é um evento, e não um estado.
+  if (health.alerts?.dropped) {
+    out.push({ nivel: 'warn', texto: alertasDescartados(health.alerts.dropped, agora) });
+  }
   return out;
+}
+
+// "12 alertas não foram enviados desde 14:02:10 (5min), o último às 14:07:31:
+// passaram do teto de 15 por hora." Com os dois motivos, cada um com a conta;
+// com um alerta só, no singular e sem o "desde".
+function alertasDescartados(d: DescarteDosAlertas, agora: number) {
+  const total = d.queueFull + d.overLimit;
+  const um = (n: number, singular: string, plural: string) => (n === 1 ? singular : plural);
+  const teto = (n: number) =>
+    `${um(n, 'passou', 'passaram')} do teto de ${d.limitPerHour} por hora`;
+  const motivo =
+    d.queueFull === 0
+      ? teto(total)
+      : d.overLimit === 0
+        ? 'a fila de envio encheu'
+        : `${d.overLimit} ${teto(d.overLimit)}, e ${d.queueFull} não ${um(d.queueFull, 'coube', 'couberam')} na fila de envio`;
+  const oQue =
+    total === 1
+      ? `1 alerta não foi enviado, às ${quando(Date.parse(d.since), agora)}`
+      : `${total} alertas não foram enviados ${desde(d.since, agora)}, o último às ${quando(Date.parse(d.lastAt), agora)}`;
+  const onde = um(total, 'Ele está gravado', 'Eles estão gravados');
+  return `${oQue}: ${motivo}. ${onde} em Detecções, no filtro só alertas.`;
 }
 
 // O que o sino precisa: quantos, e a cor do pior. Um vermelho basta para o

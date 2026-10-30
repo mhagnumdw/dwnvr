@@ -7,9 +7,17 @@
     health,
     pollHealth,
     HEALTH_POLL_MS,
+    REPO_URL,
   } from '../lib/state.svelte.ts';
   import { api, mensagemDe } from '../lib/api.ts';
-  import type { AreaDaCamera, Camera, CameraCadastrada, Orfa, Stream } from '../lib/api.ts';
+  import type {
+    AreaDaCamera,
+    Camera,
+    CameraCadastrada,
+    OndeDoAlerta,
+    Orfa,
+    Stream,
+  } from '../lib/api.ts';
   import { paramsAtuais, escrever } from '../lib/rota.svelte.ts';
   import {
     hhmm,
@@ -21,6 +29,7 @@
     ddmm,
     duracao,
     gravadoSeHouverBuraco,
+    horaDoMinuto,
   } from '../lib/format.ts';
   import { AJUDA_RETIDO, AJUDA_CABEM, AJUDA_SENSIBILIDADE, NIVEIS, nivel } from '../lib/ajudas.ts';
   import Modal from '../components/Modal.svelte';
@@ -30,7 +39,11 @@
   import Abas from '../components/Abas.svelte';
   import MiniaturaDasAreas from '../components/MiniaturaDasAreas.svelte';
   import type EditorDeAreaT from '../components/EditorDeArea.svelte';
+  import type AbaDoAlertaT from '../components/AbaDoAlerta.svelte';
+  import { familia } from '../lib/icones.ts';
   import { REGRAS, REGRA_PADRAO, MAX_AREAS, pontosDoCadastro, pontosSVG } from '../lib/area.ts';
+  import { MAX_HORARIOS, doServidor, paraOServidor, valido } from '../lib/horarios.ts';
+  import type { Horario } from '../lib/horarios.ts';
   import type { Ponto, Regra } from '../lib/area.ts';
   import { quadroCheio, ultimoSegmento } from '../lib/thumbs.ts';
 
@@ -60,22 +73,20 @@
   let error = $state('');
 
   // As abas do formulário. Ele sempre abre na primeira: é onde estão o nome e a
-  // cota, o que se procura ao cadastrar. A de Áreas só existe com a marcação de
-  // movimento ligada e o detector de objetos configurado: sem os dois a câmera
-  // não tem detecção, e a área não teria o que filtrar. Desligar a marcação
-  // esconde a aba, mas não apaga as áreas.
-  const comAreas = $derived(!!editing?.detect && !!cameras.detector);
+  // cota, o que se procura ao cadastrar. Áreas e Alerta só funcionam com a
+  // marcação de movimento ligada e o detector de objetos configurado: sem os
+  // dois a câmera não tem detecção, a área não teria o que filtrar e o alerta,
+  // o que avisar. Sem eles, as duas abas ficam, e dizem o que falta: escondidas,
+  // ninguém saberia que existem. Desligar a marcação não apaga nada.
+  const comDeteccao = $derived(!!editing?.detect && !!cameras.detector);
   const ABAS = $derived([
     { id: 'gravacao', rotulo: 'Gravação' },
     { id: 'deteccao', rotulo: 'Detecção' },
-    ...(comAreas
-      ? [
-          {
-            id: 'areas',
-            rotulo: editing?.areas?.length ? `Áreas (${editing.areas.length})` : 'Áreas',
-          },
-        ]
-      : []),
+    {
+      id: 'areas',
+      rotulo: editing?.areas?.length ? `Áreas (${editing.areas.length})` : 'Áreas',
+    },
+    { id: 'alerta', rotulo: 'Alerta' },
   ]);
   let aba = $state('gravacao');
   // No cadastro, o rodapé guia aba a aba e o "salvar" só aparece na última:
@@ -194,6 +205,7 @@
       ...audioConhecido(s),
     };
     aba = 'gravacao';
+    abreOAlerta();
     void sondarAudio(streamName);
   }
 
@@ -201,6 +213,7 @@
     const s = cameras.streams.find((x) => x.name === cam.id);
     editing = { ...cam, _novo: false, ...audioConhecido(s) };
     aba = 'gravacao';
+    abreOAlerta();
     void sondarAudio(cam.id);
   }
 
@@ -333,7 +346,8 @@
 
   $effect(() => {
     const cam = editing?.id;
-    if (aba === 'areas' && cam && quadro?.cam !== cam) void buscaQuadro(cam, !!editing?._novo);
+    if (aba === 'areas' && comDeteccao && cam && quadro?.cam !== cam)
+      void buscaQuadro(cam, !!editing?._novo);
   });
   $effect(() => {
     if (!editing) soltaQuadro();
@@ -361,7 +375,7 @@
     const areas = editing.areas ?? [];
     const i = areaAberta.indice;
     const nova: AreaDaCamera = {
-      ...(i === null ? {} : areas[i]),
+      ...(i === null ? { id: novoIdDeArea(areas) } : areas[i]),
       name: nome,
       rule: regra,
       points: pontosDoCadastro(pontos),
@@ -370,8 +384,26 @@
     areaAberta = null;
   }
 
+  // O id da área nova nasce aqui, e não no servidor, para o alerta poder
+  // marcá-la antes de a câmera ser salva. Mesmo formato do servidor: 6 letras
+  // minúsculas e dígitos, sem repetir na câmera.
+  function novoIdDeArea(areas: AreaDaCamera[]) {
+    const alfabeto = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    for (;;) {
+      const b = crypto.getRandomValues(new Uint8Array(6));
+      const id = Array.from(b, (v) => alfabeto[v % alfabeto.length]).join('');
+      if (!areas.some((a) => a.id === id)) return id;
+    }
+  }
+
   // A área a apagar, à espera da confirmação: o índice dela.
   let apagandoArea = $state<number | null>(null);
+
+  const usadaNoAlerta = (id: string | undefined) =>
+    !!id &&
+    !!editing?.alert?.enabled &&
+    ondeDoAlerta === 'areas' &&
+    !!editing.alert.areas?.includes(id);
 
   // O "apagar" da lista e o "apagar área" do editor. Os dois confirmam antes:
   // área apagada por engano é área para redesenhar. O editor fica por cima de
@@ -381,17 +413,99 @@
     apagandoArea = i;
   }
 
+  // tiraArea apaga a área e a tira do alerta. O alerta que fica sem as áreas
+  // que tinha é desligado, e não passa para a imagem inteira; as famílias e o
+  // "só nas áreas marcadas" ficam, para religar escolhendo de novo.
   function tiraArea(i: number) {
     if (!editing) return;
+    const id = editing.areas?.[i]?.id;
     editing.areas = (editing.areas ?? []).filter((_, j) => j !== i);
+    const al = editing.alert;
+    if (id && al?.areas?.includes(id)) {
+      const restam = al.areas.filter((x) => x !== id);
+      editing.alert = {
+        ...al,
+        areas: restam,
+        enabled: al.enabled && (ondeDoAlerta === 'tudo' || restam.length > 0),
+      };
+    }
+  }
+
+  // --- a aba Alerta ---------------------------------------------------------
+
+  // Vem num chunk à parte, que só se baixa quando a aba existe.
+  let AbaDoAlerta = $state<typeof AbaDoAlertaT | null>(null);
+  $effect(() => {
+    if (comDeteccao && !AbaDoAlerta)
+      void import('../components/AbaDoAlerta.svelte').then((m) => {
+        AbaDoAlerta = m.default;
+      });
+  });
+
+  // Onde o alerta vale, como a aba mostra (ver OndeDoAlerta): "só nas áreas
+  // marcadas" sem nenhuma marcada, o salvar recusa.
+  let ondeDoAlerta = $state<OndeDoAlerta>('tudo');
+  let erroDoAlerta = $state('');
+  // Os horários como a aba os edita, em minutos. Com a caixa desmarcada, o
+  // salvar apaga o `schedules`: vazio é a qualquer hora.
+  let limitaHorarios = $state(false);
+  let horariosDoAlerta = $state<Horario[]>([]);
+
+  function abreOAlerta() {
+    ondeDoAlerta = editing?.alert?.areas?.length ? 'areas' : 'tudo';
+    horariosDoAlerta = doServidor(editing?.alert?.schedules);
+    limitaHorarios = horariosDoAlerta.length > 0;
+    erroDoAlerta = '';
+  }
+
+  // "America/Fortaleza (UTC−03:00)": o fuso em que os horários valem, que é o
+  // do servidor e não o do navegador.
+  const fusoDoServidor = $derived.by(() => {
+    const c = health.clock;
+    if (!c) return '';
+    const s = Math.abs(c.offsetSeconds);
+    const utc = `UTC${c.offsetSeconds < 0 ? '−' : '+'}${horaDoMinuto(Math.floor(s / 60))}`;
+    return c.zone ? `${c.zone} (${utc})` : utc;
+  });
+
+  // O que falta no alerta ligado para ele poder ser salvo. Com a aba escondida
+  // não há o que conferir: o alerta fica como estava.
+  function faltaNoAlerta() {
+    const al = editing?.alert;
+    if (!comDeteccao || !al?.enabled) return '';
+    if (!al.families?.length) return 'Marque ao menos uma família para o alerta.';
+    if (ondeDoAlerta === 'areas' && !al.areas?.length)
+      return 'Marque ao menos uma área para o alerta, ou escolha em qualquer lugar da imagem.';
+    if (limitaHorarios) {
+      if (horariosDoAlerta.some((h) => !valido(h)))
+        return 'Há um horário sem dia, sem hora ou com o "Até" que não fica depois do "De": corrija ou remova.';
+      if (!horariosDoAlerta.length)
+        return 'Marque ao menos um horário, ou desmarque "Limitar o alerta a alguns horários".';
+      if (horariosDoAlerta.length > MAX_HORARIOS)
+        return `São até ${MAX_HORARIOS} horários por câmera: junte ou remova alguns.`;
+    }
+    return '';
   }
 
   async function salvar() {
     if (!editing) return;
+    const falta = faltaNoAlerta();
+    if (falta) {
+      erroDoAlerta = falta;
+      aba = 'alerta';
+      return;
+    }
     saving = true;
     error = '';
     try {
       const { _novo, _hasAudio, _audioCodecs, _sondando, _sondaErro, ...cam } = editing;
+      // Na imagem inteira, as áreas marcadas antes não valem mais.
+      if (cam.alert && ondeDoAlerta === 'tudo') cam.alert = { ...cam.alert, areas: [] };
+      if (cam.alert)
+        cam.alert = {
+          ...cam.alert,
+          schedules: limitaHorarios ? paraOServidor(horariosDoAlerta) : [],
+        };
       await api.saveCamera(cam);
       await loadCameras();
       editing = null;
@@ -553,14 +667,24 @@
           {/if}
         </div>
 
-        <!-- As áreas só mostram: quem muda é o "editar". Com a mesma condição
-             da aba, para o card não falar de áreas que não filtram nada. -->
-        {#if cam.areas?.length && cam.detect && cameras.detector}
+        <!-- As áreas e o alerta só mostram: quem muda é o "editar". Com a
+             mesma condição das abas, para o card não falar de áreas que não
+             filtram nada nem de alerta que não tem o que avisar. -->
+        {#if (!!cam.areas?.length || !!cam.alert) && cam.detect && cameras.detector}
           <div class="row wrap chips">
-            <span class="chip areas-chip">
-              <MiniaturaDasAreas cam={cam.id} areas={cam.areas} />
-              {cam.areas.length === 1 ? '1 área' : `${cam.areas.length} áreas`}
-            </span>
+            {#if cam.areas?.length}
+              <span class="chip areas-chip">
+                <MiniaturaDasAreas cam={cam.id} areas={cam.areas} />
+                {cam.areas.length === 1 ? '1 área' : `${cam.areas.length} áreas`}
+              </span>
+            {/if}
+            {#if cam.alert?.enabled}
+              <span class="chip alerta-chip">
+                alerta: {(cam.alert.families ?? []).map((f) => familia(f).nome).join(', ')}
+              </span>
+            {:else if cam.alert}
+              <span class="chip">alerta desligado</span>
+            {/if}
           </div>
         {/if}
 
@@ -731,6 +855,33 @@
   </p>
 </div>
 
+<!-- O que as abas Áreas e Alerta mostram sem detecção na câmera: o que falta
+     e como resolver. A marcação desligada se liga na aba ao lado; o detector de
+     objetos é do dwnvr.yaml, e a tela só aponta para a doc. -->
+{#snippet semDeteccao(paraUsar: string, semUso: string, guardado: string)}
+  <div class="sem-deteccao">
+    {#if !cameras.detector}
+      <p class="small">
+        O detector de objetos não está configurado no <code>dwnvr.yaml</code>. Sem ele não há
+        detecção de objetos, e {semUso}.
+      </p>
+      <a class="small" href="{REPO_URL}#ligar-o-detector-de-objetos" target="_blank" rel="noopener"
+        >como ligar o detector de objetos</a
+      >
+    {:else}
+      <p class="small">
+        Esta câmera está sem detecção. Ligue <b>Marcar movimento na timeline</b> na aba Detecção
+        para
+        {paraUsar}.
+      </p>
+      <button type="button" class="ghost small" onclick={() => (aba = 'deteccao')}>
+        ir para a aba Detecção
+      </button>
+    {/if}
+    {#if guardado}<p class="muted small">{guardado}</p>{/if}
+  </div>
+{/snippet}
+
 {#if editing}
   <!-- O Escape do editor de área fecha só o editor: o formulário de baixo
        fica. -->
@@ -887,16 +1038,27 @@
           {/if}
         </div>
 
-        {#if comAreas}
-          {@const areas = editing.areas ?? []}
-          <div
-            class="fields"
-            role="tabpanel"
-            id="cam-painel-areas"
-            aria-labelledby="cam-aba-areas"
-            data-aba="areas"
-            inert={aba !== 'areas'}
-          >
+        <div
+          class="fields"
+          role="tabpanel"
+          id="cam-painel-areas"
+          aria-labelledby="cam-aba-areas"
+          data-aba="areas"
+          inert={aba !== 'areas'}
+        >
+          {#if !comDeteccao}
+            {@const n = editing.areas?.length ?? 0}
+            {@render semDeteccao(
+              'usar as áreas',
+              'as áreas não têm o que filtrar',
+              n === 0
+                ? ''
+                : n === 1
+                  ? 'A área desta câmera fica guardada.'
+                  : `As ${n} áreas desta câmera ficam guardadas.`,
+            )}
+          {:else}
+            {@const areas = editing.areas ?? []}
             <p class="muted small explica-areas">
               Pedaços da imagem com nome, como "Portão". Em Detecções, qualquer pessoa filtra por
               eles. Se a câmera for movida, redesenhe.
@@ -947,8 +1109,38 @@
                 <small class="muted">Até {MAX_AREAS} áreas por câmera.</small>
               {/if}
             {/if}
-          </div>
-        {/if}
+          {/if}
+        </div>
+
+        <div
+          class="fields"
+          role="tabpanel"
+          id="cam-painel-alerta"
+          aria-labelledby="cam-aba-alerta"
+          data-aba="alerta"
+          inert={aba !== 'alerta'}
+        >
+          {#if !comDeteccao}
+            {@render semDeteccao(
+              'usar o alerta',
+              'o alerta não tem o que avisar',
+              editing.alert?.enabled
+                ? 'O alerta desta câmera fica guardado, e volta a valer com a detecção.'
+                : '',
+            )}
+          {:else if AbaDoAlerta}
+            <AbaDoAlerta
+              bind:alerta={editing.alert}
+              bind:onde={ondeDoAlerta}
+              bind:limitaHorarios
+              bind:horarios={horariosDoAlerta}
+              bind:erro={erroDoAlerta}
+              areas={editing.areas ?? []}
+              fuso={fusoDoServidor}
+              porEmail={cameras.alertEmail}
+            />
+          {/if}
+        </div>
       </div>
 
       <div class="row">
@@ -1014,9 +1206,12 @@
 
   {#if apagandoArea !== null}
     {@const i = apagandoArea}
+    {@const area = editing.areas?.[i]}
+    {@const noAlerta = usadaNoAlerta(area?.id)}
+    {@const ultima = noAlerta && (editing.alert?.areas ?? []).length <= 1}
     <ConfirmDialog
-      title="Apagar a área {editing.areas?.[i]?.name ?? ''}?"
-      confirmLabel="apagar área"
+      title="Apagar a área {area?.name ?? ''}?"
+      confirmLabel={ultima ? 'apagar e desligar o alerta' : 'apagar área'}
       danger
       onconfirm={() => {
         tiraArea(i);
@@ -1024,7 +1219,15 @@
       }}
       oncancel={() => (apagandoArea = null)}
     >
-      Ela sai da câmera quando você salvar. Até lá, cancelar o formulário a traz de volta.
+      {#if ultima}
+        Ela é a única área do alerta desta câmera. Apagá-la <strong>desliga o alerta</strong>, que
+        não passa a valer na imagem inteira. As famílias ficam guardadas, para religar.
+      {:else if noAlerta}
+        O alerta desta câmera usa esta área, e ela sai dele também. As outras áreas do alerta
+        continuam.
+      {:else}
+        Ela sai da câmera quando você salvar. Até lá, cancelar o formulário a traz de volta.
+      {/if}
     </ConfirmDialog>
   {/if}
 {/if}
@@ -1143,6 +1346,9 @@
     align-items: center;
     gap: 8px;
     padding-left: 4px;
+  }
+  .chip.alerta-chip {
+    color: var(--accent);
   }
   .err {
     color: var(--bad);
@@ -1289,6 +1495,14 @@
   }
   .explica-areas,
   .aviso-areas {
+    margin: 0;
+  }
+  .sem-deteccao {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+  }
+  .sem-deteccao p {
     margin: 0;
   }
   .aviso-areas {

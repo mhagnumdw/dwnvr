@@ -2,7 +2,8 @@
 // polígono desenhado sobre a imagem de uma câmera, e o objeto é a caixa que o
 // detector de objetos devolveu.
 //
-// A área não muda o que a detecção grava: ela serve de filtro em Detecções.
+// A área não muda o que a detecção grava. Ela serve de filtro em Detecções e,
+// depois, decide se o alerta sai (ver docs/TODO/TODO_areas-e-alertas-de-deteccao.md).
 //
 // Tudo é fração do quadro, de 0 a 1, como a caixa: a área vale sobre o quadro
 // da detecção e sobre o keyframe do segmento, em qualquer resolução, e se

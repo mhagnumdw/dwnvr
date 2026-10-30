@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mhagnumdw/dwnvr/internal/alerta"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/logbuf"
 )
@@ -54,7 +55,20 @@ type servidorInfo struct {
 	// SMTP some sem a seção smtp. Vai sem sonda: conferir o servidor de
 	// e-mail é mandar um, e isso é o botão de teste.
 	SMTP *smtpInfo `json:"smtp,omitempty"`
-	Log  *logInfo  `json:"log,omitempty"`
+	// Alertas são os números de cada meio do alerta desde que o dwnvr subiu.
+	// Some sem meio, ou antes de alguma câmera ligar o alerta.
+	Alertas []meioDoAlertaInfo `json:"alertas,omitempty"`
+	Log     *logInfo           `json:"log,omitempty"`
+}
+
+// meioDoAlertaInfo é o EstadoDoMeio da Central. Ultimo some antes do primeiro
+// envio, e Erro, com o último envio tendo dado certo.
+type meioDoAlertaInfo struct {
+	Nome     string     `json:"nome"`
+	Enviados int64      `json:"enviados"`
+	Falhas   int64      `json:"falhas"`
+	Ultimo   *time.Time `json:"ultimo,omitempty"`
+	Erro     string     `json:"erro,omitempty"`
 }
 
 // coleta é o instante da leitura no relógio do servidor, com o fuso dele. Vai
@@ -188,6 +202,7 @@ func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Reques
 		Pressao:    coletarPressao(f),
 		Storage:    coletarMontagem(f, s.cfg.Storage.Root),
 		SMTP:       smtpNoDiagnostico(s.cfg.SMTP),
+		Alertas:    meiosNoDiagnostico(s.mgr.Alertas()),
 	}
 
 	// As sondas esperam por fora - disco e rede - e juntas podem somar alguns
@@ -207,6 +222,23 @@ func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Reques
 	}
 
 	writeJSON(w, resp)
+}
+
+// meiosNoDiagnostico é nil sem Central, que só nasce com a primeira câmera que
+// liga o alerta, e sem meio.
+func meiosNoDiagnostico(c *alerta.Central) []meioDoAlertaInfo {
+	if c == nil {
+		return nil
+	}
+	var out []meioDoAlertaInfo
+	for _, m := range c.Meios() {
+		info := meioDoAlertaInfo{Nome: m.Nome, Enviados: m.Enviados, Falhas: m.Falhas, Erro: m.Erro}
+		if !m.Ultimo.IsZero() {
+			info.Ultimo = &m.Ultimo
+		}
+		out = append(out, info)
+	}
+	return out
 }
 
 // ---- máquina ---------------------------------------------------------------
