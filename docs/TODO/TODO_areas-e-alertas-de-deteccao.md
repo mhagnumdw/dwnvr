@@ -1068,8 +1068,8 @@ deitado; "viewer" é entrar com um usuário que não é admin.
 - [x] duas pessoas no mesmo quadro aparecem com as duas caixas na miniatura,
   na folha e sobre o vídeo de Gravações (Etapa 0)
 - [x] na timeline, as duas seguem um ícone só de pessoa, numa faixa só
-- [ ] a cauda de Gravações, com a página aberta, não perde a segunda caixa
-  da mesma família (dw: aguardando acontecer)
+- [x] a cauda de Gravações, com a página aberta, não perde a segunda caixa
+  da mesma família
 
 ### Detecções: a área desenhada na hora
 
@@ -1093,132 +1093,152 @@ deitado; "viewer" é entrar com um usuário que não é admin.
 - [x] a área restringe só a câmera dela; as outras marcadas seguem inteiras,
   e desmarcar a câmera dela a tira da lista
 - [x] o contorno tracejado da área nas miniaturas e na folha
-- [ ] o calendário segue a área
-- [ ] o link colado em outra aba mostra a mesma lista
-- [ ] área côncava (em L), caixa que só encosta na borda, área do tamanho da
-  imagem (dá o mesmo que sem filtro)
-- [ ] o viewer também filtra por área
+- [x] o calendário segue a área
+- [x] o link colado em outra aba mostra a mesma lista
+- [x] área côncava (em L), na `encosta` e na `pisa`: some o que está no vão
+- [x] caixa que só encosta na borda, área do tamanho da imagem (dá o mesmo que
+  sem filtro)
+- [x] o viewer também filtra por área
 
 ### Detecções: as áreas cadastradas
 
-- [ ] o popover por câmera lista as áreas dela, mais "desenhar"
-- [ ] várias áreas somam, e a desenhada soma junto
-- [ ] o chip diz "Portão · câmera" com uma, "N áreas" com várias
-- [ ] renomear a área segue valendo no link; apagar tira a área do link
-- [ ] "salvar na câmera", só para o admin, grava a área desenhada e passa o
+- [x] o popover por câmera lista as áreas dela, mais "desenhar"
+- [x] várias áreas somam, e a desenhada soma junto
+- [x] o chip diz "Portão · câmera" com uma, "N áreas" com várias
+- [x] renomear a área segue valendo no link; apagar tira a área do link
+- [x] "salvar na câmera", só para o admin, grava a área desenhada e passa o
   filtro a apontar para ela
-- [ ] no editor de Detecções, as áreas que a câmera já tem aparecem em cinza
-- [ ] o "Filtrar por área" do ⋮ da miniatura: com área cadastrada, a lista
+- [x] no editor de Detecções, as áreas que a câmera já tem aparecem em cinza
+- [x] o "Filtrar por área" do ⋮ da miniatura: com área cadastrada, a lista
   delas com ✓ nas marcadas (soma, e tocar de novo tira) e "Desenhar sobre este
-  quadro"; sem área, direto ao editor sobre aquele quadro; nos dois, a lista
-  recomeça no instante daquele quadro; o menu abre para cima quando não cabe
+  quadro"; sem área, direto ao editor sobre aquele quadro; o menu abre para
+  cima quando não cabe
+- [ ] pelo ⋮, a lista recomeça no instante daquele quadro. Falhou em
+  30/10/2026: recomeça, mas em 1 a 8 s as detecções mais novas voltam ao topo
+  da vista e empurram o quadro para baixo (Cozinha e Frente, com a vista no
+  topo). Causa, medida, e as soluções em
+  [TODO_quadro-do-recomeco-sai-do-lugar.md](TODO_quadro-do-recomeco-sai-do-lugar.md)
 
 ### Detecções: o que alertou
 
-- [ ] o botão "só alertas" (o sino) soma com os outros filtros e vai no link
-- [ ] sem ele, a miniatura que alertou ganha o sino no selo
-- [ ] com ele, o contorno das áreas do alerta, o nome da área na legenda e a
+- [x] o botão "só alertas" (o sino) soma com os outros filtros e vai no link
+- [x] sem ele, a miniatura que alertou ganha o sino no selo
+- [x] com ele, o contorno das áreas do alerta, o nome da área na legenda e a
   caixa que não entrou no alerta tracejada e apagada
-- [ ] na folha, o bloco "alertou", com objeto, score e área, e embaixo o que
+- [x] na folha, o bloco "alertou", com objeto, score e área, e embaixo o que
   "não entrou no alerta"
-- [ ] a área apagada aparece como "área apagada" nas detecções antigas
-- [ ] o viewer vê o mesmo: o botão, o sino e o bloco
+- [x] a área apagada aparece como "área apagada" nas detecções antigas
+- [x] o viewer vê o mesmo: o botão, o sino e o bloco
 
 ### Cadastro da câmera: a aba Áreas
 
-- [ ] a lista de áreas, cada uma com a miniatura, o nome e a regra
-- [ ] "nova área" abre o editor com o nome, a regra e "apagar área"; as outras
+- [x] a lista de áreas, cada uma com a miniatura, o nome e a regra
+- [x] "nova área" abre o editor com o nome, a regra e "apagar área"; as outras
   áreas da câmera em cinza
-- [ ] "atualizar o quadro" troca o fundo pelo keyframe do último segmento
-- [ ] nome vazio ou repetido na câmera é recusado com o motivo
-- [ ] sem a marcação de movimento, a aba diz como ligá-la, com o botão para a
-  aba Detecção; sem o detector de objetos, aponta para a doc
-- [ ] no cadastro guiado de uma câmera nova, a aba Áreas só avisa que dá para
+- [x] "atualizar o quadro" troca o fundo pelo keyframe do último segmento
+- [x] nome vazio ou repetido na câmera é recusado com o motivo
+- [x] sem a marcação de movimento, a aba diz como ligá-la, com o botão para a
+  aba Detecção
+- [x] sem o detector de objetos, a aba Áreas aponta para a doc
+- [x] no cadastro guiado de uma câmera nova, a aba Áreas só avisa que dá para
   desenhar depois de salvar
-- [ ] salvar muda a área com a gravação no ar, sem reiniciar
+- [x] salvar muda a área com a gravação no ar, sem reiniciar
 
 ### Cadastro da câmera: a aba Alerta
 
-- [ ] ligar o alerta começa com `pessoa`
-- [ ] "em qualquer lugar da imagem" × "só nas áreas marcadas"
-- [ ] a tela não salva o alerta ligado sem família, nem "só nas áreas
+- [x] ligar o alerta começa com `pessoa`
+- [x] "em qualquer lugar da imagem" × "só nas áreas marcadas"
+- [x] a tela não salva o alerta ligado sem família, nem "só nas áreas
   marcadas" sem área marcada
-- [ ] desligar guarda famílias, áreas e horários para religar
-- [ ] apagar uma área que o alerta usa pede confirmação; a última avisa que o
-  alerta será desligado
-- [ ] sem a marcação ou sem o detector de objetos, a aba diz o que falta
-- [ ] no card, a miniatura com as áreas e "2 áreas", e "alerta: pessoa,
+- [x] desligar guarda famílias, áreas e horários para religar
+- [x] apagar uma área que o alerta usa, e que não é a última, pede confirmação
+- [x] apagar a última área do alerta avisa que o alerta será desligado
+- [x] sem a marcação, a aba diz o que falta
+- [x] sem o detector de objetos, a aba Alerta diz o que falta
+- [x] no card, a miniatura com as áreas e "2 áreas", e "alerta: pessoa,
   veículo" ou "alerta desligado"
 
 ### Cadastro da câmera: os horários
 
-- [ ] "Limitar o alerta a alguns horários" desmarcado diz "O alerta vale a
+- [x] "Limitar o alerta a alguns horários" desmarcado diz "O alerta vale a
   qualquer hora", e salvar apaga os horários
-- [ ] o fuso do servidor embaixo da caixa
-- [ ] a grade: clicar marca a hora, arrastar marca um retângulo, o dia e a
+- [x] o fuso do servidor embaixo da caixa
+- [x] a grade: clicar marca a hora, arrastar marca um retângulo, o dia e a
   hora nas bordas marcam a linha ou a coluna inteira
 - [ ] a grade no celular, com os dias em colunas, e só o toque parado marca
-- [ ] a hora pela metade fica tracejada
-- [ ] a lista digitada: os dias em botões, o De e o Até, o ✕ e a frase de
+- [x] a hora pela metade fica tracejada
+- [x] a lista digitada: os dias em botões, o De e o Até, o ✕ e a frase de
   como o dwnvr lê o horário
-- [ ] os atalhos "+ toda noite" e "+ fim de semana"
-- [ ] grade e lista andam juntas, nos dois sentidos
-- [ ] o mouse ou o foco num horário contorna as horas dele na grade
-- [ ] o Até que não fica depois do De avisa ao sair do campo
-- [ ] marcado e sem horário válido, o salvar barra
+- [x] os atalhos "+ toda noite" e "+ fim de semana"
+- [x] grade e lista andam juntas, nos dois sentidos
+- [x] o mouse ou o foco num horário contorna as horas dele na grade
+- [ ] o contorno fica enquanto o foco estiver no horário. Falhou em
+  30/10/2026: clicar num campo do horário e tirar o mouse dele apaga o
+  contorno, com o foco ainda lá (pelo Tab, sem o mouse, fica). Causa: o
+  `onpointerleave` zera o mesmo `realcado` que o `onfocusin` acendeu, em
+  `HorariosDoAlerta.svelte`
+- [x] o Até que não fica depois do De avisa ao sair do campo
+- [x] marcado e sem horário válido, o salvar barra
 - [ ] fora do horário, a detecção grava sem a marca de alerta e nenhum e-mail
   sai
 
 ### Cadastro da câmera: para onde vai
 
-- [ ] "Por e-mail, para N endereços", com os endereços
-- [ ] sem `alerts.email.to` ou sem `smtp`, "Só fica marcado na detecção", com
+- [x] "Por e-mail, para N endereços", com os endereços
+- [x] sem `alerts.email.to` ou sem `smtp`, "Só fica marcado na detecção", com
   o que falta
-- [ ] com o meio falhando, o "falhando desde" e o erro, em vermelho
+- [x] com o meio falhando, o "falhando desde" e o erro, em vermelho (a aba
+  lê a lista de câmeras: com a página já aberta, aparece ao recarregar)
 
 ### O alerta no servidor
 
-- [ ] cada alerta vira uma linha `INFO` no log, com a câmera, as famílias e
+- [x] cada alerta vira uma linha `INFO` no log, com a câmera, as famílias e
   as áreas
-- [ ] a linha do objeto que alertou ganha `alert` e `alertAreas` no
+- [x] a linha do objeto que alertou ganha `alert` e `alertAreas` no
   `eventos/{dia}.ndjson`; a do objeto de fora, não
-- [ ] duas pessoas na mesma olhada são um alerta só
-- [ ] o objeto parado depois de um reinício vira alerta na primeira olhada
+- [x] duas pessoas na mesma olhada são um alerta só
+- [x] o objeto parado depois de um reinício vira alerta na primeira olhada
   (a opção a, aceita para medir no uso)
-- [ ] o e-mail lento não atrasa as olhadas das outras câmeras
-- [ ] o `/api/health` leva o `alerts.total`
-- [ ] câmera sem alerta ligado não paga nada: sem `Central`, sem fila, sem
+- [x] o e-mail lento não atrasa as olhadas das outras câmeras
+- [x] o `/api/health` leva o `alerts.total`
+- [x] câmera sem alerta ligado não paga nada: sem `Central`, sem fila, sem
   goroutine
 
 ### O e-mail
 
-- [ ] o assunto como "Pessoa em Garagem às 14:32", e o corpo com o dia, os
+- [x] o assunto como "Pessoa em Garagem às 14:32", e o corpo com o dia, os
   objetos e as áreas
-- [ ] o anexo: só as caixas que alertaram, na cor da família, e o contorno
+- [x] o anexo: só as caixas que alertaram, na cor da família, e o contorno
   tracejado das áreas do alerta
-- [ ] uma mensagem para todos os endereços, com a lista no `To`
-- [ ] o link de definir a senha e o "Testar o e-mail" saem como antes
-- [ ] endereço inválido em `alerts.email.to` sai da lista com Aviso, e os
+- [x] uma mensagem para todos os endereços, com a lista no `To`
+- [x] o link de definir a senha e o "Testar o e-mail" saem como antes
+- [x] endereço inválido em `alerts.email.to` sai da lista com Aviso, e os
   outros recebem
-- [ ] `alerts.email.to` sem a seção `smtp` vira Aviso, e não erro de boot
+- [x] `alerts.email.to` sem a seção `smtp` vira Aviso, e não erro de boot
 
 ### O teto e os Avisos
 
-- [ ] o teto: 20 alertas seguidos, e depois um a cada 4 min
-- [ ] o Aviso amarelo do alerta que não saiu (teto ou fila cheia), que some
+- [x] o teto: 20 alertas seguidos, e depois um a cada 4 min
+- [x] o Aviso amarelo do alerta que não saiu (teto ou fila cheia), que some
   uma hora depois do último descarte
-- [ ] o Aviso vermelho de meio falhando, que some no primeiro envio que der
+- [x] o Aviso vermelho de meio falhando, que some no primeiro envio que der
   certo
-- [ ] o grupo "Alertas por e-mail" no card Este servidor: enviados, falhas e
+- [x] o grupo "Alertas por e-mail" no card Este servidor: enviados, falhas e
   o último envio
-- [ ] o sino do cabeçalho acende com os dois Avisos
+- [x] o sino do cabeçalho acende com os dois Avisos
+
+Conferido em 30/10/2026 numa imagem só de teste, com os números encolhidos:
+`RajadaDeAlertas` 2, `AlertasPorHora` 6 e `AvisoDoDescarteDura` 3 min. Com
+os reais, 20 seguidos levariam ~40 min de rua. Os números em si ficam com o
+`TestTeto` e o `TestEpisodioDoDescarte`. A fila cheia não foi provocada: só
+o descarte pelo teto apareceu na tela.
 
 ### O `cameras.json` editado à mão
 
-- [ ] a área inválida sai no boot, com Aviso
-- [ ] o alerta que fica sem nenhuma das áreas, ou sem família, é desligado
+- [x] a área inválida sai no boot, com Aviso
+- [x] o alerta que fica sem nenhuma das áreas, ou sem família, é desligado
   com Aviso
-- [ ] o horário inválido sai com Aviso; se todos saem, o alerta é desligado
+- [x] o horário inválido sai com Aviso; se todos saem, o alerta é desligado
 
 ## Pendências
 
