@@ -89,7 +89,7 @@ repos:
   # hook olhar só os arquivos do commit, e não o `globs` da config, que é o
   # repositório inteiro.
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.23.3
+    rev: v0.24.0
     hooks:
       - id: markdownlint-cli2
         priority: formatar
@@ -139,7 +139,7 @@ repos:
   # exposta. As regras estão no .github/zizmor.yml. No clone roda offline; a
   # CI lhe passa um token, que liga os audits que consultam o GitHub.
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: v1.30.1
+    rev: v1.31.1
     hooks:
       - id: zizmor
         priority: conferir
@@ -153,7 +153,7 @@ repos:
   # pelo hook (editor do GitHub, clone sem `prek install`). À mão:
   # prek run betterleaks-historico --stage manual --all-files
   - repo: https://github.com/betterleaks/betterleaks
-    rev: v1.8.1
+    rev: v1.9.0
     hooks:
       - id: betterleaks
         priority: conferir
@@ -169,7 +169,7 @@ repos:
   # inteiro: o hook comum só olha o que mudou desde o HEAD, e na CI não acharia
   # nada. Ele é compilado com o Go do default_language_version, acima.
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.14.0
+    rev: v2.15.0
     hooks:
       - id: golangci-lint-full
         priority: conferir
@@ -286,7 +286,7 @@ repos:
   # Python do dwnvr-detect: lint e formatação, o flake8 e o black numa
   # ferramenta só. As regras estão no dwnvr-detect/ruff.toml.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.9
+    rev: v0.17.2
     hooks:
       - id: ruff-check
         priority: formatar
