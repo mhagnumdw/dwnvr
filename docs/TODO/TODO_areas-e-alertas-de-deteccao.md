@@ -1052,9 +1052,16 @@ o alerta não: **salvar ou remover qualquer câmera por ela apaga o alerta de
 todas**, porque ela regrava o `cameras.json` inteiro a partir do que leu, já
 sem o campo `alert`. Antes de voltar, uma cópia do `cameras.json`.
 
-- [ ] a branch na instalação de teste, por `make deploy-wip`
-- [ ] `alerts.email.to` no `dwnvr.yaml` de lá
-- [ ] áreas e alerta ligados nas câmeras escolhidas
+- [x] a branch na instalação de teste, por `make deploy-wip`. Em 02/11/2026,
+  com a imagem anterior guardada como `rollback-v0.12.0-9-g93bc91b`
+- [x] `alerts.email.to` no `dwnvr.yaml` de lá. O endereço escrito sem os
+  colchetes (`to: "fulano@exemplo.com"`) impediu o dwnvr de subir, e a
+  gravação parou por 2 min até a linha ser corrigida. Consertado na branch: a
+  seção `alerts` nunca impede o boot, e o endereço sozinho vale como lista de
+  um
+- [x] áreas e alerta ligados nas câmeras escolhidas: a Cozinha com `pessoa`
+  na área do balcão, e a Frente com as três famílias numa área nova da
+  entrada
 - [ ] a [Etapa 7](#etapa-7---o-que-conferir-no-uso-real) conferida
 
 ## Etapa 7 - o que conferir no uso real
