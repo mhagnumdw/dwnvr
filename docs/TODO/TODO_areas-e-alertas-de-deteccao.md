@@ -41,7 +41,7 @@ Tudo com a interface pensada para o celular e para o desktop.
 - [x] [Ir para a main](#ir-para-a-main), o que já podia ir antes do resto
 - [ ] [Etapa 6 - o teste na instalação de teste](#etapa-6---o-teste-na-instalação-de-teste)
 - [x] [Etapa 7 - o que conferir no uso real](#etapa-7---o-que-conferir-no-uso-real), conferida na simulação
-- [ ] [Pendências](#pendências)
+- [x] [Pendências](#pendências)
 
 ## Decisões do mantenedor
 
@@ -1250,17 +1250,19 @@ o descarte pelo teto apareceu na tela.
 
 O que ficou para o fim da feature, sem etapa própria.
 
-- [ ] **Os ajustes de layout por tamanho de tela**, numa lista do mantenedor,
-  vistos no teste das Etapas 1 e 2 (21 e 22/10/2026). A lista ainda não foi
-  escrita.
-- [ ] **O nome da regra `pisa`**: ficou "por ora" na Etapa 1 (20/10/2026). O
+- [x] **O nome da regra `pisa`**: ficou "por ora" na Etapa 1 (20/10/2026). O
   mantenedor sugeriu "borda inferior" e "pé da caixa"; decidir depois do uso
-  real. A chave gravada (`foot`) não muda.
+  real. A chave gravada (`foot`) não muda. Decidido em 02/11/2026: o nome
+  `pisa` fica.
 
 ## Depois
 
 Sem data. Cada item vira plano próprio quando chegar a vez.
 
+- **Os ajustes de layout por tamanho de tela**, numa lista do mantenedor,
+  vistos no teste das Etapas 1 e 2 (21 e 22/10/2026). Saiu das Pendências em
+  02/11/2026 (decisão do mantenedor): o layout já está quase todo certo, e a
+  lista só se escreve depois que o PR for aceito.
 - **Cada pessoa escolhe as câmeras** (decisão do mantenedor): o e-mail na
   Minha conta e as câmeras de que ela quer alerta, somados à lista global sem
   repetir endereço. O campo de e-mail no `usuarios.json` já existe (PR #50,
