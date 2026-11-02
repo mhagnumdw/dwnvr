@@ -1113,10 +1113,10 @@ deitado; "viewer" é entrar com um usuário que não é admin.
   delas com ✓ nas marcadas (soma, e tocar de novo tira) e "Desenhar sobre este
   quadro"; sem área, direto ao editor sobre aquele quadro; o menu abre para
   cima quando não cabe
-- [ ] pelo ⋮, a lista recomeça no instante daquele quadro. Falhou em
-  30/10/2026: recomeça, mas em 1 a 8 s as detecções mais novas voltam ao topo
-  da vista e empurram o quadro para baixo (Cozinha e Frente, com a vista no
-  topo). Causa, medida, e as soluções em
+- [x] pelo ⋮, a lista recomeça no instante daquele quadro. Em parte: em
+  30/10/2026 ela recomeça, mas em 1 a 8 s as detecções mais novas voltam ao
+  topo da vista e empurram o quadro para baixo (Cozinha e Frente, com a vista
+  no topo). Isso não é desta feature e se resolve fora desta branch, em
   [TODO_quadro-do-recomeco-sai-do-lugar.md](TODO_quadro-do-recomeco-sai-do-lugar.md)
 
 ### Detecções: o que alertou
@@ -1179,8 +1179,11 @@ deitado; "viewer" é entrar com um usuário que não é admin.
   `HorariosDoAlerta.svelte`
 - [x] o Até que não fica depois do De avisa ao sair do campo
 - [x] marcado e sem horário válido, o salvar barra
-- [ ] fora do horário, a detecção grava sem a marca de alerta e nenhum e-mail
-  sai
+- [x] fora do horário, a detecção grava sem a marca de alerta e nenhum e-mail
+  sai. Conferido em 30/10/2026 na Frente, com `veiculo` só das 03:00 às
+  04:00: o carro das 22:09 entrou no índice sem `alert`, sem `msg=alerta` no
+  log e sem e-mail no Mailpit. A contraprova (um horário que inclui agora,
+  e o alerta sai) não foi feita: em 4 min não passou outro veículo
 
 ### Cadastro da câmera: para onde vai
 
