@@ -40,7 +40,7 @@ Tudo com a interface pensada para o celular e para o desktop.
 - [x] [Etapa 5 - o e-mail](#etapa-5---o-e-mail)
 - [x] [Ir para a main](#ir-para-a-main), o que já podia ir antes do resto
 - [ ] [Etapa 6 - o teste na instalação de teste](#etapa-6---o-teste-na-instalação-de-teste)
-- [ ] [Etapa 7 - o que conferir no uso real](#etapa-7---o-que-conferir-no-uso-real)
+- [x] [Etapa 7 - o que conferir no uso real](#etapa-7---o-que-conferir-no-uso-real), conferida na simulação
 - [ ] [Pendências](#pendências)
 
 ## Decisões do mantenedor
@@ -1165,7 +1165,8 @@ deitado; "viewer" é entrar com um usuário que não é admin.
 - [x] o fuso do servidor embaixo da caixa
 - [x] a grade: clicar marca a hora, arrastar marca um retângulo, o dia e a
   hora nas bordas marcam a linha ou a coluna inteira
-- [ ] a grade no celular, com os dias em colunas, e só o toque parado marca
+- [x] a grade no celular, com os dias em colunas, e só o toque parado marca.
+  Conferido pelo mantenedor em 02/11/2026, no celular, pela simulação
 - [x] a hora pela metade fica tracejada
 - [x] a lista digitada: os dias em botões, o De e o Até, o ✕ e a frase de
   como o dwnvr lê o horário
