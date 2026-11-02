@@ -337,3 +337,50 @@ func TestAlertsEmailSemSMTP(t *testing.T) {
 		t.Errorf("recusa %q e avisos %q; esperado só a recusa", cfg.SMTP.Recusa, cfg.Alerts.Email.Avisos)
 	}
 }
+
+// TestAlertsEmailNuncaImpedeOBoot: um engano de digitação na seção alerts, que
+// é opcional, não pode parar a gravação. O endereço sozinho vale como lista de
+// um; o resto que não dá para ler fica de fora com aviso, e o dwnvr sobe.
+func TestAlertsEmailNuncaImpedeOBoot(t *testing.T) {
+	const smtp = "smtp:\n  host: smtp.gmail.com\n  username: dwnvr@exemplo.com\n  password: troque-me\n"
+	casos := []struct {
+		nome   string
+		yaml   string
+		to     []string
+		avisos []string // um trecho de cada aviso, na ordem
+	}{
+		{"endereço sozinho", "alerts:\n  email:\n    to: fulano@exemplo.com\n",
+			[]string{"fulano@exemplo.com"}, nil},
+		{"endereço sozinho entre aspas", "alerts:\n  email:\n    to: \"fulano@exemplo.com\"\n",
+			[]string{"fulano@exemplo.com"}, nil},
+		{"to vazio", "alerts:\n  email:\n    to:\n", nil, nil},
+		{"item que não é endereço", "alerts:\n  email:\n    to:\n      - fulano@exemplo.com\n      - {nome: ciclana}\n",
+			[]string{"fulano@exemplo.com"}, []string{"linha 11 um item que não é endereço"}},
+		{"to que não é endereço nem lista", "alerts:\n  email:\n    to: {nome: fulano}\n",
+			nil, []string{"alerts.email.to (linha 9) precisa ser um endereço ou uma lista"}},
+		{"email que não é seção", "alerts:\n  email: fulano@exemplo.com\n",
+			nil, []string{"a seção alerts (linha 8) não está no formato esperado"}},
+		{"alerts que não é seção", "alerts: [fulano@exemplo.com]\n",
+			nil, []string{"a seção alerts (linha 7) não está no formato esperado"}},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			cfg, err := carregaYaml(t, smtp+c.yaml)
+			if err != nil {
+				t.Fatalf("o dwnvr não subiu: %v", err)
+			}
+			e := cfg.Alerts.Email
+			if !slices.Equal(e.To, c.to) {
+				t.Errorf("to %q, esperado %q", e.To, c.to)
+			}
+			if len(e.Avisos) != len(c.avisos) {
+				t.Fatalf("avisos %q, esperado %d", e.Avisos, len(c.avisos))
+			}
+			for i, trecho := range c.avisos {
+				if !strings.Contains(e.Avisos[i], trecho) {
+					t.Errorf("aviso %q, esperado com %q", e.Avisos[i], trecho)
+				}
+			}
+		})
+	}
+}

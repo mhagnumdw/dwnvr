@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 )
 
@@ -209,6 +211,43 @@ type Alerts struct {
 	Email AlertsEmail `yaml:"email"`
 }
 
+// UnmarshalYAML lê a seção sem nunca dar erro: ela é opcional, e um engano de
+// digitação nela não pode impedir o dwnvr de subir e gravar. O endereço
+// sozinho, sem colchetes, vale como lista de um. O que não dá para ler fica de
+// fora com aviso, e sem lista nenhum e-mail de alerta sai.
+func (a *Alerts) UnmarshalYAML(n *yaml.Node) error {
+	var bruto struct {
+		Email struct {
+			To yaml.Node `yaml:"to"`
+		} `yaml:"email"`
+	}
+	if err := n.Decode(&bruto); err != nil {
+		a.Email.Avisos = append(a.Email.Avisos, fmt.Sprintf(
+			"a seção alerts (linha %d) não está no formato esperado, e nenhum e-mail de alerta sai", n.Line))
+		return nil
+	}
+	to := &bruto.Email.To
+	switch {
+	case to.Kind == 0 || to.ShortTag() == "!!null":
+		// Sem a lista: o alerta fica só no registro.
+	case to.Kind == yaml.ScalarNode:
+		a.Email.To = []string{to.Value}
+	case to.Kind == yaml.SequenceNode:
+		for _, item := range to.Content {
+			if item.Kind != yaml.ScalarNode {
+				a.Email.Avisos = append(a.Email.Avisos, fmt.Sprintf(
+					"alerts.email.to tem na linha %d um item que não é endereço de e-mail, e ele ficou de fora da lista", item.Line))
+				continue
+			}
+			a.Email.To = append(a.Email.To, item.Value)
+		}
+	default:
+		a.Email.Avisos = append(a.Email.Avisos, fmt.Sprintf(
+			"alerts.email.to (linha %d) precisa ser um endereço ou uma lista de endereços, e nenhum e-mail de alerta sai", to.Line))
+	}
+	return nil
+}
+
 // AlertsEmail é o alerta por e-mail. Ele sai pela seção smtp, a mesma do link
 // de definir a senha: aqui fica só quem recebe.
 type AlertsEmail struct {
@@ -216,9 +255,9 @@ type AlertsEmail struct {
 	// para todos. Só endereços, sem nome: "fulano@exemplo.com".
 	To []string `yaml:"to"`
 
-	// Avisos são os problemas da seção, que não impedem o boot: o endereço que
-	// ficou de fora da lista, e a lista sem a seção smtp. Vão ao log e ao card
-	// Avisos do Diagnóstico.
+	// Avisos são os problemas da seção, que não impedem o boot: a seção ou a
+	// lista que não dá para ler, o endereço que ficou de fora da lista, e a
+	// lista sem a seção smtp. Vão ao log e ao card Avisos do Diagnóstico.
 	Avisos []string `yaml:"-"`
 }
 

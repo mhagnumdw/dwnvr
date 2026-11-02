@@ -487,11 +487,14 @@ o quadro anexo, está em [O alerta](deteccao.md#o-alerta).
 
 | Campo | O que é | Sem escrever |
 | --- | --- | --- |
-| `alerts.email.to` | quem recebe; só o endereço, sem nome na frente | o alerta fica só no log e marcado na detecção |
+| `alerts.email.to` | quem recebe; só o endereço, sem nome na frente. Um endereço só também serve sem os colchetes: `to: fulano@exemplo.com` | o alerta fica só no log e marcado na detecção |
 
 Nada aqui impede o dwnvr de subir. Viram aviso no card Avisos do Diagnóstico e
 no sino do header, e vão também para o log:
 
+- **a seção ou a lista fora do formato**, como `email: fulano@exemplo.com`
+  sem o `to:`. O que não dá para ler fica de fora, e sem lista nenhum e-mail de
+  alerta sai;
 - **o que não é endereço**, como `Fulano <fulano@exemplo.com>`, que sai da
   lista enquanto os outros seguem. O endereço repetido sai calado;
 - **a lista sem a seção `smtp`**, que não tem por onde sair. Com a seção

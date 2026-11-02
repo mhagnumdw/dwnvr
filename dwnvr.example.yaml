@@ -72,7 +72,8 @@ go2rtc:
 # Quem recebe por e-mail o alerta de detecção de toda câmera com alerta ligado
 # (aba Alerta do cadastro da câmera), numa mensagem só para todos. Opcional, e
 # só serve com a seção smtp acima. Só o endereço, sem nome na frente: o que não
-# for endereço fica de fora da lista e vira aviso no Diagnóstico. Ver
+# for endereço fica de fora da lista e vira aviso no Diagnóstico. Um endereço
+# só também serve sem os colchetes (to: fulano@exemplo.com). Ver
 # docs/configuracao.md, "Alerta por e-mail".
 # alerts:
 #   email:
