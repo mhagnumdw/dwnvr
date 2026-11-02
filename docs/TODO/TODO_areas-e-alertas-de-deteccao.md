@@ -1172,11 +1172,13 @@ deitado; "viewer" é entrar com um usuário que não é admin.
 - [x] os atalhos "+ toda noite" e "+ fim de semana"
 - [x] grade e lista andam juntas, nos dois sentidos
 - [x] o mouse ou o foco num horário contorna as horas dele na grade
-- [ ] o contorno fica enquanto o foco estiver no horário. Falhou em
+- [x] o contorno fica enquanto o foco estiver no horário. Falhou em
   30/10/2026: clicar num campo do horário e tirar o mouse dele apaga o
   contorno, com o foco ainda lá (pelo Tab, sem o mouse, fica). Causa: o
   `onpointerleave` zera o mesmo `realcado` que o `onfocusin` acendeu, em
-  `HorariosDoAlerta.svelte`
+  `HorariosDoAlerta.svelte`. Consertado em 02/11/2026: o mouse e o foco
+  guardam cada um o seu horário, e a grade contorna o do mouse ou, sem ele, o
+  do foco
 - [x] o Até que não fica depois do De avisa ao sair do campo
 - [x] marcado e sem horário válido, o salvar barra
 - [x] fora do horário, a detecção grava sem a marca de alerta e nenhum e-mail

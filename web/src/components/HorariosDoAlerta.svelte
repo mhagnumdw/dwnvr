@@ -43,16 +43,21 @@
 
   const coberturaDaLista = $derived(cobertura(horarios));
 
-  // O horário sob o mouse ou com o foco, que a grade contorna.
-  let realcado = $state<number | null>(null);
+  // A linha com o foco: o "Até" antes do "De" só fica vermelho fora dela, porque
+  // no meio da digitação ("1" a caminho de "18:00") ele ainda é provisório.
+  let focada = $state<number | null>(null);
+
+  // O horário sob o mouse.
+  let sobOMouse = $state<number | null>(null);
+
+  // A grade contorna o horário sob o mouse e, sem mouse em cima de nenhum, o
+  // que tem o foco. Os dois ficam separados para o mouse que sai não apagar o
+  // contorno do foco que ficou.
+  const realcado = $derived(sobOMouse ?? focada);
   const realce = $derived.by(() => {
     const h = horarios.find((x) => x.chave === realcado);
     return h && valido(h) ? cobertura([h]) : null;
   });
-
-  // A linha com o foco: o "Até" antes do "De" só fica vermelho fora dela, porque
-  // no meio da digitação ("1" a caminho de "18:00") ele ainda é provisório.
-  let focada = $state<number | null>(null);
 
   // A lista acabou de ser refeita pela grade: as linhas novas piscam.
   let refeita = $state(false);
@@ -83,7 +88,8 @@
   }
 
   function remove(chave: number) {
-    if (realcado === chave) realcado = null;
+    if (sobOMouse === chave) sobOMouse = null;
+    if (focada === chave) focada = null;
     muda(horarios.filter((h) => h.chave !== chave));
   }
 
@@ -154,16 +160,10 @@
           class:incompleto={n.ruim}
           role="group"
           aria-label="horário"
-          onpointerenter={() => (realcado = h.chave)}
-          onpointerleave={() => (realcado = null)}
-          onfocusin={() => {
-            realcado = h.chave;
-            focada = h.chave;
-          }}
-          onfocusout={() => {
-            realcado = null;
-            focada = null;
-          }}
+          onpointerenter={() => (sobOMouse = h.chave)}
+          onpointerleave={() => (sobOMouse = null)}
+          onfocusin={() => (focada = h.chave)}
+          onfocusout={() => (focada = null)}
         >
           <div class="dias" role="group" aria-label="os dias">
             {#each DIAS as nome, d (d)}
