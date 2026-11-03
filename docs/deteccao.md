@@ -332,18 +332,24 @@ nem a espera nem a goroutine de envio nascem.
   vários alertas seguidos, um a cada olhada que o marcar de novo.
 - **Não é alarme.** Ele avisa do que a detecção marcou, e ela não marca toda
   chegada. Subir a sensibilidade pega mais, e custa mais CPU.
-- **Chega atrasado:** de segundos a meio minuto depois da cena, que é o tempo
-  da janela do pico, da fila e da olhada.
+- **Chega atrasado:** em geral de segundos a meio minuto depois da cena, que é
+  o tempo da janela do pico, da fila e da olhada. Com a fila cheia ou o
+  detector de objetos lento, passa disso: a olhada espera a resposta por até
+  um minuto, e o pedaço pode esperar a vez na fila antes.
 - **A fila descarta:** numa câmera agitada, o pedaço que não cabe na fila vira
   só movimento, e não alerta.
 - **O envio tem teto:** depois de 20 alertas seguidos, passa um a cada 4
   minutos (15 por hora), para a instalação inteira; o que vem antes disso não
   é enviado, e um Aviso amarelo diz quantos e por quê. Protege a conta de
   e-mail: o Gmail para de enviar depois de 500 mensagens num dia, e o pior dia
-  com o teto é 380. A fila de envio cheia, com o envio lento ou travado,
-  também descarta e entra no mesmo Aviso. O alerta que não saiu fica gravado
-  na detecção, como todos. Os números estão no
+  com o teto é 380. O teto não sobrevive a um reinício: cada vez que o dwnvr
+  sobe, a rajada de 20 volta inteira. A fila de envio cheia, com o envio
+  lento ou travado, também descarta e entra no mesmo Aviso. O alerta que não
+  saiu fica gravado na detecção, como todos. Os números estão no
   `internal/alerta/parametros.go`.
+- **Com o disco falhando, o alerta sai do mesmo jeito:** a falha ao gravar a
+  marca vai ao log, e a detecção pode faltar em Detecções e no "só alertas",
+  mas o e-mail não depende do disco.
 - **Ao desligar o dwnvr**, o alerta que ainda esperava o envio não sai, e uma
   linha `WARN` no log diz quantos ficaram. Ele fica gravado na detecção, como
   todos.

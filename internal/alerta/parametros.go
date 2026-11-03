@@ -62,7 +62,8 @@ const QualidadeDoQuadro = detect.QualidadeDoQuadro
 // por mensagem e não por destinatário (support.google.com/mail/answer/22839),
 // e a mesma conta manda o link de definir a senha. O pior dia com estes
 // números é 20 + 15 × 24 = 380, e sobram ~120 para o resto. Com 20 por hora,
-// o pior dia seria 500, no limite exato.
+// o pior dia seria 500, no limite exato. A conta vale para o dwnvr no ar o dia
+// todo: o teto vive em memória, e cada reinício devolve a rajada inteira.
 const (
 	AlertasPorHora  = 15
 	RajadaDeAlertas = 20
