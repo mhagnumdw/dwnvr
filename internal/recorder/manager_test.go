@@ -173,7 +173,7 @@ func TestOlhadaViraAlerta(t *testing.T) {
 	if c == nil || c.Total() != 1 {
 		t.Fatalf("central %v, esperava um alerta", c)
 	}
-	linhas, err := m.store.Camera("cam_teste").ObjetosDoDia(time.Now().Format(store.DayLayout))
+	linhas, err := m.store.Camera("cam_teste").ObjetosDoDia(time.UnixMilli(agora).Format(store.DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
