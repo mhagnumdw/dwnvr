@@ -1,9 +1,8 @@
 # TODO - um alerta de teste na aba Alerta da câmera
 
 **Status: desenhado e adiado (27/10/2026).** O mantenedor achou preciosismo
-para o momento. Saiu da Etapa 5 (o e-mail) de
-[`TODO_areas-e-alertas-de-deteccao.md`](TODO_areas-e-alertas-de-deteccao.md),
-em que tinha sido decidido no mesmo dia.
+para o momento. Saiu da etapa do e-mail do plano das áreas e alertas, que foi
+no PR #44, em que tinha sido decidido no mesmo dia.
 
 ## O que seria
 

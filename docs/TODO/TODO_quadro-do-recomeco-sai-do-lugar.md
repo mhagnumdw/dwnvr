@@ -1,9 +1,8 @@
 # TODO - o quadro onde a lista recomeça sai do lugar
 
-Achado em 30/10/2026, no teste da Etapa 7 (o que conferir no uso real) das
-áreas e alertas, no item "pelo ⋮, a lista recomeça no instante daquele
-quadro". Investigado e medido no mesmo dia; o mantenedor vai pensar depois se
-conserta.
+Achado em 30/10/2026, no teste das áreas e alertas (PR #44), no item "pelo ⋮,
+a lista recomeça no instante daquele quadro". Investigado e medido no mesmo
+dia; o mantenedor vai pensar depois se conserta.
 
 **Status: não corrigido.**
 
@@ -123,9 +122,8 @@ rolagem: o `scrollTo` do `recomeca`, o `scrollBy` do `restaura` e o
 
 ### Alternativa: aceitar como está
 
-Ajustar o texto do item na Etapa 7 para "o quadro fica na primeira linha da
-vista, podendo andar uma posição ou uma linha" e marcá-lo. Faz sentido se no
-uso real o movimento não atrapalhar.
+Aceitar que o quadro fica na primeira linha da vista, podendo andar uma
+posição ou uma linha. Faz sentido se no uso real o movimento não atrapalhar.
 
 ## Como provar o conserto
 
@@ -148,5 +146,4 @@ Não medido em uso; só pela leitura do código e pelo caso 3.
 ## Vale a pena agora?
 
 Não é urgente: nada se perde e o quadro segue à vista. Vale se o toque errado
-ou a perda de referência aparecerem no uso, ou antes de fechar a Etapa 7, para
-não deixar o item aberto.
+ou a perda de referência aparecerem no uso.

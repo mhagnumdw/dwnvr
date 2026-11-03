@@ -13,9 +13,10 @@ são apagadas (`Manager.Pause`) ou a detecção é ligada com o dwnvr no ar.
 
 Na primeira olhada depois disso, o que está parado na cena vira chegada: o
 carro na garagem marca na timeline e, com o alerta das áreas, avisaria a cada
-reinício. É a opção b de "O objeto parado depois de um reinício", na Etapa 3 de
-[`TODO_areas-e-alertas-de-deteccao.md`](TODO_areas-e-alertas-de-deteccao.md),
-que ficou com a a (aceitar e medir no uso).
+reinício. É a opção b de "O objeto parado depois de um reinício", do plano das
+áreas e alertas, que foi no PR #44. O plano ficou com a a: aceitar e medir no
+uso, como diz o limite "Depois de um reinício" em
+[`deteccao.md`](../deteccao.md#o-alerta).
 
 ## O desenho
 

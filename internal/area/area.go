@@ -3,7 +3,7 @@
 // detector de objetos devolveu.
 //
 // A área não muda o que a detecção grava. Ela serve de filtro em Detecções e,
-// depois, decide se o alerta sai (ver docs/TODO/TODO_areas-e-alertas-de-deteccao.md).
+// depois, decide se o alerta sai (ver "O alerta" em docs/deteccao.md).
 //
 // Tudo é fração do quadro, de 0 a 1, como a caixa: a área vale sobre o quadro
 // da detecção e sobre o keyframe do segmento, em qualquer resolução, e se
