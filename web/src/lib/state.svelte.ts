@@ -49,6 +49,7 @@ export function ehAdmin() {
 export function sessaoCaiu() {
   session.authenticated = false;
   session.pessoa = null;
+  zeraOQueFoiCarregado();
 }
 
 export const cameras = $state<{
@@ -182,8 +183,13 @@ export async function logout() {
   }
   session.authenticated = false;
   session.pessoa = null;
-  // Zera o que já foi carregado: sem isto, quem entrar em seguida vê por um
-  // instante as câmeras e o diagnóstico da sessão anterior.
+  zeraOQueFoiCarregado();
+}
+
+// zeraOQueFoiCarregado vale para as duas saídas, a pedida e a da sessão que
+// caiu: sem isto, quem entrar em seguida na mesma aba vê por um instante as
+// câmeras e o diagnóstico da sessão anterior.
+function zeraOQueFoiCarregado() {
   cameras.list = [];
   cameras.streams = [];
   cameras.orphans = [];
