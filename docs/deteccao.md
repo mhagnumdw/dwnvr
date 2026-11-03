@@ -172,7 +172,8 @@ de build, modelo e licença em [`dwnvr-detect/README.md`](../dwnvr-detect/README
 ```text
 POST /detect?piso=0.2&larguraDoQuadro=480&qualidade=75
                           Content-Type: video/mp4, corpo: o pedaço
-GET  /health              só o HEALTHCHECK do Docker; o dwnvr não chama
+GET  /health              o HEALTHCHECK do Docker e o card "Este servidor"
+                          do Diagnóstico; a fila não usa
 ```
 
 ```json
