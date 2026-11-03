@@ -166,14 +166,14 @@ cair, mas não abre outra.
 
 | Endpoint | Parâmetros | O que faz |
 | --- | --- | --- |
-| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs; para o viewer, só as câmeras e o `detector` |
+| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs + para onde vai o alerta; para o viewer, só as câmeras (do `alert`, só o `enabled` quando ligado) e o `detector` |
 | `POST /api/cameras` | corpo JSON | **só admin**: cadastra ou altera (upsert por id); o campo que a câmera não definia e chega igual ao default não é gravado (ver [Política por câmera](configuracao.md#política-por-câmera)) |
 | `DELETE /api/cameras` | `id`, `recordings=1` | **só admin**: descadastra; com `recordings=1` apaga as gravações junto |
 | `GET /api/streams/probe` | `src` | **só admin**: diz se um stream entrega áudio, abrindo-o se preciso |
 | `POST /api/go2rtc/restart` | - | **só admin**: reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
-| `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes, relógio e o problema da seção `smtp` |
+| `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes, relógio, o problema da seção `smtp` e, com alerta ligado, o total de alertas |
 | `POST /api/reconnects/reset` | - | **só admin**: zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
-| `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos, servidor de e-mail e últimos avisos do log |
+| `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos, servidor de e-mail, envios do alerta e últimos avisos do log |
 | `POST /api/email/teste` | `{"to"}` | **só admin**: manda um e-mail de teste para o endereço, pela seção `smtp` |
 | `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
@@ -185,7 +185,20 @@ resposta traz a câmera com eles. Uma área inválida recusa o save inteiro com
 areas[1] "Garagem" fora do aceito: use de 3 a 20 pontos, com as coordenadas de 0 a 1
 ```
 
-O formato das `areas` está em
+O `alert` aponta para as áreas pelo `id`, e o que a câmera não tem também
+recusa o save. Por isso a tela tira a área do alerta antes de apagá-la:
+
+```text
+alert.areas[0] "sumiu" fora do aceito: use o id de uma área desta câmera
+```
+
+O horário do alerta que atravessa a meia-noite recusa do mesmo jeito:
+
+```text
+alert.schedules[0].to "06:00" fora do aceito: use uma hora depois do from 22:00; a noite são dois horários, até 23:59 e a partir de 00:00
+```
+
+O formato das `areas` e do `alert` está em
 [Política por câmera](configuracao.md#política-por-câmera).
 
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
@@ -227,6 +240,27 @@ câmera, a mesma régua com que o `POST /api/cameras` recusa, de onde saem o
 
 E traz o `detector`: `true` quando o detector de objetos está configurado. Sem
 ele, a interface esconde a aba Detecções.
+
+Traz também o `alertEmail`, para onde vai o alerta, que a aba Alerta da câmera
+mostra. Com o meio de e-mail (a seção `smtp` ligada e a lista
+`alerts.email.to`), vem a lista; com o meio falhando, também o desde quando e o
+erro da falha mais recente, que somem no primeiro envio que der certo:
+
+```json
+"alertEmail": {
+  "to": ["fulano@exemplo.com", "ciclana@exemplo.com"],
+  "failingSince": "2026-10-27T13:58:12-03:00",
+  "error": "dial tcp 142.250.0.108:587: connect: connection timed out"
+}
+```
+
+Sem o meio, `missing` diz as seções do `dwnvr.yaml` que faltam, de
+`alerts.email.to` e `smtp`, e `smtpError`, o motivo da seção `smtp` recusada no
+boot:
+
+```json
+"alertEmail": { "missing": ["smtp"], "smtpError": "smtp.from vazio" }
+```
 
 O go2rtc só lê o `go2rtc.yaml` quando sobe. Quando o arquivo diz uma coisa e o
 go2rtc em execução faz outra, o `GET /api/cameras` traz `go2rtcConfigFile`, e a
@@ -371,6 +405,59 @@ olhada que ele responde o apaga. Pedaço recusado (vídeo corrompido) não conta
 }
 ```
 
+Depois que alguma câmera liga o alerta, o `/api/health` traz o total de
+alertas desde que o dwnvr subiu. O campo fica até o dwnvr reiniciar, mesmo que
+o alerta seja desligado, e não vem antes:
+
+```json
+"alerts": { "total": 12 }
+```
+
+Os alertas em si ficam gravados na detecção, e se leem no `GET /api/deteccoes`
+(`alert` e `alertAreas` em cada objeto, e o filtro `alert=1`).
+
+Com algum meio de envio configurado, o alerta que não sai é descartado e
+contado: `queueFull` não coube na fila de envio, e `overLimit` passou do teto
+de `limitPerHour` (ver [O alerta](deteccao.md#o-alerta)). O `dropped` vem
+enquanto o episódio vale, até uma hora depois do último descarte (`lastAt`);
+o descarte seguinte começa outro, com a contagem do zero. É dele que sai o
+Aviso amarelo do card Avisos.
+
+```json
+"alerts": {
+  "total": 52,
+  "dropped": {
+    "queueFull": 0, "overLimit": 12, "limitPerHour": 15,
+    "since": "2026-10-27T14:02:10-03:00", "lastAt": "2026-10-27T14:07:31-03:00"
+  }
+}
+```
+
+Com um meio falhando, o `failing` traz um item por meio, com o `name`, o
+`since` (a primeira falha desde o último envio que deu certo) e o `error` da
+falha mais recente. Some no primeiro envio que der certo. É dele que sai o
+Aviso vermelho do card Avisos.
+
+```json
+"alerts": {
+  "total": 52,
+  "failing": [
+    { "name": "email", "since": "2026-10-27T13:58:04-03:00", "error": "dial tcp 142.250.0.108:587: connect: connection timed out" }
+  ]
+}
+```
+
+A seção `alerts` do `dwnvr.yaml` com problema (ver
+[Alerta por e-mail](configuracao.md#alerta-por-e-mail)) põe os `warnings` no
+mesmo `alerts`, para o card Avisos e o sino, mesmo sem câmera com alerta, e
+então sem o `total`. Sem problema, eles não vêm.
+
+```json
+"alerts": {
+  "warnings": ["falta a seção smtp, e sem ela a lista alerts.email.to não recebe nada"]
+}
+```
+
 `DELETE /api/rec` aceitar câmera já removida é deliberado: descadastrar sem
 apagar deixa gravações órfãs, e sem esse endpoint não haveria como recuperar o
 espaço pela interface.
@@ -473,6 +560,9 @@ sem cgroup, fora do Linux).
     "host": "smtp.gmail.com", "port": 587, "security": "starttls",
     "from": "dwnvr <dwnvr.exemplo@gmail.com>"
   },
+  "alertas": [
+    { "nome": "email", "enviados": 47, "falhas": 9, "ultimo": "2026-10-02T17:44:37-03:00", "erro": "dial tcp 142.250.0.108:587: connect: connection timed out" }
+  ],
   "log": {
     "total": 37,
     "linhas": [{ "em": "2026-09-22T18:37:12-03:00", "nivel": "WARN", "texto": "conexão caiu cam=garagem erro=EOF" }]
@@ -501,6 +591,9 @@ sem cgroup, fora do Linux).
 - `smtp` só vem com a seção `smtp` no `dwnvr.yaml`, sem o login e sem a senha.
   Não há sonda: conferir o servidor de e-mail é mandar um, e para isso existe o
   `POST /api/email/teste`. Com a seção recusada, traz o `error`.
+- `alertas` são os envios de cada meio do alerta desde que o dwnvr subiu, e só
+  vêm com meio configurado e alguma câmera com o alerta ligado. `ultimo` é a
+  tentativa mais recente e some antes da primeira; `erro` vem só se ela falhou.
 - `pressao` é o PSI do kernel: a porcentagem do tempo em que alguma tarefa
   (`some`) ou todas (`full`) ficaram paradas esperando CPU, memória ou disco,
   em média de 10, 60 e 300 segundos.
@@ -602,9 +695,9 @@ rola.
 
 | Endpoint | Parâmetros | Devolve |
 | --- | --- | --- |
-| `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias`, `area`, `rule`, `areas` | uma página de detecções, da mais nova para a mais velha |
+| `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias`, `area`, `rule`, `areas`, `alert` | uma página de detecções, da mais nova para a mais velha |
 | `GET /api/deteccoes/quadro` | `cam`, `t` | o JPEG do quadro que o detector olhou, `immutable` |
-| `GET /api/deteccoes/dias` | `cams`, `familias`, `area`, `rule`, `areas` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
+| `GET /api/deteccoes/dias` | `cams`, `familias`, `area`, `rule`, `areas`, `alert` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
 
 **`/api/deteccoes`** pagina por cursor, e não por número de página: o dia
 corrente ganha detecção nova a todo momento, e "página 3" mudaria de conteúdo
@@ -636,6 +729,11 @@ entre um pedido e outro.
   pelo cadastro de agora: editar a área muda o filtro dali em diante, inclusive
   sobre o passado. Área que a câmera não tem mais é erro.
 
+- `alert=1`: só as detecções em que algum objeto alertou (ver abaixo). O
+  filtro é por detecção: o objeto que não alertou fica nela. Ele vale sobre o
+  que sobra dos outros filtros: com `familias=veiculo`, a detecção que alertou
+  só pela pessoa sai, porque a pessoa sai. Outro valor é erro.
+
 As áreas de uma câmera **somam**, a de `area` junto: o objeto fica se está em
 qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
 
@@ -648,7 +746,8 @@ qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
       "quadroMs": 1786220572851,
       "temQuadro": true,
       "objetos": [
-        { "familia": "pessoa", "classe": "person", "score": 0.87, "caixa": [0.5156, 0.2611, 0.6734, 0.9778] },
+        { "familia": "pessoa", "classe": "person", "score": 0.87, "caixa": [0.5156, 0.2611, 0.6734, 0.9778],
+          "alert": true, "alertAreas": ["k3f9a2"] },
         { "familia": "veiculo", "classe": "car", "score": 0.61, "caixa": [0.05, 0.4, 0.3, 0.7] }
       ]
     }
@@ -664,6 +763,12 @@ objetos. O filtro de família e o de área tiram objetos, e a detecção que fic
 sem nenhum sai da página. Com área, a marca sem caixa, gravada antes de a
 caixa existir, fica de fora: não há como saber onde ela estava.
 `caixa` e `quadroMs` são os mesmos de `/api/rec/events`.
+
+`alert` diz que o objeto passou na regra de alerta da câmera na hora em que foi
+olhado, e `alertAreas`, os ids das áreas do alerta em que ele caiu; sem áreas
+no alerta, ou sem alerta, o campo não vem. É o que foi gravado: mudar o alerta
+da câmera não muda o passado, e o id de uma área apagada continua vindo. O
+viewer também os recebe.
 
 O próximo cursor é o `instanteMs` da última detecção da página. A página **não
 parte um instante ao meio**: se a última empata, no mesmo milissegundo, com a de
@@ -684,7 +789,7 @@ leitura. O dia sai da memória quando a retenção o apaga.
 
 **`/api/deteccoes/dias`** é o que o calendário da tela de Detecções deixa
 escolher, com o número que ele mostra em cada dia. `cams`, `familias`, `area`,
-`rule` e `areas` são os mesmos de `/api/deteccoes`, e o dia entra se tiver ao menos uma detecção do
+`rule`, `areas` e `alert` são os mesmos de `/api/deteccoes`, e o dia entra se tiver ao menos uma detecção do
 filtro. `deteccoesPorDia` conta detecções, não marcas, como `/api/deteccoes`
 as monta: pessoa e carro no mesmo quadro contam uma vez. Dia sem gravação fica
 de fora mesmo com marca, porque a rolagem também não chega nele.

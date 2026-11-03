@@ -189,6 +189,11 @@ func TestMensagemQueViraCabecalhoRecusa(t *testing.T) {
 		{Para: []string{"Fulano <fulano@exemplo.com>"}, Assunto: "oi", Texto: "x"},
 		{Para: []string{"fulano@exemplo.com, outro@exemplo.com"}, Assunto: "oi", Texto: "x"},
 		{Assunto: "oi", Texto: "x"},
+		comAnexo(Anexo{Nome: "a.jpg\r\nBcc: outro@exemplo.com", Tipo: "image/jpeg"}),
+		comAnexo(Anexo{Nome: "", Tipo: "image/jpeg"}),
+		comAnexo(Anexo{Nome: "a.jpg", Tipo: "image/jpeg\r\nBcc: outro@exemplo.com"}),
+		comAnexo(Anexo{Nome: "a.jpg", Tipo: "image/jpeg; name=b.exe"}),
+		comAnexo(Anexo{Nome: "a.jpg", Tipo: ""}),
 	} {
 		if err := s.Enviar(context.Background(), m); err == nil {
 			t.Errorf("enviou %+v", m)
@@ -197,6 +202,10 @@ func TestMensagemQueViraCabecalhoRecusa(t *testing.T) {
 	if recebidas, _ := f.recebido(); len(recebidas) != 0 {
 		t.Errorf("%d mensagens chegaram", len(recebidas))
 	}
+}
+
+func comAnexo(a Anexo) Mensagem {
+	return Mensagem{Para: []string{"fulano@exemplo.com"}, Assunto: "oi", Texto: "x", Anexos: []Anexo{a}}
 }
 
 // TestDesligadoNaoMonta: o main só monta o envio com a seção conferida.

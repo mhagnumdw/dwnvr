@@ -11,7 +11,9 @@
     valor: number | null;
     onmuda: (minuto: number | null) => void;
     rotulo: string;
-    onenter: () => void;
+    // Dentro de um formulário o Enter já o envia, e quem usa pode não ter
+    // mais nada a fazer.
+    onenter?: () => void;
     // O foco ao abrir, para o primeiro campo do popover.
     focar?: boolean;
   }
@@ -80,7 +82,7 @@
       onkeydown={(e) => {
         if (e.key === 'Enter') {
           sair();
-          onenter();
+          onenter?.();
         }
       }}
     />

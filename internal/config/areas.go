@@ -14,7 +14,8 @@ import (
 // guarda.
 type Area struct {
 	// ID é curto e gerado pelo servidor quando a área chega sem ele. O link de
-	// Detecções aponta para ele, e renomear a área não o quebra.
+	// Detecções e o alerta apontam para ele, e renomear a área não quebra
+	// nenhum dos dois.
 	ID   string `json:"id"`
 	Name string `json:"name"`
 

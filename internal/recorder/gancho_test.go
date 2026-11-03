@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -519,7 +520,7 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 	}}
 	olhadas := make(chan detect.Olhada, 4)
 	fila := detect.NovaFila(detectorQueVePessoa{}, func(o detect.Olhada) {
-		r.olhou(o)
+		r.olhou(o, nil)
 		olhadas <- o
 	}, mudo())
 	r.pedacos = r.ofereceA(fila)
@@ -559,7 +560,7 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 	jpeg := []byte("\xff\xd8jpeg-de-teste\xff\xd9")
 	want := store.Evento{InstanteMs: onsets[0], Familia: "pessoa", Classe: "person", Score: 0.877,
 		QuadroMs: quadros[0], TemQuadro: true}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("marca %+v, esperado %+v", got, want)
 	}
 	if caixa == nil || *caixa != [4]float64{0.1, 0.1, 0.2, 0.4} {
@@ -602,7 +603,7 @@ func TestUmaLinhaPorObjeto(t *testing.T) {
 			{Classe: "person", Score: 0.87, Caixa: [4]float64{0.41, 0.32, 0.47, 0.62}},
 		},
 		Quadro: []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
-	})
+	}, nil)
 
 	dia := time.Now().Format(store.DayLayout)
 	evs, err := idx.LoadEventos(dia)

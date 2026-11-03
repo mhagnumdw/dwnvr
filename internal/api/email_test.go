@@ -243,6 +243,21 @@ func TestSmtpRecusadoViraAviso(t *testing.T) {
 	}
 }
 
+// TestAlertsEmailViraAviso: o problema da seção alerts vai ao /api/health
+// mesmo sem câmera com alerta, porque é da configuração.
+func TestAlertsEmailViraAviso(t *testing.T) {
+	s, _ := testServer(t)
+	s.cfg.Alerts.Email.Avisos = []string{"falta a seção smtp, e sem ela a lista alerts.email.to não recebe nada"}
+	_, resp := pedirComo(t, s, "", http.MethodGet, "/api/health", nil)
+	alerts, _ := resp["alerts"].(map[string]any)
+	if w, _ := alerts["warnings"].([]any); len(w) != 1 || w[0] != s.cfg.Alerts.Email.Avisos[0] {
+		t.Errorf("alerts %v", resp["alerts"])
+	}
+	if _, tem := alerts["total"]; tem {
+		t.Errorf("total sem câmera com alerta: %v", alerts)
+	}
+}
+
 // TestDiagnosticoMostraOServidorSemASenha: o card E-mail vê o servidor e o
 // remetente, nunca o login nem a senha.
 func TestDiagnosticoMostraOServidorSemASenha(t *testing.T) {

@@ -12,6 +12,7 @@
 
 import { areaNaQuery } from './area.ts';
 import type { AreaDoFiltro, Ponto, Regra } from './area.ts';
+import type { NomeDaFamilia } from './icones.ts';
 
 let onUnauthorized = () => {
   // ninguém pediu aviso ainda: o App registra o dele ao montar
@@ -259,7 +260,7 @@ export const api = {
 
 // O filtro que a lista e o calendário de Detecções dividem. As áreas restringem
 // só a câmera delas; as outras de `cams` seguem inteiras.
-function queryDoFiltro({ cams, familias, area, areas }: FiltroDeDeteccoes) {
+function queryDoFiltro({ cams, familias, area, areas, soAlertas }: FiltroDeDeteccoes) {
   const q = new URLSearchParams();
   if (cams?.length) q.set('cams', cams.join(','));
   if (familias?.length) q.set('familias', familias.join(','));
@@ -268,6 +269,7 @@ function queryDoFiltro({ cams, familias, area, areas }: FiltroDeDeteccoes) {
     q.set('rule', area.regra);
   }
   if (areas?.length) q.set('areas', areas.join(','));
+  if (soAlertas) q.set('alert', '1');
   return q;
 }
 
@@ -410,9 +412,37 @@ export interface Camera {
   detectMecanismo?: string;
   detectSensibilidade?: number;
   areas?: AreaDaCamera[];
+  // Só o admin recebe: o viewer não edita câmera.
+  alert?: AlertaDaCamera;
 }
 
-// Uma área cadastrada na câmera. A área nova vai sem `id`, e o servidor dá um.
+// Quando uma detecção da câmera vira alerta. Sem `areas`, vale a imagem
+// inteira; sem `schedules`, a qualquer hora; desligado, guarda o resto para
+// religar.
+export interface AlertaDaCamera {
+  enabled: boolean;
+  families?: NomeDaFamilia[];
+  areas?: string[];
+  schedules?: HorarioDoAlerta[];
+}
+
+// Um horário do alerta: os dias, de 0 (domingo) a 6 (sábado), e o De e o Até
+// em "HH:MM", com as duas pontas incluídas. O `to` é sempre maior que o
+// `from`: a noite são dois horários, um até 23:59 e outro a partir de 00:00.
+export interface HorarioDoAlerta {
+  days: number[];
+  from: string;
+  to: string;
+}
+
+// Onde o alerta vale, como a aba Alerta mostra. Não vai ao servidor, que só
+// guarda as áreas: "só nas áreas marcadas" sem nenhuma marcada é um estado da
+// tela, que ele leria como a imagem inteira.
+export type OndeDoAlerta = 'tudo' | 'areas';
+
+// Uma área cadastrada na câmera. A área nova da aba Áreas já vai com `id`,
+// para o alerta poder marcá-la; a do "salvar na câmera" de Detecções vai sem,
+// e o servidor dá um.
 export interface AreaDaCamera {
   id?: string;
   name: string;
@@ -471,6 +501,19 @@ export interface RespostaCameras {
   streams?: Stream[];
   go2rtcError?: string;
   go2rtcConfigFile?: DivergenciasDoGo2rtc;
+  alertEmail?: AlertaPorEmail;
+}
+
+// O "Para onde vai" da aba Alerta: `to` com o meio de e-mail, e `failingSince`
+// e `error` com ele falhando, até o primeiro envio que der certo. Sem o meio,
+// `missing` diz as seções do dwnvr.yaml que faltam, e `smtpError`, o motivo da
+// seção smtp recusada.
+export interface AlertaPorEmail {
+  to?: string[];
+  failingSince?: string;
+  error?: string;
+  missing?: ('alerts.email.to' | 'smtp')[];
+  smtpError?: string;
 }
 
 // `erro` vem quando a sonda falhou: aí `hasAudio` é "não sei", e não "não tem".
@@ -569,9 +612,34 @@ export interface Detector {
 }
 
 // `disk` some quando o storage não responde; `detector`, sem detector de
-// objetos configurado; `go2rtc`, enquanto ele responde. `uptime`, `clock` e
-// `reconnectsWindowHours` faltam em servidor anterior a eles, para onde a tela
-// do `npm run dev` pode estar apontada.
+// objetos configurado; `go2rtc`, enquanto ele responde; `alerts`, antes de
+// alguma câmera ligar o alerta, se a seção alerts não tem problema. `uptime`,
+// `clock` e `reconnectsWindowHours` faltam em servidor anterior a eles, para
+// onde a tela do `npm run dev` pode estar apontada.
+// Os alertas que não saíram pelos meios, num episódio que acaba uma hora
+// depois do último descarte: `queueFull` não couberam na fila de envio, e
+// `overLimit` passaram do teto de `limitPerHour`.
+export interface DescarteDosAlertas {
+  queueFull: number;
+  overLimit: number;
+  limitPerHour: number;
+  since: string;
+  lastAt: string;
+}
+
+// O meio do alerta pelo nome que o servidor dá a ele, como se lê na frase:
+// "Alertas por e-mail". Meio que a tela ainda não conhece sai pelo nome mesmo.
+export const MEIOS_DO_ALERTA: Readonly<Record<string, string>> = { email: 'por e-mail' };
+export const meioDoAlerta = (nome: string) => MEIOS_DO_ALERTA[nome] ?? `por ${nome}`;
+
+// Um meio do alerta falhando desde `since`, com o erro da falha mais recente.
+// Some no primeiro envio que der certo.
+export interface MeioFalhando {
+  name: string;
+  since: string;
+  error: string;
+}
+
 export interface Saude {
   cameras: CameraNaSaude[];
   disk?: Disco;
@@ -585,6 +653,16 @@ export interface Saude {
   // Só com problema no usuarios.json: `error` é o arquivo ilegível no boot, e
   // `warnings`, as entradas que não valem.
   users?: { error?: string; warnings?: string[] };
+  // `total` some antes de alguma câmera ligar o alerta; `warnings` são os
+  // problemas da seção alerts do dwnvr.yaml, que valem sem câmera nenhuma; e
+  // `dropped` só vem durante um episódio de descarte, e `failing`, com algum
+  // meio falhando.
+  alerts?: {
+    total?: number;
+    warnings?: string[];
+    dropped?: DescarteDosAlertas;
+    failing?: MeioFalhando[];
+  };
 }
 
 // --- o servidor (card "Este servidor" do Diagnóstico)
@@ -671,7 +749,18 @@ export interface Servidor {
   // Só com a seção smtp no dwnvr.yaml; sem o login e sem a senha. `error` é o
   // motivo de o e-mail estar desligado.
   smtp?: { host?: string; port?: number; security?: string; from?: string; error?: string };
+  // Só com meio do alerta e alguma câmera com o alerta ligado. `ultimo` some
+  // antes do primeiro envio, e `erro`, com o último envio tendo dado certo.
+  alertas?: MeioDoAlerta[];
   log?: { total: number; linhas: LinhaDoLog[] };
+}
+
+export interface MeioDoAlerta {
+  nome: string;
+  enviados: number;
+  falhas: number;
+  ultimo?: string;
+  erro?: string;
 }
 
 // --- gravações
@@ -735,6 +824,11 @@ export interface ObjetoNoQuadro {
   classe: string;
   score: number;
   caixa?: Caixa;
+  // O objeto passou na regra de alerta da câmera, na hora em que foi olhado, e
+  // caiu nas áreas do alerta destes ids. Sem áreas no alerta, `alertAreas` não
+  // vem. O id de uma área apagada desde então continua vindo.
+  alert?: boolean;
+  alertAreas?: string[];
 }
 
 // Uma olhada do detector numa câmera: o instante do onset e tudo o que ele
@@ -762,6 +856,9 @@ export interface FiltroDeDeteccoes {
   // O mesmo, com as áreas cadastradas: `<cam>/<id>`. As de uma câmera somam,
   // a `area` junto: qualquer uma serve.
   areas?: readonly string[] | null;
+  // Só as detecções em que algum objeto que fica alertou; elas vêm inteiras,
+  // com o objeto que não alertou.
+  soAlertas?: boolean;
 }
 
 // `antes` e `depois` são o cursor: um ou nenhum.

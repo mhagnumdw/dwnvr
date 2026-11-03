@@ -159,6 +159,8 @@
   // somam, a desenhada junto. Conferidas no cadastro quando as câmeras chegam:
   // a área apagada sai do link.
   let areasMarcadas = $state<string[]>(params.getAll('areas'));
+  // Só as detecções com objeto que alertou: `alert=1`, como a API.
+  let soAlertas = $state(params.get('alert') === '1');
 
   let desktop = $state(window.innerWidth >= DESKTOP_PX);
   const faixa = $derived(desktop ? COLUNAS.desktop : COLUNAS.celular);
@@ -179,6 +181,7 @@
       area: area ? areaNaQuery(area) : null,
       rule: area?.regra ?? null,
       areas: areasMarcadas.length ? areasMarcadas : null,
+      alert: soAlertas ? '1' : null,
     });
   });
 
@@ -236,11 +239,42 @@
   });
   const comArea = $derived(area !== null || areasMarcadas.length > 0);
 
+  // O botão "só alertas" aparece com alguma câmera alertando, ou com ele já
+  // ligado pelo link. O viewer recebe do alerta só o `enabled`.
+  const algumAlerta = $derived(cameras.list.some((c) => c.alert?.enabled));
+
+  const alertou = (d: Deteccao) => d.objetos.some((o) => o.alert);
+
+  // As áreas em que a detecção alertou, com o nome e o contorno de agora. A
+  // que foi apagada desde então fica sem contorno, como "área apagada".
+  function areasDoAlerta(d: Deteccao) {
+    const ids = [...new Set(d.objetos.flatMap((o) => o.alertAreas ?? []))];
+    return ids.map((id) => {
+      const a = cadastradas.get(`${d.cam}/${id}`);
+      return { id, nome: a?.name ?? 'área apagada', pontos: a?.points ?? null };
+    });
+  }
+
+  // Os contornos sobre a miniatura: os do filtro e, com o "só alertas", os das
+  // áreas do alerta. A área cadastrada que está nos dois desenha uma vez só.
+  function contornosDe(d: Deteccao): readonly (readonly Ponto[])[] {
+    const out: (readonly Ponto[])[] = [...(contornos[d.cam] ?? [])];
+    if (!soAlertas) return out;
+    for (const a of areasDoAlerta(d)) if (a.pontos && !out.includes(a.pontos)) out.push(a.pontos);
+    return out;
+  }
+
   // O que vai no pedido. Nulo quando o filtro não deixou nada marcado, e aí nem
   // se pergunta ao servidor.
   const filtro = $derived.by((): FiltroDeDeteccoes | null => {
     if (camsMarcadas?.length === 0 || familiasMarcadas?.length === 0) return null;
-    return { cams: camsMarcadas, familias: familiasMarcadas, area, areas: areasMarcadas };
+    return {
+      cams: camsMarcadas,
+      familias: familiasMarcadas,
+      area,
+      areas: areasMarcadas,
+      soAlertas,
+    };
   });
 
   // O intervalo em instantes: `de` incluído, `ate` excluído (o minuto final
@@ -771,6 +805,11 @@
       novas.length === ORDEM_FAMILIAS.length
         ? null
         : ORDEM_FAMILIAS.filter((f) => novas.includes(f));
+    void recomeca();
+  }
+
+  function alternaAlertas() {
+    soAlertas = !soAlertas;
     void recomeca();
   }
 
@@ -1345,6 +1384,19 @@
           <span class="rotulo">{FAMILIAS[f].nome}</span>
         </button>
       {/each}
+      {#if algumAlerta || soAlertas}
+        <button
+          class="ghost familia alertas"
+          class:on={soAlertas}
+          aria-pressed={soAlertas}
+          aria-label="só alertas"
+          title={soAlertas ? 'mostrar todas as detecções' : 'mostrar só as detecções que alertaram'}
+          onclick={alternaAlertas}
+        >
+          <Icone nome="sino" tamanho={14} traco={2.4} />
+          <span class="rotulo">só alertas</span>
+        </button>
+      {/if}
     </div>
 
     <div class="controles" role="group" aria-label="miniaturas">
@@ -1476,23 +1528,26 @@
                       }}
                     />
                   {/if}
-                  {#if contornos[d.cam]}
+                  {#if contornosDe(d).length}
                     <svg
                       class="contorno"
                       viewBox="0 0 1 1"
                       preserveAspectRatio="none"
                       aria-hidden="true"
                     >
-                      {#each contornos[d.cam] as p, j (j)}
+                      {#each contornosDe(d) as p, j (j)}
                         <polygon points={pontosSVG(p)} />
                       {/each}
                     </svg>
                   {/if}
                   {#each d.objetos as o, j (j)}
                     {#if o.caixa}
-                      {@const lado = ladoDoScore(d.cam, o.caixa, colunas >= (desktop ? 7 : 4))}
+                      {@const fora = soAlertas && !o.alert}
+                      {@const lado =
+                        !fora && ladoDoScore(d.cam, o.caixa, colunas >= (desktop ? 7 : 4))}
                       <span
                         class="caixa"
+                        class:fora
                         style:left={inicio(o.caixa[0])}
                         style:top={inicio(o.caixa[1])}
                         style:width={tamanho(o.caixa[0], o.caixa[2])}
@@ -1508,10 +1563,16 @@
                     {/if}
                   {/each}
                 </span>
-                <SeloDeFamilias familias={familiasDe(d)} />
+                <SeloDeFamilias familias={familiasDe(d)} alerta={alertou(d)} />
                 <span class="legenda">
                   <span class="mono">{hhmmss(d.instanteMs)}</span>
                   <span class="nome">{nomes[d.cam] ?? d.cam}</span>
+                  {#if soAlertas}
+                    {@const nomesDoAlerta = areasDoAlerta(d).map((a) => a.nome)}
+                    {#if nomesDoAlerta.length}
+                      <span class="area-do-alerta">{nomesDoAlerta.join(', ')}</span>
+                    {/if}
+                  {/if}
                 </span>
               </button>
               <button
@@ -1576,6 +1637,7 @@
         void ocultaCamera(d.cam);
       }}
       areas={contornos[d.cam] ?? null}
+      areasDoAlerta={areasDoAlerta(d)}
       onarea={() => void abreEditor(d.cam, d)}
     />
   {/key}
@@ -1978,6 +2040,13 @@
     opacity: 0.4;
   }
 
+  /* O "só alertas" ligado na cor do sino, e não na das famílias: é outro
+     filtro, que diz "menos", e não "estas". */
+  .alertas.on {
+    color: var(--warn);
+    border-color: var(--warn);
+  }
+
   /* Os controles das miniaturas têm a forma das famílias ao lado: o mesmo
      botão, o mesmo "ligado". */
   .controles {
@@ -2093,6 +2162,13 @@
     position: absolute;
     border: 2px solid;
     pointer-events: none;
+  }
+
+  /* Com o "só alertas", o objeto que não entrou no alerta fica na detecção,
+     mas apagado. */
+  .caixa.fora {
+    opacity: 0.35;
+    border-style: dashed;
   }
 
   /* O score do detector de objetos, colado na caixa e sempre do lado de fora:
@@ -2306,14 +2382,20 @@
     color: var(--fg);
   }
 
-  .nome {
+  .nome,
+  .area-do-alerta {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  .area-do-alerta {
+    color: var(--warn);
+  }
+
   /* Na miniatura pequena não cabe o nome da câmera: fica só a hora. */
-  .compacta .nome {
+  .compacta .nome,
+  .compacta .area-do-alerta {
     display: none;
   }
   .compacta .legenda {

@@ -1,8 +1,9 @@
 // Package limite conta as requisições de cada cliente e diz quando ele passou
 // do ritmo permitido.
 //
-// Hoje só o login usa (ver internal/api/auth.go). Um limite em outras rotas
-// usaria o mesmo Limitador, com outro ritmo e outra rajada.
+// O login usa (ver internal/api/auth.go), e o teto do alerta também, com uma
+// chave só para a instalação inteira (ver internal/alerta). Um limite em
+// outras rotas usaria o mesmo Limitador, com outro ritmo e outra rajada.
 package limite
 
 import (
@@ -62,12 +63,18 @@ type cliente struct {
 // NovoGCRA deixa passar porMinuto requisições por minuto de cada cliente,
 // com até rajada delas seguidas. porMinuto e rajada têm de ser positivos.
 func NovoGCRA(porMinuto, rajada int) *GCRA {
-	return novoGCRA(porMinuto, rajada, time.Now)
+	return NovoGCRAACada(time.Minute/time.Duration(porMinuto), rajada)
 }
 
-// novoGCRA é o NovoGCRA com o relógio trocável, para os testes.
-func novoGCRA(porMinuto, rajada int, agora func() time.Time) *GCRA {
-	intervalo := time.Minute / time.Duration(porMinuto)
+// NovoGCRAACada deixa passar uma requisição de cada cliente a cada intervalo,
+// com até rajada delas seguidas: o ritmo que "N por minuto" não escreve, como
+// 15 por hora. intervalo e rajada têm de ser positivos.
+func NovoGCRAACada(intervalo time.Duration, rajada int) *GCRA {
+	return novoGCRA(intervalo, rajada, time.Now)
+}
+
+// novoGCRA é o NovoGCRAACada com o relógio trocável, para os testes.
+func novoGCRA(intervalo time.Duration, rajada int, agora func() time.Time) *GCRA {
 	return &GCRA{
 		intervalo: intervalo,
 		folga:     time.Duration(rajada-1) * intervalo,

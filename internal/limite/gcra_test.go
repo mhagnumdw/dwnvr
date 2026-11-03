@@ -32,7 +32,7 @@ func passa(t *testing.T, g *GCRA, k string) {
 // intervalo, e depois dele passa uma só.
 func TestRajadaEDepoisORitmo(t *testing.T) {
 	rel := novoRelogio()
-	g := novoGCRA(2, 5, rel.agora) // um a cada 30 s
+	g := novoGCRA(30*time.Second, 5, rel.agora)
 
 	for range 5 {
 		passa(t, g, "a")
@@ -58,7 +58,7 @@ func TestRajadaEDepoisORitmo(t *testing.T) {
 // Insistir durante a espera não a estica: a recusada não conta.
 func TestRecusaNaoEstica(t *testing.T) {
 	rel := novoRelogio()
-	g := novoGCRA(2, 1, rel.agora)
+	g := novoGCRA(30*time.Second, 1, rel.agora)
 	passa(t, g, "a")
 	for range 100 {
 		g.Permite("a")
@@ -70,7 +70,7 @@ func TestRecusaNaoEstica(t *testing.T) {
 // Parado, o cliente recupera uma vaga por intervalo, até a rajada inteira.
 func TestAsVagasVoltam(t *testing.T) {
 	rel := novoRelogio()
-	g := novoGCRA(2, 5, rel.agora)
+	g := novoGCRA(30*time.Second, 5, rel.agora)
 	for range 5 {
 		passa(t, g, "a")
 	}
@@ -93,7 +93,7 @@ func TestAsVagasVoltam(t *testing.T) {
 // Cada chave tem o seu ritmo: quem passou do limite não trava os outros.
 func TestChavesSeparadas(t *testing.T) {
 	rel := novoRelogio()
-	g := novoGCRA(2, 2, rel.agora)
+	g := novoGCRA(30*time.Second, 2, rel.agora)
 	passa(t, g, "a")
 	passa(t, g, "a")
 	if g.Permite("a").Permitido {
@@ -106,7 +106,7 @@ func TestChavesSeparadas(t *testing.T) {
 // A limpeza apaga quem recuperou a rajada inteira e mantém quem ainda deve.
 func TestLimpeza(t *testing.T) {
 	rel := novoRelogio()
-	g := novoGCRA(60, 5, rel.agora) // um por segundo
+	g := novoGCRA(time.Second, 5, rel.agora)
 	passa(t, g, "parado")
 	for range 5 {
 		passa(t, g, "devendo")

@@ -7,7 +7,14 @@
 // que trabalha perto do teto no dia a dia, e um card vermelho à toa ensina a
 // ignorar o vermelho.
 
-import type { LinhaDoLog, ProcessoDoServidor, RecursoDaPressao, Servidor } from './api.ts';
+import {
+  meioDoAlerta,
+  type LinhaDoLog,
+  type MeioDoAlerta,
+  type ProcessoDoServidor,
+  type RecursoDaPressao,
+  type Servidor,
+} from './api.ts';
 import { bytes, duracao, relogioDeFuso } from './format.ts';
 import type { GrupoDoCard, ItemDoCard } from './navegador.ts';
 
@@ -237,6 +244,22 @@ function smtp(s: NonNullable<Servidor['smtp']>): ItemDoCard[] {
   ];
 }
 
+// meio são os envios de um meio do alerta desde que o dwnvr subiu. O último vai
+// no relógio do servidor, como o "Coletado em" do card.
+function meio(m: MeioDoAlerta, offsetSeconds: number): ItemDoCard[] {
+  const ms = m.ultimo ? Date.parse(m.ultimo) : NaN;
+  const em = isNaN(ms) ? '' : relogioDeFuso(ms, offsetSeconds);
+  return [
+    { rotulo: 'enviados', valor: num(m.enviados) },
+    { rotulo: 'falhas', valor: num(m.falhas) },
+    !em
+      ? { rotulo: 'último envio', valor: 'nenhum ainda' }
+      : m.erro
+        ? { rotulo: 'último envio', valor: `falhou em ${em}: ${m.erro}`, alerta: true }
+        : { rotulo: 'último envio', valor: `ok em ${em}` },
+  ];
+}
+
 // grupos monta o card. Grupo sem fonte - kernel sem PSI, servidor fora do
 // Linux, instalação sem detector de objetos - some em vez de aparecer vazio.
 // `anterior` é a leitura de antes, para a CPU do processo.
@@ -261,6 +284,13 @@ export function grupos(info: Servidor, anterior: Servidor | null): GrupoDoCard[]
   out.push({ titulo: 'go2rtc', itens: go2rtc(info.go2rtc) });
   if (info.detector) out.push({ titulo: 'Detector de objetos', itens: detector(info.detector) });
   if (info.smtp) out.push({ titulo: 'E-mail', itens: smtp(info.smtp) });
+  // Um grupo por meio: o e-mail do servidor, acima, não é o meio do alerta.
+  for (const m of info.alertas ?? []) {
+    out.push({
+      titulo: `Alertas ${meioDoAlerta(m.nome)}`,
+      itens: meio(m, info.coletadoEm?.offsetSeconds ?? 0),
+    });
+  }
   return out;
 }
 
