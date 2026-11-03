@@ -198,6 +198,13 @@ export async function logout() {
   health.uptime = null;
   health.clock = null;
   health.detector = null;
+  // O sino do header lê os avisos daqui, e o viewer não relê a saúde: sem
+  // zerar, ele veria os avisos do admin que saiu.
+  health.reconnectsWindowHours = null;
+  health.go2rtc = null;
+  health.smtp = null;
+  health.users = null;
+  health.alerts = null;
   health.updatedAt = 0;
   healthPedidoEm = 0;
 }
