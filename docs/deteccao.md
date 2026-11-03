@@ -322,9 +322,12 @@ primeiro envio que der certo, e o alerta segue no registro. Como conferir a
 lista e o envio está em
 [`configuracao.md`](configuracao.md#alerta-por-e-mail).
 
-**Desligado, nada.** Sem nenhuma câmera com o alerta ligado, nada do alerta
-existe; a olhada de uma câmera sem alerta custa um `if`. Sem meio configurado,
-nem a espera nem a goroutine de envio nascem.
+**Desligado, nada.** Se nenhuma câmera ligou o alerta desde que o dwnvr subiu,
+nada do alerta existe; a olhada de uma câmera sem alerta custa um `if`. Sem
+meio configurado, nem a espera nem a goroutine de envio nascem. Depois que a
+última câmera desliga o alerta, a central dos alertas fica até o dwnvr parar,
+para o total do `/api/health` não voltar a zero; com meio configurado, a
+espera e a goroutine de envio ficam com ela, paradas.
 
 ### Os limites do alerta <!-- omit in toc -->
 
