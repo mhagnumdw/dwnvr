@@ -2,6 +2,26 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.13.0](https://github.com/mhagnumdw/dwnvr/compare/v0.12.0...v0.13.0) (2026-11-03)
+
+### Added
+
+- feat(web): ícones das regras pisa e encosta ([93bc91b2](https://github.com/mhagnumdw/dwnvr/commit/93bc91b2b93c8fa2cbc0768bd08c6b0f63b36623))
+- feat(web): apagar a área direto da lista, sempre com confirmação ([b4948927](https://github.com/mhagnumdw/dwnvr/commit/b4948927c5d3701bebfd7b05091ac7587766c9ec))
+- feat(web): "Filtrar por área" no ⋮ das miniaturas de Detecções ([1de187b2](https://github.com/mhagnumdw/dwnvr/commit/1de187b2c01718d7d4db80effc10ccd80e36e28b))
+- feat: filtro de Detecções por área e as áreas cadastradas na câmera ([#53](https://github.com/mhagnumdw/dwnvr/pull/53)) ([788df183](https://github.com/mhagnumdw/dwnvr/commit/788df183b4c77f6757b41ab211363646958e30f8))
+- feat(recorder): grava uma linha por objeto que virou marca, e não só a melhor de cada família ([#52](https://github.com/mhagnumdw/dwnvr/pull/52)) ([2c3a3889](https://github.com/mhagnumdw/dwnvr/commit/2c3a38895a61be080a93dac7de1e813aab7f0403))
+
+### Fixed
+
+- fix(web): o editor de área deitado não esconde a regra nem o cancelar ([59fe8efc](https://github.com/mhagnumdw/dwnvr/commit/59fe8efca8b95be16785c8cb3340c4b5727d80ab))
+- fix(web): as duas caixas da mesma família acendem sobre o vídeo ([5b597f4f](https://github.com/mhagnumdw/dwnvr/commit/5b597f4ff18b3e817d43e9226f280c11c1643f37))
+
+### Docs
+
+- docs(github): a branch do PR é apagada depois do merge ([9c660abd](https://github.com/mhagnumdw/dwnvr/commit/9c660abd13f1aecdf583c2a9358d0dd450d03031))
+- docs: chave e valor novos de JSON e YAML em en-US ([a7c14364](https://github.com/mhagnumdw/dwnvr/commit/a7c143641479eeda76d677a4b5ddf4f1d9bda756))
+
 ## [v0.12.0](https://github.com/mhagnumdw/dwnvr/compare/v0.11.0...v0.12.0) (2026-10-28)
 
 ### Pede ação ao atualizar
