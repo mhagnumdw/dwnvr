@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -40,6 +41,40 @@ func TestSemAnexoSaiComoAntes(t *testing.T) {
 		"Seu usu=C3=A1rio: joao.silva\r\n"
 	if got != want {
 		t.Errorf("mensagem sem anexo mudou:\n%q\nesperada\n%q", got, want)
+	}
+}
+
+// TestMuitosDestinatarios: a lista longa sai com uma linha por endereço no
+// To, nenhuma acima dos 998 caracteres da RFC 5322, e o leitor de e-mail lê
+// todos de volta.
+func TestMuitosDestinatarios(t *testing.T) {
+	m := mensagemDoTeste
+	m.Para = nil
+	for i := range 60 {
+		m.Para = append(m.Para, fmt.Sprintf("pessoa.com.um.nome.comprido.%02d@exemplo.com", i))
+	}
+	de, _ := mail.ParseAddress("dwnvr <dwnvr@exemplo.com>")
+	b, err := montar(de, m, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, linha := range strings.Split(string(b), "\r\n") {
+		if len(linha) > 998 {
+			t.Fatalf("linha %d com %d caracteres", i+1, len(linha))
+		}
+	}
+	msg, err := mail.ReadMessage(bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lidos, err := msg.Header.AddressList("To")
+	if err != nil || len(lidos) != len(m.Para) {
+		t.Fatalf("%d endereços lidos (%v), esperava %d", len(lidos), err, len(m.Para))
+	}
+	for i, a := range lidos {
+		if a.Address != m.Para[i] {
+			t.Errorf("endereço %d: %q, esperava %q", i, a.Address, m.Para[i])
+		}
 	}
 }
 

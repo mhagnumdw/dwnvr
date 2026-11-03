@@ -96,7 +96,11 @@ func montar(de *mail.Address, m Mensagem, agora time.Time) ([]byte, error) {
 	var b bytes.Buffer
 	cabecalho := func(nome, valor string) { fmt.Fprintf(&b, "%s: %s\r\n", nome, valor) }
 	cabecalho("From", de.String())
-	cabecalho("To", strings.Join(m.Para, ", "))
+	// Uma linha por endereço: a RFC 5322 limita a linha a 998 caracteres, e
+	// com uns 35 endereços numa linha só o servidor rigoroso recusaria a
+	// mensagem inteira. A quebra seguida de espaço continua o mesmo campo, e
+	// com um endereço só nada muda.
+	cabecalho("To", strings.Join(m.Para, ",\r\n "))
 	cabecalho("Subject", mime.QEncoding.Encode("utf-8", m.Assunto))
 	cabecalho("Date", agora.Format(time.RFC1123Z))
 	cabecalho("Message-ID", id)
