@@ -344,6 +344,9 @@ nem a espera nem a goroutine de envio nascem.
   também descarta e entra no mesmo Aviso. O alerta que não saiu fica gravado
   na detecção, como todos. Os números estão no
   `internal/alerta/parametros.go`.
+- **Ao desligar o dwnvr**, o alerta que ainda esperava o envio não sai, e uma
+  linha `WARN` no log diz quantos ficaram. Ele fica gravado na detecção, como
+  todos.
 - **Falso positivo vira alerta falso:** o que o modelo confunde com gente, num
   lugar novo, avisa. A área e as famílias são o freio.
 - **Depois de um reinício**, o objeto parado aparece uma vez como se tivesse

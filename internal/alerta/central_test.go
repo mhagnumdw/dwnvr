@@ -87,6 +87,27 @@ func TestMeioLentoNaoSeguraQuemRecebe(t *testing.T) {
 	}
 }
 
+// TestDesligaComAlertasNaEspera: o ctx que acaba com alertas na espera deixa
+// uma linha de log com quantos ficaram, e nenhum deles sai pelos meios, nem o
+// que o select sorteie depois do fim.
+func TestDesligaComAlertasNaEspera(t *testing.T) {
+	var log strings.Builder
+	meio := &meioDeTeste{chegou: make(chan Alerta, 3)}
+	c := NovaCentral([]Notificador{meio}, slog.New(slog.NewTextHandler(&log, nil)))
+	for i := range 3 {
+		c.Recebe(alertaDe(int64(i)))
+	}
+	ctx, cancela := context.WithCancel(context.Background())
+	cancela()
+	c.Roda(ctx)
+	if n := len(meio.chegou); n != 0 {
+		t.Errorf("%d alertas saíram depois do fim", n)
+	}
+	if !strings.Contains(log.String(), "alertas na espera") || !strings.Contains(log.String(), "alertas=3") {
+		t.Errorf("log: %s", log.String())
+	}
+}
+
 // tetoDeTeste é um limite.Limitador que deixa passar tudo, ou nada.
 type tetoDeTeste struct{ passa bool }
 

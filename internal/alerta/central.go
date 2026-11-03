@@ -148,10 +148,26 @@ func (c *Central) Roda(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			c.ficaramNaEspera(0)
 			return
 		case a := <-c.espera:
+			// Com o ctx e a espera prontos juntos, o select sorteia: o alerta
+			// tirado depois do fim também não sai.
+			if ctx.Err() != nil {
+				c.ficaramNaEspera(1)
+				return
+			}
 			c.envia(ctx, c.comQuadroDesenhado(a))
 		}
+	}
+}
+
+// ficaramNaEspera põe no log os alertas que o desligamento deixou sem sair
+// pelos meios: eles estão gravados em Detecções, mas sem esta linha sumiriam
+// sem rastro. Esvaziar a espera antes de sair atrasaria o desligamento.
+func (c *Central) ficaramNaEspera(tirados int) {
+	if n := len(c.espera) + tirados; n > 0 {
+		c.log.Warn("o dwnvr desligou com alertas na espera, que não saíram pelos meios", "alertas", n)
 	}
 }
 
