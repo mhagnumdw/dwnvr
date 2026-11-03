@@ -227,13 +227,27 @@ func TestSemAlertaNadaNasce(t *testing.T) {
 }
 
 // TestDesligarOAlertaGuardaOHistorico: a câmera que desliga o alerta perde a
-// regra, e a Central fica, com o que já registrou.
+// regra, e a Central fica, a mesma, com o que já registrou.
 func TestDesligarOAlertaGuardaOHistorico(t *testing.T) {
 	m := comAlerta(t)
+	agora := time.Now().UnixMilli()
+	m.olhou(detect.Olhada{
+		Pedaco:  detect.Pedaco{Camera: "cam_teste", OnsetMs: agora, QuadroMs: agora + 1400},
+		Achados: []detect.Achado{{Classe: "person", Score: 0.87654, Caixa: [4]float64{0.25, 0.2, 0.35, 0.6}}},
+		Quadro:  []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+	})
+	antes := m.Alertas()
+	if antes == nil || antes.Total() != 1 {
+		t.Fatalf("central %v, esperava um alerta antes de desligar", antes)
+	}
+
 	cam := m.Cameras()[0]
 	cam.Alert = &config.AlertaDaCamera{Families: cam.Alert.Families, Areas: cam.Alert.Areas}
 	m.Set(cam)
-	if m.regras["cam_teste"] != nil || m.Alertas() == nil {
-		t.Errorf("regra %v, central %v: esperava sem regra e com a central", m.regras["cam_teste"], m.Alertas())
+	if m.regras["cam_teste"] != nil {
+		t.Errorf("regra %v: esperava sem regra", m.regras["cam_teste"])
+	}
+	if depois := m.Alertas(); depois != antes || antes.Total() != 1 {
+		t.Errorf("central %p com %d, esperava a mesma %p com 1", depois, antes.Total(), antes)
 	}
 }
