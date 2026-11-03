@@ -58,7 +58,13 @@ ENV PYTHONPATH=/opt/pacotes \
 USER 65534:65534
 EXPOSE 8480
 
+# Healthcheck com o _socket (o módulo em C por trás do socket), e não com o
+# urllib.request: a imagem não traz .pyc, e o Python compilava do zero, a cada
+# execução, os ~110 módulos que ele puxa. Num Orange Pi Zero 3 (4 Cortex-A53,
+# load ~3), cada execução caiu de 2,1 s para 0,12 s; antes, com a placa
+# ocupada, passava dos 5 s do timeout e dava unhealthy com o detector bem.
+# Sem o site (-S) não existe exit(), daí o raise SystemExit.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
-  CMD ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8480/health', timeout=4)"]
+  CMD ["python3", "-S", "-c", "import _socket as s; c = s.socket(); c.settimeout(4); c.connect(('127.0.0.1', 8480)); c.sendall(b'GET /health HTTP/1.0\\r\\n\\r\\n'); raise SystemExit(c.recv(12)[9:12] != b'200')"]
 
 CMD ["python3", "/app/servidor.py"]
