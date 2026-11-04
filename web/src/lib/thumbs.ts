@@ -106,6 +106,28 @@ export async function ultimoSegmento(cam: string): Promise<number | null> {
   return t.segments.at(-1)?.[0] ?? null;
 }
 
+// O ultimoSegmento de cada câmera, guardado por um tempo. As miniaturas das
+// áreas pedem o quadro da câmera uma por área - o popover de Detecções monta
+// até 8 por câmera -, e cada pedido custaria o /days e a timeline de novo. O
+// bitmap não fica aqui: o `thumbnail` o guarda, e o devolve outra vez se o
+// cache dele o despejou.
+const ULTIMO_SEGMENTO_VALE_MS = 5 * 60_000;
+const ultimos = new Map<string, { ate: number; t: Promise<number | null> }>();
+
+export function ultimoSegmentoGuardado(cam: string): Promise<number | null> {
+  const agora = Date.now();
+  const guardado = ultimos.get(cam);
+  if (guardado && guardado.ate > agora) return guardado.t;
+  const t = ultimoSegmento(cam);
+  const entrada = { ate: agora + ULTIMO_SEGMENTO_VALE_MS, t };
+  ultimos.set(cam, entrada);
+  // A falha não fica guardada: o próximo pedido tenta de novo.
+  t.catch(() => {
+    if (ultimos.get(cam) === entrada) ultimos.delete(cam);
+  });
+  return t;
+}
+
 // O keyframe de um segmento na resolução da câmera, para desenhar em cima
 // (o editor de área). Fora do cache e da fila da tira: é um quadro só, pedido
 // por quem o espera. A densidade infinita faz o `reduzida` não reduzir.
@@ -116,6 +138,7 @@ export async function quadroCheio(cam: string, t: number): Promise<ImageBitmap> 
 export function clearThumbnails() {
   for (const p of cache.values()) void p.then((b) => b?.close());
   cache.clear();
+  ultimos.clear();
 }
 
 // O download fica fora da fila: esperar a rede não ocupa o decodificador, e as

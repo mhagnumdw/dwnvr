@@ -18,6 +18,9 @@
   import SeletorCameras from '../components/SeletorCameras.svelte';
   import Icone from '../components/Icone.svelte';
   import SeloDeFamilias from '../components/SeloDeFamilias.svelte';
+  import ChipDaArea from '../components/ChipDaArea.svelte';
+  import RotuloDaArea from '../components/RotuloDaArea.svelte';
+  import MiniaturaDasAreas from '../components/MiniaturaDasAreas.svelte';
   import type EditorDeAreaT from '../components/EditorDeArea.svelte';
   import { api, mediaURL, mensagemDe } from '../lib/api.ts';
   import type { Caixa, Deteccao, FiltroDeDeteccoes } from '../lib/api.ts';
@@ -36,7 +39,6 @@
   import { avisar, fecharAviso } from '../lib/snackbar.svelte.ts';
   import {
     REGRAS,
-    REGRA_PADRAO,
     MAX_AREAS,
     areaDaQuery,
     areaNaQuery,
@@ -111,12 +113,16 @@
   const NOVAS_MS = 20000;
   const ATRASO_MS = 5 * 60 * 1000;
 
-  // A altura de cada linha do menu do ⋮, e a do resto dele (bordas, padding e
-  // separadores), para abrir para cima quando não cabe embaixo. E quanto tempo
-  // o "desfazer" fica na tela depois de ocultar uma câmera.
+  // A altura de cada linha do menu do ⋮ - a da área, com a miniatura, é mais
+  // alta -, e a do resto dele (bordas, padding e separadores), para abrir para
+  // cima quando não cabe embaixo. E quanto tempo o "desfazer" fica na tela
+  // depois de ocultar uma câmera.
   const ITEM_DO_MENU_PX = 36;
+  const AREA_DO_MENU_PX = 56;
   const MOLDURA_DO_MENU_PX = 20;
   const DESFAZER_MS = 6000;
+  // Quantas miniaturas o chip do filtro de área empilha.
+  const MINIATURAS_NO_CHIP = 3;
 
   const ORDEM_FAMILIAS = NOMES_DAS_FAMILIAS;
 
@@ -873,12 +879,9 @@
   // A página das áreas pode passar dos dois - são até 8 -, e aí rola dentro.
   const posicaoDoMenu = $derived.by(() => {
     if (!menu) return null;
-    const linhas = menu.areas
-      ? areasDe(menu.cam).length + (area?.cam === menu.cam ? 1 : 0) + 2
-      : existe(menu.cam)
-        ? 4
-        : 1;
-    const altura = linhas * ITEM_DO_MENU_PX + MOLDURA_DO_MENU_PX;
+    const linhas = menu.areas ? (area?.cam === menu.cam ? 1 : 0) + 2 : existe(menu.cam) ? 4 : 1;
+    const comMiniatura = menu.areas ? areasDe(menu.cam).length : 0;
+    const altura = linhas * ITEM_DO_MENU_PX + comMiniatura * AREA_DO_MENU_PX + MOLDURA_DO_MENU_PX;
     const embaixo = window.innerHeight - menu.base;
     const paraCima = altura > embaixo && menu.topo > embaixo;
     return { paraCima, max: (paraCima ? menu.topo : embaixo) - 8 };
@@ -1199,6 +1202,18 @@
     areaAberta = !areaAberta;
   }
 
+  // As miniaturas do chip, no lugar do ícone: uma por área, empilhadas, até
+  // MINIATURAS_NO_CHIP - além disso a pilha só alarga o chip.
+  const miniaturasDoChip = $derived.by(() => {
+    const out: { cam: string; points: Ponto[] }[] = [];
+    if (area) out.push({ cam: area.cam, points: area.pontos });
+    for (const k of areasMarcadas) {
+      const a = cadastradas.get(k);
+      if (a) out.push({ cam: a.cam, points: a.points });
+    }
+    return out.slice(0, MINIATURAS_NO_CHIP);
+  });
+
   // O que o chip diz: o nome da área quando é uma só, ou quantas.
   const rotuloDoChip = $derived.by(() => {
     const n = areasMarcadas.length + (area ? 1 : 0);
@@ -1346,7 +1361,13 @@
                   ? `, ${rotuloDoChip.onde}`
                   : ''}; mudar"
               >
-                <Icone nome="area" tamanho={14} traco={2.4} />
+                <span class="pilha">
+                  {#each miniaturasDoChip as m, i (i)}
+                    <MiniaturaDasAreas cam={m.cam} areas={[m]} largura={40} desenho="cheia" />
+                  {:else}
+                    <Icone nome="area" tamanho={14} traco={2.4} />
+                  {/each}
+                </span>
                 <span class="nome-area">{rotuloDoChip.nome}</span>
                 {#if rotuloDoChip.onde}
                   <span class="muted onde-area">· {rotuloDoChip.onde}</span>
@@ -1666,15 +1687,7 @@
               {#each c.areas ?? [] as a (a.id)}
                 {@const k = `${c.id}/${a.id}`}
                 {@const on = areasMarcadas.includes(k)}
-                <button
-                  class="areachip"
-                  class:on
-                  aria-pressed={on}
-                  title="regra {REGRAS[a.rule ?? REGRA_PADRAO].nome}"
-                  onclick={() => alternaArea(k)}
-                >
-                  {a.name}
-                </button>
+                <ChipDaArea cam={c.id} area={a} {on} onclick={() => alternaArea(k)} />
               {/each}
               {#if area?.cam === c.id}
                 <button
@@ -1744,11 +1757,7 @@
           <span class="marca">
             {#if on}<Icone nome="marcado" tamanho={14} traco={2.6} />{/if}
           </span>
-          <span class="nome">{a.name}</span>
-          <span class="muted regra">
-            <Icone nome={REGRAS[a.rule ?? REGRA_PADRAO].icone} tamanho={16} />
-            {REGRAS[a.rule ?? REGRA_PADRAO].nome}
-          </span>
+          <RotuloDaArea cam={m.cam} area={a} />
         </button>
       {/each}
       {#if area?.cam === m.cam}
@@ -1986,6 +1995,16 @@
     gap: 7px;
     padding: 0 4px 0 11px;
     white-space: nowrap;
+  }
+  /* As miniaturas das áreas do filtro, uma sobre a outra, cada uma com um
+     respiro da cor do chip para não se fundirem. */
+  .pilha {
+    display: inline-flex;
+    flex: none;
+  }
+  .pilha > :global(canvas + canvas) {
+    margin-left: -16px;
+    box-shadow: -2px 0 0 var(--ativo-fundo);
   }
   .nome-area,
   .onde-area {
@@ -2348,15 +2367,6 @@
   .menu .area-do-menu .nome {
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .menu .regra {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-left: auto;
-    padding-left: 12px;
-    font-size: 12px;
   }
 
   @media (hover: hover) {

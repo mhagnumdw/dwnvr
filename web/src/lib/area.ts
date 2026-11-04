@@ -74,6 +74,19 @@ export const pontosDoCadastro = (pontos: readonly Ponto[]) =>
 export const pontosSVG = (pontos: readonly Ponto[]) =>
   pontos.map(([x, y]) => `${x},${y}`).join(' ');
 
+// O caminho do polígono num canvas já transladado para a imagem, de largura
+// `w` e altura `h`.
+function caminho(g: CanvasRenderingContext2D, pontos: readonly Ponto[], w: number, h: number) {
+  g.beginPath();
+  for (const [i, [x, y]] of pontos.entries()) {
+    if (i) g.lineTo(x * w, y * h);
+    else g.moveTo(x * w, y * h);
+  }
+  g.closePath();
+}
+
+const azul = () => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+
 // O contorno da área num canvas que já está transladado para a imagem, de
 // largura `w` e altura `h`: fino e tracejado, como nas miniaturas.
 export function desenhaContorno(
@@ -84,15 +97,30 @@ export function desenhaContorno(
 ) {
   if (pontos.length < MIN_PONTOS) return;
   g.save();
-  g.beginPath();
-  for (const [i, [x, y]] of pontos.entries()) {
-    if (i) g.lineTo(x * w, y * h);
-    else g.moveTo(x * w, y * h);
-  }
-  g.closePath();
+  caminho(g, pontos, w, h);
   g.setLineDash([6, 4]);
   g.lineWidth = 1.5;
-  g.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  g.strokeStyle = azul();
+  g.stroke();
+  g.restore();
+}
+
+// A área cheia: o azul translúcido e o traço contínuo da lista da aba Áreas.
+// É o desenho de uma área só, na miniatura dela e realçada no quadro da
+// detecção, onde o tracejado fino se perde na imagem.
+export function preencheArea(
+  g: CanvasRenderingContext2D,
+  pontos: readonly Ponto[],
+  w: number,
+  h: number,
+) {
+  if (pontos.length < MIN_PONTOS) return;
+  g.save();
+  caminho(g, pontos, w, h);
+  g.fillStyle = 'rgba(47, 129, 247, 0.22)';
+  g.fill();
+  g.lineWidth = 1.5;
+  g.strokeStyle = azul();
   g.stroke();
   g.restore();
 }

@@ -38,10 +38,11 @@
   import Icone from '../components/Icone.svelte';
   import Abas from '../components/Abas.svelte';
   import MiniaturaDasAreas from '../components/MiniaturaDasAreas.svelte';
+  import RotuloDaArea from '../components/RotuloDaArea.svelte';
   import type EditorDeAreaT from '../components/EditorDeArea.svelte';
   import type AbaDoAlertaT from '../components/AbaDoAlerta.svelte';
   import { familia } from '../lib/icones.ts';
-  import { REGRAS, REGRA_PADRAO, MAX_AREAS, pontosDoCadastro, pontosSVG } from '../lib/area.ts';
+  import { REGRA_PADRAO, MAX_AREAS, pontosDoCadastro } from '../lib/area.ts';
   import { MAX_HORARIOS, doServidor, paraOServidor, valido } from '../lib/horarios.ts';
   import type { Horario } from '../lib/horarios.ts';
   import type { Ponto, Regra } from '../lib/area.ts';
@@ -269,8 +270,9 @@
   // --- a aba Áreas ----------------------------------------------------------
 
   // O quadro de fundo das áreas: o keyframe do último segmento, decodificado
-  // aqui na resolução da câmera. Só é buscado quando a aba abre, e sai da
-  // memória quando o formulário fecha.
+  // aqui na resolução da câmera. É o do editor e o das miniaturas das áreas,
+  // nesta aba e na Alerta. Só é buscado quando uma delas abre - a Alerta, se
+  // a câmera tem área -, e sai da memória quando o formulário fecha.
   let quadro = $state<{
     cam: string;
     t: number | null;
@@ -282,6 +284,9 @@
   // Cada busca tem o seu número: a resposta de uma busca já trocada por outra,
   // ou de um formulário já fechado, é descartada.
   let busca = 0;
+  // A URL do quadro da câmera em edição, vazia enquanto ele não chega: o
+  // fundo das miniaturas das áreas.
+  const quadroDaCamera = $derived(editing && quadro?.cam === editing.id ? quadro.url : '');
 
   function soltaQuadro() {
     busca++;
@@ -346,7 +351,8 @@
 
   $effect(() => {
     const cam = editing?.id;
-    if (aba === 'areas' && comDeteccao && cam && quadro?.cam !== cam)
+    const comMiniaturas = aba === 'areas' || (aba === 'alerta' && !!editing?.areas?.length);
+    if (comMiniaturas && comDeteccao && cam && quadro?.cam !== cam)
       void buscaQuadro(cam, !!editing?._novo);
   });
   $effect(() => {
@@ -674,7 +680,7 @@
           <div class="row wrap chips">
             {#if cam.areas?.length}
               <span class="chip areas-chip">
-                <MiniaturaDasAreas cam={cam.id} areas={cam.areas} />
+                <MiniaturaDasAreas cam={cam.id} areas={cam.areas} largura={56} />
                 {cam.areas.length === 1 ? '1 área' : `${cam.areas.length} áreas`}
               </span>
             {/if}
@@ -1073,19 +1079,13 @@
               <div class="areas">
                 {#each areas as a, i (a.id ?? `nova-${i}`)}
                   <div class="area-item">
-                    <div class="miniatura" style:aspect-ratio={quadro?.proporcao ?? 16 / 9}>
-                      {#if quadro?.url}<img src={quadro.url} alt="" />{/if}
-                      <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
-                        <polygon points={pontosSVG(a.points)} />
-                      </svg>
-                    </div>
-                    <span class="nome-area">
-                      <b>{a.name}</b>
-                      <span class="muted small regra">
-                        <Icone nome={REGRAS[a.rule ?? REGRA_PADRAO].icone} tamanho={16} />
-                        {REGRAS[a.rule ?? REGRA_PADRAO].nome}
-                      </span>
-                    </span>
+                    <RotuloDaArea
+                      cam={editing.id}
+                      area={a}
+                      largura={96}
+                      negrito
+                      fundo={quadroDaCamera}
+                    />
                     <button
                       type="button"
                       class="ghost small"
@@ -1139,6 +1139,8 @@
               bind:horarios={horariosDoAlerta}
               bind:erro={erroDoAlerta}
               areas={editing.areas ?? []}
+              cam={editing.id}
+              quadro={quadroDaCamera}
               fuso={fusoDoServidor}
               porEmail={cameras.alertEmail}
             />
@@ -1519,43 +1521,6 @@
     display: flex;
     align-items: center;
     gap: 10px;
-  }
-  .miniatura {
-    position: relative;
-    flex: none;
-    width: 96px;
-    border-radius: 4px;
-    overflow: hidden;
-    background: #000;
-  }
-  .miniatura img,
-  .miniatura svg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  .miniatura polygon {
-    fill: rgba(47, 129, 247, 0.22);
-    stroke: var(--accent);
-    stroke-width: 1.5;
-    vector-effect: non-scaling-stroke;
-  }
-  .nome-area {
-    display: grid;
-    flex: 1;
-    min-width: 0;
-  }
-  .nome-area b {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .nome-area .regra {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
   }
   button.nova-area {
     display: inline-flex;
