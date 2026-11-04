@@ -126,10 +126,12 @@ Em cada um:
   destino, filtradas pelo uso daqui: breaking change, default novo e regra
   nova de linter pesam; feature que o dwnvr não usa, não. Em `0.x` (uv,
   ruff), minor também quebra.
-- **Idade.** No `docker` o `cooldown` não segura: o PR #60 propôs o uv
-  0.13.7 com a imagem publicada 21 h antes. A data da imagem é a do pacote no
-  registry (`gh api /orgs/astral-sh/packages/container/uv/versions`, para o
-  uv); com menos de 7 dias, o PR espera.
+- **Idade.** Em imagem do `ghcr.io` (hoje só o uv), o `cooldown` não vale:
+  o Dependabot não tem a data de publicação de lá e propõe a versão do dia
+  (no log do run: "No verified registry publication date source for
+  ghcr.io; skipping cooldown"). O PR #60 trouxe o uv 0.13.7 com 21 h. A data
+  sai de `gh api /orgs/astral-sh/packages/container/uv/versions`; com menos
+  de 7 dias, o PR espera. Imagem do Docker Hub o `cooldown` segura.
 - **Base atrasada.** Os PRs do mês saem do mesmo commit, e a `main` anda. Se o
   que entrou depois é exercitado pelo bump (código novo para o linter novo, uso
   novo da lib), a checagem roda sobre a `main` antes do merge, numa worktree da
