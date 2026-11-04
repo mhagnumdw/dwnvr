@@ -886,6 +886,7 @@
   <!-- O Escape do editor de área fecha só o editor: o formulário de baixo
        fica. -->
   <Modal
+    alturaQueMuda
     onclose={() => {
       if (!areaAberta) editing = null;
     }}
@@ -906,8 +907,10 @@
       <Abas abas={ABAS} bind:ativa={aba} prefixo="cam" />
 
       <!-- Os painéis ficam um em cima do outro na mesma célula do grid, e o
-           escondido só some da vista: o formulário fica com a altura do maior
-           e não pula ao trocar de aba, e os campos dele continuam no envio. -->
+           escondido só some da vista, com altura zero: os campos dele
+           continuam no envio, e o formulário tem a altura da aba aberta, sem o
+           vão que a maior deixava nas outras. Para as abas não mudarem de
+           lugar com isso, o modal tem o alto fixo (o `alturaQueMuda`). -->
       <div class="paineis">
         <div
           class="fields"
@@ -1570,6 +1573,8 @@
   }
   .paineis > [inert] {
     visibility: hidden;
+    height: 0;
+    overflow: hidden;
   }
 
   label {

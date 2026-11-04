@@ -20,6 +20,7 @@
     largura?: number | string;
     reservaRolagem?: boolean;
     centralizada?: boolean;
+    alturaQueMuda?: boolean;
     children?: Snippet;
   }
 
@@ -41,11 +42,19 @@
   // de baixo serve a formulário, onde o polegar alcança os campos; a folha
   // da detecção é para olhar o quadro, e com semanas de uso no meio provou
   // ser melhor.
+  //
+  // `alturaQueMuda` é a de quem muda de altura com a folha aberta, como o
+  // formulário da câmera, em abas de alturas diferentes: o alto da folha, onde
+  // ficam as abas, não pode se mexer a cada troca. No desktop a folha fica
+  // presa no alto da tela, em vez do meio, e só a base se move. No celular,
+  // que sobe de baixo, ela abre na altura máxima, e o que sobra fica vazio
+  // embaixo do conteúdo.
   let {
     onclose,
     largura = 460,
     reservaRolagem = false,
     centralizada = false,
+    alturaQueMuda = false,
     children,
   }: Props = $props();
   const larguraCSS = $derived(typeof largura === 'number' ? `${largura}px` : largura);
@@ -72,6 +81,7 @@
 <div
   class="overlay"
   class:centralizada
+  class:altura-que-muda={alturaQueMuda}
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) onclose?.();
@@ -114,6 +124,10 @@
     padding-bottom: calc(14px + env(safe-area-inset-bottom));
   }
 
+  .altura-que-muda .sheet {
+    height: var(--altura-max);
+  }
+
   .centralizada {
     place-items: center;
     padding: 8px;
@@ -136,6 +150,13 @@
     .sheet {
       max-width: var(--largura);
       border-radius: var(--radius);
+    }
+    .overlay.altura-que-muda {
+      align-items: start;
+      padding-top: 6dvh;
+    }
+    .altura-que-muda .sheet {
+      height: auto;
     }
   }
 </style>
