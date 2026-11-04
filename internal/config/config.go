@@ -311,16 +311,16 @@ func (c *Config) confere() []Aviso {
 }
 
 // confereEndereco aceita o server.publicUrl vazio, ou http(s)://host com um
-// caminho opcional, para o dwnvr atrás de um proxy num subcaminho. Recusa a
-// query, o "#" e o usuário:senha, que estragariam o link que se monta em
-// cima dele. Devolve o endereço sem a "/" do fim.
+// caminho opcional, para o dwnvr atrás de um proxy num subcaminho. Recusa o
+// endereço só com a porta (https://:8080), a query, o "#" e o usuário:senha,
+// que estragariam o link que se monta em cima dele. Devolve o endereço sem a "/" do fim.
 func confereEndereco(e string) (string, bool) {
 	e = strings.TrimSpace(e)
 	if e == "" {
 		return "", true
 	}
 	u, err := url.Parse(e)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" ||
 		u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(e, "#") {
 		return "", false
 	}

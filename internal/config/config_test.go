@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -373,9 +374,11 @@ func TestPublicURL(t *testing.T) {
 			t.Errorf("%q: %q com avisos %+v, esperado %q", escrito, cfg.Server.PublicURL, avisos, want)
 		}
 	}
+	senha := "senha"
+	comSenha := (&url.URL{Scheme: "https", User: url.UserPassword("fulano", senha), Host: "exemplo.com"}).String()
 	for _, ruim := range []string{
-		"dwnvr.exemplo.ts.net", "ftp://exemplo.com", "https://", "https://exemplo.com/?a=1",
-		"https://exemplo.com/#rec", "https://fulano:senha@exemplo.com", "https://exemplo.com/?",
+		"dwnvr.exemplo.ts.net", "ftp://exemplo.com", "https://", "https://:8080", "https://exemplo.com/?a=1",
+		"https://exemplo.com/#rec", comSenha, "https://exemplo.com/?",
 	} {
 		cfg, avisos := carregaAvisosDe(t, fmt.Sprintf("server:\n  publicUrl: %q\n", ruim))
 		if _, ok := porCampo(avisos)["server.publicUrl"]; !ok || cfg.Server.PublicURL != "" {
