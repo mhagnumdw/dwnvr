@@ -32,10 +32,11 @@
   class:on
   aria-pressed={on}
   aria-label="{area.name}, regra {regra.nome}"
+  data-toque-longo
   {onclick}
 >
   <span class="mini">
-    <MiniaturaDasAreas {cam} areas={[area]} desenho="cheia" raio={6} {fundo} />
+    <MiniaturaDasAreas {cam} areas={[area]} desenho="cheia" raio={6} {fundo} zoom />
   </span>
   {#if on}
     <span class="marca"><Icone nome="marcado" tamanho={14} traco={3} /></span>

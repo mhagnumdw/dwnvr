@@ -31,6 +31,15 @@ export const MIN_PONTOS = 3;
 export const MAX_PONTOS = 20;
 export const MAX_AREAS = 8;
 
+// O zoom da miniatura da área pequena. É pequena a área cujo retângulo tem
+// menos de AREA_PEQUENA do quadro na largura e na altura: só com as duas o
+// zoom vale a pena, porque a área inteira tem de caber nele (uma faixa
+// comprida e fina não deixa ampliar). O enquadramento é o retângulo com
+// ZOOM_MARGEM de folga em volta, e amplia no máximo ZOOM_TETO vezes.
+export const AREA_PEQUENA = 0.2;
+export const ZOOM_MARGEM = 1.6;
+export const ZOOM_TETO = 4;
+
 export interface AreaDoFiltro {
   cam: string;
   pontos: Ponto[];
@@ -124,3 +133,31 @@ export function preencheArea(
   g.stroke();
   g.restore();
 }
+
+// Um pedaço do quadro, em frações dele.
+export interface Vista {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export const QUADRO_INTEIRO: Vista = { x: 0, y: 0, w: 1, h: 1 };
+
+// O pedaço do quadro que enquadra a área pequena, ou nulo se ela não é
+// pequena. Largura e altura saem na mesma fração, para a vista manter a
+// proporção do quadro; o centro é o da área, puxado para dentro dele.
+export function vistaDaArea(pontos: readonly Ponto[]): Vista | null {
+  if (pontos.length < MIN_PONTOS) return null;
+  const xs = pontos.map(([x]) => x);
+  const ys = pontos.map(([, y]) => y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  if (x1 - x0 >= AREA_PEQUENA || y1 - y0 >= AREA_PEQUENA) return null;
+  const lado = Math.max((x1 - x0) * ZOOM_MARGEM, (y1 - y0) * ZOOM_MARGEM, 1 / ZOOM_TETO);
+  const dentro = (c: number) => Math.min(Math.max(c - lado / 2, 0), 1 - lado);
+  return { x: dentro((x0 + x1) / 2), y: dentro((y0 + y1) / 2), w: lado, h: lado };
+}
+
+// Os pontos da área na vista: frações da vista, e não do quadro.
+export const pontosNaVista = (pontos: readonly Ponto[], v: Vista): Ponto[] =>
+  pontos.map(([x, y]) => [(x - v.x) / v.w, (y - v.y) / v.h]);

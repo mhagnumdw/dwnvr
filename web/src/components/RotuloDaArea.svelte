@@ -24,8 +24,8 @@
   const regra = $derived(REGRAS[area.rule ?? REGRA_PADRAO]);
 </script>
 
-<span class="rotulo">
-  <MiniaturaDasAreas {cam} areas={[area]} {largura} desenho="cheia" raio={4} {fundo} />
+<span class="rotulo" data-toque-longo>
+  <MiniaturaDasAreas {cam} areas={[area]} {largura} desenho="cheia" raio={4} {fundo} zoom />
   <span class="texto">
     <span class="nome" class:negrito>{area.name}</span>
     <span class="muted small regra">

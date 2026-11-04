@@ -5,6 +5,12 @@
 // O texto é o `aria-label` do botão, ou o `title`: o que o leitor de tela já
 // lê. Botão sem nenhum dos dois não tem dica. Vale para o app inteiro, com um
 // ouvinte só no document, instalado pelo App.
+//
+// O mesmo toque longo vale para quem o pede com `data-toque-longo`, com dica
+// ou sem: o elemento recebe o evento `toquelongo` no mesmo instante em que a
+// dica abriria. É a miniatura da área pequena, que amplia de novo (o
+// MiniaturaDasAreas). Um gesto só, com o mesmo tempo e a mesma tolerância da
+// dica, em vez de dois relógios disputando o dedo.
 
 // Quanto o dedo precisa ficar parado para a dica abrir: o toque longo do
 // Android. E quanto ele pode andar sem virar rolagem.
@@ -15,6 +21,8 @@ const FICA_MS = 1500;
 const VAO_PX = 10;
 
 const ALVO = 'button, a[href]';
+const OUVINTE = '[data-toque-longo]';
+export const TOQUE_LONGO = 'toquelongo';
 
 function textoDe(el: Element) {
   // O aria-label vazio também cai para o title.
@@ -26,6 +34,7 @@ export function instalarDicaDoToque() {
   let timer: number | undefined;
   let someTimer: number | undefined;
   let alvo: Element | null = null;
+  let ouvinte: Element | null = null;
   let origem = { x: 0, y: 0 };
   // A dica abriu neste toque: o clique que vem ao soltar é engolido.
   let abriu = false;
@@ -57,22 +66,31 @@ export function instalarDicaDoToque() {
   function cancela() {
     clearTimeout(timer);
     alvo = null;
+    ouvinte = null;
+  }
+
+  // O toque longo chegou: a dica, se o botão tem, e o aviso a quem o pediu.
+  function segurou() {
+    if (alvo) mostra(alvo);
+    ouvinte?.dispatchEvent(new CustomEvent(TOQUE_LONGO));
+    ouvinte = null;
   }
 
   const aoTocar = (e: PointerEvent) => {
     if (e.pointerType !== 'touch') return;
-    const el = e.target instanceof Element ? e.target.closest(ALVO) : null;
+    const de = e.target instanceof Element ? e.target : null;
+    const el = de?.closest(ALVO) ?? null;
     abriu = false;
-    if (!el || !textoDe(el)) return;
-    alvo = el;
+    alvo = el && textoDe(el) ? el : null;
+    ouvinte = de?.closest(OUVINTE) ?? null;
+    if (!alvo && !ouvinte) return;
     origem = { x: e.clientX, y: e.clientY };
     clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (alvo) mostra(alvo);
-    }, SEGURAR_MS);
+    timer = setTimeout(segurou, SEGURAR_MS);
   };
   const aoMover = (e: PointerEvent) => {
-    if (alvo && Math.hypot(e.clientX - origem.x, e.clientY - origem.y) > TOLERANCIA_PX) cancela();
+    if ((alvo || ouvinte) && Math.hypot(e.clientX - origem.x, e.clientY - origem.y) > TOLERANCIA_PX)
+      cancela();
   };
   const aoSoltar = () => {
     cancela();
@@ -94,12 +112,14 @@ export function instalarDicaDoToque() {
   // link, copiar), que abriria no mesmo toque, não abre. Só no toque: o
   // clique direito e a tecla de menu continuam abrindo o menu de sempre.
   const aoMenu = (e: Event) => {
-    const el = e.target instanceof Element ? e.target.closest(ALVO) : null;
-    if (!el || (alvo !== el && !abriu)) return;
+    const de = e.target instanceof Element ? e.target : null;
+    const el = de?.closest(ALVO) ?? null;
+    const doOuvinte = !!ouvinte && de?.closest(OUVINTE) === ouvinte;
+    if (!doOuvinte && (!el || (alvo !== el && !abriu))) return;
     e.preventDefault();
-    if (alvo === el && !abriu) {
+    if (doOuvinte || (alvo === el && !abriu)) {
       clearTimeout(timer);
-      mostra(el);
+      segurou();
     }
   };
 

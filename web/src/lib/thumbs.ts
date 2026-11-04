@@ -67,14 +67,17 @@ function drain() {
  * O resultado é memorizado: rolar a tira para frente e para trás não deve
  * rebuscar nem redecodificar nada.
  */
-export function thumbnail(cam: string, t: number): Promise<ImageBitmap | null> {
+//
+// `escala` guarda o bitmap maior que o quadrinho, tantas vezes: é a miniatura
+// da área pequena, que amplia até ZOOM_TETO vezes e borraria na do quadrinho.
+export function thumbnail(cam: string, t: number, escala = 1): Promise<ImageBitmap | null> {
   // A densidade da tela entra na chave porque o bitmap guardado foi reduzido
   // para ela (veja `reduzida`): depois de um zoom do navegador, ou de levar a
   // janela para outro monitor, ele sairia esticado no quadrinho novo. As
   // entradas da densidade antiga saem pelo MAX_CACHE, como qualquer outra. É
   // lida uma vez só: um zoom entre o pedido e a decodificação guardaria, sob
   // esta chave, um bitmap reduzido para outra densidade.
-  const densidade = window.devicePixelRatio || 1;
+  const densidade = (window.devicePixelRatio || 1) * escala;
   const key = `${cam}@${t}@${densidade}`;
   const guardada = cache.get(key);
   if (guardada) return guardada;
