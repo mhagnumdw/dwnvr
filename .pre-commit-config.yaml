@@ -286,7 +286,7 @@ repos:
   # Python do dwnvr-detect: lint e formatação, o flake8 e o black numa
   # ferramenta só. As regras estão no dwnvr-detect/ruff.toml.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.2
+    rev: v0.17.3
     hooks:
       - id: ruff-check
         priority: formatar
