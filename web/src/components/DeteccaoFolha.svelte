@@ -128,12 +128,12 @@
   const areaDoAlerta = (id: string) => areasDoAlerta.find((a) => a.id === id);
 
   // A área do alerta realçada no quadro pelo toque no chip dela: as outras
-  // ficam apagadas, e o mesmo toque volta a mostrar todas. Presa à detecção,
-  // para não passar à próxima pelas setas.
-  let realce = $state<{ det: Deteccao; id: string } | null>(null);
-  const realcada = $derived(realce?.det === det ? realce.id : null);
+  // ficam apagadas, e o mesmo toque volta a mostrar todas. Não passa à
+  // próxima detecção pelas setas: a folha remonta a cada uma (o `{#key}` de
+  // Detecções).
+  let realcada = $state<string | null>(null);
   const alternaRealce = (id: string) => {
-    realce = realcada === id ? null : { det, id };
+    realcada = realcada === id ? null : id;
   };
 
   const largura = $derived.by(() => {
@@ -381,7 +381,7 @@
           </span>
           {#each o.alertAreas ?? [] as id (id)}
             {@const a = areaDoAlerta(id)}
-            {#if a?.pontos}
+            {#if a?.pontos && det.temQuadro}
               <button
                 type="button"
                 class="chip-area"
@@ -660,10 +660,12 @@
     background: transparent;
     color: inherit;
   }
+  /* Sem passar da metade do espaço entre as linhas do bloco: o alvo de uma
+     não cobre o chip da de baixo. */
   button.chip-area::after {
     content: '';
     position: absolute;
-    inset: -8px -3px;
+    inset: -2px -3px;
   }
   button.chip-area.on {
     border-style: solid;

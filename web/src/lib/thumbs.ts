@@ -12,6 +12,10 @@ import { api, mediaURL } from './api.ts';
 const cache = new Map<string, Promise<ImageBitmap | null>>();
 const MAX_CACHE = 240; // ~algumas telas de tira; acima disso a RAM do celular sofre
 const MAX_PARALLEL = 3; // decodificações ao mesmo tempo; o download não espera
+// As miniaturas maiores das áreas pequenas (o `escala` do `thumbnail`): uma
+// por câmera com área pequena basta, com folga para a troca de segmento.
+const MAX_AMPLIADAS = 12;
+const ampliadas = new Map<string, Promise<ImageBitmap | null>>();
 
 // Largura do quadrinho maior da tira, em px de CSS: o `.tile` do
 // ThumbStrip.svelte. O de tela estreita é menor, mas o celular girado passa a
@@ -70,6 +74,8 @@ function drain() {
 //
 // `escala` guarda o bitmap maior que o quadrinho, tantas vezes: é a miniatura
 // da área pequena, que amplia até ZOOM_TETO vezes e borraria na do quadrinho.
+// Essas ficam num cache à parte e curto (MAX_AMPLIADAS): cada uma pesa até
+// escala² vezes a do quadrinho, e o MAX_CACHE da tira não as seguraria.
 export function thumbnail(cam: string, t: number, escala = 1): Promise<ImageBitmap | null> {
   // A densidade da tela entra na chave porque o bitmap guardado foi reduzido
   // para ela (veja `reduzida`): depois de um zoom do navegador, ou de levar a
@@ -79,20 +85,21 @@ export function thumbnail(cam: string, t: number, escala = 1): Promise<ImageBitm
   // esta chave, um bitmap reduzido para outra densidade.
   const densidade = (window.devicePixelRatio || 1) * escala;
   const key = `${cam}@${t}@${densidade}`;
-  const guardada = cache.get(key);
+  const onde = escala === 1 ? cache : ampliadas;
+  const guardada = onde.get(key);
   if (guardada) return guardada;
 
   const p = baixar(mediaURL.thumb(cam, t))
     .then((buf) => schedule(() => decode(buf, densidade)))
     .catch(() => null);
-  cache.set(key, p);
+  onde.set(key, p);
 
-  if (cache.size > MAX_CACHE) {
+  if (onde.size > (escala === 1 ? MAX_CACHE : MAX_AMPLIADAS)) {
     // Map preserva a ordem de inserção, então a chave mais antiga sai primeiro.
-    const oldest = cache.keys().next().value;
+    const oldest = onde.keys().next().value;
     if (oldest !== undefined) {
-      void cache.get(oldest)?.then((b) => b?.close());
-      cache.delete(oldest);
+      void onde.get(oldest)?.then((b) => b?.close());
+      onde.delete(oldest);
     }
   }
   return p;
@@ -124,11 +131,21 @@ export function ultimoSegmentoGuardado(cam: string): Promise<number | null> {
   const t = ultimoSegmento(cam);
   const entrada = { ate: agora + ULTIMO_SEGMENTO_VALE_MS, t };
   ultimos.set(cam, entrada);
-  // A falha não fica guardada: o próximo pedido tenta de novo.
-  t.catch(() => {
+  // A falha e o "sem gravação" não ficam guardados: o próximo pedido tenta
+  // de novo, e a câmera que acabou de começar a gravar aparece.
+  const esquece = () => {
     if (ultimos.get(cam) === entrada) ultimos.delete(cam);
-  });
+  };
+  t.then((v) => {
+    if (v === null) esquece();
+  }, esquece);
   return t;
+}
+
+// Esquece o último segmento guardado da câmera: as gravações dela foram
+// apagadas, e ele não existe mais.
+export function esqueceUltimoSegmento(cam: string) {
+  ultimos.delete(cam);
 }
 
 // O keyframe de um segmento na resolução da câmera, para desenhar em cima
@@ -141,6 +158,8 @@ export async function quadroCheio(cam: string, t: number): Promise<ImageBitmap> 
 export function clearThumbnails() {
   for (const p of cache.values()) void p.then((b) => b?.close());
   cache.clear();
+  for (const p of ampliadas.values()) void p.then((b) => b?.close());
+  ampliadas.clear();
   ultimos.clear();
 }
 

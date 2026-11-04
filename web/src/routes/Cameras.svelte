@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, onDestroy, tick, untrack } from 'svelte';
   import {
     cameras,
     loadCameras,
@@ -46,7 +46,7 @@
   import { MAX_HORARIOS, doServidor, paraOServidor, valido } from '../lib/horarios.ts';
   import type { Horario } from '../lib/horarios.ts';
   import type { Ponto, Regra } from '../lib/area.ts';
-  import { quadroCheio, ultimoSegmento } from '../lib/thumbs.ts';
+  import { esqueceUltimoSegmento, quadroCheio, ultimoSegmento } from '../lib/thumbs.ts';
 
   // A câmera no formulário, com o que a tela sabe do áudio dela. Os campos com
   // `_` não vão para a API.
@@ -352,8 +352,12 @@
   $effect(() => {
     const cam = editing?.id;
     const comMiniaturas = aba === 'areas' || (aba === 'alerta' && !!editing?.areas?.length);
-    if (comMiniaturas && comDeteccao && cam && quadro?.cam !== cam)
-      void buscaQuadro(cam, !!editing?._novo);
+    if (!comMiniaturas || !comDeteccao || !cam) return;
+    // O quadro só se lê aqui, sem acompanhar: a busca que falhou tenta de
+    // novo ao entrar numa das abas, e não a cada mudança dele, o que repetiria
+    // um pedido que falha sem parar.
+    const q = untrack(() => quadro);
+    if (q?.cam !== cam || (q.erro && !q.buscando)) void buscaQuadro(cam, !!editing?._novo);
   });
   $effect(() => {
     if (!editing) soltaQuadro();
@@ -597,6 +601,7 @@
     error = '';
     try {
       await api.deleteRecordings(alvo.id);
+      esqueceUltimoSegmento(alvo.id);
       // As duas: loadCameras refaz a lista de órfãs, loadHealth refaz o chip de
       // disco. Sem a segunda, o card seguiria mostrando os bytes que já foram.
       await loadCameras();

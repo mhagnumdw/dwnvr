@@ -35,6 +35,9 @@ export function instalarDicaDoToque() {
   let someTimer: number | undefined;
   let alvo: Element | null = null;
   let ouvinte: Element | null = null;
+  // O de quem pediu o toque longo neste toque, mesmo depois do aviso: o
+  // `contextmenu` que chega atrasado também não abre o menu do sistema nele.
+  let ouvinteDoToque: Element | null = null;
   let origem = { x: 0, y: 0 };
   // A dica abriu neste toque: o clique que vem ao soltar é engolido.
   let abriu = false;
@@ -83,6 +86,7 @@ export function instalarDicaDoToque() {
     abriu = false;
     alvo = el && textoDe(el) ? el : null;
     ouvinte = de?.closest(OUVINTE) ?? null;
+    ouvinteDoToque = ouvinte;
     if (!alvo && !ouvinte) return;
     origem = { x: e.clientX, y: e.clientY };
     clearTimeout(timer);
@@ -114,10 +118,10 @@ export function instalarDicaDoToque() {
   const aoMenu = (e: Event) => {
     const de = e.target instanceof Element ? e.target : null;
     const el = de?.closest(ALVO) ?? null;
-    const doOuvinte = !!ouvinte && de?.closest(OUVINTE) === ouvinte;
+    const doOuvinte = !!ouvinteDoToque && de?.closest(OUVINTE) === ouvinteDoToque;
     if (!doOuvinte && (!el || (alvo !== el && !abriu))) return;
     e.preventDefault();
-    if (doOuvinte || (alvo === el && !abriu)) {
+    if ((doOuvinte && ouvinte) || (alvo === el && !abriu)) {
       clearTimeout(timer);
       segurou();
     }
