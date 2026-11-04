@@ -97,8 +97,8 @@ func NovaCentral(meios []Notificador, log *slog.Logger) *Central {
 func (c *Central) Recebe(a Alerta) {
 	c.total.Add(1)
 	attrs := []any{"cam", a.Camera, "familias", familiasDe(a), "objetos", len(a.Objetos)}
-	if areas := areasDe(a); areas != "" {
-		attrs = append(attrs, "areas", areas)
+	if areas := areasDe(a); len(areas) > 0 {
+		attrs = append(attrs, "areas", strings.Join(areas, ","))
 	}
 	c.log.Info("alerta", attrs...)
 
@@ -252,8 +252,9 @@ func familiasDe(a Alerta) string {
 	return strings.Join(fs, ",")
 }
 
-// areasDe junta as áreas em que os objetos caíram, sem repetir.
-func areasDe(a Alerta) string {
+// areasDe são as áreas em que os objetos caíram, sem repetir, na ordem em que
+// aparecem: o log e o e-mail as mostram.
+func areasDe(a Alerta) []string {
 	var as []string
 	for _, o := range a.Objetos {
 		for _, nome := range o.Areas {
@@ -262,5 +263,5 @@ func areasDe(a Alerta) string {
 			}
 		}
 	}
-	return strings.Join(as, ",")
+	return as
 }

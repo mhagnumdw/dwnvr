@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -76,6 +77,13 @@ type Server struct {
 	// conexão, porque o header quem escreve é o cliente. Lista vazia não
 	// confia em ninguém.
 	TrustedProxies []string `yaml:"trustedProxies"`
+
+	// PublicURL é o endereço pelo qual se abre o dwnvr, como
+	// "https://dwnvr.exemplo.ts.net": o servidor não tem como sabê-lo, porque
+	// cada um chega por um caminho. O e-mail de alerta o usa no botão que
+	// abre a gravação no instante. Vazio, o e-mail sai sem o botão. Sai sem a
+	// "/" do fim (ver confereEndereco).
+	PublicURL string `yaml:"publicUrl"`
 }
 
 // AuthEnabled diz se alguma credencial foi configurada.
@@ -269,6 +277,14 @@ func (c *Config) confere() []Aviso {
 			Aceito: "endereços IP ou redes CIDR, como 172.16.0.0/12", Usando: p.Server.TrustedProxies})
 		c.Server.TrustedProxies = p.Server.TrustedProxies
 	}
+	if e, ok := confereEndereco(c.Server.PublicURL); ok {
+		c.Server.PublicURL = e
+	} else {
+		av = append(av, Aviso{Campo: "server.publicUrl", Valor: c.Server.PublicURL,
+			Aceito: "o endereço do dwnvr, como https://dwnvr.exemplo.ts.net",
+			Usando: "nenhum: o e-mail de alerta sai sem o botão"})
+		c.Server.PublicURL = p.Server.PublicURL
+	}
 	confereFaixa(&av, Aviso{Campo: "storage.minFreeMB"}, &c.Storage.MinFreeMB,
 		FaixaMinFreeMB, p.Storage.MinFreeMB, p.Storage.MinFreeMB)
 
@@ -292,6 +308,23 @@ func (c *Config) confere() []Aviso {
 	confereFaixa(&av, Aviso{Campo: "defaults.detectSensibilidade"}, &d.DetectSensibilidade,
 		faixaSensibilidade, pd.DetectSensibilidade, pd.DetectSensibilidade)
 	return av
+}
+
+// confereEndereco aceita o server.publicUrl vazio, ou http(s)://host com um
+// caminho opcional, para o dwnvr atrás de um proxy num subcaminho. Recusa a
+// query, o "#" e o usuário:senha, que estragariam o link que se monta em
+// cima dele. Devolve o endereço sem a "/" do fim.
+func confereEndereco(e string) (string, bool) {
+	e = strings.TrimSpace(e)
+	if e == "" {
+		return "", true
+	}
+	u, err := url.Parse(e)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+		u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(e, "#") {
+		return "", false
+	}
+	return strings.TrimRight(e, "/"), true
 }
 
 // ConfereCamera devolve a câmera com cada campo fora da faixa zerado, que é o

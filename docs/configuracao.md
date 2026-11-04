@@ -483,7 +483,8 @@ A lista de quem recebe o alerta de detecção de toda câmera com alerta ligado
 (ver o `alert` em [Política por câmera](#política-por-câmera)), numa mensagem
 só para todos: cinco endereços são um envio. O alerta sai pela seção `smtp`,
 a mesma do link de definir a senha; aqui fica só quem recebe. A mensagem, com
-o quadro anexo, está em [O alerta](deteccao.md#o-alerta).
+o quadro e o botão que abre a gravação, está em [O alerta](deteccao.md#o-alerta);
+o botão precisa do [endereço do dwnvr](#endereço-do-dwnvr).
 
 | Campo | O que é | Sem escrever |
 | --- | --- | --- |
@@ -522,3 +523,31 @@ servidor confere a seção `smtp`. Depois que alguma câmera liga o alerta:
   os limites em [O alerta](deteccao.md#o-alerta));
 - **os números do envio** (enviados, falhas e o último resultado) ficam no
   grupo **Alertas por e-mail** do card Este servidor.
+
+## Endereço do dwnvr
+
+```yaml
+server:
+  publicUrl: https://dwnvr.exemplo.ts.net
+```
+
+O endereço pelo qual se abre o dwnvr, como está na barra do navegador. O
+servidor não tem como sabê-lo, porque cada um chega por um caminho. Hoje só o
+[alerta por e-mail](#alerta-por-e-mail) o usa: com ele, o e-mail traz o botão
+**Ver na gravação**, que abre a tela Gravações na câmera e no instante do
+alerta. Sem ele, o e-mail sai sem o botão e pede, no lugar, que o
+administrador o defina.
+
+Escolha o endereço que abre de onde a pessoa estiver quando ler o e-mail: com o
+[acesso remoto](acesso-remoto.md), o `https://….ts.net`. Um caminho no fim
+serve para o dwnvr atrás de um proxy num subcaminho
+(`https://exemplo.com/dwnvr`), e a `/` do fim é ignorada. O que não for um
+endereço `http://` ou `https://`, ou tiver `?`, `#` ou usuário e senha, vira
+aviso no log e no Diagnóstico, e conta como não escrito: o dwnvr sobe do mesmo jeito.
+
+```text
+level=WARN msg="valor fora do aceito na configuração; vale o padrão até ser corrigido" arquivo=/etc/dwnvr/dwnvr.yaml campo=server.publicUrl valor=dwnvr.exemplo.ts.net aceito="o endereço do dwnvr, como https://dwnvr.exemplo.ts.net" usando="nenhum: o e-mail de alerta sai sem o botão"
+```
+
+O `dwnvr.yaml` só é lido quando o dwnvr sobe: o endereço novo vale depois de
+reiniciá-lo.

@@ -31,8 +31,6 @@ alerta como ele é hoje está em [`deteccao.md`](../deteccao.md#o-alerta) e em
     número.
 - **Regra por área:** famílias e horários diferentes em cada área, como
   "pessoa no portão a qualquer hora, veículo na garagem só à noite".
-- **Um link para abrir a detecção** no alerta: pede um campo com o endereço
-  público do dwnvr.
 - **Notificação do navegador (push):** exige service worker, que o dwnvr evita
   de propósito (ver "Instalável como app, sem service worker" no
   `web/README.md`).
