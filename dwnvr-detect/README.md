@@ -66,9 +66,9 @@ imagem ficaria lenta sem ninguém ver. Duas travas impedem isso:
   da mesma versão do Python e com o hash do `.py` que a imagem traz. Se não
   tiver, o build falha e a imagem não sai.
 - **Em runtime**, o `sitecustomize.py`, que o Python carrega antes de qualquer
-  import, troca a compilação do fonte por um erro com o caminho do arquivo: ou
-  o módulo vem do `.pyc`, ou o servidor não sobe. Vale também para um
-  `docker exec ... python3`; para depurar à mão sem a trava, `python3 -S`.
+  import do servidor, troca a compilação do fonte por um erro com o caminho do
+  arquivo: ou o módulo vem do `.pyc`, ou o servidor não sobe. Vale também para
+  um `docker exec ... python3`; para depurar à mão sem a trava, `python3 -S`.
 
 Fica de fora só o `-c` de uma linha do healthcheck, que não é módulo.
 

@@ -11,9 +11,12 @@ Vale para todo Python que roda no container sem `-S`: o servidor e um
 `docker exec ... python3`. O healthcheck roda com `-S` e não passa por aqui.
 Para depurar à mão um módulo sem .pyc, `python3 -S`.
 
-O build confere os .pyc antes (o stage `confere` do Dockerfile, com o
-`confere_pyc.py`). Esta trava pega o que o build não vê, como um PYTHONPATH ou
-um PYTHONPYCACHEPREFIX trocado.
+Ficam fora desta trava: este arquivo e o que o Python carrega antes dele (o
+`encodings`, por exemplo), que o build confere (o stage `confere` do
+Dockerfile, com o `confere_pyc.py`); e um .py dentro de um .zip no
+PYTHONPATH, que o zipimport compila sem passar por aqui (a imagem não põe
+nenhum). A trava pega o que o build não vê, como um PYTHONPATH ou um
+PYTHONPYCACHEPREFIX trocado.
 """
 
 import sys
