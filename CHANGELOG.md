@@ -2,6 +2,39 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.14.0](https://github.com/mhagnumdw/dwnvr/compare/v0.13.0...v0.14.0) (2026-11-04)
+
+### Added
+
+- feat(web): miniatura e zoom da área onde antes só aparecia o nome ([#65](https://github.com/mhagnumdw/dwnvr/pull/65)) ([7a98a15f](https://github.com/mhagnumdw/dwnvr/commit/7a98a15f83ae9d6c4e960ddaf5e21489af65a4cb))
+- feat(alerta): e-mail em HTML com a marca, o quadro no corpo e o link para a gravação ([#64](https://github.com/mhagnumdw/dwnvr/pull/64)) ([a80daf2e](https://github.com/mhagnumdw/dwnvr/commit/a80daf2e6cbf8b3fd9c4effe9e464893fc59c03a))
+- feat(alerta): alerta de detecção por câmera, com áreas, horários e envio por e-mail ([#44](https://github.com/mhagnumdw/dwnvr/pull/44)) ([997ca19a](https://github.com/mhagnumdw/dwnvr/commit/997ca19a1afde07b946c4bbf1374328509cee06e))
+
+### Fixed
+
+- fix(web): o cadastro da câmera não deixa mais um vão embaixo das abas curtas ([6d26987b](https://github.com/mhagnumdw/dwnvr/commit/6d26987bdb3a35177145d44e4db3d7989195e29c))
+- fix(alerta): tira do e-mail o aviso de que não é alarme ([42be1b93](https://github.com/mhagnumdw/dwnvr/commit/42be1b93719c862e3ec5060b60bc8ccd2971908a))
+- fix(detect): o detector de objetos não aparece mais como unhealthy à toa ([#59](https://github.com/mhagnumdw/dwnvr/pull/59)) ([034c0f47](https://github.com/mhagnumdw/dwnvr/commit/034c0f472cf396f18942dd44f3a76b427e35e363))
+
+### Performance
+
+- perf(detect): o detector de objetos liga ~4 s mais rápido ([#63](https://github.com/mhagnumdw/dwnvr/pull/63)) ([787279d1](https://github.com/mhagnumdw/dwnvr/commit/787279d1a765ef4571e077813184081f71a7f2a2))
+
+### Docs
+
+- docs(github): o cooldown só falha em imagem do ghcr.io ([5fc6df96](https://github.com/mhagnumdw/dwnvr/commit/5fc6df96f54d954b0ec238c11edf361bcc1dbcaf))
+- docs(github): o cooldown do Dependabot não segura o docker ([824e3671](https://github.com/mhagnumdw/dwnvr/commit/824e36713d32632042e573a1f313d3f10c88875c))
+
+### CI/Build
+
+- build(deps-dev): bump the npm group in /web with 6 updates ([#62](https://github.com/mhagnumdw/dwnvr/pull/62)) ([55f7f5a3](https://github.com/mhagnumdw/dwnvr/commit/55f7f5a354983626923c2cb44fe7a4585ee5ddc6))
+- build(deps): bump https://github.com/astral-sh/ruff-pre-commit ([#61](https://github.com/mhagnumdw/dwnvr/pull/61)) ([0bc4e670](https://github.com/mhagnumdw/dwnvr/commit/0bc4e670b46987389d126b5c52832ab5e8896fc2))
+- build: Dependabot sem o major do @types/node, e a revisão dos PRs dele ([164571d4](https://github.com/mhagnumdw/dwnvr/commit/164571d4d12ae357c6233b92bf518314dcb7f5ec))
+- build(deps): bump astral-sh/uv ([#56](https://github.com/mhagnumdw/dwnvr/pull/56)) ([c4fd9df5](https://github.com/mhagnumdw/dwnvr/commit/c4fd9df5a38644a2e1ea5f5fa0a363e7c2fdbc3e))
+- build(deps): bump go.yaml.in/yaml/v3 ([#54](https://github.com/mhagnumdw/dwnvr/pull/54)) ([2b87b910](https://github.com/mhagnumdw/dwnvr/commit/2b87b910c016f5e8108436d31705b1cadbbe3250))
+- build(deps): bump the pre-commit group with 5 updates ([#55](https://github.com/mhagnumdw/dwnvr/pull/55)) ([f903901a](https://github.com/mhagnumdw/dwnvr/commit/f903901abbd7957a40fb96348f3f69e23574d831))
+- build(deps): bump the github-actions group with 4 updates ([#58](https://github.com/mhagnumdw/dwnvr/pull/58)) ([947a907a](https://github.com/mhagnumdw/dwnvr/commit/947a907a79f1bb29e4e272f4fba20ae989961ad6))
+
 ## [v0.13.0](https://github.com/mhagnumdw/dwnvr/compare/v0.12.0...v0.13.0) (2026-11-03)
 
 ### Added
