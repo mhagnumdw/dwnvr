@@ -535,8 +535,11 @@ O endereço pelo qual se abre o dwnvr, como está na barra do navegador. O
 servidor não tem como sabê-lo, porque cada um chega por um caminho. Hoje só o
 [alerta por e-mail](#alerta-por-e-mail) o usa: com ele, o e-mail traz o botão
 **Ver na gravação**, que abre a tela Gravações na câmera e no instante do
-alerta. Sem ele, o e-mail sai sem o botão e pede, no lugar, que o
-administrador o defina.
+alerta.
+
+| Campo | O que é | Sem escrever |
+| --- | --- | --- |
+| `server.publicUrl` | opcional; o endereço do dwnvr, como `https://dwnvr.exemplo.ts.net` | nada deixa de funcionar: o e-mail de alerta sai sem o botão e pede, no lugar, que o administrador o defina |
 
 Escolha o endereço que abre de onde a pessoa estiver quando ler o e-mail: com o
 [acesso remoto](acesso-remoto.md), o `https://….ts.net`. Um caminho no fim
