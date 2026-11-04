@@ -17,6 +17,9 @@ dwnvr é Go puro numa imagem de 8 MB.
   versão exata e o hash de cada wheel, para amd64 e arm64.
 - `modelo/` - o `.onnx` que vai na imagem, e como gerá-lo de novo (ver
   [`modelo/README.md`](modelo/README.md)).
+- `sitecustomize.py` - a trava que impede o Python do container de compilar
+  módulo do fonte em runtime (ver [O bytecode](#o-bytecode)).
+- `confere_pyc.py` - a conferência do `.pyc` da imagem, que roda no build.
 - `Dockerfile` - faz o build de amd64 e arm64 em qualquer máquina, sem emulação.
 
 ## As dependências
@@ -42,6 +45,32 @@ uv pip compile --universal --generate-hashes --python-version 3.12 \
 As versões atuais são as que exportaram o modelo e mediram a entrega. Outro
 runtime é outro número: depois de trocar, confira que as caixas continuam as
 mesmas para os mesmos pedaços.
+
+## O bytecode
+
+Nada se compila em runtime. O build gera o bytecode (`.pyc`) do stdlib, das
+libs e do código daqui, que nem a imagem do Python nem o uv trazem. Sem ele,
+cada subida do servidor compilava do fonte o que importa: 5,7 s num Orange Pi
+Zero 3, contra 1,9 s com ele, por 22 MB a mais na imagem.
+
+O stdlib compilado é o da própria imagem final, copiado para o stage sem
+executar nada dele, e cada `.pyc` guarda o hash do seu `.py`, e não a data. O
+servidor sobe como módulo (`python3 -m servidor`), porque o script que recebe
+pelo caminho o Python sempre compila do fonte.
+
+O `.pyc` que falta ou não bate, o Python ignora calado e compila o fonte: a
+imagem ficaria lenta sem ninguém ver. Duas travas impedem isso:
+
+- **No build**, o `confere_pyc.py` olha os arquivos da imagem final já montada:
+  todo `.py` que o servidor pode importar tem de ter o seu `.pyc`, checked-hash
+  da mesma versão do Python e com o hash do `.py` que a imagem traz. Se não
+  tiver, o build falha e a imagem não sai.
+- **Em runtime**, o `sitecustomize.py`, que o Python carrega antes de qualquer
+  import do servidor, troca a compilação do fonte por um erro com o caminho do
+  arquivo: ou o módulo vem do `.pyc`, ou o servidor não sobe. Vale também para
+  um `docker exec ... python3`; para depurar à mão sem a trava, `python3 -S`.
+
+Fica de fora só o `-c` de uma linha do healthcheck, que não é módulo.
 
 ## O modelo
 
