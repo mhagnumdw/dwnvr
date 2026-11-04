@@ -17,7 +17,7 @@
   import { contexto2d } from '../lib/canvas.ts';
   import { Player } from '../lib/player.svelte.ts';
   import { dispoe, desenha } from '../lib/caixas.ts';
-  import { desenhaContorno } from '../lib/area.ts';
+  import { desenhaContorno, preencheArea } from '../lib/area.ts';
   import type { Ponto } from '../lib/area.ts';
   import { familia, iconeDa, iconeURL, NOME_DA_CLASSE } from '../lib/icones.ts';
   import { hhmmss, ddmm } from '../lib/format.ts';
@@ -65,6 +65,9 @@
   const RESPIRO_PX = 30;
   const BLOCO_PX = 53;
   const LINHA_DO_BLOCO_PX = 24;
+  // A opacidade do que fica no quadro mas não é o assunto: o objeto que não
+  // entrou no alerta, e as áreas fora da realçada.
+  const APAGADA = 0.35;
 
   interface Props {
     det: Deteccao;
@@ -122,7 +125,16 @@
   const doAlerta = $derived(objetos.filter((o) => o.alert));
   const foraDoAlerta = $derived(objetos.filter((o) => !o.alert));
   const alertou = $derived(doAlerta.length > 0);
-  const nomeDaArea = (id: string) => areasDoAlerta.find((a) => a.id === id)?.nome ?? 'área apagada';
+  const areaDoAlerta = (id: string) => areasDoAlerta.find((a) => a.id === id);
+
+  // A área do alerta realçada no quadro pelo toque no chip dela: as outras
+  // ficam apagadas, e o mesmo toque volta a mostrar todas. Não passa à
+  // próxima detecção pelas setas: a folha remonta a cada uma (o `{#key}` de
+  // Detecções).
+  let realcada = $state<string | null>(null);
+  const alternaRealce = (id: string) => {
+    realcada = realcada === id ? null : id;
+  };
 
   const largura = $derived.by(() => {
     const resto = RESTO_PX + (alertou ? BLOCO_PX + doAlerta.length * LINHA_DO_BLOCO_PX : 0);
@@ -158,16 +170,24 @@
     if (!iw || !ih) return;
     const s = Math.min(w / iw, h / ih);
     g.translate((w - iw * s) / 2, (h - ih * s) / 2);
-    // O contorno das áreas do filtro e das do alerta, uma vez cada.
+    // O contorno das áreas do filtro e das do alerta, uma vez cada. A
+    // realçada vai cheia, por cima, e as outras, apagadas.
     const contornos = [...(areas ?? [])];
     for (const a of areasDoAlerta)
       if (a.pontos && !contornos.includes(a.pontos)) contornos.push(a.pontos);
-    for (const a of contornos) desenhaContorno(g, a, iw * s, ih * s);
+    const destaque = realcada === null ? null : (areaDoAlerta(realcada)?.pontos ?? null);
+    g.globalAlpha = destaque ? APAGADA : 1;
+    for (const a of contornos) if (a !== destaque) desenhaContorno(g, a, iw * s, ih * s);
+    g.globalAlpha = 1;
+    if (destaque) preencheArea(g, destaque, iw * s, ih * s);
     // O objeto que não entrou no alerta fica no quadro, mas apagado.
     desenha(g, dispoe(g, det.objetos, iw * s, ih * s, true), (it) =>
-      alertou && !it.marca.alert ? 0.35 : 1,
+      alertou && !it.marca.alert ? APAGADA : 1,
     );
   }
+
+  // Repinta quando o realce muda (e com o que mais o quadro lê).
+  $effect(pintaQuadro);
 
   onMount(() => {
     const ro = new ResizeObserver(pintaQuadro);
@@ -360,7 +380,21 @@
             <span>{NOME_DA_CLASSE[o.classe] ?? o.classe} {score(o.score)}</span>
           </span>
           {#each o.alertAreas ?? [] as id (id)}
-            <span class="chip-area">{nomeDaArea(id)}</span>
+            {@const a = areaDoAlerta(id)}
+            {#if a?.pontos && det.temQuadro}
+              <button
+                type="button"
+                class="chip-area"
+                class:on={realcada === id}
+                aria-pressed={realcada === id}
+                aria-label={realcada === id
+                  ? `${a.nome}: mostrar todas as áreas`
+                  : `${a.nome}: realçar no quadro`}
+                onclick={() => alternaRealce(id)}>{a.nome}</button
+              >
+            {:else}
+              <span class="chip-area">{a?.nome ?? 'área apagada'}</span>
+            {/if}
           {:else}
             <span class="muted">imagem inteira</span>
           {/each}
@@ -616,6 +650,26 @@
     border-radius: 999px;
     font-size: 12px;
     white-space: nowrap;
+  }
+  /* O chip que realça a área: do tamanho do de antes, para a conta da largura
+     da folha continuar valendo, com o alvo do dedo maior que ele. */
+  button.chip-area {
+    position: relative;
+    min-height: 0;
+    line-height: inherit;
+    background: transparent;
+    color: inherit;
+  }
+  /* Sem passar da metade do espaço entre as linhas do bloco: o alvo de uma
+     não cobre o chip da de baixo. */
+  button.chip-area::after {
+    content: '';
+    position: absolute;
+    inset: -2px -3px;
+  }
+  button.chip-area.on {
+    border-style: solid;
+    background: var(--ativo-fundo);
   }
 
   .acoes {

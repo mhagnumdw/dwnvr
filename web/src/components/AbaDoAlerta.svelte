@@ -14,6 +14,7 @@
   import type { NomeDaFamilia } from '../lib/icones.ts';
   import type { Horario } from '../lib/horarios.ts';
   import HorariosDoAlerta from './HorariosDoAlerta.svelte';
+  import LadrilhoDaArea from './LadrilhoDaArea.svelte';
 
   interface Props {
     alerta: AlertaDaCamera | undefined;
@@ -23,6 +24,10 @@
     limitaHorarios?: boolean;
     horarios?: Horario[];
     areas: AreaDaCamera[];
+    cam: string;
+    // A URL do quadro da câmera, vazia enquanto ele não chega: o fundo dos
+    // ladrilhos das áreas.
+    quadro: string;
     fuso: string;
     // O "Para onde vai", do /api/cameras. Nulo contra servidor anterior a ele.
     porEmail: AlertaPorEmail | null;
@@ -35,6 +40,8 @@
     limitaHorarios = $bindable(false),
     horarios = $bindable([]),
     areas,
+    cam,
+    quadro,
     fuso,
     porEmail,
     erro = $bindable(''),
@@ -140,18 +147,18 @@
     {#if !areas.length}
       <small class="muted">Desenhe as áreas na aba Áreas para escolher onde o alerta vale.</small>
     {:else if onde === 'areas'}
-      <div class="lista">
+      <div class="ladrilhos" role="group" aria-label="áreas do alerta">
         {#each areas as a, i (a.id ?? `nova-${i}`)}
-          <label class="check">
-            <input
-              type="checkbox"
-              checked={!!a.id && marcadas.includes(a.id)}
-              onchange={(e) => {
-                if (a.id) alternaArea(a.id, e.currentTarget.checked);
-              }}
-            />
-            {a.name}
-          </label>
+          {@const on = !!a.id && marcadas.includes(a.id)}
+          <LadrilhoDaArea
+            {cam}
+            area={a}
+            {on}
+            fundo={quadro}
+            onclick={() => {
+              if (a.id) alternaArea(a.id, !on);
+            }}
+          />
         {/each}
       </div>
     {/if}
@@ -238,10 +245,10 @@
     display: grid;
     gap: 10px;
   }
-  .lista {
+  .ladrilhos {
     display: grid;
-    gap: 8px;
-    padding-left: 27px;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
   }
 
   label.check {
