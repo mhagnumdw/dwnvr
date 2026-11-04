@@ -20,6 +20,7 @@ pode ser rodado outra vez para conferir.
 - [Secret scanning e push protection](#secret-scanning-e-push-protection)
 - [Token dos workflows só com leitura](#token-dos-workflows-só-com-leitura)
 - [Dependabot alerts e security updates](#dependabot-alerts-e-security-updates)
+  - [Revisar e aceitar o PR do Dependabot](#revisar-e-aceitar-o-pr-do-dependabot)
   - [PR do Dependabot em `web/`](#pr-do-dependabot-em-web)
   - [PR do Dependabot em `dwnvr-detect/`](#pr-do-dependabot-em-dwnvr-detect)
   - [Alert que não fecha depois da correção](#alert-que-não-fecha-depois-da-correção)
@@ -100,6 +101,43 @@ A atualização de versão, um PR por mês e por ecossistema, vem do
 arquivo o porquê de cada regra. O badge do Dependabot no README fica vermelho
 quando um run dele falha, como ao não conseguir ler um arquivo.
 
+### Revisar e aceitar o PR do Dependabot
+
+Um PR de cada vez, nesta ordem:
+
+1. **Security update**, que fecha um alert aberto.
+2. **O que muda a base dos outros:** `github-actions`, que é a própria CI, e
+   `pre-commit`, os linters. A CI dos PRs seguintes roda com eles.
+3. **`gomod` e `docker`.**
+4. **`npm`**, por último, porque pode pedir o commit do build
+   ([abaixo](#pr-do-dependabot-em-web)).
+
+O PR que precisa de decisão ou de trabalho sai da fila e não segura os demais.
+Em cada um:
+
+- **Escopo.** O diff só troca versão (e o `go.sum` ou o `package-lock.json`).
+  Commit de outra pessoa na branch muda o que revisar.
+- **Versão replicada.** A versão antiga não sobrou em outro arquivo:
+  `git grep` no head do PR, fora do lockfile. Os lugares de cada versão estão
+  nas Repercussões do `AGENTS.md`.
+- **SHA da action.** No `github-actions`, o SHA novo é o da tag do comentário:
+  `gh api repos/<dono>/<action>/commits/<tag> --jq .sha`.
+- **Changelog.** As notas de todas as versões intermediárias, e não só a de
+  destino, filtradas pelo uso daqui: breaking change, default novo e regra
+  nova de linter pesam; feature que o dwnvr não usa, não. Em `0.x` (uv,
+  ruff), minor também quebra. A idade da versão o `cooldown` já cobre.
+- **Base atrasada.** Os PRs do mês saem do mesmo commit, e a `main` anda. Se o
+  que entrou depois é exercitado pelo bump (código novo para o linter novo, uso
+  novo da lib), a checagem roda sobre a `main` antes do merge, numa worktree da
+  `origin/main` com o arquivo do PR: `prek run --all-files` ou
+  `go test ./... -race`.
+- **Merge.** Squash, amarrado ao head revisado, para falhar se a branch mudou:
+  `gh pr merge <número> --squash --match-head-commit <sha>`. A branch sai
+  sozinha ([abaixo](#branch-apagada-depois-do-merge)).
+
+Depois do último, os runs do push da `main` se acompanham pelo ID, com
+`gh run watch <id> --exit-status`.
+
 ### PR do Dependabot em `web/`
 
 O build da interface é versionado em `internal/api/dist`, e o Dependabot não o
@@ -108,10 +146,15 @@ atualizada?" do `ci.yml`, com uma anotação no resumo do PR que aponta para
 cá. O aviso é o próprio check porque o Dependabot não comenta no PR, e uma
 conversa que segura o merge só existe com um ruleset exigindo PR, o que
 acabaria com o commit direto na `main`. O PR só entra com um commit do build
-refeito:
+refeito.
+
+Se a branch está atrás da `main` e a `main` mudou o `dist`, o build feito ali
+sairia com a interface velha. A `main` entra antes, por merge, que não pede
+push forçado:
 
 ```sh
 gh pr checkout <número>
+git merge-base --is-ancestor origin/main HEAD || git merge origin/main
 make web
 git add internal/api/dist
 git commit -m "build(web): interface refeita com <pacote> <versão>"
@@ -173,7 +216,9 @@ ecossistema:
   que está em vários lugares (a linha "versão de Go ou de Node" das
   Repercussões do `AGENTS.md`) e sobe à mão.
 - **`npm`** (em `/web`): tudo menos o major do TypeScript, que o svelte-check
-  4.7.6 ainda não aceita (o PR #8 falhou no `npm ci`).
+  4.7.6 ainda não aceita (o PR #8 falhou no `npm ci`), e o major do
+  `@types/node`, que é o do Node que roda e sobe junto com ele (o PR #57
+  propôs o 26 com o Node no 24).
 - **`pip`** (em `/dwnvr-detect`): sem atualização de versão
   (`open-pull-requests-limit: 0`, que mantém o security update). As versões do
   `requirements.in` são as que exportaram o `.onnx` e mediram a entrega, e

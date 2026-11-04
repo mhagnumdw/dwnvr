@@ -52,6 +52,12 @@ updates:
       # quando uma versão dele aceitar o 7.
       - dependency-name: typescript
         update-types: [version-update:semver-major]
+      # O major do @types/node é o do Node que roda (node:24-alpine e o
+      # node-version da CI); acima dele, o tsc aceita API que o Node não tem.
+      # Sobe junto com o Node, pela linha "versão de Go ou de Node" das
+      # Repercussões do AGENTS.md.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
     groups:
       npm:
         patterns: ["*"]
