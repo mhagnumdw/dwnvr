@@ -73,6 +73,9 @@
   let imagem = $state<{ fonte: CanvasImageSource; w: number; h: number } | null>(null);
   // A largura medida, quando ela não vem de `largura`.
   let medida = $state(0);
+  // Sobe quando o bitmap guardado aqui foi fechado pelo cache que o despejou:
+  // a miniatura pede o quadro de novo.
+  let rebusca = $state(0);
 
   // O pedaço do quadro que enquadra a área, quando ela é pequena e há zoom.
   const alvo = $derived.by(() => {
@@ -86,6 +89,8 @@
     const f = fundo;
     // A miniatura da tira não aguenta o zoom: a da área pequena vem maior.
     const escala = ampliavel ? ZOOM_TETO : 1;
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
+    rebusca;
     let vivo = true;
     imagem = null;
     if (f === undefined) {
@@ -264,13 +269,21 @@
     if (c.height !== h) c.height = h;
     g.fillStyle = '#000';
     g.fillRect(0, 0, w, h);
+    // O cache de `thumbs.ts` fecha o bitmap que despeja, e o fechado fica com
+    // largura zero. Esta miniatura ainda o guardava: sai e pede o quadro de
+    // novo. Enquanto ele não chega, `imagem` fica vazia, e o pedido não se
+    // repete a cada redesenho.
+    if (imagem && imagem.fonte instanceof ImageBitmap && imagem.fonte.width === 0) {
+      imagem = null;
+      rebusca++;
+    }
     try {
       if (imagem) {
         const { fonte, w: iw, h: ih } = imagem;
         g.drawImage(fonte, v.x * iw, v.y * ih, v.w * iw, v.h * ih, 0, 0, w, h);
       }
     } catch {
-      // O cache da tira fecha o bitmap que despeja; fica o fundo escuro.
+      // Sem quadro, ficam só os desenhos sobre o fundo escuro.
     }
     const desenha = desenho === 'cheia' ? preencheArea : desenhaContorno;
     for (const a of areas) desenha(g, pontosNaVista(a.points, v), w, h);

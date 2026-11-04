@@ -37,6 +37,8 @@ export function instalarDicaDoToque() {
   let ouvinte: Element | null = null;
   // O de quem pediu o toque longo neste toque, mesmo depois do aviso: o
   // `contextmenu` que chega atrasado também não abre o menu do sistema nele.
+  // O mouse e o teclado o zeram: o clique direito e a tecla de menu, depois
+  // de um toque, abrem o menu de sempre.
   let ouvinteDoToque: Element | null = null;
   let origem = { x: 0, y: 0 };
   // A dica abriu neste toque: o clique que vem ao soltar é engolido.
@@ -80,7 +82,10 @@ export function instalarDicaDoToque() {
   }
 
   const aoTocar = (e: PointerEvent) => {
-    if (e.pointerType !== 'touch') return;
+    if (e.pointerType !== 'touch') {
+      ouvinteDoToque = null;
+      return;
+    }
     const de = e.target instanceof Element ? e.target : null;
     const el = de?.closest(ALVO) ?? null;
     abriu = false;
@@ -111,6 +116,10 @@ export function instalarDicaDoToque() {
     e.preventDefault();
     e.stopImmediatePropagation();
   };
+  // A tecla de menu depois de um toque: o menu de sempre abre.
+  const aoTeclar = () => {
+    ouvinteDoToque = null;
+  };
   // O `contextmenu` é o próprio toque longo para o navegador, e pode chegar
   // antes do nosso tempo: a dica abre com ele. E o menu do sistema (abrir o
   // link, copiar), que abriria no mesmo toque, não abre. Só no toque: o
@@ -136,6 +145,7 @@ export function instalarDicaDoToque() {
   document.addEventListener('pointercancel', aoSoltar);
   document.addEventListener('click', aoClicar, true);
   document.addEventListener('contextmenu', aoMenu);
+  document.addEventListener('keydown', aoTeclar, true);
 
   return () => {
     cancela();
@@ -147,5 +157,6 @@ export function instalarDicaDoToque() {
     document.removeEventListener('pointercancel', aoSoltar);
     document.removeEventListener('click', aoClicar, true);
     document.removeEventListener('contextmenu', aoMenu);
+    document.removeEventListener('keydown', aoTeclar, true);
   };
 }

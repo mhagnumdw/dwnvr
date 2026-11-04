@@ -353,11 +353,15 @@
     const cam = editing?.id;
     const comMiniaturas = aba === 'areas' || (aba === 'alerta' && !!editing?.areas?.length);
     if (!comMiniaturas || !comDeteccao || !cam) return;
-    // O quadro só se lê aqui, sem acompanhar: a busca que falhou tenta de
-    // novo ao entrar numa das abas, e não a cada mudança dele, o que repetiria
-    // um pedido que falha sem parar.
-    const q = untrack(() => quadro);
-    if (q?.cam !== cam || (q.erro && !q.buscando)) void buscaQuadro(cam, !!editing?._novo);
+    const novo = !!editing?._novo;
+    // O quadro se lê e a busca começa sem acompanhar: a busca que falhou tenta
+    // de novo ao entrar numa das abas, e não a cada mudança do quadro, o que
+    // repetiria sem parar um pedido que falha. A própria busca lê e grava o
+    // quadro antes do primeiro await.
+    untrack(() => {
+      const q = quadro;
+      if (q?.cam !== cam || (q.erro && !q.buscando)) void buscaQuadro(cam, novo);
+    });
   });
   $effect(() => {
     if (!editing) soltaQuadro();
