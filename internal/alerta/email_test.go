@@ -42,8 +42,8 @@ func TestEmailNasceComAsDuasCoisas(t *testing.T) {
 			[]string{"smtp"}},
 		{"smtp recusado e sem a lista", config.Config{SMTP: config.SMTP{Recusa: "smtp.host vazio"}}, false,
 			[]string{"alerts.email.to", "smtp"}},
-		{"com as duas", config.Config{SMTP: smtp, Alerts: config.Alerts{Email: config.AlertsEmail{To: para}}},
-			true, nil},
+		{"com as duas", config.Config{SMTP: smtp, Alerts: config.Alerts{Email: config.AlertsEmail{To: para}},
+			Server: config.Server{PublicURL: "https://dwnvr.exemplo.com"}}, true, nil},
 	} {
 		if got := FaltaParaOEmail(&c.cfg); !slices.Equal(got, c.falta) {
 			t.Errorf("%s: falta %q, esperado %q", c.nome, got, c.falta)
@@ -55,8 +55,8 @@ func TestEmailNasceComAsDuasCoisas(t *testing.T) {
 		if (n != nil) != c.nasce {
 			t.Errorf("%s: nasceu %v, esperado %v", c.nome, n != nil, c.nasce)
 		}
-		if e, ok := n.(*Email); ok && !slices.Equal(e.para, para) {
-			t.Errorf("%s: para %v", c.nome, e.para)
+		if e, ok := n.(*Email); ok && (!slices.Equal(e.para, para) || e.endereco != c.cfg.Server.PublicURL) {
+			t.Errorf("%s: para %v e endereço %q", c.nome, e.para, e.endereco)
 		}
 	}
 	if _, ok := Notificadores[MeioEmail]; !ok {
@@ -64,19 +64,20 @@ func TestEmailNasceComAsDuasCoisas(t *testing.T) {
 	}
 }
 
-// TestMensagemDoAlerta: uma mensagem só para a lista inteira; o assunto com a
-// família de maior prioridade, a câmera e a hora; o corpo com o dia, cada
-// objeto e as áreas; e o quadro anexo.
+// TestMensagemDoAlerta: uma mensagem só para a lista inteira; o assunto com
+// a câmera, as famílias sem repetir e a hora; o texto com o dia, cada objeto,
+// as áreas e o link para a gravação; o HTML com o mesmo e o quadro no corpo.
 func TestMensagemDoAlerta(t *testing.T) {
 	instante := time.Date(2026, 10, 27, 14, 32, 5, 0, time.Local)
-	a := Alerta{Camera: "cam_garagem", NomeDaCamera: "Garagem", InstanteMs: instante.UnixMilli(),
+	a := Alerta{Camera: "cam garagem", NomeDaCamera: "Garagem", InstanteMs: instante.UnixMilli(),
 		Quadro: []byte("jpeg"), Objetos: []Objeto{
 			{Familia: "pessoa", Classe: "person", Score: 0.87, Areas: []string{"Portão"}},
 			{Familia: "pessoa", Classe: "person", Score: 0.551, Areas: []string{"Portão", "Calçada", "Rampa"}},
 			{Familia: "veiculo", Classe: "car", Score: 0.7},
 		}}
 	f := &enviadorFalso{}
-	e := &Email{envio: f, para: []string{"fulano@exemplo.com", "ciclana@exemplo.com"}}
+	e := &Email{envio: f, para: []string{"fulano@exemplo.com", "ciclana@exemplo.com"},
+		endereco: "https://dwnvr.exemplo.com"}
 	if err := e.Envia(context.Background(), a); err != nil {
 		t.Fatal(err)
 	}
@@ -87,33 +88,97 @@ func TestMensagemDoAlerta(t *testing.T) {
 	if !slices.Equal(m.Para, e.para) {
 		t.Errorf("para %v", m.Para)
 	}
-	if want := "Pessoa em Garagem às 14:32"; m.Assunto != want {
+	if want := "[Alerta] Garagem: pessoa e veículo às 14:32"; m.Assunto != want {
 		t.Errorf("assunto %q, esperado %q", m.Assunto, want)
 	}
-	want := "Pessoa em Garagem, terça-feira, 27/10/2026, às 14:32:05.\n\n" +
+	// O espaço da câmera vira "+", que o URLSearchParams da tela lê de volta.
+	link := "https://dwnvr.exemplo.com/#rec?cam=cam+garagem&day=2026-10-27&t=14:32:05"
+	want := "Pessoa e veículo na câmera Garagem, terça-feira, 27/10/2026 às 14:32:05.\n\n" +
 		"- Pessoa 0,87, na área Portão\n" +
 		"- Pessoa 0,55, nas áreas Portão, Calçada e Rampa\n" +
 		"- Veículo 0,70\n\n" +
-		"O quadro olhado vai anexo.\n"
+		"Ver na gravação:\n" + link + "\n"
 	if m.Texto != want {
 		t.Errorf("corpo\n%s\nesperado\n%s", m.Texto, want)
 	}
-	if len(m.Anexos) != 1 || m.Anexos[0].Nome != "cam_garagem-2026-10-27-143205.jpg" ||
-		m.Anexos[0].Tipo != "image/jpeg" || string(m.Anexos[0].Dados) != "jpeg" {
+	if len(m.Anexos) != 2 || !ehAMarca(m.Anexos[0]) ||
+		m.Anexos[1].Nome != "cam garagem-2026-10-27-143205.jpg" ||
+		m.Anexos[1].Tipo != "image/jpeg" || string(m.Anexos[1].Dados) != "jpeg" ||
+		m.Anexos[1].NoCorpo != idDoQuadro {
 		t.Errorf("anexos %+v", m.Anexos)
+	}
+	for _, trecho := range []string{
+		// A prévia da caixa de entrada.
+		"Nas áreas Portão, Calçada e Rampa · terça-feira, 27/10/2026 às 14:32:05",
+		`<img src="cid:` + idDoQuadro + `"`, `<img src="cid:` + idDaMarca + `"`,
+		"Alerta · Garagem</td>", ">Alerta da câmera Garagem</div>",
+		">Pessoa e veículo</div>",
+		"Câmera Garagem · terça-feira, 27/10/2026\u00a0às\u00a014:32:05",
+		"áreas Portão, Calçada e Rampa", "imagem inteira", "background:#a371f7",
+		`href="https://dwnvr.exemplo.com/#rec?cam=cam&#43;garagem&amp;day=2026-10-27&amp;t=14:32:05"`,
+	} {
+		if !strings.Contains(m.HTML, trecho) {
+			t.Errorf("o HTML não tem %q", trecho)
+		}
+	}
+	if strings.Contains(m.HTML, "server.publicUrl") {
+		t.Error("com o endereço, o HTML ainda pede o server.publicUrl")
+	}
+}
+
+// TestMensagemSemEndereco: sem o server.publicUrl, nem o texto nem o HTML
+// levam link, e os dois dizem a quem pedir.
+func TestMensagemSemEndereco(t *testing.T) {
+	m, err := mensagemDoAlerta(alertaDe(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli()),
+		[]string{"fulano@exemplo.com"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for nome, corpo := range map[string]string{"texto": m.Texto, "HTML": m.HTML} {
+		if strings.Contains(corpo, "#rec?") || !strings.Contains(corpo, "server.publicUrl") {
+			t.Errorf("%s sem o endereço:\n%s", nome, corpo)
+		}
+	}
+	if strings.Contains(m.HTML, "<a ") {
+		t.Error("o HTML tem um link sem o endereço")
 	}
 }
 
 // TestMensagemSemQuadro: o quadro que não foi gravado não vira anexo, e o
-// corpo não promete um.
+// HTML não o mostra; a marca do header vai do mesmo jeito.
 func TestMensagemSemQuadro(t *testing.T) {
 	a := alertaDe(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
 	a.Quadro = nil
-	m := mensagemDoAlerta(a, []string{"fulano@exemplo.com"})
-	if len(m.Anexos) != 0 || strings.Contains(m.Texto, "anexo") {
-		t.Errorf("sem quadro, anexos %+v e corpo\n%s", m.Anexos, m.Texto)
+	m, err := mensagemDoAlerta(a, []string{"fulano@exemplo.com"}, "https://dwnvr.exemplo.com")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if m.Assunto != "Pessoa em Frente às 03:00" {
+	if len(m.Anexos) != 1 || !ehAMarca(m.Anexos[0]) || strings.Contains(m.HTML, "cid:"+idDoQuadro) {
+		t.Errorf("sem quadro, anexos %+v e HTML\n%s", m.Anexos, m.HTML)
+	}
+	if m.Assunto != "[Alerta] Frente: pessoa às 03:00" {
 		t.Errorf("assunto %q", m.Assunto)
 	}
+}
+
+// TestMensagemEscapaONome: o nome da câmera e o da área são do usuário, e
+// no HTML saem como texto.
+func TestMensagemEscapaONome(t *testing.T) {
+	a := alertaDe(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
+	a.NomeDaCamera = `Frente <script>"x"</script>`
+	a.Objetos[0].Areas = []string{"<b>Portão</b>"}
+	m, err := mensagemDoAlerta(a, []string{"fulano@exemplo.com"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(m.HTML, "<script>") || strings.Contains(m.HTML, "<b>") ||
+		!strings.Contains(m.HTML, "Frente &lt;script&gt;") {
+		t.Errorf("o HTML não escapou o nome:\n%s", m.HTML)
+	}
+}
+
+// ehAMarca: a marca vai no corpo, como o PNG embutido.
+func ehAMarca(a email.Anexo) bool {
+	return a.Nome == "dwnvr.png" && a.Tipo == "image/png" && a.NoCorpo == idDaMarca &&
+		len(a.Dados) > 0 && string(a.Dados[1:4]) == "PNG"
 }

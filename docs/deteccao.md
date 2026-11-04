@@ -310,15 +310,22 @@ que não saíram.
 **Por e-mail**, com a lista `alerts.email.to` e a seção `smtp` do
 `dwnvr.yaml` (ver
 [`configuracao.md`](configuracao.md#alerta-por-e-mail)): uma mensagem só para
-a lista inteira. O assunto diz a família de maior prioridade, a câmera e a
-hora do onset, como "Pessoa em Garagem às 14:32"; o corpo, o dia, cada objeto,
-com a confiança, e as áreas em que caiu; e o quadro olhado vai anexo, em JPEG,
-com a caixa de cada objeto que alertou, na cor da família, e o contorno
-tracejado das áreas do alerta, como Detecções mostra com o filtro "só
-alertas". O quadro é desenhado uma vez por alerta, na goroutine de envio, e
-todo meio recebe o mesmo; se o desenho falhar, ele vai como foi olhado.
-Sem link para abrir a detecção: o servidor não sabe o endereço pelo qual é
-acessado. O envio que falha vai ao log e vira um Aviso vermelho, que some no
+a lista inteira, em HTML e com o texto puro junto, para o leitor de e-mail que
+não mostra HTML. O assunto diz a câmera, as famílias e a hora do onset, como
+"[Alerta] Garagem: pessoa e veículo às 14:32"; o corpo, a marca do dwnvr no
+topo, o quadro olhado, o
+dia, cada objeto, com a confiança, e as áreas em que caiu. O quadro vai dentro
+do corpo, em JPEG, com a caixa de cada objeto que alertou, na cor da família,
+e o contorno tracejado das áreas do alerta, como Detecções mostra com o filtro
+"só alertas". Ele é desenhado uma vez por alerta, na goroutine de envio, e
+todo meio recebe o mesmo; se o desenho falhar, ele vai como foi olhado. Com o
+`server.publicUrl` (ver
+[`configuracao.md`](configuracao.md#endereço-do-dwnvr)), o botão **Ver na
+gravação** abre a tela Gravações na câmera e no instante do onset; sem ele, o
+servidor não sabe o endereço pelo qual é acessado, e no lugar do botão o
+e-mail pede ao administrador que o defina. O dia e a hora do link são os do
+servidor, e a tela os lê no fuso do navegador: quem abre de outro fuso cai
+deslocado. O envio que falha vai ao log e vira um Aviso vermelho, que some no
 primeiro envio que der certo, e o alerta segue no registro. Como conferir a
 lista e o envio está em
 [`configuracao.md`](configuracao.md#alerta-por-e-mail).

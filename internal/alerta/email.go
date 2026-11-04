@@ -1,8 +1,14 @@
 package alerta
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
+	"html/template"
+	"image/color"
+	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +24,9 @@ import (
 type Email struct {
 	envio email.Enviador
 	para  []string
+	// endereco é o server.publicUrl, base do link para a gravação; vazio, o
+	// e-mail sai sem o botão.
+	endereco string
 }
 
 // NovoEmail monta o meio com a seção smtp ligada e pelo menos um endereço na
@@ -31,7 +40,7 @@ func NovoEmail(cfg *config.Config) (Notificador, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Email{envio: smtp, para: cfg.Alerts.Email.To}, nil
+	return &Email{envio: smtp, para: cfg.Alerts.Email.To, endereco: cfg.Server.PublicURL}, nil
 }
 
 // MeioEmail é o nome do meio de e-mail, no Notificadores e no estado dele.
@@ -56,7 +65,11 @@ func FaltaParaOEmail(cfg *config.Config) []string {
 // Envia monta a mensagem do alerta e a entrega ao servidor, dentro do prazo
 // do ctx e do email.PrazoDoEnvio, o que vencer primeiro.
 func (e *Email) Envia(ctx context.Context, a Alerta) error {
-	return e.envio.Enviar(ctx, mensagemDoAlerta(a, e.para))
+	m, err := mensagemDoAlerta(a, e.para, e.endereco)
+	if err != nil {
+		return err
+	}
+	return e.envio.Enviar(ctx, m)
 }
 
 // nomesDasFamilias são os nomes que a mensagem mostra, os mesmos da tela.
@@ -69,44 +82,157 @@ var nomesDasFamilias = map[detect.Familia]string{
 var diasDaSemana = [...]string{"domingo", "segunda-feira", "terça-feira", "quarta-feira",
 	"quinta-feira", "sexta-feira", "sábado"}
 
-// mensagemDoAlerta escreve o e-mail de um alerta. O assunto diz o que importa
-// num relance, como "Pessoa em Garagem às 14:32", com a família de maior
-// prioridade, que é a do primeiro objeto (o Recorder os ordena). O corpo diz
-// o dia, cada objeto e as áreas em que caiu, e o quadro olhado vai anexo.
+//go:embed email.html
+var htmlDoAlerta string
+
+var modeloDoAlerta = template.Must(template.New("email.html").Parse(htmlDoAlerta))
+
+// pngDaMarca é o ícone do dwnvr no header do e-mail, em PNG de 48 px para a tela
+// de densidade 2: o Gmail e o Outlook não mostram SVG. Sai do
+// web/public/icon-192.png, que é o favicon.svg em PNG:
 //
-// Sem link para abrir a detecção: o servidor não sabe o endereço pelo qual é
-// acessado.
-func mensagemDoAlerta(a Alerta, para []string) email.Mensagem {
+//	magick web/public/icon-192.png -resize 48x48 -strip internal/alerta/marca.png
+//
+//go:embed marca.png
+var pngDaMarca []byte
+
+// idDoQuadro e idDaMarca são os cid: pelos quais o HTML mostra o quadro e a
+// marca.
+const (
+	idDoQuadro = "quadro@dwnvr"
+	idDaMarca  = "marca@dwnvr"
+)
+
+// corpoDoAlerta é o que o email.html recebe. Todo texto chega pronto, e o
+// html/template o escapa: o nome da câmera e o das áreas são do usuário.
+type corpoDoAlerta struct {
+	Assunto, Previa, Titulo, Linha, Rodape, Camera string
+	// Enchimento só repete um caractere invisível depois da prévia, para o
+	// leitor de e-mail não completar a prévia com o começo do corpo.
+	Enchimento []struct{}
+	Objetos    []objetoNoEmail
+	// Marca é o cid do ícone do header; Imagem, o do quadro, vazio sem quadro.
+	Marca, Imagem, AltDaImagem string
+	// Link abre a gravação no instante; vazio sem o server.publicUrl.
+	Link template.URL
+}
+
+type objetoNoEmail struct {
+	Nome, Score, Onde string
+	Cor               template.CSS
+}
+
+// mensagemDoAlerta escreve o e-mail de um alerta, em HTML e em texto. O
+// assunto diz o que importa num relance, como "[Alerta] Garagem: pessoa e
+// veículo às 14:32", com as famílias na ordem de prioridade, que é a dos
+// objetos (o Recorder os ordena). O corpo traz a marca do dwnvr no topo, o
+// quadro, o dia, cada objeto e
+// as áreas em que caiu, e o botão que abre a gravação no instante, quando o
+// server.publicUrl diz o endereço do dwnvr.
+func mensagemDoAlerta(a Alerta, para []string, endereco string) (email.Mensagem, error) {
 	// A hora é a do servidor, a mesma do dia das gravações e dos horários do
 	// alerta.
 	onset := time.UnixMilli(a.InstanteMs).In(time.Local)
-	familia := nomeDaFamilia(a.Objetos[0].Familia)
+	quando := fmt.Sprintf("%s, %s às %s", diasDaSemana[onset.Weekday()],
+		onset.Format("02/01/2006"), onset.Format("15:04:05"))
+	familias := familiasNoEmail(a.Objetos)
+	titulo := maiuscula(juntaNomes(familias))
+
+	c := corpoDoAlerta{
+		Assunto: fmt.Sprintf("[Alerta] %s: %s às %s", a.NomeDaCamera, juntaNomes(familias), onset.Format("15:04")),
+		Titulo:  titulo,
+		// No HTML a data e a hora não se separam na quebra de linha do celular.
+		Linha: fmt.Sprintf("Câmera %s · %s", a.NomeDaCamera,
+			strings.Replace(quando, " às ", "\u00a0às\u00a0", 1)),
+		Rodape: "Alerta da câmera " + a.NomeDaCamera,
+		Previa: quando,
+		Camera: a.NomeDaCamera,
+		Marca:  idDaMarca,
+	}
+	if areas := areasDe(a); len(areas) > 0 {
+		c.Previa = fmt.Sprintf("%s %s · %s", plural(len(areas), "Na área", "Nas áreas"), juntaNomes(areas), quando)
+	}
+	c.Enchimento = make([]struct{}, 90)
 
 	var t strings.Builder
-	fmt.Fprintf(&t, "%s em %s, %s, %s, às %s.\n\n", familia, a.NomeDaCamera,
-		diasDaSemana[onset.Weekday()], onset.Format("02/01/2006"), onset.Format("15:04:05"))
+	fmt.Fprintf(&t, "%s na câmera %s, %s.\n\n", titulo, a.NomeDaCamera, quando)
 	for _, o := range a.Objetos {
 		fmt.Fprintf(&t, "- %s %s", nomeDaFamilia(o.Familia), score(o.Score))
+		onde := "imagem inteira"
 		if len(o.Areas) > 0 {
 			fmt.Fprintf(&t, ", %s %s", plural(len(o.Areas), "na área", "nas áreas"), juntaNomes(o.Areas))
+			onde = plural(len(o.Areas), "área ", "áreas ") + juntaNomes(o.Areas)
 		}
 		t.WriteString("\n")
+		c.Objetos = append(c.Objetos, objetoNoEmail{Nome: nomeDaFamilia(o.Familia), Score: score(o.Score),
+			Onde: onde, Cor: template.CSS(hexa(corDaFamilia(o.Familia)))})
 	}
-	m := email.Mensagem{
-		Para:    para,
-		Assunto: fmt.Sprintf("%s em %s às %s", familia, a.NomeDaCamera, onset.Format("15:04")),
+	if endereco != "" {
+		link := linkDaGravacao(endereco, a.Camera, onset)
+		c.Link = template.URL(link)
+		fmt.Fprintf(&t, "\nVer na gravação:\n%s\n", link)
+	} else {
+		t.WriteString("\nVeja mais detalhes na tela de Gravações. Para aparecer aqui o link que leva " +
+			"direto a este momento, peça ao administrador que defina server.publicUrl.\n")
 	}
+
+	m := email.Mensagem{Para: para, Assunto: c.Assunto, Texto: t.String(),
+		Anexos: []email.Anexo{{Nome: "dwnvr.png", Tipo: "image/png", Dados: pngDaMarca, NoCorpo: idDaMarca}}}
 	if len(a.Quadro) > 0 {
-		t.WriteString("\nO quadro olhado vai anexo.\n")
-		m.Anexos = []email.Anexo{{
-			Nome:  fmt.Sprintf("%s-%s.jpg", a.Camera, onset.Format("2006-01-02-150405")),
-			Tipo:  "image/jpeg",
-			Dados: a.Quadro,
-		}}
+		c.Imagem = idDoQuadro
+		c.AltDaImagem = fmt.Sprintf("Quadro da câmera %s às %s", a.NomeDaCamera, onset.Format("15:04:05"))
+		m.Anexos = append(m.Anexos, email.Anexo{
+			Nome:    fmt.Sprintf("%s-%s.jpg", a.Camera, onset.Format("2006-01-02-150405")),
+			Tipo:    "image/jpeg",
+			Dados:   a.Quadro,
+			NoCorpo: idDoQuadro,
+		})
 	}
-	m.Texto = t.String()
-	return m
+	var h bytes.Buffer
+	if err := modeloDoAlerta.Execute(&h, c); err != nil {
+		return email.Mensagem{}, fmt.Errorf("montando o HTML do alerta: %w", err)
+	}
+	m.HTML = h.String()
+	return m, nil
 }
+
+// linkDaGravacao abre a tela Gravações na câmera e no instante, no formato do
+// linkGravacoes da web (web/src/lib/rota.svelte.ts). O dia e a hora são os do
+// servidor, e a tela os lê no fuso do navegador: quem abre de outro fuso cai
+// deslocado.
+func linkDaGravacao(endereco, camera string, instante time.Time) string {
+	return fmt.Sprintf("%s/#rec?cam=%s&day=%s&t=%s", endereco, url.QueryEscape(camera),
+		instante.Format("2006-01-02"), instante.Format("15:04:05"))
+}
+
+// familiasNoEmail são os nomes das famílias dos objetos, em minúscula, sem
+// repetir, na ordem em que aparecem.
+func familiasNoEmail(objetos []Objeto) []string {
+	var nomes []string
+	for _, o := range objetos {
+		n := strings.ToLower(nomeDaFamilia(o.Familia))
+		if !slices.Contains(nomes, n) {
+			nomes = append(nomes, n)
+		}
+	}
+	return nomes
+}
+
+func maiuscula(s string) string {
+	for i, r := range s {
+		return strings.ToUpper(string(r)) + s[i+len(string(r)):]
+	}
+	return s
+}
+
+func corDaFamilia(f string) color.RGBA {
+	if c, ok := coresDasFamilias[detect.Familia(f)]; ok {
+		return c
+	}
+	return corDesconhecida
+}
+
+func hexa(c color.RGBA) string { return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B) }
 
 func nomeDaFamilia(f string) string {
 	if n, ok := nomesDasFamilias[detect.Familia(f)]; ok {

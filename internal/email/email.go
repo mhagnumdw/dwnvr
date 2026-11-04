@@ -29,13 +29,18 @@ type Enviador interface {
 	Enviar(ctx context.Context, m Mensagem) error
 }
 
-// Mensagem é um e-mail de texto, com anexos ou sem. Para leva só endereços,
-// sem nome: "fulano@exemplo.com".
+// Mensagem é um e-mail de texto, com anexos ou sem, e com uma versão em HTML
+// ou sem. Para leva só endereços, sem nome: "fulano@exemplo.com".
 type Mensagem struct {
 	Para    []string
 	Assunto string
-	Texto   string
-	Anexos  []Anexo
+	// Texto vai sempre: é a mensagem inteira sem HTML, e com HTML é o que
+	// mostra o leitor de e-mail que não mostra HTML.
+	Texto string
+	// HTML, quando há, é o que o leitor de e-mail mostra no lugar do Texto. É
+	// o documento inteiro, já escapado por quem o montou.
+	HTML   string
+	Anexos []Anexo
 }
 
 // Anexo é um arquivo que vai junto do texto, como o quadro do alerta. Ele vai
@@ -48,6 +53,10 @@ type Anexo struct {
 	// Tipo é o tipo MIME, sem parâmetros: "image/jpeg".
 	Tipo  string
 	Dados []byte
+	// NoCorpo, quando preenchido, faz o anexo aparecer dentro do HTML, e não
+	// como arquivo solto: o HTML o mostra com <img src="cid:NoCorpo">. Só
+	// vale com HTML, e só com letras, dígitos e ".-_@".
+	NoCorpo string
 }
 
 // confere recusa o que viraria outro cabeçalho: um assunto com quebra de
@@ -74,20 +83,46 @@ func (m Mensagem) confere() error {
 		if mime.FormatMediaType(a.Tipo, nil) == "" {
 			return fmt.Errorf("anexo %q com tipo %q", a.Nome, a.Tipo)
 		}
+		if a.NoCorpo != "" && (m.HTML == "" || !idValido(a.NoCorpo)) {
+			return fmt.Errorf("anexo %q no corpo com id %q", a.Nome, a.NoCorpo)
+		}
 	}
 	return nil
 }
 
-func disposicao(a Anexo) string {
-	return mime.FormatMediaType("attachment", map[string]string{"filename": a.Nome})
+// idValido aceita o id de um anexo no corpo só com o que não precisa de
+// escape nem no cabeçalho Content-ID nem no cid: do HTML.
+func idValido(id string) bool {
+	for _, c := range id {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(".-_@", c) {
+			return false
+		}
+	}
+	return true
 }
 
-// montar escreve a mensagem no formato da RFC 5322. O texto vai em
+func disposicao(a Anexo) string {
+	tipo := "attachment"
+	if a.NoCorpo != "" {
+		tipo = "inline"
+	}
+	return mime.FormatMediaType(tipo, map[string]string{"filename": a.Nome})
+}
+
+// montar escreve a mensagem no formato da RFC 5322. O texto e o HTML vão em
 // quoted-printable: o acento passa por servidor que só aceita 7 bits, e a
 // linha longa, como a do link, quebra sem estragar.
 //
-// Sem anexo, o texto é a mensagem inteira, como sempre foi. Com anexo, ela
-// vira multipart/mixed: o texto primeiro, e depois cada anexo.
+// Sem HTML e sem anexo, o texto é a mensagem inteira, como sempre foi. O
+// resto se monta por camadas, cada uma só quando há o que pôr nela:
+//
+//	multipart/mixed          os anexos soltos, depois do corpo
+//	  multipart/related      o HTML e os anexos que ele mostra no corpo
+//	    multipart/alternative o texto e o HTML: o leitor mostra o último que sabe
+//	      text/plain
+//	      text/html
+//	    image/jpeg (inline)
+//	  image/jpeg (attachment)
 func montar(de *mail.Address, m Mensagem, agora time.Time) ([]byte, error) {
 	id, err := idDaMensagem(de.Address)
 	if err != nil {
@@ -106,47 +141,96 @@ func montar(de *mail.Address, m Mensagem, agora time.Time) ([]byte, error) {
 	cabecalho("Message-ID", id)
 	cabecalho("MIME-Version", "1.0")
 
-	if len(m.Anexos) == 0 {
-		cabecalho("Content-Type", "text/plain; charset=utf-8")
-		cabecalho("Content-Transfer-Encoding", "quoted-printable")
-		b.WriteString("\r\n")
-		if err := escreveTexto(&b, m.Texto); err != nil {
-			return nil, err
-		}
-		return b.Bytes(), nil
+	raiz := corpoDe(m)
+	cabecalho("Content-Type", raiz.tipo)
+	if raiz.codificacao != "" {
+		cabecalho("Content-Transfer-Encoding", raiz.codificacao)
 	}
-
-	partes := multipart.NewWriter(&b)
-	cabecalho("Content-Type", mime.FormatMediaType("multipart/mixed",
-		map[string]string{"boundary": partes.Boundary()}))
 	b.WriteString("\r\n")
-	texto, err := partes.CreatePart(textproto.MIMEHeader{
-		"Content-Type":              {"text/plain; charset=utf-8"},
-		"Content-Transfer-Encoding": {"quoted-printable"},
-	})
-	if err != nil {
-		return nil, err
-	}
-	if err := escreveTexto(texto, m.Texto); err != nil {
-		return nil, err
-	}
-	for _, a := range m.Anexos {
-		parte, err := partes.CreatePart(textproto.MIMEHeader{
-			"Content-Type":              {a.Tipo},
-			"Content-Disposition":       {disposicao(a)},
-			"Content-Transfer-Encoding": {"base64"},
-		})
-		if err != nil {
-			return nil, err
-		}
-		if err := escreveBase64(parte, a.Dados); err != nil {
-			return nil, err
-		}
-	}
-	if err := partes.Close(); err != nil {
+	if err := raiz.escreve(&b); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil
+}
+
+// parte é um pedaço da mensagem: o cabeçalho dele e quem escreve o conteúdo.
+// A raiz tem o cabeçalho escrito no da mensagem; as outras, dentro do
+// multipart de cima.
+type parte struct {
+	tipo, codificacao, disposicao, id string
+	escreve                           func(io.Writer) error
+}
+
+func (p parte) cabecalho() textproto.MIMEHeader {
+	h := textproto.MIMEHeader{"Content-Type": {p.tipo}}
+	if p.codificacao != "" {
+		h.Set("Content-Transfer-Encoding", p.codificacao)
+	}
+	if p.disposicao != "" {
+		h.Set("Content-Disposition", p.disposicao)
+	}
+	if p.id != "" {
+		h.Set("Content-ID", "<"+p.id+">")
+	}
+	return h
+}
+
+// corpoDe arma as camadas de montar.
+func corpoDe(m Mensagem) parte {
+	corpo := textoQP("text/plain; charset=utf-8", m.Texto)
+	var soltos, noCorpo []parte
+	for _, a := range m.Anexos {
+		if a.NoCorpo != "" {
+			noCorpo = append(noCorpo, anexo(a))
+		} else {
+			soltos = append(soltos, anexo(a))
+		}
+	}
+	if m.HTML != "" {
+		corpo = multipartDe("multipart/alternative", corpo, textoQP("text/html; charset=utf-8", m.HTML))
+		if len(noCorpo) > 0 {
+			corpo = multipartDe("multipart/related", append([]parte{corpo}, noCorpo...)...)
+		}
+	}
+	if len(soltos) > 0 {
+		corpo = multipartDe("multipart/mixed", append([]parte{corpo}, soltos...)...)
+	}
+	return corpo
+}
+
+func textoQP(tipo, texto string) parte {
+	return parte{tipo: tipo, codificacao: "quoted-printable",
+		escreve: func(w io.Writer) error { return escreveTexto(w, texto) }}
+}
+
+func anexo(a Anexo) parte {
+	return parte{tipo: a.Tipo, codificacao: "base64", disposicao: disposicao(a), id: a.NoCorpo,
+		escreve: func(w io.Writer) error { return escreveBase64(w, a.Dados) }}
+}
+
+// multipartDe junta as filhas num multipart. O separador é sorteado agora,
+// porque vai no Content-Type, que é escrito antes do conteúdo.
+func multipartDe(tipo string, filhas ...parte) parte {
+	separador := multipart.NewWriter(io.Discard).Boundary()
+	return parte{
+		tipo: mime.FormatMediaType(tipo, map[string]string{"boundary": separador}),
+		escreve: func(w io.Writer) error {
+			mw := multipart.NewWriter(w)
+			if err := mw.SetBoundary(separador); err != nil {
+				return err
+			}
+			for _, f := range filhas {
+				pw, err := mw.CreatePart(f.cabecalho())
+				if err != nil {
+					return err
+				}
+				if err := f.escreve(pw); err != nil {
+					return err
+				}
+			}
+			return mw.Close()
+		},
+	}
 }
 
 func escreveTexto(w io.Writer, texto string) error {

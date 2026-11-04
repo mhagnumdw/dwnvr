@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -354,4 +356,33 @@ func carregaAvisosDe(t *testing.T, yaml string) (*Config, []Aviso) {
 		t.Fatal(err)
 	}
 	return cfg, avisos
+}
+
+// TestPublicURL: o endereço sai sem a "/" do fim, e com um caminho serve para
+// o dwnvr atrás de proxy. O que estragaria o link montado em cima dele vira
+// aviso e conta como não escrito.
+func TestPublicURL(t *testing.T) {
+	for escrito, want := range map[string]string{
+		"":                              "",
+		"https://dwnvr.exemplo.ts.net":  "https://dwnvr.exemplo.ts.net",
+		"https://dwnvr.exemplo.ts.net/": "https://dwnvr.exemplo.ts.net",
+		"http://192.168.0.10:8080":      "http://192.168.0.10:8080",
+		" https://exemplo.com/dwnvr/ ":  "https://exemplo.com/dwnvr",
+	} {
+		cfg, avisos := carregaAvisosDe(t, fmt.Sprintf("server:\n  publicUrl: %q\n", escrito))
+		if len(avisos) > 0 || cfg.Server.PublicURL != want {
+			t.Errorf("%q: %q com avisos %+v, esperado %q", escrito, cfg.Server.PublicURL, avisos, want)
+		}
+	}
+	senha := "senha"
+	comSenha := (&url.URL{Scheme: "https", User: url.UserPassword("fulano", senha), Host: "exemplo.com"}).String()
+	for _, ruim := range []string{
+		"dwnvr.exemplo.ts.net", "ftp://exemplo.com", "https://", "https://:8080", "https://exemplo.com/?a=1",
+		"https://exemplo.com/#rec", comSenha, "https://exemplo.com/?",
+	} {
+		cfg, avisos := carregaAvisosDe(t, fmt.Sprintf("server:\n  publicUrl: %q\n", ruim))
+		if _, ok := porCampo(avisos)["server.publicUrl"]; !ok || cfg.Server.PublicURL != "" {
+			t.Errorf("%q: %q com avisos %+v, esperado vazio com aviso", ruim, cfg.Server.PublicURL, avisos)
+		}
+	}
 }

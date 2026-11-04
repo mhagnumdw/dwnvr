@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net/mail"
+	"net/textproto"
 	"regexp"
 	"strings"
 	"testing"
@@ -175,4 +177,127 @@ func proximaParte(t *testing.T, partes *multipart.Reader) *multipart.Part {
 		t.Fatal(err)
 	}
 	return p
+}
+
+// TestComHTMLEImagemNoCorpo: com HTML, um anexo no corpo e outro solto, a
+// mensagem sai em camadas (ver montar), e um leitor de e-mail acha em cada
+// uma o que ela leva: o texto e o HTML inteiros, a imagem pelo Content-ID que
+// o HTML cita, e o anexo solto por último.
+func TestComHTMLEImagemNoCorpo(t *testing.T) {
+	m := mensagemDoTeste
+	m.HTML = `<p>Olá, <img src="cid:quadro@dwnvr"></p>`
+	m.Anexos = []Anexo{
+		{Nome: "quadro.jpg", Tipo: "image/jpeg", Dados: []byte("jpeg"), NoCorpo: "quadro@dwnvr"},
+		{Nome: "solto.txt", Tipo: "text/plain", Dados: []byte("solto")},
+	}
+	de, _ := mail.ParseAddress("dwnvr <dwnvr@exemplo.com>")
+	b, err := montar(de, m, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := mail.ReadMessage(bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	misto := partesDe(t, "multipart/mixed", msg.Header.Get("Content-Type"), msg.Body)
+	relacionado := partesDe(t, "multipart/related", misto[0].Header.Get("Content-Type"), misto[0].leitor())
+	alternativo := partesDe(t, "multipart/alternative", relacionado[0].Header.Get("Content-Type"), relacionado[0].leitor())
+	if len(misto) != 2 || len(relacionado) != 2 || len(alternativo) != 2 {
+		t.Fatalf("partes: %d no mixed, %d no related, %d no alternative", len(misto), len(relacionado), len(alternativo))
+	}
+	for i, want := range []struct{ tipo, corpo string }{
+		{"text/plain; charset=utf-8", m.Texto},
+		{"text/html; charset=utf-8", m.HTML},
+	} {
+		p := alternativo[i]
+		corpo, _ := io.ReadAll(quotedprintable.NewReader(p.leitor()))
+		if p.Header.Get("Content-Type") != want.tipo || strings.ReplaceAll(string(corpo), "\r\n", "\n") != want.corpo {
+			t.Errorf("parte %d do alternative: %q com %q", i, p.Header.Get("Content-Type"), corpo)
+		}
+	}
+	img := relacionado[1]
+	if img.Header.Get("Content-ID") != "<quadro@dwnvr>" || !strings.HasPrefix(img.Header.Get("Content-Disposition"), "inline;") {
+		t.Errorf("imagem com Content-ID %q e Content-Disposition %q",
+			img.Header.Get("Content-ID"), img.Header.Get("Content-Disposition"))
+	}
+	if solto := misto[1]; solto.nome() != "solto.txt" ||
+		!strings.HasPrefix(solto.Header.Get("Content-Disposition"), "attachment;") {
+		t.Errorf("anexo solto %q com %q", solto.nome(), solto.Header.Get("Content-Disposition"))
+	}
+}
+
+// TestSoHTMLSemAnexo: só com o HTML, a raiz é o alternative.
+func TestSoHTMLSemAnexo(t *testing.T) {
+	m := mensagemDoTeste
+	m.HTML = "<p>Olá</p>"
+	de, _ := mail.ParseAddress("dwnvr <dwnvr@exemplo.com>")
+	b, err := montar(de, m, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := mail.ReadMessage(bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if partes := partesDe(t, "multipart/alternative", msg.Header.Get("Content-Type"), msg.Body); len(partes) != 2 {
+		t.Errorf("%d partes no alternative", len(partes))
+	}
+}
+
+// TestAnexoNoCorpoSoComHTML: sem HTML não há onde mostrar o anexo no corpo,
+// e o id com o que não cabe no Content-ID é recusado.
+func TestAnexoNoCorpoSoComHTML(t *testing.T) {
+	m := mensagemDoTeste
+	m.Anexos = []Anexo{{Nome: "q.jpg", Tipo: "image/jpeg", NoCorpo: "quadro"}}
+	if m.confere() == nil {
+		t.Error("anexo no corpo sem HTML passou")
+	}
+	m.HTML = "<p></p>"
+	if err := m.confere(); err != nil {
+		t.Errorf("com HTML: %v", err)
+	}
+	m.Anexos[0].NoCorpo = "quadro>\r\nBcc: x"
+	if m.confere() == nil {
+		t.Error("id com quebra de linha passou")
+	}
+}
+
+// parteLida é uma parte de multipart já lida inteira: o leitor da parte
+// seguinte invalida a anterior.
+type parteLida struct {
+	Header textproto.MIMEHeader
+	dados  []byte
+}
+
+func (p parteLida) leitor() io.Reader { return bytes.NewReader(p.dados) }
+
+func (p parteLida) nome() string {
+	_, params, _ := mime.ParseMediaType(p.Header.Get("Content-Disposition"))
+	return params["filename"]
+}
+
+// partesDe lê as partes de um multipart do tipo esperado.
+func partesDe(t *testing.T, tipo, contentType string, corpo io.Reader) []parteLida {
+	t.Helper()
+	got, params, err := mime.ParseMediaType(contentType)
+	if err != nil || got != tipo {
+		t.Fatalf("Content-Type %q, esperado %s (%v)", contentType, tipo, err)
+	}
+	r := multipart.NewReader(corpo, params["boundary"])
+	var partes []parteLida
+	for {
+		p, err := r.NextRawPart()
+		if errors.Is(err, io.EOF) {
+			return partes
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		dados, err := io.ReadAll(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		partes = append(partes, parteLida{Header: p.Header, dados: dados})
+	}
 }

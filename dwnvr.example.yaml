@@ -27,6 +27,13 @@ server:
   # o seu proxy chega ao dwnvr por outra rede. [] não confia em ninguém.
   # trustedProxies: [127.0.0.0/8, "::1/128", 172.16.0.0/12]
 
+  # Opcional. O endereço pelo qual se abre o dwnvr, como na barra do
+  # navegador. Com ele, o e-mail de alerta traz o botão que abre a gravação no
+  # instante. Sem ele, nada deixa de funcionar: o e-mail sai sem o botão e
+  # pede ao administrador que o defina. Ver docs/configuracao.md, "Endereço do
+  # dwnvr".
+  # publicUrl: https://dwnvr.exemplo.ts.net
+
 go2rtc:
   # O dwnvr apenas consome o go2rtc; configurá-lo continua sendo tarefa sua.
   #
