@@ -104,7 +104,6 @@ func mensagemDoAlerta(a Alerta, para []string) email.Mensagem {
 			Dados: a.Quadro,
 		}}
 	}
-	t.WriteString("\nO alerta avisa do que a detecção marcar, e ela não pega toda chegada: não é alarme.\n")
 	m.Texto = t.String()
 	return m
 }

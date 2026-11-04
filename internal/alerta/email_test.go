@@ -94,8 +94,7 @@ func TestMensagemDoAlerta(t *testing.T) {
 		"- Pessoa 0,87, na área Portão\n" +
 		"- Pessoa 0,55, nas áreas Portão, Calçada e Rampa\n" +
 		"- Veículo 0,70\n\n" +
-		"O quadro olhado vai anexo.\n\n" +
-		"O alerta avisa do que a detecção marcar, e ela não pega toda chegada: não é alarme.\n"
+		"O quadro olhado vai anexo.\n"
 	if m.Texto != want {
 		t.Errorf("corpo\n%s\nesperado\n%s", m.Texto, want)
 	}

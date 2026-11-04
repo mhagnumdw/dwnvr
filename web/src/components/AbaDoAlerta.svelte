@@ -193,7 +193,8 @@
     {/if}
   </div>
   <small class="limite">
-    O alerta avisa do que a detecção marcar, e ela não pega toda chegada: não é alarme.
+    Ficar sem aviso não quer dizer que não veio ninguém: o alerta só sai do que a detecção marcar, e
+    ela não pega toda chegada.
   </small>
 </div>
 
