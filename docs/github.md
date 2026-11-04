@@ -125,7 +125,11 @@ Em cada um:
 - **Changelog.** As notas de todas as versões intermediárias, e não só a de
   destino, filtradas pelo uso daqui: breaking change, default novo e regra
   nova de linter pesam; feature que o dwnvr não usa, não. Em `0.x` (uv,
-  ruff), minor também quebra. A idade da versão o `cooldown` já cobre.
+  ruff), minor também quebra.
+- **Idade.** No `docker` o `cooldown` não segura: o PR #60 propôs o uv
+  0.13.7 com a imagem publicada 21 h antes. A data da imagem é a do pacote no
+  registry (`gh api /orgs/astral-sh/packages/container/uv/versions`, para o
+  uv); com menos de 7 dias, o PR espera.
 - **Base atrasada.** Os PRs do mês saem do mesmo commit, e a `main` anda. Se o
   que entrou depois é exercitado pelo bump (código novo para o linter novo, uso
   novo da lib), a checagem roda sobre a `main` antes do merge, numa worktree da
