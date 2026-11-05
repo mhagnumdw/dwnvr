@@ -588,12 +588,28 @@
     if (ini !== rolagem.ini || fim !== rolagem.fim) rolagem = { ini, fim };
   }
 
+  // A âncora da última vista inteira, para a troca de largura (girar o
+  // celular) voltar ao mesmo lugar. A rolagem é em px, e a largura muda a
+  // altura de tudo - e as colunas, na quebra do DESKTOP_PX. Só é relida
+  // enquanto a janela tem a largura com que a grade foi medida: no meio da
+  // rotação a grade ainda é a velha e a rolagem já foi cortada pelo navegador,
+  // e a âncora lida ali seria a errada. E só quando a rolagem sai do lugar
+  // onde a âncora foi posta: a linha de 5 colunas começa noutra detecção, e
+  // reler a âncora depois de girar a faria andar uma linha a cada giro.
+  let ancoraDaVista: Ancora | null = null;
+  let janelaDaGrade = window.innerWidth;
+  let yDaAncora = 0;
+
   let pedido = 0;
   function rolou() {
     if (pedido) return;
     pedido = requestAnimationFrame(() => {
       pedido = 0;
       mede();
+      if (window.innerWidth === janelaDaGrade && window.scrollY !== yDaAncora) {
+        ancoraDaVista = rolagem.ini > 0 ? ancora() : null;
+        yDaAncora = window.scrollY;
+      }
       confere();
     });
   }
@@ -1238,9 +1254,16 @@
 
   // --- ciclo de vida ----------------------------------------------------------
 
-  function redimensiona() {
+  // Largura nova: as colunas e o tamanho da miniatura mudam juntos, e a
+  // âncora de antes devolve a vista à mesma detecção.
+  async function mudaLargura(nova: number) {
+    const a = ancoraDaVista;
+    largura = nova;
     desktop = window.innerWidth >= DESKTOP_PX;
-    rolou();
+    janelaDaGrade = window.innerWidth;
+    await restaura(a);
+    yDaAncora = window.scrollY;
+    confere();
   }
 
   onMount(() => {
@@ -1250,7 +1273,9 @@
     const medeTudo = () => {
       cabH = cab?.offsetHeight ?? 0;
       barraH = barraEl?.offsetHeight ?? 0;
-      largura = listaEl?.clientWidth ?? 0;
+      const nova = listaEl?.clientWidth ?? 0;
+      if (largura && nova !== largura) void mudaLargura(nova);
+      else largura = nova;
       rolou();
     };
     // Já agora, e não só quando o observador responder: a primeira página é
@@ -1291,7 +1316,7 @@
     menu = null;
     rolou();
   }}
-  onresize={redimensiona}
+  onresize={rolou}
   onclick={cliqueFora}
   onkeydown={tecla}
 />
