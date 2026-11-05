@@ -35,6 +35,12 @@
   // encaixe desconta antes de dividir o que sobra entre os tiles.
   const GAP = 8;
   const PROPORCAO = 16 / 9;
+  // Precisa bater com o `gap` da `.page` no CSS: o respiro entre a barra e o
+  // palco, que a altura das colunas desconta.
+  const GAP_DA_PAGINA = 10;
+  // Abaixo disso o tile fica pequeno demais para ver a câmera: a grade passa
+  // a rolar em vez de encolher mais.
+  const ALTURA_MINIMA_COLUNAS = 180;
 
   // Até quantas câmeras o texto do compartilhar diz pelo nome.
   const NOMES_NO_TEXTO = 3;
@@ -86,6 +92,7 @@
   // Nas colunas, a altura que um tile pode ter sem passar da janela: é ela, e
   // não uma largura fixa, que limita a grade - ver `larguraDasColunas`.
   let alturaDasColunas = $state(0);
+  let barra = $state<HTMLDivElement | null>(null);
   // Segura a escrita na URL até a seleção ter sido lida - ver o efeito no fim
   // do bloco.
   let montado = $state(false);
@@ -808,10 +815,15 @@
     if (!palco || emTelaCheia) return;
     if (modo !== 'fit' || !visible.length) {
       palco.style.height = '';
-      // A rolagem entra de volta porque a medida é do topo da página, não do
-      // ponto onde o usuário está: a conta não pode mudar com o resize de
-      // quem rolou até o fim.
-      alturaDasColunas = alturaLivre(palco, 0) - window.scrollY;
+      // Medida de logo abaixo da barra, não do palco: a lista de câmeras e o
+      // aviso de acesso empurram o palco para baixo, e abri-los não pode
+      // encolher as câmeras. A rolagem entra de volta porque a medida é do
+      // topo da página, não do ponto onde o usuário está. O piso evita tile
+      // minúsculo em janela muito baixa, como o celular deitado.
+      if (barra) {
+        const livre = alturaLivre(barra, 0) - window.scrollY - barra.offsetHeight - GAP_DA_PAGINA;
+        alturaDasColunas = Math.max(ALTURA_MINIMA_COLUNAS, livre);
+      }
       return;
     }
 
@@ -857,7 +869,7 @@
 />
 
 <div class="page">
-  <div class="barra">
+  <div class="barra" bind:this={barra}>
     <BotaoCameras
       marcadas={selected.size}
       total={cameras.list.length}
