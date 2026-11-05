@@ -6,8 +6,9 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, mensagemDe } from '../lib/api.ts';
-  import type { Convite, Usuario, Usuarios } from '../lib/api.ts';
+  import { api, ApiError, mensagemDe } from '../lib/api.ts';
+  import type { CampoDaPessoa, Convite, Recusas, Usuario, Usuarios } from '../lib/api.ts';
+  import { Conferencia, type EstadoDoCampo } from '../lib/conferencia.svelte.ts';
   import { session } from '../lib/state.svelte.ts';
   import { copiar } from '../lib/navegador.ts';
   import { dataHora, hojeOntem } from '../lib/format.ts';
@@ -134,10 +135,75 @@
   let novo = $state<{ username: string; name: string; email: string } | null>(null); // com o formulário aberto
   let salvando = $state(false);
   let erroNovo = $state('');
+  // Se o admin já escreveu no usuário. Até lá, o usuário segue o nome (ver
+  // sugerirUsuario); apagar tudo devolve a sugestão.
+  let usuarioEscrito = false;
+  let confNovo = $state.raw(new Conferencia(['username', 'name', 'email'], conferirNovo));
+  const camposNovo: Partial<Record<CampoDaPessoa, HTMLInputElement>> = {};
+
+  async function conferirNovo(): Promise<Recusas> {
+    if (!novo) return {};
+    return (await api.conferirNovo(novo.username, novo.name, novo.email)).fields;
+  }
 
   function abrirNovo() {
     novo = { username: '', name: '', email: '' };
     erroNovo = '';
+    usuarioEscrito = false;
+    confNovo = new Conferencia(['username', 'name', 'email'], conferirNovo);
+  }
+
+  function fecharNovo() {
+    confNovo.parar();
+    novo = null;
+  }
+
+  // "João da Silva Santos" vira "joao.santos": o primeiro e o último nome, sem
+  // acento, em minúsculas, só com o que o usuário aceita, cortado no tamanho
+  // máximo.
+  function sugerirUsuario(nome: string, max: number) {
+    const partes = nome
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+    const escolhidas = partes.length > 1 ? [partes[0], partes[partes.length - 1]] : partes;
+    return escolhidas
+      .join('.')
+      .slice(0, max)
+      .replace(/[._-]+$/, '');
+  }
+
+  function aoDigitarNome() {
+    if (novo && dados && !usuarioEscrito) {
+      novo.username = sugerirUsuario(novo.name, dados.maxUsernameLength);
+    }
+    confNovo.digitar();
+  }
+
+  // Quem preencheu o usuário foi o nome, e o admin talvez nem passe por ele:
+  // o usuário sugerido é conferido junto, para o "já existe" aparecer antes
+  // do salvar.
+  function aoSairDoNome() {
+    if (!novo) return;
+    confNovo.sair('name', novo.name);
+    if (!usuarioEscrito) confNovo.sair('username', novo.username);
+  }
+
+  function aoDigitarUsuario() {
+    usuarioEscrito = novo?.username !== '';
+    confNovo.digitar();
+  }
+
+  // O primeiro campo recusado, na ordem da tela, recebe o foco.
+  function focarRecusa(
+    conf: Conferencia,
+    campos: Partial<Record<CampoDaPessoa, HTMLInputElement>>,
+    ordem: CampoDaPessoa[],
+  ) {
+    const campo = ordem.find((c) => conf.estado(c) === 'erro');
+    if (campo) campos[campo]?.focus();
   }
 
   async function criar(e: SubmitEvent) {
@@ -147,10 +213,15 @@
     erroNovo = '';
     try {
       mostrarLink(await api.criarUsuario(novo.username, novo.name, novo.email));
-      novo = null;
+      fecharNovo();
       await carregar();
     } catch (err) {
-      erroNovo = mensagemDe(err);
+      if (err instanceof ApiError && Object.keys(err.campos).length > 0) {
+        confNovo.recusado(err.campos);
+        focarRecusa(confNovo, camposNovo, ['name', 'username', 'email']);
+      } else {
+        erroNovo = mensagemDe(err);
+      }
     } finally {
       salvando = false;
     }
@@ -172,6 +243,7 @@
     if (acao === 'email') {
       editandoEmail = { u, email: u.email ?? '' };
       erroEmail = '';
+      confEmail = new Conferencia(['email'], conferirEmail);
       return;
     }
     // Link novo para quem ainda não tem senha não derruba ninguém: só troca
@@ -200,6 +272,18 @@
   let editandoEmail = $state<{ u: Usuario; email: string } | null>(null);
   let salvandoEmail = $state(false);
   let erroEmail = $state('');
+  let confEmail = $state.raw(new Conferencia(['email'], conferirEmail));
+  const camposEmail: Partial<Record<CampoDaPessoa, HTMLInputElement>> = {};
+
+  async function conferirEmail(): Promise<Recusas> {
+    if (!editandoEmail) return {};
+    return (await api.conferirEmail(editandoEmail.u.username, editandoEmail.email)).fields;
+  }
+
+  function fecharEmail() {
+    confEmail.parar();
+    editandoEmail = null;
+  }
 
   async function salvarEmail(e: SubmitEvent) {
     e.preventDefault();
@@ -210,13 +294,32 @@
       const { user } = await api.trocarEmail(editandoEmail.u.username, editandoEmail.email);
       // O link aberto no card passa a ir para o e-mail novo.
       if (gerado?.username === user.username) gerado.email = user.email ?? '';
-      editandoEmail = null;
+      fecharEmail();
       await carregar();
     } catch (err) {
-      erroEmail = mensagemDe(err);
+      if (err instanceof ApiError && Object.keys(err.campos).length > 0) {
+        confEmail.recusado(err.campos);
+        focarRecusa(confEmail, camposEmail, ['email']);
+      } else {
+        erroEmail = mensagemDe(err);
+      }
     } finally {
       salvandoEmail = false;
     }
+  }
+
+  // O sinal à direita do campo. O verde só aparece com algo escrito: no
+  // e-mail, que é opcional, um "certo" no campo vazio não diria nada. `soErro`
+  // é o campo que só avisa o que está errado, como o nome.
+  function sinal(
+    conf: Conferencia,
+    campo: CampoDaPessoa,
+    valor: string,
+    soErro = false,
+  ): EstadoDoCampo {
+    const estado = conf.estado(campo);
+    if (estado === 'ok' && (soErro || valor.trim() === '')) return null;
+    return estado;
   }
 
   const voce = $derived(session.pessoa?.username);
@@ -423,46 +526,110 @@
   </p>
 {/snippet}
 
+<!-- O sinal à direita de um campo conferido pelo servidor (ver
+     lib/conferencia.svelte.ts). O texto da recusa vai embaixo, no `recusa`. -->
+{#snippet sinalDoCampo(estado: EstadoDoCampo)}
+  {#if estado}
+    <span class="sinal {estado}"
+      ><Icone nome={estado === 'ok' ? 'marcado' : 'fechar'} tamanho={18} /></span
+    >
+  {/if}
+{/snippet}
+
+<!-- A linha da recusa existe sempre, vazia ou não: o espaço já está guardado,
+     e a mensagem aparece e some sem empurrar o resto do formulário. -->
+{#snippet recusa(id: string, texto: string)}
+  <p class="small erro recusa" {id}>{texto}</p>
+{/snippet}
+
+<!-- novalidate: a recusa do navegador é um balão com outro desenho e outro
+     texto; aqui todas vêm do servidor e ficam embaixo do campo. -->
 {#if novo && dados}
-  <Modal onclose={() => (novo = null)}>
-    <form class="fields" onsubmit={criar}>
+  {@const sNome = sinal(confNovo, 'name', novo.name, true)}
+  {@const sUsuario = sinal(confNovo, 'username', novo.username)}
+  {@const sEmail = sinal(confNovo, 'email', novo.email)}
+  <Modal onclose={fecharNovo}>
+    <form class="fields" onsubmit={criar} novalidate>
       <h3>Novo usuário</h3>
-      <label>
-        Nome, como aparece na tela
-        <input
-          bind:value={novo.name}
-          required
-          maxlength={dados.maxNameLength}
-          placeholder="João Silva"
-        />
-      </label>
-      <label>
-        Usuário, para entrar: letras minúsculas, números, ponto, _ e -
-        <input
-          bind:value={novo.username}
-          required
-          maxlength={dados.maxUsernameLength}
-          pattern="[a-z0-9._\-]+"
-          placeholder="joao.silva"
-          autocapitalize="none"
-          autocorrect="off"
-          spellcheck="false"
-        />
-      </label>
-      <label>
-        {dados.emailEnabled
-          ? 'E-mail, para entrar e receber o link (opcional)'
-          : 'E-mail, para entrar (opcional)'}
-        <input
-          inputmode="email"
-          bind:value={novo.email}
-          maxlength={dados.maxEmailLength}
-          placeholder="joao@exemplo.com"
-          autocapitalize="none"
-          autocorrect="off"
-          spellcheck="false"
-        />
-      </label>
+      <div class="grupos">
+        <div class="grupo">
+          <label>
+            Nome, como aparece na tela
+            <span class="campo">
+              <input
+                bind:this={camposNovo.name}
+                bind:value={novo.name}
+                oninput={aoDigitarNome}
+                onblur={aoSairDoNome}
+                required
+                maxlength={dados.maxNameLength}
+                placeholder="João Silva"
+                aria-invalid={sNome === 'erro'}
+                aria-describedby={sNome === 'erro' ? 'recusa-nome' : undefined}
+              />
+              {@render sinalDoCampo(sNome)}
+            </span>
+          </label>
+          {@render recusa('recusa-nome', sNome === 'erro' ? confNovo.mensagem('name') : '')}
+        </div>
+        <div class="grupo">
+          <label>
+            Usuário, para entrar: letras minúsculas, números, ponto, _ e -
+            <span class="campo">
+              <input
+                bind:this={camposNovo.username}
+                bind:value={novo.username}
+                oninput={aoDigitarUsuario}
+                onblur={() => {
+                  if (novo) confNovo.sair('username', novo.username);
+                }}
+                required
+                maxlength={dados.maxUsernameLength}
+                placeholder="joao.silva"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                aria-invalid={sUsuario === 'erro'}
+                aria-describedby={sUsuario === 'erro' ? 'recusa-usuario' : undefined}
+              />
+              {@render sinalDoCampo(sUsuario)}
+            </span>
+          </label>
+          {@render recusa(
+            'recusa-usuario',
+            sUsuario === 'erro' ? confNovo.mensagem('username') : '',
+          )}
+        </div>
+        <div class="grupo">
+          <label>
+            {dados.emailEnabled
+              ? 'E-mail, para entrar e receber o link (opcional)'
+              : 'E-mail, para entrar (opcional)'}
+            <span class="campo">
+              <input
+                bind:this={camposNovo.email}
+                inputmode="email"
+                bind:value={novo.email}
+                oninput={() => {
+                  confNovo.digitar();
+                }}
+                onblur={() => {
+                  if (novo) confNovo.sair('email', novo.email);
+                }}
+                maxlength={dados.maxEmailLength}
+                placeholder="joao@exemplo.com"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                aria-invalid={sEmail === 'erro'}
+                aria-describedby={sEmail === 'erro' ? 'recusa-email' : undefined}
+              />
+              {@render sinalDoCampo(sEmail)}
+            </span>
+          </label>
+          {@render recusa('recusa-email', sEmail === 'erro' ? confNovo.mensagem('email') : '')}
+        </div>
+      </div>
       {#if !dados.emailEnabled}{@render semEnvio()}{/if}
       <p class="small muted">
         O dwnvr gera um link que vale {minutos} minutos, para a pessoa definir a própria senha. Ela vê
@@ -472,7 +639,7 @@
       {#if erroNovo}<p class="small erro">{erroNovo}</p>{/if}
       <div class="row">
         <span class="spacer"></span>
-        <button type="button" class="ghost" onclick={() => (novo = null)}>cancelar</button>
+        <button type="button" class="ghost" onclick={fecharNovo}>cancelar</button>
         <button class="primary" type="submit" disabled={salvando}>
           {salvando ? 'criando…' : 'criar e gerar o link'}
         </button>
@@ -483,29 +650,45 @@
 
 {#if editandoEmail && dados}
   {@const alvo = editandoEmail.u}
-  <Modal onclose={() => (editandoEmail = null)}>
-    <form class="fields" onsubmit={salvarEmail}>
+  {@const sEmail = sinal(confEmail, 'email', editandoEmail.email)}
+  <Modal onclose={fecharEmail}>
+    <form class="fields" onsubmit={salvarEmail} novalidate>
       <h3>E-mail de {alvo.name}</h3>
-      <label>
-        {dados.emailEnabled
-          ? 'Para entrar e receber o link de definir a senha'
-          : 'Para entrar, no lugar do usuário'}
-        <input
-          inputmode="email"
-          bind:value={editandoEmail.email}
-          maxlength={dados.maxEmailLength}
-          placeholder="joao@exemplo.com"
-          autocapitalize="none"
-          autocorrect="off"
-          spellcheck="false"
-        />
-      </label>
+      <div class="grupo">
+        <label>
+          {dados.emailEnabled
+            ? 'Para entrar e receber o link de definir a senha'
+            : 'Para entrar, no lugar do usuário'}
+          <span class="campo">
+            <input
+              bind:this={camposEmail.email}
+              inputmode="email"
+              bind:value={editandoEmail.email}
+              oninput={() => {
+                confEmail.digitar();
+              }}
+              onblur={() => {
+                if (editandoEmail) confEmail.sair('email', editandoEmail.email);
+              }}
+              maxlength={dados.maxEmailLength}
+              placeholder="joao@exemplo.com"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              aria-invalid={sEmail === 'erro'}
+              aria-describedby={sEmail === 'erro' ? 'recusa-email-de' : undefined}
+            />
+            {@render sinalDoCampo(sEmail)}
+          </span>
+        </label>
+        {@render recusa('recusa-email-de', sEmail === 'erro' ? confEmail.mensagem('email') : '')}
+      </div>
       <p class="small muted">Vazio apaga o e-mail. A senha e o link de {alvo.name} não mudam.</p>
       {#if !dados.emailEnabled}{@render semEnvio()}{/if}
       {#if erroEmail}<p class="small erro">{erroEmail}</p>{/if}
       <div class="row">
         <span class="spacer"></span>
-        <button type="button" class="ghost" onclick={() => (editandoEmail = null)}>cancelar</button>
+        <button type="button" class="ghost" onclick={fecharEmail}>cancelar</button>
         <button class="primary" type="submit" disabled={salvandoEmail}>
           {salvandoEmail ? 'salvando…' : 'salvar'}
         </button>
@@ -693,8 +876,13 @@
     padding: 12px 0;
   }
 
+  /* O ícone é um svg em bloco, que o text-align do botão não centraliza: sem
+     o flex, ele encostava à esquerda, 8 px fora do centro. */
   .mais {
     flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 36px;
     min-height: 36px;
     padding: 0;
@@ -753,5 +941,57 @@
     width: 100%;
     color: var(--fg);
     font-size: 15px;
+  }
+
+  /* O campo e a linha da recusa embaixo dele, mais perto um do outro que
+     dos outros campos. A linha guardada (ver o snippet recusa) ocupa o vão
+     entre um campo e o próximo: os grupos ficam a 10 px, e não aos 14 do
+     formulário, para o vão vazio não crescer tanto. Menos que 10 deixa a
+     mensagem colada no rótulo de baixo, como se fosse dele. */
+  .grupos {
+    display: grid;
+    gap: 10px;
+  }
+
+  .grupo {
+    display: grid;
+    gap: 4px;
+  }
+
+  /* Uma linha do .small (13 px com o line-height 1.5 do body). A mensagem
+     que quebra em duas, no celular, ainda empurra uma linha. */
+  .recusa {
+    min-height: 19.5px;
+  }
+
+  /* O sinal fica dentro da borda, à direita, e o texto não passa por baixo
+     dele: 12 px de margem + 18 do ícone + 8 de folga. */
+  .campo {
+    position: relative;
+    display: block;
+  }
+
+  .campo input {
+    padding-right: 38px;
+  }
+
+  .sinal {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .sinal.ok {
+    color: var(--ok);
+  }
+
+  .sinal.erro {
+    color: var(--bad);
+  }
+
+  .campo input[aria-invalid='true'] {
+    border-color: var(--bad);
   }
 </style>

@@ -3,6 +3,7 @@ package usuarios
 import (
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,19 +69,17 @@ func TestCriarRecusa(t *testing.T) {
 	if _, err := c.Criar("maria", "Maria", ""); err != nil {
 		t.Fatal(err)
 	}
-	casos := map[string][2]string{
-		"repetido":          {"maria", "Outra Maria"},
-		"o dono":            {"admin", "Admin"},
-		"fora do formato":   {"Maria", "Maria"},
-		"sem nome":          {"jose", "   "},
-		"nome comprido":     {"jose", strings.Repeat("a", TamanhoMaximoDoNome+1)},
-		"nome com controle": {"jose", "Jo\x00sé"},
+	casos := map[string][3]string{ // usuário, nome e o campo recusado
+		"repetido":          {"maria", "Outra Maria", CampoUsuario},
+		"o dono":            {"admin", "Admin", CampoUsuario},
+		"fora do formato":   {"Maria", "Maria", CampoUsuario},
+		"sem nome":          {"jose", "   ", CampoNome},
+		"nome comprido":     {"jose", strings.Repeat("a", TamanhoMaximoDoNome+1), CampoNome},
+		"nome com controle": {"jose", "Jo\x00sé", CampoNome},
 	}
 	for nome, caso := range casos {
-		var recusado Recusado
-		if _, err := c.Criar(caso[0], caso[1], ""); !errors.As(err, &recusado) {
-			t.Errorf("%s: err=%v, esperava Recusado", nome, err)
-		}
+		_, err := c.Criar(caso[0], caso[1], "")
+		conferirRecusa(t, nome, err, caso[2])
 	}
 	if n := len(c.Listar()); n != 1 {
 		t.Errorf("%d pessoas no cadastro, esperava só a maria", n)
@@ -171,5 +170,129 @@ func TestRemover(t *testing.T) {
 	}
 	if err := c.Remover("maria"); !errors.Is(err, ErrNaoExiste) {
 		t.Errorf("remover de novo: %v", err)
+	}
+}
+
+// conferirRecusa confere que err é a recusa de um formulário com o campo
+// recusado, e só ele.
+func conferirRecusa(t *testing.T, caso string, err error, campo string) {
+	t.Helper()
+	var recusas Recusas
+	if !errors.As(err, &recusas) {
+		t.Errorf("%s: err=%v, esperava Recusas", caso, err)
+		return
+	}
+	if _, ok := recusas[campo]; !ok || len(recusas) != 1 {
+		t.Errorf("%s: recusas %q, esperava só o campo %q", caso, recusas, campo)
+	}
+}
+
+// TestCriarRecusaCadaCampo: com mais de um campo errado, vem a recusa de cada
+// um, para a tela pôr cada mensagem embaixo do seu campo.
+func TestCriarRecusaCadaCampo(t *testing.T) {
+	c := cadastroVazio(t)
+	_, err := c.Criar("Maria", "", "maria")
+	var recusas Recusas
+	if !errors.As(err, &recusas) || len(recusas) != 3 {
+		t.Fatalf("err=%v, esperava as recusas dos 3 campos", err)
+	}
+	// A primeira, na ordem da tela, é a mensagem de quem mostra uma só.
+	if recusas.Error() != recusas[CampoUsuario] {
+		t.Errorf("Error() = %q, esperava a do usuário", recusas.Error())
+	}
+}
+
+// TestConferirNovoEhAReguaDoCriar: o que a conferência aceita, o Criar aceita;
+// o que ela recusa, ele recusa com a mesma mensagem. E ela não grava nada.
+func TestConferirNovoEhAReguaDoCriar(t *testing.T) {
+	c := cadastroVazio(t)
+	if _, err := c.Criar("maria", "Maria", "maria@exemplo.com"); err != nil {
+		t.Fatal(err)
+	}
+	casos := [][3]string{
+		{"joao", "João", "joao@exemplo.com"},
+		{"joao", "João", ""},
+		{"maria", "Outra Maria", "outra@exemplo.com"},
+		{"admin", "Admin", ""},
+		{"Joao", " ", "MARIA@exemplo.com"},
+		{"ana", "Ana", "Ana <ana@exemplo.com>"},
+	}
+	for _, caso := range casos {
+		conferida := c.ConferirNovo(caso[0], caso[1], caso[2])
+		if n := c.Quantos(); n != 1 {
+			t.Fatalf("%q: a conferência gravou (%d entradas)", caso, n)
+		}
+		_, err := c.Criar(caso[0], caso[1], caso[2])
+		var criada Recusas
+		errors.As(err, &criada)
+		if (len(conferida) == 0 && err != nil) || !maps.Equal(conferida, criada) {
+			t.Errorf("%q: conferida %q, Criar %v", caso, conferida, err)
+		}
+		if err == nil {
+			if err := c.Remover(caso[0]); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
+
+// TestConferirNovoContaAEntradaIgnorada: o login de uma entrada inválida do
+// arquivo não está na lista da tela, mas o Criar o recusa, e a conferência
+// também.
+func TestConferirNovoContaAEntradaIgnorada(t *testing.T) {
+	caminho := filepath.Join(t.TempDir(), "usuarios.json")
+	arquivo := `{"owner":{},"users":[
+		{"username":"maria","name":"Maria","role":"chefe","email":"maria@exemplo.com","createdAt":"2026-10-24T10:00:00Z"}
+	]}`
+	if err := os.WriteFile(caminho, []byte(arquivo), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, _, err := Abrir(caminho, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Listar()) != 0 {
+		t.Fatal("a entrada de papel desconhecido devia ficar de fora")
+	}
+	if r := c.ConferirNovo("maria", "Maria", ""); r[CampoUsuario] == "" {
+		t.Errorf("recusas %q, esperava o usuário", r)
+	}
+	if r := c.ConferirNovo("ana", "Ana", "MARIA@exemplo.com"); r[CampoEmail] == "" {
+		t.Errorf("recusas %q, esperava o e-mail", r)
+	}
+}
+
+// TestConferirEmail: a régua do TrocarEmail, sem gravar.
+func TestConferirEmail(t *testing.T) {
+	c := cadastroVazio(t)
+	for _, u := range [][3]string{{"maria", "Maria", "maria@exemplo.com"}, {"joao", "João", ""}} {
+		if _, err := c.Criar(u[0], u[1], u[2]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	casos := map[string]struct {
+		usuario, email string
+		recusa         bool
+	}{
+		"o da Maria":             {"joao", "Maria@Exemplo.com", true},
+		"fora do formato":        {"joao", "joao", true},
+		"vazio apaga":            {"joao", "", false},
+		"novo":                   {"joao", "joao@exemplo.com", false},
+		"o próprio, outra caixa": {"maria", "MARIA@exemplo.com", false},
+	}
+	for nome, caso := range casos {
+		r, err := c.ConferirEmail(caso.usuario, caso.email)
+		if err != nil {
+			t.Fatalf("%s: %v", nome, err)
+		}
+		if (r[CampoEmail] != "") != caso.recusa || len(r) > 1 {
+			t.Errorf("%s: recusas %q", nome, r)
+		}
+	}
+	if u, _ := c.Buscar("joao"); u.Email != "" {
+		t.Errorf("a conferência gravou o e-mail %q", u.Email)
+	}
+	if _, err := c.ConferirEmail("ninguem", "x@exemplo.com"); !errors.Is(err, ErrNaoExiste) {
+		t.Errorf("pessoa que não existe: %v", err)
 	}
 }

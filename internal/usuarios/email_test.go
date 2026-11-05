@@ -20,16 +20,14 @@ func TestEmailSoOEndereco(t *testing.T) {
 	if conv.Usuario.Email != "maria@exemplo.com" || conv.Usuario.EmailValido() != "maria@exemplo.com" {
 		t.Errorf("e-mail %q", conv.Usuario.Email)
 	}
-	var recusado Recusado
 	for i, email := range []string{
 		"maria",
 		"Maria <maria@exemplo.com>",
 		"maria@exemplo.com, joao@exemplo.com",
 		strings.Repeat("a", TamanhoMaximoDoEmail) + "@exemplo.com",
 	} {
-		if _, err := c.Criar("pessoa"+string(rune('a'+i)), "Pessoa", email); !errors.As(err, &recusado) {
-			t.Errorf("%q: erro %v, esperava Recusado", email, err)
-		}
+		_, err := c.Criar("pessoa"+string(rune('a'+i)), "Pessoa", email)
+		conferirRecusa(t, email, err, CampoEmail)
 	}
 }
 
@@ -43,13 +41,10 @@ func TestEmailUnico(t *testing.T) {
 	if _, err := c.Criar("joao", "João", ""); err != nil {
 		t.Fatal(err)
 	}
-	var recusado Recusado
-	if _, err := c.Criar("ana", "Ana", "maria@exemplo.com"); !errors.As(err, &recusado) {
-		t.Errorf("criar com o e-mail da Maria: %v", err)
-	}
-	if _, err := c.TrocarEmail("joao", "MARIA@exemplo.com"); !errors.As(err, &recusado) {
-		t.Errorf("trocar para o e-mail da Maria: %v", err)
-	}
+	_, err := c.Criar("ana", "Ana", "maria@exemplo.com")
+	conferirRecusa(t, "criar com o e-mail da Maria", err, CampoEmail)
+	_, err = c.TrocarEmail("joao", "MARIA@exemplo.com")
+	conferirRecusa(t, "trocar para o e-mail da Maria", err, CampoEmail)
 	// O próprio e-mail, com outra caixa, não conflita com ele mesmo.
 	if _, err := c.TrocarEmail("maria", "maria@exemplo.com"); err != nil {
 		t.Errorf("a Maria trocando a caixa do próprio e-mail: %v", err)
@@ -104,10 +99,8 @@ func TestEmailRuimNoArquivoNaoSome(t *testing.T) {
 
 	// O repetido também conta: ninguém mais pega o e-mail do João enquanto a
 	// cópia da Ana estiver no arquivo, nem ele mesmo.
-	var recusado Recusado
-	if _, err := c.TrocarEmail("joao", "joao@exemplo.com"); !errors.As(err, &recusado) {
-		t.Errorf("regravar o e-mail repetido: %v", err)
-	}
+	_, err = c.TrocarEmail("joao", "joao@exemplo.com")
+	conferirRecusa(t, "regravar o e-mail repetido", err, CampoEmail)
 
 	// Gravar outra pessoa não apaga o e-mail ruim do arquivo.
 	if _, err := c.TrocarEmail("ana", ""); err != nil {

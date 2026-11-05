@@ -101,6 +101,36 @@ type Recusado string
 
 func (e Recusado) Error() string { return string(e) }
 
+// Os campos dos formulários de pessoa, com o nome que têm no JSON da API: são
+// as chaves de Recusas.
+const (
+	CampoUsuario = "username"
+	CampoNome    = "name"
+	CampoEmail   = "email"
+)
+
+// ordemDosCampos é a ordem em que os campos aparecem na tela.
+var ordemDosCampos = []string{CampoUsuario, CampoNome, CampoEmail}
+
+// Recusas são as recusas de um formulário, campo a campo: a chave é o campo
+// (CampoUsuario, CampoNome, CampoEmail) e o valor, a mensagem para a tela,
+// embaixo dele. Vazia é "tudo certo". Como erro, a API a devolve como 400,
+// com as mensagens por campo.
+type Recusas map[string]string
+
+// Error é a primeira recusa, na ordem da tela, para quem mostra uma só.
+func (r Recusas) Error() string {
+	for _, campo := range ordemDosCampos {
+		if m, ok := r[campo]; ok {
+			return m
+		}
+	}
+	for _, m := range r {
+		return m // campo fora da ordemDosCampos
+	}
+	return ""
+}
+
 var (
 	// ErrNaoExiste é a pessoa que não está no cadastro.
 	ErrNaoExiste = errors.New("usuário não encontrado")
