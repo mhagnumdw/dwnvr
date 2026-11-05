@@ -1,11 +1,13 @@
 <!--
   O ladrilho de uma área que se marca e desmarca: a miniatura grande, e o nome
   e o ícone da regra embaixo. É o das áreas do alerta, no cadastro da câmera,
-  onde a miniatura grande deixa ver até a área pequena.
+  e o do popover "área" de Detecções, onde a miniatura grande deixa ver até a
+  área pequena.
 
-  O quadro vem de quem monta (`fundo`): a miniatura da tira é estreita para o
-  ladrilho e borraria. A regra vai só no ícone; o nome dela fica no
-  aria-label, que o toque longo mostra no celular (lib/dicaDoToque.ts).
+  O quadro vem de quem monta (`fundo`) quando já o tem, como o cadastro; sem
+  ele, a miniatura pede a da tira na largura em que é desenhada, para não
+  borrar. A regra vai só no ícone; o nome dela fica no aria-label, que o
+  toque longo mostra no celular (lib/dicaDoToque.ts).
 
   Sem `onclick` ele só mostra: é o das áreas no card da câmera, dentro do
   bloco que já é o botão, e por isso não é botão, não marca nem esmaece. Lá, a

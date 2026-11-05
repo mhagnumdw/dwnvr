@@ -18,7 +18,7 @@
   import SeletorCameras from '../components/SeletorCameras.svelte';
   import Icone from '../components/Icone.svelte';
   import SeloDeFamilias from '../components/SeloDeFamilias.svelte';
-  import ChipDaArea from '../components/ChipDaArea.svelte';
+  import LadrilhoDaArea from '../components/LadrilhoDaArea.svelte';
   import RotuloDaArea from '../components/RotuloDaArea.svelte';
   import MiniaturaDasAreas from '../components/MiniaturaDasAreas.svelte';
   import type EditorDeAreaT from '../components/EditorDeArea.svelte';
@@ -1708,12 +1708,16 @@
         {#each cameras.list as c (c.id)}
           <div class="cam-das-areas">
             <span class="nome-da-cam">{c.name}</span>
+            {#if c.areas?.length}
+              <div class="ladrilhos">
+                {#each c.areas as a (a.id)}
+                  {@const k = `${c.id}/${a.id}`}
+                  {@const on = areasMarcadas.includes(k)}
+                  <LadrilhoDaArea cam={c.id} area={a} {on} onclick={() => alternaArea(k)} />
+                {/each}
+              </div>
+            {/if}
             <div class="areachips">
-              {#each c.areas ?? [] as a (a.id)}
-                {@const k = `${c.id}/${a.id}`}
-                {@const on = areasMarcadas.includes(k)}
-                <ChipDaArea cam={c.id} area={a} {on} onclick={() => alternaArea(k)} />
-              {/each}
               {#if area?.cam === c.id}
                 <button
                   class="areachip on"
@@ -1925,7 +1929,7 @@
     left: 10px;
     right: auto;
     top: 100%;
-    width: min(300px, calc(100% - 20px));
+    width: min(360px, calc(100% - 20px));
   }
   .popover-area p {
     margin: 0;
@@ -1952,6 +1956,12 @@
     font-size: 13px;
     font-weight: 600;
     color: var(--dim);
+  }
+  /* Os ladrilhos das áreas, dois por linha, como na aba Alerta do cadastro. */
+  .ladrilhos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
   }
   .areachips {
     display: flex;

@@ -2,7 +2,7 @@
   A miniatura das áreas de uma câmera: um quadro dela com o desenho de cada
   área. Com várias áreas e o contorno tracejado, é o chip "2 áreas" do card em
   Câmeras e o chip do filtro em Detecções; com uma área só, cheia, é a imagem
-  do ChipDaArea, do RotuloDaArea e do LadrilhoDaArea.
+  do RotuloDaArea e do LadrilhoDaArea.
 
   O quadro vem da miniatura da tira (thumbs.ts), já reduzida e em cache: quem
   abre a tela com várias câmeras não decodifica nenhuma em tamanho cheio. Ela

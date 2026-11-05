@@ -1,1 +1,0 @@
-function e(e){let t=e.getContext(`2d`);if(!t)throw Error(`o navegador não deu o contexto 2D do canvas`);return t}export{e as t};
