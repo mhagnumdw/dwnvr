@@ -35,6 +35,12 @@
   // encaixe desconta antes de dividir o que sobra entre os tiles.
   const GAP = 8;
   const PROPORCAO = 16 / 9;
+  // Precisa bater com o `gap` da `.page` no CSS: o respiro entre a barra e o
+  // palco, que a altura das colunas desconta.
+  const GAP_DA_PAGINA = 10;
+  // Abaixo disso o tile fica pequeno demais para ver a câmera: a grade passa
+  // a rolar em vez de encolher mais.
+  const ALTURA_MINIMA_COLUNAS = 180;
 
   // Até quantas câmeras o texto do compartilhar diz pelo nome.
   const NOMES_NO_TEXTO = 3;
@@ -83,6 +89,10 @@
   let showPicker = $state(false);
   let palco = $state<HTMLDivElement | null>(null);
   let encaixe = $state({ cols: 1, w: 0 });
+  // Nas colunas, a altura que um tile pode ter sem passar da janela: é ela, e
+  // não uma largura fixa, que limita a grade - ver `larguraDasColunas`.
+  let alturaDasColunas = $state(0);
+  let barra = $state<HTMLDivElement | null>(null);
   // Segura a escrita na URL até a seleção ter sido lida - ver o efeito no fim
   // do bloco.
   let montado = $state(false);
@@ -805,6 +815,15 @@
     if (!palco || emTelaCheia) return;
     if (modo !== 'fit' || !visible.length) {
       palco.style.height = '';
+      // Medida de logo abaixo da barra, não do palco: a lista de câmeras e o
+      // aviso de acesso empurram o palco para baixo, e abri-los não pode
+      // encolher as câmeras. A rolagem entra de volta porque a medida é do
+      // topo da página, não do ponto onde o usuário está. O piso evita tile
+      // minúsculo em janela muito baixa, como o celular deitado.
+      if (barra) {
+        const livre = alturaLivre(barra, 0) - window.scrollY - barra.offsetHeight - GAP_DA_PAGINA;
+        alturaDasColunas = Math.max(ALTURA_MINIMA_COLUNAS, livre);
+      }
       return;
     }
 
@@ -814,6 +833,15 @@
     palco.style.height = `${H}px`;
     encaixe = melhorEncaixe(visible.length, palco.clientWidth, H);
   }
+
+  // Nas colunas a largura vai até onde o tile, em 16:9, ainda cabe na altura
+  // da janela: em tela larga, como a ultrawide, a grade usa a largura toda, e
+  // no 1× o tile não fica mais alto que a tela. Na tela cheia quem manda é ela.
+  const larguraDasColunas = $derived(
+    modo === 'fit' || emTelaCheia || alturaDasColunas <= 0
+      ? null
+      : `${Math.floor(modo * alturaDasColunas * PROPORCAO + GAP * (modo - 1))}px`,
+  );
 
   $effect(() => {
     // Leituras explícitas porque `medir` sai cedo antes de tocar nelas: são o
@@ -840,8 +868,8 @@
   onkeydown={tecla}
 />
 
-<div class="page" class:fit={modo === 'fit'}>
-  <div class="barra">
+<div class="page">
+  <div class="barra" bind:this={barra}>
     <BotaoCameras
       marcadas={selected.size}
       total={cameras.list.length}
@@ -947,6 +975,7 @@
       class:animando
       style:--cols={modo === 'fit' ? encaixe.cols : modo}
       style:--tile-w="{Math.floor(encaixe.w)}px"
+      style:max-width={larguraDasColunas}
       style:transform={emTelaCheia && arrasto ? `translateX(${arrasto}px)` : null}
     >
       {#each acessoConfirmado ? visible : [] as c, i (c.id)}
@@ -1110,17 +1139,12 @@
     display: grid;
     gap: 10px;
     padding: 10px;
-    max-width: 1600px;
-    margin: 0 auto;
   }
 
-  /* No encaixar quem limita o tile é a altura da janela, já na conta do
-     `melhorEncaixe`: o teto de largura só tiraria espaço em tela mais alta,
-     como a 16:10 de notebook. Nas colunas fixas o teto fica: lá a altura não
-     entra na conta, e o tile cresceria com a largura até passar da janela. */
-  .page.fit {
-    max-width: none;
-  }
+  /* Sem teto de largura na página: com ele só no modo encaixar, a barra
+     pulava de lugar ao trocar de modo em janela larga. Quem limita o tile é a
+     altura da janela - no encaixar pela conta do `melhorEncaixe`, nas colunas
+     pelo `max-width` da grade. */
 
   .barra {
     display: flex;
@@ -1236,6 +1260,8 @@
     display: grid;
     gap: 8px;
     grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    width: 100%;
+    margin: 0 auto;
   }
 
   /* No encaixar a largura do tile é calculada, não distribuída entre as
