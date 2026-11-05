@@ -12,8 +12,10 @@ import { api, mediaURL } from './api.ts';
 const cache = new Map<string, Promise<ImageBitmap | null>>();
 const MAX_CACHE = 240; // ~algumas telas de tira; acima disso a RAM do celular sofre
 const MAX_PARALLEL = 3; // decodificações ao mesmo tempo; o download não espera
-// As miniaturas maiores das áreas pequenas (o `escala` do `thumbnail`): uma
-// por câmera com área pequena basta, com folga para a troca de segmento.
+// As miniaturas maiores (o `escala` do `thumbnail`): a da área pequena, e a
+// do ladrilho do card da câmera, mais largo que o quadrinho. Uma ou duas por
+// câmera com área, com folga para a troca de segmento. O despejo daqui não
+// fecha o bitmap (veja `thumbnail`).
 const MAX_AMPLIADAS = 12;
 const ampliadas = new Map<string, Promise<ImageBitmap | null>>();
 
@@ -104,7 +106,12 @@ export function thumbnail(cam: string, t: number, escala = 1): Promise<ImageBitm
     // Map preserva a ordem de inserção, então a chave mais antiga sai primeiro.
     const oldest = onde.keys().next().value;
     if (oldest !== undefined) {
-      void onde.get(oldest)?.then((b) => b?.close());
+      // Fechar libera a memória já, e a tira, com centenas, precisa disso. A
+      // ampliada não: o card com mais câmeras com área do que MAX_AMPLIADAS
+      // mostra todas ao mesmo tempo, e fechar a que ainda está na tela a faria
+      // pedir de novo, despejando outra, sem fim. Despejada sem fechar, ela sai
+      // da memória quando a última miniatura que a desenha a solta.
+      if (onde === cache) void onde.get(oldest)?.then((b) => b?.close());
       onde.delete(oldest);
     }
   }

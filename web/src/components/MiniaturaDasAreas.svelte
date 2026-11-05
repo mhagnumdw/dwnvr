@@ -88,9 +88,17 @@
   // A largura em que ela é desenhada; 0 enquanto a medida não chega.
   const larguraDesenhada = $derived(largura ?? medida);
   // A miniatura da tira não aguenta o zoom: a da área pequena vem maior. Nem
-  // a largura maior que a do quadrinho. Derivada à parte, para o redimensionar
-  // só buscar de novo quando a escala muda, e não a cada pixel.
-  const escala = $derived(Math.max(ampliavel ? ZOOM_TETO : 1, escalaParaLargura(larguraDesenhada)));
+  // a largura maior que a do quadrinho. As duas juntas: no zoom, o recorte de
+  // 1/ZOOM_TETO do quadro ocupa a largura desenhada inteira, e o quadro tem de
+  // ter ZOOM_TETO vezes ela para o recorte não borrar no ladrilho largo.
+  // Derivada à parte, para o redimensionar só buscar de novo quando a escala
+  // muda, e não a cada pixel.
+  const escala = $derived(
+    Math.max(
+      ampliavel ? ZOOM_TETO : 1,
+      escalaParaLargura(ampliavel ? larguraDesenhada * ZOOM_TETO : larguraDesenhada),
+    ),
+  );
   const semMedida = $derived(larguraDesenhada === 0);
 
   $effect(() => {
@@ -282,10 +290,10 @@
     if (c.height !== h) c.height = h;
     g.fillStyle = '#000';
     g.fillRect(0, 0, w, h);
-    // O cache de `thumbs.ts` fecha o bitmap que despeja, e o fechado fica com
-    // largura zero. Esta miniatura ainda o guardava: sai e pede o quadro de
-    // novo. Enquanto ele não chega, `imagem` fica vazia, e o pedido não se
-    // repete a cada redesenho.
+    // O cache de `thumbs.ts` fecha o bitmap da tira que despeja, e todos no
+    // `clearThumbnails`; o fechado fica com largura zero. Esta miniatura ainda
+    // o guardava: sai e pede o quadro de novo. Enquanto ele não chega,
+    // `imagem` fica vazia, e o pedido não se repete a cada redesenho.
     if (imagem && imagem.fonte instanceof ImageBitmap && imagem.fonte.width === 0) {
       imagem = null;
       rebusca++;
