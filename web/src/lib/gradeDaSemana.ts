@@ -4,13 +4,13 @@
 // A grade trabalha sobre a "cobertura": um byte por minuto da semana (10080),
 // domingo 00:00 primeiro. Horário vira cobertura sem perda; a volta gera a
 // lista canônica, que é o que a tela mostra depois de pintar.
-import { horaDoMinuto } from './format.ts';
 import { DIA, novoHorario, valido } from './horarios.ts';
 import type { Horario } from './horarios.ts';
+// Os nomes dos dias e os resumos moram em horarios.ts, porque o card da
+// câmera também os mostra; seguem saindo daqui para quem já os pedia.
+export { DIAS, DIAS_LONGOS, nomeDoDia, resumoDasHoras, resumoDosDias } from './horarios.ts';
 
 const SEMANA = 7 * DIA;
-export const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
-export const DIAS_LONGOS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 export type Cobertura = Uint8Array;
 
@@ -86,38 +86,3 @@ export const inteira = (ps: [number, number][]) =>
   ps.length === 1 && ps[0]?.[0] === 0 && ps[0][1] === 59;
 
 export const horaCheia = (c: Cobertura, d: number, h: number) => inteira(pedacosDaHora(c, d, h));
-
-// "seg" e "Segunda", pelo número do dia.
-export const nomeDoDia = (d: number, longo = false) => (longo ? DIAS_LONGOS : DIAS)[d] ?? '';
-
-function juntaComE(partes: string[]) {
-  return partes.length > 1
-    ? `${partes.slice(0, -1).join(', ')} e ${partes.at(-1)}`
-    : (partes[0] ?? '');
-}
-
-// "seg a sex", "dom e sáb", "seg, qua e sex", "todo dia".
-export function resumoDosDias(days: number[]) {
-  const ds = [...new Set(days)].sort((a, b) => a - b);
-  if (!ds.length) return 'nenhum dia';
-  if (ds.length === 7) return 'todo dia';
-  const seqs: [number, number][] = [];
-  for (const d of ds) {
-    const s = seqs.at(-1);
-    if (s && d === s[1] + 1) s[1] = d;
-    else seqs.push([d, d]);
-  }
-  const partes = seqs.flatMap(([a, b]) =>
-    b - a >= 2
-      ? [`${nomeDoDia(a)} a ${nomeDoDia(b)}`]
-      : b > a
-        ? [nomeDoDia(a), nomeDoDia(b)]
-        : [nomeDoDia(a)],
-  );
-  return juntaComE(partes);
-}
-
-export function resumoDasHoras(from: number, to: number) {
-  if (from === 0 && to === DIA - 1) return 'dia inteiro';
-  return `${horaDoMinuto(from)} às ${horaDoMinuto(to)}`;
-}

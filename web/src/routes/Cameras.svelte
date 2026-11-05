@@ -13,6 +13,7 @@
   import type {
     AreaDaCamera,
     Camera,
+    HorarioDoAlerta,
     CameraCadastrada,
     OndeDoAlerta,
     Orfa,
@@ -37,13 +38,20 @@
   import SemCameras from '../components/SemCameras.svelte';
   import Icone from '../components/Icone.svelte';
   import Abas from '../components/Abas.svelte';
-  import MiniaturaDasAreas from '../components/MiniaturaDasAreas.svelte';
   import RotuloDaArea from '../components/RotuloDaArea.svelte';
+  import LadrilhoDaArea from '../components/LadrilhoDaArea.svelte';
   import type EditorDeAreaT from '../components/EditorDeArea.svelte';
   import type AbaDoAlertaT from '../components/AbaDoAlerta.svelte';
-  import { familia } from '../lib/icones.ts';
+  import { familia, iconeDaFamilia, iconeURL, porPrioridade } from '../lib/icones.ts';
   import { REGRA_PADRAO, MAX_AREAS, pontosDoCadastro } from '../lib/area.ts';
-  import { MAX_HORARIOS, doServidor, paraOServidor, valido } from '../lib/horarios.ts';
+  import {
+    MAX_HORARIOS,
+    doServidor,
+    paraOServidor,
+    resumoDasHoras,
+    resumoDosDias,
+    valido,
+  } from '../lib/horarios.ts';
   import type { Horario } from '../lib/horarios.ts';
   import type { Ponto, Regra } from '../lib/area.ts';
   import { esqueceUltimoSegmento, quadroCheio, ultimoSegmento } from '../lib/thumbs.ts';
@@ -210,12 +218,35 @@
     void sondarAudio(streamName);
   }
 
-  function editar(cam: CameraCadastrada) {
+  // `abaInicial`: o bloco de áreas ou de alerta do card abre o formulário
+  // direto na aba dele.
+  function editar(cam: CameraCadastrada, abaInicial = 'gravacao') {
     const s = cameras.streams.find((x) => x.name === cam.id);
     editing = { ...cam, _novo: false, ...audioConhecido(s) };
-    aba = 'gravacao';
+    aba = abaInicial;
     abreOAlerta();
     void sondarAudio(cam.id);
+  }
+
+  // O "onde" e o "quando" do alerta no card, nas palavras da aba Alerta. Área
+  // marcada que não existe mais não aparece; os horários vão como a aba os
+  // lista ("todo dia · 12:30 às 13:59").
+  function ondeDoAlertaNoCard(cam: CameraCadastrada) {
+    const ids = cam.alert?.areas ?? [];
+    if (!ids.length) return 'em qualquer lugar da imagem';
+    const nomes = (cam.areas ?? []).filter((a) => a.id && ids.includes(a.id)).map((a) => a.name);
+    return `só em ${nomes.join(', ')}`;
+  }
+  // O sino na miniatura: a área está entre as do alerta ligado. O alerta na
+  // imagem inteira não marca nenhuma, porque não depende de área.
+  const alertaNaArea = (cam: CameraCadastrada, a: AreaDaCamera) =>
+    !!cam.alert?.enabled && !!a.id && !!cam.alert.areas?.includes(a.id);
+  function quandoDoAlertaNoCard(hs: HorarioDoAlerta[] | undefined) {
+    const validos = doServidor(hs).filter(valido);
+    if (!validos.length) return 'a qualquer hora';
+    return validos
+      .map((h) => `${resumoDosDias(h.days)} · ${resumoDasHoras(h.from, h.to)}`)
+      .join('; ');
   }
 
   // O que já se sabe do áudio quando o formulário abre. Num stream ocioso isso
@@ -682,27 +713,6 @@
           {/if}
         </div>
 
-        <!-- As áreas e o alerta só mostram: quem muda é o "editar". Com a
-             mesma condição das abas, para o card não falar de áreas que não
-             filtram nada nem de alerta que não tem o que avisar. -->
-        {#if (!!cam.areas?.length || !!cam.alert) && cam.detect && cameras.detector}
-          <div class="row wrap chips">
-            {#if cam.areas?.length}
-              <span class="chip areas-chip">
-                <MiniaturaDasAreas cam={cam.id} areas={cam.areas} largura={56} />
-                {cam.areas.length === 1 ? '1 área' : `${cam.areas.length} áreas`}
-              </span>
-            {/if}
-            {#if cam.alert?.enabled}
-              <span class="chip alerta-chip">
-                alerta: {(cam.alert.families ?? []).map((f) => familia(f).nome).join(', ')}
-              </span>
-            {:else if cam.alert}
-              <span class="chip">alerta desligado</span>
-            {/if}
-          </div>
-        {/if}
-
         <!-- Onde os arquivos estão de verdade. Toda vez que a pergunta sai do
              navegador - fazer backup, olhar o disco por ssh, entender de onde
              vieram os bytes do chip de uso - é este caminho que se procura, e
@@ -715,6 +725,58 @@
               >storage: {cam.dir}</span
             >
           </div>
+        {/if}
+
+        <!-- As áreas e o alerta, como as abas deles os mostram: cada bloco é
+             um atalho para editar a câmera já na aba dele. Com a mesma
+             condição das abas, para o card não falar de áreas que não filtram
+             nada nem de alerta que não tem o que avisar. Vêm depois do storage
+             porque são os maiores do card: o que é linha curta fica junto. -->
+        {#if cam.detect && cameras.detector}
+          {#if cam.areas?.length}
+            <button type="button" class="ghost bloco" onclick={() => editar(cam, 'areas')}>
+              {@render tituloDoBloco('area', 'Áreas')}
+              <span class="areas-do-card">
+                {#each cam.areas as a, i (a.id ?? i)}
+                  <LadrilhoDaArea cam={cam.id} area={a} alerta={alertaNaArea(cam, a)} />
+                {/each}
+              </span>
+            </button>
+          {/if}
+          {#if cam.alert}
+            {@const al = cam.alert}
+            <button type="button" class="ghost bloco" onclick={() => editar(cam, 'alerta')}>
+              {@render tituloDoBloco('sino', 'Alerta')}
+              {#if al.enabled}
+                <span class="linhas-do-alerta">
+                  <span class="linha">
+                    {#each porPrioridade(al.families ?? []) as f (f)}
+                      {@const ic = iconeDaFamilia(f)}
+                      <span class="familia">
+                        {#if ic}<img
+                            src={iconeURL(ic, 14, familia(f).cor)}
+                            alt=""
+                            width="14"
+                            height="14"
+                          />{/if}
+                        {familia(f).nome}
+                      </span>
+                    {/each}
+                  </span>
+                  <span class="linha">
+                    <Icone nome="area" tamanho={16} />
+                    {ondeDoAlertaNoCard(cam)}
+                  </span>
+                  <span class="linha">
+                    <Icone nome="relogio" tamanho={16} />
+                    {quandoDoAlertaNoCard(al.schedules)}
+                  </span>
+                </span>
+              {:else}
+                <span class="muted">desligado</span>
+              {/if}
+            </button>
+          {/if}
         {/if}
 
         {#if st?.lastError && !st.connected}
@@ -869,6 +931,16 @@
       )}{/if}
   </p>
 </div>
+
+<!-- O topo dos blocos de áreas e de alerta do card: o ícone, o nome e o
+     "editar", que diz o que o clique no bloco faz. -->
+{#snippet tituloDoBloco(icone: 'area' | 'sino', nome: string)}
+  <span class="titulo-do-bloco">
+    <Icone nome={icone} tamanho={14} />
+    {nome}
+    <span class="ir">editar <Icone nome="chevronDir" tamanho={14} /></span>
+  </span>
+{/snippet}
 
 <!-- O que as abas Áreas e Alerta mostram sem detecção na câmera: o que falta
      e como resolver. A marcação desligada se liga na aba ao lado; o detector de
@@ -1355,14 +1427,67 @@
   .chip.warn {
     color: var(--warn);
   }
-  .chip.areas-chip {
+  /* Os blocos de áreas e de alerta: o botão inteiro leva ao editar, na aba
+     de cada um. */
+  .bloco {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+    padding: 10px;
+    text-align: left;
+    background: var(--panel-2);
+    font-weight: normal;
+  }
+  .bloco:hover {
+    border-color: var(--accent);
+  }
+  .titulo-do-bloco {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .titulo-do-bloco .ir {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding-left: 4px;
+    gap: 2px;
+    margin-left: auto;
+    text-transform: none;
+    letter-spacing: 0;
   }
-  .chip.alerta-chip {
-    color: var(--accent);
+  /* Duas colunas no celular: a miniatura de ~160 px é o piso em que a área
+     ainda se lê. */
+  .areas-do-card {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+  }
+  .linhas-do-alerta {
+    display: grid;
+    gap: 4px;
+    font-size: 14px;
+  }
+  .linhas-do-alerta .linha {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .linhas-do-alerta .linha > :global(svg) {
+    color: var(--dim);
+  }
+  .familia {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
   }
   .err {
     color: var(--bad);

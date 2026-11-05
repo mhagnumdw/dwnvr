@@ -22,6 +22,12 @@ const ampliadas = new Map<string, Promise<ImageBitmap | null>>();
 // usar este, e guardar no menor deixaria a miniatura borrada.
 const LARGURA_DO_QUADRINHO = 108;
 
+// A `escala` do `thumbnail` para desenhar a miniatura com `largura` px de CSS
+// sem borrar: o ladrilho da área no card da câmera é mais largo que o
+// quadrinho da tira.
+export const escalaParaLargura = (largura: number) =>
+  Math.max(1, Math.ceil(largura / LARGURA_DO_QUADRINHO));
+
 // O cache guarda o bitmap pronto, sem compressão: 4 bytes por pixel. Na
 // resolução da câmera, uma miniatura 640×360 ocupa ~0,9 MB, e uma 1080p,
 // ~8 MB. Reduzida à largura do quadrinho na densidade da tela, fica em
