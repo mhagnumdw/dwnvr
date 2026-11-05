@@ -170,6 +170,15 @@ func TestConferirUsuario(t *testing.T) {
 	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
 		t.Errorf("o próprio e-mail: status %d, %s", rec.Code, rec.Body)
 	}
+	// Um e-mail livre e diferente: aceito, e o gravado não muda.
+	rec, resp = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
+		map[string]string{"username": "maria", "email": "outra@exemplo.com"})
+	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
+		t.Errorf("e-mail livre: status %d, %s", rec.Code, rec.Body)
+	}
+	if u, _ := s.usuarios.Buscar("maria"); u.Email != "maria@exemplo.com" {
+		t.Errorf("a conferência gravou o e-mail: %q", u.Email)
+	}
 	if rec, _ = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
 		map[string]string{"username": "ninguem", "email": "x@exemplo.com"}); rec.Code != http.StatusNotFound {
 		t.Errorf("quem não existe: status %d, esperava 404", rec.Code)

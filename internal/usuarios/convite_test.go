@@ -196,9 +196,10 @@ func TestCriarRecusaCadaCampo(t *testing.T) {
 	if !errors.As(err, &recusas) || len(recusas) != 3 {
 		t.Fatalf("err=%v, esperava as recusas dos 3 campos", err)
 	}
-	// A primeira, na ordem da tela, é a mensagem de quem mostra uma só.
-	if recusas.Error() != recusas[CampoUsuario] {
-		t.Errorf("Error() = %q, esperava a do usuário", recusas.Error())
+	// A primeira, na ordem da tela (nome, usuário, e-mail), é a mensagem de
+	// quem mostra uma só.
+	if recusas.Error() != recusas[CampoNome] {
+		t.Errorf("Error() = %q, esperava a do nome", recusas.Error())
 	}
 }
 
@@ -218,11 +219,14 @@ func TestConferirNovoEhAReguaDoCriar(t *testing.T) {
 		{"ana", "Ana", "Ana <ana@exemplo.com>"},
 	}
 	for _, caso := range casos {
-		conferida := c.ConferirNovo(caso[0], caso[1], caso[2])
+		conferida, err := c.ConferirNovo(caso[0], caso[1], caso[2])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if n := c.Quantos(); n != 1 {
 			t.Fatalf("%q: a conferência gravou (%d entradas)", caso, n)
 		}
-		_, err := c.Criar(caso[0], caso[1], caso[2])
+		_, err = c.Criar(caso[0], caso[1], caso[2])
 		var criada Recusas
 		errors.As(err, &criada)
 		if (len(conferida) == 0 && err != nil) || !maps.Equal(conferida, criada) {
@@ -254,11 +258,10 @@ func TestConferirNovoContaAEntradaIgnorada(t *testing.T) {
 	if len(c.Listar()) != 0 {
 		t.Fatal("a entrada de papel desconhecido devia ficar de fora")
 	}
-	if r := c.ConferirNovo("maria", "Maria", ""); r[CampoUsuario] == "" {
-		t.Errorf("recusas %q, esperava o usuário", r)
-	}
-	if r := c.ConferirNovo("ana", "Ana", "MARIA@exemplo.com"); r[CampoEmail] == "" {
-		t.Errorf("recusas %q, esperava o e-mail", r)
+	// O login e o e-mail da mesma entrada: o e-mail também é recusado, e não
+	// fica verde só porque o login proposto é o dela.
+	if r, _ := c.ConferirNovo("maria", "Maria", "MARIA@exemplo.com"); r[CampoUsuario] == "" || r[CampoEmail] == "" {
+		t.Errorf("recusas %q, esperava o usuário e o e-mail", r)
 	}
 }
 
@@ -294,5 +297,24 @@ func TestConferirEmail(t *testing.T) {
 	}
 	if _, err := c.ConferirEmail("ninguem", "x@exemplo.com"); !errors.Is(err, ErrNaoExiste) {
 		t.Errorf("pessoa que não existe: %v", err)
+	}
+}
+
+// TestConferirComArquivoIlegivel: com o usuarios.json ilegível o cadastro em
+// memória está vazio, e a conferência devolve o erro em vez de "tudo certo".
+func TestConferirComArquivoIlegivel(t *testing.T) {
+	caminho := filepath.Join(t.TempDir(), "usuarios.json")
+	if err := os.WriteFile(caminho, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, _, err := Abrir(caminho, "admin")
+	if err == nil {
+		t.Fatal("o arquivo quebrado devia ser ilegível")
+	}
+	if _, err := c.ConferirNovo("maria", "Maria", ""); err == nil {
+		t.Error("ConferirNovo com o arquivo ilegível não deu erro")
+	}
+	if _, err := c.ConferirEmail("maria", ""); err == nil || errors.Is(err, ErrNaoExiste) {
+		t.Errorf("ConferirEmail com o arquivo ilegível: %v, esperava o erro do arquivo", err)
 	}
 }

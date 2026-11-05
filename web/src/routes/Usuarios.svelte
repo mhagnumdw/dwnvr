@@ -5,7 +5,7 @@
   Só o admin chega aqui; a API recusa o viewer com 403.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { api, ApiError, mensagemDe } from '../lib/api.ts';
   import type { CampoDaPessoa, Convite, Recusas, Usuario, Usuarios } from '../lib/api.ts';
   import { Conferencia, type EstadoDoCampo } from '../lib/conferencia.svelte.ts';
@@ -59,6 +59,12 @@
   }
 
   onMount(carregar);
+
+  // Sair da tela com uma conferência na espera: nada mais vai ao servidor.
+  onDestroy(() => {
+    confNovo.parar();
+    confEmail.parar();
+  });
 
   // ---- o link recém-gerado -------------------------------------------------
   //
@@ -206,20 +212,45 @@
     if (campo) campos[campo]?.focus();
   }
 
+  // A recusa do salvar é dos valores enviados. Ela vale só para o formulário
+  // que a pediu (`conf`), se ele ainda está aberto; e, se os campos mudaram
+  // enquanto a resposta vinha, eles são conferidos de novo, em vez de levarem
+  // o vermelho de um valor que já não está lá.
+  function aplicarRecusa(
+    conf: Conferencia,
+    aberta: Conferencia,
+    recusas: Recusas,
+    mudou: boolean,
+    campos: Partial<Record<CampoDaPessoa, HTMLInputElement>>,
+    ordem: CampoDaPessoa[],
+  ) {
+    if (conf !== aberta) return;
+    conf.recusado(recusas);
+    if (mudou) conf.digitar();
+    else focarRecusa(conf, campos, ordem);
+  }
+
   async function criar(e: SubmitEvent) {
     e.preventDefault();
     if (!novo) return;
+    const conf = confNovo;
+    const enviado = { ...novo };
+    // Os campos mudaram (ou o formulário fechou) enquanto a resposta vinha.
+    const mudou = () => JSON.stringify(novo) !== JSON.stringify(enviado);
     salvando = true;
     erroNovo = '';
     try {
-      mostrarLink(await api.criarUsuario(novo.username, novo.name, novo.email));
-      fecharNovo();
+      mostrarLink(await api.criarUsuario(enviado.username, enviado.name, enviado.email));
+      if (conf === confNovo) fecharNovo();
       await carregar();
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.campos).length > 0) {
-        confNovo.recusado(err.campos);
-        focarRecusa(confNovo, camposNovo, ['name', 'username', 'email']);
-      } else {
+        aplicarRecusa(conf, confNovo, err.campos, mudou(), camposNovo, [
+          'name',
+          'username',
+          'email',
+        ]);
+      } else if (conf === confNovo) {
         erroNovo = mensagemDe(err);
       }
     } finally {
@@ -288,19 +319,22 @@
   async function salvarEmail(e: SubmitEvent) {
     e.preventDefault();
     if (!editandoEmail) return;
+    const conf = confEmail;
+    const enviado = editandoEmail.email;
+    // Numa closure, o TypeScript não supõe que o formulário segue aberto.
+    const mudou = () => editandoEmail?.email !== enviado;
     salvandoEmail = true;
     erroEmail = '';
     try {
-      const { user } = await api.trocarEmail(editandoEmail.u.username, editandoEmail.email);
+      const { user } = await api.trocarEmail(editandoEmail.u.username, enviado);
       // O link aberto no card passa a ir para o e-mail novo.
       if (gerado?.username === user.username) gerado.email = user.email ?? '';
-      fecharEmail();
+      if (conf === confEmail) fecharEmail();
       await carregar();
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.campos).length > 0) {
-        confEmail.recusado(err.campos);
-        focarRecusa(confEmail, camposEmail, ['email']);
-      } else {
+        aplicarRecusa(conf, confEmail, err.campos, mudou(), camposEmail, ['email']);
+      } else if (conf === confEmail) {
         erroEmail = mensagemDe(err);
       }
     } finally {

@@ -92,7 +92,9 @@ export class Conferencia {
     try {
       recusas = await this.#pedir();
     } catch {
-      // Sem resposta, fica o resultado de antes: o salvar confere de novo.
+      // Sem resposta, some o resultado de antes, que pode ser de um valor já
+      // trocado (um verde que o servidor não deu). O salvar confere de novo.
+      if (meu === this.#pedido) this.#conferidos = [];
       return;
     }
     if (meu !== this.#pedido) return;

@@ -192,7 +192,12 @@ func (s *Server) handleConferirNovo(w http.ResponseWriter, r *http.Request) {
 	if !lerCorpo(w, r, &req) {
 		return
 	}
-	writeJSON(w, map[string]any{"fields": s.usuarios.ConferirNovo(req.Usuario, req.Nome, req.Email)})
+	recusas, err := s.usuarios.ConferirNovo(req.Usuario, req.Nome, req.Email)
+	if err != nil {
+		s.recusa(w, "conferindo o usuário novo", err)
+		return
+	}
+	writeJSON(w, map[string]any{"fields": recusas})
 }
 
 // handleNovoLink gera outro link para a pessoa. A senha dela deixa de valer,

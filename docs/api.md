@@ -883,6 +883,8 @@ cada campo quando o admin sai dele. Respondem `200` com `{"fields": {...}}`,
 só com os campos recusados, e `{"fields": {}}` quando está tudo certo. A régua
 conta também a entrada ignorada do `usuarios.json` (o login e o e-mail dela
 não ficam livres), que a listagem não traz: por isso a tela não confere sozinha.
+Com o `usuarios.json` ilegível, o cadastro em memória está vazio, e elas
+respondem `500` em vez de dizer que está tudo certo.
 
 O `email` é um endereço só, sem nome na frente, e é **único** entre as
 pessoas, sem diferença de maiúscula e minúscula: e-mail inválido ou de outra

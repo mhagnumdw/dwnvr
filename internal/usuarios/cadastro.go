@@ -110,7 +110,7 @@ const (
 )
 
 // ordemDosCampos é a ordem em que os campos aparecem na tela.
-var ordemDosCampos = []string{CampoUsuario, CampoNome, CampoEmail}
+var ordemDosCampos = []string{CampoNome, CampoUsuario, CampoEmail}
 
 // Recusas são as recusas de um formulário, campo a campo: a chave é o campo
 // (CampoUsuario, CampoNome, CampoEmail) e o valor, a mensagem para a tela,

@@ -58,7 +58,9 @@ func (c *Cadastro) recusasDoNovo(a *Arquivo, usuario, nome, email string) Recusa
 	if _, err := ValidarNome(nome); err != nil {
 		r[CampoNome] = err.Error()
 	}
-	if m := recusaDoEmail(a, email, usuario); m != "" {
+	// Ninguém a excetuar: a pessoa nova ainda não tem registro. Excetuar o
+	// login proposto deixaria passar o e-mail de quem já tem esse login.
+	if m := recusaDoEmail(a, email, ""); m != "" {
 		r[CampoEmail] = m
 	}
 	return r
@@ -79,18 +81,26 @@ func recusaDoEmail(a *Arquivo, email, exceto string) string {
 
 // ConferirNovo diz o que o Criar recusaria com estes dados, sem gravar nada:
 // é a conferência da tela enquanto o admin preenche o formulário. Vazia é
-// "tudo certo".
-func (c *Cadastro) ConferirNovo(usuario, nome, email string) Recusas {
+// "tudo certo". Com o arquivo ilegível vem o erro, como no Alterar: o
+// cadastro em memória está vazio, e "tudo certo" seria mentira.
+func (c *Cadastro) ConferirNovo(usuario, nome, email string) (Recusas, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.recusasDoNovo(&c.arq, usuario, nome, email)
+	if c.ilegivel != nil {
+		return nil, c.ilegivel
+	}
+	return c.recusasDoNovo(&c.arq, usuario, nome, email), nil
 }
 
 // ConferirEmail diz o que o TrocarEmail recusaria com este e-mail, sem gravar
-// nada. ErrNaoExiste se a pessoa não está no cadastro.
+// nada. ErrNaoExiste se a pessoa não está no cadastro; com o arquivo
+// ilegível, o erro dele, como no ConferirNovo.
 func (c *Cadastro) ConferirEmail(usuario, email string) (Recusas, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	if c.ilegivel != nil {
+		return nil, c.ilegivel
+	}
 	if c.indice(&c.arq, usuario) < 0 {
 		return nil, ErrNaoExiste
 	}
