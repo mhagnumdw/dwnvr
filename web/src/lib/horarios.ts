@@ -1,7 +1,7 @@
 // Os horários do alerta como a tela os edita, e a ida e a volta do servidor.
-// O formulário da câmera usa isto ao abrir e ao salvar, e por isso vem no
-// bundle principal; a grade e os resumos, que só a aba Alerta usa, ficam no
-// gradeDaSemana.ts, no chunk dela.
+// O formulário da câmera usa isto ao abrir e ao salvar, e o card da câmera
+// resume o alerta com os nomes dos dias, e por isso vem no bundle principal; a
+// grade, que só a aba Alerta usa, fica no gradeDaSemana.ts, no chunk dela.
 //
 // A tela edita o horário em minutos do dia, com as DUAS pontas incluídas (o
 // dia inteiro é 00:00 até 23:59), e o servidor guarda "HH:MM". Nenhum horário
@@ -62,4 +62,42 @@ export function paraOServidor(hs: Horario[]): HorarioDoAlerta[] {
     from: horaDoMinuto(h.from),
     to: horaDoMinuto(h.to),
   }));
+}
+
+export const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+export const DIAS_LONGOS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+// "seg" e "Segunda", pelo número do dia.
+export const nomeDoDia = (d: number, longo = false) => (longo ? DIAS_LONGOS : DIAS)[d] ?? '';
+
+function juntaComE(partes: string[]) {
+  return partes.length > 1
+    ? `${partes.slice(0, -1).join(', ')} e ${partes.at(-1)}`
+    : (partes[0] ?? '');
+}
+
+// "seg a sex", "dom e sáb", "seg, qua e sex", "todo dia".
+export function resumoDosDias(days: number[]) {
+  const ds = [...new Set(days)].sort((a, b) => a - b);
+  if (!ds.length) return 'nenhum dia';
+  if (ds.length === 7) return 'todo dia';
+  const seqs: [number, number][] = [];
+  for (const d of ds) {
+    const s = seqs.at(-1);
+    if (s && d === s[1] + 1) s[1] = d;
+    else seqs.push([d, d]);
+  }
+  const partes = seqs.flatMap(([a, b]) =>
+    b - a >= 2
+      ? [`${nomeDoDia(a)} a ${nomeDoDia(b)}`]
+      : b > a
+        ? [nomeDoDia(a), nomeDoDia(b)]
+        : [nomeDoDia(a)],
+  );
+  return juntaComE(partes);
+}
+
+export function resumoDasHoras(from: number, to: number) {
+  if (from === 0 && to === DIA - 1) return 'dia inteiro';
+  return `${horaDoMinuto(from)} às ${horaDoMinuto(to)}`;
 }

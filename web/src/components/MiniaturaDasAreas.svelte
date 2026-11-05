@@ -8,7 +8,8 @@
   abre a tela com várias câmeras não decodifica nenhuma em tamanho cheio. Ela
   tem a largura do quadrinho da tira; para desenhar maior sem borrar, quem já
   tem o quadro cheio o passa em `fundo` - o cadastro da câmera, que o busca
-  para o editor. Câmera sem área não monta isto, e não paga nada.
+  para o editor. Sem `fundo` e mais larga que o quadrinho - o ladrilho do card
+  da câmera -, ela pede a miniatura maior, na largura em que é desenhada. Câmera sem área não monta isto, e não paga nada.
 
   Com `zoom`, a área pequena (lib/area.ts, `vistaDaArea`), que no quadro
   inteiro some, ganha uma passada de zoom: aproxima até enquadrá-la, fica um
@@ -31,7 +32,7 @@
   } from '../lib/area.ts';
   import type { Ponto, Vista } from '../lib/area.ts';
   import { TOQUE_LONGO } from '../lib/dicaDoToque.ts';
-  import { thumbnail, ultimoSegmentoGuardado } from '../lib/thumbs.ts';
+  import { escalaParaLargura, thumbnail, ultimoSegmentoGuardado } from '../lib/thumbs.ts';
 
   // O zoom: quanto leva para aproximar (e para voltar), quanto a passada
   // fica aproximada, e quanto o mouse tem de parar em cima para ele vir.
@@ -84,18 +85,30 @@
   });
   const ampliavel = $derived(alvo !== null);
 
+  // A largura em que ela é desenhada; 0 enquanto a medida não chega.
+  const larguraDesenhada = $derived(largura ?? medida);
+  // A miniatura da tira não aguenta o zoom: a da área pequena vem maior. Nem
+  // a largura maior que a do quadrinho. Derivada à parte, para o redimensionar
+  // só buscar de novo quando a escala muda, e não a cada pixel.
+  const escala = $derived(Math.max(ampliavel ? ZOOM_TETO : 1, escalaParaLargura(larguraDesenhada)));
+  const semMedida = $derived(larguraDesenhada === 0);
+
   $effect(() => {
     const c = cam;
     const f = fundo;
-    // A miniatura da tira não aguenta o zoom: a da área pequena vem maior.
-    const escala = ampliavel ? ZOOM_TETO : 1;
+    // Com `fundo` a escala não conta: lida só sem ele, o redimensionar não
+    // recarrega o quadro que já está em mãos.
+    const e = f === undefined ? escala : 1;
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
     rebusca;
     let vivo = true;
     imagem = null;
+    // Sem a medida, a escala ainda não é a certa: buscar agora baixaria a
+    // miniatura duas vezes.
+    if (f === undefined && semMedida) return;
     if (f === undefined) {
       void ultimoSegmentoGuardado(c)
-        .then((t) => (t === null ? null : thumbnail(c, t, escala)))
+        .then((t) => (t === null ? null : thumbnail(c, t, e)))
         .then((b) => {
           if (vivo && b) imagem = { fonte: b, w: b.width, h: b.height };
         })

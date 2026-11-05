@@ -4,7 +4,8 @@
   tira de miniaturas das Gravações. Quem usa dá `position: relative` à
   miniatura e põe as famílias no nome do botão (`nomesDasFamilias`): os ícones
   são imagem sem texto, e o nome é o que o leitor de tela lê. Em Detecções, a
-  detecção que alertou ganha o sino antes das famílias.
+  detecção que alertou ganha o sino antes das famílias; no card da câmera, a
+  área do alerta ganha só o sino, sem família.
 -->
 <script lang="ts">
   import Icone from './Icone.svelte';
@@ -22,7 +23,7 @@
   const ordem = $derived(porPrioridade(familias));
 </script>
 
-{#if ordem.length}
+{#if ordem.length || alerta}
   <span class="selo">
     {#if alerta}<span class="sino"><Icone nome="sino" tamanho={12} traco={2.4} /></span>{/if}
     {#each ordem as f (f)}
