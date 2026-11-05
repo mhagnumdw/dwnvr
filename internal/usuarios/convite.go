@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -38,19 +39,84 @@ func hashDoToken(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
+// recusasDoNovo é a régua de quem vai ser criado, campo a campo: a do Criar e
+// a do ConferirNovo, que é a mesma para a tela não dizer "certo" a algo que o
+// Criar recusa. Confere todos os campos, para a tela mostrar cada recusa
+// embaixo do seu.
+func (c *Cadastro) recusasDoNovo(a *Arquivo, usuario, nome, email string) Recusas {
+	r := Recusas{}
+	switch {
+	case ValidarUsuario(usuario) != nil:
+		r[CampoUsuario] = ValidarUsuario(usuario).Error()
+	case usuario == c.dono:
+		r[CampoUsuario] = "este é o usuário do dono, no dwnvr.yaml"
+	// Qualquer entrada com o mesmo login, mesmo a ignorada por inválida: a
+	// nova viria depois dela e seria a ignorada.
+	case slices.ContainsFunc(a.Usuarios, func(o Usuario) bool { return o.Usuario == usuario }):
+		r[CampoUsuario] = "já existe alguém com este usuário"
+	}
+	if _, err := ValidarNome(nome); err != nil {
+		r[CampoNome] = err.Error()
+	}
+	// Ninguém a excetuar: a pessoa nova ainda não tem registro. Excetuar o
+	// login proposto deixaria passar o e-mail de quem já tem esse login.
+	if m := recusaDoEmail(a, email, ""); m != "" {
+		r[CampoEmail] = m
+	}
+	return r
+}
+
+// recusaDoEmail é a régua do e-mail da pessoa exceto, que é dela ou vai ser:
+// a mensagem da recusa, ou "" se o e-mail vale. Vazio vale.
+func recusaDoEmail(a *Arquivo, email, exceto string) string {
+	email, err := ValidarEmail(email)
+	switch {
+	case err != nil:
+		return err.Error()
+	case email != "" && emailEmUso(a, email, exceto):
+		return "já existe alguém com este e-mail"
+	}
+	return ""
+}
+
+// ConferirNovo diz o que o Criar recusaria com estes dados, sem gravar nada:
+// é a conferência da tela enquanto o admin preenche o formulário. Vazia é
+// "tudo certo". Com o arquivo ilegível vem o erro, como no Alterar: o
+// cadastro em memória está vazio, e "tudo certo" seria mentira.
+func (c *Cadastro) ConferirNovo(usuario, nome, email string) (Recusas, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.ilegivel != nil {
+		return nil, c.ilegivel
+	}
+	return c.recusasDoNovo(&c.arq, usuario, nome, email), nil
+}
+
+// ConferirEmail diz o que o TrocarEmail recusaria com este e-mail, sem gravar
+// nada. ErrNaoExiste se a pessoa não está no cadastro; com o arquivo
+// ilegível, o erro dele, como no ConferirNovo.
+func (c *Cadastro) ConferirEmail(usuario, email string) (Recusas, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.ilegivel != nil {
+		return nil, c.ilegivel
+	}
+	if c.indice(&c.arq, usuario) < 0 {
+		return nil, ErrNaoExiste
+	}
+	r := Recusas{}
+	if m := recusaDoEmail(&c.arq, email, usuario); m != "" {
+		r[CampoEmail] = m
+	}
+	return r, nil
+}
+
 // Criar cadastra um viewer, ainda sem senha, e devolve o link para ela
-// definir a sua. O e-mail é opcional: vazio, o link só vai pela tela.
+// definir a sua. O e-mail é opcional: vazio, o link só vai pela tela. A
+// recusa vem como Recusas, campo a campo.
 func (c *Cadastro) Criar(usuario, nome, email string) (Convite, error) {
-	if err := ValidarUsuario(usuario); err != nil {
-		return Convite{}, err
-	}
-	nome, err := ValidarNome(nome)
-	if err != nil {
-		return Convite{}, err
-	}
-	if email, err = ValidarEmail(email); err != nil {
-		return Convite{}, err
-	}
+	// O que o ValidarNome e o ValidarEmail devolvem quando aceitam.
+	nome, email = strings.TrimSpace(nome), strings.TrimSpace(email)
 	token, link, err := c.novoLink()
 	if err != nil {
 		return Convite{}, err
@@ -59,16 +125,8 @@ func (c *Cadastro) Criar(usuario, nome, email string) (Convite, error) {
 		CriadoEm: c.agora().Truncate(time.Second)}
 
 	err = c.Alterar(func(a *Arquivo) error {
-		if usuario == c.dono {
-			return Recusado("este é o usuário do dono, no dwnvr.yaml")
-		}
-		// Qualquer entrada com o mesmo login, mesmo a ignorada por inválida:
-		// a nova viria depois dela e seria a ignorada.
-		if slices.ContainsFunc(a.Usuarios, func(o Usuario) bool { return o.Usuario == usuario }) {
-			return Recusado("já existe alguém com este usuário")
-		}
-		if email != "" && emailEmUso(a, email, usuario) {
-			return Recusado("já existe alguém com este e-mail")
+		if r := c.recusasDoNovo(a, usuario, nome, email); len(r) > 0 {
+			return r
 		}
 		a.Usuarios = append(a.Usuarios, u)
 		return nil
@@ -80,20 +138,17 @@ func (c *Cadastro) Criar(usuario, nome, email string) (Convite, error) {
 }
 
 // TrocarEmail troca o e-mail da pessoa, ou o apaga, com email vazio. Não
-// mexe no link nem na senha.
+// mexe no link nem na senha. A recusa vem como Recusas, no CampoEmail.
 func (c *Cadastro) TrocarEmail(usuario, email string) (Usuario, error) {
-	email, err := ValidarEmail(email)
-	if err != nil {
-		return Usuario{}, err
-	}
+	email = strings.TrimSpace(email) // o que o ValidarEmail devolve quando aceita
 	var u Usuario
-	err = c.Alterar(func(a *Arquivo) error {
+	err := c.Alterar(func(a *Arquivo) error {
 		i := c.indice(a, usuario)
 		if i < 0 {
 			return ErrNaoExiste
 		}
-		if email != "" && emailEmUso(a, email, usuario) {
-			return Recusado("já existe alguém com este e-mail")
+		if m := recusaDoEmail(a, email, usuario); m != "" {
+			return Recusas{CampoEmail: m}
 		}
 		a.Usuarios[i].Email = email
 		u = a.Usuarios[i]

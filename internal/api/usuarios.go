@@ -91,10 +91,17 @@ func (s *Server) semCadastro(w http.ResponseWriter) bool {
 	return true
 }
 
-// recusa traduz o erro do cadastro para a resposta.
+// recusa traduz o erro do cadastro para a resposta. As Recusas de um
+// formulário vão campo a campo em "fields", para a tela pôr cada mensagem
+// embaixo do seu campo, e a primeira também em "error", como em toda recusa.
 func (s *Server) recusa(w http.ResponseWriter, what string, err error) {
 	var recusado usuarios.Recusado
+	var recusas usuarios.Recusas
 	switch {
+	case errors.As(err, &recusas):
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": recusas.Error(), "fields": recusas})
 	case errors.As(err, &recusado):
 		writeError(w, http.StatusBadRequest, recusado.Error())
 	case errors.Is(err, usuarios.ErrNaoExiste), errors.Is(err, usuarios.ErrSemAvatar):
@@ -170,6 +177,29 @@ func (s *Server) handleCriarUsuario(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.conviteNaTela(c))
 }
 
+// handleConferirNovo diz o que o POST /api/usuarios recusaria com o mesmo
+// corpo, sem criar ninguém: a tela confere cada campo quando o admin sai dele.
+// Responde 200 com "fields" vazio quando está tudo certo.
+func (s *Server) handleConferirNovo(w http.ResponseWriter, r *http.Request) {
+	if s.semCadastro(w) {
+		return
+	}
+	var req struct {
+		Usuario string `json:"username"`
+		Nome    string `json:"name"`
+		Email   string `json:"email"`
+	}
+	if !lerCorpo(w, r, &req) {
+		return
+	}
+	recusas, err := s.usuarios.ConferirNovo(req.Usuario, req.Nome, req.Email)
+	if err != nil {
+		s.recusa(w, "conferindo o usuário novo", err)
+		return
+	}
+	writeJSON(w, map[string]any{"fields": recusas})
+}
+
 // handleNovoLink gera outro link para a pessoa. A senha dela deixa de valer,
 // o link anterior também, e o que ela tem aberto cai na hora.
 func (s *Server) handleNovoLink(w http.ResponseWriter, r *http.Request) {
@@ -212,6 +242,28 @@ func (s *Server) handleTrocarEmail(w http.ResponseWriter, r *http.Request) {
 	}
 	s.log.Info("e-mail trocado pela interface", "usuario", req.Usuario, "por", pessoaDe(r).Usuario)
 	writeJSON(w, map[string]any{"user": s.naTela(u, time.Now())})
+}
+
+// handleConferirEmail diz o que o POST /api/usuarios/email recusaria com o
+// mesmo corpo, sem trocar nada. Responde 200 com "fields" vazio quando está
+// tudo certo.
+func (s *Server) handleConferirEmail(w http.ResponseWriter, r *http.Request) {
+	if s.semCadastro(w) {
+		return
+	}
+	var req struct {
+		Usuario string `json:"username"`
+		Email   string `json:"email"`
+	}
+	if !lerCorpo(w, r, &req) {
+		return
+	}
+	recusas, err := s.usuarios.ConferirEmail(req.Usuario, req.Email)
+	if err != nil {
+		s.recusa(w, "conferindo o e-mail", err)
+		return
+	}
+	writeJSON(w, map[string]any{"fields": recusas})
 }
 
 // handleEnviarLink manda por e-mail o link que está na tela do admin. O

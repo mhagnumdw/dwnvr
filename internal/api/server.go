@@ -138,9 +138,11 @@ func (s *Server) Handler() http.Handler {
 	// Usuários: a tela é do admin.
 	mux.HandleFunc("GET /api/usuarios", s.requireAdmin(s.handleUsuarios))
 	mux.HandleFunc("POST /api/usuarios", s.requireAdmin(s.handleCriarUsuario))
+	mux.HandleFunc("POST /api/usuarios/conferir", s.requireAdmin(s.handleConferirNovo))
 	mux.HandleFunc("POST /api/usuarios/link", s.requireAdmin(s.handleNovoLink))
 	mux.HandleFunc("POST /api/usuarios/link/email", s.requireAdmin(s.handleEnviarLink))
 	mux.HandleFunc("POST /api/usuarios/email", s.requireAdmin(s.handleTrocarEmail))
+	mux.HandleFunc("POST /api/usuarios/email/conferir", s.requireAdmin(s.handleConferirEmail))
 	mux.HandleFunc("DELETE /api/usuarios", s.requireAdmin(s.handleRemoverUsuario))
 	mux.HandleFunc("DELETE /api/usuarios/avatar", s.requireAdmin(s.handleTirarAvatarDe))
 

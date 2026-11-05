@@ -116,12 +116,92 @@ func TestCriarUsuarioRecusa(t *testing.T) {
 	}
 }
 
+// camposDe é o "fields" da resposta: as recusas por campo.
+func camposDe(t *testing.T, resp map[string]any) map[string]any {
+	t.Helper()
+	campos, ok := resp["fields"].(map[string]any)
+	if !ok {
+		t.Fatalf("resposta sem fields: %v", resp)
+	}
+	return campos
+}
+
+// A recusa do criar vem campo a campo, para a tela pôr cada mensagem embaixo
+// do seu campo, e a primeira também no "error" de sempre.
+func TestCriarUsuarioRecusaPorCampo(t *testing.T) {
+	s, _ := testServer(t)
+	comAutenticacao(t, s, maria)
+	rec, resp := pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios",
+		map[string]string{"username": "maria", "name": "Outra", "email": "outra"})
+	campos := camposDe(t, resp)
+	if rec.Code != http.StatusBadRequest || len(campos) != 2 || campos["username"] == nil || campos["email"] == nil {
+		t.Errorf("status %d, %s", rec.Code, rec.Body)
+	}
+	if resp["error"] != campos["username"] {
+		t.Errorf("error %q, esperava a recusa do usuário", resp["error"])
+	}
+}
+
+// A conferência responde o que o criar e o trocar e-mail recusariam, sem
+// gravar, e só para o admin.
+func TestConferirUsuario(t *testing.T) {
+	s, _ := testServer(t)
+	comAutenticacao(t, s, maria)
+	if _, err := s.usuarios.TrocarEmail("maria", "maria@exemplo.com"); err != nil {
+		t.Fatal(err)
+	}
+
+	rec, resp := pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/conferir",
+		map[string]string{"username": "Maria", "name": " ", "email": "MARIA@exemplo.com"})
+	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 3 {
+		t.Errorf("recusas: status %d, %s", rec.Code, rec.Body)
+	}
+	rec, resp = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/conferir",
+		map[string]string{"username": "joao", "name": "João", "email": ""})
+	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
+		t.Errorf("tudo certo: status %d, %s", rec.Code, rec.Body)
+	}
+	if _, ok := s.usuarios.Buscar("joao"); ok {
+		t.Error("a conferência criou a pessoa")
+	}
+
+	rec, resp = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
+		map[string]string{"username": "maria", "email": "Maria@Exemplo.com"})
+	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
+		t.Errorf("o próprio e-mail: status %d, %s", rec.Code, rec.Body)
+	}
+	// Um e-mail livre e diferente: aceito, e o gravado não muda.
+	rec, resp = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
+		map[string]string{"username": "maria", "email": "outra@exemplo.com"})
+	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
+		t.Errorf("e-mail livre: status %d, %s", rec.Code, rec.Body)
+	}
+	if u, _ := s.usuarios.Buscar("maria"); u.Email != "maria@exemplo.com" {
+		t.Errorf("a conferência gravou o e-mail: %q", u.Email)
+	}
+	if rec, _ = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
+		map[string]string{"username": "ninguem", "email": "x@exemplo.com"}); rec.Code != http.StatusNotFound {
+		t.Errorf("quem não existe: status %d, esperava 404", rec.Code)
+	}
+
+	for _, rota := range []string{"/api/usuarios/conferir", "/api/usuarios/email/conferir"} {
+		if rec, _ = pedirComo(t, s, "maria", http.MethodPost, rota,
+			map[string]string{"username": "maria"}); rec.Code != http.StatusForbidden {
+			t.Errorf("%s pelo viewer: status %d, esperava 403", rota, rec.Code)
+		}
+	}
+}
+
 // Sem autenticação não há cadastro: a tela não grava, e link nenhum vale.
 func TestSemAutenticacaoNaoHaCadastro(t *testing.T) {
 	s, _ := testServer(t)
 	if rec, _ := pedirComo(t, s, "", http.MethodPost, "/api/usuarios",
 		map[string]string{"username": "maria", "name": "Maria"}); rec.Code != http.StatusConflict {
 		t.Errorf("criar sem autenticação: status %d, esperava 409", rec.Code)
+	}
+	if rec, _ := pedirComo(t, s, "", http.MethodPost, "/api/usuarios/conferir",
+		map[string]string{"username": "maria", "name": "Maria"}); rec.Code != http.StatusConflict {
+		t.Errorf("conferir o novo sem autenticação: status %d, esperava 409", rec.Code)
 	}
 	if rec, _ := pedirComo(t, s, "", http.MethodPost, "/api/convite/conferir",
 		map[string]string{"token": "x"}); rec.Code != http.StatusGone {

@@ -58,7 +58,8 @@ src/lib/         api e os tipos do JSON dela, estado (runes), rota e
                  a altura que um elemento tem até o fim da janela e a
                  área desenhada sobre a imagem (a ida e a volta da query,
                  o contorno, a área cheia e o enquadramento da área
-                 pequena para o zoom)
+                 pequena para o zoom), e a conferência dos campos de um
+                 formulário de pessoa pelo servidor, quando se sai deles
 src/routes/      as telas, o login e a de definir a senha pelo link de
                  convite; Detecções, Usuários, Minha conta e a do convite
                  são chunk à parte. Detecções só aparece com o detector de

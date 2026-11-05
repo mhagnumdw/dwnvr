@@ -46,8 +46,8 @@ async function conferir(res: Response) {
     throw new ApiError('sessão expirada', 401);
   }
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(body.error ?? `o servidor respondeu ${res.status}`, res.status);
+    const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Recusas };
+    throw new ApiError(body.error ?? `o servidor respondeu ${res.status}`, res.status, body.fields);
   }
 }
 
@@ -59,10 +59,14 @@ async function json<T>(res: Promise<Response>): Promise<T> {
 
 export class ApiError extends Error {
   readonly status: number;
+  // As recusas por campo de um formulário, quando a API as manda (o criar e
+  // o trocar e-mail de Usuários). Sem elas, objeto vazio.
+  readonly campos: Recusas;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, campos: Recusas = {}) {
     super(message);
     this.status = status;
+    this.campos = campos;
   }
 }
 
@@ -123,9 +127,22 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ username: usuario, name: nome, email }),
     }),
+  // O que o criarUsuario recusaria com estes dados, campo a campo, sem criar
+  // ninguém. Vazio é "tudo certo".
+  conferirNovo: (usuario: string, nome: string, email: string) =>
+    request<{ fields: Recusas }>('usuarios/conferir', {
+      method: 'POST',
+      body: JSON.stringify({ username: usuario, name: nome, email }),
+    }),
   // Vazio apaga o e-mail.
   trocarEmail: (usuario: string, email: string) =>
     request<{ user: Usuario }>('usuarios/email', {
+      method: 'POST',
+      body: JSON.stringify({ username: usuario, email }),
+    }),
+  // O que o trocarEmail recusaria com este e-mail, sem trocar nada.
+  conferirEmail: (usuario: string, email: string) =>
+    request<{ fields: Recusas }>('usuarios/email/conferir', {
       method: 'POST',
       body: JSON.stringify({ username: usuario, email }),
     }),
@@ -366,6 +383,13 @@ export interface Usuarios {
   // Se a seção smtp está ligada. Servidor anterior a ela não manda.
   emailEnabled?: boolean;
 }
+
+// Os campos dos formulários de pessoa, com o nome que têm no JSON.
+export type CampoDaPessoa = 'username' | 'name' | 'email';
+
+// As recusas de um formulário, campo a campo: só os campos recusados, com a
+// mensagem para pôr embaixo de cada um.
+export type Recusas = Partial<Record<CampoDaPessoa, string>>;
 
 // O token só existe nesta resposta: a tela monta o link com ele.
 export interface Convite {

@@ -822,9 +822,11 @@ Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem 
 | --- | --- |
 | `GET /api/usuarios` | as pessoas, com a situação de cada uma, e o dono à parte |
 | `POST /api/usuarios` | cria um viewer, `{"username", "name", "email"}`, e devolve o token do link; o e-mail é opcional |
+| `POST /api/usuarios/conferir` | o que o `POST /api/usuarios` recusaria com o mesmo corpo, sem criar ninguém |
 | `POST /api/usuarios/link` | link novo, `{"username"}`: apaga a senha atual e derruba a pessoa na hora |
 | `POST /api/usuarios/link/email` | manda o link por e-mail, `{"username", "url"}`, para o e-mail da pessoa |
 | `POST /api/usuarios/email` | troca o e-mail de alguém, `{"username", "email"}`; vazio apaga |
+| `POST /api/usuarios/email/conferir` | o que o `POST /api/usuarios/email` recusaria com o mesmo corpo, sem trocar nada |
 | `DELETE /api/usuarios?username=` | remove a pessoa, e a foto dela, e a derruba na hora |
 | `DELETE /api/usuarios/avatar?username=` | tira a foto de alguém; trocar, só a própria pessoa |
 
@@ -864,6 +866,25 @@ Criar e o link novo devolvem
 `{"user": {...}, "token": "..."}`: o token só existe nessa resposta, e a
 tela monta o link com ele. Usuário fora do formato, repetido ou igual ao do
 dono, e nome vazio, são `400` com o motivo; pessoa que não existe é `404`.
+
+A recusa do criar e a do trocar e-mail vêm campo a campo em `fields`, com a
+primeira, na ordem da tela, também no `error` de sempre:
+
+```json
+// POST /api/usuarios -> 400
+{
+  "error": "já existe alguém com este usuário",
+  "fields": { "username": "já existe alguém com este usuário", "email": "já existe alguém com este e-mail" }
+}
+```
+
+As duas rotas `/conferir` são a mesma régua sem gravar nada: a tela confere
+cada campo quando o admin sai dele. Respondem `200` com `{"fields": {...}}`,
+só com os campos recusados, e `{"fields": {}}` quando está tudo certo. A régua
+conta também a entrada ignorada do `usuarios.json` (o login e o e-mail dela
+não ficam livres), que a listagem não traz: por isso a tela não confere sozinha.
+Com o `usuarios.json` ilegível, o cadastro em memória está vazio, e elas
+respondem `500` em vez de dizer que está tudo certo.
 
 O `email` é um endereço só, sem nome na frente, e é **único** entre as
 pessoas, sem diferença de maiúscula e minúscula: e-mail inválido ou de outra
