@@ -17,6 +17,7 @@
   import { toqueDuplo } from '../lib/toqueDuplo.ts';
   import { alturaLivre } from '../lib/alturaLivre.ts';
   import { telaNova } from '../lib/versao-tela.svelte.ts';
+  import { TROCA_MS, EIXO_PX, limiteDoDeslize } from '../lib/deslize.ts';
   import Icone from '../components/Icone.svelte';
 
   const STORAGE_KEY = 'dwnvr.live.selection';
@@ -69,16 +70,6 @@
   // O tique que decide se está na hora de conferir, e o intervalo entre as
   // tentativas enquanto a sessão não se confirma.
   const TIQUE_CONFERENCIA_MS = 5000;
-
-  // Na tela cheia: quanto dura a câmera entrando de lado (e a que volta para
-  // o lugar, num deslize curto demais).
-  const TROCA_MS = 220;
-  // O deslize troca de câmera ao passar de DESLIZE_PX, ou de DESLIZE_FRACAO
-  // da largura da tela se ela for estreita. Antes de EIXO_PX o dedo ainda não
-  // disse se vai para o lado ou para cima.
-  const DESLIZE_PX = 80;
-  const DESLIZE_FRACAO = 0.2;
-  const EIXO_PX = 8;
 
   // Lida uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
@@ -297,8 +288,7 @@
     if (eixo !== 'x') return;
     arrastouEm = Date.now();
     const dx = e.clientX - x;
-    const limite = Math.min(DESLIZE_PX, palco.clientWidth * DESLIZE_FRACAO);
-    if (e.type === 'pointerup' && Math.abs(dx) > limite) {
+    if (e.type === 'pointerup' && Math.abs(dx) > limiteDoDeslize(palco.clientWidth)) {
       ir(dx < 0 ? 1 : -1);
       return;
     }
