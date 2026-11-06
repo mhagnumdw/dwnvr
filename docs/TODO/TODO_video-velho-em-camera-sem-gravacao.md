@@ -37,6 +37,15 @@ antes, troca também a fonte do player para a câmera nova sem segmento
 (`setSource(c, [], [])`): hoje ela segue com a câmera e os segmentos antigos,
 e um `seek()` posterior, como o clique na timeline, tocaria a câmera de antes.
 
+Na mesma passada, fechar uma corrida vizinha: o `updateSegments()` espera o
+pump (`await this.#pumping`) e só depois grava a lista. Se o `setSource()` da
+câmera nova chegar nesse meio-tempo, a lista da câmera anterior volta, e um
+clique na timeline pede à câmera nova segmentos da outra. A geração não serve
+para barrar isso, porque o `seek()` também a troca, e uma atualização da mesma
+câmera depois de um seek é válida. A proteção é um contador da fonte, só do
+`setSource()`: o `updateSegments()` guarda o valor antes do `await` e desiste
+se ele mudou.
+
 ## Prós e contras
 
 - A favor: a tela deixa de mostrar uma câmera com o nome de outra, e para de
