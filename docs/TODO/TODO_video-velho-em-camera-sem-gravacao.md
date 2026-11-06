@@ -28,8 +28,14 @@ errada.
 
 Um método no `Player` que pare e esvazie o `<video>` como o `destroy()` faz
 (fechar o `MediaSource`, revogar a URL, `removeAttribute('src')` + `load()`),
-sem soltar os ouvintes. O `load()` o chama quando o dia vem sem segmento e no
-`catch`.
+sem soltar os ouvintes. Ele também invalida a geração (`#novaGeracao()`), para
+um seek ainda em voo não pôr o vídeo antigo de volta, e apaga o `#seeking`, o
+`carregando` e o aviso de "carregando…", que esse seek atropelado não apagaria.
+
+O `load()` o chama quando o dia vem sem segmento e no `catch`. No `catch`,
+antes, troca também a fonte do player para a câmera nova sem segmento
+(`setSource(c, [], [])`): hoje ela segue com a câmera e os segmentos antigos,
+e um `seek()` posterior, como o clique na timeline, tocaria a câmera de antes.
 
 ## Prós e contras
 

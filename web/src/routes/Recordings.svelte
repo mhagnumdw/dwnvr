@@ -295,6 +295,9 @@
   function ir(d: Lado) {
     if (animando || cameras.list.length < 2 || !stage) return;
     menu = null;
+    // A seta da faixa tocada com outro dedo arrastando o vídeo: o arrasto
+    // para aqui, senão ele mexeria no vídeo no meio da troca.
+    largar();
     // Uma já saiu e a outra ainda não apareceu: não há o que tirar da tela.
     if (trocando) {
       arrasto = 0;
@@ -317,9 +320,19 @@
     if (trocando && !loading && timeline.cam === cam) trocando = false;
   });
 
+  // O ponteiro cujo gesto foi largado no meio: o soltar dele não é um toque.
+  // O `pointerdown` seguinte com o mesmo id o desmarca, porque o mouse repete
+  // o id e o soltar fora da janela nunca chega aqui.
+  let largado: number | null = null;
+
+  function largar() {
+    if (gesto) largado = gesto.id;
+    gesto = null;
+  }
+
   // Larga o gesto em curso e devolve o vídeo ao lugar.
   function desistir() {
-    gesto = null;
+    largar();
     if (!arrasto) return;
     animando = true;
     arrasto = 0;
@@ -328,6 +341,7 @@
 
   function gestoComeca(e: PointerEvent) {
     ultimoPonteiro = e.pointerType;
+    if (e.pointerId === largado) largado = null;
     // Um segundo dedo no meio do gesto é pinça, e não deslize: sem isto o
     // gesto passaria para ele e o vídeo ficaria parado onde o primeiro o deixou.
     if (gesto && gesto.id !== e.pointerId) {
@@ -1017,9 +1031,16 @@
         onpointerdown={gestoComeca}
         onpointermove={gestoMove}
         onpointerup={(e) => {
+          if (e.pointerId === largado) {
+            largado = null;
+            return;
+          }
           if (!gestoAcaba(e)) toque(e);
         }}
-        onpointercancel={gestoAcaba}
+        onpointercancel={(e) => {
+          if (e.pointerId === largado) largado = null;
+          gestoAcaba(e);
+        }}
         ondblclick={() => {
           if (ultimoPonteiro !== 'touch' && Date.now() - arrastouEm > 2 * TROCA_MS) alternarCheia();
         }}
