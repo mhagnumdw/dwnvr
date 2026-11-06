@@ -67,9 +67,11 @@
   // quanto cada conferência espera a resposta. Ver `conferirSessao`.
   const CONFERIR_SESSAO_MS = 60_000;
   const PRAZO_CONFERENCIA_MS = 10_000;
-  // O tique que decide se está na hora de conferir, e o intervalo entre as
-  // tentativas enquanto a sessão não se confirma.
+  // O tique que decide se está na hora da conferência de rotina.
   const TIQUE_CONFERENCIA_MS = 5000;
+  // Enquanto a sessão não se confirma: quantos segundos do fim de uma
+  // tentativa até a próxima, os da contagem que o aviso mostra.
+  const ESPERA_TENTATIVA_S = 5;
 
   // Lida uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
@@ -594,7 +596,9 @@
   //   rede de segurança se o aviso se perder;
   // - a câmera que caiu e não voltou, em `religarRapido`.
   // Sessão que não vale leva ao login. Sessão que não se confirma - o dwnvr
-  // não respondeu - para o vídeo até confirmar: na dúvida, fecha.
+  // não respondeu - para o vídeo até confirmar: na dúvida, fecha. Enquanto não
+  // confirma, o aviso conta os segundos até a próxima tentativa e deixa tentar
+  // na hora.
 
   // Com o vídeo à vista: aba visível, ou uma câmera no PiP.
   let visivel = $state(!document.hidden);
@@ -603,6 +607,10 @@
   let acessoConfirmado = $state(true);
   let ultimaConferencia = Date.now();
   let conferindo: Promise<void> | null = null;
+  // O mesmo `conferindo`, visível para o aviso: a promise não é reativa.
+  let conferindoAgora = $state(false);
+  // Segundos até a próxima tentativa, enquanto o acesso não se confirma.
+  let faltam = $state(ESPERA_TENTATIVA_S);
 
   // fecharTudo corta o vídeo de todas as câmeras na hora. Desmontar o tile
   // também corta, mas só depois dos 5 s de carência do player, e o WebRTC
@@ -614,6 +622,7 @@
   function conferirSessao() {
     if (!session.authRequired) return;
     conferindo ??= (async () => {
+      conferindoAgora = true;
       try {
         const r = await api.conferirSessao(PRAZO_CONFERENCIA_MS);
         const s = (await r.json()) as Sessao;
@@ -627,22 +636,52 @@
       } finally {
         ultimaConferencia = Date.now();
         conferindo = null;
+        conferindoAgora = false;
+        // A contagem recomeça do fim da tentativa, venha ela de onde vier:
+        // da contagem, do botão, do aviso de sessão ou de uma câmera.
+        faltam = ESPERA_TENTATIVA_S;
       }
     })();
   }
 
   // Enquanto `rede` espera o servidor responder na volta da aba oculta, não
   // confere: a rede ainda suspensa daria um "não confirmou" falso, e o vídeo
-  // pararia à toa.
+  // pararia à toa. A tentativa espera por ela, e o aviso já diz "Conferindo…".
+  // A espera também acaba se a aba voltar a ficar oculta: aí não confere, e a
+  // contagem segue na próxima volta.
+  function tentarDeNovo() {
+    if (!rede) return conferirSessao();
+    conferindoAgora = true;
+    void rede.then(() => {
+      if (ativo) conferirSessao();
+      else conferindoAgora = false;
+    });
+  }
+
+  // A conferência de rotina, com o acesso confirmado.
   $effect(() => {
-    if (!session.authRequired || !ativo) return;
+    if (!session.authRequired || !ativo || !acessoConfirmado) return;
     const id = setInterval(() => {
       if (rede) return;
-      if (!acessoConfirmado || Date.now() - ultimaConferencia >= CONFERIR_SESSAO_MS)
-        conferirSessao();
+      if (Date.now() - ultimaConferencia >= CONFERIR_SESSAO_MS) conferirSessao();
     }, TIQUE_CONFERENCIA_MS);
     return () => {
       clearInterval(id);
+    };
+  });
+
+  // A contagem até a próxima tentativa, com o acesso não confirmado. Um passo
+  // por segundo: cada mudança de `faltam` refaz o efeito, que agenda o próximo.
+  // Para durante uma tentativa e com o vídeo fora da vista.
+  $effect(() => {
+    if (!session.authRequired || !ativo || acessoConfirmado || conferindoAgora) return;
+    const n = faltam;
+    const id = setTimeout(() => {
+      if (n > 1) faltam = n - 1;
+      else tentarDeNovo();
+    }, 1000);
+    return () => {
+      clearTimeout(id);
     };
   });
 
@@ -925,10 +964,15 @@
   {/if}
 
   {#if !acessoConfirmado}
-    <p class="card small semacesso">
-      Não deu para confirmar o seu acesso com o dwnvr, e o vídeo fica parado até confirmar. Tentando
-      de novo…
-    </p>
+    <div class="card small semacesso">
+      <p>Não deu para confirmar o seu acesso com o dwnvr, e o vídeo fica parado até confirmar.</p>
+      <div class="tentativa">
+        <span>{conferindoAgora ? 'Conferindo…' : `Nova tentativa em ${faltam} s`}</span>
+        <button type="button" disabled={conferindoAgora} onclick={tentarDeNovo}>
+          Tentar agora
+        </button>
+      </div>
+    </div>
   {/if}
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1123,6 +1167,21 @@
 <style>
   .semacesso {
     color: var(--warn);
+    display: grid;
+    gap: 10px;
+  }
+  .semacesso p {
+    margin: 0;
+  }
+  .tentativa {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  /* O número muda a cada segundo: com largura fixa, o texto não treme. */
+  .tentativa span {
+    font-variant-numeric: tabular-nums;
   }
 
   .page {
