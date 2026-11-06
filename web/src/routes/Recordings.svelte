@@ -317,8 +317,23 @@
     if (trocando && !loading && timeline.cam === cam) trocando = false;
   });
 
+  // Larga o gesto em curso e devolve o vídeo ao lugar.
+  function desistir() {
+    gesto = null;
+    if (!arrasto) return;
+    animando = true;
+    arrasto = 0;
+    setTimeout(() => (animando = false), TROCA_MS);
+  }
+
   function gestoComeca(e: PointerEvent) {
     ultimoPonteiro = e.pointerType;
+    // Um segundo dedo no meio do gesto é pinça, e não deslize: sem isto o
+    // gesto passaria para ele e o vídeo ficaria parado onde o primeiro o deixou.
+    if (gesto && gesto.id !== e.pointerId) {
+      desistir();
+      return;
+    }
     if (e.button !== 0 || animando || cameras.list.length < 2) return;
     if (e.target instanceof Element && e.target.closest('button, a')) return;
     gesto = { id: e.pointerId, x: e.clientX, y: e.clientY, eixo: null };
@@ -326,6 +341,12 @@
 
   function gestoMove(e: PointerEvent) {
     if (gesto?.id !== e.pointerId || !stage) return;
+    // O botão foi solto fora da janela antes de o eixo se decidir (só então o
+    // palco captura o ponteiro): o vídeo não pode seguir o mouse solto.
+    if (e.pointerType === 'mouse' && !(e.buttons & 1)) {
+      desistir();
+      return;
+    }
     const dx = e.clientX - gesto.x;
     const dy = e.clientY - gesto.y;
     if (!gesto.eixo && Math.hypot(dx, dy) > EIXO_PX) {
@@ -1098,11 +1119,9 @@
               >
                 <Icone nome="chevronEsq" tamanho={18} />
               </button>
-              <span class="nome-cam"
-                >{cameras.list[posicaoDaCam]?.name}<span class="pos"
-                  >{posicaoDaCam + 1}/{cameras.list.length}</span
-                ></span
-              >
+              <!-- A posição fica fora do nome: o "…" corta só o nome. -->
+              <span class="nome-cam">{cameras.list[posicaoDaCam]?.name}</span>
+              <span class="pos">{posicaoDaCam + 1}/{cameras.list.length}</span>
               <button
                 class="ghost"
                 onclick={() => {
@@ -1685,8 +1704,11 @@
     white-space: nowrap;
     padding: 0 4px;
   }
+  /* Fora do nome e sem encolher: um nome longo corta antes dela. */
   .pos {
-    margin-left: 6px;
+    flex: none;
+    margin-left: 2px;
+    padding-right: 4px;
     color: var(--dim);
     font-variant-numeric: tabular-nums;
   }
