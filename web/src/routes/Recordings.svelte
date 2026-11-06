@@ -22,6 +22,7 @@
   import { telaCheia, alternarTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
   import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
   import { alturaLivre } from '../lib/alturaLivre.ts';
+  import { TROCA_MS, EIXO_PX, limiteDoDeslize } from '../lib/deslize.ts';
   import { avisar } from '../lib/snackbar.svelte.ts';
   import Timeline from '../components/Timeline.svelte';
   import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
@@ -142,13 +143,14 @@
     localStorage.setItem('dwnvr.rec.controlesFixos', controlesFixos ? '1' : '0');
   });
 
-  // Entrar na tela cheia, dar play, pausar e soltar o alfinete recomeçam a
-  // contagem.
+  // Entrar na tela cheia, dar play, pausar, soltar o alfinete e trocar de
+  // câmera recomeçam a contagem. A troca mostra junto o nome da câmera nova.
   $effect(() => {
     if (!emTelaCheia) return;
     /* eslint-disable @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear */
     player.playing;
     controlesFixos;
+    cam;
     /* eslint-enable @typescript-eslint/no-unused-expressions */
     untrack(() => {
       controles.mostrar();
@@ -265,6 +267,96 @@
       if (emTelaCheia && !controlesFixos) controles.toqueSimples();
     },
   });
+
+  // --- deslizar para trocar de câmera -----------------------------------------
+  //
+  // O gesto da tela cheia do Ao vivo, aqui dentro e fora dela: o vídeo é
+  // sempre de uma câmera só. Ele segue o dedo (ou o mouse) e, passado o limite,
+  // sai pelo lado; a câmera nova aparece no lugar, sem deslizar de novo, quando
+  // o load() dela termina. Até lá o vídeo fica escondido, com o "carregando…"
+  // no palco preto: mostrá-lo antes seria mostrar o último quadro da câmera
+  // que saiu, que é o que o <video> ainda tem. Um deslize curto demais volta
+  // para o lugar.
+  //
+  // O eixo se decide nos primeiros EIXO_PX: na vertical o dedo rola a página.
+  // Começar num botão não vale.
+
+  let stage = $state<HTMLDivElement | null>(null);
+  // Quanto o vídeo está deslocado, em px, e se o deslocamento anima.
+  let arrasto = $state(0);
+  let animando = $state(false);
+  // A câmera saiu pelo lado e a nova ainda carrega.
+  let trocando = $state(false);
+  let gesto: { id: number; x: number; y: number; eixo: 'x' | 'y' | null } | null = null;
+  // Dois arrastos seguidos rápidos com o mouse também fazem um duplo clique.
+  let arrastouEm = 0;
+
+  // A próxima (1) ou a anterior (-1), como as setas da barra.
+  function ir(d: Lado) {
+    if (animando || cameras.list.length < 2 || !stage) return;
+    menu = null;
+    // Uma já saiu e a outra ainda não apareceu: não há o que tirar da tela.
+    if (trocando) {
+      arrasto = 0;
+      shiftCam(d);
+      return;
+    }
+    animando = true;
+    arrasto = -d * stage.clientWidth;
+    setTimeout(() => {
+      // No mesmo tique: o vídeo some no quadro em que volta ao zero.
+      animando = false;
+      arrasto = 0;
+      trocando = true;
+      shiftCam(d);
+    }, TROCA_MS);
+  }
+
+  // A câmera nova carregou (ou falhou, ou não tem gravação no dia): aparece.
+  $effect(() => {
+    if (trocando && !loading && timeline.cam === cam) trocando = false;
+  });
+
+  function gestoComeca(e: PointerEvent) {
+    ultimoPonteiro = e.pointerType;
+    if (e.button !== 0 || animando || cameras.list.length < 2) return;
+    if (e.target instanceof Element && e.target.closest('button, a')) return;
+    gesto = { id: e.pointerId, x: e.clientX, y: e.clientY, eixo: null };
+  }
+
+  function gestoMove(e: PointerEvent) {
+    if (gesto?.id !== e.pointerId || !stage) return;
+    const dx = e.clientX - gesto.x;
+    const dy = e.clientY - gesto.y;
+    if (!gesto.eixo && Math.hypot(dx, dy) > EIXO_PX) {
+      gesto.eixo = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (gesto.eixo === 'x') stage.setPointerCapture(e.pointerId);
+    }
+    if (gesto.eixo === 'x') arrasto = dx;
+  }
+
+  // Diz se foi um deslize: aí o soltar não é um toque, nem para o pulo de
+  // 10 s nem para esconder os controles.
+  function gestoAcaba(e: PointerEvent) {
+    if (gesto?.id !== e.pointerId || !stage) return false;
+    const { eixo, x } = gesto;
+    gesto = null;
+    if (eixo !== 'x') return false;
+    arrastouEm = Date.now();
+    const dx = e.clientX - x;
+    if (e.type === 'pointerup' && Math.abs(dx) > limiteDoDeslize(stage.clientWidth)) {
+      ir(dx < 0 ? 1 : -1);
+      return true;
+    }
+    animando = true;
+    arrasto = 0;
+    setTimeout(() => (animando = false), TROCA_MS);
+    return true;
+  }
+
+  // O nome e a posição da câmera, na tela cheia: lá não há a barra com o
+  // seletor para dizer em qual câmera se está depois de deslizar.
+  const posicaoDaCam = $derived(cameras.list.findIndex((c) => c.id === cam));
 
   // As teclas valem na tela inteira, com ou sem tela cheia. Num campo ou num
   // select, a seta e o espaço são dele; o calendário também usa as setas, e
@@ -895,10 +987,20 @@
     >
       <div
         class="stage"
-        onpointerdown={(e) => (ultimoPonteiro = e.pointerType)}
-        onpointerup={toque}
+        class:animando
+        class:trocando
+        class:desloca={animando || arrasto !== 0}
+        style:--troca="{TROCA_MS}ms"
+        style:--arrasto="{arrasto}px"
+        bind:this={stage}
+        onpointerdown={gestoComeca}
+        onpointermove={gestoMove}
+        onpointerup={(e) => {
+          if (!gestoAcaba(e)) toque(e);
+        }}
+        onpointercancel={gestoAcaba}
         ondblclick={() => {
-          if (ultimoPonteiro !== 'touch') alternarCheia();
+          if (ultimoPonteiro !== 'touch' && Date.now() - arrastouEm > 2 * TROCA_MS) alternarCheia();
         }}
       >
         <video bind:this={video} playsinline controls={false}></video>
@@ -978,6 +1080,41 @@
           >
             {#each RATES as r (r)}<option value={r}>{taxa(r)}</option>{/each}
           </select>
+
+          <!-- Na tela cheia não há a barra de cima: a câmera e as setas dela
+               vêm para cá, e não para as laterais do vídeo, que no celular são
+               do duplo toque que pula 10 s. Ficam nesta linha quando cabem, e
+               numa linha própria acima dela quando não (o CSS decide pela
+               largura, e não pelo nome: trocar de câmera não mexe na faixa). -->
+          {#if emTelaCheia && posicaoDaCam >= 0}
+            <div class="camnav navfs">
+              <button
+                class="ghost"
+                onclick={() => {
+                  ir(-1);
+                }}
+                disabled={cameras.list.length < 2}
+                aria-label="câmera anterior"
+              >
+                <Icone nome="chevronEsq" tamanho={18} />
+              </button>
+              <span class="nome-cam"
+                >{cameras.list[posicaoDaCam]?.name}<span class="pos"
+                  >{posicaoDaCam + 1}/{cameras.list.length}</span
+                ></span
+              >
+              <button
+                class="ghost"
+                onclick={() => {
+                  ir(1);
+                }}
+                disabled={cameras.list.length < 2}
+                aria-label="próxima câmera"
+              >
+                <Icone nome="chevronDir" tamanho={18} />
+              </button>
+            </div>
+          {/if}
 
           <span class="spacer"></span>
           {#if emTelaCheia}
@@ -1184,8 +1321,27 @@
     background: #000;
     border-radius: var(--radius);
     overflow: hidden;
-    /* O duplo toque é nosso: sem zoom do navegador no lugar dele. */
-    touch-action: manipulation;
+    /* O duplo toque e o deslize para o lado são nossos: o navegador fica só
+       com a rolagem vertical e a pinça. */
+    touch-action: pan-y pinch-zoom;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* O que desliza com o dedo: o vídeo e as caixas por cima dele. Os avisos, a
+     meia-lua e o botão de tela cheia ficam. O `transform` só existe durante o
+     gesto: parado, o vídeo não ganha camada própria à toa. */
+  .stage.desloca > video,
+  .stage.desloca > :global(canvas) {
+    transform: translateX(var(--arrasto));
+  }
+  .stage.animando > video,
+  .stage.animando > :global(canvas) {
+    transition: transform var(--troca) ease-out;
+  }
+  .stage.trocando > video,
+  .stage.trocando > :global(canvas) {
+    visibility: hidden;
   }
 
   /* O retorno do pulo de 10 s, como a do YouTube: um arco translúcido colado na
@@ -1506,6 +1662,47 @@
     border-color: #5c2b2b;
   }
 
+  /* A câmera na faixa da tela cheia, com as setas da barra de cima. Na mesma
+     linha do ▶ quando a faixa tem 520 px; abaixo disso ela vai para uma
+     linha própria, centrada, acima dos controles. O corte é pela largura, e
+     não pelo nome, para a faixa não mudar ao trocar de câmera. */
+  .cheia.fs .dock {
+    container-type: inline-size;
+  }
+  .navfs {
+    display: flex;
+    align-items: center;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .navfs button {
+    flex: none;
+  }
+  .nome-cam {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 4px;
+  }
+  .pos {
+    margin-left: 6px;
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+  }
+  /* 520 px: ▶, relógio, velocidade, uns 10 caracteres de nome com as setas,
+     alfinete e sair. */
+  @container (max-width: 519.98px) {
+    .controls:has(.navfs) {
+      flex-wrap: wrap;
+      row-gap: 4px;
+    }
+    .navfs {
+      order: -1;
+      flex: 1 0 100%;
+      justify-content: center;
+    }
+  }
   .rodape {
     flex: none;
   }

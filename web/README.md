@@ -55,7 +55,9 @@ src/lib/         api e os tipos do JSON dela, estado (runes), rota e
                  aberta ficou para trás de uma atualização, a snackbar (o
                  aviso curto embaixo da tela), a dica que o toque longo
                  abre num botão (e o aviso do toque longo a quem o pede),
-                 a altura que um elemento tem até o fim da janela e a
+                 a altura que um elemento tem até o fim da janela, os
+                 números do deslize para o lado que troca de câmera
+                 (comuns ao Ao vivo e às Gravações) e a
                  área desenhada sobre a imagem (a ida e a volta da query,
                  o contorno, a área cheia e o enquadramento da área
                  pequena para o zoom), e a conferência dos campos de um
