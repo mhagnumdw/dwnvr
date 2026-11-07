@@ -660,14 +660,20 @@
   // confere: a rede ainda suspensa daria um "não confirmou" falso, e o vídeo
   // pararia à toa. A tentativa espera por ela, e o aviso já diz "Conferindo…".
   // A espera também acaba se a aba voltar a ficar oculta: aí não confere, e a
-  // contagem segue na próxima volta. Uma espera por vez.
+  // contagem segue na próxima volta. Uma espera por vez. Também não confere se
+  // a tela já saiu, como no logout: a resposta de uma conferência órfã,
+  // chegando depois de um login novo, derrubaria a sessão nova.
+  let telaNoAr = true;
+  onMount(() => () => {
+    telaNoAr = false;
+  });
   function tentarDeNovo() {
     if (!rede) return conferirSessao();
     if (esperandoRede) return;
     esperandoRede = true;
     void rede.then(() => {
       esperandoRede = false;
-      if (ativo) conferirSessao();
+      if (telaNoAr && ativo) conferirSessao();
     });
   }
 
