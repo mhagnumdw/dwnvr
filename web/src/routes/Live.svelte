@@ -609,8 +609,16 @@
   let conferindo: Promise<void> | null = null;
   // O mesmo `conferindo`, visível para o aviso: a promise não é reativa.
   let conferindoAgora = $state(false);
+  // Uma tentativa esperando a `rede` antes de conferir. Fica separada: uma
+  // conferência de outra origem pode terminar antes de a espera acabar.
+  let esperandoRede = $state(false);
+  // O aviso diz "Conferindo…" e a contagem para enquanto qualquer uma corre.
+  const ocupado = $derived(conferindoAgora || esperandoRede);
   // Segundos até a próxima tentativa, enquanto o acesso não se confirma.
   let faltam = $state(ESPERA_TENTATIVA_S);
+  // O acesso voltou depois de uma falha: só o leitor de tela precisa disso, o
+  // aviso que some já diz o mesmo a quem vê.
+  let acessoVoltou = $state(false);
 
   // fecharTudo corta o vídeo de todas as câmeras na hora. Desmontar o tile
   // também corta, mas só depois dos 5 s de carência do player, e o WebRTC
@@ -629,10 +637,14 @@
         if (!s.authenticated) {
           fecharTudo();
           sessaoCaiu();
-        } else acessoConfirmado = true;
+        } else {
+          if (!acessoConfirmado) acessoVoltou = true;
+          acessoConfirmado = true;
+        }
       } catch {
         fecharTudo();
         acessoConfirmado = false;
+        acessoVoltou = false;
       } finally {
         ultimaConferencia = Date.now();
         conferindo = null;
@@ -648,13 +660,14 @@
   // confere: a rede ainda suspensa daria um "não confirmou" falso, e o vídeo
   // pararia à toa. A tentativa espera por ela, e o aviso já diz "Conferindo…".
   // A espera também acaba se a aba voltar a ficar oculta: aí não confere, e a
-  // contagem segue na próxima volta.
+  // contagem segue na próxima volta. Uma espera por vez.
   function tentarDeNovo() {
     if (!rede) return conferirSessao();
-    conferindoAgora = true;
+    if (esperandoRede) return;
+    esperandoRede = true;
     void rede.then(() => {
+      esperandoRede = false;
       if (ativo) conferirSessao();
-      else conferindoAgora = false;
     });
   }
 
@@ -674,7 +687,7 @@
   // por segundo: cada mudança de `faltam` refaz o efeito, que agenda o próximo.
   // Para durante uma tentativa e com o vídeo fora da vista.
   $effect(() => {
-    if (!session.authRequired || !ativo || acessoConfirmado || conferindoAgora) return;
+    if (!session.authRequired || !ativo || acessoConfirmado || ocupado) return;
     const n = faltam;
     const id = setTimeout(() => {
       if (n > 1) faltam = n - 1;
@@ -963,14 +976,26 @@
     </div>
   {/if}
 
+  <!-- Para o leitor de tela, só as mudanças de estado: o número da contagem
+       fica fora, senão ele seria anunciado a cada segundo. Sempre montada e
+       vazia até a primeira falha: o leitor anuncia mudança dentro de uma
+       região que já existe, e não o texto de uma que acabou de nascer. -->
+  <span class="so-leitor" role="status">
+    {acessoConfirmado
+      ? acessoVoltou
+        ? 'Acesso ao dwnvr confirmado.'
+        : ''
+      : ocupado
+        ? 'Conferindo o acesso ao dwnvr.'
+        : `Não deu para confirmar o acesso ao dwnvr. Nova tentativa em ${ESPERA_TENTATIVA_S} segundos.`}
+  </span>
+
   {#if !acessoConfirmado}
     <div class="card small semacesso">
       <p>Não deu para confirmar o seu acesso com o dwnvr, e o vídeo fica parado até confirmar.</p>
       <div class="tentativa">
-        <span>{conferindoAgora ? 'Conferindo…' : `Nova tentativa em ${faltam} s`}</span>
-        <button type="button" disabled={conferindoAgora} onclick={tentarDeNovo}>
-          Tentar agora
-        </button>
+        <span>{ocupado ? 'Conferindo…' : `Nova tentativa em ${faltam} s`}</span>
+        <button type="button" disabled={ocupado} onclick={tentarDeNovo}> Tentar agora </button>
       </div>
     </div>
   {/if}
@@ -1182,6 +1207,15 @@
   /* O número muda a cada segundo: com largura fixa, o texto não treme. */
   .tentativa span {
     font-variant-numeric: tabular-nums;
+  }
+  /* Fora da tela, mas lido pelo leitor de tela. */
+  .so-leitor {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .page {
