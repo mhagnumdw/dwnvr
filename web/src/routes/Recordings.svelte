@@ -64,6 +64,11 @@
   // tão baixa, vídeo, controles e timeline não cabem juntos de jeito nenhum.
   // O celular deitado, com a navegação embaixo, deixa uns 270.
   const ALTURA_MINIMA = 240;
+  // Abaixo disso a página não estreita mais para acompanhar o vídeo: os
+  // controles precisam de espaço numa linha só, com os rótulos (720 px), e o
+  // vídeo volta a ganhar faixa preta dos lados, como numa janela baixa.
+  const LARGURA_MINIMA = 720;
+  const PROPORCAO = 16 / 9;
 
   // Lidos uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
@@ -218,9 +223,41 @@
   let alturaDaLinha = $state(0);
   let alturaDaLegenda = $state(0);
 
+  // E a largura acompanha o vídeo: a página inteira fica com a largura que
+  // o vídeo, em 16:9, tem na altura que sobra para ele, e centralizada. Em tela
+  // larga, como a ultrawide, o vídeo cresce até a altura da janela, sem teto
+  // fixo e sem faixa preta dos lados; a barra, os controles e a timeline vêm
+  // junto, alinhados a ele.
+  let larguraDaPagina = $state(0);
+
   function medirPagina() {
     // Na tela cheia o palco é dela; a página se mede de novo na volta.
-    if (pagina && !emTelaCheia) alturaDaPagina = alturaLivre(pagina, ALTURA_MINIMA);
+    if (!pagina || emTelaCheia) return;
+    alturaDaPagina = alturaLivre(pagina, ALTURA_MINIMA);
+    medirLargura();
+  }
+
+  // O que não é vídeo (padding, barra, controles, miniaturas, timeline,
+  // legenda e os gaps) tem altura que não depende da largura, a não ser a
+  // legenda, que quebra linha em janela estreita: a conta converge, porque
+  // estreitar só faz quebrar mais. Medido do topo da página ao fim do último
+  // filho, e não pela altura dela, que é fixa e deixa a sobra embaixo.
+  function medirLargura() {
+    if (!pagina || !stage || emTelaCheia) return;
+    const ultimo = pagina.lastElementChild;
+    if (!ultimo) return;
+    const estilo = getComputedStyle(pagina);
+    const conteudo =
+      ultimo.getBoundingClientRect().bottom -
+      pagina.getBoundingClientRect().top +
+      parseFloat(estilo.paddingBottom);
+    // A altura do palco com fração, como a do resto: o `offsetHeight`
+    // arredonda, e o pixel de diferença faria a largura alternar entre dois
+    // valores (achado do Greptile no PR #74).
+    const outros = conteudo - stage.getBoundingClientRect().height;
+    const horizontal = parseFloat(estilo.paddingLeft) + parseFloat(estilo.paddingRight);
+    const largura = Math.floor((alturaDaPagina - outros) * PROPORCAO + horizontal);
+    larguraDaPagina = Math.max(LARGURA_MINIMA, largura);
   }
 
   $effect(() => {
@@ -230,6 +267,22 @@
     const ro = new ResizeObserver(medirPagina);
     const topo = document.querySelector('#app > .topo');
     if (topo) ro.observe(topo);
+    return () => {
+      ro.disconnect();
+    };
+  });
+
+  // Ocultar as miniaturas, a legenda ganhar as famílias ou quebrar linha muda
+  // a altura do que não é vídeo, e com ela a largura. O palco fica de fora:
+  // ele muda justamente por causa desta conta.
+  $effect(() => {
+    if (!pagina || !stage) return;
+    const ro = new ResizeObserver(() => {
+      medirLargura();
+    });
+    for (const filho of pagina.children) if (!filho.contains(stage)) ro.observe(filho);
+    const dock = stage.parentElement?.querySelector('.dock');
+    if (dock) ro.observe(dock);
     return () => {
       ro.disconnect();
     };
@@ -951,6 +1004,7 @@
   bind:this={pagina}
   style:height={alturaDaPagina ? `${alturaDaPagina}px` : null}
   style:--alt-pagina="{alturaDaPagina}px"
+  style:--larg-pagina={larguraDaPagina ? `${larguraDaPagina}px` : null}
   style:--alt-linha="{alturaDaLinha}px"
   style:--alt-legenda="{alturaDaLegenda}px"
 >
@@ -1336,7 +1390,8 @@
     flex-direction: column;
     gap: 10px;
     padding: 10px;
-    max-width: 1400px;
+    /* A largura do vídeo na altura que sobra (medida em `medirLargura`). */
+    max-width: var(--larg-pagina, none);
     margin: 0 auto;
   }
 
@@ -1559,6 +1614,8 @@
       grid-template-rows: auto auto 1fr auto auto;
       grid-template-areas: 'stage bar' 'stage ctl' 'stage mini' 'linha linha' 'legenda legenda';
       gap: 8px 10px;
+      /* Aqui o vídeo vai para o lado: a conta da largura não se aplica. */
+      max-width: none;
     }
     .cheia:not(.fs),
     .cheia:not(.fs) .dock {
