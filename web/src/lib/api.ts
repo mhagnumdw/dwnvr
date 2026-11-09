@@ -217,7 +217,9 @@ export const api = {
   // Faz o go2rtc reler o go2rtc.yaml. Todas as câmeras param por alguns segundos.
   reiniciarGo2rtc: () => request<unknown>('go2rtc/restart', { method: 'POST' }),
 
-  health: () => request<Saude>('health'),
+  // Com prazo: um pedido que nunca volta seguraria o poll da saúde, que não
+  // começa uma leitura com outra em curso. Estourado, vira falha como as outras.
+  health: (ms: number) => request<Saude>('health', { signal: AbortSignal.timeout(ms) }),
 
   // Recomeça a contagem de reconexões de todas as câmeras. Não derruba conexão.
   zerarReconexoes: () => request<unknown>('reconnects/reset', { method: 'POST' }),
