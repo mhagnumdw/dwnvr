@@ -116,6 +116,9 @@ export const health = $state<EstadoDaSaude>({
   // alertas que não saíram pelos meios e os meios falhando; nulo sem nenhum.
   alerts: null,
   updatedAt: 0,
+  // Quando a leitura começou a falhar, para a tela dizer que o que mostra é
+  // velho; volta a nulo na primeira leitura boa.
+  failingSince: null,
 });
 
 // O /api/health como a tela o guarda: nulo onde a resposta não trouxe o campo.
@@ -136,6 +139,7 @@ export interface EstadoDaSaude {
     failing?: MeioFalhando[];
   } | null;
   updatedAt: number;
+  failingSince: number | null;
 }
 
 // Qual código o servidor está rodando. Não muda enquanto a página está aberta,
@@ -212,6 +216,7 @@ function zeraOQueFoiCarregado() {
   health.users = null;
   health.alerts = null;
   health.updatedAt = 0;
+  health.failingSince = null;
   healthPedidoEm = 0;
 }
 
@@ -324,10 +329,17 @@ export async function loadCameras() {
 // do header consulta para não repetir uma leitura recente, ou uma em curso.
 let healthPedidoEm = 0;
 
+// Numera as leituras para só a mais recente mexer no estado: o poll e uma
+// releitura pedida pela tela podem se cruzar, e uma resposta velha que chega
+// depois apagaria a nova - ou acenderia o "sem resposta" com o servidor de pé.
+let healthLeitura = 0;
+
 export async function loadHealth() {
   healthPedidoEm = Date.now();
+  const esta = ++healthLeitura;
   try {
     const data = await api.health();
+    if (esta !== healthLeitura) return;
     health.cameras = data.cameras;
     health.disk = data.disk ?? null;
     health.uptime = data.uptime ?? null;
@@ -339,8 +351,11 @@ export async function loadHealth() {
     health.users = data.users ?? null;
     health.alerts = data.alerts ?? null;
     health.updatedAt = Date.now();
+    health.failingSince = null;
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.
+    // Só marca desde quando falha, para o rodapé avisar que o dado é velho.
+    if (esta === healthLeitura) health.failingSince ??= Date.now();
   }
 }
 

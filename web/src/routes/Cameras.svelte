@@ -6,7 +6,6 @@
     loadHealth,
     health,
     pollHealth,
-    HEALTH_POLL_MS,
     REPO_URL,
   } from '../lib/state.svelte.ts';
   import { api, mensagemDe } from '../lib/api.ts';
@@ -37,6 +36,7 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import SemCameras from '../components/SemCameras.svelte';
   import Icone from '../components/Icone.svelte';
+  import RodapeDaSaude from '../components/RodapeDaSaude.svelte';
   import Abas from '../components/Abas.svelte';
   import RotuloDaArea from '../components/RotuloDaArea.svelte';
   import LadrilhoDaArea from '../components/LadrilhoDaArea.svelte';
@@ -925,13 +925,7 @@
     </div>
   {/if}
 
-  <!-- O separador vai como expressão porque o Svelte apara o espaço no início
-       de um bloco {#if}, e sem isso sai "5s· última leitura". -->
-  <p class="muted small">
-    Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(
-        Date.now() - health.updatedAt,
-      )}{/if}
-  </p>
+  <RodapeDaSaude />
 </div>
 
 <!-- O topo dos blocos de áreas e de alerta do card: o ícone, o nome e o
