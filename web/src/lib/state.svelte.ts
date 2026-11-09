@@ -121,7 +121,8 @@ export const health = $state<EstadoDaSaude>({
   failingSince: null,
 });
 
-// O /api/health como a tela o guarda: nulo onde a resposta não trouxe o campo.
+// O /api/health como a tela o guarda, nulo onde a resposta não trouxe o campo,
+// mais o que a própria tela anota das leituras (updatedAt e failingSince).
 export interface EstadoDaSaude {
   cameras: CameraNaSaude[];
   disk: Disco | null;
