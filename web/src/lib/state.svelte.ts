@@ -330,17 +330,22 @@ export async function loadCameras() {
 // do header consulta para não repetir uma leitura recente, ou uma em curso.
 let healthPedidoEm = 0;
 
-// Numera as leituras para só a mais recente mexer no estado: o poll e uma
-// releitura pedida pela tela podem se cruzar, e uma resposta velha que chega
-// depois apagaria a nova - ou acenderia o "sem resposta" com o servidor de pé.
-let healthLeitura = 0;
+// Numera as leituras para uma resposta velha não desfazer uma nova: o poll e
+// uma releitura pedida pela tela podem se cruzar, e a velha que chega depois
+// apagaria o dado novo - ou acenderia o "sem resposta" com o servidor de pé.
+// Vale a resposta mais nova que a última aplicada, e não só a do último
+// pedido: com o servidor lento, cada leitura levando mais que HEALTH_POLL_MS,
+// sempre haveria um pedido mais novo em curso e nenhuma resposta entraria.
+let healthPedida = 0;
+let healthAplicada = 0;
 
 export async function loadHealth() {
   healthPedidoEm = Date.now();
-  const esta = ++healthLeitura;
+  const esta = ++healthPedida;
   try {
     const data = await api.health();
-    if (esta !== healthLeitura) return;
+    if (esta < healthAplicada) return;
+    healthAplicada = esta;
     health.cameras = data.cameras;
     health.disk = data.disk ?? null;
     health.uptime = data.uptime ?? null;
@@ -356,7 +361,9 @@ export async function loadHealth() {
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.
     // Só marca desde quando falha, para o rodapé avisar que o dado é velho.
-    if (esta === healthLeitura) health.failingSince ??= Date.now();
+    if (esta < healthAplicada) return;
+    healthAplicada = esta;
+    health.failingSince ??= Date.now();
   }
 }
 
