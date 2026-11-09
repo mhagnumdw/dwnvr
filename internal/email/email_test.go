@@ -81,21 +81,29 @@ func TestMuitosDestinatarios(t *testing.T) {
 }
 
 // TestAssuntoLongo: o assunto comprido, com acento ou sem, sai em várias
-// linhas, nenhuma acima dos 998 caracteres da RFC 5322, e o leitor de e-mail
-// o lê de volta inteiro.
+// linhas, nenhuma acima dos 76 caracteres da RFC 2047, e o leitor de e-mail o
+// lê de volta inteiro. O do alerta comum já passa dos 76 na primeira palavra
+// codificada.
 func TestAssuntoLongo(t *testing.T) {
 	de, _ := mail.ParseAddress("dwnvr <dwnvr@exemplo.com>")
-	for nome, palavra := range map[string]string{"acento": strings.Repeat("ã", 40), "ascii": strings.Repeat("a", 40)} {
-		m := mensagemDoTeste
+	for nome, assunto := range map[string]string{
 		// 30 palavras de 40 letras passam dos 998 caracteres numa linha só.
-		m.Assunto = strings.TrimSpace(strings.Repeat(palavra+" ", 30))
+		"acento": strings.TrimSpace(strings.Repeat(strings.Repeat("ã", 40)+" ", 30)),
+		"ascii":  strings.TrimSpace(strings.Repeat(strings.Repeat("a", 40)+" ", 30)),
+		"alerta": "[Alerta] Garagem(Portão, Calçada e Rampa): pessoa e veículo às 14:32",
+	} {
+		m := mensagemDoTeste
+		m.Assunto = assunto
 		b, err := montar(de, m, time.Now())
 		if err != nil {
 			t.Fatal(err)
 		}
-		for i, linha := range strings.Split(string(b), "\r\n") {
-			if len(linha) > 998 {
-				t.Errorf("%s: linha %d com %d caracteres", nome, i+1, len(linha))
+		cabecalho, _, _ := strings.Cut(string(b), "\r\n\r\n")
+		noAssunto := false
+		for linha := range strings.SplitSeq(cabecalho, "\r\n") {
+			noAssunto = strings.HasPrefix(linha, "Subject:") || noAssunto && strings.HasPrefix(linha, " ")
+			if noAssunto && len(linha) > 76 {
+				t.Errorf("%s: linha do assunto com %d caracteres: %q", nome, len(linha), linha)
 			}
 		}
 		msg, err := mail.ReadMessage(bytes.NewReader(b))

@@ -315,12 +315,12 @@ não mostra HTML. O assunto diz a câmera, as áreas em que algum objeto caiu,
 entre parênteses, as famílias e a hora do onset, como
 "[Alerta] Garagem(Portão): pessoa e veículo às 14:32"; sem área, quando o
 alerta vale na imagem inteira, sai sem os parênteses. O corpo, a marca do
-dwnvr no topo, o quadro olhado, o dia, cada objeto, com a confiança, e as
-áreas em que caiu. O quadro vai dentro do corpo, em JPEG, com a caixa de cada
-objeto que alertou, na cor da família, e o contorno tracejado das áreas do
+dwnvr no topo, o quadro olhado, quando há, o dia, cada objeto, com a confiança,
+e as áreas em que caiu. O quadro vai dentro do corpo, em JPEG, com a caixa de
+cada objeto que alertou, na cor da família, e o contorno tracejado das áreas do
 alerta, como Detecções mostra com o filtro "só alertas". Ele é desenhado uma
-vez por alerta, na goroutine de envio, e todo meio recebe o mesmo; se o
-desenho falhar, ele vai como foi olhado. Com o `server.publicUrl` (ver
+vez por alerta, na goroutine de envio, e todo meio recebe o mesmo; se o desenho
+falhar, ele vai como foi olhado. Com o `server.publicUrl` (ver
 [`configuracao.md`](configuracao.md#endereço-do-dwnvr)), o botão **Ver na
 gravação** abre a tela Gravações na câmera e no instante do onset; sem ele, o
 servidor não sabe o endereço pelo qual é acessado, e no lugar do botão o

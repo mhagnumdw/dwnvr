@@ -138,7 +138,7 @@ func montar(de *mail.Address, m Mensagem, agora time.Time) ([]byte, error) {
 	cabecalho("To", strings.Join(m.Para, ",\r\n "))
 	// O assunto também se quebra em linhas: o do alerta leva as áreas, e com
 	// nomes longos e acentuados passaria dos 998 caracteres numa linha só.
-	cabecalho("Subject", dobra("Subject", mime.QEncoding.Encode("utf-8", m.Assunto)))
+	b.WriteString(dobrado("Subject", mime.QEncoding.Encode("utf-8", m.Assunto)))
 	cabecalho("Date", agora.Format(time.RFC1123Z))
 	cabecalho("Message-ID", id)
 	cabecalho("MIME-Version", "1.0")
@@ -155,28 +155,27 @@ func montar(de *mail.Address, m Mensagem, agora time.Time) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// dobra quebra o valor de um cabeçalho nos espaços para a linha não passar de
-// 78 caracteres, o que a RFC 5322 recomenda; o limite duro é 998. A quebra
-// seguida de espaço continua o mesmo campo, e o leitor junta as linhas sem
-// perder nada. O assunto codificado só tem espaço entre as palavras
-// codificadas, de até 75 caracteres cada, e o espaço entre elas o leitor
-// ignora. Uma palavra maior que a linha fica inteira.
-func dobra(nome, valor string) string {
-	const maxLinha = 78
+// dobrado escreve um cabeçalho quebrado nos espaços, para nenhuma linha passar
+// de 76 caracteres, o limite da RFC 2047 para a linha com palavra codificada;
+// o limite duro da RFC 5322 é 998. A quebra seguida de espaço continua o
+// mesmo campo, e o leitor junta as linhas sem perder nada. O valor codificado
+// só tem espaço entre as palavras codificadas, de até 75 caracteres cada, e o
+// espaço entre elas o leitor ignora. A primeira palavra que não cabe depois do
+// nome vai para a linha de baixo; uma palavra maior que a linha fica inteira.
+func dobrado(nome, valor string) string {
+	const maxLinha = 76
 	var b strings.Builder
-	linha := len(nome) + len(": ")
-	for i, palavra := range strings.Split(valor, " ") {
-		if i > 0 {
-			if linha+1+len(palavra) > maxLinha {
-				b.WriteString("\r\n")
-				linha = 0
-			}
-			b.WriteByte(' ')
-			linha++
+	b.WriteString(nome + ":")
+	linha := len(nome) + 1
+	for palavra := range strings.SplitSeq(valor, " ") {
+		if linha+1+len(palavra) > maxLinha {
+			b.WriteString("\r\n")
+			linha = 0
 		}
-		b.WriteString(palavra)
-		linha += len(palavra)
+		b.WriteString(" " + palavra)
+		linha += 1 + len(palavra)
 	}
+	b.WriteString("\r\n")
 	return b.String()
 }
 
