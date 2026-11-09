@@ -339,11 +339,25 @@ let healthPedidoEm = 0;
 let healthPedida = 0;
 let healthAplicada = 0;
 
+// Quantas leituras da saúde estão em curso. As leituras automáticas (o poll, o
+// sino e a volta à aba) não começam com outra pendente: com o servidor lento,
+// cada tique somaria mais um pedido igual ao que ele ainda não respondeu. A
+// releitura que a tela pede depois de uma ação sai mesmo assim, porque quer o
+// estado de depois da ação, e a pendente pode ter começado antes. Por isso é
+// contador, e não sim ou não: as duas podem estar em curso juntas.
+let healthLendo = 0;
+
+// lerHealthSeLivre é a leitura automática: só sai sem outra em curso.
+function lerHealthSeLivre() {
+  if (healthLendo === 0) void loadHealth();
+}
+
 export async function loadHealth() {
   healthPedidoEm = Date.now();
   const esta = ++healthPedida;
+  healthLendo++;
   try {
-    const data = await api.health();
+    const data = await api.health(HEALTH_TIMEOUT_MS);
     if (esta < healthAplicada) return;
     healthAplicada = esta;
     health.cameras = data.cameras;
@@ -364,6 +378,8 @@ export async function loadHealth() {
     if (esta < healthAplicada) return;
     healthAplicada = esta;
     health.failingSince ??= Date.now();
+  } finally {
+    healthLendo--;
   }
 }
 
@@ -372,19 +388,26 @@ export async function loadHealth() {
 // anuncia isso ao usuário é derivado daqui - mudar o número aqui basta.
 export const HEALTH_POLL_MS = 5000;
 
+// HEALTH_TIMEOUT_MS é o prazo de uma leitura da saúde: passou dele, conta como
+// falha e acende o "sem resposta" do rodapé. Dois intervalos do poll: na placa
+// ocupada (câmeras gravando e o detector de objetos rodando) a leitura levou
+// menos de 250 ms, então só um servidor travado chega aqui.
+export const HEALTH_TIMEOUT_MS = 2 * HEALTH_POLL_MS;
+
 // pollHealth mantém o diagnóstico vivo enquanto a tela estiver aberta, e para
 // quando ela sai - não faz sentido consultar o servidor de fundo para sempre.
 // Pelo mesmo motivo, com a aba oculta não lê: uma aba esquecida aberta em
 // Câmeras ou Diagnóstico perguntaria a cada intervalMs, dia e noite, e ainda
 // manteria o admin com "acesso agora" na tela Usuários. Ao voltar, lê na hora
 // se o dado estiver velho; se o sino acabou de pedir a leitura no mesmo
-// evento, não repete.
+// evento, não repete. Com uma leitura em curso, o tique pula: a próxima sai
+// quando ela voltar ou estourar o HEALTH_TIMEOUT_MS.
 export function pollHealth(intervalMs = HEALTH_POLL_MS) {
   const ler = () => {
-    if (!document.hidden) void loadHealth();
+    if (!document.hidden) lerHealthSeLivre();
   };
   const aoVoltar = () => {
-    if (!document.hidden && Date.now() - healthPedidoEm >= intervalMs) void loadHealth();
+    if (!document.hidden && Date.now() - healthPedidoEm >= intervalMs) lerHealthSeLivre();
   };
   ler();
   const id = setInterval(ler, intervalMs);
@@ -401,10 +424,11 @@ export function pollHealth(intervalMs = HEALTH_POLL_MS) {
 // HEALTH_POLL_MS, não sai requisição nenhuma daqui. O tique é curto para que,
 // saindo de uma dessas telas, o dado não fique quase o dobro do prazo sem ser
 // relido; o tique em si não custa nada. Com a aba oculta não lê, e ao voltar
-// lê na hora se o dado estiver velho.
+// lê na hora se o dado estiver velho. Como o pollHealth, não começa uma
+// leitura com outra em curso.
 export function vigiarAvisos() {
   const talvez = () => {
-    if (!document.hidden && Date.now() - healthPedidoEm >= AVISOS_POLL_MS) void loadHealth();
+    if (!document.hidden && Date.now() - healthPedidoEm >= AVISOS_POLL_MS) lerHealthSeLivre();
   };
   talvez();
   const id = setInterval(talvez, HEALTH_POLL_MS);
