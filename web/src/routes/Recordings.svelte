@@ -251,7 +251,10 @@
       ultimo.getBoundingClientRect().bottom -
       pagina.getBoundingClientRect().top +
       parseFloat(estilo.paddingBottom);
-    const outros = conteudo - stage.offsetHeight;
+    // A altura do palco com fração, como a do resto: o `offsetHeight`
+    // arredonda, e o pixel de diferença faria a largura alternar entre dois
+    // valores (achado do Greptile no PR #74).
+    const outros = conteudo - stage.getBoundingClientRect().height;
     const horizontal = parseFloat(estilo.paddingLeft) + parseFloat(estilo.paddingRight);
     const largura = Math.floor((alturaDaPagina - outros) * PROPORCAO + horizontal);
     larguraDaPagina = Math.max(LARGURA_MINIMA, largura);
