@@ -198,7 +198,9 @@
     const s = cameras.streams.find((x) => x.name === streamName);
     editing = {
       id: streamName,
-      name: streamName.replace(/^cam[_-]?/, '').replace(/^./, (c) => c.toUpperCase()),
+      // O nome do stream no go2rtc, sem tratamento nenhum: "cam_frente" fica
+      // "cam_frente".
+      name: streamName,
       enabled: true,
       audio: 'none',
       quotaMB: 10240,
