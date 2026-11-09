@@ -80,6 +80,43 @@ func TestMuitosDestinatarios(t *testing.T) {
 	}
 }
 
+// TestAssuntoLongo: o assunto comprido, com acento ou sem, sai em várias
+// linhas, nenhuma acima dos 76 caracteres da RFC 2047, e o leitor de e-mail o
+// lê de volta inteiro. O do alerta comum já passa dos 76 na primeira palavra
+// codificada.
+func TestAssuntoLongo(t *testing.T) {
+	de, _ := mail.ParseAddress("dwnvr <dwnvr@exemplo.com>")
+	for nome, assunto := range map[string]string{
+		// 30 palavras de 40 letras passam dos 998 caracteres numa linha só.
+		"acento": strings.TrimSpace(strings.Repeat(strings.Repeat("ã", 40)+" ", 30)),
+		"ascii":  strings.TrimSpace(strings.Repeat(strings.Repeat("a", 40)+" ", 30)),
+		"alerta": "[Alerta] Garagem(Portão, Calçada e Rampa): pessoa e veículo às 14:32",
+	} {
+		m := mensagemDoTeste
+		m.Assunto = assunto
+		b, err := montar(de, m, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		cabecalho, _, _ := strings.Cut(string(b), "\r\n\r\n")
+		noAssunto := false
+		for linha := range strings.SplitSeq(cabecalho, "\r\n") {
+			noAssunto = strings.HasPrefix(linha, "Subject:") || noAssunto && strings.HasPrefix(linha, " ")
+			if noAssunto && len(linha) > 76 {
+				t.Errorf("%s: linha do assunto com %d caracteres: %q", nome, len(linha), linha)
+			}
+		}
+		msg, err := mail.ReadMessage(bytes.NewReader(b))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lido, err := new(mime.WordDecoder).DecodeHeader(msg.Header.Get("Subject"))
+		if err != nil || lido != m.Assunto {
+			t.Errorf("%s: assunto lido %q (%v), esperado %q", nome, lido, err, m.Assunto)
+		}
+	}
+}
+
 // TestEnviaComAnexo: com dois destinatários e dois anexos, chega uma mensagem
 // só, e um leitor de e-mail tira dela o texto e cada anexo inteiros, com o
 // nome com acento. Toda linha cabe no limite do base64.

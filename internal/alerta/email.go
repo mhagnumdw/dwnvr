@@ -123,11 +123,12 @@ type objetoNoEmail struct {
 }
 
 // mensagemDoAlerta escreve o e-mail de um alerta, em HTML e em texto. O
-// assunto diz o que importa num relance, como "[Alerta] Garagem: pessoa e
-// veículo às 14:32", com as famílias na ordem de prioridade, que é a dos
-// objetos (o Recorder os ordena). O corpo traz a marca do dwnvr no topo, o
-// quadro, o dia, cada objeto e
-// as áreas em que caiu, e o botão que abre a gravação no instante, quando o
+// assunto diz o que importa num relance, como "[Alerta] Garagem(Portão):
+// pessoa e veículo às 14:32", com as áreas em que algum objeto caiu entre
+// parênteses, sem eles quando o alerta vale na imagem inteira, e as famílias
+// na ordem de prioridade, que é a dos objetos (o Recorder os ordena). O corpo
+// traz a marca do dwnvr no topo, o quadro, o dia, cada objeto e as áreas em
+// que caiu, e o botão que abre a gravação no instante, quando o
 // server.publicUrl diz o endereço do dwnvr.
 func mensagemDoAlerta(a Alerta, para []string, endereco string) (email.Mensagem, error) {
 	// A hora é a do servidor, a mesma do dia das gravações e dos horários do
@@ -137,10 +138,18 @@ func mensagemDoAlerta(a Alerta, para []string, endereco string) (email.Mensagem,
 		onset.Format("02/01/2006"), onset.Format("15:04:05"))
 	familias := familiasNoEmail(a.Objetos)
 	titulo := maiuscula(juntaNomes(familias))
+	areas := areasDe(a)
+	ondeNoAssunto := a.NomeDaCamera
+	if len(areas) > 0 {
+		ondeNoAssunto += "(" + juntaNomes(areas) + ")"
+	}
 
 	c := corpoDoAlerta{
-		Assunto: fmt.Sprintf("[Alerta] %s: %s às %s", a.NomeDaCamera, juntaNomes(familias), onset.Format("15:04")),
-		Titulo:  titulo,
+		// O assunto é uma linha só, que o envio recusa o assunto com quebra: a
+		// que vier num nome escrito à mão no cameras.json vira espaço.
+		Assunto: emUmaLinha(fmt.Sprintf("[Alerta] %s: %s às %s", ondeNoAssunto, juntaNomes(familias),
+			onset.Format("15:04"))),
+		Titulo: titulo,
 		// No HTML a data e a hora não se separam na quebra de linha do celular.
 		Linha: fmt.Sprintf("Câmera %s · %s", a.NomeDaCamera,
 			strings.Replace(quando, " às ", "\u00a0às\u00a0", 1)),
@@ -149,7 +158,7 @@ func mensagemDoAlerta(a Alerta, para []string, endereco string) (email.Mensagem,
 		Camera: a.NomeDaCamera,
 		Marca:  idDaMarca,
 	}
-	if areas := areasDe(a); len(areas) > 0 {
+	if len(areas) > 0 {
 		c.Previa = fmt.Sprintf("%s %s · %s", plural(len(areas), "Na área", "Nas áreas"), juntaNomes(areas), quando)
 	}
 	c.Enchimento = make([]struct{}, 90)
@@ -195,6 +204,10 @@ func mensagemDoAlerta(a Alerta, para []string, endereco string) (email.Mensagem,
 	m.HTML = h.String()
 	return m, nil
 }
+
+// emUmaLinha troca cada sequência de espaços, tabulações e quebras de linha
+// por um espaço só.
+func emUmaLinha(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // linkDaGravacao abre a tela Gravações na câmera e no instante, no formato do
 // linkGravacoes da web (web/src/lib/rota.svelte.ts). O dia e a hora são os do

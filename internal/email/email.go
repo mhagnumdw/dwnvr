@@ -136,7 +136,9 @@ func montar(de *mail.Address, m Mensagem, agora time.Time) ([]byte, error) {
 	// mensagem inteira. A quebra seguida de espaço continua o mesmo campo, e
 	// com um endereço só nada muda.
 	cabecalho("To", strings.Join(m.Para, ",\r\n "))
-	cabecalho("Subject", mime.QEncoding.Encode("utf-8", m.Assunto))
+	// O assunto também se quebra em linhas: o do alerta leva as áreas, e com
+	// nomes longos e acentuados passaria dos 998 caracteres numa linha só.
+	b.WriteString(dobrado("Subject", mime.QEncoding.Encode("utf-8", m.Assunto)))
 	cabecalho("Date", agora.Format(time.RFC1123Z))
 	cabecalho("Message-ID", id)
 	cabecalho("MIME-Version", "1.0")
@@ -151,6 +153,30 @@ func montar(de *mail.Address, m Mensagem, agora time.Time) ([]byte, error) {
 		return nil, err
 	}
 	return b.Bytes(), nil
+}
+
+// dobrado escreve um cabeçalho quebrado nos espaços, para nenhuma linha passar
+// de 76 caracteres, o limite da RFC 2047 para a linha com palavra codificada;
+// o limite duro da RFC 5322 é 998. A quebra seguida de espaço continua o
+// mesmo campo, e o leitor junta as linhas sem perder nada. O valor codificado
+// só tem espaço entre as palavras codificadas, de até 75 caracteres cada, e o
+// espaço entre elas o leitor ignora. A primeira palavra que não cabe depois do
+// nome vai para a linha de baixo; uma palavra maior que a linha fica inteira.
+func dobrado(nome, valor string) string {
+	const maxLinha = 76
+	var b strings.Builder
+	b.WriteString(nome + ":")
+	linha := len(nome) + 1
+	for palavra := range strings.SplitSeq(valor, " ") {
+		if linha+1+len(palavra) > maxLinha {
+			b.WriteString("\r\n")
+			linha = 0
+		}
+		b.WriteString(" " + palavra)
+		linha += 1 + len(palavra)
+	}
+	b.WriteString("\r\n")
+	return b.String()
 }
 
 // parte é um pedaço da mensagem: o cabeçalho dele e quem escreve o conteúdo.
