@@ -65,8 +65,9 @@ func TestEmailNasceComAsDuasCoisas(t *testing.T) {
 }
 
 // TestMensagemDoAlerta: uma mensagem só para a lista inteira; o assunto com
-// a câmera, as famílias sem repetir e a hora; o texto com o dia, cada objeto,
-// as áreas e o link para a gravação; o HTML com o mesmo e o quadro no corpo.
+// a câmera, as áreas, as famílias sem repetir e a hora; o texto com o dia,
+// cada objeto, as áreas e o link para a gravação; o HTML com o mesmo e o
+// quadro no corpo.
 func TestMensagemDoAlerta(t *testing.T) {
 	instante := time.Date(2026, 10, 27, 14, 32, 5, 0, time.Local)
 	a := Alerta{Camera: "cam garagem", NomeDaCamera: "Garagem", InstanteMs: instante.UnixMilli(),
@@ -88,7 +89,7 @@ func TestMensagemDoAlerta(t *testing.T) {
 	if !slices.Equal(m.Para, e.para) {
 		t.Errorf("para %v", m.Para)
 	}
-	if want := "[Alerta] Garagem: pessoa e veículo às 14:32"; m.Assunto != want {
+	if want := "[Alerta] Garagem(Portão, Calçada e Rampa): pessoa e veículo às 14:32"; m.Assunto != want {
 		t.Errorf("assunto %q, esperado %q", m.Assunto, want)
 	}
 	// O espaço da câmera vira "+", que o URLSearchParams da tela lê de volta.
@@ -156,8 +157,22 @@ func TestMensagemSemQuadro(t *testing.T) {
 	if len(m.Anexos) != 1 || !ehAMarca(m.Anexos[0]) || strings.Contains(m.HTML, "cid:"+idDoQuadro) {
 		t.Errorf("sem quadro, anexos %+v e HTML\n%s", m.Anexos, m.HTML)
 	}
-	if m.Assunto != "[Alerta] Frente: pessoa às 03:00" {
+	if m.Assunto != "[Alerta] Frente(Portão): pessoa às 03:00" {
 		t.Errorf("assunto %q", m.Assunto)
+	}
+}
+
+// TestAssuntoSemArea: o alerta que vale na imagem inteira sai sem os
+// parênteses das áreas no assunto.
+func TestAssuntoSemArea(t *testing.T) {
+	a := alertaDe(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
+	a.Objetos[0].Areas = nil
+	m, err := mensagemDoAlerta(a, []string{"fulano@exemplo.com"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "[Alerta] Frente: pessoa às 03:00"; m.Assunto != want {
+		t.Errorf("assunto %q, esperado %q", m.Assunto, want)
 	}
 }
 
