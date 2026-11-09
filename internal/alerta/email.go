@@ -145,8 +145,11 @@ func mensagemDoAlerta(a Alerta, para []string, endereco string) (email.Mensagem,
 	}
 
 	c := corpoDoAlerta{
-		Assunto: fmt.Sprintf("[Alerta] %s: %s às %s", ondeNoAssunto, juntaNomes(familias), onset.Format("15:04")),
-		Titulo:  titulo,
+		// O assunto é uma linha só, que o envio recusa o assunto com quebra: a
+		// que vier num nome escrito à mão no cameras.json vira espaço.
+		Assunto: emUmaLinha(fmt.Sprintf("[Alerta] %s: %s às %s", ondeNoAssunto, juntaNomes(familias),
+			onset.Format("15:04"))),
+		Titulo: titulo,
 		// No HTML a data e a hora não se separam na quebra de linha do celular.
 		Linha: fmt.Sprintf("Câmera %s · %s", a.NomeDaCamera,
 			strings.Replace(quando, " às ", "\u00a0às\u00a0", 1)),
@@ -201,6 +204,10 @@ func mensagemDoAlerta(a Alerta, para []string, endereco string) (email.Mensagem,
 	m.HTML = h.String()
 	return m, nil
 }
+
+// emUmaLinha troca cada sequência de espaços, tabulações e quebras de linha
+// por um espaço só.
+func emUmaLinha(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // linkDaGravacao abre a tela Gravações na câmera e no instante, no formato do
 // linkGravacoes da web (web/src/lib/rota.svelte.ts). O dia e a hora são os do

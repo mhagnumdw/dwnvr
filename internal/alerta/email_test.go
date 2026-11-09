@@ -176,6 +176,20 @@ func TestAssuntoSemArea(t *testing.T) {
 	}
 }
 
+// TestAssuntoEmUmaLinha: a quebra de linha no nome da área, escrito à mão no
+// cameras.json, vira espaço, que o envio recusa o assunto com quebra.
+func TestAssuntoEmUmaLinha(t *testing.T) {
+	a := alertaDe(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
+	a.Objetos[0].Areas = []string{"Portão\r\nprincipal"}
+	m, err := mensagemDoAlerta(a, []string{"fulano@exemplo.com"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "[Alerta] Frente(Portão principal): pessoa às 03:00"; m.Assunto != want {
+		t.Errorf("assunto %q, esperado %q", m.Assunto, want)
+	}
+}
+
 // TestMensagemEscapaONome: o nome da câmera e o da área são do usuário, e
 // no HTML saem como texto.
 func TestMensagemEscapaONome(t *testing.T) {
