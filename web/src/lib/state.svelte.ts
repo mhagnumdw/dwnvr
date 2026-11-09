@@ -116,9 +116,13 @@ export const health = $state<EstadoDaSaude>({
   // alertas que não saíram pelos meios e os meios falhando; nulo sem nenhum.
   alerts: null,
   updatedAt: 0,
+  // Quando a leitura começou a falhar, para a tela dizer que o que mostra é
+  // velho; volta a nulo na primeira leitura boa.
+  failingSince: null,
 });
 
-// O /api/health como a tela o guarda: nulo onde a resposta não trouxe o campo.
+// O /api/health como a tela o guarda, nulo onde a resposta não trouxe o campo,
+// mais o que a própria tela anota das leituras (updatedAt e failingSince).
 export interface EstadoDaSaude {
   cameras: CameraNaSaude[];
   disk: Disco | null;
@@ -136,6 +140,7 @@ export interface EstadoDaSaude {
     failing?: MeioFalhando[];
   } | null;
   updatedAt: number;
+  failingSince: number | null;
 }
 
 // Qual código o servidor está rodando. Não muda enquanto a página está aberta,
@@ -212,6 +217,7 @@ function zeraOQueFoiCarregado() {
   health.users = null;
   health.alerts = null;
   health.updatedAt = 0;
+  health.failingSince = null;
   healthPedidoEm = 0;
 }
 
@@ -324,10 +330,22 @@ export async function loadCameras() {
 // do header consulta para não repetir uma leitura recente, ou uma em curso.
 let healthPedidoEm = 0;
 
+// Numera as leituras para uma resposta velha não desfazer uma nova: o poll e
+// uma releitura pedida pela tela podem se cruzar, e a velha que chega depois
+// apagaria o dado novo - ou acenderia o "sem resposta" com o servidor de pé.
+// Vale a resposta mais nova que a última aplicada, e não só a do último
+// pedido: com o servidor lento, cada leitura levando mais que HEALTH_POLL_MS,
+// sempre haveria um pedido mais novo em curso e nenhuma resposta entraria.
+let healthPedida = 0;
+let healthAplicada = 0;
+
 export async function loadHealth() {
   healthPedidoEm = Date.now();
+  const esta = ++healthPedida;
   try {
     const data = await api.health();
+    if (esta < healthAplicada) return;
+    healthAplicada = esta;
     health.cameras = data.cameras;
     health.disk = data.disk ?? null;
     health.uptime = data.uptime ?? null;
@@ -339,8 +357,13 @@ export async function loadHealth() {
     health.users = data.users ?? null;
     health.alerts = data.alerts ?? null;
     health.updatedAt = Date.now();
+    health.failingSince = null;
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.
+    // Só marca desde quando falha, para o rodapé avisar que o dado é velho.
+    if (esta < healthAplicada) return;
+    healthAplicada = esta;
+    health.failingSince ??= Date.now();
   }
 }
 

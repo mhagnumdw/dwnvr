@@ -4,7 +4,6 @@
     health,
     pollHealth,
     loadHealth,
-    HEALTH_POLL_MS,
     ehAdmin,
     build,
     REPO_URL,
@@ -40,6 +39,7 @@
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import MarcaGitHub from '../components/MarcaGitHub.svelte';
   import Icone from '../components/Icone.svelte';
+  import RodapeDaSaude from '../components/RodapeDaSaude.svelte';
 
   // Uma coluna das tabelas: sabe extrair o valor que a ordena. Texto passa
   // pelo colator; número, pela subtração.
@@ -1236,13 +1236,7 @@
       <p class="muted small">Não deu para ler o servidor: {erroServidor}</p>
     {/if}
 
-    <!-- O separador vai como expressão porque o Svelte apara o espaço no início
-         de um bloco {#if}, e sem isso sai "5s· última leitura". -->
-    <p class="muted small">
-      Atualizado a cada {HEALTH_POLL_MS / 1000}s{#if health.updatedAt}{' · '}última leitura há {duracao(
-          Date.now() - health.updatedAt,
-        )}{/if}
-    </p>
+    <RodapeDaSaude />
   {/if}
 
   <!-- Único lugar onde a versão em uso aparece fora da tela de login, e por
