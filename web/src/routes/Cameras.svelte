@@ -80,6 +80,9 @@
   let apagarGravacoes = $state(false); // checkbox do diálogo de remoção
   let saving = $state(false);
   let error = $state('');
+  // A recusa do servidor ao salvar. Fica dentro do formulário, junto do
+  // "salvar": o `error` da página aparece atrás do fundo escuro do Modal.
+  let erroForm = $state('');
 
   // As abas do formulário. Ele sempre abre na primeira: é onde estão o nome e a
   // cota, o que se procura ao cadastrar. Áreas e Alerta só funcionam com a
@@ -156,7 +159,9 @@
     if (!id) return;
     escrever({ editar: null });
     const cam = cameras.list.find((c) => c.id === id);
-    if (cam) editar(cam);
+    // Com outro formulário já aberto (a lista pode ter chegado por outro
+    // caminho enquanto esta esperava), o pedido de abrir não o substitui.
+    if (cam && !editing) editar(cam);
   });
 
   // O caminho comum para câmera nova é trocar de janela, editar o go2rtc.yaml e
@@ -216,6 +221,7 @@
       ...audioConhecido(s),
     };
     aba = 'gravacao';
+    erroForm = '';
     abreOAlerta();
     void sondarAudio(streamName);
   }
@@ -226,6 +232,7 @@
     const s = cameras.streams.find((x) => x.name === cam.id);
     editing = { ...cam, _novo: false, ...audioConhecido(s) };
     aba = abaInicial;
+    erroForm = '';
     abreOAlerta();
     void sondarAudio(cam.id);
   }
@@ -534,8 +541,13 @@
     return '';
   }
 
+  // Quanto o salvar espera pelo servidor. O formulário fica travado enquanto
+  // salva, e sem um prazo um servidor parado o prenderia aberto.
+  const PRAZO_DO_SALVAR_MS = 30_000;
+
   async function salvar() {
     if (!editing) return;
+    erroForm = '';
     const falta = faltaNoAlerta();
     if (falta) {
       erroDoAlerta = falta;
@@ -543,7 +555,6 @@
       return;
     }
     saving = true;
-    error = '';
     try {
       const { _novo, _hasAudio, _audioCodecs, _sondando, _sondaErro, ...cam } = editing;
       // Na imagem inteira, as áreas marcadas antes não valem mais.
@@ -553,11 +564,16 @@
           ...cam.alert,
           schedules: limitaHorarios ? paraOServidor(horariosDoAlerta) : [],
         };
-      await api.saveCamera(cam);
+      await api.saveCamera(cam, AbortSignal.timeout(PRAZO_DO_SALVAR_MS));
       await loadCameras();
       editing = null;
     } catch (e) {
-      error = mensagemDe(e);
+      // O formulário não fecha durante o envio (cancelar, remover e o Escape
+      // esperam), então este é o mesmo que foi enviado.
+      erroForm =
+        e instanceof DOMException && e.name === 'TimeoutError'
+          ? `O servidor não respondeu em ${PRAZO_DO_SALVAR_MS / 1000} s. Confira a lista antes de tentar de novo: o salvar pode ter chegado.`
+          : mensagemDe(e);
     } finally {
       saving = false;
     }
@@ -981,7 +997,7 @@
   <Modal
     alturaQueMuda
     onclose={() => {
-      if (!areaAberta) editing = null;
+      if (!areaAberta && !saving) editing = null;
     }}
   >
     <!-- No cadastro, antes da última aba, o envio é o "próximo": o Enter num
@@ -1235,6 +1251,7 @@
         </div>
       </div>
 
+      {#if erroForm}<p class="small erro-form" role="alert">{erroForm}</p>{/if}
       <div class="row">
         {#if editing._novo}
           {#if indiceDaAba > 0}
@@ -1246,6 +1263,7 @@
           <button
             type="button"
             class="danger"
+            disabled={saving}
             onclick={() => {
               if (editing) abrirRemocao(editing);
               editing = null;
@@ -1253,7 +1271,9 @@
           >
         {/if}
         <span class="spacer"></span>
-        <button type="button" class="ghost" onclick={() => (editing = null)}>cancelar</button>
+        <button type="button" class="ghost" disabled={saving} onclick={() => (editing = null)}
+          >cancelar</button
+        >
         {#if guiado}
           <button class="primary passo" type="submit">
             próximo<Icone nome="chevronDir" tamanho={16} traco={2.4} />
@@ -1506,6 +1526,9 @@
   }
   .errbox {
     border-color: #5c2b2b;
+    color: var(--bad);
+  }
+  .erro-form {
     color: var(--bad);
   }
 
