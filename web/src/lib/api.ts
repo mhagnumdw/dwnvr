@@ -196,8 +196,8 @@ export const api = {
 
   cameras: () => request<RespostaCameras>('cameras'),
   // Devolve a câmera como ficou, já com o id das áreas novas.
-  saveCamera: (cam: Camera) =>
-    request<{ camera: Camera }>('cameras', { method: 'POST', body: JSON.stringify(cam) }),
+  saveCamera: (cam: Camera, signal: AbortSignal | null = null) =>
+    request<{ camera: Camera }>('cameras', { method: 'POST', body: JSON.stringify(cam), signal }),
   // As gravações só vão junto se forem pedidas: o padrão é preservá-las.
   deleteCamera: (id: string, { recordings = false } = {}) =>
     request<unknown>(`cameras?id=${encodeURIComponent(id)}${recordings ? '&recordings=1' : ''}`, {
