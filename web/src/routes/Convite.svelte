@@ -114,7 +114,8 @@
   .screen {
     display: grid;
     place-items: center;
-    min-height: 100dvh;
+    /* A coluna do #app inteira, que tem a altura da janela (ver app.css). */
+    flex: 1;
     padding: 20px;
   }
 
