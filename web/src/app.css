@@ -42,13 +42,20 @@ body {
   overscroll-behavior-y: none;
 }
 
-/* Coluna de altura da janela: sem isto o `main` sozinho pede 100dvh, o cabeçalho
-   entra acima dele e o documento fica sempre mais alto que a tela - no celular
-   sobravam 47px de rolagem em todas as telas, sem conteúdo nenhum embaixo. */
+/* Coluna de altura da janela: sem isto o `main` sozinho pede a altura da
+   janela, o cabeçalho entra acima dele e o documento fica sempre mais alto que
+   a tela - no celular sobravam 47px de rolagem em todas as telas, sem conteúdo
+   nenhum embaixo.
+
+   A altura é a do `body` (100%, que é a da janela), e não 100dvh: no app
+   instalado do Chrome no Android, depois do puxar para atualizar, o 100dvh
+   passa a valer 56px a mais que a janela - a altura da barra de endereços, que
+   o app nem mostra -, o que foi calculado com ele não volta sozinho, e a página
+   inteira rola. A altura do `body` continua a da janela. */
 #app {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: 100%;
 }
 
 button,

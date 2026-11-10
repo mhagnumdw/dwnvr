@@ -482,10 +482,11 @@
 {/if}
 
 <style>
+  /* A coluna do #app inteira, que tem a altura da janela (ver app.css). */
   .boot {
     display: grid;
     place-items: center;
-    height: 100dvh;
+    flex: 1;
     color: var(--dim);
   }
 
@@ -795,8 +796,8 @@
   main {
     /* Espaço para a navegação inferior não cobrir o conteúdo. */
     padding-bottom: var(--nav-h);
-    /* Ocupa o que sobra da coluna de 100dvh do #app, em vez de pedir a altura
-       cheia da janela e empurrar o documento para além dela. */
+    /* Ocupa o que sobra da coluna do #app, da altura da janela, em vez de
+       pedir a altura cheia dela e empurrar o documento para além dela. */
     flex: 1;
   }
 

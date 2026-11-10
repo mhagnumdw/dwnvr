@@ -106,7 +106,8 @@
        preencher a tela - o que jogaria a versão para o meio do vazio. */
     align-content: center;
     gap: 16px;
-    min-height: 100dvh;
+    /* A coluna do #app inteira, que tem a altura da janela (ver app.css). */
+    flex: 1;
     padding: 20px;
   }
 
