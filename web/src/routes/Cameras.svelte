@@ -159,7 +159,9 @@
     if (!id) return;
     escrever({ editar: null });
     const cam = cameras.list.find((c) => c.id === id);
-    if (cam) editar(cam);
+    // Com outro formulário já aberto (a lista pode ter chegado por outro
+    // caminho enquanto esta esperava), o pedido de abrir não o substitui.
+    if (cam && !editing) editar(cam);
   });
 
   // O caminho comum para câmera nova é trocar de janela, editar o go2rtc.yaml e
@@ -539,8 +541,13 @@
     return '';
   }
 
+  // Quanto o salvar espera pelo servidor. O formulário fica travado enquanto
+  // salva, e sem um prazo um servidor parado o prenderia aberto.
+  const PRAZO_DO_SALVAR_MS = 30_000;
+
   async function salvar() {
     if (!editing) return;
+    erroForm = '';
     const falta = faltaNoAlerta();
     if (falta) {
       erroDoAlerta = falta;
@@ -548,7 +555,6 @@
       return;
     }
     saving = true;
-    erroForm = '';
     try {
       const { _novo, _hasAudio, _audioCodecs, _sondando, _sondaErro, ...cam } = editing;
       // Na imagem inteira, as áreas marcadas antes não valem mais.
@@ -558,13 +564,16 @@
           ...cam.alert,
           schedules: limitaHorarios ? paraOServidor(horariosDoAlerta) : [],
         };
-      await api.saveCamera(cam);
+      await api.saveCamera(cam, AbortSignal.timeout(PRAZO_DO_SALVAR_MS));
       await loadCameras();
       editing = null;
     } catch (e) {
       // O formulário não fecha durante o envio (cancelar, remover e o Escape
       // esperam), então este é o mesmo que foi enviado.
-      erroForm = mensagemDe(e);
+      erroForm =
+        e instanceof DOMException && e.name === 'TimeoutError'
+          ? `O servidor não respondeu em ${PRAZO_DO_SALVAR_MS / 1000} s. Confira a lista antes de tentar de novo: o salvar pode ter chegado.`
+          : mensagemDe(e);
     } finally {
       saving = false;
     }
