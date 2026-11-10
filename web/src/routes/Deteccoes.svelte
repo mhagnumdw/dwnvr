@@ -2512,7 +2512,7 @@
     }
 
     /* Da largura do tablet para cima, os chips cabem na linha do dia. */
-    .barra:has(.chips) .quando {
+    .barra:has(> .chips) .quando {
       grid-column: 1;
     }
     .chips {
@@ -2542,13 +2542,28 @@
     }
   }
 
-  /* Linha única quando tudo cabe: a barra inteira mede ~1000 px. A folga
-     cobre fonte do sistema um pouco mais larga que a medida. */
+  /* Linha única quando tudo cabe: a barra inteira mede ~1210 px. Quem decide
+     é o espaço que sobra, e não um número de largura que envelhece a cada
+     botão novo: o que não cabe (hoje o botão das câmeras) quebra para a 2ª
+     linha, à direita, no lugar de empurrar a página para o lado. */
   /* Com os chips ligados ela não cabe mais, e fica nas duas linhas do
-     tablet. */
+     tablet. O `>` vale: o seletor de câmeras aberto tem um `.chips` dele, e
+     sem o `>` a barra voltaria para o grid só por abri-lo. */
   @media (min-width: 1060px) {
-    .barra:not(:has(.chips)) {
+    /* O `justify-content` junta à direita o que sobra sozinho numa linha (o
+       botão das câmeras, quando quebra); a `margin-right: auto` das famílias
+       empurra os controles para a direita na linha de cima. Duas margens
+       `auto` dividiriam a folga e afastariam os controles das câmeras. */
+    .barra:not(:has(> .chips)) {
       display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .barra:not(:has(> .chips)) .familias {
+      margin-right: auto;
+    }
+    .barra:not(:has(> .chips)) .controles {
+      margin-left: 0;
     }
     .quando {
       flex: none;
