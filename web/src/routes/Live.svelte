@@ -978,6 +978,7 @@
         todas={tudoMarcado}
         ontoggle={toggle}
         ontodas={todas}
+        erro={cameras.error}
       />
     </div>
   {/if}

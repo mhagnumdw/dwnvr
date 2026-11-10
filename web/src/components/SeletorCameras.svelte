@@ -10,9 +10,12 @@
       todas={tudoMarcado}
       ontoggle={toggle}
       ontodas={todas}
+      erro={cameras.error}
     />
 
-  `todas` é o que troca "todas" por "limpar" no primeiro botão.
+  `todas` é o que troca "todas" por "limpar" no primeiro botão. `erro` é o
+  `cameras.error`: com a lista vazia porque a carga falhou, o seletor diz isso
+  em vez de "nenhuma câmera cadastrada", que seria falso.
 -->
 <script lang="ts">
   import type { Camera } from '../lib/api.ts';
@@ -23,12 +26,14 @@
     todas,
     ontoggle,
     ontodas,
+    erro = null,
   }: {
     cameras: Camera[];
     marcada: (id: string) => boolean;
     todas: boolean;
     ontoggle: (id: string) => void;
     ontodas: () => void;
+    erro?: string | null;
   } = $props();
 </script>
 
@@ -47,6 +52,8 @@
         <span class="nome-cam">{c.name}</span>
       </button>
     {/each}
+  {:else if erro}
+    <p class="muted small">Não deu para carregar as câmeras: {erro}</p>
   {:else}
     <p class="muted small">nenhuma câmera cadastrada</p>
   {/if}
