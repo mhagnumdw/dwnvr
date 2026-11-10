@@ -650,7 +650,9 @@
 </script>
 
 <div class="page">
-  {#if cameras.go2rtcError}
+  <!-- Com a lista sem carregar, o go2rtcError é o da última leitura boa: não
+       dá para afirmar que as cadastradas continuam gravando. -->
+  {#if cameras.go2rtcError && !cameras.error}
     <p class="card warnbox small">
       Não foi possível falar com o go2rtc: {cameras.go2rtcError}<br />
       As câmeras já cadastradas continuam gravando, mas não dá para descobrir novas.
@@ -862,12 +864,12 @@
           </button>
         {/each}
       </div>
+    {:else if cameras.error}
+      <p class="muted small vazio">Não dá para listar os streams sem resposta do dwnvr.</p>
     {:else if cameras.go2rtcError}
       <p class="muted small vazio">
         Não dá para listar os streams enquanto o go2rtc não responder.
       </p>
-    {:else if cameras.error}
-      <p class="muted small vazio">Não dá para listar os streams sem resposta do dwnvr.</p>
     {:else}
       <p class="muted small vazio">
         Nenhum stream novo - o dwnvr já grava todos os que o go2rtc serve.
