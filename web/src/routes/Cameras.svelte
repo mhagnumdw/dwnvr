@@ -657,6 +657,12 @@
     </p>
   {/if}
 
+  <!-- Sem isto, a primeira carga que falha deixava a lista vazia e a tela
+       dizia "nenhuma câmera cadastrada", que é falso. -->
+  {#if cameras.error}
+    <p class="card errbox small">Não deu para carregar as câmeras: {cameras.error}</p>
+  {/if}
+
   {#if error}<p class="card errbox small">{error}</p>{/if}
 
   <div class="list">
@@ -787,7 +793,7 @@
       </div>
     {/each}
 
-    {#if !cameras.list.length && !cameras.loading}
+    {#if !cameras.list.length && !cameras.loading && !cameras.error}
       <SemCameras link={false} />
     {/if}
   </div>
@@ -860,6 +866,8 @@
       <p class="muted small vazio">
         Não dá para listar os streams enquanto o go2rtc não responder.
       </p>
+    {:else if cameras.error}
+      <p class="muted small vazio">Não dá para listar os streams sem resposta do dwnvr.</p>
     {:else}
       <p class="muted small vazio">
         Nenhum stream novo - o dwnvr já grava todos os que o go2rtc serve.
