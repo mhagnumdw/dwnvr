@@ -1008,7 +1008,10 @@
   style:--alt-linha="{alturaDaLinha}px"
   style:--alt-legenda="{alturaDaLegenda}px"
 >
-  {#if !cameras.list.length && !cameras.loading}
+  {#if !cameras.list.length && cameras.error}
+    <!-- A lista vazia porque a carga falhou não é "nenhuma câmera". -->
+    <p class="empty">Não deu para carregar as câmeras: {cameras.error}</p>
+  {:else if !cameras.list.length && !cameras.loading}
     <SemCameras />
   {:else}
     <div class="bar row">

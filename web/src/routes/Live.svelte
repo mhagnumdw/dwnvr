@@ -978,6 +978,7 @@
         todas={tudoMarcado}
         ontoggle={toggle}
         ontodas={todas}
+        erro={cameras.error}
       />
     </div>
   {/if}
@@ -1187,6 +1188,9 @@
   {#if !visible.length && !showPicker}
     {#if cameras.list.length}
       <p class="empty">Selecione as câmeras para visualizar.</p>
+    {:else if cameras.error}
+      <!-- A lista vazia porque a carga falhou não é "nenhuma câmera". -->
+      <p class="empty">Não deu para carregar as câmeras: {cameras.error}</p>
     {:else if !cameras.loading}
       <!-- Sem a guarda do `loading`, o "nenhuma câmera" piscava a cada abertura
            da tela, no intervalo em que a lista ainda estava sendo buscada. -->

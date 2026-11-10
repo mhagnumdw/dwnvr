@@ -302,11 +302,24 @@ export async function checarNovaVersao() {
   if (ultima && maisNova(ultima, atual)) build.nova = tag;
 }
 
+// Numera as leituras da lista, como as da saúde: a abertura do app e a da tela
+// Câmeras podem pedir juntas, e uma resposta velha que chegasse depois
+// desfaria a nova - um erro velho acenderia o aviso por cima da lista que
+// acabou de chegar. Vale a resposta mais nova que a última aplicada.
+let camerasPedida = 0;
+let camerasAplicada = 0;
+
+// loadCameras guarda o erro em vez de lançá-lo. O erro só sai com uma leitura
+// boa, e não no começo do pedido: assim o aviso não pisca enquanto o botão de
+// atualizar gira.
 export async function loadCameras() {
+  const esta = ++camerasPedida;
   cameras.loading = true;
-  cameras.error = null;
   try {
     const data = await api.cameras();
+    if (esta < camerasAplicada) return;
+    camerasAplicada = esta;
+    cameras.error = null;
     cameras.list = data.cameras;
     cameras.streams = data.streams ?? [];
     cameras.orphans = data.orphans ?? [];
@@ -317,12 +330,16 @@ export async function loadCameras() {
     cameras.go2rtcConfigFile = data.go2rtcConfigFile ?? null;
     cameras.alertEmail = data.alertEmail ?? null;
   } catch (e) {
+    if (esta < camerasAplicada) return;
+    camerasAplicada = esta;
     cameras.error = mensagemDe(e);
     // Sem resposta nenhuma, a aba fica de fora: melhor que a tela em branco
     // esperando para sempre.
     cameras.detector ??= false;
   } finally {
-    cameras.loading = false;
+    // Só o pedido mais recente encerra o "carregando": com outro em curso, a
+    // tela ainda não sabe o que mostrar.
+    if (esta === camerasPedida) cameras.loading = false;
   }
 }
 

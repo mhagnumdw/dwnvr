@@ -1510,6 +1510,7 @@
             todas={camsMarcadas === null}
             ontoggle={alternaCamera}
             ontodas={todasCameras}
+            erro={cameras.error}
           />
         </div>
       {/if}
