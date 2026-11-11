@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 // As rotas da tela Usuários (só admin) e as do link de convite (públicas: quem
@@ -19,10 +19,10 @@ type usuarioNaTela struct {
 	Nome    string `json:"name"`
 	// Só de quem tem e-mail válido: o escrito errado à mão no arquivo não
 	// aparece, como se não houvesse.
-	Email    string         `json:"email,omitempty"`
-	Papel    usuarios.Papel `json:"role"`
-	Situacao string         `json:"status"`
-	Avatar   string         `json:"avatar,omitempty"`
+	Email    string     `json:"email,omitempty"`
+	Papel    users.Role `json:"role"`
+	Situacao string     `json:"status"`
+	Avatar   string     `json:"avatar,omitempty"`
 	// Só com link em aberto ou vencido.
 	LinkVenceEmMs int64 `json:"inviteExpiresAtMs,omitempty"`
 	CriadoEmMs    int64 `json:"createdAtMs,omitempty"`
@@ -52,23 +52,23 @@ func ms(t time.Time) int64 {
 	return t.UnixMilli()
 }
 
-func (s *Server) naTela(u usuarios.Usuario, agora time.Time) usuarioNaTela {
-	v := usuarioNaTela{Usuario: u.Usuario, Nome: u.Nome, Email: u.EmailValido(), Papel: u.Papel,
-		Situacao: u.Situacao(agora), Avatar: u.Avatar}
+func (s *Server) naTela(u users.User, agora time.Time) usuarioNaTela {
+	v := usuarioNaTela{Usuario: u.Username, Nome: u.Name, Email: u.ValidEmail(), Papel: u.Role,
+		Situacao: u.Status(agora), Avatar: u.Avatar}
 	// Acesso de antes da criação da conta é de quem teve o mesmo usuário
 	// antes. O Esquecer do Criar só chega ao disco na gravação seguinte, e uma
 	// queda nesse meio-tempo traria o acesso antigo de volta no boot.
-	if ultimo := s.acessos.Ultimo(u.Usuario); !ultimo.Before(u.CriadoEm) {
+	if ultimo := s.acessos.Last(u.Username); !ultimo.Before(u.CreatedAt) {
 		v.UltimoAcessoMs = ms(ultimo)
 	}
 	if u.Link != nil {
-		v.LinkVenceEmMs = u.Link.VenceEm.UnixMilli()
+		v.LinkVenceEmMs = u.Link.ExpiresAt.UnixMilli()
 	}
-	if !u.CriadoEm.IsZero() {
-		v.CriadoEmMs = u.CriadoEm.UnixMilli()
+	if !u.CreatedAt.IsZero() {
+		v.CriadoEmMs = u.CreatedAt.UnixMilli()
 	}
-	if !u.AtivoDesde.IsZero() && v.Situacao == "active" {
-		v.AtivoDesdeMs = u.AtivoDesde.UnixMilli()
+	if !u.ActiveSince.IsZero() && v.Situacao == "active" {
+		v.AtivoDesdeMs = u.ActiveSince.UnixMilli()
 	}
 	return v
 }
@@ -76,8 +76,8 @@ func (s *Server) naTela(u usuarios.Usuario, agora time.Time) usuarioNaTela {
 // conviteNaTela é a resposta de quem gera um link: a pessoa e o token, que só
 // existe nesta resposta. A tela monta o link com o endereço pelo qual o admin
 // está acessando.
-func (s *Server) conviteNaTela(c usuarios.Convite) map[string]any {
-	return map[string]any{"user": s.naTela(c.Usuario, time.Now()), "token": c.Token}
+func (s *Server) conviteNaTela(c users.Invite) map[string]any {
+	return map[string]any{"user": s.naTela(c.User, time.Now()), "token": c.Token}
 }
 
 // semCadastro recusa o que grava no cadastro quando não há autenticação: sem
@@ -95,8 +95,8 @@ func (s *Server) semCadastro(w http.ResponseWriter) bool {
 // formulário vão campo a campo em "fields", para a tela pôr cada mensagem
 // embaixo do seu campo, e a primeira também em "error", como em toda recusa.
 func (s *Server) recusa(w http.ResponseWriter, what string, err error) {
-	var recusado usuarios.Recusado
-	var recusas usuarios.Recusas
+	var recusado users.ValidationError
+	var recusas users.FieldErrors
 	switch {
 	case errors.As(err, &recusas):
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -104,9 +104,9 @@ func (s *Server) recusa(w http.ResponseWriter, what string, err error) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"error": recusas.Error(), "fields": recusas})
 	case errors.As(err, &recusado):
 		writeError(w, http.StatusBadRequest, recusado.Error())
-	case errors.Is(err, usuarios.ErrNaoExiste), errors.Is(err, usuarios.ErrSemAvatar):
+	case errors.Is(err, users.ErrNotFound), errors.Is(err, users.ErrNoAvatar):
 		writeError(w, http.StatusNotFound, err.Error())
-	case errors.Is(err, usuarios.ErrLinkInvalido):
+	case errors.Is(err, users.ErrInvalidLink):
 		writeError(w, http.StatusGone, err.Error())
 	default:
 		s.fail(w, what, err)
@@ -128,10 +128,10 @@ func (s *Server) handleUsuarios(w http.ResponseWriter, r *http.Request) {
 		"authRequired": s.cfg.Server.AuthEnabled(),
 		"users":        []usuarioNaTela{},
 		// Os números do formulário, para a tela não os repetir à mão.
-		"inviteValidityMs":  usuarios.ValidadeDoLink.Milliseconds(),
-		"maxNameLength":     usuarios.TamanhoMaximoDoNome,
-		"maxUsernameLength": usuarios.TamanhoMaximoDoUsuario,
-		"maxEmailLength":    usuarios.TamanhoMaximoDoEmail,
+		"inviteValidityMs":  users.InviteValidity.Milliseconds(),
+		"maxNameLength":     users.MaxNameLen,
+		"maxUsernameLength": users.MaxUsernameLen,
+		"maxEmailLength":    users.MaxEmailLen,
 		// Sem a seção smtp ligada, a tela esconde o envio por e-mail. O
 		// e-mail da pessoa ela mostra igual, porque serve para entrar.
 		"emailEnabled": s.envio != nil,
@@ -142,10 +142,10 @@ func (s *Server) handleUsuarios(w http.ResponseWriter, r *http.Request) {
 	}
 	dono, _ := s.quem(s.cfg.Server.Username)
 	resp["owner"] = donoNaTela{Usuario: dono.Usuario, Nome: dono.Nome, Avatar: dono.Avatar,
-		UltimoAcessoMs: ms(s.acessos.Ultimo(dono.Usuario))}
+		UltimoAcessoMs: ms(s.acessos.Last(dono.Usuario))}
 	agora := time.Now()
 	lista := []usuarioNaTela{}
-	for _, u := range s.usuarios.Listar() {
+	for _, u := range s.usuarios.List() {
 		lista = append(lista, s.naTela(u, agora))
 	}
 	resp["users"] = lista
@@ -166,13 +166,13 @@ func (s *Server) handleCriarUsuario(w http.ResponseWriter, r *http.Request) {
 	if !lerCorpo(w, r, &req) {
 		return
 	}
-	c, err := s.usuarios.Criar(req.Usuario, req.Nome, req.Email)
+	c, err := s.usuarios.Create(req.Usuario, req.Nome, req.Email)
 	if err != nil {
 		s.recusa(w, "criando o usuário", err)
 		return
 	}
 	// Um login reaproveitado não herda o acesso de quem o teve antes.
-	s.acessos.Esquecer(req.Usuario)
+	s.acessos.Forget(req.Usuario)
 	s.log.Info("usuário criado pela interface", "usuario", req.Usuario, "por", pessoaDe(r).Usuario)
 	writeJSON(w, s.conviteNaTela(c))
 }
@@ -192,7 +192,7 @@ func (s *Server) handleConferirNovo(w http.ResponseWriter, r *http.Request) {
 	if !lerCorpo(w, r, &req) {
 		return
 	}
-	recusas, err := s.usuarios.ConferirNovo(req.Usuario, req.Nome, req.Email)
+	recusas, err := s.usuarios.CheckNew(req.Usuario, req.Nome, req.Email)
 	if err != nil {
 		s.recusa(w, "conferindo o usuário novo", err)
 		return
@@ -212,7 +212,7 @@ func (s *Server) handleNovoLink(w http.ResponseWriter, r *http.Request) {
 	if !lerCorpo(w, r, &req) {
 		return
 	}
-	c, err := s.usuarios.NovoLink(req.Usuario)
+	c, err := s.usuarios.NewLink(req.Usuario)
 	if err != nil {
 		s.recusa(w, "gerando o link novo", err)
 		return
@@ -235,7 +235,7 @@ func (s *Server) handleTrocarEmail(w http.ResponseWriter, r *http.Request) {
 	if !lerCorpo(w, r, &req) {
 		return
 	}
-	u, err := s.usuarios.TrocarEmail(req.Usuario, req.Email)
+	u, err := s.usuarios.SetEmail(req.Usuario, req.Email)
 	if err != nil {
 		s.recusa(w, "trocando o e-mail", err)
 		return
@@ -258,7 +258,7 @@ func (s *Server) handleConferirEmail(w http.ResponseWriter, r *http.Request) {
 	if !lerCorpo(w, r, &req) {
 		return
 	}
-	recusas, err := s.usuarios.ConferirEmail(req.Usuario, req.Email)
+	recusas, err := s.usuarios.CheckEmail(req.Usuario, req.Email)
 	if err != nil {
 		s.recusa(w, "conferindo o e-mail", err)
 		return
@@ -292,21 +292,21 @@ func (s *Server) handleEnviarLink(w http.ResponseWriter, r *http.Request) {
 		s.recusa(w, "conferindo o link", err)
 		return
 	}
-	if u.Usuario != req.Usuario {
+	if u.Username != req.Usuario {
 		writeError(w, http.StatusBadRequest, "o link não é desta pessoa")
 		return
 	}
-	para := u.EmailValido()
+	para := u.ValidEmail()
 	if para == "" {
-		writeError(w, http.StatusBadRequest, u.Nome+" não tem e-mail cadastrado")
+		writeError(w, http.StatusBadRequest, u.Name+" não tem e-mail cadastrado")
 		return
 	}
 	if err := s.envio.Send(r.Context(), mensagemDoConvite(u, para, req.Link)); err != nil {
-		s.log.Warn("o link não foi por e-mail", "usuario", u.Usuario, "por", pessoaDe(r).Usuario, "erro", err)
+		s.log.Warn("o link não foi por e-mail", "usuario", u.Username, "por", pessoaDe(r).Usuario, "erro", err)
 		writeError(w, http.StatusBadGateway, "o e-mail não foi: "+err.Error())
 		return
 	}
-	s.log.Info("link enviado por e-mail", "usuario", u.Usuario, "por", pessoaDe(r).Usuario)
+	s.log.Info("link enviado por e-mail", "usuario", u.Username, "por", pessoaDe(r).Usuario)
 	writeJSON(w, map[string]string{"sentTo": para})
 }
 
@@ -316,12 +316,12 @@ func (s *Server) handleRemoverUsuario(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	usuario := r.URL.Query().Get("username")
-	if err := s.usuarios.Remover(usuario); err != nil {
+	if err := s.usuarios.Remove(usuario); err != nil {
 		s.recusa(w, "removendo o usuário", err)
 		return
 	}
 	s.derrubarPessoa(usuario, "removido")
-	s.acessos.Esquecer(usuario)
+	s.acessos.Forget(usuario)
 	s.log.Info("usuário removido pela interface", "usuario", usuario, "por", pessoaDe(r).Usuario)
 	writeJSON(w, map[string]bool{"removed": true})
 }
@@ -333,7 +333,7 @@ func (s *Server) handleTirarAvatarDe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	usuario := r.URL.Query().Get("username")
-	if err := s.usuarios.TirarAvatar(usuario); err != nil {
+	if err := s.usuarios.RemoveAvatar(usuario); err != nil {
 		s.recusa(w, "tirando a foto", err)
 		return
 	}
@@ -357,21 +357,21 @@ func (s *Server) handleConferirConvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{
-		"username":          u.Usuario,
-		"name":              u.Nome,
-		"inviteExpiresAtMs": u.Link.VenceEm.UnixMilli(),
-		"minPasswordLength": usuarios.SenhaMinima,
-		"maxPasswordLength": usuarios.SenhaMaxima,
+		"username":          u.Username,
+		"name":              u.Name,
+		"inviteExpiresAtMs": u.Link.ExpiresAt.UnixMilli(),
+		"minPasswordLength": users.MinPasswordLen,
+		"maxPasswordLength": users.MaxPasswordLen,
 	})
 }
 
 // conviteValido confere o link. Sem autenticação ligada, link nenhum vale:
 // não haveria login para usar a senha definida.
-func (s *Server) conviteValido(token string) (usuarios.Usuario, error) {
+func (s *Server) conviteValido(token string) (users.User, error) {
 	if !s.cfg.Server.AuthEnabled() {
-		return usuarios.Usuario{}, usuarios.ErrLinkInvalido
+		return users.User{}, users.ErrInvalidLink
 	}
-	return s.usuarios.Conferir(token)
+	return s.usuarios.CheckInvite(token)
 }
 
 // handleConvite define a senha pelo link e já abre a sessão: a pessoa entra
@@ -388,7 +388,7 @@ func (s *Server) handleConvite(w http.ResponseWriter, r *http.Request) {
 		s.recusa(w, "conferindo o link", err)
 		return
 	}
-	u, err := s.usuarios.DefinirSenha(r.Context(), req.Token, req.Senha)
+	u, err := s.usuarios.SetPassword(r.Context(), req.Token, req.Senha)
 	if r.Context().Err() != nil {
 		return // o navegador desistiu na fila
 	}
@@ -396,13 +396,13 @@ func (s *Server) handleConvite(w http.ResponseWriter, r *http.Request) {
 		s.recusa(w, "definindo a senha", err)
 		return
 	}
-	p, ok := s.quem(u.Usuario)
+	p, ok := s.quem(u.Username)
 	if !ok {
 		s.fail(w, "abrindo a sessão de quem acabou de definir a senha", errors.New("pessoa sumiu"))
 		return
 	}
-	s.log.Info("senha definida pelo link", "usuario", u.Usuario, "de", r.RemoteAddr, encaminhado(r))
+	s.log.Info("senha definida pelo link", "usuario", u.Username, "de", r.RemoteAddr, encaminhado(r))
 	s.setSessionCookie(w, r, p)
-	s.acessos.Registrar(u.Usuario)
+	s.acessos.Record(u.Username)
 	writeJSON(w, map[string]any{"ok": true, "user": p})
 }

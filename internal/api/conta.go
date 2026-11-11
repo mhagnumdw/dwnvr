@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 // As rotas da Minha conta: o que cada pessoa muda de si mesma, de qualquer
@@ -22,13 +22,13 @@ func (s *Server) handleConta(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{
 		"user":              pessoaDe(r),
-		"minPasswordLength": usuarios.SenhaMinima,
-		"maxPasswordLength": usuarios.SenhaMaxima,
-		"maxNameLength":     usuarios.TamanhoMaximoDoNome,
+		"minPasswordLength": users.MinPasswordLen,
+		"maxPasswordLength": users.MaxPasswordLen,
+		"maxNameLength":     users.MaxNameLen,
 		"avatar": map[string]int{
-			"sidePx":   usuarios.LadoDoAvatar,
-			"maxBytes": usuarios.TetoDoAvatar,
-			"quality":  usuarios.QualidadeDoAvatar,
+			"sidePx":   users.AvatarSide,
+			"maxBytes": users.MaxAvatarBytes,
+			"quality":  users.AvatarQuality,
 		},
 	})
 }
@@ -63,7 +63,7 @@ func (s *Server) handleTrocarSenha(w http.ResponseWriter, r *http.Request) {
 	if !lerCorpo(w, r, &req) {
 		return
 	}
-	u, err := s.usuarios.TrocarSenha(r.Context(), p.Usuario, req.Atual, req.Nova)
+	u, err := s.usuarios.ChangePassword(r.Context(), p.Usuario, req.Atual, req.Nova)
 	if r.Context().Err() != nil {
 		return // o navegador desistiu na fila
 	}
@@ -71,7 +71,7 @@ func (s *Server) handleTrocarSenha(w http.ResponseWriter, r *http.Request) {
 		s.recusa(w, "trocando a senha", err)
 		return
 	}
-	novo, ok := s.quem(u.Usuario)
+	novo, ok := s.quem(u.Username)
 	if !ok {
 		s.fail(w, "abrindo a sessão de quem acabou de trocar a senha", errors.New("pessoa sumiu"))
 		return
@@ -98,7 +98,7 @@ func (s *Server) handleMudarNome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := pessoaDe(r)
-	if _, err := s.usuarios.MudarNome(p.Usuario, req.Nome); err != nil {
+	if _, err := s.usuarios.Rename(p.Usuario, req.Nome); err != nil {
 		s.recusa(w, "trocando o nome", err)
 		return
 	}
@@ -111,18 +111,18 @@ func (s *Server) handleTrocarAvatar(w http.ResponseWriter, r *http.Request) {
 	if s.semCadastro(w) {
 		return
 	}
-	b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, usuarios.TetoDoAvatar))
+	b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, users.MaxAvatarBytes))
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			writeError(w, http.StatusRequestEntityTooLarge,
-				fmt.Sprintf("a foto passa de %d KB", usuarios.TetoDoAvatar>>10))
+				fmt.Sprintf("a foto passa de %d KB", users.MaxAvatarBytes>>10))
 			return
 		}
 		writeError(w, http.StatusBadRequest, "corpo inválido")
 		return
 	}
 	p := pessoaDe(r)
-	if _, err := s.usuarios.TrocarAvatar(p.Usuario, b); err != nil {
+	if _, err := s.usuarios.SetAvatar(p.Usuario, b); err != nil {
 		s.recusa(w, "guardando a foto", err)
 		return
 	}
@@ -135,7 +135,7 @@ func (s *Server) handleTirarAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := pessoaDe(r)
-	if err := s.usuarios.TirarAvatar(p.Usuario); err != nil {
+	if err := s.usuarios.RemoveAvatar(p.Usuario); err != nil {
 		s.recusa(w, "tirando a foto", err)
 		return
 	}
@@ -152,7 +152,7 @@ func (s *Server) handleAvatar(w http.ResponseWriter, r *http.Request) {
 	caminho, dono, err := s.usuarios.Avatar(r.URL.Query().Get("id"))
 	p := pessoaDe(r)
 	if err == nil && !p.admin() && dono != p.Usuario {
-		err = usuarios.ErrSemAvatar
+		err = users.ErrNoAvatar
 	}
 	if err != nil {
 		writeError(w, http.StatusNotFound, err.Error())

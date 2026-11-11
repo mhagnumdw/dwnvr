@@ -21,7 +21,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/store"
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 func testServer(t *testing.T) (*Server, *store.Camera) {
@@ -44,11 +44,11 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 	mgr := recorder.NewManager(cfg, nil, st, log)
 	mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true})
 
-	cad, _, err := usuarios.Abrir(cfg.UsersPath(), cfg.Server.Username)
+	cad, _, err := users.Open(cfg.UsersPath(), cfg.Server.Username)
 	if err != nil {
 		t.Fatal(err)
 	}
-	acessos, err := usuarios.AbrirAcessos(cfg.AccessPath(), log)
+	acessos, err := users.OpenAccessLog(cfg.AccessPath(), log)
 	if err != nil {
 		t.Fatal(err)
 	}

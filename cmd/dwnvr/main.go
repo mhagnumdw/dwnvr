@@ -33,7 +33,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/retention"
 	"github.com/mhagnumdw/dwnvr/internal/store"
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 func main() {
@@ -135,19 +135,19 @@ func run(log *slog.Logger, cfgPath string) error {
 
 	// Um usuarios.json ilegível não impede a gravação: só o dono entra até ele
 	// ser corrigido, e a tela não grava por cima.
-	cad, avisosCad, err := usuarios.Abrir(cfg.UsersPath(), cfg.Server.Username)
+	cad, avisosCad, err := users.Open(cfg.UsersPath(), cfg.Server.Username)
 	if err != nil {
 		log.Error("cadastro de usuários ilegível; só o dono do dwnvr.yaml entra até ser corrigido", "erro", err)
 	}
 	for _, a := range avisosCad {
 		log.Warn("cadastro de usuários: "+a, "arquivo", cfg.UsersPath())
 	}
-	if !cfg.Server.AuthEnabled() && cad.Quantos() > 0 {
+	if !cfg.Server.AuthEnabled() && cad.Count() > 0 {
 		log.Warn("autenticação desligada: os usuários do cadastro foram ignorados",
-			"arquivo", cfg.UsersPath(), "usuarios", cad.Quantos())
+			"arquivo", cfg.UsersPath(), "usuarios", cad.Count())
 	}
 
-	acessos, err := usuarios.AbrirAcessos(cfg.AccessPath(), log)
+	acessos, err := users.OpenAccessLog(cfg.AccessPath(), log)
 	if err != nil {
 		log.Warn("últimos acessos ilegíveis; recomeçam vazios", "erro", err)
 	}
@@ -190,7 +190,7 @@ func run(log *slog.Logger, cfgPath string) error {
 
 	// Sem requisição nova, o que os últimos minutos anotaram vai para o disco
 	// agora, e não se perde no reinício.
-	if err := acessos.GravarPendente(); err != nil {
+	if err := acessos.FlushPending(); err != nil {
 		log.Error("gravando os últimos acessos", "arquivo", cfg.AccessPath(), "erro", err)
 	}
 

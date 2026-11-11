@@ -269,7 +269,7 @@ type AlertsEmail struct {
 
 // check removes from To what isn't an address and the duplicates, and says
 // what it removed. The rule is the one for a user's e-mail
-// (usuarios.ValidarEmail): the bare address, no name in front. One wrong
+// (users.ValidateEmail): the bare address, no name in front. One wrong
 // address doesn't silence the others.
 func (e *AlertsEmail) check(smtp SMTP) []string {
 	var warnings []string

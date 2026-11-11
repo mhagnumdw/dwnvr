@@ -18,22 +18,22 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/ratelimit"
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 // comAutenticacao liga a autenticação, com o dono "admin", e cadastra as
 // pessoas dadas no usuarios.json.
-func comAutenticacao(t *testing.T, s *Server, gente ...usuarios.Usuario) {
+func comAutenticacao(t *testing.T, s *Server, gente ...users.User) {
 	t.Helper()
 	s.cfg.Server.Username, s.cfg.Server.Password = "admin", "senha"
 	// Reaberto com o dono, como no boot: é ele que o cadastro recusa criar.
-	cad, _, err := usuarios.Abrir(s.cfg.UsersPath(), "admin")
+	cad, _, err := users.Open(s.cfg.UsersPath(), "admin")
 	if err != nil {
 		t.Fatal(err)
 	}
 	s.usuarios = cad
-	err = s.usuarios.Alterar(func(a *usuarios.Arquivo) error {
-		a.Usuarios = append(a.Usuarios, gente...)
+	err = s.usuarios.Update(func(a *users.FileData) error {
+		a.Users = append(a.Users, gente...)
 		return nil
 	})
 	if err != nil {
@@ -43,7 +43,7 @@ func comAutenticacao(t *testing.T, s *Server, gente ...usuarios.Usuario) {
 
 // Para os testes de sessão, a senha guardada não precisa ser um hash de
 // verdade: a sessão só a usa para amarrar o cookie.
-var maria = usuarios.Usuario{Usuario: "maria", Nome: "Maria", Papel: usuarios.PapelViewer, Senha: "$guardada$da-maria"}
+var maria = users.User{Username: "maria", Name: "Maria", Role: users.RoleViewer, PasswordHash: "$guardada$da-maria"}
 
 // cookieDe é o cookie que a pessoa recebe, valendo por mais uma hora.
 func cookieDe(t *testing.T, s *Server, usuario string) *http.Cookie {
@@ -101,10 +101,10 @@ func TestTokenDeSessao(t *testing.T) {
 // O cookie de cada pessoa é amarrado à credencial dela: trocar a senha de uma,
 // ou removê-la, derruba só ela.
 func TestSessaoDerrubaSoAPessoa(t *testing.T) {
-	joao := usuarios.Usuario{Usuario: "joao", Nome: "João", Papel: usuarios.PapelViewer, Senha: "$guardada$do-joao"}
-	alterar := func(s *Server, f func(*usuarios.Arquivo)) {
+	joao := users.User{Username: "joao", Name: "João", Role: users.RoleViewer, PasswordHash: "$guardada$do-joao"}
+	alterar := func(s *Server, f func(*users.FileData)) {
 		t.Helper()
-		if err := s.usuarios.Alterar(func(a *usuarios.Arquivo) error { f(a); return nil }); err != nil {
+		if err := s.usuarios.Update(func(a *users.FileData) error { f(a); return nil }); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -116,13 +116,13 @@ func TestSessaoDerrubaSoAPessoa(t *testing.T) {
 		ficaram []string
 	}{
 		{"senha nova da maria", func(s *Server) {
-			alterar(s, func(a *usuarios.Arquivo) { a.Usuarios[0].Senha = "$guardada$nova" })
+			alterar(s, func(a *users.FileData) { a.Users[0].PasswordHash = "$guardada$nova" })
 		}, "maria", []string{"admin", "joao"}},
 		{"maria sem senha, à espera de um link novo", func(s *Server) {
-			alterar(s, func(a *usuarios.Arquivo) { a.Usuarios[0].Senha = "" })
+			alterar(s, func(a *users.FileData) { a.Users[0].PasswordHash = "" })
 		}, "maria", []string{"admin", "joao"}},
 		{"maria removida", func(s *Server) {
-			alterar(s, func(a *usuarios.Arquivo) { a.Usuarios = a.Usuarios[1:] })
+			alterar(s, func(a *users.FileData) { a.Users = a.Users[1:] })
 		}, "maria", []string{"admin", "joao"}},
 		{"senha nova do dono", func(s *Server) { s.cfg.Server.Password += "-nova" }, "admin", []string{"maria", "joao"}},
 	} {
@@ -155,12 +155,12 @@ func TestTrocarACredencialDoDonoDerrubaAsSessoesDele(t *testing.T) {
 	subir := func(usuario, senha string) *Server {
 		cfg := &config.Config{}
 		cfg.Server.Username, cfg.Server.Password = usuario, senha
-		cad, _, err := usuarios.Abrir(caminho, usuario)
+		cad, _, err := users.Open(caminho, usuario)
 		if err != nil {
 			t.Fatal(err)
 		}
 		log := slog.New(slog.NewTextHandler(io.Discard, nil))
-		acessos, err := usuarios.AbrirAcessos(filepath.Join(filepath.Dir(caminho), "acessos.json"), log)
+		acessos, err := users.OpenAccessLog(filepath.Join(filepath.Dir(caminho), "acessos.json"), log)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -209,7 +209,7 @@ func TestRequireAuth(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.AddCookie(cookieDe(t, s, "maria"))
 	h(httptest.NewRecorder(), req)
-	if !chamou || quem.Usuario != "maria" || quem.Papel != usuarios.PapelViewer {
+	if !chamou || quem.Usuario != "maria" || quem.Papel != users.RoleViewer {
 		t.Errorf("cookie da maria: chamou=%v, pessoa %+v", chamou, quem)
 	}
 }
@@ -312,7 +312,7 @@ func TestLoginComSenhaGuardadaEstragada(t *testing.T) {
 	var log strings.Builder
 	s.log = slog.New(slog.NewTextHandler(&log, nil))
 	estragada := maria
-	estragada.Senha = "$pbkdf2-sha256$i=99999999999$c2FsdA$aGFzaA"
+	estragada.PasswordHash = "$pbkdf2-sha256$i=99999999999$c2FsdA$aGFzaA"
 	comAutenticacao(t, s, estragada)
 
 	tentativa := "qualquer uma"
@@ -332,13 +332,13 @@ func TestLoginComSenhaGuardadaEstragada(t *testing.T) {
 
 func TestLogin(t *testing.T) {
 	s, _ := testServer(t)
-	guardada, err := usuarios.GerarSenha(context.Background(), "senha da maria")
+	guardada, err := users.HashPassword(context.Background(), "senha da maria")
 	if err != nil {
 		t.Fatal(err)
 	}
 	m := maria
-	m.Senha = guardada
-	comAutenticacao(t, s, m, usuarios.Usuario{Usuario: "ze", Nome: "Zé", Papel: usuarios.PapelViewer})
+	m.PasswordHash = guardada
+	comAutenticacao(t, s, m, users.User{Username: "ze", Name: "Zé", Role: users.RoleViewer})
 
 	entrar := func(usuario, senha string) (*httptest.ResponseRecorder, pessoa) {
 		corpo, _ := json.Marshal(map[string]string{"username": usuario, "password": senha})
@@ -353,8 +353,8 @@ func TestLogin(t *testing.T) {
 
 	for _, caso := range []struct {
 		usuario, senha string
-		papel          usuarios.Papel
-	}{{"admin", "senha", usuarios.PapelAdmin}, {"maria", "senha da maria", usuarios.PapelViewer}} {
+		papel          users.Role
+	}{{"admin", "senha", users.RoleAdmin}, {"maria", "senha da maria", users.RoleViewer}} {
 		rec, p := entrar(caso.usuario, caso.senha)
 		if rec.Code != http.StatusOK || p.Usuario != caso.usuario || p.Papel != caso.papel {
 			t.Errorf("%s: status %d, pessoa %+v", caso.usuario, rec.Code, p)
@@ -392,18 +392,18 @@ func TestLoginPeloEmail(t *testing.T) {
 	s, _ := testServer(t)
 	var log strings.Builder
 	s.log = slog.New(slog.NewTextHandler(&log, nil))
-	guardada, err := usuarios.GerarSenha(context.Background(), "senha da maria")
+	guardada, err := users.HashPassword(context.Background(), "senha da maria")
 	if err != nil {
 		t.Fatal(err)
 	}
 	m := maria
-	m.Senha, m.Email = guardada, "Maria@Exemplo.com"
+	m.PasswordHash, m.Email = guardada, "Maria@Exemplo.com"
 	// O repetido só entra no arquivo editado à mão; o Alterar daqui não confere.
-	ana := usuarios.Usuario{Usuario: "ana", Nome: "Ana", Papel: usuarios.PapelViewer, Senha: guardada, Email: "casa@exemplo.com"}
+	ana := users.User{Username: "ana", Name: "Ana", Role: users.RoleViewer, PasswordHash: guardada, Email: "casa@exemplo.com"}
 	bia := ana
-	bia.Usuario, bia.Nome = "bia", "Bia"
+	bia.Username, bia.Name = "bia", "Bia"
 	comAutenticacao(t, s, m, ana, bia,
-		usuarios.Usuario{Usuario: "ze", Nome: "Zé", Papel: usuarios.PapelViewer, Email: "ze@exemplo.com"})
+		users.User{Username: "ze", Name: "Zé", Role: users.RoleViewer, Email: "ze@exemplo.com"})
 
 	entrar := func(login, senha string) *httptest.ResponseRecorder {
 		corpo, _ := json.Marshal(map[string]string{"username": login, "password": senha})
@@ -430,8 +430,8 @@ func TestLoginPeloEmail(t *testing.T) {
 	// O usuário do dono pode ter "@" no dwnvr.yaml, e continua entrando,
 	// mesmo que alguém do cadastro tenha o mesmo texto como e-mail.
 	s.cfg.Server.Username = "admin@casa"
-	if err := s.usuarios.Alterar(func(a *usuarios.Arquivo) error {
-		a.Usuarios[0].Email = "Admin@Casa"
+	if err := s.usuarios.Update(func(a *users.FileData) error {
+		a.Users[0].Email = "Admin@Casa"
 		return nil
 	}); err != nil {
 		t.Fatal(err)
@@ -472,25 +472,25 @@ func TestCadastroComProblemaViraAviso(t *testing.T) {
 	]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cad, _, err := usuarios.Abrir(s.cfg.UsersPath(), "admin")
+	cad, _, err := users.Open(s.cfg.UsersPath(), "admin")
 	if err != nil {
 		t.Fatal(err)
 	}
 	s.usuarios = cad
 	_, resp = pedirComo(t, s, "admin", http.MethodGet, "/api/health", nil)
-	users, _ := resp["users"].(map[string]any)
-	avisos, _ := users["warnings"].([]any)
-	if len(avisos) != 1 || !strings.Contains(avisos[0].(string), `o mesmo de "maria"`) || users["error"] != nil {
+	usersInfo, _ := resp["users"].(map[string]any)
+	avisos, _ := usersInfo["warnings"].([]any)
+	if len(avisos) != 1 || !strings.Contains(avisos[0].(string), `o mesmo de "maria"`) || usersInfo["error"] != nil {
 		t.Errorf("users %v", resp["users"])
 	}
 
 	if err := os.WriteFile(s.cfg.UsersPath(), []byte(`{"users":`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	s.usuarios, _, _ = usuarios.Abrir(s.cfg.UsersPath(), "admin")
+	s.usuarios, _, _ = users.Open(s.cfg.UsersPath(), "admin")
 	_, resp = pedirComo(t, s, "admin", http.MethodGet, "/api/health", nil)
-	users, _ = resp["users"].(map[string]any)
-	if erro, _ := users["error"].(string); !strings.Contains(erro, "ilegível") {
+	usersInfo, _ = resp["users"].(map[string]any)
+	if erro, _ := usersInfo["error"].(string); !strings.Contains(erro, "ilegível") {
 		t.Errorf("arquivo ilegível: users %v", resp["users"])
 	}
 }
@@ -643,10 +643,10 @@ func TestSessionDizQuemEsta(t *testing.T) {
 		t.Errorf("sem cookie: %+v", r)
 	}
 	r, corpo := sessao(cookieDe(t, s, "maria"))
-	if !r.Authenticated || r.Pessoa == nil || *r.Pessoa != (pessoa{Usuario: "maria", Nome: "Maria", Papel: usuarios.PapelViewer}) {
+	if !r.Authenticated || r.Pessoa == nil || *r.Pessoa != (pessoa{Usuario: "maria", Nome: "Maria", Papel: users.RoleViewer}) {
 		t.Errorf("maria: %s", corpo)
 	}
-	if strings.Contains(corpo, maria.Senha) {
+	if strings.Contains(corpo, maria.PasswordHash) {
 		t.Errorf("a resposta traz a senha guardada: %s", corpo)
 	}
 	if r, _ := sessao(cookieDe(t, s, "admin")); r.Pessoa == nil || !r.Pessoa.Dono || r.Pessoa.Nome != "admin" {

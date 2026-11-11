@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 // A troca da própria senha: pede a atual, derruba as outras sessões e deixa a
@@ -21,11 +21,11 @@ import (
 func TestTrocarASenhaPelaConta(t *testing.T) {
 	s, _ := testServer(t)
 	comAutenticacao(t, s)
-	conv, err := s.usuarios.Criar("maria", "Maria", "")
+	conv, err := s.usuarios.Create("maria", "Maria", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.usuarios.DefinirSenha(context.Background(), conv.Token, "uma senha boa"); err != nil {
+	if _, err := s.usuarios.SetPassword(context.Background(), conv.Token, "uma senha boa"); err != nil {
 		t.Fatal(err)
 	}
 	outroAparelho := cookieDe(t, s, "maria")
@@ -88,12 +88,12 @@ func enviarFoto(t *testing.T, s *Server, usuario string, foto []byte) (*httptest
 }
 
 func TestNomeEAvatarPelaConta(t *testing.T) {
-	jose := usuarios.Usuario{Usuario: "jose", Nome: "José", Papel: usuarios.PapelViewer, Senha: "$guardada$do-jose"}
+	jose := users.User{Username: "jose", Name: "José", Role: users.RoleViewer, PasswordHash: "$guardada$do-jose"}
 	s, _ := testServer(t)
 	comAutenticacao(t, s, maria, jose)
 
 	rec, resp := pedirComo(t, s, "maria", http.MethodGet, "/api/conta", nil)
-	if rec.Code != http.StatusOK || resp["minPasswordLength"] != float64(usuarios.SenhaMinima) {
+	if rec.Code != http.StatusOK || resp["minPasswordLength"] != float64(users.MinPasswordLen) {
 		t.Errorf("conta: status %d, %s", rec.Code, rec.Body)
 	}
 
@@ -108,13 +108,13 @@ func TestNomeEAvatarPelaConta(t *testing.T) {
 		t.Errorf("o dono continua %q", p.Nome)
 	}
 
-	rec, resp = enviarFoto(t, s, "maria", fotoDeTeste(t, usuarios.LadoDoAvatar))
+	rec, resp = enviarFoto(t, s, "maria", fotoDeTeste(t, users.AvatarSide))
 	p, _ := resp["user"].(map[string]any)
 	id, _ := p["avatar"].(string)
 	if rec.Code != http.StatusOK || id == "" {
 		t.Fatalf("foto: status %d, %s", rec.Code, rec.Body)
 	}
-	if rec, _ := enviarFoto(t, s, "maria", make([]byte, usuarios.TetoDoAvatar+1)); rec.Code != http.StatusRequestEntityTooLarge {
+	if rec, _ := enviarFoto(t, s, "maria", make([]byte, users.MaxAvatarBytes+1)); rec.Code != http.StatusRequestEntityTooLarge {
 		t.Errorf("foto acima do teto: status %d, esperava 413", rec.Code)
 	}
 	if rec, _ := enviarFoto(t, s, "maria", []byte("não é foto")); rec.Code != http.StatusBadRequest {

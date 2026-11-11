@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/mhagnumdw/dwnvr/internal/email"
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 // enviadorFalso guarda o que mandaria, ou falha com erro.
@@ -124,9 +124,9 @@ func TestLinkPorEmailConfereOLink(t *testing.T) {
 	}
 
 	// O viewer não manda e-mail nenhum.
-	ana := usuarios.Usuario{Usuario: "ana", Nome: "Ana", Papel: usuarios.PapelViewer, Senha: "$guardada$da-ana"}
-	if err := s.usuarios.Alterar(func(a *usuarios.Arquivo) error {
-		a.Usuarios = append(a.Usuarios, ana)
+	ana := users.User{Username: "ana", Name: "Ana", Role: users.RoleViewer, PasswordHash: "$guardada$da-ana"}
+	if err := s.usuarios.Update(func(a *users.FileData) error {
+		a.Users = append(a.Users, ana)
 		return nil
 	}); err != nil {
 		t.Fatal(err)

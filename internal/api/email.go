@@ -10,7 +10,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/alerta"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/email"
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 // O que a API faz com o e-mail: o teste do Diagnóstico, as peças do link de
@@ -52,8 +52,8 @@ func tokenDoLink(link string) (string, bool) {
 }
 
 // mensagemDoConvite é o e-mail do link de definir a senha.
-func mensagemDoConvite(u usuarios.Usuario, para, link string) email.Message {
-	minutos := int(usuarios.ValidadeDoLink.Minutes())
+func mensagemDoConvite(u users.User, para, link string) email.Message {
+	minutos := int(users.InviteValidity.Minutes())
 	return email.Message{
 		To:      []string{para},
 		Subject: "Defina sua senha no dwnvr",
@@ -62,7 +62,7 @@ func mensagemDoConvite(u usuarios.Usuario, para, link string) email.Message {
 			"%s\n\n"+
 			"Seu usuário para entrar: %s\n\n"+
 			"Se o link vencer, peça outro a quem administra o dwnvr.\n",
-			u.Nome, minutos, link, u.Usuario),
+			u.Name, minutos, link, u.Username),
 	}
 }
 
@@ -79,7 +79,7 @@ func (s *Server) handleTesteEmail(w http.ResponseWriter, r *http.Request) {
 	if !lerCorpo(w, r, &req) {
 		return
 	}
-	para, err := usuarios.ValidarEmail(req.Para)
+	para, err := users.ValidateEmail(req.Para)
 	if err != nil || para == "" {
 		writeError(w, http.StatusBadRequest, "e-mail inválido: escreva só o endereço, como fulano@exemplo.com")
 		return

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 const (
@@ -35,9 +35,9 @@ const (
 // pessoa é quem fez a requisição: o dono, do dwnvr.yaml, ou alguém do
 // usuarios.json.
 type pessoa struct {
-	Usuario string         `json:"username,omitempty"`
-	Nome    string         `json:"name,omitempty"`
-	Papel   usuarios.Papel `json:"role"`
+	Usuario string     `json:"username,omitempty"`
+	Nome    string     `json:"name,omitempty"`
+	Papel   users.Role `json:"role"`
 	// Dono é a conta do dwnvr.yaml. A senha dele se troca lá, e não pela tela.
 	Dono bool `json:"owner"`
 	// Avatar é o id da foto (ver GET /api/avatar), ou vazio.
@@ -48,35 +48,35 @@ type pessoa struct {
 	credencial string
 }
 
-func (p pessoa) admin() bool { return p.Papel == usuarios.PapelAdmin }
+func (p pessoa) admin() bool { return p.Papel == users.RoleAdmin }
 
 // semAutenticacao é quem usa o dwnvr com a autenticação desligada: não há
 // usuários, e quem alcança a tela faz tudo.
-var semAutenticacao = pessoa{Papel: usuarios.PapelAdmin, Dono: true}
+var semAutenticacao = pessoa{Papel: users.RoleAdmin, Dono: true}
 
 // quem acha a pessoa pelo login. Quem ainda não definiu a senha fica de fora:
 // não há credencial para amarrar uma sessão.
 func (s *Server) quem(usuario string) (pessoa, bool) {
 	if usuario == s.cfg.Server.Username {
-		dono := s.usuarios.Dono()
-		nome := dono.Nome
+		dono := s.usuarios.Owner()
+		nome := dono.Name
 		if nome == "" {
 			nome = usuario
 		}
-		return pessoa{Usuario: usuario, Nome: nome, Papel: usuarios.PapelAdmin, Dono: true,
+		return pessoa{Usuario: usuario, Nome: nome, Papel: users.RoleAdmin, Dono: true,
 			Avatar: dono.Avatar, credencial: s.cfg.Server.Password}, true
 	}
-	u, ok := s.usuarios.Buscar(usuario)
-	if !ok || u.Senha == "" {
+	u, ok := s.usuarios.Find(usuario)
+	if !ok || u.PasswordHash == "" {
 		return pessoa{}, false
 	}
-	return pessoa{Usuario: u.Usuario, Nome: u.Nome, Papel: u.Papel, Avatar: u.Avatar,
-		credencial: u.Senha}, true
+	return pessoa{Usuario: u.Username, Nome: u.Name, Papel: u.Role, Avatar: u.Avatar,
+		credencial: u.PasswordHash}, true
 }
 
 // quemEntra acha a pessoa pelo que ela digitou no login: o usuário ou, com
 // "@", o e-mail. O usuário do cadastro não aceita "@" (ver
-// usuarios.ValidarUsuario), então não há dúvida de qual dos dois veio. O dono
+// users.ValidateUsername), então não há dúvida de qual dos dois veio. O dono
 // não tem e-mail e entra só pelo usuário, que o dwnvr.yaml deixa ter "@": o
 // dele vale antes de procurar um e-mail.
 func (s *Server) quemEntra(digitado string) (p pessoa, existe, peloEmail bool) {
@@ -84,11 +84,11 @@ func (s *Server) quemEntra(digitado string) (p pessoa, existe, peloEmail bool) {
 		p, existe = s.quem(digitado)
 		return p, existe, false
 	}
-	u, ok := s.usuarios.BuscarPorEmail(strings.TrimSpace(digitado))
+	u, ok := s.usuarios.FindByEmail(strings.TrimSpace(digitado))
 	if !ok {
 		return pessoa{}, false, true
 	}
-	p, existe = s.quem(u.Usuario)
+	p, existe = s.quem(u.Username)
 	return p, existe, true
 }
 
@@ -160,7 +160,7 @@ func (s *Server) tokenPessoa(tok string) (p pessoa, expires int64, ok bool) {
 //
 // É também onde o último acesso da pessoa é anotado: toda requisição
 // autenticada passa por aqui, inclusive o /api/session. A anotação só toca a
-// memória (ver usuarios.Acessos).
+// memória (ver users.AccessLog).
 //
 // Não cria estado de sessão no servidor: renovar é só assinar outro prazo.
 func (s *Server) sessao(w http.ResponseWriter, r *http.Request) (pessoa, bool) {
@@ -175,7 +175,7 @@ func (s *Server) sessao(w http.ResponseWriter, r *http.Request) (pessoa, bool) {
 	if time.Until(time.Unix(expires, 0)) < sessionRenew {
 		s.setSessionCookie(w, r, p)
 	}
-	s.acessos.Registrar(p.Usuario)
+	s.acessos.Record(p.Usuario)
 	return p, true
 }
 
@@ -232,7 +232,7 @@ func (s *Server) exigir(admin bool, next http.HandlerFunc) http.HandlerFunc {
 
 // handleLogin confere a senha e abre a sessão.
 //
-// Toda tentativa paga uma conta de senha inteira (ver usuarios.ConferirSenha),
+// Toda tentativa paga uma conta de senha inteira (ver users.VerifyPassword),
 // na fila de uma por vez, inclusive a do dono, cuja senha está em texto no
 // dwnvr.yaml, e a de um usuário que não existe. Assim o tempo de resposta não
 // diz quem existe nem quem é o dono.
@@ -254,7 +254,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if existe && !p.Dono {
 		guardado = p.credencial
 	}
-	ok, err := usuarios.ConferirSenha(r.Context(), req.Password, guardado)
+	ok, err := users.VerifyPassword(r.Context(), req.Password, guardado)
 	if r.Context().Err() != nil {
 		return // o navegador desistiu na fila
 	}
@@ -271,7 +271,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.setSessionCookie(w, r, p)
-	s.acessos.Registrar(p.Usuario)
+	s.acessos.Record(p.Usuario)
 	// A sessão, o último acesso e o log ficam com o usuário, mesmo entrando
 	// pelo e-mail.
 	via := slog.Attr{} // vazio, o slog não escreve

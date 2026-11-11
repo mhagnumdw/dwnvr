@@ -16,7 +16,7 @@ import (
 
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 // pedirComo faz a requisição pelo Handler, com o cookie de quem pede (ou sem
@@ -61,7 +61,7 @@ func TestConviteDaTelaAoLogin(t *testing.T) {
 	}
 
 	rec, resp = pedirComo(t, s, "", http.MethodPost, "/api/convite/conferir", map[string]string{"token": token})
-	if rec.Code != http.StatusOK || resp["name"] != "Maria" || resp["minPasswordLength"] != float64(usuarios.SenhaMinima) {
+	if rec.Code != http.StatusOK || resp["name"] != "Maria" || resp["minPasswordLength"] != float64(users.MinPasswordLen) {
 		t.Errorf("conferir: status %d, %s", rec.Code, rec.Body)
 	}
 
@@ -78,7 +78,7 @@ func TestConviteDaTelaAoLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("definir a senha não abriu a sessão: %v", err)
 	}
-	if p, _, ok := s.tokenPessoa(c.Value); !ok || p.Usuario != "maria" || p.Papel != usuarios.PapelViewer {
+	if p, _, ok := s.tokenPessoa(c.Value); !ok || p.Usuario != "maria" || p.Papel != users.RoleViewer {
 		t.Errorf("sessão aberta para %+v (ok=%v)", p, ok)
 	}
 
@@ -147,7 +147,7 @@ func TestCriarUsuarioRecusaPorCampo(t *testing.T) {
 func TestConferirUsuario(t *testing.T) {
 	s, _ := testServer(t)
 	comAutenticacao(t, s, maria)
-	if _, err := s.usuarios.TrocarEmail("maria", "maria@exemplo.com"); err != nil {
+	if _, err := s.usuarios.SetEmail("maria", "maria@exemplo.com"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -161,7 +161,7 @@ func TestConferirUsuario(t *testing.T) {
 	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
 		t.Errorf("tudo certo: status %d, %s", rec.Code, rec.Body)
 	}
-	if _, ok := s.usuarios.Buscar("joao"); ok {
+	if _, ok := s.usuarios.Find("joao"); ok {
 		t.Error("a conferência criou a pessoa")
 	}
 
@@ -176,7 +176,7 @@ func TestConferirUsuario(t *testing.T) {
 	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
 		t.Errorf("e-mail livre: status %d, %s", rec.Code, rec.Body)
 	}
-	if u, _ := s.usuarios.Buscar("maria"); u.Email != "maria@exemplo.com" {
+	if u, _ := s.usuarios.Find("maria"); u.Email != "maria@exemplo.com" {
 		t.Errorf("a conferência gravou o e-mail: %q", u.Email)
 	}
 	if rec, _ = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
@@ -255,7 +255,7 @@ func TestUltimoAcessoNaTelaUsuarios(t *testing.T) {
 	if rec, _ := pedirComo(t, s, "admin", http.MethodDelete, "/api/usuarios?username=maria", nil); rec.Code != http.StatusOK {
 		t.Fatalf("remover: status %d, %s", rec.Code, rec.Body)
 	}
-	if got := s.acessos.Ultimo("maria"); !got.IsZero() {
+	if got := s.acessos.Last("maria"); !got.IsZero() {
 		t.Errorf("depois de remover, o acesso da maria ficou: %v", got)
 	}
 }
@@ -267,14 +267,14 @@ func TestAcessoDeAntesDaContaNaoAparece(t *testing.T) {
 	s, _ := testServer(t)
 	criada := time.Now().Truncate(time.Second)
 	nova := maria
-	nova.CriadoEm = criada
+	nova.CreatedAt = criada
 	comAutenticacao(t, s, nova)
 
 	antigo := criada.Add(-time.Hour).Format(time.RFC3339)
 	if err := os.WriteFile(s.cfg.AccessPath(), []byte(`{"lastAccess":{"maria":"`+antigo+`"}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	acessos, err := usuarios.AbrirAcessos(s.cfg.AccessPath(), s.log)
+	acessos, err := users.OpenAccessLog(s.cfg.AccessPath(), s.log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +299,7 @@ func TestSemAutenticacaoNaoHaUltimoAcesso(t *testing.T) {
 	if rec, _ := pedirComo(t, s, "", http.MethodGet, "/api/cameras", nil); rec.Code != http.StatusOK {
 		t.Fatalf("câmeras sem autenticação: status %d", rec.Code)
 	}
-	if err := s.acessos.GravarPendente(); err != nil {
+	if err := s.acessos.FlushPending(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(s.cfg.AccessPath()); !os.IsNotExist(err) {
@@ -350,7 +350,7 @@ func fecha(conn net.Conn, prazo time.Duration) bool {
 func TestDerrubaAsConexoesDaPessoa(t *testing.T) {
 	s, _ := testServer(t)
 	ze := maria
-	ze.Usuario, ze.Nome = "ze", "Zé"
+	ze.Username, ze.Name = "ze", "Zé"
 	comAutenticacao(t, s, maria, ze)
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"})
 	srv := httptest.NewServer(s.Handler())

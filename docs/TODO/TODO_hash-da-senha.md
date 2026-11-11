@@ -7,7 +7,7 @@ ainda falta decidir.
 **Status: em parte feito.** Desde o cadastro de usuários (09/10/2026), o
 contrato do item 1, o valor guardado do item 2, os números do item 4, a conta
 sempre feita do item 5 e a fila do item 7 existem em
-[`internal/usuarios/senha.go`](../../internal/usuarios/senha.go), e guardam a
+[`internal/users/password.go`](../../internal/users/password.go), e guardam a
 senha de quem é cadastrado pela tela. O login do dono já paga a conta inteira,
 para o tempo não dizer quem é o dono. Falta o que é do dono: o
 `server.password` em hash no `dwnvr.yaml` (itens 3, 6 e 9) e a flag

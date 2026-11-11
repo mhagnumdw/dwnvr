@@ -441,7 +441,7 @@ func (c *Config) CamerasPath() string { return filepath.Join(c.dir, "cameras.jso
 func (c *Config) UsersPath() string { return filepath.Join(c.dir, "usuarios.json") }
 
 // AccessPath is where each person's last access lives, next to usuarios.json,
-// but in a separate file (see usuarios.Acessos).
+// but in a separate file (see users.AccessLog).
 func (c *Config) AccessPath() string { return filepath.Join(c.dir, "acessos.json") }
 
 // Resolve returns the camera with the defaults already applied, so the rest of

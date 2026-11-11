@@ -22,7 +22,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/retention"
 	"github.com/mhagnumdw/dwnvr/internal/store"
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 type Server struct {
@@ -35,9 +35,9 @@ type Server struct {
 	// assina os cookies de cada pessoa (ver chaveDaSessao).
 	sessionSecret []byte
 	// usuarios são as pessoas do usuarios.json. O dono vem do cfg.
-	usuarios *usuarios.Cadastro
+	usuarios *users.Registry
 	// acessos é o último acesso de cada pessoa, que a sessao anota.
-	acessos *usuarios.Acessos
+	acessos *users.AccessLog
 	// envio manda os e-mails. É nil sem a seção smtp ligada: aí as rotas de
 	// e-mail respondem 409, e a tela esconde o que é de e-mail.
 	envio email.Sender
@@ -77,8 +77,8 @@ type Server struct {
 // New monta o servidor HTTP com as peças que o main já abriu, e o limite do
 // login a partir da config.
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
-	mgr *recorder.Manager, ret *retention.Manager, cad *usuarios.Cadastro,
-	acessos *usuarios.Acessos, envio email.Sender, secret []byte, log *slog.Logger) *Server {
+	mgr *recorder.Manager, ret *retention.Manager, cad *users.Registry,
+	acessos *users.AccessLog, envio email.Sender, secret []byte, log *slog.Logger) *Server {
 
 	s := &Server{cfg: cfg, store: st, client: client, mgr: mgr, ret: ret,
 		usuarios: cad, acessos: acessos, envio: envio, sessionSecret: secret, log: log,
@@ -487,10 +487,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// cadastro inteiro é ignorado, e o aviso não diria nada.
 	if s.cfg.Server.AuthEnabled() {
 		u := map[string]any{}
-		if err := s.usuarios.Ilegivel(); err != nil {
+		if err := s.usuarios.Unreadable(); err != nil {
 			u["error"] = err.Error()
 		}
-		if avisos := s.usuarios.Avisos(); len(avisos) > 0 {
+		if avisos := s.usuarios.Warnings(); len(avisos) > 0 {
 			u["warnings"] = avisos
 		}
 		if len(u) > 0 {
