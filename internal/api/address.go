@@ -20,7 +20,7 @@ import (
 // `tailscale serve` and the Caddy of the docs replace the header they receive,
 // but a proxy that appends to what came (Caddy with trusted_proxies, for
 // example) does not fool this reading.
-func clientOf(r *http.Request, confiaveis []netip.Prefix) netip.Addr {
+func clientOf(r *http.Request, trusted []netip.Prefix) netip.Addr {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr
@@ -31,10 +31,10 @@ func clientOf(r *http.Request, confiaveis []netip.Prefix) netip.Addr {
 	}
 	client = client.Unmap()
 
-	confiavel := func(a netip.Addr) bool {
-		return slices.ContainsFunc(confiaveis, func(p netip.Prefix) bool { return p.Contains(a) })
+	isTrusted := func(a netip.Addr) bool {
+		return slices.ContainsFunc(trusted, func(p netip.Prefix) bool { return p.Contains(a) })
 	}
-	if !confiavel(client) {
+	if !isTrusted(client) {
 		return client
 	}
 	var jumps []string
@@ -47,7 +47,7 @@ func clientOf(r *http.Request, confiaveis []netip.Prefix) netip.Addr {
 			break // the rest of the chain is not trusted: keep the last good one
 		}
 		client = a.Unmap()
-		if !confiavel(client) {
+		if !isTrusted(client) {
 			break
 		}
 	}

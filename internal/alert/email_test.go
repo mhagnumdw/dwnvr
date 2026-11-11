@@ -131,7 +131,7 @@ func TestAlertMessage(t *testing.T) {
 // TestMessageWithoutAddress: without server.publicUrl, neither the text nor
 // the HTML carry a link, and both say who to ask.
 func TestMessageWithoutAddress(t *testing.T) {
-	m, err := alertMessage(alertaDe(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli()),
+	m, err := alertMessage(alertOf(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli()),
 		[]string{"fulano@exemplo.com"}, "")
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestMessageWithoutAddress(t *testing.T) {
 // attachment, and the HTML doesn't show it; the header logo goes all the
 // same.
 func TestMessageWithoutFrame(t *testing.T) {
-	a := alertaDe(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
+	a := alertOf(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
 	a.Frame = nil
 	m, err := alertMessage(a, []string{"fulano@exemplo.com"}, "https://dwnvr.exemplo.com")
 	if err != nil {
@@ -167,7 +167,7 @@ func TestMessageWithoutFrame(t *testing.T) {
 // TestSubjectWithoutArea: an alert that applies to the whole image goes out
 // without the areas' parentheses in the subject.
 func TestSubjectWithoutArea(t *testing.T) {
-	a := alertaDe(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
+	a := alertOf(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
 	a.Objects[0].Areas = nil
 	m, err := alertMessage(a, []string{"fulano@exemplo.com"}, "")
 	if err != nil {
@@ -182,7 +182,7 @@ func TestSubjectWithoutArea(t *testing.T) {
 // cameras.json, becomes a space, since sending rejects a subject with a line
 // break.
 func TestSubjectOnOneLine(t *testing.T) {
-	a := alertaDe(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
+	a := alertOf(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
 	a.Objects[0].Areas = []string{"Portão\r\nprincipal"}
 	m, err := alertMessage(a, []string{"fulano@exemplo.com"}, "")
 	if err != nil {
@@ -196,7 +196,7 @@ func TestSubjectOnOneLine(t *testing.T) {
 // TestMessageEscapesTheName: the camera name and the area name come from
 // the user, and in the HTML they come out as text.
 func TestMessageEscapesTheName(t *testing.T) {
-	a := alertaDe(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
+	a := alertOf(time.Date(2026, 10, 27, 3, 0, 0, 0, time.Local).UnixMilli())
 	a.CameraName = `Frente <script>"x"</script>`
 	a.Objects[0].Areas = []string{"<b>Portão</b>"}
 	m, err := alertMessage(a, []string{"fulano@exemplo.com"}, "")

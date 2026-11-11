@@ -16,19 +16,19 @@ import (
 
 // alertEmailDe is the alertEmail of the admin's /api/cameras, with go2rtc down:
 // it comes anyway.
-func alertEmailDe(t *testing.T, s *Server) string {
+func alertEmailOf(t *testing.T, s *Server) string {
 	t.Helper()
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"})
 	return string(request(t, s.requireAuth(s.handleCameras), "/api/cameras")["alertEmail"])
 }
 
 // request calls the handler and returns the body as a map of raw JSON.
-func request(t *testing.T, h http.HandlerFunc, rota string) map[string]json.RawMessage {
+func request(t *testing.T, h http.HandlerFunc, route string) map[string]json.RawMessage {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	h(rec, httptest.NewRequest(http.MethodGet, rota, nil))
+	h(rec, httptest.NewRequest(http.MethodGet, route, nil))
 	if rec.Code != http.StatusOK {
-		t.Fatalf("%s: HTTP %d: %s", rota, rec.Code, rec.Body.String())
+		t.Fatalf("%s: HTTP %d: %s", route, rec.Code, rec.Body.String())
 	}
 	var resp map[string]json.RawMessage
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
@@ -49,8 +49,8 @@ func TestAlertsInHealth(t *testing.T) {
 	// the alert is not born.
 	s.cfg.Detector.URL = "http://127.0.0.1:1"
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
-	sim := true
-	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
+	yes := true
+	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &yes,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
 	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
 		Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
@@ -70,8 +70,8 @@ func TestDropInHealth(t *testing.T) {
 	s.cfg.SMTP = config.SMTP{Host: "127.0.0.1", Port: 1, Security: "none", From: "dwnvr@exemplo.com"}
 	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com"}
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
-	sim := true
-	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
+	yes := true
+	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &yes,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
 	for range alert.AlertBurst + 2 {
 		s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
@@ -103,8 +103,8 @@ func TestFailingNotifierInHealth(t *testing.T) {
 	s.cfg.SMTP = config.SMTP{Host: "127.0.0.1", Port: 1, Security: "none", From: "dwnvr@exemplo.com"}
 	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com"}
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
-	sim := true
-	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
+	yes := true
+	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &yes,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
 
 	// The notifier has not tried yet: nothing failing, and the numbers zeroed.
@@ -143,13 +143,13 @@ func TestFailingNotifierInHealth(t *testing.T) {
 	if err := json.Unmarshal(request(t, s.handleServerDiagnostics, "/api/health/servidor")["alertas"], &notifiers); err != nil {
 		t.Fatal(err)
 	}
-	if len(notifiers) != 1 || notifiers[0].Failures != 1 || notifiers[0].Sent != 0 || notifiers[0].Ultimo == nil ||
+	if len(notifiers) != 1 || notifiers[0].Failures != 1 || notifiers[0].Sent != 0 || notifiers[0].Last == nil ||
 		notifiers[0].Error != alerts.Failing[0].Error {
 		t.Errorf("alerts in diagnostics: %+v", notifiers)
 	}
 
 	var byEmail struct{ FailingSince, Error string }
-	if err := json.Unmarshal([]byte(alertEmailDe(t, s)), &byEmail); err != nil {
+	if err := json.Unmarshal([]byte(alertEmailOf(t, s)), &byEmail); err != nil {
 		t.Fatal(err)
 	}
 	if byEmail.FailingSince == "" || byEmail.Error != alerts.Failing[0].Error {
@@ -162,19 +162,19 @@ func TestFailingNotifierInHealth(t *testing.T) {
 // list, even before some camera turns on the alert.
 func TestEmailAlertInCameras(t *testing.T) {
 	s, _ := testServer(t)
-	if got := alertEmailDe(t, s); got != `{"missing":["alerts.email.to","smtp"]}` {
+	if got := alertEmailOf(t, s); got != `{"missing":["alerts.email.to","smtp"]}` {
 		t.Errorf("alertEmail without the notifier: %s", got)
 	}
 
 	s.cfg.SMTP = config.SMTP{Host: "smtp.exemplo.com", Problem: "smtp.from vazio"}
 	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com"}
-	if got := alertEmailDe(t, s); got != `{"missing":["smtp"],"smtpError":"smtp.from vazio"}` {
+	if got := alertEmailOf(t, s); got != `{"missing":["smtp"],"smtpError":"smtp.from vazio"}` {
 		t.Errorf("alertEmail with the smtp rejected: %s", got)
 	}
 
 	s.cfg.SMTP = config.SMTP{Host: "127.0.0.1", Port: 1, Security: "none", From: "dwnvr@exemplo.com"}
 	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com", "ciclana@exemplo.com"}
-	if got := alertEmailDe(t, s); got != `{"to":["fulano@exemplo.com","ciclana@exemplo.com"]}` {
+	if got := alertEmailOf(t, s); got != `{"to":["fulano@exemplo.com","ciclana@exemplo.com"]}` {
 		t.Errorf("alertEmail with the notifier: %s", got)
 	}
 }

@@ -58,12 +58,12 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Current string `json:"currentPassword"`
-		Nova    string `json:"newPassword"`
+		New     string `json:"newPassword"`
 	}
 	if !readBody(w, r, &req) {
 		return
 	}
-	u, err := s.users.ChangePassword(r.Context(), p.Username, req.Current, req.Nova)
+	u, err := s.users.ChangePassword(r.Context(), p.Username, req.Current, req.New)
 	if r.Context().Err() != nil {
 		return // the browser gave up in the queue
 	}
@@ -92,13 +92,13 @@ func (s *Server) handleChangeName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Nome string `json:"name"`
+		Name string `json:"name"`
 	}
 	if !readBody(w, r, &req) {
 		return
 	}
 	p := personOf(r)
-	if _, err := s.users.Rename(p.Username, req.Nome); err != nil {
+	if _, err := s.users.Rename(p.Username, req.Name); err != nil {
 		s.reject(w, "trocando o nome", err)
 		return
 	}

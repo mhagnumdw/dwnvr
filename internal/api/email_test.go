@@ -33,7 +33,7 @@ func (e *fakeSender) Send(_ context.Context, m email.Message) error {
 
 // comEmail turns email on in the test server and keeps the log, to check that
 // the link does not end up in it.
-func comEmail(t *testing.T, s *Server) (*fakeSender, *bytes.Buffer) {
+func withEmail(t *testing.T, s *Server) (*fakeSender, *bytes.Buffer) {
 	t.Helper()
 	withAuth(t, s)
 	fake := &fakeSender{}
@@ -63,7 +63,7 @@ func createWithLink(t *testing.T, s *Server, username, herEmail string) string {
 // From the admin creating the person with an email until the link reaches them.
 func TestLinkByEmail(t *testing.T) {
 	s, _ := testServer(t)
-	fake, log := comEmail(t, s)
+	fake, log := withEmail(t, s)
 	link := createWithLink(t, s, "maria", "maria@exemplo.com")
 
 	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/link/email",
@@ -96,13 +96,13 @@ func TestLinkByEmail(t *testing.T) {
 // to their email.
 func TestLinkByEmailChecksTheLink(t *testing.T) {
 	s, _ := testServer(t)
-	fake, _ := comEmail(t, s)
+	fake, _ := withEmail(t, s)
 	link := createWithLink(t, s, "maria", "maria@exemplo.com")
 	joaosLink := createWithLink(t, s, "joao", "")
 	token := strings.TrimPrefix(link, "https://nvr.exemplo.com/#convite?token=")
 
 	for _, c := range []struct {
-		nome, username, url string
+		name, username, url string
 		status              int
 	}{
 		{"another person's link", "maria", joaosLink, http.StatusBadRequest},
@@ -117,7 +117,7 @@ func TestLinkByEmailChecksTheLink(t *testing.T) {
 		rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/link/email",
 			map[string]string{"username": c.username, "url": c.url})
 		if rec.Code != c.status {
-			t.Errorf("%s: status %d, expected %d (%s)", c.nome, rec.Code, c.status, rec.Body)
+			t.Errorf("%s: status %d, expected %d (%s)", c.name, rec.Code, c.status, rec.Body)
 		}
 	}
 	if len(fake.sent) != 0 {
@@ -142,7 +142,7 @@ func TestLinkByEmailChecksTheLink(t *testing.T) {
 // with its text.
 func TestEmailServerFailureReachesTheScreen(t *testing.T) {
 	s, _ := testServer(t)
-	fake, _ := comEmail(t, s)
+	fake, _ := withEmail(t, s)
 	link := createWithLink(t, s, "maria", "maria@exemplo.com")
 	fake.errText = errors.New("o servidor recusou o login: 535 5.7.8 Username and Password not accepted")
 
@@ -170,13 +170,13 @@ func TestWithoutEmailTheRoutesReject(t *testing.T) {
 	if resp["emailEnabled"] != false {
 		t.Errorf("emailEnabled %v without email", resp["emailEnabled"])
 	}
-	for rota, body := range map[string]map[string]string{
+	for route, body := range map[string]map[string]string{
 		"/api/usuarios/link/email": {"username": "maria", "url": link},
 		"/api/email/teste":         {"to": "dono@exemplo.com"},
 	} {
-		rec, resp := requestAs(t, s, "admin", http.MethodPost, rota, body)
+		rec, resp := requestAs(t, s, "admin", http.MethodPost, route, body)
 		if rec.Code != http.StatusConflict || !strings.Contains(resp["error"].(string), "smtp.from vazio") {
-			t.Errorf("%s: status %d, %s", rota, rec.Code, rec.Body)
+			t.Errorf("%s: status %d, %s", route, rec.Code, rec.Body)
 		}
 	}
 }
@@ -184,11 +184,11 @@ func TestWithoutEmailTheRoutesReject(t *testing.T) {
 // TestEmailTest: the test goes to the typed address, and only to one.
 func TestEmailTest(t *testing.T) {
 	s, _ := testServer(t)
-	fake, _ := comEmail(t, s)
-	for _, para := range []string{"", "dono", "Dono <dono@exemplo.com>", "a@exemplo.com, b@exemplo.com"} {
+	fake, _ := withEmail(t, s)
+	for _, to := range []string{"", "dono", "Dono <dono@exemplo.com>", "a@exemplo.com, b@exemplo.com"} {
 		if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/email/teste",
-			map[string]string{"to": para}); rec.Code != http.StatusBadRequest {
-			t.Errorf("%q: status %d", para, rec.Code)
+			map[string]string{"to": to}); rec.Code != http.StatusBadRequest {
+			t.Errorf("%q: status %d", to, rec.Code)
 		}
 	}
 	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/email/teste",
@@ -205,7 +205,7 @@ func TestEmailTest(t *testing.T) {
 // it.
 func TestChangeEmailThroughTheAPI(t *testing.T) {
 	s, _ := testServer(t)
-	comEmail(t, s)
+	withEmail(t, s)
 	createWithLink(t, s, "maria", "maria@exemplo.com")
 	createWithLink(t, s, "joao", "")
 

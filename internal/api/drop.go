@@ -34,7 +34,7 @@ type connections struct {
 
 // registrar records the person's connection. release takes it off the list,
 // without closing it.
-func (c *connections) registrar(username string, conn net.Conn) (release func()) {
+func (c *connections) register(username string, conn net.Conn) (release func()) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.perPerson == nil {
@@ -99,7 +99,7 @@ func (s *Server) handleLive(proxy http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var release func()
 		username := personOf(r).Username
-		proxy.ServeHTTP(hijackRecorder{w, func(c net.Conn) { release = s.open.registrar(username, c) }}, r)
+		proxy.ServeHTTP(hijackRecorder{w, func(c net.Conn) { release = s.open.register(username, c) }}, r)
 		// ReverseProxy only returns when the websocket closes.
 		if release != nil {
 			release()
@@ -137,7 +137,7 @@ func (s *Server) handleSessionWarning(w http.ResponseWriter, r *http.Request) {
 	// The server's ReadHeaderTimeout left a deadline on the connection.
 	_ = conn.SetDeadline(time.Time{})
 
-	release := s.open.registrar(personOf(r).Username, conn)
+	release := s.open.register(personOf(r).Username, conn)
 	defer release()
 	// The browser sends nothing besides the close: reading to the end is
 	// waiting for the tab to close, or for the server to drop it.

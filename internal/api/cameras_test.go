@@ -134,13 +134,13 @@ func TestConcurrentSavesLoseNoChangeInTheFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		nomes := map[string]string{}
+		names := map[string]string{}
 		for _, c := range cams {
-			nomes[c.ID] = c.Name
+			names[c.ID] = c.Name
 		}
 		for _, id := range []string{"cam_a", "cam_b"} {
-			if want := fmt.Sprint(id, " ", i); nomes[id] != want {
-				t.Fatalf("round %d: %s in the file with name %q, want %q", i, id, nomes[id], want)
+			if want := fmt.Sprint(id, " ", i); names[id] != want {
+				t.Fatalf("round %d: %s in the file with name %q, want %q", i, id, names[id], want)
 			}
 		}
 	}
@@ -157,13 +157,13 @@ func TestReRegistrationReadsRecordingsAlreadyOnDisk(t *testing.T) {
 
 	// What was left from the previous life: another Store over the same
 	// storage, like the process that ran before the restart.
-	antes := store.New(s.store.Root()).Camera("cam_a")
+	before := store.New(s.store.Root()).Camera("cam_a")
 	start := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
-	seed(t, antes, start, [2]int64{0, 30000})
-	if err := antes.EnsureDirs(start.Format(store.DayLayout)); err != nil {
+	seed(t, before, start, [2]int64{0, 30000})
+	if err := before.EnsureDirs(start.Format(store.DayLayout)); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(antes.SegmentPath(start.UnixMilli()), make([]byte, 1000), 0o644); err != nil {
+	if err := os.WriteFile(before.SegmentPath(start.UnixMilli()), make([]byte, 1000), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -277,7 +277,7 @@ func TestSaveKeepsWhatTheCameraSets(t *testing.T) {
 // The area arrives from the screen without an id: the server gives it one, and
 // that is what goes to cameras.json. An invalid area rejects the whole save,
 // with the reason.
-func TestSaveDaCameraComAreas(t *testing.T) {
+func TestSaveCameraWithAreas(t *testing.T) {
 	s, _ := testServer(t)
 	withGo2RTC(t, s)
 

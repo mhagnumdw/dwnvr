@@ -52,9 +52,9 @@ func NewRule(cam config.Camera) *Rule {
 			continue
 		}
 		a := cam.Areas[i]
-		polygon, errPontos := area.New(a.Points)
-		rule, errRegra := area.NewRule(a.Rule)
-		if errPontos != nil || errRegra != nil {
+		polygon, errPoints := area.New(a.Points)
+		rule, errRule := area.NewRule(a.Rule)
+		if errPoints != nil || errRule != nil {
 			continue
 		}
 		r.areas = append(r.areas, ruleArea{id: a.ID, name: a.Name, area: polygon, rule: rule})

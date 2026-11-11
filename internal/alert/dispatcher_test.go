@@ -16,7 +16,7 @@ import (
 func silent() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
 // alerts is an alert from the camera with a person at the Portão, at the given instant.
-func alertaDe(atMs int64) Alert {
+func alertOf(atMs int64) Alert {
 	return Alert{Camera: "cam_a", CameraName: "Frente", AtMs: atMs, Frame: []byte("jpeg"),
 		Objects: []Object{{Family: "pessoa", Class: "person", Score: 0.87, Areas: []string{"Portão"}}}}
 }
@@ -30,8 +30,8 @@ func TestRecordWithoutNotifier(t *testing.T) {
 		t.Fatal("the queue was created without a notifier")
 	}
 
-	c.Receive(alertaDe(1))
-	c.Receive(alertaDe(2))
+	c.Receive(alertOf(1))
+	c.Receive(alertOf(2))
 	if !strings.Contains(log.String(), "msg=alert cam=cam_a families=pessoa objects=1 areas=Portão") {
 		t.Errorf("log: %s", log.String())
 	}
@@ -76,7 +76,7 @@ func TestSlowNotifierDoesNotHoldTheReceiver(t *testing.T) {
 	// Without Run, nobody takes from the queue: it's the slowest notifier possible.
 	start := time.Now()
 	for i := range QueuedAlerts + 5 {
-		c.Receive(alertaDe(int64(i)))
+		c.Receive(alertOf(int64(i)))
 	}
 	if d := time.Since(start); d > time.Second {
 		t.Errorf("Receive took %v", d)
@@ -95,7 +95,7 @@ func TestShutdownWithQueuedAlerts(t *testing.T) {
 	notifier := &fakeNotifier{arrived: make(chan Alert, 3)}
 	c := NewDispatcher([]Notifier{notifier}, slog.New(slog.NewTextHandler(&log, nil)))
 	for i := range 3 {
-		c.Receive(alertaDe(int64(i)))
+		c.Receive(alertOf(int64(i)))
 	}
 	ctx, cancelNow := context.WithCancel(context.Background())
 	cancelNow()
@@ -118,7 +118,7 @@ func (t fakeCap) Allow(string) ratelimit.Result { return ratelimit.Result{Allowe
 func TestCap(t *testing.T) {
 	c := NewDispatcher([]Notifier{&fakeNotifier{}}, silent())
 	for i := range AlertBurst + 1 {
-		c.Receive(alertaDe(int64(i)))
+		c.Receive(alertOf(int64(i)))
 	}
 	d, ok := c.Drops()
 	if !ok || d.OverCap != 1 || d.QueueFull != 0 || len(c.queue) != AlertBurst {
@@ -141,9 +141,9 @@ func TestDropEpisode(t *testing.T) {
 	now := t0
 	c.now = func() time.Time { return now }
 
-	c.Receive(alertaDe(1))
+	c.Receive(alertOf(1))
 	now = t0.Add(30 * time.Minute)
-	c.Receive(alertaDe(2))
+	c.Receive(alertOf(2))
 	now = now.Add(DropWarningLasts)
 	d, ok := c.Drops()
 	if !ok || d.OverCap != 2 || !d.Since.Equal(t0) || !d.Last.Equal(t0.Add(30*time.Minute)) {
@@ -157,7 +157,7 @@ func TestDropEpisode(t *testing.T) {
 	if d, ok := c.Drops(); ok {
 		t.Fatalf("the episode went on after DropWarningLasts: %+v", d)
 	}
-	c.Receive(alertaDe(3))
+	c.Receive(alertOf(3))
 	if d, _ := c.Drops(); d.OverCap != 1 || !d.Since.Equal(now) {
 		t.Errorf("the new episode didn't start from zero: %+v", d)
 	}
@@ -196,7 +196,7 @@ func TestFailingNotifier(t *testing.T) {
 		return NotifierState{}
 	}
 
-	c.Receive(alertaDe(1))
+	c.Receive(alertOf(1))
 	queue()
 	e := state(func(e NotifierState) bool { return e.Failures == 1 })
 	since := e.FailingSince
@@ -204,7 +204,7 @@ func TestFailingNotifier(t *testing.T) {
 		t.Errorf("state %+v", e)
 	}
 
-	c.Receive(alertaDe(2))
+	c.Receive(alertOf(2))
 	queue()
 	e = state(func(e NotifierState) bool { return e.Failures == 2 })
 	if !e.FailingSince.Equal(since) {
@@ -217,7 +217,7 @@ func TestFailingNotifier(t *testing.T) {
 	notifier.mu.Lock()
 	notifier.err = nil
 	notifier.mu.Unlock()
-	c.Receive(alertaDe(3))
+	c.Receive(alertOf(3))
 	queue()
 	e = state(func(e NotifierState) bool { return e.Sent == 1 })
 	if !e.FailingSince.IsZero() || e.Err != "" || e.Failures != 2 || e.Last.IsZero() {

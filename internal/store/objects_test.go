@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func appendObjeto(t *testing.T, c *Camera, atMs int64, family string) {
+func appendObject(t *testing.T, c *Camera, atMs int64, family string) {
 	t.Helper()
 	if err := c.AppendEvent(Event{AtMs: atMs, Family: family, Class: "x", Score: 0.9}); err != nil {
 		t.Fatal(err)
@@ -30,11 +30,11 @@ func TestDayObjectsOnlyMarksInOrder(t *testing.T) {
 	if err := c.AppendEvent(Event{AtMs: base}); err != nil {
 		t.Fatal(err)
 	}
-	appendObjeto(t, c, base+2000, "pessoa")
+	appendObject(t, c, base+2000, "pessoa")
 	if err := c.AppendEvent(Event{AtMs: base + 3000}); err != nil {
 		t.Fatal(err)
 	}
-	appendObjeto(t, c, base+1000, "veiculo")
+	appendObject(t, c, base+1000, "veiculo")
 
 	got, err := c.DayObjects(day)
 	if err != nil {
@@ -56,10 +56,10 @@ func TestDayObjectsFollowsTheGrowingFile(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime().UnixMilli()
 	day := baseTime().Format(DayLayout)
-	appendObjeto(t, c, base+2000, "pessoa")
+	appendObject(t, c, base+2000, "pessoa")
 
 	before, _ := c.DayObjects(day)
-	appendObjeto(t, c, base+1000, "animal")
+	appendObject(t, c, base+1000, "animal")
 	if err := c.AppendEvent(Event{AtMs: base + 5000}); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestDayObjectsWaitsForTheLineToEnd(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime().UnixMilli()
 	day := baseTime().Format(DayLayout)
-	appendObjeto(t, c, base, "pessoa")
+	appendObject(t, c, base, "pessoa")
 
 	f, err := os.OpenFile(c.EventsPath(day), os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
@@ -113,8 +113,8 @@ func TestDayObjectsNoticesTheRewrite(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime().UnixMilli()
 	day := baseTime().Format(DayLayout)
-	appendObjeto(t, c, base, "pessoa")
-	appendObjeto(t, c, base+60_000, "pessoa")
+	appendObject(t, c, base, "pessoa")
+	appendObject(t, c, base+60_000, "pessoa")
 	if _, err := c.DayObjects(day); err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestDayObjectsNoticesTheRewrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := int64(2); i < 6; i++ {
-		appendObjeto(t, c, base+i*60_000, "animal")
+		appendObject(t, c, base+i*60_000, "animal")
 	}
 
 	got, err := c.DayObjects(day)
@@ -155,7 +155,7 @@ func TestDayObjectsReleasesTheDeletedDay(t *testing.T) {
 		if err := c.Append(e); err != nil {
 			t.Fatal(err)
 		}
-		appendObjeto(t, c, d.UnixMilli(), "pessoa")
+		appendObject(t, c, d.UnixMilli(), "pessoa")
 		if _, err := c.DayObjects(d.Format(DayLayout)); err != nil {
 			t.Fatal(err)
 		}

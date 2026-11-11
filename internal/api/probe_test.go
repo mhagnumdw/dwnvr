@@ -16,10 +16,10 @@ import (
 // moovComAudio is the minimum ParseMoov accepts: an ftyp, a video track and an
 // audio track. It is what the probe reads to know the connection delivered
 // media.
-func moovComAudio() []byte {
-	box := func(typ string, partes ...[]byte) []byte {
+func moovWithAudio() []byte {
+	box := func(typ string, parts ...[]byte) []byte {
 		body := []byte{}
-		for _, p := range partes {
+		for _, p := range parts {
 			body = append(body, p...)
 		}
 		b := make([]byte, 8, 8+len(body))
@@ -55,7 +55,7 @@ func serverWithGo2RTC(t *testing.T, streams string) (*Server, *int) {
 			_, _ = w.Write([]byte(streams))
 		case "/api/stream.mp4":
 			opens++
-			_, _ = w.Write(moovComAudio())
+			_, _ = w.Write(moovWithAudio())
 			w.(http.Flusher).Flush()
 			<-r.Context().Done()
 		default:

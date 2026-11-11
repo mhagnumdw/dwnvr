@@ -29,14 +29,14 @@ func TestChangePasswordThroughTheAccount(t *testing.T) {
 	if _, err := s.users.SetPassword(context.Background(), conv.Token, "uma senha boa"); err != nil {
 		t.Fatal(err)
 	}
-	otherDevice := cookieDe(t, s, "maria")
+	otherDevice := cookieOf(t, s, "maria")
 
 	rec, _ := requestAs(t, s, "maria", http.MethodPost, "/api/conta/senha",
 		map[string]string{"currentPassword": "senha errada", "newPassword": "outra senha boa"})
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("wrong current password: status %d, expected 400", rec.Code)
 	}
-	if !vale(s, otherDevice.Value) {
+	if !accepts(s, otherDevice.Value) {
 		t.Error("the wrong attempt dropped the session")
 	}
 
@@ -48,10 +48,10 @@ func TestChangePasswordThroughTheAccount(t *testing.T) {
 	// The last cookie is the one that counts: the test cookie expires in one
 	// hour, and requireAuth renews it before the change.
 	cs := rec.Result().Cookies()
-	if len(cs) == 0 || !vale(s, cs[len(cs)-1].Value) {
+	if len(cs) == 0 || !accepts(s, cs[len(cs)-1].Value) {
 		t.Errorf("whoever changed it was left without a session: %v", cs)
 	}
-	if vale(s, otherDevice.Value) {
+	if accepts(s, otherDevice.Value) {
 		t.Error("the other device still gets in with the old password")
 	}
 	if p, _ := resp["user"].(map[string]any); p["username"] != "maria" {
@@ -66,10 +66,10 @@ func TestChangePasswordThroughTheAccount(t *testing.T) {
 }
 
 // testPhoto is a square gray JPEG.
-func testPhoto(t *testing.T, lado int) []byte {
+func testPhoto(t *testing.T, side int) []byte {
 	t.Helper()
 	var b bytes.Buffer
-	if err := jpeg.Encode(&b, image.NewGray(image.Rect(0, 0, lado, lado)), nil); err != nil {
+	if err := jpeg.Encode(&b, image.NewGray(image.Rect(0, 0, side, side)), nil); err != nil {
 		t.Fatal(err)
 	}
 	return b.Bytes()
@@ -80,7 +80,7 @@ func sendPhoto(t *testing.T, s *Server, username string, photo []byte) (*httptes
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPut, "/api/conta/avatar", bytes.NewReader(photo))
 	req.Header.Set("Content-Type", "image/jpeg")
-	req.AddCookie(cookieDe(t, s, username))
+	req.AddCookie(cookieOf(t, s, username))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
 	var resp map[string]any
@@ -105,8 +105,8 @@ func TestNameAndAvatarThroughTheAccount(t *testing.T) {
 	if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/conta/nome", map[string]string{"name": "Dono"}); rec.Code != http.StatusOK {
 		t.Errorf("owner's name: status %d, %s", rec.Code, rec.Body)
 	}
-	if p, _ := s.who("admin"); p.Nome != "Dono" {
-		t.Errorf("the owner is still %q", p.Nome)
+	if p, _ := s.who("admin"); p.Name != "Dono" {
+		t.Errorf("the owner is still %q", p.Name)
 	}
 
 	rec, resp = sendPhoto(t, s, "maria", testPhoto(t, users.AvatarSide))
@@ -159,15 +159,15 @@ func TestNameAndAvatarThroughTheAccount(t *testing.T) {
 // or avatares/ goes through.
 func TestNoAuthNothingIsSaved(t *testing.T) {
 	s, _ := testServer(t)
-	rotas := []string{
+	routes := []string{
 		"GET /api/conta", "POST /api/conta/senha", "POST /api/conta/nome",
 		"PUT /api/conta/avatar", "DELETE /api/conta/avatar",
 		"POST /api/usuarios/link", "DELETE /api/usuarios?username=maria",
 		"DELETE /api/usuarios/avatar?username=maria",
 	}
-	for _, r := range rotas {
-		method, rota, _ := strings.Cut(r, " ")
-		if rec, _ := requestAs(t, s, "", method, rota, map[string]string{}); rec.Code != http.StatusConflict {
+	for _, r := range routes {
+		method, route, _ := strings.Cut(r, " ")
+		if rec, _ := requestAs(t, s, "", method, route, map[string]string{}); rec.Code != http.StatusConflict {
 			t.Errorf("%s without authentication: status %d, expected 409", r, rec.Code)
 		}
 	}

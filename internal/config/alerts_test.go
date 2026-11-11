@@ -35,7 +35,7 @@ func TestAlertHoldsAtBoot(t *testing.T) {
 // on. At boot that's it; in the API, the same warning becomes the rejection.
 func TestBadAlertComesOutWithWarning(t *testing.T) {
 	cases := map[string]struct {
-		alerta   CameraAlert
+		alert    CameraAlert
 		field    string
 		accepted string
 		families []detect.Family
@@ -61,9 +61,9 @@ func TestBadAlertComesOutWithWarning(t *testing.T) {
 	cfg := &Config{}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			before := CameraAlert{Families: slices.Clone(c.alerta.Families), Areas: slices.Clone(c.alerta.Areas)}
-			cam, warnings := cfg.CheckCamera(Camera{ID: "cam_a", Areas: []Area{gate}, Alert: &c.alerta})
-			if !slices.Equal(c.alerta.Families, before.Families) || !slices.Equal(c.alerta.Areas, before.Areas) {
+			before := CameraAlert{Families: slices.Clone(c.alert.Families), Areas: slices.Clone(c.alert.Areas)}
+			cam, warnings := cfg.CheckCamera(Camera{ID: "cam_a", Areas: []Area{gate}, Alert: &c.alert})
+			if !slices.Equal(c.alert.Families, before.Families) || !slices.Equal(c.alert.Areas, before.Areas) {
 				t.Error("CheckCamera changed the input alert")
 			}
 			al := cam.Alert

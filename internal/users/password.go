@@ -99,11 +99,11 @@ func VerifyPassword(ctx context.Context, password, stored string) (ok bool, err 
 
 // algorithmOf finds, by the name at the start of the stored value, what verifies it.
 func algorithmOf(stored string) (Algorithm, error) {
-	partes := strings.SplitN(stored, "$", 3)
-	if len(partes) < 3 || partes[0] != "" {
+	parts := strings.SplitN(stored, "$", 3)
+	if len(parts) < 3 || parts[0] != "" {
 		return nil, errors.New("stored password outside the $<algorithm>$<parameters> format")
 	}
-	alg, ok := algorithms[partes[1]]
+	alg, ok := algorithms[parts[1]]
 	if !ok {
 		// Without quoting what's stored: these errors go to the log, and a piece
 		// of the stored value has no business there.
@@ -146,11 +146,11 @@ func (pbkdf2SHA256) Hash(password string) (string, error) {
 
 func (pbkdf2SHA256) Verify(password, stored string) (bool, error) {
 	// "", "pbkdf2-sha256", "i=600000", salt, hash
-	partes := strings.Split(stored, "$")
-	if len(partes) != 5 || partes[0] != "" || partes[1] != pbkdf2Name {
+	parts := strings.Split(stored, "$")
+	if len(parts) != 5 || parts[0] != "" || parts[1] != pbkdf2Name {
 		return false, errors.New("stored password outside the $pbkdf2-sha256$i=<n>$<salt>$<hash> format")
 	}
-	text, ok := strings.CutPrefix(partes[2], "i=")
+	text, ok := strings.CutPrefix(parts[2], "i=")
 	if !ok {
 		return false, errors.New("stored password without the iterations (i=)")
 	}
@@ -159,11 +159,11 @@ func (pbkdf2SHA256) Verify(password, stored string) (bool, error) {
 		return false, fmt.Errorf("stored password with iterations outside %d to %d",
 			MinIterations, MaxIterations)
 	}
-	salt, err := b64.DecodeString(partes[3])
+	salt, err := b64.DecodeString(parts[3])
 	if err != nil || len(salt) == 0 {
 		return false, errors.New("stored password with an unreadable salt")
 	}
-	want, err := b64.DecodeString(partes[4])
+	want, err := b64.DecodeString(parts[4])
 	if err != nil || len(want) != HashBytes {
 		return false, errors.New("stored password with an unreadable hash")
 	}

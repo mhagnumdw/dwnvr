@@ -33,7 +33,7 @@ type AccessLog struct {
 	mu   sync.Mutex
 	last map[string]time.Time
 	// pending says memory has what the file doesn't have yet.
-	pendente bool
+	pending bool
 	// timer is the scheduled write, or nil.
 	timer *time.Timer
 
@@ -119,7 +119,7 @@ func (a *AccessLog) Forget(username string) {
 // schedule marks pending and schedules the write, if there isn't one yet.
 // Called with mu held.
 func (a *AccessLog) schedule() {
-	a.pendente = true
+	a.pending = true
 	if a.timer == nil {
 		a.timer = time.AfterFunc(a.flushDelay, func() {
 			if err := a.FlushPending(); err != nil {
@@ -143,12 +143,12 @@ func (a *AccessLog) FlushPending() error {
 		a.timer.Stop()
 		a.timer = nil
 	}
-	if !a.pendente {
+	if !a.pending {
 		a.mu.Unlock()
 		return nil
 	}
 	snapshot := maps.Clone(a.last)
-	a.pendente = false
+	a.pending = false
 	a.mu.Unlock()
 
 	b, err := json.MarshalIndent(accessFile{LastAccess: snapshot}, "", "  ")

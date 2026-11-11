@@ -272,10 +272,10 @@ func TestDetectionDaysByArea(t *testing.T) {
 //	cam_b/portao:     the same gate, on the other camera
 func registerAreas(s *Server) {
 	gate := []area.Point{{0.4, 0.5}, {0.6, 0.5}, {0.6, 0.7}, {0.4, 0.7}}
-	canto := []area.Point{{0, 0}, {0.2, 0}, {0.2, 0.25}, {0, 0.25}}
+	corner := []area.Point{{0, 0}, {0.2, 0}, {0.2, 0.25}, {0, 0.25}}
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Areas: []config.Area{
 		{ID: "portao", Name: "Portão", Rule: "foot", Points: gate},
-		{ID: "canto", Name: "Canto", Rule: "touch", Points: canto},
+		{ID: "canto", Name: "Canto", Rule: "touch", Points: corner},
 	}})
 	s.mgr.Set(config.Camera{ID: "cam_b", Name: "B", Enabled: true, Areas: []config.Area{
 		{ID: "portao", Name: "Portão", Points: gate},
@@ -358,13 +358,13 @@ func TestAreaFilterRejectsBadParameter(t *testing.T) {
 		"areas=cam_teste/portao,cam_b/fantasma", // one good and one deleted
 		"areas=",
 	} {
-		for nome, h := range map[string]http.HandlerFunc{
+		for name, h := range map[string]http.HandlerFunc{
 			"deteccoes": s.handleDetections, "dias": s.handleDetectionDays,
 		} {
 			rec := httptest.NewRecorder()
 			h(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes?"+q, nil))
 			if rec.Code != http.StatusBadRequest {
-				t.Errorf("%s, %s: HTTP %d, want 400", nome, q, rec.Code)
+				t.Errorf("%s, %s: HTTP %d, want 400", name, q, rec.Code)
 			}
 		}
 	}
@@ -430,15 +430,15 @@ func TestDetectionsPageAlertsOnly(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?alert=1", nil))
-	var dias struct {
+	var days struct {
 		DetectionsPerDay map[string]int `json:"deteccoesPorDia"`
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &dias); err != nil {
+	if err := json.Unmarshal(rec.Body.Bytes(), &days); err != nil {
 		t.Fatal(err)
 	}
 	if want := map[string]int{today.Format(store.DayLayout): 1,
-		today.AddDate(0, 0, -1).Format(store.DayLayout): 1}; !maps.Equal(dias.DetectionsPerDay, want) {
-		t.Errorf("calendar: %v, want %v", dias.DetectionsPerDay, want)
+		today.AddDate(0, 0, -1).Format(store.DayLayout): 1}; !maps.Equal(days.DetectionsPerDay, want) {
+		t.Errorf("calendar: %v, want %v", days.DetectionsPerDay, want)
 	}
 }
 
@@ -475,15 +475,15 @@ func TestDetectionDays(t *testing.T) {
 		rec := httptest.NewRecorder()
 		s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?"+q, nil))
 		var out struct {
-			Dias             []string       `json:"dias"`
+			Days             []string       `json:"dias"`
 			DetectionsPerDay map[string]int `json:"deteccoesPorDia"`
 		}
-		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || out.Dias == nil || out.DetectionsPerDay == nil {
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || out.Days == nil || out.DetectionsPerDay == nil {
 			t.Fatalf("%s: unreadable response or no list: %s", q, rec.Body.String())
 		}
-		wantDias := slices.Sorted(maps.Keys(want))
-		if !equal(out.Dias, wantDias) {
-			t.Errorf("%s: %v, want %v", q, out.Dias, wantDias)
+		wantDays := slices.Sorted(maps.Keys(want))
+		if !equal(out.Days, wantDays) {
+			t.Errorf("%s: %v, want %v", q, out.Days, wantDays)
 		}
 		if !maps.Equal(out.DetectionsPerDay, want) {
 			t.Errorf("%s: %v, want %v", q, out.DetectionsPerDay, want)

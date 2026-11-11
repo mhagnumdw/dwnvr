@@ -16,7 +16,7 @@ import (
 // password and without the token hash.
 type userOnScreen struct {
 	Username string `json:"username"`
-	Nome     string `json:"name"`
+	Name     string `json:"name"`
 	// Only for whoever has a valid email: one written wrong by hand in the file
 	// does not show up, as if there were none.
 	Email  string     `json:"email,omitempty"`
@@ -38,7 +38,7 @@ type userOnScreen struct {
 // the registry, and the screen shows them with no button at all.
 type ownerOnScreen struct {
 	Username     string `json:"username"`
-	Nome         string `json:"name"`
+	Name         string `json:"name"`
 	Avatar       string `json:"avatar"`
 	LastAccessMs int64  `json:"lastAccessMs,omitempty"`
 }
@@ -53,14 +53,14 @@ func ms(t time.Time) int64 {
 }
 
 func (s *Server) onScreen(u users.User, now time.Time) userOnScreen {
-	v := userOnScreen{Username: u.Username, Nome: u.Name, Email: u.ValidEmail(), Role: u.Role,
+	v := userOnScreen{Username: u.Username, Name: u.Name, Email: u.ValidEmail(), Role: u.Role,
 		Status: u.Status(now), Avatar: u.Avatar}
 	// An access from before the account was created belongs to whoever had the
 	// same username before. The Forget in handleCreateUser only reaches disk on
 	// the next write, and a crash in the meantime would bring the old access
 	// back at boot.
-	if ultimo := s.accesses.Last(u.Username); !ultimo.Before(u.CreatedAt) {
-		v.LastAccessMs = ms(ultimo)
+	if last := s.accesses.Last(u.Username); !last.Before(u.CreatedAt) {
+		v.LastAccessMs = ms(last)
 	}
 	if u.Link != nil {
 		v.LinkExpiresAtMs = u.Link.ExpiresAt.UnixMilli()
@@ -145,7 +145,7 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	owner, _ := s.who(s.cfg.Server.Username)
-	resp["owner"] = ownerOnScreen{Username: owner.Username, Nome: owner.Nome, Avatar: owner.Avatar,
+	resp["owner"] = ownerOnScreen{Username: owner.Username, Name: owner.Name, Avatar: owner.Avatar,
 		LastAccessMs: ms(s.accesses.Last(owner.Username))}
 	now := time.Now()
 	list := []userOnScreen{}
@@ -164,13 +164,13 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Username string `json:"username"`
-		Nome     string `json:"name"`
+		Name     string `json:"name"`
 		Email    string `json:"email"`
 	}
 	if !readBody(w, r, &req) {
 		return
 	}
-	c, err := s.users.Create(req.Username, req.Nome, req.Email)
+	c, err := s.users.Create(req.Username, req.Name, req.Email)
 	if err != nil {
 		s.reject(w, "criando o usuário", err)
 		return
@@ -190,13 +190,13 @@ func (s *Server) handleCheckNew(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Username string `json:"username"`
-		Nome     string `json:"name"`
+		Name     string `json:"name"`
 		Email    string `json:"email"`
 	}
 	if !readBody(w, r, &req) {
 		return
 	}
-	rejections, err := s.users.CheckNew(req.Username, req.Nome, req.Email)
+	rejections, err := s.users.CheckNew(req.Username, req.Name, req.Email)
 	if err != nil {
 		s.reject(w, "conferindo o usuário novo", err)
 		return
@@ -287,7 +287,7 @@ func (s *Server) handleSendLink(w http.ResponseWriter, r *http.Request) {
 	if !readBody(w, r, &req) {
 		return
 	}
-	token, ok := tokenDoLink(req.Link)
+	token, ok := linkToken(req.Link)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "link inválido: mande o link como a tela o mostra")
 		return
@@ -301,18 +301,18 @@ func (s *Server) handleSendLink(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "o link não é desta pessoa")
 		return
 	}
-	para := u.ValidEmail()
-	if para == "" {
+	to := u.ValidEmail()
+	if to == "" {
 		writeError(w, http.StatusBadRequest, u.Name+" não tem e-mail cadastrado")
 		return
 	}
-	if err := s.sending.Send(r.Context(), inviteMessage(u, para, req.Link)); err != nil {
+	if err := s.sending.Send(r.Context(), inviteMessage(u, to, req.Link)); err != nil {
 		s.log.Warn("the link did not go by email", "user", u.Username, "by", personOf(r).Username, "err", err)
 		writeError(w, http.StatusBadGateway, "o e-mail não foi: "+err.Error())
 		return
 	}
 	s.log.Info("link sent by email", "user", u.Username, "by", personOf(r).Username)
-	writeJSON(w, map[string]string{"sentTo": para})
+	writeJSON(w, map[string]string{"sentTo": to})
 }
 
 // handleRemoveUser deletes the person and drops whatever they have open.

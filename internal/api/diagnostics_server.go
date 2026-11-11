@@ -38,9 +38,9 @@ import (
 // Linux.
 
 // fontes are the roots of /proc and /sys, swappable in tests.
-type fontes struct{ proc, sys string }
+type sources struct{ proc, sys string }
 
-var systemSources = fontes{proc: "/proc", sys: "/sys"}
+var systemSources = sources{proc: "/proc", sys: "/sys"}
 
 type serverInfo struct {
 	CollectedAt collection          `json:"coletadoEm"`
@@ -66,10 +66,10 @@ type serverInfo struct {
 // alertNotifierInfo is the Dispatcher's NotifierState. Ultimo disappears before
 // the first send, and Error when the last send succeeded.
 type alertNotifierInfo struct {
-	Nome     string     `json:"nome"`
+	Name     string     `json:"nome"`
 	Sent     int64      `json:"enviados"`
 	Failures int64      `json:"falhas"`
-	Ultimo   *time.Time `json:"ultimo,omitempty"`
+	Last     *time.Time `json:"ultimo,omitempty"`
 	Error    string     `json:"erro,omitempty"`
 }
 
@@ -79,7 +79,7 @@ type alertNotifierInfo struct {
 // converted to the browser's time zone it would hide a server with a wrong time
 // zone or NTP.
 type collection struct {
-	Em            string `json:"em"`
+	At            string `json:"em"`
 	Abbreviation  string `json:"sigla"`
 	OffsetSeconds int    `json:"offsetSeconds"`
 	// Zone is the IANA name ("America/Sao_Paulo"), when the server knows it.
@@ -111,7 +111,7 @@ type machineInfo struct {
 }
 
 type sensor struct {
-	Nome    string  `json:"nome"`
+	Name    string  `json:"nome"`
 	Celsius float64 `json:"celsius"`
 }
 
@@ -192,7 +192,7 @@ type logInfo struct {
 // recentes is what the log handler in main.go offers. It goes through an
 // interface, and not through one more parameter of New, because the logger
 // already arrives here: it is enough to ask it.
-type recentes interface {
+type recent interface {
 	Recent() ([]logbuf.Line, int64)
 }
 
@@ -201,7 +201,7 @@ func (s *Server) handleServerDiagnostics(w http.ResponseWriter, r *http.Request)
 	now := time.Now()
 	sigla, offset := now.Zone()
 	resp := serverInfo{
-		CollectedAt: collection{Em: now.Format(time.RFC3339), Abbreviation: sigla, OffsetSeconds: offset, Zone: localZone()},
+		CollectedAt: collection{At: now.Format(time.RFC3339), Abbreviation: sigla, OffsetSeconds: offset, Zone: localZone()},
 		Machine:     collectMachine(f),
 		Process:     collectProcess(f, s.startedAt),
 		Memory:      collectMemory(f),
@@ -222,7 +222,7 @@ func (s *Server) handleServerDiagnostics(w http.ResponseWriter, r *http.Request)
 	}
 	wg.Wait()
 
-	if h, ok := s.log.Handler().(recentes); ok {
+	if h, ok := s.log.Handler().(recent); ok {
 		lines, total := h.Recent()
 		resp.Log = &logInfo{Total: total, Lines: lines}
 	}
@@ -238,9 +238,9 @@ func notifiersInDiagnostics(c *alert.Dispatcher) []alertNotifierInfo {
 	}
 	var out []alertNotifierInfo
 	for _, m := range c.NotifierStates() {
-		info := alertNotifierInfo{Nome: m.Name, Sent: m.Sent, Failures: m.Failures, Error: m.Err}
+		info := alertNotifierInfo{Name: m.Name, Sent: m.Sent, Failures: m.Failures, Error: m.Err}
 		if !m.Last.IsZero() {
-			info.Ultimo = &m.Last
+			info.Last = &m.Last
 		}
 		out = append(out, info)
 	}
@@ -249,7 +249,7 @@ func notifiersInDiagnostics(c *alert.Dispatcher) []alertNotifierInfo {
 
 // ---- machine ---------------------------------------------------------------
 
-func collectMachine(f fontes) machineInfo {
+func collectMachine(f sources) machineInfo {
 	m := machineInfo{
 		// The device tree ends the text with a NUL, which TrimSpace does not
 		// remove.
@@ -262,14 +262,14 @@ func collectMachine(f fontes) machineInfo {
 	if b, err := os.ReadFile(filepath.Join(f.proc, "loadavg")); err == nil {
 		m.Load = readLoad(string(b))
 	}
-	m.Sensores = lerSensores(f.sys)
+	m.Sensores = readSensors(f.sys)
 
 	cpus, _ := filepath.Glob(filepath.Join(f.sys, "devices/system/cpu/cpu[0-9]*/cpufreq"))
 	for _, d := range cpus {
-		if khz := lerInt(filepath.Join(d, "scaling_cur_freq")); khz/1000 > int64(m.MHz) {
+		if khz := readInt(filepath.Join(d, "scaling_cur_freq")); khz/1000 > int64(m.MHz) {
 			m.MHz = int(khz / 1000)
 		}
-		if khz := lerInt(filepath.Join(d, "cpuinfo_max_freq")); khz/1000 > int64(m.MHzMax) {
+		if khz := readInt(filepath.Join(d, "cpuinfo_max_freq")); khz/1000 > int64(m.MHzMax) {
 			m.MHzMax = int(khz / 1000)
 		}
 		if m.Governor == "" {
@@ -289,9 +289,9 @@ func readProcessor(proc string) string {
 	}
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
-		key, valor, ok := strings.Cut(sc.Text(), ":")
+		key, value, ok := strings.Cut(sc.Text(), ":")
 		if ok && strings.TrimSpace(key) == "model name" {
-			return strings.TrimSpace(valor)
+			return strings.TrimSpace(value)
 		}
 	}
 	return ""
@@ -299,13 +299,13 @@ func readProcessor(proc string) string {
 
 // readLoad reads "0.52 0.40 0.31 1/123 4567".
 func readLoad(s string) []float64 {
-	campos := strings.Fields(s)
-	if len(campos) < 3 {
+	fields := strings.Fields(s)
+	if len(fields) < 3 {
 		return nil
 	}
 	out := make([]float64, 3)
 	for i := range out {
-		v, err := strconv.ParseFloat(campos[i], 64)
+		v, err := strconv.ParseFloat(fields[i], 64)
 		if err != nil {
 			return nil
 		}
@@ -322,7 +322,7 @@ func readLoad(s string) []float64 {
 // The name is not unique: a PC can have two "acpitz" zones. A repeated name
 // gets the zone number ("acpitz 0", "acpitz 1"), otherwise the two lines on the
 // screen and in "copy" are indistinguishable.
-func lerSensores(sys string) []sensor {
+func readSensors(sys string) []sensor {
 	zones, _ := filepath.Glob(filepath.Join(sys, "class/thermal/thermal_zone*"))
 	var out []sensor
 	var numbers []string
@@ -336,17 +336,17 @@ func lerSensores(sys string) []sensor {
 		if err != nil || milli <= 0 {
 			continue
 		}
-		nome := readText(filepath.Join(z, "type"))
-		if nome == "" {
-			nome = filepath.Base(z)
+		name := readText(filepath.Join(z, "type"))
+		if name == "" {
+			name = filepath.Base(z)
 		}
-		out = append(out, sensor{Nome: nome, Celsius: float64(milli/100) / 10})
+		out = append(out, sensor{Name: name, Celsius: float64(milli/100) / 10})
 		numbers = append(numbers, strings.TrimPrefix(filepath.Base(z), "thermal_zone"))
-		times[nome]++
+		times[name]++
 	}
 	for i := range out {
-		if times[out[i].Nome] > 1 {
-			out[i].Nome += " " + numbers[i]
+		if times[out[i].Name] > 1 {
+			out[i].Name += " " + numbers[i]
 		}
 	}
 	// Hottest first: it is the one the screen highlights.
@@ -356,7 +356,7 @@ func lerSensores(sys string) []sensor {
 
 // ---- memory ----------------------------------------------------------------
 
-func collectMemory(f fontes) *memoryInfo {
+func collectMemory(f sources) *memoryInfo {
 	b, err := os.ReadFile(filepath.Join(f.proc, "meminfo"))
 	if err != nil {
 		return nil
@@ -386,11 +386,11 @@ func readMeminfo(b []byte) map[string]int64 {
 		if !ok {
 			continue
 		}
-		campos := strings.Fields(rest)
-		if len(campos) == 0 {
+		fields := strings.Fields(rest)
+		if len(fields) == 0 {
 			continue
 		}
-		if v, err := strconv.ParseInt(campos[0], 10, 64); err == nil {
+		if v, err := strconv.ParseInt(fields[0], 10, 64); err == nil {
 			out[key] = v
 		}
 	}
@@ -399,12 +399,12 @@ func readMeminfo(b []byte) map[string]int64 {
 
 // readField finds "<name> <number>" in a file with one key per line, like
 // /proc/vmstat.
-func readField(b []byte, nome string) (int64, bool) {
+func readField(b []byte, name string) (int64, bool) {
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
-		campos := strings.Fields(sc.Text())
-		if len(campos) == 2 && campos[0] == nome {
-			v, err := strconv.ParseInt(campos[1], 10, 64)
+		fields := strings.Fields(sc.Text())
+		if len(fields) == 2 && fields[0] == name {
+			v, err := strconv.ParseInt(fields[1], 10, 64)
 			return v, err == nil
 		}
 	}
@@ -415,14 +415,14 @@ func readField(b []byte, nome string) (int64, bool) {
 // /proc/self/cgroup ("0::/path"); inside a container with its own cgroup
 // namespace it is "/", and the file is at the root of /sys/fs/cgroup. Empty
 // without cgroup v2 or without the file.
-func fromCgroup(f fontes, nome string) string {
+func fromCgroup(f sources, name string) string {
 	b, err := os.ReadFile(filepath.Join(f.proc, "self/cgroup"))
 	if err != nil {
 		return ""
 	}
 	for l := range strings.SplitSeq(string(b), "\n") {
 		if filePath, ok := strings.CutPrefix(l, "0::"); ok {
-			return readText(filepath.Join(f.sys, "fs/cgroup", filePath, nome))
+			return readText(filepath.Join(f.sys, "fs/cgroup", filePath, name))
 		}
 	}
 	return ""
@@ -430,14 +430,14 @@ func fromCgroup(f fontes, nome string) string {
 
 // cgroupLimit returns the memory ceiling of this process's cgroup, or 0 without
 // a ceiling. v1 stays as a fallback for old kernels.
-func cgroupLimit(f fontes) int64 {
+func cgroupLimit(f sources) int64 {
 	if v := fromCgroup(f, "memory.max"); v != "" && v != "max" {
 		n, _ := strconv.ParseInt(v, 10, 64)
 		return n
 	}
 	// In v1, "no limit" is a huge number (PAGE_COUNTER_MAX in bytes), and not a
 	// word. Above 1 PiB, it is treated as no limit.
-	if n := lerInt(filepath.Join(f.sys, "fs/cgroup/memory/memory.limit_in_bytes")); n > 0 && n < 1<<50 {
+	if n := readInt(filepath.Join(f.sys, "fs/cgroup/memory/memory.limit_in_bytes")); n > 0 && n < 1<<50 {
 		return n
 	}
 	return 0
@@ -447,14 +447,14 @@ func cgroupLimit(f fontes) int64 {
 // ceiling. The v2 cpu.max is "<quota> <period>" in microseconds, or "max
 // <period>" without a ceiling: Docker's `--cpus 1.5` becomes "150000 100000".
 // In v1, the quota is -1 without a ceiling.
-func cgroupCores(f fontes) float64 {
+func cgroupCores(f sources) float64 {
 	var quota, period int64
-	if campos := strings.Fields(fromCgroup(f, "cpu.max")); len(campos) == 2 {
-		quota, _ = strconv.ParseInt(campos[0], 10, 64)
-		period, _ = strconv.ParseInt(campos[1], 10, 64)
+	if fields := strings.Fields(fromCgroup(f, "cpu.max")); len(fields) == 2 {
+		quota, _ = strconv.ParseInt(fields[0], 10, 64)
+		period, _ = strconv.ParseInt(fields[1], 10, 64)
 	} else {
-		quota = lerInt(filepath.Join(f.sys, "fs/cgroup/cpu/cpu.cfs_quota_us"))
-		period = lerInt(filepath.Join(f.sys, "fs/cgroup/cpu/cpu.cfs_period_us"))
+		quota = readInt(filepath.Join(f.sys, "fs/cgroup/cpu/cpu.cfs_quota_us"))
+		period = readInt(filepath.Join(f.sys, "fs/cgroup/cpu/cpu.cfs_period_us"))
 	}
 	if quota <= 0 || period <= 0 {
 		return 0
@@ -467,7 +467,7 @@ func cgroupCores(f fontes) float64 {
 // collectPressure reads the PSI for CPU, memory and disk. A kernel without PSI
 // (before 4.20, or built without it) has no /proc/pressure, and the whole field
 // disappears.
-func collectPressure(f fontes) map[string]pressure {
+func collectPressure(f sources) map[string]pressure {
 	out := map[string]pressure{}
 	for file, key := range map[string]string{"cpu": "cpu", "memory": "memoria", "io": "io"} {
 		if b, err := os.ReadFile(filepath.Join(f.proc, "pressure", file)); err == nil {
@@ -487,12 +487,12 @@ func collectPressure(f fontes) map[string]pressure {
 func readPressure(s string) pressure {
 	var p pressure
 	for l := range strings.SplitSeq(s, "\n") {
-		campos := strings.Fields(l)
-		if len(campos) < 4 {
+		fields := strings.Fields(l)
+		if len(fields) < 4 {
 			continue
 		}
 		m := &medias{}
-		for _, c := range campos[1:] {
+		for _, c := range fields[1:] {
 			k, v, _ := strings.Cut(c, "=")
 			n, _ := strconv.ParseFloat(v, 64)
 			switch k {
@@ -504,7 +504,7 @@ func readPressure(s string) pressure {
 				m.Avg300 = n
 			}
 		}
-		switch campos[0] {
+		switch fields[0] {
 		case "some":
 			p.Some = m
 		case "full":
@@ -521,7 +521,7 @@ func readPressure(s string) pressure {
 // is the SD card, which is what usually fails. And a faulty card is remounted
 // read-only by the kernel without telling anyone - dwnvr simply stops being
 // able to record.
-func collectMount(f fontes, root string) storageInfo {
+func collectMount(f sources, root string) storageInfo {
 	info := storageInfo{Path: root}
 	filePath, err := filepath.Abs(root)
 	if err != nil {
@@ -556,25 +556,25 @@ func mountOf(b []byte, filePath string) (mount, bool) {
 	found := false
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
-		campos := strings.Fields(sc.Text())
+		fields := strings.Fields(sc.Text())
 		sep := -1
-		for i, c := range campos {
+		for i, c := range fields {
 			if c == "-" {
 				sep = i
 				break
 			}
 		}
-		if sep < 6 || len(campos) < sep+3 {
+		if sep < 6 || len(fields) < sep+3 {
 			continue
 		}
 		m := mount{
-			point:   unescape(campos[4]),
-			options: campos[5],
-			kind:    campos[sep+1],
-			origin:  unescape(campos[sep+2]),
+			point:   unescape(fields[4]),
+			options: fields[5],
+			kind:    fields[sep+1],
+			origin:  unescape(fields[sep+2]),
 		}
-		if len(campos) > sep+3 {
-			m.superOptions = campos[sep+3]
+		if len(fields) > sep+3 {
+			m.superOptions = fields[sep+3]
 		}
 		if !contains(m.point, filePath) {
 			continue
@@ -592,8 +592,8 @@ func contains(point, filePath string) bool {
 	return point == "/" || filePath == point || strings.HasPrefix(filePath, point+"/")
 }
 
-func hasOption(options, nome string) bool {
-	return slices.Contains(strings.Split(options, ","), nome)
+func hasOption(options, name string) bool {
+	return slices.Contains(strings.Split(options, ","), name)
 }
 
 // unescape undoes the \040 (space) and friends with which the kernel writes
@@ -640,7 +640,7 @@ func (s *Server) testWrite() write {
 	if !s.writing.CompareAndSwap(false, true) {
 		return write{Error: "o teste anterior ainda não terminou: o disco não está respondendo"}
 	}
-	pronto := make(chan write, 1)
+	ready := make(chan write, 1)
 	go func() {
 		defer s.writing.Store(false)
 		start := time.Now()
@@ -651,14 +651,14 @@ func (s *Server) testWrite() write {
 				s.log.Warn("storage write test failed", "erro", err)
 			}
 			s.writeErr = err.Error()
-			pronto <- write{Ms: ms, Error: writeReason(err)}
+			ready <- write{Ms: ms, Error: writeReason(err)}
 			return
 		}
 		s.writeErr = ""
-		pronto <- write{OK: true, Ms: ms}
+		ready <- write{OK: true, Ms: ms}
 	}()
 	select {
-	case e := <-pronto:
+	case e := <-ready:
 		return e
 	case <-time.After(writeDeadline):
 		return write{Ms: writeDeadline.Milliseconds(), Error: "o disco não respondeu em " + writeDeadline.String()}
@@ -769,7 +769,7 @@ func readText(filePath string) string {
 	return strings.TrimSpace(string(b))
 }
 
-func lerInt(filePath string) int64 {
+func readInt(filePath string) int64 {
 	n, _ := strconv.ParseInt(readText(filePath), 10, 64)
 	return n
 }

@@ -75,8 +75,8 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, "lendo o índice da câmera", err)
 			return
 		}
-		if dias := idx.Days(); len(dias) > 0 {
-			s.log.Info("index loaded", "cam", cam.ID, "days", len(dias),
+		if days := idx.Days(); len(days) > 0 {
+			s.log.Info("index loaded", "cam", cam.ID, "days", len(days),
 				"mb", idx.TotalBytes()>>20, "took", time.Since(start).Round(time.Millisecond))
 		}
 	}

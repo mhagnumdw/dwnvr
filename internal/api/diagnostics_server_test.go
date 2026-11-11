@@ -28,8 +28,8 @@ func fixture(t *testing.T, root, filePath, content string) {
 }
 
 // A hot Orange Pi Zero 3, cut from real files in /proc and /sys.
-func fakeSystem(t *testing.T) fontes {
-	f := fontes{proc: t.TempDir(), sys: t.TempDir()}
+func fakeSystem(t *testing.T) sources {
+	f := sources{proc: t.TempDir(), sys: t.TempDir()}
 	fixture(t, f.proc, "loadavg", "3.10 2.05 1.50 2/180 4321\n")
 	fixture(t, f.proc, "meminfo", "MemTotal:        1012345 kB\nMemFree:           51200 kB\nMemAvailable:     204800 kB\nSwapTotal:        524288 kB\nSwapFree:         262144 kB\n")
 	fixture(t, f.proc, "vmstat", "nr_free_pages 12800\noom_kill 2\n")
@@ -89,7 +89,7 @@ func TestCollectMachineHot(t *testing.T) {
 // On a PC: without a device tree, the name comes from cpuinfo. And without a
 // CPU ceiling, the field disappears.
 func TestCollectMachinePC(t *testing.T) {
-	f := fontes{proc: t.TempDir(), sys: t.TempDir()}
+	f := sources{proc: t.TempDir(), sys: t.TempDir()}
 	fixture(t, f.proc, "cpuinfo", "processor\t: 0\nvendor_id\t: GenuineIntel\nmodel name\t: Intel(R) Celeron(R) N4020 CPU @ 1.10GHz\n")
 	fixture(t, f.proc, "self/cgroup", "0::/\n")
 	fixture(t, f.sys, "fs/cgroup/cpu.max", "max 100000\n")
@@ -126,7 +126,7 @@ func TestCollectProcess(t *testing.T) {
 
 	// Outside Linux none of this exists, and the fields disappear instead of
 	// coming as a zero disguised as a measurement.
-	p = collectProcess(fontes{proc: t.TempDir()}, time.Now())
+	p = collectProcess(sources{proc: t.TempDir()}, time.Now())
 	if p.CPUMs != nil || p.MemoryBytes != 0 || p.UID != nil || p.FileLimit != 0 {
 		t.Errorf("without /proc: %+v", p)
 	}
@@ -135,9 +135,9 @@ func TestCollectProcess(t *testing.T) {
 func TestWithoutCredential(t *testing.T) {
 	// The URL with a credential is assembled, and not written out in full, so
 	// the pre-commit secrets detector does not take it for a real password.
-	comSenha := (&url.URL{Scheme: "http", Host: "go2rtc:1984", User: url.UserPassword("admin", "teste")}).String()
+	withPassword := (&url.URL{Scheme: "http", Host: "go2rtc:1984", User: url.UserPassword("admin", "teste")}).String()
 	cases := map[string]string{
-		comSenha:                    "http://go2rtc:1984",
+		withPassword:                "http://go2rtc:1984",
 		"http://dwnvr-detect:8480/": "http://dwnvr-detect:8480/",
 	}
 	for entry, want := range cases {
@@ -159,7 +159,7 @@ func TestSensorsWithRepeatedName(t *testing.T) {
 		fixture(t, sys, "class/thermal/thermal_zone"+zone+"/type", kind+"\n")
 		fixture(t, sys, "class/thermal/thermal_zone"+zone+"/temp", temp+"\n")
 	}
-	got := lerSensores(sys)
+	got := readSensors(sys)
 	want := []sensor{{"acpitz 0", 90}, {"acpitz 1", 88}, {"x86_pkg_temp", 50}}
 	if len(got) != len(want) {
 		t.Fatalf("sensores %v", got)
@@ -202,7 +202,7 @@ func TestCollectPressure(t *testing.T) {
 	if p["cpu"].Some.Avg300 != 3.25 {
 		t.Errorf("cpu %+v", p["cpu"].Some)
 	}
-	if collectPressure(fontes{proc: t.TempDir()}) != nil {
+	if collectPressure(sources{proc: t.TempDir()}) != nil {
 		t.Error("kernel without PSI must omit the whole field")
 	}
 }
@@ -302,7 +302,7 @@ func TestHandleServerDiagnostics(t *testing.T) {
 	if got.Log == nil || got.Log.Total != 1 || got.Log.Lines[0].Text != "connection dropped cam=garagem" {
 		t.Errorf("log: %+v", got.Log)
 	}
-	if em, err := time.Parse(time.RFC3339, got.CollectedAt.Em); err != nil || time.Since(em) > time.Minute || got.CollectedAt.Abbreviation == "" {
+	if into, err := time.Parse(time.RFC3339, got.CollectedAt.At); err != nil || time.Since(into) > time.Minute || got.CollectedAt.Abbreviation == "" {
 		t.Errorf("coletadoEm: %+v", got.CollectedAt)
 	}
 	// Without an object detector configured, neither the question nor the

@@ -377,10 +377,10 @@ func TestThumbAndSegmentCutTheIndexFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request := func(h http.HandlerFunc, rota string, start int64) *httptest.ResponseRecorder {
+	request := func(h http.HandlerFunc, route string, start int64) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
 		h(rec, httptest.NewRequest(http.MethodGet,
-			fmt.Sprintf("/api/rec/%s?cam=cam_teste&t=%d", rota, start), nil))
+			fmt.Sprintf("/api/rec/%s?cam=cam_teste&t=%d", route, start), nil))
 		return rec
 	}
 	if rec := request(s.handleThumb, "thumb", e.StartMs); rec.Code != http.StatusOK ||

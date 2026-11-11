@@ -63,7 +63,7 @@ type processInfo struct {
 // sysconf that would read it needs C.
 const ticksPerSecond = 100
 
-func collectProcess(f fontes, since time.Time) processInfo {
+func collectProcess(f sources, since time.Time) processInfo {
 	p := processInfo{
 		AliveMs:      time.Since(since).Milliseconds(),
 		Goroutines:   runtime.NumGoroutine(),
@@ -71,12 +71,12 @@ func collectProcess(f fontes, since time.Time) processInfo {
 		Architecture: architecture(),
 	}
 	if b, err := os.ReadFile(filepath.Join(f.proc, "self/stat")); err == nil {
-		if ms, ok := lerTempoDeCPU(string(b)); ok {
+		if ms, ok := readCPUTime(string(b)); ok {
 			p.CPUMs = &ms
 		}
 	}
 	if b, err := os.ReadFile(filepath.Join(f.proc, "self/status")); err == nil {
-		p.MemoryBytes, p.UID, p.GID = lerStatus(b)
+		p.MemoryBytes, p.UID, p.GID = readStatus(b)
 	}
 	if fds, err := os.ReadDir(filepath.Join(f.proc, "self/fd")); err == nil {
 		p.OpenFiles = len(fds)
@@ -93,17 +93,17 @@ func collectProcess(f fontes, since time.Time) processInfo {
 // utime and stime are the 12th and the 13th.
 //
 //	1234 (dwnvr) S 1 1234 1234 0 -1 4194560 2200 0 0 0 44346 36809 0 0 20 0 15 0 ...
-func lerTempoDeCPU(s string) (int64, bool) {
+func readCPUTime(s string) (int64, bool) {
 	_, rest, ok := strings.Cut(s[strings.LastIndexByte(s, ')')+1:], " ")
 	if !ok {
 		return 0, false
 	}
-	campos := strings.Fields(rest)
-	if len(campos) < 13 {
+	fields := strings.Fields(rest)
+	if len(fields) < 13 {
 		return 0, false
 	}
-	utime, err1 := strconv.ParseInt(campos[11], 10, 64)
-	stime, err2 := strconv.ParseInt(campos[12], 10, 64)
+	utime, err1 := strconv.ParseInt(fields[11], 10, 64)
+	stime, err2 := strconv.ParseInt(fields[12], 10, 64)
 	if err1 != nil || err2 != nil {
 		return 0, false
 	}
@@ -112,15 +112,15 @@ func lerTempoDeCPU(s string) (int64, bool) {
 
 // lerStatus takes from /proc/self/status the physical memory (VmRSS, in kB) and
 // the real UID and GID, which are the first of the four numbers on each line.
-func lerStatus(b []byte) (rss int64, uid, gid *int) {
+func readStatus(b []byte) (rss int64, uid, gid *int) {
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
 		key, rest, ok := strings.Cut(sc.Text(), ":")
-		campos := strings.Fields(rest)
-		if !ok || len(campos) == 0 {
+		fields := strings.Fields(rest)
+		if !ok || len(fields) == 0 {
 			continue
 		}
-		n, err := strconv.ParseInt(campos[0], 10, 64)
+		n, err := strconv.ParseInt(fields[0], 10, 64)
 		if err != nil {
 			continue
 		}
@@ -149,9 +149,9 @@ func readFileLimit(b []byte) int64 {
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
 		if rest, ok := strings.CutPrefix(sc.Text(), "Max open files"); ok {
-			campos := strings.Fields(rest)
-			if len(campos) > 0 {
-				n, _ := strconv.ParseInt(campos[0], 10, 64)
+			fields := strings.Fields(rest)
+			if len(fields) > 0 {
+				n, _ := strconv.ParseInt(fields[0], 10, 64)
 				return n
 			}
 		}

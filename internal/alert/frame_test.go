@@ -161,7 +161,7 @@ func TestBoxAtTheEdge(t *testing.T) {
 // TestFrameThatDoesNotDecode: a broken frame is an error, and the
 // Dispatcher sends the frame as it came.
 func TestFrameThatDoesNotDecode(t *testing.T) {
-	a := alertaDe(1)
+	a := alertOf(1)
 	if _, err := drawnFrame(a); err == nil {
 		t.Fatal("drew on a frame that isn't a JPEG")
 	}
@@ -178,7 +178,7 @@ func TestNotifierGetsTheDrawnFrame(t *testing.T) {
 	ctx := t.Context()
 	go c.Run(ctx)
 
-	a := alertaDe(1)
+	a := alertOf(1)
 	a.Frame = testFrame(t, false)
 	a.Objects[0].Box = [4]float64{0.25, 0.2, 0.5, 0.8}
 	c.Receive(a)

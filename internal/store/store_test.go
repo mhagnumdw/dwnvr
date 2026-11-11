@@ -942,7 +942,7 @@ func TestOrphansAcceptsDirectoryWithoutIndex(t *testing.T) {
 
 // --- motion events -----------------------------------------------------------
 
-func appendEventos(t *testing.T, c *Camera, base time.Time, offsets ...time.Duration) {
+func appendEvents(t *testing.T, c *Camera, base time.Time, offsets ...time.Duration) {
 	t.Helper()
 	for _, o := range offsets {
 		if err := c.AppendEvent(Event{AtMs: base.Add(o).UnixMilli()}); err != nil {
@@ -954,7 +954,7 @@ func appendEventos(t *testing.T, c *Camera, base time.Time, offsets ...time.Dura
 func TestEventsAppendAndRead(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
-	appendEventos(t, c, base, 0, time.Minute, 2*time.Minute)
+	appendEvents(t, c, base, 0, time.Minute, 2*time.Minute)
 
 	evs, err := c.LoadEvents(base.Format(DayLayout))
 	if err != nil {
@@ -986,7 +986,7 @@ func TestEnsureDirsDoesNotCreateEvents(t *testing.T) {
 	if _, err := os.Stat(c.EventsDir()); !os.IsNotExist(err) {
 		t.Fatalf("eventos/ created without any event: %v", err)
 	}
-	appendEventos(t, c, base, 0)
+	appendEvents(t, c, base, 0)
 	if _, err := os.Stat(c.EventsPath(base.Format(DayLayout))); err != nil {
 		t.Errorf("the first event didn't create the file: %v", err)
 	}
@@ -995,7 +995,7 @@ func TestEnsureDirsDoesNotCreateEvents(t *testing.T) {
 func TestEventRangeCutsAtTheEnds(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
-	appendEventos(t, c, base, 0, time.Minute, 2*time.Minute, 3*time.Minute)
+	appendEvents(t, c, base, 0, time.Minute, 2*time.Minute, 3*time.Minute)
 
 	// [base+1min, base+3min): takes the 1 and the 2, not the 3.
 	evs, err := c.EventRange(base.Add(time.Minute).UnixMilli(), base.Add(3*time.Minute).UnixMilli())
@@ -1014,7 +1014,7 @@ func TestEventRangeCrossesDays(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 	// One mark today at noon and another tomorrow at noon.
-	appendEventos(t, c, base, 0, 24*time.Hour)
+	appendEvents(t, c, base, 0, 24*time.Hour)
 
 	evs, err := c.EventRange(base.UnixMilli(), base.Add(48*time.Hour).UnixMilli())
 	if err != nil {
@@ -1030,7 +1030,7 @@ func TestEventRangeCrossesDays(t *testing.T) {
 func TestEventRangeCrossesMidnightWithLaterFromTime(t *testing.T) {
 	c := newTestCamera(t)
 	day := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
-	appendEventos(t, c, day, -5*time.Second, 10*time.Second)
+	appendEvents(t, c, day, -5*time.Second, 10*time.Second)
 
 	evs, err := c.EventRange(day.Add(-10*time.Second).UnixMilli(), day.Add(35*time.Second).UnixMilli())
 	if err != nil {
@@ -1049,7 +1049,7 @@ func TestDropDayTakesTheEventsAlong(t *testing.T) {
 	if err := c.Append(e); err != nil {
 		t.Fatal(err)
 	}
-	appendEventos(t, c, base, 0, time.Minute)
+	appendEvents(t, c, base, 0, time.Minute)
 
 	if _, err := c.DropDay(base.Format(DayLayout)); err != nil {
 		t.Fatal(err)
@@ -1073,7 +1073,7 @@ func TestEvictOldestTrimsMarksWithoutRecording(t *testing.T) {
 		if err := c.Append(e); err != nil {
 			t.Fatal(err)
 		}
-		appendEventos(t, c, base, time.Duration(i)*time.Minute+time.Second)
+		appendEvents(t, c, base, time.Duration(i)*time.Minute+time.Second)
 	}
 
 	// Frees the first segment. Its mark has to go along; the other two
@@ -1096,7 +1096,7 @@ func TestEvictOldestTrimsMarksWithoutRecording(t *testing.T) {
 func TestEventsIgnoreTruncatedLine(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
-	appendEventos(t, c, base, 0, time.Minute)
+	appendEvents(t, c, base, 0, time.Minute)
 
 	// A crash in the middle of an append leaves exactly this.
 	path := c.EventsPath(base.Format(DayLayout))

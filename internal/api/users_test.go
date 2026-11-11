@@ -22,16 +22,16 @@ import (
 // requestAs makes the request through Handler, with the requester's cookie (or
 // no cookie, with an empty username), and returns the status and the body read
 // as JSON.
-func requestAs(t *testing.T, s *Server, username, method, rota string, body any) (*httptest.ResponseRecorder, map[string]any) {
+func requestAs(t *testing.T, s *Server, username, method, route string, body any) (*httptest.ResponseRecorder, map[string]any) {
 	t.Helper()
 	var reader io.Reader
 	if body != nil {
 		b, _ := json.Marshal(body)
 		reader = strings.NewReader(string(b))
 	}
-	req := httptest.NewRequest(method, rota, reader)
+	req := httptest.NewRequest(method, route, reader)
 	if username != "" {
-		req.AddCookie(cookieDe(t, s, username))
+		req.AddCookie(cookieOf(t, s, username))
 	}
 	if s.client == nil {
 		s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // the Handler builds the live proxy with it
@@ -119,13 +119,13 @@ func TestCreateUserRejects(t *testing.T) {
 }
 
 // camposDe is the "fields" of the response: the per-field rejections.
-func camposDe(t *testing.T, resp map[string]any) map[string]any {
+func fieldsOf(t *testing.T, resp map[string]any) map[string]any {
 	t.Helper()
-	campos, ok := resp["fields"].(map[string]any)
+	fields, ok := resp["fields"].(map[string]any)
 	if !ok {
 		t.Fatalf("response without fields: %v", resp)
 	}
-	return campos
+	return fields
 }
 
 // The create rejection comes field by field, so that the screen puts each
@@ -135,11 +135,11 @@ func TestCreateUserRejectsByField(t *testing.T) {
 	withAuth(t, s, maria)
 	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios",
 		map[string]string{"username": "maria", "name": "Outra", "email": "outra"})
-	campos := camposDe(t, resp)
-	if rec.Code != http.StatusBadRequest || len(campos) != 2 || campos["username"] == nil || campos["email"] == nil {
+	fields := fieldsOf(t, resp)
+	if rec.Code != http.StatusBadRequest || len(fields) != 2 || fields["username"] == nil || fields["email"] == nil {
 		t.Errorf("status %d, %s", rec.Code, rec.Body)
 	}
-	if resp["error"] != campos["username"] {
+	if resp["error"] != fields["username"] {
 		t.Errorf("error %q, expected the username rejection", resp["error"])
 	}
 }
@@ -155,12 +155,12 @@ func TestCheckUsername(t *testing.T) {
 
 	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/conferir",
 		map[string]string{"username": "Maria", "name": " ", "email": "MARIA@exemplo.com"})
-	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 3 {
+	if fields := fieldsOf(t, resp); rec.Code != http.StatusOK || len(fields) != 3 {
 		t.Errorf("rejections: status %d, %s", rec.Code, rec.Body)
 	}
 	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/conferir",
 		map[string]string{"username": "joao", "name": "João", "email": ""})
-	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
+	if fields := fieldsOf(t, resp); rec.Code != http.StatusOK || len(fields) != 0 {
 		t.Errorf("all good: status %d, %s", rec.Code, rec.Body)
 	}
 	if _, ok := s.users.Find("joao"); ok {
@@ -169,13 +169,13 @@ func TestCheckUsername(t *testing.T) {
 
 	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
 		map[string]string{"username": "maria", "email": "Maria@Exemplo.com"})
-	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
+	if fields := fieldsOf(t, resp); rec.Code != http.StatusOK || len(fields) != 0 {
 		t.Errorf("their own e-mail: status %d, %s", rec.Code, rec.Body)
 	}
 	// A free and different e-mail: accepted, and the saved one does not change.
 	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
 		map[string]string{"username": "maria", "email": "outra@exemplo.com"})
-	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
+	if fields := fieldsOf(t, resp); rec.Code != http.StatusOK || len(fields) != 0 {
 		t.Errorf("free e-mail: status %d, %s", rec.Code, rec.Body)
 	}
 	if u, _ := s.users.Find("maria"); u.Email != "maria@exemplo.com" {
@@ -186,10 +186,10 @@ func TestCheckUsername(t *testing.T) {
 		t.Errorf("someone who does not exist: status %d, expected 404", rec.Code)
 	}
 
-	for _, rota := range []string{"/api/usuarios/conferir", "/api/usuarios/email/conferir"} {
-		if rec, _ = requestAs(t, s, "maria", http.MethodPost, rota,
+	for _, route := range []string{"/api/usuarios/conferir", "/api/usuarios/email/conferir"} {
+		if rec, _ = requestAs(t, s, "maria", http.MethodPost, route,
 			map[string]string{"username": "maria"}); rec.Code != http.StatusForbidden {
-			t.Errorf("%s by the viewer: status %d, expected 403", rota, rec.Code)
+			t.Errorf("%s by the viewer: status %d, expected 403", route, rec.Code)
 		}
 	}
 }
@@ -240,13 +240,13 @@ func TestLastAccessOnUsersScreen(t *testing.T) {
 		t.Errorf("before she used dwnvr, lastAccessMs=%v", got)
 	}
 
-	antes := time.Now().Truncate(time.Second).UnixMilli()
+	before := time.Now().Truncate(time.Second).UnixMilli()
 	if rec, _ := requestAs(t, s, "maria", http.MethodGet, "/api/session", nil); rec.Code != http.StatusOK {
 		t.Fatalf("maria's session: status %d", rec.Code)
 	}
 	got, _ := accessOnScreen(t, s, "maria").(float64)
-	if int64(got) < antes || int64(got) > time.Now().UnixMilli() {
-		t.Errorf("after she used it, lastAccessMs=%v, expected between %d and now", got, antes)
+	if int64(got) < before || int64(got) > time.Now().UnixMilli() {
+		t.Errorf("after she used it, lastAccessMs=%v, expected between %d and now", got, before)
 	}
 
 	// The admin who lists has also just used it: the owner comes with theirs.
@@ -269,9 +269,9 @@ func TestLastAccessOnUsersScreen(t *testing.T) {
 func TestAccessFromBeforeTheAccountIsHidden(t *testing.T) {
 	s, _ := testServer(t)
 	created := time.Now().Truncate(time.Second)
-	nova := maria
-	nova.CreatedAt = created
-	withAuth(t, s, nova)
+	fresh := maria
+	fresh.CreatedAt = created
+	withAuth(t, s, fresh)
 
 	old := created.Add(-time.Hour).Format(time.RFC3339)
 	if err := os.WriteFile(s.cfg.AccessPath(), []byte(`{"lastAccess":{"maria":"`+old+`"}}`), 0o600); err != nil {
@@ -313,9 +313,9 @@ func TestNoAuthNoLastAccess(t *testing.T) {
 // handshake is the websocket request, with the person's cookie. The key is the
 // one from the RFC 6455 example, built from its nonce so that the commit secret
 // detector does not take it for a credential.
-func handshake(rota string, c *http.Cookie) string {
+func handshake(route string, c *http.Cookie) string {
 	key := base64.StdEncoding.EncodeToString([]byte("the sample nonce"))
-	return "GET " + rota + " HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
+	return "GET " + route + " HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
 		"Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: " + key + "\r\nCookie: " + c.String() + "\r\n\r\n"
 }
 
@@ -359,9 +359,9 @@ func TestDropsThePersonsConnections(t *testing.T) {
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
-	daMaria := openWarning(t, srv, cookieDe(t, s, "maria"))
-	zesLink := openWarning(t, srv, cookieDe(t, s, "ze"))
-	if closes(daMaria, 100*time.Millisecond) {
+	ofMaria := openWarning(t, srv, cookieOf(t, s, "maria"))
+	zesLink := openWarning(t, srv, cookieOf(t, s, "ze"))
+	if closes(ofMaria, 100*time.Millisecond) {
 		t.Fatal("the warning closed on its own")
 	}
 
@@ -369,7 +369,7 @@ func TestDropsThePersonsConnections(t *testing.T) {
 		map[string]string{"username": "maria"}); rec.Code != http.StatusOK {
 		t.Fatalf("link novo: status %d, %s", rec.Code, rec.Body)
 	}
-	if !closes(daMaria, 2*time.Second) {
+	if !closes(ofMaria, 2*time.Second) {
 		t.Error("maria's warning stayed open after the new link")
 	}
 	if closes(zesLink, 100*time.Millisecond) {
@@ -411,7 +411,7 @@ func TestDropsTheLiveView(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	_, _ = io.WriteString(conn, handshake("/api/live/ws?src=cam_teste", cookieDe(t, s, "maria")))
+	_, _ = io.WriteString(conn, handshake("/api/live/ws?src=cam_teste", cookieOf(t, s, "maria")))
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
 		t.Fatal(err)

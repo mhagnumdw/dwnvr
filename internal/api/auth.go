@@ -36,7 +36,7 @@ const (
 // usuarios.json.
 type person struct {
 	Username string     `json:"username,omitempty"`
-	Nome     string     `json:"name,omitempty"`
+	Name     string     `json:"name,omitempty"`
 	Role     users.Role `json:"role"`
 	// Owner is the dwnvr.yaml account. Its password is changed there, and not
 	// through the screen.
@@ -60,18 +60,18 @@ var noAuth = person{Role: users.RoleAdmin, Owner: true}
 func (s *Server) who(username string) (person, bool) {
 	if username == s.cfg.Server.Username {
 		owner := s.users.Owner()
-		nome := owner.Name
-		if nome == "" {
-			nome = username
+		name := owner.Name
+		if name == "" {
+			name = username
 		}
-		return person{Username: username, Nome: nome, Role: users.RoleAdmin, Owner: true,
+		return person{Username: username, Name: name, Role: users.RoleAdmin, Owner: true,
 			Avatar: owner.Avatar, credential: s.cfg.Server.Password}, true
 	}
 	u, ok := s.users.Find(username)
 	if !ok || u.PasswordHash == "" {
 		return person{}, false
 	}
-	return person{Username: u.Username, Nome: u.Name, Role: u.Role, Avatar: u.Avatar,
+	return person{Username: u.Username, Name: u.Name, Role: u.Role, Avatar: u.Avatar,
 		credential: u.PasswordHash}, true
 }
 

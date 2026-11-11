@@ -91,14 +91,14 @@ func (s *Server) handleDetections(w http.ResponseWriter, r *http.Request) {
 	}
 	descending := !q.Has("depois")
 	cursor := int64(math.MaxInt64)
-	nome := "antes"
+	name := "antes"
 	if !descending {
-		nome = "depois"
+		name = "depois"
 	}
-	if q.Has(nome) {
-		v, err := strconv.ParseInt(q.Get(nome), 10, 64)
+	if q.Has(name) {
+		v, err := strconv.ParseInt(q.Get(name), 10, 64)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "parâmetro "+nome+" inválido")
+			writeError(w, http.StatusBadRequest, "parâmetro "+name+" inválido")
 			return
 		}
 		cursor = v
@@ -143,12 +143,12 @@ func (s *Server) handleDetectionDays(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dias, perDay, err := daysWithDetection(cams, filter)
+	days, perDay, err := daysWithDetection(cams, filter)
 	if err != nil {
 		s.fail(w, "lendo os dias com detecção", err)
 		return
 	}
-	writeJSON(w, map[string]any{"dias": dias, "deteccoesPorDia": perDay})
+	writeJSON(w, map[string]any{"dias": days, "deteccoesPorDia": perDay})
 }
 
 // daysWithDetection walks the days with recordings and counts, in each one, the
@@ -159,23 +159,23 @@ func (s *Server) handleDetectionDays(w http.ResponseWriter, r *http.Request) {
 // mark - scrolling doesn't reach it either, because it walks the same
 // diasDasCameras.
 func daysWithDetection(cams []*store.Camera, filter objectFilter) ([]string, map[string]int, error) {
-	dias := []string{}
+	days := []string{}
 	perDay := map[string]int{}
-	for _, day := range diasDasCameras(cams) {
+	for _, day := range camerasDays(cams) {
 		n := 0
 		for _, cam := range cams {
 			marks, err := cam.DayObjects(day)
 			if err != nil {
 				return nil, nil, fmt.Errorf("%s, %s: %w", cam.ID, day, err)
 			}
-			n += countDetections(marks, filter.daCamera(cam.ID))
+			n += countDetections(marks, filter.cameraOf(cam.ID))
 		}
 		if n > 0 {
-			dias = append(dias, day)
+			days = append(days, day)
 			perDay[day] = n
 		}
 	}
-	return dias, perDay, nil
+	return days, perDay, nil
 }
 
 // countDetections counts the detections of a camera on a day the way group
@@ -183,13 +183,13 @@ func daysWithDetection(cams []*store.Camera, filter objectFilter) ([]string, map
 // `alert=1` only the instant where some remaining object alerted.
 func countDetections(marks []store.Event, filter objectFilter) int {
 	n := 0
-	ultimo := int64(-1)
+	last := int64(-1)
 	for _, m := range marks {
-		if m.AtMs == ultimo || !filter.passes(m) || filter.alertsOnly && !m.Alert {
+		if m.AtMs == last || !filter.passes(m) || filter.alertsOnly && !m.Alert {
 			continue
 		}
 		n++
-		ultimo = m.AtMs
+		last = m.AtMs
 	}
 	return n
 }
@@ -201,9 +201,9 @@ func countDetections(marks []store.Event, filter objectFilter) int {
 func detectionsPageOf(cams []*store.Camera, filter objectFilter,
 	cursor int64, descending bool, limit int) (detectionsPage, error) {
 
-	dias := diasDasCameras(cams)
+	days := camerasDays(cams)
 	if descending {
-		slices.Reverse(dias)
+		slices.Reverse(days)
 	}
 	var cursorDay string
 	if cursor != math.MaxInt64 {
@@ -228,7 +228,7 @@ func detectionsPageOf(cams []*store.Camera, filter objectFilter,
 	}
 
 	out := detectionsPage{Detections: []detection{}, End: true}
-	for i, day := range dias {
+	for i, day := range days {
 		if cursorDay != "" && (descending && day > cursorDay || !descending && day < cursorDay) {
 			continue
 		}
@@ -238,7 +238,7 @@ func detectionsPageOf(cams []*store.Camera, filter objectFilter,
 			if err != nil {
 				return out, fmt.Errorf("%s, %s: %w", cam.ID, day, err)
 			}
-			ofDay = group(ofDay, cam.ID, marks, filter.daCamera(cam.ID), pastCursor)
+			ofDay = group(ofDay, cam.ID, marks, filter.cameraOf(cam.ID), pastCursor)
 		}
 		sort.Slice(ofDay, func(a, b int) bool { return comesBefore(ofDay[a], ofDay[b]) })
 		out.Detections = append(out.Detections, ofDay...)
@@ -248,11 +248,11 @@ func detectionsPageOf(cams []*store.Camera, filter objectFilter,
 
 		// Cuts at the limit, but takes along what ties with the last one.
 		cut := limit
-		ultimo := out.Detections[cut-1].AtMs
-		for cut < len(out.Detections) && out.Detections[cut].AtMs == ultimo {
+		last := out.Detections[cut-1].AtMs
+		for cut < len(out.Detections) && out.Detections[cut].AtMs == last {
 			cut++
 		}
-		leftover := cut < len(out.Detections) || i < len(dias)-1
+		leftover := cut < len(out.Detections) || i < len(days)-1
 		out.Detections = out.Detections[:cut]
 		out.End = !leftover
 		break
@@ -266,10 +266,10 @@ func detectionsPageOf(cams []*store.Camera, filter objectFilter,
 // group merges the marks of a camera on a day into detections, one per instant,
 // and appends them to `em`. The marks come in instant order, so the ones at the
 // same instant are side by side.
-func group(em []detection, cam string, marks []store.Event,
+func group(into []detection, cam string, marks []store.Event,
 	filter objectFilter, pastCursor func(int64) bool) []detection {
 
-	start := len(em)
+	start := len(into)
 	isOpen := -1 // index, in `em`, of the detection of the current instant
 	for _, m := range marks {
 		if !pastCursor(m.AtMs) || !filter.passes(m) {
@@ -277,39 +277,39 @@ func group(em []detection, cam string, marks []store.Event,
 		}
 		obj := objectInFrame{Family: m.Family, Class: m.Class, Score: m.Score, Box: m.Box,
 			Alert: m.Alert, AlertAreas: m.AlertAreas}
-		if isOpen >= 0 && em[isOpen].AtMs == m.AtMs {
-			d := &em[isOpen]
+		if isOpen >= 0 && into[isOpen].AtMs == m.AtMs {
+			d := &into[isOpen]
 			d.Objects = append(d.Objects, obj)
 			d.HasFrame = d.HasFrame || m.HasFrame
 			continue
 		}
-		em = append(em, detection{Cam: cam, AtMs: m.AtMs, FrameMs: m.FrameMs,
+		into = append(into, detection{Cam: cam, AtMs: m.AtMs, FrameMs: m.FrameMs,
 			HasFrame: m.HasFrame, Objects: []objectInFrame{obj}})
-		isOpen = len(em) - 1
+		isOpen = len(into) - 1
 	}
 	if !filter.alertsOnly {
-		return em
+		return into
 	}
 	// With `alert=1` the detection stays whole, with the object that didn't
 	// alert: the screen shows it dimmed, "not part of the alert".
-	novas := slices.DeleteFunc(em[start:], func(d detection) bool {
+	fresh := slices.DeleteFunc(into[start:], func(d detection) bool {
 		return !slices.ContainsFunc(d.Objects, func(o objectInFrame) bool { return o.Alert })
 	})
-	return em[:start+len(novas)]
+	return into[:start+len(fresh)]
 }
 
 // diasDasCameras is the union of the cameras' days with recordings, in
 // ascending order. It comes from the in-memory summary, without touching the
 // disk.
-func diasDasCameras(cams []*store.Camera) []string {
-	var dias []string
+func camerasDays(cams []*store.Camera) []string {
+	var days []string
 	for _, c := range cams {
 		for _, d := range c.Days() {
-			dias = append(dias, d.Day)
+			days = append(days, d.Day)
 		}
 	}
-	slices.Sort(dias)
-	return slices.Compact(dias)
+	slices.Sort(days)
+	return slices.Compact(days)
 }
 
 // objectFilter decides, mark by mark, which object stays in the detection. What
@@ -337,7 +337,7 @@ type areaWithRule struct {
 
 // daCamera is the filter for one camera's marks: the areas only apply on their
 // own camera, and the others only go through the family filter.
-func (f objectFilter) daCamera(cam string) objectFilter {
+func (f objectFilter) cameraOf(cam string) objectFilter {
 	f.areas = f.perCamera[cam]
 	return f
 }

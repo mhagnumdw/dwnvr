@@ -47,7 +47,7 @@ func withAuth(t *testing.T, s *Server, people ...users.User) {
 var maria = users.User{Username: "maria", Name: "Maria", Role: users.RoleViewer, PasswordHash: "$guardada$da-maria"}
 
 // cookieDe is the cookie the person receives, valid for one more hour.
-func cookieDe(t *testing.T, s *Server, username string) *http.Cookie {
+func cookieOf(t *testing.T, s *Server, username string) *http.Cookie {
 	t.Helper()
 	p, ok := s.who(username)
 	if !ok {
@@ -56,7 +56,7 @@ func cookieDe(t *testing.T, s *Server, username string) *http.Cookie {
 	return &http.Cookie{Name: sessionCookie, Value: s.signToken(p, time.Now().Add(time.Hour).Unix())}
 }
 
-func vale(s *Server, tok string) bool {
+func accepts(s *Server, tok string) bool {
 	_, _, ok := s.tokenPerson(tok)
 	return ok
 }
@@ -71,7 +71,7 @@ func TestSessionToken(t *testing.T) {
 		t.Errorf("freshly signed token: %+v, ok=%v", p, ok)
 	}
 
-	if vale(s, s.signToken(owner, time.Now().Add(-time.Hour).Unix())) {
+	if accepts(s, s.signToken(owner, time.Now().Add(-time.Hour).Unix())) {
 		t.Error("expired token was accepted")
 	}
 
@@ -79,21 +79,21 @@ func TestSessionToken(t *testing.T) {
 	// HMAC covers the login and the deadline.
 	login, rest, _ := strings.Cut(valid, ".")
 	_, sig, _ := strings.Cut(rest, ".")
-	if vale(s, login+".99999999999."+sig) {
+	if accepts(s, login+".99999999999."+sig) {
 		t.Error("extended deadline was accepted")
 	}
-	if vale(s, strings.Replace(valid, login, "bWFyaWE", 1)) { // "maria"
+	if accepts(s, strings.Replace(valid, login, "bWFyaWE", 1)) { // "maria"
 		t.Error("the owner's token with maria's login was accepted")
 	}
 
 	// A signature from another secret must not be valid.
 	other := &Server{cfg: s.cfg, users: s.users, sessionSecret: []byte("outro-segredo-de-32-bytes!!!!!!!")}
-	if vale(s, other.signToken(owner, time.Now().Add(time.Hour).Unix())) {
+	if accepts(s, other.signToken(owner, time.Now().Add(time.Hour).Unix())) {
 		t.Error("token signed with another secret was accepted")
 	}
 
 	for _, bad := range []string{"", "semponto", "abc.def", ".", "123.", "YWRtaW4.abc.def", "!!.123.abc", ".."} {
-		if vale(s, bad) {
+		if accepts(s, bad) {
 			t.Errorf("malformed token %q was accepted", bad)
 		}
 	}
@@ -111,7 +111,7 @@ func TestSessionDropsOnlyThePerson(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		nome      string
+		name      string
 		change    func(s *Server)
 		dropped   string
 		remaining []string
@@ -131,16 +131,16 @@ func TestSessionDropsOnlyThePerson(t *testing.T) {
 		withAuth(t, s, maria, joao)
 		cookies := map[string]string{}
 		for _, u := range []string{"admin", "maria", "joao"} {
-			cookies[u] = cookieDe(t, s, u).Value
+			cookies[u] = cookieOf(t, s, u).Value
 		}
 
 		tc.change(s)
-		if vale(s, cookies[tc.dropped]) {
-			t.Errorf("%s: %s's cookie stayed valid", tc.nome, tc.dropped)
+		if accepts(s, cookies[tc.dropped]) {
+			t.Errorf("%s: %s's cookie stayed valid", tc.name, tc.dropped)
 		}
 		for _, u := range tc.remaining {
-			if !vale(s, cookies[u]) {
-				t.Errorf("%s: %s's cookie dropped too", tc.nome, u)
+			if !accepts(s, cookies[u]) {
+				t.Errorf("%s: %s's cookie dropped too", tc.name, u)
 			}
 		}
 	}
@@ -167,21 +167,21 @@ func TestChangingOwnerCredentialDropsTheirSessions(t *testing.T) {
 		}
 		return New(cfg, nil, nil, nil, nil, cad, accesses, nil, secret, log)
 	}
-	antes := start("admin", "senha")
-	owner, _ := antes.who("admin")
-	cookie := antes.signToken(owner, time.Now().Add(time.Hour).Unix())
+	before := start("admin", "senha")
+	owner, _ := before.who("admin")
+	cookie := before.signToken(owner, time.Now().Add(time.Hour).Unix())
 
 	for _, tc := range []struct {
-		nome               string
+		name               string
 		username, password string
-		vale               bool
+		accepts            bool
 	}{
 		{"same credential", "admin", "senha", true},
 		{"new password", "admin", "senha-nova", false},
 		{"new username", "dono", "senha", false},
 	} {
-		if ok := vale(start(tc.username, tc.password), cookie); ok != tc.vale {
-			t.Errorf("%s: the old cookie valid=%v, expected %v", tc.nome, ok, tc.vale)
+		if ok := accepts(start(tc.username, tc.password), cookie); ok != tc.accepts {
+			t.Errorf("%s: the old cookie valid=%v, expected %v", tc.name, ok, tc.accepts)
 		}
 	}
 }
@@ -208,7 +208,7 @@ func TestRequireAuth(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
-	req.AddCookie(cookieDe(t, s, "maria"))
+	req.AddCookie(cookieOf(t, s, "maria"))
 	h(httptest.NewRecorder(), req)
 	if !called || who.Username != "maria" || who.Role != users.RoleViewer {
 		t.Errorf("maria's cookie: called=%v, person %+v", called, who)
@@ -225,9 +225,9 @@ func TestRolePerRoute(t *testing.T) {
 	withAuth(t, s, maria)
 	h := s.Handler()
 
-	ask := func(username, method, rota string) int {
-		req := httptest.NewRequest(method, rota, nil)
-		req.AddCookie(cookieDe(t, s, username))
+	ask := func(username, method, route string) int {
+		req := httptest.NewRequest(method, route, nil)
+		req.AddCookie(cookieOf(t, s, username))
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		return rec.Code
@@ -241,8 +241,8 @@ func TestRolePerRoute(t *testing.T) {
 		"DELETE /api/usuarios?username=maria", "DELETE /api/usuarios/avatar?username=maria",
 	}
 	for _, r := range soAdmin {
-		method, rota, _ := strings.Cut(r, " ")
-		if code := ask("maria", method, rota); code != http.StatusForbidden {
+		method, route, _ := strings.Cut(r, " ")
+		if code := ask("maria", method, route); code != http.StatusForbidden {
 			t.Errorf("viewer on %s: status %d, expected 403", r, code)
 		}
 	}
@@ -256,8 +256,8 @@ func TestRolePerRoute(t *testing.T) {
 		"GET /api/rec/timeline?cam=cam_teste&day=2026-10-09",
 	}
 	for _, r := range ofAll {
-		method, rota, _ := strings.Cut(r, " ")
-		if code := ask("maria", method, rota); code == http.StatusForbidden || code == http.StatusUnauthorized {
+		method, route, _ := strings.Cut(r, " ")
+		if code := ask("maria", method, route); code == http.StatusForbidden || code == http.StatusUnauthorized {
 			t.Errorf("viewer on %s: status %d", r, code)
 		}
 	}
@@ -279,7 +279,7 @@ func TestCamerasLeanForTheViewer(t *testing.T) {
 	s.mgr.Set(config.Camera{ID: "cam_b", Name: "B", Enabled: true,
 		Alert: &config.CameraAlert{Families: []detect.Family{detect.Person}}})
 	req := httptest.NewRequest(http.MethodGet, "/api/cameras", nil)
-	req.AddCookie(cookieDe(t, s, "maria"))
+	req.AddCookie(cookieOf(t, s, "maria"))
 	rec := httptest.NewRecorder()
 	// No go2rtc in testServer: if the viewer queried it, the test would fail.
 	s.requireAuth(s.handleCameras)(rec, req)
@@ -569,11 +569,11 @@ func TestLoginOverTheLimit(t *testing.T) {
 	s.loginLimit, s.proxies = loginLimiter(s.cfg.Server)
 	h := logRequests(s.log, http.HandlerFunc(s.handleLogin))
 
-	doLogin := func(password, de string) *httptest.ResponseRecorder {
+	doLogin := func(password, from string) *httptest.ResponseRecorder {
 		body, _ := json.Marshal(map[string]string{"username": "admin", "password": password})
 		req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(body)))
 		req.RemoteAddr = "172.18.0.1:5000" // the proxy, the same for everyone
-		req.Header.Set("X-Forwarded-For", de)
+		req.Header.Set("X-Forwarded-For", from)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		return rec
@@ -648,14 +648,14 @@ func TestSessionTellsWhoIsIn(t *testing.T) {
 	if r, _ := session(nil); !r.AuthRequired || r.Authenticated || r.Person != nil {
 		t.Errorf("no cookie: %+v", r)
 	}
-	r, body := session(cookieDe(t, s, "maria"))
-	if !r.Authenticated || r.Person == nil || *r.Person != (person{Username: "maria", Nome: "Maria", Role: users.RoleViewer}) {
+	r, body := session(cookieOf(t, s, "maria"))
+	if !r.Authenticated || r.Person == nil || *r.Person != (person{Username: "maria", Name: "Maria", Role: users.RoleViewer}) {
 		t.Errorf("maria: %s", body)
 	}
 	if strings.Contains(body, maria.PasswordHash) {
 		t.Errorf("the response carries the stored password: %s", body)
 	}
-	if r, _ := session(cookieDe(t, s, "admin")); r.Person == nil || !r.Person.Owner || r.Person.Nome != "admin" {
+	if r, _ := session(cookieOf(t, s, "admin")); r.Person == nil || !r.Person.Owner || r.Person.Name != "admin" {
 		t.Errorf("owner: %+v", r.Person)
 	}
 }
@@ -671,8 +671,8 @@ func TestSessionRenewsWithUse(t *testing.T) {
 	p, _ := s.who("maria")
 	protected := s.requireAuth(func(w http.ResponseWriter, r *http.Request) {})
 
-	for _, rota := range []struct {
-		nome string
+	for _, route := range []struct {
+		name string
 		h    http.HandlerFunc
 	}{{"requireAuth", protected}, {"/api/session", s.handleSession}} {
 		for _, tc := range []struct {
@@ -689,31 +689,31 @@ func TestSessionRenewsWithUse(t *testing.T) {
 			req.AddCookie(&http.Cookie{Name: sessionCookie,
 				Value: s.signToken(p, time.Now().Add(tc.missing).Unix())})
 			rec := httptest.NewRecorder()
-			rota.h(rec, req)
+			route.h(rec, req)
 
 			if rec.Code != http.StatusOK {
-				t.Fatalf("%s, %v left: status %d", rota.nome, tc.missing, rec.Code)
+				t.Fatalf("%s, %v left: status %d", route.name, tc.missing, rec.Code)
 			}
 			setCookie := rec.Header().Get("Set-Cookie")
 			if !tc.renews {
 				if setCookie != "" {
-					t.Errorf("%s, %v left: renewed too early: %s", rota.nome, tc.missing, setCookie)
+					t.Errorf("%s, %v left: renewed too early: %s", route.name, tc.missing, setCookie)
 				}
 				continue
 			}
 			c, err := http.ParseSetCookie(setCookie)
 			if err != nil {
-				t.Fatalf("%s, %v left: no new cookie (%v)", rota.nome, tc.missing, err)
+				t.Fatalf("%s, %v left: no new cookie (%v)", route.name, tc.missing, err)
 			}
-			de, expires, ok := s.tokenPerson(c.Value)
-			if !ok || de.Username != "maria" {
-				t.Fatalf("%s, %v left: new cookie invalid or from another person (%+v)", rota.nome, tc.missing, de)
+			from, expires, ok := s.tokenPerson(c.Value)
+			if !ok || from.Username != "maria" {
+				t.Fatalf("%s, %v left: new cookie invalid or from another person (%+v)", route.name, tc.missing, from)
 			}
 			if missing := time.Until(time.Unix(expires, 0)); missing < sessionTTL-time.Minute {
-				t.Errorf("%s: the new cookie is valid for only %v, expected the full lifetime", rota.nome, missing)
+				t.Errorf("%s: the new cookie is valid for only %v, expected the full lifetime", route.name, missing)
 			}
 			if !c.Secure || !c.HttpOnly || c.Path != "/" {
-				t.Errorf("%s: new cookie lost attributes: %+v", rota.nome, c)
+				t.Errorf("%s: new cookie lost attributes: %+v", route.name, c)
 			}
 		}
 	}

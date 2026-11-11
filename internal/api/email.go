@@ -34,7 +34,7 @@ func (s *Server) noEmail(w http.ResponseWriter) bool {
 // tokenDoLink extracts the token from the invite link, the way the screen
 // builds it: http(s)://address/path#convite?token=…. Any other form is
 // rejected: the email only carries an invite link.
-func tokenDoLink(link string) (string, bool) {
+func linkToken(link string) (string, bool) {
 	u, err := url.Parse(link)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
 		u.User != nil || u.RawQuery != "" {
@@ -52,10 +52,10 @@ func tokenDoLink(link string) (string, bool) {
 }
 
 // inviteMessage is the email with the link to set the password.
-func inviteMessage(u users.User, para, link string) email.Message {
+func inviteMessage(u users.User, to, link string) email.Message {
 	minutes := int(users.InviteValidity.Minutes())
 	return email.Message{
-		To:      []string{para},
+		To:      []string{to},
 		Subject: "Defina sua senha no dwnvr",
 		Text: fmt.Sprintf("Olá, %s.\n\n"+
 			"Abra o link abaixo para definir a sua senha no dwnvr. Ele vale %d minutos e funciona uma vez só.\n\n"+
@@ -73,18 +73,18 @@ func (s *Server) handleEmailTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Para string `json:"to"`
+		To string `json:"to"`
 	}
 	if !readBody(w, r, &req) {
 		return
 	}
-	para, err := users.ValidateEmail(req.Para)
-	if err != nil || para == "" {
+	to, err := users.ValidateEmail(req.To)
+	if err != nil || to == "" {
 		writeError(w, http.StatusBadRequest, "e-mail inválido: escreva só o endereço, como fulano@exemplo.com")
 		return
 	}
 	m := email.Message{
-		To:      []string{para},
+		To:      []string{to},
 		Subject: "Teste do dwnvr",
 		Text: "Este é um e-mail de teste do dwnvr, mandado pela tela Diagnóstico.\n\n" +
 			"Se ele chegou, o envio de e-mail está funcionando.\n",
@@ -95,7 +95,7 @@ func (s *Server) handleEmailTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.log.Info("test email sent", "by", personOf(r).Username)
-	writeJSON(w, map[string]string{"sentTo": para})
+	writeJSON(w, map[string]string{"sentTo": to})
 }
 
 // smtpInfo is the smtp section as Diagnostics shows it: without the login and

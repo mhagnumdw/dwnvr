@@ -226,7 +226,7 @@ type cameraInfo struct {
 // again, since no other endpoint sees a camera without a registry entry.
 func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	if !personOf(r).admin() {
-		s.camerasDoViewer(w)
+		s.viewerCameras(w)
 		return
 	}
 	raw := s.mgr.Cameras()
@@ -323,7 +323,7 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 // and with only the "alert enabled", and whether there is an object detector. The rest
 // only serves the Cameras screen, which belongs to the admin, and go2rtc is not even
 // queried: each opening of the screen would cost two calls to it.
-func (s *Server) camerasDoViewer(w http.ResponseWriter) {
+func (s *Server) viewerCameras(w http.ResponseWriter) {
 	raw := s.mgr.Cameras()
 	cams := make([]config.Camera, len(raw))
 	for i, c := range raw {
@@ -471,8 +471,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"abbr":          sigla,
 		"offsetSeconds": offset,
 	}
-	if nome := localZone(); nome != "" {
-		clock["zone"] = nome
+	if name := localZone(); name != "" {
+		clock["zone"] = name
 	}
 	resp["clock"] = clock
 
