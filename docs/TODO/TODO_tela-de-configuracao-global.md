@@ -43,7 +43,7 @@ pelas mesmas:
    junto?** Fica no arquivo.
 2. **É escolha de uso, que se muda olhando o efeito?** Entra, de preferência com
    o efeito visível no Diagnóstico.
-3. **É número medido do `parametros.go`?** Não entra.
+3. **É número medido do `params.go`?** Não entra.
 4. **Vale sem reiniciar?** Tela que termina em `docker compose restart` não
    economiza nada.
 

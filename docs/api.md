@@ -298,7 +298,7 @@ a subida do recorder, que é a do dwnvr ou a última vez em que a câmera foi
 reiniciada por mudança de configuração, ou o último
 `POST /api/reconnects/reset`. `reconnectsInWindow` são as que caíram dentro das
 últimas `reconnectsWindowHours` horas, que vem na raiz da resposta e mora em
-`recorder.JanelaDeReconexoes` (`internal/recorder/parametros.go`).
+`recorder.ReconnectWindow` (`internal/recorder/params.go`).
 `lastReconnectAt` é a mais recente, e `disconnectedAt`, que só vem com
 `connected: false`, é quando a conexão caiu:
 

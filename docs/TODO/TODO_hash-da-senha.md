@@ -166,7 +166,7 @@ Argon2id deixa de custar a dependência.
    hashes que já existem.
 3. **O texto puro continua valendo.** Um valor sem o prefixo é comparado como
    hoje. Não é mudança incompatível, e quem não gerar o hash não paga nada.
-4. **Os números num `parametros.go`**: as iterações (600.000), o salt (16
+4. **Os números num `params.go`**: as iterações (600.000), o salt (16
    bytes do `crypto/rand`), o tamanho do hash (32 bytes) e a faixa de
    iterações aceita na leitura.
 5. **O login calcula o hash sempre**, mesmo com o usuário errado, para manter

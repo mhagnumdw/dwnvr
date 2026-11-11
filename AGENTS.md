@@ -28,7 +28,7 @@ reactive, responsive UI that works well on mobile and desktop (browser).
   detector and the like: a named Go `interface`, with a comment on what it
   promises, and a name -> constructor map, so swapping the implementation is a
   one-line change. Every tunable number (threshold, duration, budget, class
-  map) lives in a `parametros.go`, never in a stray constant.
+  map) lives in a `params.go`, never in a stray constant.
 - **Readable JSON.** Keys spelled out (`instanteMs`, not `t`), even if longer.
   Exception: `index/{dia}.ndjson`, abbreviated because of its volume.
 - **Keys and values in en-US**, in JSON (API, `cameras.json`, `usuarios.json`,
