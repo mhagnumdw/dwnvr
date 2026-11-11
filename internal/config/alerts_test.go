@@ -352,18 +352,18 @@ func TestAlertsEmailNeverBlocksBoot(t *testing.T) {
 		to       []string
 		warnings []string // a snippet of each warning, in order
 	}{
-		{"endereço sozinho", "alerts:\n  email:\n    to: fulano@exemplo.com\n",
+		{"address alone", "alerts:\n  email:\n    to: fulano@exemplo.com\n",
 			[]string{"fulano@exemplo.com"}, nil},
-		{"endereço sozinho entre aspas", "alerts:\n  email:\n    to: \"fulano@exemplo.com\"\n",
+		{"quoted address alone", "alerts:\n  email:\n    to: \"fulano@exemplo.com\"\n",
 			[]string{"fulano@exemplo.com"}, nil},
-		{"to vazio", "alerts:\n  email:\n    to:\n", nil, nil},
-		{"item que não é endereço", "alerts:\n  email:\n    to:\n      - fulano@exemplo.com\n      - {nome: ciclana}\n",
+		{"empty to", "alerts:\n  email:\n    to:\n", nil, nil},
+		{"item that isn't an address", "alerts:\n  email:\n    to:\n      - fulano@exemplo.com\n      - {nome: ciclana}\n",
 			[]string{"fulano@exemplo.com"}, []string{"linha 11 um item que não é endereço"}},
-		{"to que não é endereço nem lista", "alerts:\n  email:\n    to: {nome: fulano}\n",
+		{"to that is neither an address nor a list", "alerts:\n  email:\n    to: {nome: fulano}\n",
 			nil, []string{"alerts.email.to (linha 9) precisa ser um endereço ou uma lista"}},
-		{"email que não é seção", "alerts:\n  email: fulano@exemplo.com\n",
+		{"email that isn't a section", "alerts:\n  email: fulano@exemplo.com\n",
 			nil, []string{"a seção alerts (linha 8) não está no formato esperado"}},
-		{"alerts que não é seção", "alerts: [fulano@exemplo.com]\n",
+		{"alerts that isn't a section", "alerts: [fulano@exemplo.com]\n",
 			nil, []string{"a seção alerts (linha 7) não está no formato esperado"}},
 	}
 	for _, c := range cases {

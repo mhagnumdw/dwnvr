@@ -34,16 +34,16 @@ func TestEmailNeedsBothThings(t *testing.T) {
 		born    bool
 		missing []string
 	}{
-		{"sem nada", config.Config{}, false, []string{"alerts.email.to", "smtp"}},
-		{"sem a lista", config.Config{SMTP: smtp}, false, []string{"alerts.email.to"}},
-		{"sem smtp", config.Config{Alerts: config.Alerts{Email: config.AlertsEmail{To: to}}}, false,
+		{"nothing", config.Config{}, false, []string{"alerts.email.to", "smtp"}},
+		{"without the list", config.Config{SMTP: smtp}, false, []string{"alerts.email.to"}},
+		{"without smtp", config.Config{Alerts: config.Alerts{Email: config.AlertsEmail{To: to}}}, false,
 			[]string{"smtp"}},
-		{"smtp recusado", config.Config{SMTP: config.SMTP{Host: "smtp.exemplo.com", Problem: "smtp.from vazio"},
+		{"smtp rejected", config.Config{SMTP: config.SMTP{Host: "smtp.exemplo.com", Problem: "smtp.from vazio"},
 			Alerts: config.Alerts{Email: config.AlertsEmail{To: to}}}, false,
 			[]string{"smtp"}},
-		{"smtp recusado e sem a lista", config.Config{SMTP: config.SMTP{Problem: "smtp.host vazio"}}, false,
+		{"smtp rejected and without the list", config.Config{SMTP: config.SMTP{Problem: "smtp.host vazio"}}, false,
 			[]string{"alerts.email.to", "smtp"}},
-		{"com as duas", config.Config{SMTP: smtp, Alerts: config.Alerts{Email: config.AlertsEmail{To: to}},
+		{"with both", config.Config{SMTP: smtp, Alerts: config.Alerts{Email: config.AlertsEmail{To: to}},
 			Server: config.Server{PublicURL: "https://dwnvr.exemplo.com"}}, true, nil},
 	} {
 		if got := MissingForEmail(&c.cfg); !slices.Equal(got, c.missing) {

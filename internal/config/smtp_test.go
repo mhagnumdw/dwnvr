@@ -65,16 +65,16 @@ func TestSMTPProblemDisablesWithReason(t *testing.T) {
 	for _, c := range []struct {
 		name, yaml, field string
 	}{
-		{"sem host", "  username: dwnvr@exemplo.com\n  password: troque-me", "smtp.host"},
-		{"host com porta", "  host: smtp.gmail.com:587\n  from: dwnvr@exemplo.com", "smtp.port"},
-		{"host com espaço", "  host: smtp gmail com\n  from: dwnvr@exemplo.com", "smtp.host"},
-		{"security estranho", "  host: smtp.gmail.com\n  security: ssl\n  from: dwnvr@exemplo.com", "smtp.security"},
-		{"porta fora", "  host: smtp.gmail.com\n  port: 70000\n  from: dwnvr@exemplo.com", "smtp.port"},
-		{"usuário sem senha", "  host: smtp.gmail.com\n  username: dwnvr@exemplo.com", "smtp.password"},
-		{"senha sem usuário", "  host: smtp.gmail.com\n  password: troque-me\n  from: dwnvr@exemplo.com", "smtp.username"},
-		{"sem remetente", "  host: smtp.exemplo.com\n  username: apikey\n  password: troque-me", "smtp.from"},
-		{"remetente ruim", "  host: smtp.gmail.com\n  from: dwnvr", "smtp.from"},
-		{"senha sem TLS", "  host: smtp.exemplo.com\n  security: none\n  username: dwnvr@exemplo.com\n  password: troque-me", "smtp.security"},
+		{"no host", "  username: dwnvr@exemplo.com\n  password: troque-me", "smtp.host"},
+		{"host with port", "  host: smtp.gmail.com:587\n  from: dwnvr@exemplo.com", "smtp.port"},
+		{"host with a space", "  host: smtp gmail com\n  from: dwnvr@exemplo.com", "smtp.host"},
+		{"odd security", "  host: smtp.gmail.com\n  security: ssl\n  from: dwnvr@exemplo.com", "smtp.security"},
+		{"port out of range", "  host: smtp.gmail.com\n  port: 70000\n  from: dwnvr@exemplo.com", "smtp.port"},
+		{"username without password", "  host: smtp.gmail.com\n  username: dwnvr@exemplo.com", "smtp.password"},
+		{"password without username", "  host: smtp.gmail.com\n  password: troque-me\n  from: dwnvr@exemplo.com", "smtp.username"},
+		{"no sender", "  host: smtp.exemplo.com\n  username: apikey\n  password: troque-me", "smtp.from"},
+		{"bad sender", "  host: smtp.gmail.com\n  from: dwnvr", "smtp.from"},
+		{"password without TLS", "  host: smtp.exemplo.com\n  security: none\n  username: dwnvr@exemplo.com\n  password: troque-me", "smtp.security"},
 	} {
 		cfg, err := loadYAML(t, "smtp:\n"+c.yaml+"\n")
 		if err != nil {

@@ -37,11 +37,11 @@ func TestLastAccessMovesInSteps(t *testing.T) {
 		after time.Duration
 		want  time.Time
 	}{
-		{"menos de um passo não mexe", 30 * time.Second, t0},
-		{"um passo depois, anda", LastAccessStep, t0.Add(LastAccessStep)},
+		{"less than a step doesn't move", 30 * time.Second, t0},
+		{"a step later, it moves", LastAccessStep, t0.Add(LastAccessStep)},
 		// The clock fixed backwards rewrites: otherwise the access would be in the
 		// future until the clock caught up.
-		{"relógio para trás, regrava", -time.Hour, t0.Add(-time.Hour)},
+		{"clock going back, rewrites", -time.Hour, t0.Add(-time.Hour)},
 	} {
 		now = t0.Add(tc.after)
 		a.Record("maria")

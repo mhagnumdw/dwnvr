@@ -100,12 +100,12 @@ func TestTranscodingWithStreamInUse(t *testing.T) {
 		name, json string
 		want       bool
 	}{
-		{"ffmpeg: ocioso", `{"url": "ffmpeg:virtual?video=testsrc&size=320x180&rate=10#video=h264"}`, true},
+		{"ffmpeg: idle", `{"url": "ffmpeg:virtual?video=testsrc&size=320x180&rate=10#video=h264"}`, true},
 		{"ffmpeg: in use", `{"url": null, "source": "exec:ffmpeg -hide_banner -v error -re -f lavfi -i testsrc -c:v libx264 -f rtsp rtsp://127.0.0.1:8554/a817"}`, true},
-		{"exec:ffmpeg ocioso", `{"url": "exec:ffmpeg -hide_banner -re -f lavfi -i testsrc -c:v libx264 -f rtsp {output}"}`, true},
+		{"exec:ffmpeg idle", `{"url": "exec:ffmpeg -hide_banner -re -f lavfi -i testsrc -c:v libx264 -f rtsp {output}"}`, true},
 		{"exec:ffmpeg in use", `{"url": null, "source": "exec:ffmpeg -hide_banner -re -f lavfi -i testsrc -c:v libx264 -f rtsp rtsp://127.0.0.1:8554/7ef1"}`, true},
 		{"exec: with the ffmpeg path", `{"url": "exec:/usr/bin/ffmpeg -i rtsp://cam/1 -c:v libx264 -f rtsp {output}"}`, true},
-		{"exec: de outro programa", `{"url": "exec:gst-launch-1.0 videotestsrc ! x264enc ! rtspclientsink location={output}"}`, false},
+		{"exec: another program", `{"url": "exec:gst-launch-1.0 videotestsrc ! x264enc ! rtspclientsink location={output}"}`, false},
 		{"rtsp in use", `{"url": "rtsp://admin:senha@192.168.0.61:554/onvif1", "format_name": "rtsp"}`, false},
 	}
 	for _, tt := range tests {

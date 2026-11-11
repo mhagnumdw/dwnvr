@@ -109,9 +109,9 @@ func run(log *slog.Logger, cfgPath string) error {
 		}
 		days := idx.Days()
 		log.Info("index loaded", "cam", cam.ID,
-			"dias", len(days), "mb", idx.TotalBytes()>>20)
+			"days", len(days), "mb", idx.TotalBytes()>>20)
 	}
-	log.Info("index ready", "em", time.Since(start).Round(time.Millisecond))
+	log.Info("index ready", "took", time.Since(start).Round(time.Millisecond))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -131,7 +131,7 @@ func run(log *slog.Logger, cfgPath string) error {
 	}
 	if !cfg.Server.AuthEnabled() {
 		log.Warn("authentication off: anyone on the network sees the recordings of every camera",
-			"como_ligar", "set server.username and server.password in "+cfgPath)
+			"how_to_enable", "set server.username and server.password in "+cfgPath)
 	}
 
 	// An unreadable usuarios.json doesn't stop recording: only the owner logs
@@ -217,11 +217,11 @@ func prepareStorage(log *slog.Logger, cfg *config.Config) error {
 		return err
 	}
 	log.Info("storage", "path", cfg.Storage.Root,
-		"livre_gb", free>>30, "total_gb", total>>30, "min_livre_mb", cfg.Storage.MinFreeMB)
+		"free_gb", free>>30, "total_gb", total>>30, "min_free_mb", cfg.Storage.MinFreeMB)
 
 	if free < cfg.Storage.MinFreeMB<<20 {
 		log.Warn("disk already below the minimum free; retention will evict old recordings",
-			"livre_mb", free>>20, "minimo_mb", cfg.Storage.MinFreeMB)
+			"free_mb", free>>20, "min_mb", cfg.Storage.MinFreeMB)
 	}
 	return nil
 }

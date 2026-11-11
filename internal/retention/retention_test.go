@@ -296,7 +296,7 @@ func TestUnreadableDiskReturnsTheError(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 100}}
 	m, st := newManager(t, 5, &cams)
 	record(t, st, "cam_a", daysAgo(0), 1, mb)
-	failure := errors.New("statfs falhou")
+	failure := errors.New("statfs failed")
 	m.free = func(string) (int64, error) { return 0, failure }
 
 	if err := m.Enforce(); !errors.Is(err, failure) {

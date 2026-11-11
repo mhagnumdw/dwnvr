@@ -51,7 +51,7 @@ type fakeNotifier struct {
 	arrived  chan Alert
 }
 
-func (m *fakeNotifier) Name() string { return "teste" }
+func (m *fakeNotifier) Name() string { return "test" }
 
 func (m *fakeNotifier) Send(ctx context.Context, a Alert) error {
 	if end, ok := ctx.Deadline(); ok {
@@ -170,7 +170,7 @@ func TestDropEpisode(t *testing.T) {
 // error, and the first successful send clears them. Each send goes with
 // SendTimeout.
 func TestFailingNotifier(t *testing.T) {
-	notifier := &fakeNotifier{err: errors.New("senha recusada"), arrived: make(chan Alert, 4)}
+	notifier := &fakeNotifier{err: errors.New("password rejected"), arrived: make(chan Alert, 4)}
 	c := NewDispatcher([]Notifier{notifier}, silent())
 	ctx := t.Context()
 	go c.Run(ctx)
@@ -200,7 +200,7 @@ func TestFailingNotifier(t *testing.T) {
 	queue()
 	e := state(func(e NotifierState) bool { return e.Failures == 1 })
 	since := e.FailingSince
-	if since.IsZero() || !e.Last.Equal(since) || e.Err != "senha recusada" || e.Name != "teste" {
+	if since.IsZero() || !e.Last.Equal(since) || e.Err != "password rejected" || e.Name != "test" {
 		t.Errorf("state %+v", e)
 	}
 

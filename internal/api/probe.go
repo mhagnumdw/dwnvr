@@ -69,7 +69,7 @@ func (s *Server) handleProbeStream(w http.ResponseWriter, r *http.Request) {
 
 	streams, err := s.client.Streams(r.Context())
 	if err != nil {
-		s.log.Error("listing go2rtc streams", "erro", err)
+		s.log.Error("listing go2rtc streams", "err", err)
 		writeError(w, http.StatusBadGateway, "o go2rtc não respondeu")
 		return
 	}
@@ -125,7 +125,7 @@ func (s *Server) handleProbeStream(w http.ResponseWriter, r *http.Request) {
 		// screen knows what to do with that - leave the audio options clickable,
 		// instead of lying that the camera has no microphone. Hence the 200 with
 		// the reason attached, and nothing stored in the cache.
-		s.log.Warn("probing stream audio", "stream", name, "erro", err)
+		s.log.Warn("probing stream audio", "stream", name, "err", err)
 		resp["erro"] = err.Error()
 		writeJSON(w, resp)
 		return

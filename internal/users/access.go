@@ -123,7 +123,7 @@ func (a *AccessLog) schedule() {
 	if a.timer == nil {
 		a.timer = time.AfterFunc(a.flushDelay, func() {
 			if err := a.FlushPending(); err != nil {
-				a.log.Error("gravando os últimos acessos", "arquivo", a.path, "erro", err)
+				a.log.Error("saving the last accesses", "file", a.path, "err", err)
 			}
 		})
 	}

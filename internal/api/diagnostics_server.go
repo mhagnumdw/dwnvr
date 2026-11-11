@@ -648,7 +648,7 @@ func (s *Server) testWrite() write {
 		ms := time.Since(start).Milliseconds()
 		if err != nil {
 			if err.Error() != s.writeErr {
-				s.log.Warn("storage write test failed", "erro", err)
+				s.log.Warn("storage write test failed", "err", err)
 			}
 			s.writeErr = err.Error()
 			ready <- write{Ms: ms, Error: writeReason(err)}
