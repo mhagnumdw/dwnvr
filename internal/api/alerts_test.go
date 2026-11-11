@@ -14,7 +14,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 )
 
-// alertEmailDe is the alertEmail of the admin's /api/cameras, with go2rtc down:
+// alertEmailOf is the alertEmail of the admin's /api/cameras, with go2rtc down:
 // it comes anyway.
 func alertEmailOf(t *testing.T, s *Server) string {
 	t.Helper()

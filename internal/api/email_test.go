@@ -31,7 +31,7 @@ func (e *fakeSender) Send(_ context.Context, m email.Message) error {
 	return nil
 }
 
-// comEmail turns email on in the test server and keeps the log, to check that
+// withEmail turns email on in the test server and keeps the log, to check that
 // the link does not end up in it.
 func withEmail(t *testing.T, s *Server) (*fakeSender, *bytes.Buffer) {
 	t.Helper()

@@ -46,7 +46,7 @@ func withAuth(t *testing.T, s *Server, people ...users.User) {
 // the session only uses it to bind the cookie.
 var maria = users.User{Username: "maria", Name: "Maria", Role: users.RoleViewer, PasswordHash: "$guardada$da-maria"}
 
-// cookieDe is the cookie the person receives, valid for one more hour.
+// cookieOf is the cookie the person receives, valid for one more hour.
 func cookieOf(t *testing.T, s *Server, username string) *http.Cookie {
 	t.Helper()
 	p, ok := s.who(username)

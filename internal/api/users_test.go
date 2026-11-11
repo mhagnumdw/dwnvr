@@ -118,7 +118,7 @@ func TestCreateUserRejects(t *testing.T) {
 	}
 }
 
-// camposDe is the "fields" of the response: the per-field rejections.
+// fieldsOf is the "fields" of the response: the per-field rejections.
 func fieldsOf(t *testing.T, resp map[string]any) map[string]any {
 	t.Helper()
 	fields, ok := resp["fields"].(map[string]any)

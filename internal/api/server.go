@@ -218,7 +218,7 @@ type cameraInfo struct {
 
 // handleCameras lists the registered cameras, what go2rtc offers and what is
 // left on disk from cameras already removed. The viewer gets only the cameras
-// and the object detector (see camerasDoViewer).
+// and the object detector (see viewerCameras).
 //
 // Putting the three things in a single response is what lets the registry screen
 // show only streams that really exist, instead of asking the user to type a name
@@ -319,7 +319,7 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 }
 
-// camerasDoViewer is the viewer's /api/cameras: the cameras, without the path on disk
+// viewerCameras is the viewer's /api/cameras: the cameras, without the path on disk
 // and with only the "alert enabled", and whether there is an object detector. The rest
 // only serves the Cameras screen, which belongs to the admin, and go2rtc is not even
 // queried: each opening of the screen would cost two calls to it.

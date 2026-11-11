@@ -164,7 +164,7 @@ func (c *Registry) SetEmail(username, email string) (User, error) {
 // NewLink generates another link for the person. Their password stops
 // working right away, and so does the previous link: only the new one sets the
 // password. Their sessions drop because the cookie key comes from the stored
-// password (see api.chaveDaSessao).
+// password (see api.sessionKey).
 func (c *Registry) NewLink(username string) (Invite, error) {
 	token, link, err := c.newLink()
 	if err != nil {

@@ -101,7 +101,7 @@ prática o desvio não acumula.
 > entre chegada e mídia numa janela de 30-60s, que a rajada não contamina
 > porque a rajada só atrasa. Meio quadro de sobreposição ou de vão é tocado pelo
 > MSE sem perder quadro e sem parar; conferido no Chrome com gravação real. Ver
-> `internal/recorder/relogio.go`.
+> `internal/recorder/clock.go`.
 
 ## Um susto que era comportamento correto
 

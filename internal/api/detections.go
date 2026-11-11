@@ -157,7 +157,7 @@ func (s *Server) handleDetectionDays(w http.ResponseWriter, r *http.Request) {
 // cache, the first call takes ~1.3 s, and the following ones come from the
 // store's memory in ~5 ms. A day without recordings is left out even with a
 // mark - scrolling doesn't reach it either, because it walks the same
-// diasDasCameras.
+// camerasDays.
 func daysWithDetection(cams []*store.Camera, filter objectFilter) ([]string, map[string]int, error) {
 	days := []string{}
 	perDay := map[string]int{}
@@ -298,7 +298,7 @@ func group(into []detection, cam string, marks []store.Event,
 	return into[:start+len(fresh)]
 }
 
-// diasDasCameras is the union of the cameras' days with recordings, in
+// camerasDays is the union of the cameras' days with recordings, in
 // ascending order. It comes from the in-memory summary, without touching the
 // disk.
 func camerasDays(cams []*store.Camera) []string {
@@ -320,7 +320,7 @@ type objectFilter struct {
 	// perCamera holds the areas of each camera: the object stays if it is in
 	// any of them. A camera not in the map goes on without an area filter.
 	perCamera map[string][]areaWithRule
-	// areas are those of the marks' camera: see daCamera.
+	// areas are those of the marks' camera: see cameraOf.
 	areas []areaWithRule
 	// alertsOnly keeps only the detection in which some remaining object
 	// alerted. It is per detection, not per object: the one that didn't alert
@@ -335,7 +335,7 @@ type areaWithRule struct {
 	area area.Area
 }
 
-// daCamera is the filter for one camera's marks: the areas only apply on their
+// cameraOf is the filter for one camera's marks: the areas only apply on their
 // own camera, and the others only go through the family filter.
 func (f objectFilter) cameraOf(cam string) objectFilter {
 	f.areas = f.perCamera[cam]

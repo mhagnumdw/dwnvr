@@ -314,7 +314,7 @@ func readLoad(s string) []float64 {
 	return out
 }
 
-// lerSensores reads the kernel's thermal zones. On an ARM board they have names
+// readSensors reads the kernel's thermal zones. On an ARM board they have names
 // like "cpu_thermal" and "gpu_thermal"; on a PC, "x86_pkg_temp" and "acpitz". A
 // zone that does not respond (some return EINVAL with the sensor off) is left
 // out.

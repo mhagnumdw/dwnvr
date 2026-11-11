@@ -73,7 +73,7 @@ type Server struct {
 	LoginAttemptsPerMinute int `yaml:"loginAttemptsPerMinute"`
 
 	// TrustedProxies are the networks of the proxies whose X-Forwarded-For
-	// says who really arrived (see api.clienteDe). Outside them, the
+	// says who really arrived (see api.clientOf). Outside them, the
 	// connection's address counts, because the client is the one writing the
 	// header. An empty list trusts nobody.
 	TrustedProxies []string `yaml:"trustedProxies"`

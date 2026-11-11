@@ -87,7 +87,7 @@ func collectProcess(f sources, since time.Time) processInfo {
 	return p
 }
 
-// lerTempoDeCPU adds utime and stime from /proc/self/stat, in ms. The second
+// readCPUTime adds utime and stime from /proc/self/stat, in ms. The second
 // field is the program name in parentheses, and it can have spaces and
 // parentheses inside; the field count starts after the LAST ")". From there,
 // utime and stime are the 12th and the 13th.
@@ -110,7 +110,7 @@ func readCPUTime(s string) (int64, bool) {
 	return (utime + stime) * 1000 / ticksPerSecond, true
 }
 
-// lerStatus takes from /proc/self/status the physical memory (VmRSS, in kB) and
+// readStatus takes from /proc/self/status the physical memory (VmRSS, in kB) and
 // the real UID and GID, which are the first of the four numbers on each line.
 func readStatus(b []byte) (rss int64, uid, gid *int) {
 	sc := bufio.NewScanner(bytes.NewReader(b))

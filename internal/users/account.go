@@ -7,7 +7,7 @@ import "context"
 
 // ChangePassword changes the password of someone who already has one,
 // asking for the current one. The person's sessions drop, because the cookie
-// key comes from the stored password (see api.chaveDaSessao): whoever changed
+// key comes from the stored password (see api.sessionKey): whoever changed
 // it gets a new cookie, and the other devices go back to the login screen.
 //
 // It's two password hashes, one to verify the current and another to generate

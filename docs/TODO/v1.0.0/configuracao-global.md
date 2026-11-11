@@ -13,7 +13,7 @@ editar arquivo e sem reiniciar.
 
 - **O critério das quatro perguntas**, que vale para qualquer campo: errar o
   valor derruba a gravação ou obriga a mexer no compose junto? É escolha de
-  uso, que se muda olhando o efeito? É número medido de um `parametros.go`?
+  uso, que se muda olhando o efeito? É número medido de um `params.go`?
   Vale sem reiniciar?
 - **Entram** o `storage.minFreeMB`, o `defaults.maxDays`, o `defaults.detect`,
   o `defaults.detectSensibilidade` e o `DETECT_THREADS` do `dwnvr-detect`.

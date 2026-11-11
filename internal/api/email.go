@@ -31,7 +31,7 @@ func (s *Server) noEmail(w http.ResponseWriter) bool {
 	return true
 }
 
-// tokenDoLink extracts the token from the invite link, the way the screen
+// linkToken extracts the token from the invite link, the way the screen
 // builds it: http(s)://address/path#convite?token=…. Any other form is
 // rejected: the email only carries an invite link.
 func linkToken(link string) (string, bool) {

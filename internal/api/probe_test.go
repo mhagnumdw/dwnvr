@@ -13,7 +13,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 )
 
-// moovComAudio is the minimum ParseMoov accepts: an ftyp, a video track and an
+// moovWithAudio is the minimum ParseMoov accepts: an ftyp, a video track and an
 // audio track. It is what the probe reads to know the connection delivered
 // media.
 func moovWithAudio() []byte {

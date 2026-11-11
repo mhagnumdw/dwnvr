@@ -35,7 +35,7 @@ type running struct {
 // themselves: two in parallel on the same camera start two recorders, and one
 // keeps recording outside the map. Whoever calls them from different
 // goroutines queues them outside - the API does that with
-// Server.cadastro.
+// Server.registry.
 type Manager struct {
 	cfg    *config.Config
 	client *go2rtc.Client
