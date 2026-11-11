@@ -139,7 +139,7 @@ repos:
   # exposta. As regras estão no .github/zizmor.yml. No clone roda offline; a
   # CI lhe passa um token, que liga os audits que consultam o GitHub.
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: v1.31.1
+    rev: v1.32.0
     hooks:
       - id: zizmor
         priority: conferir
