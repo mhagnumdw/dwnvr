@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/limite"
+	"github.com/mhagnumdw/dwnvr/internal/ratelimit"
 )
 
 // Central recebe os alertas de todas as câmeras, conta, põe no log e os
@@ -30,7 +30,7 @@ type Central struct {
 	// espera leva o alerta à goroutine de envio, e teto decide se ele entra
 	// nela. Nil sem meio.
 	espera chan Alerta
-	teto   limite.Limitador
+	teto   ratelimit.Limiter
 
 	total atomic.Int64
 
@@ -82,7 +82,7 @@ func NovaCentral(meios []Notificador, log *slog.Logger) *Central {
 	c := &Central{log: log, meios: meios, agora: time.Now}
 	if len(meios) > 0 {
 		c.espera = make(chan Alerta, AlertasNaEspera)
-		c.teto = limite.NovoGCRAACada(time.Hour/AlertasPorHora, RajadaDeAlertas)
+		c.teto = ratelimit.NewGCRAEvery(time.Hour/AlertasPorHora, RajadaDeAlertas)
 		c.estados = make([]EstadoDoMeio, len(meios))
 		for i, m := range meios {
 			c.estados[i].Nome = m.Nome()
@@ -105,7 +105,7 @@ func (c *Central) Recebe(a Alerta) {
 	if c.espera == nil {
 		return
 	}
-	if !c.teto.Permite(chaveDoTeto).Permitido {
+	if !c.teto.Allow(chaveDoTeto).Allowed {
 		c.descarta(acimaDoTeto)
 		return
 	}

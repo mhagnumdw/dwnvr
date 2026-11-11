@@ -291,13 +291,13 @@ func (s *Server) limitarLogin(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 	cliente := clienteDe(r, s.proxies)
-	res := s.limiteLogin.Permite(cliente.String())
-	if res.Permitido {
+	res := s.limiteLogin.Allow(cliente.String())
+	if res.Allowed {
 		return true
 	}
 	// Arredondado para cima: com 0 s a tela tentaria de novo cedo demais.
-	seg := int((res.Espera + time.Second - 1) / time.Second)
-	if res.PrimeiraRecusa {
+	seg := int((res.RetryAfter + time.Second - 1) / time.Second)
+	if res.FirstDenial {
 		s.log.Warn("limite de tentativas de login atingido", "cliente", cliente, "espera_s", seg,
 			"de", r.RemoteAddr, encaminhado(r))
 	}

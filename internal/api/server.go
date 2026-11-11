@@ -18,7 +18,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/email"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
-	"github.com/mhagnumdw/dwnvr/internal/limite"
+	"github.com/mhagnumdw/dwnvr/internal/ratelimit"
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 	"github.com/mhagnumdw/dwnvr/internal/retention"
 	"github.com/mhagnumdw/dwnvr/internal/store"
@@ -69,7 +69,7 @@ type Server struct {
 	cadastro sync.Mutex
 	// limiteLogin conta as tentativas de login de cada endereço. É nil com o
 	// server.loginAttemptsPerMinute em zero: aí o login não paga nada por ele.
-	limiteLogin limite.Limitador
+	limiteLogin ratelimit.Limiter
 	// proxies são as redes do server.trustedProxies, já lidas (ver clienteDe).
 	proxies []netip.Prefix
 }
@@ -90,12 +90,12 @@ func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 // limiteDoLogin monta o limite do login a partir da config, já conferida no
 // boot (ver config.Load): uma lista de proxies inválida ali já voltou ao
 // padrão.
-func limiteDoLogin(c config.Server) (limite.Limitador, []netip.Prefix) {
+func limiteDoLogin(c config.Server) (ratelimit.Limiter, []netip.Prefix) {
 	proxies, _ := config.Prefixos(c.TrustedProxies)
 	if c.LoginAttemptsPerMinute <= 0 {
 		return nil, proxies
 	}
-	return limite.NovoGCRA(c.LoginAttemptsPerMinute, limite.RajadaDoLogin), proxies
+	return ratelimit.NewGCRA(c.LoginAttemptsPerMinute, ratelimit.LoginBurst), proxies
 }
 
 // knownCamera evita que um ID arbitrário vindo da URL vire caminho no disco.

@@ -68,7 +68,7 @@ type Server struct {
 	Password string `yaml:"password"`
 
 	// LoginAttemptsPerMinute é o ritmo das tentativas de login de cada
-	// endereço, depois de uma rajada de limite.RajadaDoLogin seguidas. Zero
+	// endereço, depois de uma rajada de ratelimit.LoginBurst seguidas. Zero
 	// desliga o limite.
 	LoginAttemptsPerMinute int `yaml:"loginAttemptsPerMinute"`
 

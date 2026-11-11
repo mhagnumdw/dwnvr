@@ -17,7 +17,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
-	"github.com/mhagnumdw/dwnvr/internal/limite"
+	"github.com/mhagnumdw/dwnvr/internal/ratelimit"
 	"github.com/mhagnumdw/dwnvr/internal/usuarios"
 )
 
@@ -574,7 +574,7 @@ func TestLoginPassouDoLimite(t *testing.T) {
 		return rec
 	}
 
-	for i := range limite.RajadaDoLogin {
+	for i := range ratelimit.LoginBurst {
 		if rec := entrar("errada", "100.64.0.7"); rec.Code != http.StatusUnauthorized {
 			t.Fatalf("tentativa %d: status %d, esperava 401", i+1, rec.Code)
 		}
@@ -588,7 +588,7 @@ func TestLoginPassouDoLimite(t *testing.T) {
 		}
 		// O relógio aqui é o de verdade, e as contas de senha da rajada o
 		// fazem andar (uns 6 s com -race): a espera exata é do teste do
-		// internal/limite, com relógio falso. Aqui basta estar no intervalo.
+		// internal/ratelimit, com relógio falso. Aqui basta estar no intervalo.
 		if got, err := strconv.Atoi(rec.Header().Get("Retry-After")); err != nil || got < 1 || got > 30 {
 			t.Errorf("Retry-After %q, esperava de 1 a 30", rec.Header().Get("Retry-After"))
 		}

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/limite"
+	"github.com/mhagnumdw/dwnvr/internal/ratelimit"
 )
 
 func mudo() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -108,10 +108,10 @@ func TestDesligaComAlertasNaEspera(t *testing.T) {
 	}
 }
 
-// tetoDeTeste é um limite.Limitador que deixa passar tudo, ou nada.
+// tetoDeTeste é um ratelimit.Limiter que deixa passar tudo, ou nada.
 type tetoDeTeste struct{ passa bool }
 
-func (t tetoDeTeste) Permite(string) limite.Resultado { return limite.Resultado{Permitido: t.passa} }
+func (t tetoDeTeste) Allow(string) ratelimit.Result { return ratelimit.Result{Allowed: t.passa} }
 
 // TestTeto: o teto de verdade deixa passar a rajada inteira, e o seguinte é
 // descartado e contado, sem ocupar lugar na espera.
