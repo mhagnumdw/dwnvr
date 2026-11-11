@@ -1,18 +1,20 @@
-# TODO: os dois alertas do CodeQL no UID e no GID do Diagnóstico
+# TODO: the two CodeQL alerts on the Diagnostics UID and GID
 
-O CodeQL acusa `go/incorrect-integer-conversion` (severidade alta) em
-`internal/api/diagnostics_process.go`, no `case "Uid"` e no `case "Gid"`: o
-número sai do `strconv.ParseInt(..., 64)` e vira `int` sem conferir o teto.
+CodeQL flags `go/incorrect-integer-conversion` (high severity) in
+`internal/api/diagnostics_process.go`, in `case "Uid"` and `case "Gid"`: the
+number comes from `strconv.ParseInt(..., 64)` and becomes an `int` without an
+upper bound check.
 
-- Já existia antes da conversão para en-US: são os alertas #19 e #20, abertos
-  na `main` contra o `diagnostico_processo.go`. No PR #86 o arquivo só mudou de
-  nome, e o CodeQL reabriu os mesmos dois como #84 e #85.
-- Risco prático baixo: o valor vem do `/proc/self/status` do próprio processo,
-  e nas plataformas da imagem (amd64 e arm64) `int` tem 64 bits. O alerta é
-  real em plataforma de 32 bits.
-- O conserto é pequeno: ler o UID e o GID com `strconv.ParseUint(..., 10, 32)`
-  (ou conferir o teto antes do `int(n)`), sem mudar o que o Diagnóstico mostra.
+- It predates the en-US conversion: alerts #19 and #20 are open on `main`
+  against `diagnostico_processo.go`. In PR #86 the file was only renamed, and
+  CodeQL reopened the same two as #84 and #85.
+- Low practical risk: the value comes from the process's own
+  `/proc/self/status`, and on the image platforms (amd64 and arm64) `int` is
+  64 bits. The alert is real on a 32-bit platform.
+- The fix is small: read the UID and GID with `strconv.ParseUint(..., 10, 32)`
+  (or check the bound before `int(n)`), without changing what Diagnostics
+  shows.
 
-Ficou fora do PR #86 porque aquele PR promete "sem mudança de comportamento".
-Combinado em 11/11/2026: resolver depois, num PR próprio, e fechar os quatro
-alertas (#19, #20, #84 e #85).
+It stayed out of PR #86 because that PR promises no behavior change. Agreed on
+11/11/2026: fix it later, in a PR of its own, and close the four alerts
+(#19, #20, #84 and #85).
