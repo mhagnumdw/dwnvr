@@ -1,4 +1,5 @@
-// Package api expõe a interface HTTP do dwnvr: gravações, live e diagnóstico.
+// Package api exposes the dwnvr HTTP interface: recordings, live and
+// diagnostics.
 package api
 
 import (
@@ -31,51 +32,53 @@ type Server struct {
 	client *go2rtc.Client
 	mgr    *recorder.Manager
 	log    *slog.Logger
-	// sessionSecret é o conteúdo do .session-secret, de onde sai a chave que
-	// assina os cookies de cada pessoa (ver chaveDaSessao).
+	// sessionSecret is the content of .session-secret, from which comes the key
+	// that signs each person's cookies (see sessionKey).
 	sessionSecret []byte
-	// usuarios são as pessoas do usuarios.json. O dono vem do cfg.
+	// users are the people in usuarios.json. The owner comes from cfg.
 	users *users.Registry
-	// acessos é o último acesso de cada pessoa, que a sessao anota.
+	// accesses is each person's last access, which session records.
 	accesses *users.AccessLog
-	// envio manda os e-mails. É nil sem a seção smtp ligada: aí as rotas de
-	// e-mail respondem 409, e a tela esconde o que é de e-mail.
+	// sending sends the emails. It is nil without the smtp section enabled:
+	// then the email routes answer 409, and the screen hides what is about
+	// email.
 	sending email.Sender
-	// abertas são as conexões que não voltam a apresentar o cookie (o ao vivo
-	// e o aviso de sessão), para derrubar quem é removido. Ver drop.go.
+	// open are the connections that do not present the cookie again (live and
+	// the session warning), to drop whoever is removed. See drop.go.
 	open connections
-	// ret diz desde quando o disco está abaixo do mínimo. Pode ser nil nos
-	// testes, e aí o aviso sai sem o "desde".
+	// ret says since when the disk has been below the minimum. It can be nil in
+	// tests, and then the warning comes out without the "since".
 	ret *retention.Manager
-	// Quando este processo subiu. É a referência do uptime da aplicação, que a
-	// tela de diagnóstico compara com o da máquina para distinguir "só o dwnvr
-	// reiniciou" de "a máquina reiniciou".
+	// When this process started. It is the reference for the application
+	// uptime, which the diagnostics screen compares with the machine's to tell
+	// "only dwnvr restarted" from "the machine restarted".
 	startedAt time.Time
-	// Resultado das sondas de áudio, para não reabrir conexão com a câmera a
-	// cada vez que o formulário de cadastro é aberto. Ver probe.go.
+	// Result of the audio probes, so as not to reopen a connection to the
+	// camera every time the registry form is opened. See probe.go.
 	probes probeCache
-	// Um teste de escrita no storage em andamento, e o erro do último que
-	// falhou. Ver diagnostics_server.go. Só a goroutine que ganhou o
-	// escrevendo toca o erroEscrita.
+	// A storage write test in progress, and the error of the last one that
+	// failed. See diagnostics_server.go. Only the goroutine that won writing
+	// touches writeErr.
 	writing  atomic.Bool
 	writeErr string
-	// cadastro enfileira quem mexe no ciclo de vida das câmeras: salvar,
-	// remover e apagar gravações. Cada um lê a lista, grava o cameras.json e
-	// para ou sobe recorder, e dois ao mesmo tempo - duas abas, dois aparelhos -
-	// perdiam a alteração um do outro no arquivo e deixavam um recorder órfão
-	// gravando fora do mapa do Manager. A corrida é entre goroutines deste
-	// processo, o único que escreve ali: por isso um mutex, e não um arquivo de
-	// lock, que só teria serventia entre processos.
+	// registry queues whoever touches the camera lifecycle: save, remove and
+	// delete recordings. Each one reads the list, writes cameras.json and stops
+	// or starts a recorder, and two at once - two tabs, two devices - lost each
+	// other's change in the file and left an orphan recorder recording outside
+	// the Manager's map. The race is between goroutines of this process, the
+	// only one that writes there: hence a mutex, and not a lock file, which
+	// would only be useful between processes.
 	registry sync.Mutex
-	// limiteLogin conta as tentativas de login de cada endereço. É nil com o
-	// server.loginAttemptsPerMinute em zero: aí o login não paga nada por ele.
+	// loginLimit counts the login attempts of each address. It is nil with
+	// server.loginAttemptsPerMinute at zero: then login pays nothing for it.
 	loginLimit ratelimit.Limiter
-	// proxies são as redes do server.trustedProxies, já lidas (ver clienteDe).
+	// proxies are the networks of server.trustedProxies, already parsed (see
+	// clientOf).
 	proxies []netip.Prefix
 }
 
-// New monta o servidor HTTP com as peças que o main já abriu, e o limite do
-// login a partir da config.
+// New builds the HTTP server with the pieces main already opened, and the login
+// limit from the config.
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 	mgr *recorder.Manager, ret *retention.Manager, cad *users.Registry,
 	accesses *users.AccessLog, sending email.Sender, secret []byte, log *slog.Logger) *Server {
@@ -87,9 +90,9 @@ func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 	return s
 }
 
-// limiteDoLogin monta o limite do login a partir da config, já conferida no
-// boot (ver config.Load): uma lista de proxies inválida ali já voltou ao
-// padrão.
+// loginLimiter builds the login limit from the config, already checked at boot
+// (see config.Load): an invalid proxy list there has already fallen back to the
+// default.
 func loginLimiter(c config.Server) (ratelimit.Limiter, []netip.Prefix) {
 	proxies, _ := config.Prefixes(c.TrustedProxies)
 	if c.LoginAttemptsPerMinute <= 0 {
@@ -98,9 +101,9 @@ func loginLimiter(c config.Server) (ratelimit.Limiter, []netip.Prefix) {
 	return ratelimit.NewGCRA(c.LoginAttemptsPerMinute, ratelimit.LoginBurst), proxies
 }
 
-// knownCamera evita que um ID arbitrário vindo da URL vire caminho no disco.
-// Só câmeras cadastradas são aceitas, o que fecha travessia de diretório na
-// origem em vez de tentar higienizar o caminho depois.
+// knownCamera keeps an arbitrary ID coming from the URL from becoming a path on
+// disk. Only registered cameras are accepted, which closes directory traversal
+// at the source instead of trying to sanitize the path later.
 func (s *Server) knownCamera(id string) bool {
 	for _, c := range s.mgr.Cameras() {
 		if c.ID == id {
@@ -110,9 +113,9 @@ func (s *Server) knownCamera(id string) bool {
 	return false
 }
 
-// registeredIDs é o conjunto de câmeras cadastradas, na forma que a varredura de
-// órfãos precisa: tudo que está no storage e não está aqui é material de câmera
-// que já foi removida.
+// registeredIDs is the set of registered cameras, in the form the orphan scan
+// needs: everything that is in storage and not here is material from a camera
+// that was already removed.
 func (s *Server) registeredIDs() map[string]bool {
 	ids := map[string]bool{}
 	for _, c := range s.mgr.Cameras() {
@@ -124,18 +127,18 @@ func (s *Server) registeredIDs() map[string]bool {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
-	// Sessão
+	// Session
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("POST /api/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/session", s.handleSession)
 	mux.HandleFunc("GET /api/session/ws", s.requireAuth(s.handleSessionWarning))
 
-	// Link de convite: público, porque quem o abre ainda não tem senha. O
-	// token vem no corpo, e só ele dá acesso.
+	// Invite link: public, because whoever opens it has no password yet. The
+	// token comes in the body, and it alone gives access.
 	mux.HandleFunc("POST /api/convite/conferir", s.handleCheckInvite)
 	mux.HandleFunc("POST /api/convite", s.handleInvite)
 
-	// Usuários: a tela é do admin.
+	// Users: the screen belongs to the admin.
 	mux.HandleFunc("GET /api/usuarios", s.requireAdmin(s.handleUsers))
 	mux.HandleFunc("POST /api/usuarios", s.requireAdmin(s.handleCreateUser))
 	mux.HandleFunc("POST /api/usuarios/conferir", s.requireAdmin(s.handleCheckNew))
@@ -146,7 +149,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/usuarios", s.requireAdmin(s.handleRemoveUser))
 	mux.HandleFunc("DELETE /api/usuarios/avatar", s.requireAdmin(s.handleRemoveAvatarOf))
 
-	// Minha conta: cada pessoa muda o que é dela, de qualquer papel.
+	// My account: each person changes what is theirs, in any role.
 	mux.HandleFunc("GET /api/conta", s.requireAuth(s.handleAccount))
 	mux.HandleFunc("POST /api/conta/senha", s.requireAuth(s.handleChangePassword))
 	mux.HandleFunc("POST /api/conta/nome", s.requireAuth(s.handleChangeName))
@@ -154,13 +157,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/conta/avatar", s.requireAuth(s.handleRemoveAvatar))
 	mux.HandleFunc("GET /api/avatar", s.requireAuth(s.handleAvatar))
 
-	// Versão fica fora da autenticação pelo mesmo motivo da tela de login:
-	// precisa ser visível antes de entrar. Além disso é a sonda de deploy -
-	// um curl responde se o dwnvr subiu com o código novo, sem cookie.
+	// Version stays outside authentication for the same reason as the login
+	// screen: it must be visible before signing in. It is also the deploy probe
+	// - a curl answers whether dwnvr came up with the new code, without a
+	// cookie.
 	mux.HandleFunc("GET /api/version", s.handleVersion)
 
-	// Câmeras e diagnóstico. A lista de câmeras é de todos, e vem enxuta para
-	// o viewer; o cadastro e o diagnóstico do servidor, só do admin.
+	// Cameras and diagnostics. The camera list is for everyone, and comes
+	// trimmed for the viewer; the registry and the server diagnostics, only for
+	// the admin.
 	mux.HandleFunc("GET /api/cameras", s.requireAuth(s.handleCameras))
 	mux.HandleFunc("POST /api/cameras", s.requireAdmin(s.handleSaveCamera))
 	mux.HandleFunc("DELETE /api/cameras", s.requireAdmin(s.handleDeleteCamera))
@@ -172,7 +177,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/email/teste", s.requireAdmin(s.handleEmailTest))
 	mux.HandleFunc("DELETE /api/rec", s.requireAdmin(s.handleDeleteRecordings))
 
-	// Gravações
+	// Recordings
 	mux.HandleFunc("GET /api/rec/days", s.requireAuth(s.handleDays))
 	mux.HandleFunc("GET /api/rec/timeline", s.requireAuth(s.handleTimeline))
 	mux.HandleFunc("GET /api/rec/events", s.requireAuth(s.handleEvents))
@@ -182,42 +187,43 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/rec/playlist.m3u8", s.requireAuth(s.handlePlaylist))
 	mux.HandleFunc("GET /api/rec/export", s.requireAuth(s.handleExport))
 
-	// Detecções de objeto, de todas as câmeras juntas: a tela de Detecções.
+	// Object detections, from all cameras together: the Detections screen.
 	mux.HandleFunc("GET /api/deteccoes", s.requireAuth(s.handleDetections))
 	mux.HandleFunc("GET /api/deteccoes/quadro", s.requireAuth(s.handleDetectionFrame))
 	mux.HandleFunc("GET /api/deteccoes/dias", s.requireAuth(s.handleDetectionDays))
 
-	// Live: sinalização e mídia ficam com o go2rtc; o dwnvr só faz proxy do
-	// websocket do player, e o resto da API do go2rtc fica de fora.
+	// Live: signaling and media stay with go2rtc; dwnvr only proxies the
+	// player's websocket, and the rest of the go2rtc API stays out.
 	mux.HandleFunc("GET /api/live/ws", s.requireAuth(s.handleLive(s.liveProxy())))
 
-	// A interface é servida SEM autenticação, de propósito: são só HTML, CSS e
-	// JS, sem nenhum dado das câmeras. Protegê-la impediria o navegador de
-	// carregar a própria tela de login. Tudo que é dado está atrás da API.
+	// The interface is served WITHOUT authentication, on purpose: it is only
+	// HTML, CSS and JS, with no camera data at all. Protecting it would keep
+	// the browser from loading the login screen itself. Everything that is data
+	// is behind the API.
 	mux.Handle("/", s.webHandler())
 
 	return logRequests(s.log, mux)
 }
 
-// cameraInfo é a câmera como a tela a vê: o cadastro já com os defaults
-// aplicados, mais o diretório onde as gravações dela ficam.
+// cameraInfo is the camera as the screen sees it: the registry entry with the
+// defaults already applied, plus the directory where its recordings live.
 //
-// O caminho não entra em config.Camera porque não é cadastro - é consequência
-// do storage.root do servidor, e um campo lá acabaria gravado no cameras.json
-// como se fosse configurável.
+// The path does not go into config.Camera because it is not registry - it is a
+// consequence of the server's storage.root, and a field there would end up
+// written to cameras.json as if it were configurable.
 type cameraInfo struct {
 	config.Camera
 	Dir string `json:"dir"`
 }
 
-// handleCameras lista as câmeras cadastradas, o que o go2rtc oferece e o que
-// sobrou em disco de câmeras já removidas. O viewer recebe só as
-// câmeras e o detector (ver camerasDoViewer).
+// handleCameras lists the registered cameras, what go2rtc offers and what is
+// left on disk from cameras already removed. The viewer gets only the cameras
+// and the object detector (see camerasDoViewer).
 //
-// Juntar as três coisas numa resposta só é o que permite à tela de cadastro
-// mostrar apenas streams que existem de verdade, em vez de pedir que o usuário
-// digite um nome e descubra o erro depois - e é onde as gravações órfãs voltam a
-// ser visíveis, já que nenhum outro endpoint enxerga câmera sem cadastro.
+// Putting the three things in a single response is what lets the registry screen
+// show only streams that really exist, instead of asking the user to type a name
+// and find the error later - and it is where orphan recordings become visible
+// again, since no other endpoint sees a camera without a registry entry.
 func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	if !personOf(r).admin() {
 		s.camerasDoViewer(w)
@@ -239,33 +245,35 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		Transcoding bool     `json:"transcoding"`
 	}
 
-	// "padrao" é uma câmera vazia com os defaults aplicados: o formulário de
-	// câmera nova parte dela, para seguir o defaults do dwnvr.yaml. "faixas"
-	// dá o min/max dos inputs, para a tela cobrar a mesma régua da API.
+	// "padrao" is an empty camera with the defaults applied: the new camera
+	// form starts from it, to follow the defaults of dwnvr.yaml. "faixas" gives
+	// the min/max of the inputs, so the screen enforces the same rule as the
+	// API.
 	resp := map[string]any{"cameras": cams, "padrao": s.cfg.Resolve(config.Camera{}),
 		"faixas": config.CameraRanges}
 
-	// A interface só mostra a aba Detecções com o detector de objetos
-	// configurado: sem ele não há detecção nenhuma para listar. Vai aqui, e
-	// não no /api/health, porque esta é a resposta que a interface busca ao
-	// entrar.
+	// The interface only shows the Detections tab with the object detector
+	// configured: without it there is no detection at all to list. It goes
+	// here, and not in /api/health, because this is the response the interface
+	// fetches on entering.
 	resp["detector"] = s.mgr.Detector() != nil
 
-	// A aba Alerta diz para onde o alerta vai, e só o admin a vê.
+	// The Alert tab says where the alert goes, and only the admin sees it.
 	resp["alertEmail"] = s.emailAlert()
 
 	if orphans, err := s.store.Orphans(registered); err != nil {
-		// Não impede a listagem: no caso comum não há órfão nenhum, e uma falha
-		// ao varrer o storage não deve derrubar a tela de câmeras inteira.
-		s.log.Error("listando gravações órfãs", "erro", err)
+		// It does not block the listing: in the common case there is no orphan
+		// at all, and a failure scanning the storage must not bring down the
+		// whole cameras screen.
+		s.log.Error("listing orphan recordings", "err", err)
 	} else {
 		resp["orphans"] = orphans
 	}
 
 	streams, err := s.client.Streams(r.Context())
 	if err != nil {
-		// O go2rtc estar fora do ar não pode impedir a listagem das câmeras já
-		// cadastradas - só a descoberta de novas.
+		// go2rtc being down cannot block listing the cameras already registered
+		// - only discovering new ones.
 		resp["go2rtcError"] = err.Error()
 		writeJSON(w, resp)
 		return
@@ -285,42 +293,44 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		}
 		available = append(available, info)
 	}
-	// O go2rtc devolve os streams num map, e o Go não garante ordem ao
-	// percorrê-lo: sem isto a lista mudava de ordem a cada recarga da tela.
+	// go2rtc returns the streams in a map, and Go does not guarantee order when
+	// iterating it: without this the list changed order on every screen reload.
 	slices.SortFunc(available, func(a, b streamInfo) int {
 		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
 	})
 	resp["streams"] = available
 
-	// O go2rtc só lê o go2rtc.yaml ao subir: câmera acrescentada depois não
-	// aparece em streams, e nada na tela explicava por quê. A divergência entre
-	// o arquivo e o que ele serve vira o aviso de reiniciar.
+	// go2rtc only reads go2rtc.yaml on startup: a camera added later does not
+	// show up in streams, and nothing on the screen explained why. The
+	// difference between the file and what it serves becomes the restart
+	// warning.
 	//
-	// Falhar aqui não é erro de ninguém - um go2rtc externo pode não expor o
-	// /api/config -, e a tela segue sem o aviso. Debug, e não Warn, porque isto
-	// roda a cada abertura da tela e encheria os avisos do Diagnóstico.
+	// Failing here is nobody's error - an external go2rtc may not expose
+	// /api/config -, and the screen goes on without the warning. Debug, and not
+	// Warn, because this runs every time the screen opens and would flood the
+	// Diagnostics warnings.
 	if file, err := s.client.ConfigFile(r.Context()); err != nil {
-		s.log.Debug("lendo o go2rtc.yaml pela API do go2rtc", "erro", err)
+		s.log.Debug("reading go2rtc.yaml through the go2rtc API", "err", err)
 	} else if d, err := go2rtc.FindDrift(file, streams); err != nil {
-		s.log.Debug("comparando o go2rtc.yaml com os streams", "erro", err)
+		s.log.Debug("comparing go2rtc.yaml with the streams", "err", err)
 	} else if !d.Empty() {
 		resp["go2rtcConfigFile"] = d
 	}
 	writeJSON(w, resp)
 }
 
-// camerasDoViewer é o /api/cameras do viewer: as câmeras, sem o caminho
-// no disco e só com o "alerta ligado", e se há detector de objetos. O resto só serve à
-// tela Câmeras, que é do admin, e o go2rtc nem é consultado: cada abertura da
-// tela custaria duas chamadas a ele.
+// camerasDoViewer is the viewer's /api/cameras: the cameras, without the path on disk
+// and with only the "alert enabled", and whether there is an object detector. The rest
+// only serves the Cameras screen, which belongs to the admin, and go2rtc is not even
+// queried: each opening of the screen would cost two calls to it.
 func (s *Server) camerasDoViewer(w http.ResponseWriter) {
 	raw := s.mgr.Cameras()
 	cams := make([]config.Camera, len(raw))
 	for i, c := range raw {
 		cams[i] = s.cfg.Resolve(c)
-		// Do alerta vai só o ligado, que faz Detecções mostrar o "só alertas".
-		// As famílias e as áreas dele ficam com o admin: o que alertou vem
-		// marcado em cada detecção.
+		// Of the alert only the enabled flag goes, which makes Detections show
+		// the "alerts only". Its families and areas stay with the admin: what
+		// alerted comes marked in each detection.
 		if a := cams[i].Alert; a != nil && a.Enabled {
 			cams[i].Alert = &config.CameraAlert{Enabled: true}
 		} else {
@@ -330,32 +340,32 @@ func (s *Server) camerasDoViewer(w http.ResponseWriter) {
 	writeJSON(w, map[string]any{"cameras": cams, "detector": s.mgr.Detector() != nil})
 }
 
-// handleReiniciarGo2rtc faz o go2rtc reler o go2rtc.yaml. Todas as câmeras
-// param por alguns segundos; quem avisa disso antes é a tela.
+// handleRestartGo2rtc makes go2rtc reread go2rtc.yaml. All cameras stop for a
+// few seconds; the screen is what warns about it beforehand.
 func (s *Server) handleRestartGo2rtc(w http.ResponseWriter, r *http.Request) {
 	if err := s.client.Restart(r.Context()); err != nil {
-		s.log.Error("reiniciando o go2rtc", "erro", err)
+		s.log.Error("restarting go2rtc", "err", err)
 		writeError(w, http.StatusBadGateway, "o go2rtc não aceitou reiniciar: "+err.Error())
 		return
 	}
-	s.log.Info("go2rtc reiniciado pela interface")
+	s.log.Info("go2rtc restarted from the interface")
 	writeJSON(w, map[string]bool{"reiniciado": true})
 }
 
-// handleZerarReconexoes recomeça a contagem de reconexões de todas as câmeras.
-// Não derruba conexão nenhuma: só os números da tela voltam a zero.
+// handleResetReconnects restarts the reconnect count of all cameras. It drops
+// no connection at all: only the numbers on the screen go back to zero.
 func (s *Server) handleResetReconnects(w http.ResponseWriter, r *http.Request) {
 	s.mgr.ResetReconnects()
-	s.log.Info("reconexões zeradas pela interface")
+	s.log.Info("reconnects reset from the interface")
 	writeJSON(w, map[string]bool{"zeradas": true})
 }
 
-// handleVersion diz qual código está rodando.
+// handleVersion says which code is running.
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, buildinfo.Get())
 }
 
-// handleHealth alimenta a tela de diagnóstico.
+// handleHealth feeds the diagnostics screen.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"cameras": s.mgr.Status()}
 
@@ -372,18 +382,19 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 			"minFreeMB":  s.cfg.Storage.MinFreeMB,
 			"belowMin":   free < s.cfg.Storage.MinFreeMB<<20,
 		}
-		// As órfãs vão à parte, e não somadas ao dwnvrBytes: são do dwnvr, mas
-		// nenhum limite da retenção as alcança, e é isso que a tela precisa
-		// dizer. Fora da conta, elas apareceriam como espaço de outros
-		// programas. Sem órfã, a varredura é um ReadDir do storage.
+		// Orphans go separately, and not added to dwnvrBytes: they belong to
+		// dwnvr, but no retention limit reaches them, and that is what the
+		// screen needs to say. Left out of the count, they would show up as
+		// space of other programs. With no orphan, the scan is a ReadDir of the
+		// storage.
 		if orphans, err := s.store.OrphanBytes(s.registeredIDs()); err != nil {
-			s.log.Error("listando gravações órfãs", "erro", err)
+			s.log.Error("listing orphan recordings", "err", err)
 		} else {
 			disk["orphanBytes"] = orphans
 		}
-		// O "desde" vem da retenção, que mede o disco a cada passada. Logo
-		// depois de o disco cruzar o mínimo ela ainda não passou, e o aviso sai
-		// sem ele por até um minuto.
+		// The "since" comes from retention, which measures the disk on every
+		// pass. Right after the disk crosses the minimum it has not passed yet,
+		// and the warning comes out without it for up to a minute.
 		if s.ret != nil {
 			if since := s.ret.BelowMinimumSince(); !since.IsZero() {
 				disk["belowMinSince"] = since
@@ -392,29 +403,30 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		resp["disk"] = disk
 	}
 
-	// Segundos, e não um instante ISO: o relógio do navegador e o do servidor
-	// não são o mesmo, e uma diferença de fuso ou de NTP viraria um "no ar há 3
-	// horas" falso. Duração já calculada aqui não tem como ser mal interpretada
-	// lá.
+	// Seconds, and not an ISO instant: the browser clock and the server clock
+	// are not the same, and a time zone or NTP difference would become a false
+	// "up for 3 hours". A duration already computed here cannot be misread
+	// there.
 	up := map[string]any{"appSeconds": int64(time.Since(s.startedAt).Seconds())}
 	if d, ok := machineUptime(); ok {
 		up["machineSeconds"] = int64(d.Seconds())
 	}
 	resp["uptime"] = up
 
-	// A fila do detector é uma só para todas as câmeras, então vai fora da
-	// lista delas. Some sem detector configurado.
+	// The object detector queue is a single one for all cameras, so it goes
+	// outside their list. It disappears without an object detector configured.
 	if d := s.mgr.Detector(); d != nil {
 		resp["detector"] = d
 	}
 
-	// Do alerta vai o total desde que o dwnvr subiu, que some enquanto nenhuma
-	// câmera ligou o alerta: o alerta em si fica gravado na detecção, e se vê
-	// em Detecções. Com um episódio de descarte valendo, os alertas que não
-	// saíram pelos meios, para o Aviso amarelo; com um meio falhando, o desde
-	// quando e o erro, para o vermelho. E os avisos da seção alerts do
-	// dwnvr.yaml, para o card Avisos, que valem mesmo sem câmera com alerta:
-	// são da configuração.
+	// Of the alert goes the total since dwnvr started, which disappears while
+	// no camera has enabled the alert: the alert itself is stored in the
+	// detection, and is seen in Detections. With a discard episode in effect,
+	// the alerts that did not go out through the notifiers, for the yellow
+	// Warning; with a notifier failing, the since when and the error, for the
+	// red one. And the warnings of the alerts section of dwnvr.yaml, for the
+	// Warnings card, which hold even without a camera with an alert: they are
+	// about the configuration.
 	alerts := map[string]any{}
 	if c := s.mgr.Alerts(); c != nil {
 		alerts["total"] = c.Total()
@@ -444,13 +456,14 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		resp["alerts"] = alerts
 	}
 
-	// O relógio, ao contrário dos uptimes acima, vai como instante mesmo - e é
-	// o único campo desta resposta que vai. A tela quer justamente a hora de
-	// LÁ: quem administra o dwnvr olha isto para saber se o servidor está com
-	// o fuso ou o NTP errado, e uma duração não responderia isso. O offset já
-	// vem embutido no texto e a interface o mostra sem reconverter; converter
-	// para o fuso do navegador daria a hora que o usuário já tem no relógio
-	// dele, que não é a pergunta.
+	// The clock, unlike the uptimes above, does go as an instant - and it is
+	// the only field of this response that does. The screen wants precisely the
+	// time OVER THERE: whoever administers dwnvr looks at this to know whether
+	// the server has the wrong time zone or NTP, and a duration would not
+	// answer that. The offset is already embedded in the text and the interface
+	// shows it without reconverting; converting to the browser's time zone
+	// would give the time the user already has on their own clock, which is not
+	// the question.
 	now := time.Now()
 	sigla, offset := now.Zone()
 	clock := map[string]any{
@@ -463,28 +476,30 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	resp["clock"] = clock
 
-	// O tamanho da janela vai junto para a tela escrever "nas últimas 8h" sem
-	// repetir o número.
+	// The window size goes along so the screen writes "in the last 8h" without
+	// repeating the number.
 	resp["reconnectsWindowHours"] = recorder.ReconnectWindow.Hours()
 
-	// Vem aqui, e não só no /api/cameras, porque este é o endpoint que a tela
-	// de diagnóstico relê a cada poucos segundos: o go2rtc caindo com ela
-	// aberta precisa aparecer, e sumir quando ele volta.
+	// It comes here, and not only in /api/cameras, because this is the endpoint
+	// the diagnostics screen rereads every few seconds: go2rtc going down with
+	// it open has to show up, and go away when it comes back.
 	if s.client != nil {
 		if since, errText := s.client.Unreachable(); !since.IsZero() {
 			resp["go2rtc"] = map[string]any{"error": errText, "since": since}
 		}
 	}
 
-	// A seção smtp com problema vira Aviso na tela, e não só linha no log: o
-	// e-mail fica desligado até alguém corrigir o dwnvr.yaml e reiniciar.
+	// The smtp section with a problem becomes a Warning on the screen, and not
+	// only a log line: email stays disabled until someone fixes dwnvr.yaml and
+	// restarts.
 	if s.cfg.SMTP.Problem != "" {
 		resp["smtp"] = map[string]any{"error": s.cfg.SMTP.Problem}
 	}
 
-	// O usuarios.json editado à mão com problema também: a entrada ignorada
-	// não entra, e o e-mail repetido não serve para entrar. Sem autenticação o
-	// cadastro inteiro é ignorado, e o aviso não diria nada.
+	// usuarios.json edited by hand with a problem too: the ignored entry does
+	// not get in, and the repeated email does not work for signing in. Without
+	// authentication the whole registry is ignored, and the warning would say
+	// nothing.
 	if s.cfg.Server.AuthEnabled() {
 		u := map[string]any{}
 		if err := s.users.Unreadable(); err != nil {
@@ -501,18 +516,20 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 }
 
-// zonaLocal descobre o nome IANA do fuso do servidor ("America/Fortaleza").
+// localZone finds the IANA name of the server time zone ("America/Fortaleza").
 //
-// O pacote time não expõe isso: time.Local se chama "Local" e o que sobra é a
-// abreviação ("-03"), que não identifica a região - "-03" é São Paulo, Buenos
-// Aires e mais um punhado de lugares. As fontes consultadas aqui são as mesmas
-// que o próprio time usa para montar time.Local, na mesma ordem.
+// The time package does not expose it: time.Local is called "Local" and what is
+// left is the abbreviation ("-03"), which does not identify the region - "-03"
+// is São Paulo, Buenos Aires and a handful of other places. The sources checked
+// here are the same ones time itself uses to build time.Local, in the same
+// order.
 //
-// Devolve "" quando nenhuma delas responde, e aí a tela mostra só a hora e a
-// abreviação: o nome é um detalhe do title, não a informação principal.
+// It returns "" when none of them answers, and then the screen shows only the
+// time and the abbreviation: the name is a detail of the title, not the main
+// information.
 func localZone() string {
-	// TZ pode vir como ":America/Fortaleza" ou apontar para um arquivo; só o
-	// nome interessa.
+	// TZ can come as ":America/Fortaleza" or point to a file; only the name
+	// matters.
 	if tz := strings.TrimPrefix(os.Getenv("TZ"), ":"); tz != "" && !strings.HasPrefix(tz, "/") {
 		return tz
 	}
@@ -521,7 +538,7 @@ func localZone() string {
 			return s
 		}
 	}
-	// /etc/localtime costuma ser link para .../zoneinfo/America/Fortaleza.
+	// /etc/localtime is usually a link to .../zoneinfo/America/Fortaleza.
 	if target, err := os.Readlink("/etc/localtime"); err == nil {
 		if _, after, ok := strings.Cut(target, "zoneinfo/"); ok {
 			return after
@@ -530,12 +547,13 @@ func localZone() string {
 	return ""
 }
 
-// --- utilidades -------------------------------------------------------------
+// --- utilities -------------------------------------------------------------
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		// A resposta já foi parcialmente escrita; só resta registrar.
+		// The response was already partially written; all that is left is to
+		// log it.
 		return
 	}
 }
@@ -546,10 +564,10 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
-// fail registra o erro real e devolve uma mensagem genérica: detalhe de
-// filesystem não deve vazar para o navegador.
+// fail logs the real error and returns a generic message: filesystem detail
+// must not leak to the browser.
 func (s *Server) fail(w http.ResponseWriter, what string, err error) {
-	s.log.Error(what, "erro", err)
+	s.log.Error(what, "err", err)
 	writeError(w, http.StatusInternalServerError, what)
 }
 
@@ -563,20 +581,20 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
-// Hijack precisa ser repassado para que o proxy de WebSocket funcione.
+// Hijack must be passed through for the WebSocket proxy to work.
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 func logRequests(log *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sw := &statusWriter{ResponseWriter: w, code: http.StatusOK}
 		next.ServeHTTP(sw, r)
-		// Só o que deu errado vira log: com uma timeline pedindo centenas de
-		// segmentos, registrar tudo afogaria o journal do servidor. O 429 fica
-		// de fora: quem passa do limite insiste, e o limitador já registra o
-		// começo de cada episódio (ver limitarLogin).
+		// Only what went wrong becomes a log: with a timeline asking for
+		// hundreds of segments, logging everything would drown the server
+		// journal. 429 stays out: whoever goes over the limit insists, and the
+		// limiter already logs the start of each episode (see limitLogin).
 		if sw.code >= 400 && sw.code != http.StatusTooManyRequests {
-			log.Warn("requisição recusada", "status", sw.code,
-				"metodo", r.Method, "caminho", r.URL.Path, "de", r.RemoteAddr, forwarded(r))
+			log.Warn("request rejected", "status", sw.code,
+				"method", r.Method, "path", r.URL.Path, "from", r.RemoteAddr, forwarded(r))
 		}
 	})
 }

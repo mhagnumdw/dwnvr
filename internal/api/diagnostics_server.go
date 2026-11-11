@@ -23,20 +23,21 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/logbuf"
 )
 
-// O card "Este servidor" do Diagnóstico: a máquina que grava, vista de dentro
-// do processo. Complementa o /api/health, que responde "as câmeras estão
-// gravando?", com "a máquina tem fôlego para gravar?".
+// The "This server" card in Diagnostics: the machine that records, seen from
+// inside the process. It complements /api/health, which answers "are the cameras
+// recording?", with "does the machine have the headroom to record?".
 //
-// É um endpoint à parte, e não mais campos do /api/health, porque custa mais: um
-// teste de escrita com fsync no storage e uma ida ao go2rtc e ao detector de
-// objetos. O /api/health é relido em ciclo por quem só veio ver as câmeras;
-// este só roda com o card aberto.
+// It is a separate endpoint, and not more fields in /api/health, because it
+// costs more: a write test with fsync on the storage and a trip to go2rtc and to
+// the object detector. /api/health is polled in a loop by anyone who only came
+// to see the cameras; this one only runs with the card open.
 //
-// Tudo sai de /proc e /sys, sem exec: a imagem é FROM scratch e não há binário
-// nenhum para chamar. Cada campo é opcional e some quando a fonte não existe -
-// kernel sem PSI, sistema sem cgroup v2, fora do Linux.
+// Everything comes from /proc and /sys, without exec: the image is FROM scratch
+// and there is no binary to call. Each field is optional and disappears when its
+// source does not exist - kernel without PSI, system without cgroup v2, outside
+// Linux.
 
-// fontes são as raízes de /proc e /sys, trocáveis nos testes.
+// fontes are the roots of /proc and /sys, swappable in tests.
 type fontes struct{ proc, sys string }
 
 var systemSources = fontes{proc: "/proc", sys: "/sys"}
@@ -49,20 +50,21 @@ type serverInfo struct {
 	Pressure    map[string]pressure `json:"pressao,omitempty"`
 	Storage     storageInfo         `json:"storage"`
 	Go2RTC      go2rtcInfo          `json:"go2rtc"`
-	// Detector some sem `detector.url`: quem não usa a detecção de objetos
-	// não paga nem a ida até ele.
+	// Detector disappears without `detector.url`: whoever does not use object
+	// detection does not even pay for the trip to it.
 	Detector *detectorInfo `json:"detector,omitempty"`
-	// SMTP some sem a seção smtp. Vai sem sonda: conferir o servidor de
-	// e-mail é mandar um, e isso é o botão de teste.
+	// SMTP disappears without the smtp section. It goes without a probe:
+	// checking the email server means sending an email, and that is the test
+	// button.
 	SMTP *smtpInfo `json:"smtp,omitempty"`
-	// Alertas são os números de cada meio do alerta desde que o dwnvr subiu.
-	// Some sem meio, ou antes de alguma câmera ligar o alerta.
+	// Alerts are the numbers of each alert notifier since dwnvr started. It
+	// disappears without a notifier, or before some camera turns on the alert.
 	Alerts []alertNotifierInfo `json:"alertas,omitempty"`
 	Log    *logInfo            `json:"log,omitempty"`
 }
 
-// meioDoAlertaInfo é o NotifierState da Central. Ultimo some antes do primeiro
-// envio, e Erro, com o último envio tendo dado certo.
+// alertNotifierInfo is the Dispatcher's NotifierState. Ultimo disappears before
+// the first send, and Error when the last send succeeded.
 type alertNotifierInfo struct {
 	Nome     string     `json:"nome"`
 	Sent     int64      `json:"enviados"`
@@ -71,37 +73,38 @@ type alertNotifierInfo struct {
 	Error    string     `json:"erro,omitempty"`
 }
 
-// coleta é o instante da leitura no relógio do servidor, com o fuso dele. Vai
-// com o fuso, e não só o instante, pelo mesmo motivo do `clock` do
-// /api/health: a pergunta é a hora de LÁ, e convertida para o fuso do
-// navegador ela esconderia um servidor com fuso ou NTP errado.
+// collection is the moment of the reading on the server's clock, in its time
+// zone. It goes with the time zone, and not only the instant, for the same
+// reason as the `clock` in /api/health: the question is the time THERE, and
+// converted to the browser's time zone it would hide a server with a wrong time
+// zone or NTP.
 type collection struct {
 	Em            string `json:"em"`
 	Abbreviation  string `json:"sigla"`
 	OffsetSeconds int    `json:"offsetSeconds"`
-	// Zona é o nome IANA ("America/Sao_Paulo"), quando o servidor sabe.
+	// Zone is the IANA name ("America/Sao_Paulo"), when the server knows it.
 	Zone string `json:"zona,omitempty"`
 }
 
 type machineInfo struct {
-	// Placa vem do device tree, que só existe em ARM ("OrangePi Zero3");
-	// Processador, do /proc/cpuinfo, que só traz nome no x86. Um ou outro
-	// costuma faltar, e o que falta some.
+	// Board comes from the device tree, which only exists on ARM ("OrangePi
+	// Zero3"); Processor, from /proc/cpuinfo, which only has a name on x86. One
+	// or the other is usually missing, and whatever is missing disappears.
 	Board     string `json:"placa,omitempty"`
 	Processor string `json:"processador,omitempty"`
-	// Kernel é o do host mesmo dentro do container, que não tem kernel
-	// próprio.
+	// Kernel is the host's kernel even inside the container, which has no
+	// kernel of its own.
 	Kernel string `json:"kernel,omitempty"`
 	Cores  int    `json:"nucleos"`
-	// NucleosLiberados é o teto de CPU do container (cgroup), em núcleos: 1.5
-	// é um núcleo e meio. Some sem teto.
+	// AllowedCores is the container's CPU ceiling (cgroup), in cores: 1.5 is
+	// one and a half cores. It disappears without a ceiling.
 	AllowedCores float64 `json:"nucleosLiberados,omitempty"`
-	// Carga é o load average de 1, 5 e 15 minutos.
+	// Load is the load average over 1, 5 and 15 minutes.
 	Load     []float64 `json:"carga,omitempty"`
 	Sensores []sensor  `json:"sensores,omitempty"`
-	// MHz é a maior frequência atual entre os núcleos, e MHzMax o teto do
-	// hardware. Abaixo do teto com a máquina quente é o próprio kernel
-	// segurando a CPU para esfriar.
+	// MHz is the highest current frequency among the cores, and MHzMax the
+	// hardware ceiling. Below the ceiling with the machine hot is the kernel
+	// itself holding back the CPU to cool it down.
 	MHz      int    `json:"mhz,omitempty"`
 	MHzMax   int    `json:"mhzMax,omitempty"`
 	Governor string `json:"governor,omitempty"`
@@ -117,18 +120,20 @@ type memoryInfo struct {
 	AvailableBytes int64 `json:"disponivelBytes"`
 	SwapTotalBytes int64 `json:"swapTotalBytes"`
 	SwapUsedBytes  int64 `json:"swapUsadaBytes"`
-	// LimiteBytes é o teto de memória do container (cgroup). Some sem limite.
+	// LimitBytes is the container's memory ceiling (cgroup). It disappears
+	// without a limit.
 	LimitBytes int64 `json:"limiteBytes,omitempty"`
-	// OOMKills conta os processos que o kernel matou por falta de memória desde
-	// que a MÁQUINA ligou, e não só no container: quando a vítima é o próprio
-	// dwnvr, o Docker sobe um container novo e o contador do cgroup antigo vai
-	// embora com ele. O da máquina sobrevive, e é o que explica um "dwnvr no ar
-	// há 5 min" numa máquina ligada há dias.
+	// OOMKills counts the processes the kernel killed for lack of memory since
+	// the MACHINE booted, and not only in the container: when the victim is
+	// dwnvr itself, Docker starts a new container and the old cgroup's counter
+	// goes away with it. The machine's counter survives, and it is what
+	// explains a "dwnvr up for 5 min" on a machine that has been on for days.
 	OOMKills *int64 `json:"oomKills,omitempty"`
 }
 
-// pressao é uma linha do PSI (/proc/pressure/*): a fração do tempo, em %, em
-// que alguma tarefa (some) ou todas (full) ficaram paradas esperando o recurso.
+// pressure is one line of PSI (/proc/pressure/*): the fraction of time, in %,
+// during which some task (some) or all of them (full) were stalled waiting for
+// the resource.
 type pressure struct {
 	Some *medias `json:"some,omitempty"`
 	Full *medias `json:"full,omitempty"`
@@ -142,8 +147,9 @@ type medias struct {
 
 type storageInfo struct {
 	Path string `json:"caminho"`
-	// Tipo, Origem e Opcoes vêm da montagem que contém o caminho: "ext4",
-	// "/dev/sda1", "rw,noatime". Somem se o mountinfo não for legível.
+	// Type, Origin and Options come from the mount that contains the path:
+	// "ext4", "/dev/sda1", "rw,noatime". They disappear if mountinfo is not
+	// readable.
 	Type     string `json:"tipo,omitempty"`
 	Origin   string `json:"origem,omitempty"`
 	Options  string `json:"opcoes,omitempty"`
@@ -162,7 +168,7 @@ type go2rtcInfo struct {
 	Ms      int64  `json:"ms"`
 	Version string `json:"versao,omitempty"`
 	Error   string `json:"erro,omitempty"`
-	// URL é o endereço que o dwnvr usa de fato, sem usuário e senha.
+	// URL is the address dwnvr actually uses, without user and password.
 	URL string `json:"url,omitempty"`
 }
 
@@ -177,15 +183,15 @@ type detectorInfo struct {
 }
 
 type logInfo struct {
-	// Total é quantos avisos e erros houve desde que o dwnvr subiu; Linhas, só
-	// os mais recentes.
+	// Total is how many warnings and errors there were since dwnvr started;
+	// Lines, only the most recent ones.
 	Total int64         `json:"total"`
 	Lines []logbuf.Line `json:"linhas"`
 }
 
-// recentes é o que o handler de log do main.go oferece. Vai por interface, e
-// não por mais um parâmetro de New, porque o logger já chega aqui: é só
-// perguntar a ele.
+// recentes is what the log handler in main.go offers. It goes through an
+// interface, and not through one more parameter of New, because the logger
+// already arrives here: it is enough to ask it.
 type recentes interface {
 	Recent() ([]logbuf.Line, int64)
 }
@@ -205,9 +211,9 @@ func (s *Server) handleServerDiagnostics(w http.ResponseWriter, r *http.Request)
 		Alerts:      notifiersInDiagnostics(s.mgr.Alerts()),
 	}
 
-	// As sondas esperam por fora - disco e rede - e juntas podem somar alguns
-	// segundos num servidor ruim. Em paralelo, a tela espera a pior delas, não
-	// a soma.
+	// The probes wait on the outside - disk and network - and together they can
+	// add up to a few seconds on a bad server. In parallel, the screen waits
+	// for the worst of them, not the sum.
 	var wg sync.WaitGroup
 	wg.Go(func() { resp.Storage.Write = s.testWrite() })
 	wg.Go(func() { resp.Go2RTC = s.probeGo2RTC(r.Context()) })
@@ -224,8 +230,8 @@ func (s *Server) handleServerDiagnostics(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, resp)
 }
 
-// meiosNoDiagnostico é nil sem Central, que só nasce com a primeira câmera que
-// liga o alerta, e sem meio.
+// notifiersInDiagnostics is nil without a Dispatcher, which is only born with
+// the first camera that turns on the alert, and without a notifier.
 func notifiersInDiagnostics(c *alert.Dispatcher) []alertNotifierInfo {
 	if c == nil {
 		return nil
@@ -241,11 +247,12 @@ func notifiersInDiagnostics(c *alert.Dispatcher) []alertNotifierInfo {
 	return out
 }
 
-// ---- máquina ---------------------------------------------------------------
+// ---- machine ---------------------------------------------------------------
 
 func collectMachine(f fontes) machineInfo {
 	m := machineInfo{
-		// O device tree termina o texto com um NUL, que o TrimSpace não tira.
+		// The device tree ends the text with a NUL, which TrimSpace does not
+		// remove.
 		Board:        strings.TrimRight(readText(filepath.Join(f.proc, "device-tree/model")), "\x00"),
 		Processor:    readProcessor(f.proc),
 		Kernel:       readText(filepath.Join(f.proc, "sys/kernel/osrelease")),
@@ -272,9 +279,9 @@ func collectMachine(f fontes) machineInfo {
 	return m
 }
 
-// lerProcessador devolve o "model name" do primeiro núcleo. No ARM de 64 bits
-// o campo não existe - só códigos como "CPU part : 0xd03" -, e aí quem
-// identifica a máquina é a placa.
+// readProcessor returns the "model name" of the first core. On 64-bit ARM the
+// field does not exist - only codes like "CPU part : 0xd03" -, and then what
+// identifies the machine is the board.
 func readProcessor(proc string) string {
 	b, err := os.ReadFile(filepath.Join(proc, "cpuinfo"))
 	if err != nil {
@@ -290,7 +297,7 @@ func readProcessor(proc string) string {
 	return ""
 }
 
-// lerCarga lê "0.52 0.40 0.31 1/123 4567".
+// readLoad reads "0.52 0.40 0.31 1/123 4567".
 func readLoad(s string) []float64 {
 	campos := strings.Fields(s)
 	if len(campos) < 3 {
@@ -307,14 +314,14 @@ func readLoad(s string) []float64 {
 	return out
 }
 
-// lerSensores lê as zonas térmicas do kernel. Numa placa ARM elas têm nomes
-// como "cpu_thermal" e "gpu_thermal"; num PC, "x86_pkg_temp" e "acpitz". Zona
-// que não responde (algumas devolvem EINVAL com o sensor desligado) fica de
-// fora.
+// lerSensores reads the kernel's thermal zones. On an ARM board they have names
+// like "cpu_thermal" and "gpu_thermal"; on a PC, "x86_pkg_temp" and "acpitz". A
+// zone that does not respond (some return EINVAL with the sensor off) is left
+// out.
 //
-// O nome não é único: um PC pode ter duas zonas "acpitz". Nome repetido leva o
-// número da zona ("acpitz 0", "acpitz 1"), senão as duas linhas da tela e do
-// "copiar" ficam indistinguíveis.
+// The name is not unique: a PC can have two "acpitz" zones. A repeated name
+// gets the zone number ("acpitz 0", "acpitz 1"), otherwise the two lines on the
+// screen and in "copy" are indistinguishable.
 func lerSensores(sys string) []sensor {
 	zones, _ := filepath.Glob(filepath.Join(sys, "class/thermal/thermal_zone*"))
 	var out []sensor
@@ -342,12 +349,12 @@ func lerSensores(sys string) []sensor {
 			out[i].Nome += " " + numbers[i]
 		}
 	}
-	// Mais quente primeiro: é ele que a tela destaca.
+	// Hottest first: it is the one the screen highlights.
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Celsius > out[j].Celsius })
 	return out
 }
 
-// ---- memória ---------------------------------------------------------------
+// ---- memory ----------------------------------------------------------------
 
 func collectMemory(f fontes) *memoryInfo {
 	b, err := os.ReadFile(filepath.Join(f.proc, "meminfo"))
@@ -370,7 +377,7 @@ func collectMemory(f fontes) *memoryInfo {
 	return m
 }
 
-// lerMeminfo lê "MemTotal:  1012345 kB" em chave -> kB.
+// readMeminfo reads "MemTotal:  1012345 kB" into key -> kB.
 func readMeminfo(b []byte) map[string]int64 {
 	out := map[string]int64{}
 	sc := bufio.NewScanner(bytes.NewReader(b))
@@ -390,7 +397,7 @@ func readMeminfo(b []byte) map[string]int64 {
 	return out
 }
 
-// lerCampo acha "<nome> <número>" num arquivo de uma chave por linha, como o
+// readField finds "<name> <number>" in a file with one key per line, like
 // /proc/vmstat.
 func readField(b []byte, nome string) (int64, bool) {
 	sc := bufio.NewScanner(bytes.NewReader(b))
@@ -404,10 +411,10 @@ func readField(b []byte, nome string) (int64, bool) {
 	return 0, false
 }
 
-// doCgroup lê um arquivo do cgroup v2 deste processo. O caminho vem do
-// /proc/self/cgroup ("0::/caminho"); dentro de um container com namespace de
-// cgroup próprio ele é "/", e o arquivo está na raiz de /sys/fs/cgroup. Vazio
-// sem cgroup v2 ou sem o arquivo.
+// fromCgroup reads a cgroup v2 file of this process. The path comes from
+// /proc/self/cgroup ("0::/path"); inside a container with its own cgroup
+// namespace it is "/", and the file is at the root of /sys/fs/cgroup. Empty
+// without cgroup v2 or without the file.
 func fromCgroup(f fontes, nome string) string {
 	b, err := os.ReadFile(filepath.Join(f.proc, "self/cgroup"))
 	if err != nil {
@@ -421,25 +428,25 @@ func fromCgroup(f fontes, nome string) string {
 	return ""
 }
 
-// limiteDoCgroup devolve o teto de memória do cgroup deste processo, ou 0 sem
-// teto. O v1 fica como plano B para kernel antigo.
+// cgroupLimit returns the memory ceiling of this process's cgroup, or 0 without
+// a ceiling. v1 stays as a fallback for old kernels.
 func cgroupLimit(f fontes) int64 {
 	if v := fromCgroup(f, "memory.max"); v != "" && v != "max" {
 		n, _ := strconv.ParseInt(v, 10, 64)
 		return n
 	}
-	// No v1, "sem limite" é um número enorme (PAGE_COUNTER_MAX em bytes), e
-	// não uma palavra. Acima de 1 PiB, trata-se como sem limite.
+	// In v1, "no limit" is a huge number (PAGE_COUNTER_MAX in bytes), and not a
+	// word. Above 1 PiB, it is treated as no limit.
 	if n := lerInt(filepath.Join(f.sys, "fs/cgroup/memory/memory.limit_in_bytes")); n > 0 && n < 1<<50 {
 		return n
 	}
 	return 0
 }
 
-// nucleosDoCgroup devolve o teto de CPU do container em núcleos, ou 0 sem
-// teto. O cpu.max do v2 é "<cota> <período>" em microssegundos, ou "max
-// <período>" sem teto: o `--cpus 1.5` do Docker vira "150000 100000". No v1, a
-// cota é -1 sem teto.
+// cgroupCores returns the container's CPU ceiling in cores, or 0 without a
+// ceiling. The v2 cpu.max is "<quota> <period>" in microseconds, or "max
+// <period>" without a ceiling: Docker's `--cpus 1.5` becomes "150000 100000".
+// In v1, the quota is -1 without a ceiling.
 func cgroupCores(f fontes) float64 {
 	var quota, period int64
 	if campos := strings.Fields(fromCgroup(f, "cpu.max")); len(campos) == 2 {
@@ -455,10 +462,11 @@ func cgroupCores(f fontes) float64 {
 	return float64(quota) / float64(period)
 }
 
-// ---- pressão ---------------------------------------------------------------
+// ---- pressure --------------------------------------------------------------
 
-// coletarPressao lê o PSI de CPU, memória e disco. Kernel sem PSI (anterior ao
-// 4.20, ou compilado sem) não tem /proc/pressure, e o campo inteiro some.
+// collectPressure reads the PSI for CPU, memory and disk. A kernel without PSI
+// (before 4.20, or built without it) has no /proc/pressure, and the whole field
+// disappears.
 func collectPressure(f fontes) map[string]pressure {
 	out := map[string]pressure{}
 	for file, key := range map[string]string{"cpu": "cpu", "memory": "memoria", "io": "io"} {
@@ -472,7 +480,7 @@ func collectPressure(f fontes) map[string]pressure {
 	return out
 }
 
-// lerPressao lê as duas linhas do PSI:
+// readPressure reads the two PSI lines:
 //
 //	some avg10=1.53 avg60=0.87 avg300=0.26 total=123456
 //	full avg10=0.00 avg60=0.00 avg300=0.00 total=0
@@ -508,11 +516,11 @@ func readPressure(s string) pressure {
 
 // ---- storage ---------------------------------------------------------------
 
-// coletarMontagem descobre em que montagem o storage está. Sistema de
-// arquivos e dispositivo explicam muito: exfat e ntfs rodam via FUSE, lentos e
-// caros em CPU; /dev/mmcblk* é o cartão SD, que é o que costuma falhar. E um
-// cartão com defeito é remontado somente leitura pelo kernel sem avisar
-// ninguém - o dwnvr simplesmente para de conseguir gravar.
+// collectMount finds out which mount the storage is on. Filesystem and device
+// explain a lot: exfat and ntfs run via FUSE, slow and CPU-hungry; /dev/mmcblk*
+// is the SD card, which is what usually fails. And a faulty card is remounted
+// read-only by the kernel without telling anyone - dwnvr simply stops being
+// able to record.
 func collectMount(f fontes, root string) storageInfo {
 	info := storageInfo{Path: root}
 	filePath, err := filepath.Abs(root)
@@ -537,12 +545,12 @@ type mount struct {
 	point, options, kind, origin, superOptions string
 }
 
-// montagemDe acha no mountinfo a montagem mais específica que contém o
-// caminho. O formato de cada linha é
+// mountOf finds in mountinfo the most specific mount that contains the path.
+// The format of each line is
 //
 //	36 35 98:0 /mnt1 /mnt/parent rw,noatime master:1 - ext3 /dev/root rw,errors=continue
 //
-// com um número variável de campos opcionais antes do "-".
+// with a variable number of optional fields before the "-".
 func mountOf(b []byte, filePath string) (mount, bool) {
 	var best mount
 	found := false
@@ -571,8 +579,8 @@ func mountOf(b []byte, filePath string) (mount, bool) {
 		if !contains(m.point, filePath) {
 			continue
 		}
-		// >= e não >: montagens empilhadas no mesmo ponto aparecem na ordem
-		// em que foram feitas, e a última é a que vale.
+		// >= and not >: mounts stacked on the same point appear in the order
+		// they were made, and the last one is the one that counts.
 		if !found || len(m.point) >= len(best.point) {
 			best, found = m, true
 		}
@@ -588,8 +596,8 @@ func hasOption(options, nome string) bool {
 	return slices.Contains(strings.Split(options, ","), nome)
 }
 
-// desescapar desfaz o \040 (espaço) e companhia com que o kernel escreve
-// caminhos no mountinfo.
+// unescape undoes the \040 (space) and friends with which the kernel writes
+// paths in mountinfo.
 func unescape(s string) string {
 	if !strings.Contains(s, `\`) {
 		return s
@@ -608,24 +616,26 @@ func unescape(s string) string {
 	return b.String()
 }
 
-// Quanto o teste de escrita espera antes de desistir e dizer que o disco não
-// respondeu. Um fsync de 4 KB leva milissegundos até num cartão SD modesto;
-// passar disso é disco doente ou atolado.
+// How long the write test waits before giving up and saying the disk did not
+// respond. An fsync of 4 KB takes milliseconds even on a modest SD card; going
+// past that is a sick or swamped disk.
 const writeDeadline = 5 * time.Second
 
-// testarEscrita prova que o storage aceita escrita AGORA: cria um arquivo,
-// grava 4 KB, força para o disco e apaga. O tempo do fsync é o número que
-// importa - um cartão SD no fim da vida ainda aceita escrita, só que em
-// segundos.
+// testWrite proves the storage accepts writes NOW: it creates a file, writes 4
+// KB, forces it to disk and deletes it. The fsync time is the number that
+// matters - an SD card at the end of its life still accepts writes, only in
+// seconds.
 //
-// Um disco travado prende o fsync por tempo indeterminado, e nada interrompe
-// um fsync. Por isso o teste roda à parte, a resposta desiste no prazo, e um
-// teste ainda preso faz os pedidos seguintes responderem isso mesmo em vez de
-// empilhar mais arquivos e mais goroutines no disco que já não responde.
+// A stuck disk holds the fsync for an indefinite time, and nothing interrupts
+// an fsync. That is why the test runs on the side, the response gives up at the
+// deadline, and a test still stuck makes the following requests answer exactly
+// that instead of piling more files and more goroutines onto the disk that no
+// longer responds.
 //
-// A falha vai para o log só quando muda. Com o card aberto o teste roda de 15
-// em 15 s, e um aviso a cada rodada encheria em minutos as 50 linhas que a
-// tela mostra, empurrando para fora justamente o erro que explicava o disco.
+// The failure goes to the log only when it changes. With the card open the test
+// runs every 15 s, and a warning on every round would fill in minutes the 50
+// lines the screen shows, pushing out precisely the error that explained the
+// disk.
 func (s *Server) testWrite() write {
 	if !s.writing.CompareAndSwap(false, true) {
 		return write{Error: "o teste anterior ainda não terminou: o disco não está respondendo"}
@@ -638,7 +648,7 @@ func (s *Server) testWrite() write {
 		ms := time.Since(start).Milliseconds()
 		if err != nil {
 			if err.Error() != s.writeErr {
-				s.log.Warn("teste de escrita no storage falhou", "erro", err)
+				s.log.Warn("storage write test failed", "erro", err)
 			}
 			s.writeErr = err.Error()
 			pronto <- write{Ms: ms, Error: writeReason(err)}
@@ -655,15 +665,15 @@ func (s *Server) testWrite() write {
 	}
 }
 
-// arquivoDeTeste é sempre o mesmo, e não um nome aleatório por rodada: se o
-// dwnvr morrer entre criar e apagar, sobra no máximo este arquivo, e o próximo
-// teste o reaproveita e apaga. O ponto na frente o esconde do ls comum e ele
-// nunca parece câmera; o store.Orphans só olha diretórios.
+// testFile is always the same, and not a random name per round: if dwnvr dies
+// between creating and deleting it, at most this file is left over, and the
+// next test reuses and deletes it. The leading dot hides it from a plain ls and
+// it never looks like a camera; store.Orphans only looks at directories.
 const testFile = ".dwnvr-teste"
 
 func writeTest(root string) (err error) {
-	// Um teste de cada vez, garantido pelo escrevendo: o nome fixo não tem
-	// como ser disputado.
+	// One test at a time, guaranteed by the writing flag: the fixed name cannot
+	// be contended.
 	f, err := os.OpenFile(filepath.Join(root, testFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
@@ -682,9 +692,9 @@ func writeTest(root string) (err error) {
 	return err
 }
 
-// motivoDaEscrita traduz os erros que têm causa conhecida. O resto vai
-// genérico para a tela, com o detalhe no log - como o fail() faz com erro de
-// filesystem.
+// writeReason translates the errors that have a known cause. The rest goes
+// generic to the screen, with the detail in the log - as fail() does with a
+// filesystem error.
 func writeReason(err error) string {
 	switch {
 	case errors.Is(err, syscall.EROFS):
@@ -709,9 +719,9 @@ func (s *Server) probeGo2RTC(ctx context.Context) go2rtcInfo {
 	v, err := s.client.Version(ctx)
 	info := go2rtcInfo{Ms: time.Since(start).Milliseconds(), URL: withoutCredential(s.client.BaseURL)}
 	if err != nil {
-		// Mesma exposição do go2rtcError do /api/cameras: o erro de rede é
-		// o diagnóstico, e a URL nele não traz senha (o cliente usa Basic
-		// Auth por cabeçalho).
+		// Same exposure as go2rtcError in /api/cameras: the network error is
+		// the diagnosis, and the URL in it carries no password (the client
+		// sends Basic Auth in a header).
 		info.Error = err.Error()
 		return info
 	}
@@ -719,12 +729,12 @@ func (s *Server) probeGo2RTC(ctx context.Context) go2rtcInfo {
 	return info
 }
 
-// ---- detector de objetos ---------------------------------------------------
+// ---- object detector -------------------------------------------------------
 
-// sondarDetector pergunta ao detector de objetos qual modelo ele carregou. A
-// fila do /api/health já mostra o detector fora do ar, mas só quando alguma
-// câmera manda olhar: sem movimento em câmera nenhuma, a queda passa
-// despercebida. Esta pergunta responde a qualquer hora.
+// probeDetector asks the object detector which model it loaded. The queue in
+// /api/health already shows the object detector down, but only when some camera
+// sends an inference: with no motion on any camera, the outage goes unnoticed.
+// This question answers at any time.
 func (s *Server) probeDetector(ctx context.Context) *detectorInfo {
 	start := time.Now()
 	health, err := detect.SidecarHealth(ctx, s.cfg.Detector.URL)
@@ -737,11 +747,11 @@ func (s *Server) probeDetector(ctx context.Context) *detectorInfo {
 	return info
 }
 
-// ---- utilidades ------------------------------------------------------------
+// ---- utilities -------------------------------------------------------------
 
-// semCredencial tira o "usuario:senha@" de uma URL antes de ela ir para a
-// tela. O dwnvr manda a credencial do go2rtc por cabeçalho, mas nada impede
-// alguém de escrevê-la direto na URL do dwnvr.yaml.
+// withoutCredential strips the "user:password@" from a URL before it goes to
+// the screen. dwnvr sends the go2rtc credential in a header, but nothing stops
+// someone from writing it directly in the URL in dwnvr.yaml.
 func withoutCredential(u string) string {
 	p, err := url.Parse(u)
 	if err != nil {

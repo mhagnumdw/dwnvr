@@ -14,20 +14,20 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
 
-// gapTolerance é a folga para considerar dois segmentos contíguos na linha do
-// tempo. Segmentos consecutivos encostam com alguns milissegundos de diferença
-// por causa do arredondamento da duração; sem essa folga a barra de 24h ficaria
-// coberta de buracos falsos de 1 pixel.
+// gapTolerance is the slack for treating two segments as contiguous on the
+// timeline. Consecutive segments meet a few milliseconds apart because of
+// duration rounding; without this slack the 24h bar would be covered with fake
+// 1-pixel gaps.
 const gapTolerance = 2000 * time.Millisecond
 
-// maxExportSpan limita a janela de exportação. Sem teto, um pedido de 30 dias
-// tentaria emendar dezenas de milhares de segmentos numa única resposta. O
-// valor é o mesmo teto da tela de Gravações (DURACOES em
-// web/src/routes/Recordings.svelte), para que quem chama a API direto não
-// consiga pedir mais do que a interface oferece.
+// maxExportSpan caps the export window. Without a cap, a 30-day request would
+// try to splice tens of thousands of segments into a single response. The value
+// is the same cap as the Recordings screen (DURACOES in
+// web/src/routes/Recordings.svelte), so that whoever calls the API directly
+// can't ask for more than the interface offers.
 const maxExportSpan = 10 * time.Minute
 
-// handleDays lista os dias com gravação - as bolinhas do calendário.
+// handleDays lists the days with recordings - the dots on the calendar.
 func (s *Server) handleDays(w http.ResponseWriter, r *http.Request) {
 	cam, err := s.camParam(r)
 	if err != nil {
@@ -37,27 +37,27 @@ func (s *Server) handleDays(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"cam": cam.ID, "days": cam.Days()})
 }
 
-// handleDeleteRecordings apaga tudo o que uma câmera gravou, sem mexer no
-// cadastro dela.
+// handleDeleteRecordings deletes everything a camera recorded, without touching
+// its registry entry.
 //
-// Atende os dois lados: a câmera cadastrada, que volta a gravar em seguida do
-// zero, e a câmera já removida, cujo material só é alcançável por aqui - os
-// demais endpoints de gravação passam por knownCamera e não enxergam ID sem
-// cadastro.
+// It serves both sides: the registered camera, which starts recording again
+// from scratch right after, and the already removed camera, whose material can
+// only be reached through here - the other recording endpoints go through
+// knownCamera and don't see an ID without a registry entry.
 func (s *Server) handleDeleteRecordings(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("cam")
 
-	// Até o fim, Purge incluído: um save da mesma câmera no meio subiria um
-	// recorder gravando no diretório que está sendo apagado, e o Pause, ao
-	// terminar, subiria outro. Vale também para a câmera já removida, que um
-	// save pode cadastrar de novo com o mesmo ID.
+	// Until the end, Purge included: a save of the same camera in the middle
+	// would start a recorder writing into the directory being deleted, and
+	// Pause, when it finished, would start another. This also holds for the
+	// already removed camera, which a save can register again with the same ID.
 	s.registry.Lock()
 	defer s.registry.Unlock()
 
 	if s.knownCamera(id) {
-		// Pause é obrigatório: purgar com o recorder no ar deixaria o segmento
-		// aberto escrevendo num inode já desvinculado e indexaria um arquivo que
-		// não existe mais.
+		// Pause is mandatory: purging with the recorder running would leave the
+		// open segment writing to an already unlinked inode and would index a
+		// file that no longer exists.
 		var freed int64
 		err := s.mgr.Pause(id, func() (err error) {
 			freed, err = s.store.Camera(id).Purge()
@@ -67,15 +67,15 @@ func (s *Server) handleDeleteRecordings(w http.ResponseWriter, r *http.Request) 
 			s.fail(w, "apagando as gravações", err)
 			return
 		}
-		s.log.Info("gravações apagadas", "cam", id, "liberado_mb", freed>>20)
+		s.log.Info("recordings deleted", "cam", id, "freed_mb", freed>>20)
 		writeJSON(w, map[string]any{"ok": true, "freedBytes": freed})
 		return
 	}
 
-	// Câmera já removida. Aqui o knownCamera não pode servir de guarda, então o
-	// ID é conferido contra a lista de diretórios que existem de fato: os nomes
-	// vêm de um ReadDir e são sempre um único componente de caminho, o que fecha
-	// travessia de diretório pelo mesmo princípio - existência, não higienização.
+	// Camera already removed. Here knownCamera can't serve as a guard, so the ID
+	// is checked against the list of directories that actually exist: the names
+	// come from a ReadDir and are always a single path component, which closes
+	// directory traversal by the same principle - existence, not sanitization.
 	orphans, err := s.store.Orphans(s.registeredIDs())
 	if err != nil {
 		s.fail(w, "listando gravações órfãs", err)
@@ -85,15 +85,16 @@ func (s *Server) handleDeleteRecordings(w http.ResponseWriter, r *http.Request) 
 		if o.ID != id {
 			continue
 		}
-		// O total vem da varredura, não do Purge: o índice em memória de uma
-		// câmera sem cadastro está vazio (ninguém a carregou no boot), então o
-		// Purge não teria como saber o tamanho do que acabou de apagar.
+		// The total comes from the scan, not from Purge: the in-memory index of
+		// a camera without a registry entry is empty (nobody loaded it at
+		// boot), so Purge would have no way to know the size of what it just
+		// deleted.
 		if _, err := s.store.Camera(id).Purge(); err != nil {
 			s.fail(w, "apagando as gravações", err)
 			return
 		}
 		s.store.Forget(id)
-		s.log.Info("gravações órfãs apagadas", "cam", id, "liberado_mb", o.Bytes>>20)
+		s.log.Info("orphan recordings deleted", "cam", id, "freed_mb", o.Bytes>>20)
 		writeJSON(w, map[string]any{"ok": true, "freedBytes": o.Bytes})
 		return
 	}
@@ -101,23 +102,23 @@ func (s *Server) handleDeleteRecordings(w http.ResponseWriter, r *http.Request) 
 	writeError(w, http.StatusNotFound, "não há gravações para essa câmera")
 }
 
-// timelineResponse é deliberadamente compacto: um dia com segmentos de 1 minuto
-// tem 1440 entradas, e a forma verbosa (um objeto com chaves por segmento)
-// triplicaria o tamanho da resposta que a timeline busca a cada troca de dia.
+// timelineResponse is deliberately compact: a day with 1-minute segments has
+// 1440 entries, and the verbose form (an object with keys per segment) would
+// triple the size of the response the timeline fetches on every day change.
 type timelineResponse struct {
 	Cam  string `json:"cam"`
 	From int64  `json:"from"`
 	To   int64  `json:"to"`
-	// Ranges são faixas contíguas [início, fim] para desenhar a barra.
+	// Ranges are contiguous spans [start, end] for drawing the bar.
 	Ranges [][2]int64 `json:"ranges"`
-	// Gens é a tabela de gerações de init; Segments referencia por índice.
+	// Gens is the table of init generations; Segments refers to it by index.
 	Gens []string `json:"gens"`
-	// Segments é [inícioMs, duraçãoMs, índiceNaTabelaDeGens].
+	// Segments is [startMs, durationMs, indexInTheGensTable].
 	Segments [][3]int64 `json:"segments"`
 }
 
-// handleTimeline devolve, de uma vez, o que a barra precisa para desenhar
-// (ranges) e o que o player precisa para tocar (segments).
+// handleTimeline returns, in one go, what the bar needs to draw (ranges) and
+// what the player needs to play (segments).
 func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	cam, err := s.camParam(r)
 	if err != nil {
@@ -151,7 +152,8 @@ func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 		}
 		resp.Segments = append(resp.Segments, [3]int64{e.StartMs, e.DurMs, int64(i)})
 
-		// Estende a faixa atual se o segmento encosta nela; senão abre outra.
+		// Extends the current range if the segment touches it; otherwise opens
+		// another.
 		n := len(resp.Ranges)
 		if n > 0 && e.StartMs-resp.Ranges[n-1][1] <= gapTolerance.Milliseconds() {
 			if end := e.EndMs(); end > resp.Ranges[n-1][1] {
@@ -164,22 +166,22 @@ func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 }
 
-// eventsResponse é a lista de onsets de um trecho, e é deliberadamente
-// compacta pelo mesmo motivo da timelineResponse acima: um dia no nível mais
-// sensível tem ~2.400 marcas, e a forma verbosa (um objeto por marca)
-// dobraria a resposta para dizer exatamente o mesmo.
+// eventsResponse is the list of onsets of a stretch, and it is deliberately
+// compact for the same reason as timelineResponse above: a day at the most
+// sensitive level has ~2,400 marks, and the verbose form (one object per mark)
+// would double the response to say exactly the same thing.
 type eventsResponse struct {
 	Cam  string `json:"cam"`
 	From int64  `json:"from"`
 	To   int64  `json:"to"`
-	// Onsets são os instantes, em epoch ms, em que a imagem mudou o bastante
-	// para valer uma olhada. Vêm em ordem crescente.
+	// Onsets are the instants, in epoch ms, when the image changed enough to be
+	// worth an inference. They come in ascending order.
 	Onsets []int64 `json:"onsets"`
 
-	// Objetos são as marcas que o detector confirmou: uma por família por
-	// olhada, no instante do onset que a originou. São poucas - dezenas por
-	// câmera por dia -, então vão com chave por extenso, ao contrário dos
-	// onsets. Câmera sem detector responde lista vazia.
+	// Objects are the marks the object detector confirmed: one per family per
+	// inference, at the instant of the onset that triggered it. They are few -
+	// dozens per camera per day -, so they go with full keys, unlike the
+	// onsets. A camera without an object detector responds with an empty list.
 	Objects []markedObject `json:"objetos"`
 }
 
@@ -188,20 +190,21 @@ type markedObject struct {
 	Family string  `json:"familia"`
 	Class  string  `json:"classe"`
 	Score  float64 `json:"score"`
-	// Onde e quando desenhar a caixa sobre o vídeo. Marca sem eles não ganha
-	// caixa na tela. Ver o store.Event.
+	// Where and when to draw the box over the video. A mark without them gets
+	// no box on screen. See store.Event.
 	FrameMs int64       `json:"quadroMs,omitempty"`
 	Box     *[4]float64 `json:"caixa,omitempty"`
 }
 
-// handleEvents devolve as marcas de um trecho: os onsets de movimento, que a
-// faixa de calor da timeline desenha, e as marcas de objeto do detector.
+// handleEvents returns the marks of a stretch: the motion onsets, which the
+// timeline heat strip draws, and the object detector's object marks.
 //
-// O CAMINHO DE CAUDA é o que faz esta rota caber num Orange Pi: no dia
-// corrente a tela pergunta de novo a cada dez segundos, e pedir o dia inteiro
-// toda vez seria reenviar milhares de marcas para acrescentar duas. Como
-// `from` e `to` são livres, a tela pede só o pedaço que ainda não tem, do mesmo
-// jeito que já faz com a timeline. Dia passado não muda e nem é repedido.
+// The TAIL PATH is what makes this route fit on an Orange Pi: on the current
+// day the screen asks again every ten seconds, and asking for the whole day
+// each time would resend thousands of marks to add two. Since `from` and `to`
+// are free, the screen asks only for the part it doesn't have yet, the same way
+// it already does with the timeline. A past day doesn't change and isn't asked
+// for again.
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	cam, err := s.camParam(r)
 	if err != nil {
@@ -222,8 +225,8 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 	resp := eventsResponse{Cam: cam.ID, From: from, To: to, Onsets: []int64{}, Objects: []markedObject{}}
 	for _, ev := range events {
-		// A marca de objeto mora no mesmo arquivo, e não pode entrar na faixa
-		// de calor: cada objeto contaria como um segundo onset no mesmo instante.
+		// The object mark lives in the same file, and can't go into the heat
+		// strip: each object would count as a second onset at the same instant.
 		if ev.IsObject() {
 			resp.Objects = append(resp.Objects, markedObject{ev.AtMs, ev.Family, ev.Class, ev.Score, ev.FrameMs, ev.Box})
 			continue
@@ -233,7 +236,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 }
 
-// handleInit serve o init segment de uma geração.
+// handleInit serves the init segment of a generation.
 func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
 	cam, err := s.camParam(r)
 	if err != nil {
@@ -245,18 +248,18 @@ func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	// O nome é o hash do conteúdo, então o arquivo nunca muda: pode ser
-	// cacheado para sempre.
+	// The name is the hash of the content, so the file never changes: it can be
+	// cached forever.
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	w.Header().Set("Content-Type", "video/mp4")
 	http.ServeFile(w, r, cam.InitPath(gen))
 }
 
-// handleSegment serve os fragmentos de um segmento, PULANDO o init.
+// handleSegment serves the fragments of a segment, SKIPPING the init.
 //
-// O init é servido à parte e uma vez só (via EXT-X-MAP ou pelo player), então
-// reenviá-lo a cada segmento seria desperdício - e, no MSE, reanexar o init a
-// cada append é desnecessário.
+// The init is served separately and only once (via EXT-X-MAP or by the player),
+// so resending it with each segment would be waste - and, in MSE, reattaching
+// the init on every append is unnecessary.
 func (s *Server) handleSegment(w http.ResponseWriter, r *http.Request) {
 	cam, entry, err := s.segmentParam(r)
 	if err != nil {
@@ -274,15 +277,15 @@ func (s *Server) handleSegment(w http.ResponseWriter, r *http.Request) {
 	body := io.NewSectionReader(f, entry.InitSize, entry.Size-entry.InitSize)
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	w.Header().Set("Content-Type", "video/mp4")
-	// ServeContent cuida de Range e de If-None-Match sozinho.
+	// ServeContent handles Range and If-None-Match on its own.
 	http.ServeContent(w, r, "", time.UnixMilli(entry.StartMs), body)
 }
 
-// handleThumb devolve init + primeiro fragmento: um MP4 de um frame só.
+// handleThumb returns init + first fragment: a single-frame MP4.
 //
-// É a miniatura da timeline, e o ponto todo é que o servidor não decodifica
-// nada - ele só recorta bytes que já estão no disco. Quem decodifica é o
-// navegador.
+// It is the timeline thumbnail, and the whole point is that the server decodes
+// nothing - it only cuts bytes that are already on disk. The browser does the
+// decoding.
 func (s *Server) handleThumb(w http.ResponseWriter, r *http.Request) {
 	cam, entry, err := s.segmentParam(r)
 	if err != nil {
@@ -307,11 +310,11 @@ func (s *Server) handleThumb(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, "", time.UnixMilli(entry.StartMs), body)
 }
 
-// handlePlaylist gera uma playlist HLS VOD do intervalo pedido.
+// handlePlaylist generates an HLS VOD playlist for the requested interval.
 //
-// O player da interface usa MSE direto, mas a playlist dá compatibilidade
-// imediata com VLC, ffplay e Safari - o que também a torna a ferramenta mais
-// prática para depurar uma gravação sem abrir o navegador.
+// The interface player uses MSE directly, but the playlist gives immediate
+// compatibility with VLC, ffplay and Safari - which also makes it the most
+// practical tool for debugging a recording without opening the browser.
 func (s *Server) handlePlaylist(w http.ResponseWriter, r *http.Request) {
 	cam, err := s.camParam(r)
 	if err != nil {
@@ -349,8 +352,8 @@ func (s *Server) handlePlaylist(w http.ResponseWriter, r *http.Request) {
 		prevGen string
 	)
 	for i, e := range entries {
-		// Descontinuidade em buraco de gravação e em troca de init: nos dois
-		// casos o decodificador precisa ser reiniciado.
+		// Discontinuity at a recording gap and at an init change: in both cases
+		// the decoder has to be reset.
 		gap := i > 0 && e.StartMs-prevEnd > gapTolerance.Milliseconds()
 		if i > 0 && (gap || e.Gen != prevGen) {
 			fmt.Fprint(w, "#EXT-X-DISCONTINUITY\n")
@@ -368,12 +371,12 @@ func (s *Server) handlePlaylist(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "#EXT-X-ENDLIST\n")
 }
 
-// handleExport emenda os segmentos de um intervalo num único MP4.
+// handleExport splices the segments of an interval into a single MP4.
 //
-// Custa quase nada: os bytes de mídia são copiados como estão e só o tfdt de
-// cada fragmento é deslocado para formar uma linha do tempo contínua. Nada é
-// decodificado nem reencodado, e a resposta é escrita em fluxo, sem carregar o
-// arquivo inteiro na memória.
+// It costs almost nothing: the media bytes are copied as they are and only the
+// tfdt of each fragment is shifted to form a continuous timeline. Nothing is
+// decoded or re-encoded, and the response is written as a stream, without
+// loading the whole file into memory.
 func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	cam, err := s.camParam(r)
 	if err != nil {
@@ -401,9 +404,9 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Um MP4 só pode ter um init. Atravessar uma troca de geração exigiria
-	// reencodar ou entregar dois arquivos; recusar é mais honesto que entregar
-	// algo que só toca até a metade.
+	// An MP4 can only have one init. Crossing a generation change would require
+	// re-encoding or delivering two files; rejecting is more honest than
+	// delivering something that only plays halfway.
 	gen := entries[0].Gen
 	for _, e := range entries {
 		if e.Gen != gen {
@@ -425,7 +428,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 	video, ok := movie.VideoTrack()
 	if !ok {
-		s.fail(w, "init sem trilha de vídeo", errors.New("sem trilha de vídeo"))
+		s.fail(w, "init sem trilha de vídeo", errors.New("no video track"))
 		return
 	}
 
@@ -436,8 +439,9 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// offsetMs acumula a duração já escrita: cada segmento começa em zero, e é
-	// esse acumulado que os emenda numa linha do tempo contínua.
+	// offsetMs accumulates the duration already written: each segment starts at
+	// zero, and this running total is what splices them into a continuous
+	// timeline.
 	var offsetMs int64
 	for _, e := range entries {
 		deltas := make(map[uint32]int64, len(movie.Tracks))
@@ -445,15 +449,16 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 			deltas[t.ID] = offsetMs * int64(t.Timescale) / 1000
 		}
 		if err := s.appendSegment(w, cam, e, video.ID, deltas); err != nil {
-			// A resposta já começou; não dá para trocar o status agora.
-			s.log.Warn("exportação interrompida", "cam", cam.ID, "t", e.StartMs, "erro", err)
+			// The response has already started; the status can't be changed
+			// now.
+			s.log.Warn("export interrupted", "cam", cam.ID, "t", e.StartMs, "err", err)
 			return
 		}
 		offsetMs += e.DurMs
 	}
 }
 
-// appendSegment copia os fragmentos de um segmento para w, deslocando o tfdt.
+// appendSegment copies the fragments of a segment to w, shifting the tfdt.
 func (s *Server) appendSegment(w io.Writer, cam *store.Camera, e store.Entry,
 	videoTrackID uint32, deltas map[uint32]int64) error {
 
@@ -487,7 +492,7 @@ func (s *Server) appendSegment(w io.Writer, cam *store.Camera, e store.Entry,
 	}
 }
 
-// findMoov localiza a caixa moov dentro do init (que começa com ftyp).
+// findMoov finds the moov box inside the init (which starts with ftyp).
 func findMoov(init []byte) int {
 	for off := 0; off+8 <= len(init); {
 		size := int(be32u(init[off:]))
@@ -506,7 +511,7 @@ func be32u(b []byte) uint32 {
 	return uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
 }
 
-// --- parâmetros ------------------------------------------------------------
+// --- parameters ------------------------------------------------------------
 
 func (s *Server) camParam(r *http.Request) (*store.Camera, error) {
 	id := r.URL.Query().Get("cam")
@@ -516,11 +521,11 @@ func (s *Server) camParam(r *http.Request) (*store.Camera, error) {
 	return s.store.Camera(id), nil
 }
 
-// segmentParam resolve cam+t para a entrada de índice correspondente.
+// segmentParam resolves cam+t to the matching index entry.
 //
-// A entrada é consultada no índice em vez de o caminho ser montado direto a
-// partir de t: é o índice que sabe InitSize e FirstFrag, e passar por ele
-// garante que só se sirva segmento que o dwnvr realmente gravou.
+// The entry is looked up in the index instead of building the path directly
+// from t: the index is what knows InitSize and FirstFrag, and going through it
+// guarantees that only segments dwnvr actually recorded are served.
 func (s *Server) segmentParam(r *http.Request) (*store.Camera, store.Entry, error) {
 	cam, err := s.camParam(r)
 	if err != nil {
@@ -544,7 +549,7 @@ func (s *Server) segmentParam(r *http.Request) (*store.Camera, store.Entry, erro
 func (s *Server) rangeParams(r *http.Request) (from, to int64, err error) {
 	q := r.URL.Query()
 
-	// Atalho: day=2026-08-08 equivale ao dia inteiro em hora local.
+	// Shortcut: day=2026-08-08 is the same as the whole day in local time.
 	if day := q.Get("day"); day != "" {
 		d, perr := time.ParseInLocation(store.DayLayout, day, time.Local)
 		if perr != nil {
@@ -565,18 +570,19 @@ func (s *Server) rangeParams(r *http.Request) (from, to int64, err error) {
 	return from, to, nil
 }
 
-// genPattern é o hash truncado que nomeia o init: hexadecimal minúsculo, de até
-// 32 caracteres.
+// genPattern is the truncated hash that names the init: lowercase hexadecimal,
+// up to 32 characters.
 var genPattern = regexp.MustCompile(`^[0-9a-f]{1,32}$`)
 
-// validGen recusa qualquer coisa que não seja o hash hexadecimal esperado: a
-// geração vira nome de arquivo, e aceitar caminho aqui abriria travessia de
-// diretório.
+// validGen rejects anything that isn't the expected hexadecimal hash: the
+// generation becomes a file name, and accepting a path here would open
+// directory traversal.
 //
-// A conferência é um regexp, e não um loop pelos caracteres, porque é a forma
-// que o CodeQL reconhece como sanitizer: com o loop, o go/path-injection
-// apontava o ServeFile do handleInit mesmo com o g já validado. O pacote regexp
-// já entra no binário pelo yaml, então não custa nada a mais.
+// The check is a regexp, and not a loop over the characters, because that is
+// the form CodeQL recognizes as a sanitizer: with the loop, go/path-injection
+// flagged the ServeFile in handleInit even with g already validated. The regexp
+// package already comes into the binary through yaml, so it costs nothing
+// extra.
 func validGen(gen string) error {
 	if gen == "" {
 		return errors.New("parâmetro g obrigatório")

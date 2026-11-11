@@ -9,33 +9,33 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
-// As rotas da tela Usuários (só admin) e as do link de convite (públicas: quem
-// abre o link ainda não tem sessão).
+// The routes of the Users screen (admin only) and those of the invite link
+// (public: whoever opens the link has no session yet).
 
-// usuarioNaTela é a pessoa como a tela Usuários a vê: sem a senha guardada e
-// sem o hash do token.
+// userOnScreen is the person as the Users screen sees them: without the stored
+// password and without the token hash.
 type userOnScreen struct {
 	Username string `json:"username"`
 	Nome     string `json:"name"`
-	// Só de quem tem e-mail válido: o escrito errado à mão no arquivo não
-	// aparece, como se não houvesse.
+	// Only for whoever has a valid email: one written wrong by hand in the file
+	// does not show up, as if there were none.
 	Email  string     `json:"email,omitempty"`
 	Role   users.Role `json:"role"`
 	Status string     `json:"status"`
 	Avatar string     `json:"avatar,omitempty"`
-	// Só com link em aberto ou vencido.
+	// Only with a link open or expired.
 	LinkExpiresAtMs int64 `json:"inviteExpiresAtMs,omitempty"`
 	CreatedAtMs     int64 `json:"createdAtMs,omitempty"`
-	// Só com a senha definida pelo link, e não em quem a definiu antes de o
-	// campo existir.
+	// Only with the password set through the link, and not for whoever set it
+	// before the field existed.
 	ActiveSinceMs int64 `json:"activeSinceMs,omitempty"`
-	// Só de quem já usou o dwnvr depois de o campo existir, em qualquer
-	// situação: quem ganhou link novo continua com o acesso de antes.
+	// Only for whoever has used dwnvr after the field existed, in any status:
+	// whoever got a new link keeps the access from before.
 	LastAccessMs int64 `json:"lastAccessMs,omitempty"`
 }
 
-// donoNaTela é o dono como a tela Usuários o vê. Ele não está no cadastro, e a
-// tela o mostra sem botão nenhum.
+// ownerOnScreen is the owner as the Users screen sees them. The owner is not in
+// the registry, and the screen shows them with no button at all.
 type ownerOnScreen struct {
 	Username     string `json:"username"`
 	Nome         string `json:"name"`
@@ -43,8 +43,8 @@ type ownerOnScreen struct {
 	LastAccessMs int64  `json:"lastAccessMs,omitempty"`
 }
 
-// ms é o instante em milissegundos, ou 0 para o instante zero, que o
-// omitempty some.
+// ms is the instant in milliseconds, or 0 for the zero instant, which omitempty
+// drops.
 func ms(t time.Time) int64 {
 	if t.IsZero() {
 		return 0
@@ -55,9 +55,10 @@ func ms(t time.Time) int64 {
 func (s *Server) onScreen(u users.User, now time.Time) userOnScreen {
 	v := userOnScreen{Username: u.Username, Nome: u.Name, Email: u.ValidEmail(), Role: u.Role,
 		Status: u.Status(now), Avatar: u.Avatar}
-	// Acesso de antes da criação da conta é de quem teve o mesmo usuário
-	// antes. O Esquecer do Criar só chega ao disco na gravação seguinte, e uma
-	// queda nesse meio-tempo traria o acesso antigo de volta no boot.
+	// An access from before the account was created belongs to whoever had the
+	// same username before. The Forget in handleCreateUser only reaches disk on
+	// the next write, and a crash in the meantime would bring the old access
+	// back at boot.
 	if ultimo := s.accesses.Last(u.Username); !ultimo.Before(u.CreatedAt) {
 		v.LastAccessMs = ms(ultimo)
 	}
@@ -73,15 +74,16 @@ func (s *Server) onScreen(u users.User, now time.Time) userOnScreen {
 	return v
 }
 
-// conviteNaTela é a resposta de quem gera um link: a pessoa e o token, que só
-// existe nesta resposta. A tela monta o link com o endereço pelo qual o admin
-// está acessando.
+// inviteOnScreen is the response to whoever generates a link: the person and
+// the token, which only exists in this response. The screen builds the link
+// with the address through which the admin is accessing.
 func (s *Server) inviteOnScreen(c users.Invite) map[string]any {
 	return map[string]any{"user": s.onScreen(c.User, time.Now()), "token": c.Token}
 }
 
-// semCadastro recusa o que grava no cadastro quando não há autenticação: sem
-// ela não há login, e as pessoas do usuarios.json são ignoradas.
+// noRegistry rejects what writes to the registry when there is no
+// authentication: without it there is no login, and the people in usuarios.json
+// are ignored.
 func (s *Server) noRegistry(w http.ResponseWriter) bool {
 	if s.cfg.Server.AuthEnabled() {
 		return false
@@ -91,9 +93,9 @@ func (s *Server) noRegistry(w http.ResponseWriter) bool {
 	return true
 }
 
-// recusa traduz o erro do cadastro para a resposta. As Recusas de um
-// formulário vão campo a campo em "fields", para a tela pôr cada mensagem
-// embaixo do seu campo, e a primeira também em "error", como em toda recusa.
+// reject translates the registry error into the response. A form's rejections
+// go field by field in "fields", so the screen puts each message under its
+// field, and the first one also in "error", as in every rejection.
 func (s *Server) reject(w http.ResponseWriter, what string, err error) {
 	var rejected users.ValidationError
 	var rejections users.FieldErrors
@@ -121,19 +123,21 @@ func readBody(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
-// handleUsuarios lista as pessoas, com a situação de cada uma. O dono vem à
-// parte: ele não está no cadastro, e a tela o mostra sem botão nenhum.
+// handleUsers lists the people, with the status of each one. The owner comes
+// separately: the owner is not in the registry, and the screen shows them with
+// no button at all.
 func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
 		"authRequired": s.cfg.Server.AuthEnabled(),
 		"users":        []userOnScreen{},
-		// Os números do formulário, para a tela não os repetir à mão.
+		// The form numbers, so the screen does not repeat them by hand.
 		"inviteValidityMs":  users.InviteValidity.Milliseconds(),
 		"maxNameLength":     users.MaxNameLen,
 		"maxUsernameLength": users.MaxUsernameLen,
 		"maxEmailLength":    users.MaxEmailLen,
-		// Sem a seção smtp ligada, a tela esconde o envio por e-mail. O
-		// e-mail da pessoa ela mostra igual, porque serve para entrar.
+		// Without the smtp section enabled, the screen hides sending by email.
+		// The person's email it shows all the same, because it is used for
+		// signing in.
 		"emailEnabled": s.sending != nil,
 	}
 	if !s.cfg.Server.AuthEnabled() {
@@ -152,8 +156,8 @@ func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 }
 
-// handleCriarUsuario cria um viewer, ainda sem senha, e devolve o
-// token do link para ela definir a sua. O e-mail é opcional.
+// handleCreateUser creates a viewer, still without a password, and returns the
+// link token for them to set their own. The email is optional.
 func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -171,15 +175,15 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		s.reject(w, "criando o usuário", err)
 		return
 	}
-	// Um login reaproveitado não herda o acesso de quem o teve antes.
+	// A reused login does not inherit the access of whoever had it before.
 	s.accesses.Forget(req.Username)
-	s.log.Info("usuário criado pela interface", "usuario", req.Username, "por", personOf(r).Username)
+	s.log.Info("user created from the interface", "user", req.Username, "by", personOf(r).Username)
 	writeJSON(w, s.inviteOnScreen(c))
 }
 
-// handleConferirNovo diz o que o POST /api/usuarios recusaria com o mesmo
-// corpo, sem criar ninguém: a tela confere cada campo quando o admin sai dele.
-// Responde 200 com "fields" vazio quando está tudo certo.
+// handleCheckNew says what POST /api/usuarios would reject with the same body,
+// without creating anyone: the screen checks each field when the admin leaves
+// it. It answers 200 with empty "fields" when everything is right.
 func (s *Server) handleCheckNew(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -200,8 +204,9 @@ func (s *Server) handleCheckNew(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"fields": rejections})
 }
 
-// handleNovoLink gera outro link para a pessoa. A senha dela deixa de valer,
-// o link anterior também, e o que ela tem aberto cai na hora.
+// handleNewLink generates another link for the person. Their password stops
+// working, so does the previous link, and whatever they have open drops at
+// once.
 func (s *Server) handleNewLink(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -217,13 +222,13 @@ func (s *Server) handleNewLink(w http.ResponseWriter, r *http.Request) {
 		s.reject(w, "gerando o link novo", err)
 		return
 	}
-	s.dropPerson(req.Username, "link novo")
-	s.log.Info("link novo gerado pela interface", "usuario", req.Username, "por", personOf(r).Username)
+	s.dropPerson(req.Username, "new link")
+	s.log.Info("new link generated from the interface", "user", req.Username, "by", personOf(r).Username)
 	writeJSON(w, s.inviteOnScreen(c))
 }
 
-// handleTrocarEmail troca o e-mail de alguém, ou o apaga, com email vazio.
-// Vale também com o e-mail desligado: guardar não envia nada.
+// handleChangeEmail changes someone's email, or deletes it, with an empty
+// email. It also works with email disabled: storing sends nothing.
 func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -240,13 +245,13 @@ func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 		s.reject(w, "trocando o e-mail", err)
 		return
 	}
-	s.log.Info("e-mail trocado pela interface", "usuario", req.Username, "por", personOf(r).Username)
+	s.log.Info("email changed from the interface", "user", req.Username, "by", personOf(r).Username)
 	writeJSON(w, map[string]any{"user": s.onScreen(u, time.Now())})
 }
 
-// handleConferirEmail diz o que o POST /api/usuarios/email recusaria com o
-// mesmo corpo, sem trocar nada. Responde 200 com "fields" vazio quando está
-// tudo certo.
+// handleCheckEmail says what POST /api/usuarios/email would reject with the
+// same body, without changing anything. It answers 200 with empty "fields" when
+// everything is right.
 func (s *Server) handleCheckEmail(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -266,11 +271,11 @@ func (s *Server) handleCheckEmail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"fields": rejections})
 }
 
-// handleEnviarLink manda por e-mail o link que está na tela do admin. O
-// servidor não sabe por qual endereço é acessado, então o link vem pronto da
-// tela, que o monta com o endereço do navegador do admin; aqui ele só é
-// conferido, e tem de ser o link em aberto daquela pessoa. O log diz para
-// quem foi, nunca o link: o token é a credencial.
+// handleSendLink sends by email the link that is on the admin's screen. The
+// server does not know through which address it is accessed, so the link comes
+// ready from the screen, which builds it with the address of the admin's
+// browser; here it is only checked, and it must be that person's open link. The
+// log says who it went to, never the link: the token is the credential.
 func (s *Server) handleSendLink(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) || s.noEmail(w) {
 		return
@@ -302,15 +307,15 @@ func (s *Server) handleSendLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.sending.Send(r.Context(), inviteMessage(u, para, req.Link)); err != nil {
-		s.log.Warn("o link não foi por e-mail", "usuario", u.Username, "por", personOf(r).Username, "erro", err)
+		s.log.Warn("the link did not go by email", "user", u.Username, "by", personOf(r).Username, "err", err)
 		writeError(w, http.StatusBadGateway, "o e-mail não foi: "+err.Error())
 		return
 	}
-	s.log.Info("link enviado por e-mail", "usuario", u.Username, "por", personOf(r).Username)
+	s.log.Info("link sent by email", "user", u.Username, "by", personOf(r).Username)
 	writeJSON(w, map[string]string{"sentTo": para})
 }
 
-// handleRemoverUsuario apaga a pessoa e derruba o que ela tem aberto.
+// handleRemoveUser deletes the person and drops whatever they have open.
 func (s *Server) handleRemoveUser(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -320,14 +325,14 @@ func (s *Server) handleRemoveUser(w http.ResponseWriter, r *http.Request) {
 		s.reject(w, "removendo o usuário", err)
 		return
 	}
-	s.dropPerson(username, "removido")
+	s.dropPerson(username, "removed")
 	s.accesses.Forget(username)
-	s.log.Info("usuário removido pela interface", "usuario", username, "por", personOf(r).Username)
+	s.log.Info("user removed from the interface", "user", username, "by", personOf(r).Username)
 	writeJSON(w, map[string]bool{"removed": true})
 }
 
-// handleTirarAvatarDe tira a foto de alguém: o admin não troca a foto de
-// ninguém, mas pode tirar uma que não sirva.
+// handleRemoveAvatarOf removes someone's photo: the admin does not change
+// anyone's photo, but can remove one that is not fit.
 func (s *Server) handleRemoveAvatarOf(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -337,13 +342,13 @@ func (s *Server) handleRemoveAvatarOf(w http.ResponseWriter, r *http.Request) {
 		s.reject(w, "tirando a foto", err)
 		return
 	}
-	s.log.Info("foto tirada pela interface", "usuario", username, "por", personOf(r).Username)
+	s.log.Info("photo removed from the interface", "user", username, "by", personOf(r).Username)
 	writeJSON(w, map[string]bool{"ok": true})
 }
 
-// handleConferirConvite diz de quem é o link, para a tela de definir a senha
-// mostrar o nome da pessoa antes de ela digitar. O token vem no corpo, e não
-// na URL, para não ficar no log de nenhum proxy.
+// handleCheckInvite says whose link it is, so the set-password screen shows the
+// person's name before they type. The token comes in the body, and not in the
+// URL, so it does not end up in any proxy log.
 func (s *Server) handleCheckInvite(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Token string `json:"token"`
@@ -365,8 +370,8 @@ func (s *Server) handleCheckInvite(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// conviteValido confere o link. Sem autenticação ligada, link nenhum vale:
-// não haveria login para usar a senha definida.
+// validInvite checks the link. Without authentication enabled, no link is
+// valid: there would be no login to use the password set.
 func (s *Server) validInvite(token string) (users.User, error) {
 	if !s.cfg.Server.AuthEnabled() {
 		return users.User{}, users.ErrInvalidLink
@@ -374,8 +379,8 @@ func (s *Server) validInvite(token string) (users.User, error) {
 	return s.users.CheckInvite(token)
 }
 
-// handleConvite define a senha pelo link e já abre a sessão: a pessoa entra
-// direto, sem passar pela tela de login.
+// handleInvite sets the password through the link and opens the session right
+// away: the person goes straight in, without going through the login screen.
 func (s *Server) handleInvite(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Token    string `json:"token"`
@@ -390,7 +395,7 @@ func (s *Server) handleInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := s.users.SetPassword(r.Context(), req.Token, req.Password)
 	if r.Context().Err() != nil {
-		return // o navegador desistiu na fila
+		return // the browser gave up in the queue
 	}
 	if err != nil {
 		s.reject(w, "definindo a senha", err)
@@ -398,10 +403,10 @@ func (s *Server) handleInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	p, ok := s.who(u.Username)
 	if !ok {
-		s.fail(w, "abrindo a sessão de quem acabou de definir a senha", errors.New("pessoa sumiu"))
+		s.fail(w, "abrindo a sessão de quem acabou de definir a senha", errors.New("person vanished"))
 		return
 	}
-	s.log.Info("senha definida pelo link", "usuario", u.Username, "de", r.RemoteAddr, forwarded(r))
+	s.log.Info("password set through the link", "user", u.Username, "from", r.RemoteAddr, forwarded(r))
 	s.setSessionCookie(w, r, p)
 	s.accesses.Record(u.Username)
 	writeJSON(w, map[string]any{"ok": true, "user": p})

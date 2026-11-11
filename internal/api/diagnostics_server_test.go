@@ -15,7 +15,7 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/logbuf"
 )
 
-// fixture cria um arquivo, com os diretórios no caminho.
+// fixture creates a file, with the directories in the path.
 func fixture(t *testing.T, root, filePath, content string) {
 	t.Helper()
 	p := filepath.Join(root, filePath)
@@ -27,7 +27,7 @@ func fixture(t *testing.T, root, filePath, content string) {
 	}
 }
 
-// Uma Orange Pi Zero 3 quente, recortada de arquivos reais do /proc e /sys.
+// A hot Orange Pi Zero 3, cut from real files in /proc and /sys.
 func fakeSystem(t *testing.T) fontes {
 	f := fontes{proc: t.TempDir(), sys: t.TempDir()}
 	fixture(t, f.proc, "loadavg", "3.10 2.05 1.50 2/180 4321\n")
@@ -41,8 +41,8 @@ func fakeSystem(t *testing.T) fontes {
 	fixture(t, f.proc, "self/cgroup", "0::/\n")
 	fixture(t, f.sys, "fs/cgroup/memory.max", "536870912\n")
 	fixture(t, f.sys, "fs/cgroup/cpu.max", "150000 100000\n")
-	// O nome entre parênteses com espaço e ")" dentro é o caso que derruba
-	// quem conta os campos desde o começo da linha.
+	// The name in parentheses with a space and ")" inside is the case that
+	// breaks whoever counts the fields from the start of the line.
 	fixture(t, f.proc, "self/stat", "1857 (dw nvr) x) S 1 1857 1857 0 -1 4194560 2200 0 0 0 44346 36809 0 0 20 0 15 0 28549530\n")
 	fixture(t, f.proc, "self/status", "Name:\tdwnvr\nUid:\t1000\t1000\t1000\t1000\nGid:\t1001\t1001\t1001\t1001\nVmRSS:\t   33184 kB\nThreads:\t15\n")
 	fixture(t, f.proc, "self/limits", "Limit                     Soft Limit           Hard Limit           Units\nMax open files            1024                 524288               files\n")
@@ -68,25 +68,26 @@ func fakeSystem(t *testing.T) fontes {
 func TestCollectMachineHot(t *testing.T) {
 	m := collectMachine(fakeSystem(t))
 	if len(m.Load) != 3 || m.Load[0] != 3.10 {
-		t.Errorf("carga %v", m.Load)
+		t.Errorf("load %v", m.Load)
 	}
 	if len(m.Sensores) != 2 || m.Sensores[0] != (sensor{"cpu_thermal", 84.3}) {
-		t.Errorf("sensores %v: o mais quente tem que vir primeiro, em °C", m.Sensores)
+		t.Errorf("sensors %v: the hottest must come first, in °C", m.Sensores)
 	}
 	if m.MHz != 1008 || m.MHzMax != 1512 || m.Governor != "ondemand" {
-		t.Errorf("frequência %d de %d (%s)", m.MHz, m.MHzMax, m.Governor)
+		t.Errorf("frequency %d of %d (%s)", m.MHz, m.MHzMax, m.Governor)
 	}
-	// No ARM o cpuinfo não tem nome de processador: quem identifica é a placa.
+	// On ARM cpuinfo has no processor name: what identifies the machine is the
+	// board.
 	if m.Board != "OrangePi Zero3" || m.Processor != "" || m.Kernel != "6.12.58-current-sunxi64" {
-		t.Errorf("placa %q, processador %q, kernel %q", m.Board, m.Processor, m.Kernel)
+		t.Errorf("board %q, processor %q, kernel %q", m.Board, m.Processor, m.Kernel)
 	}
 	if m.AllowedCores != 1.5 {
-		t.Errorf("teto de CPU do container %v, esperado 1.5", m.AllowedCores)
+		t.Errorf("container CPU ceiling %v, expected 1.5", m.AllowedCores)
 	}
 }
 
-// Num PC: sem device tree, o nome vem do cpuinfo. E sem teto de CPU, o campo
-// some.
+// On a PC: without a device tree, the name comes from cpuinfo. And without a
+// CPU ceiling, the field disappears.
 func TestCollectMachinePC(t *testing.T) {
 	f := fontes{proc: t.TempDir(), sys: t.TempDir()}
 	fixture(t, f.proc, "cpuinfo", "processor\t: 0\nvendor_id\t: GenuineIntel\nmodel name\t: Intel(R) Celeron(R) N4020 CPU @ 1.10GHz\n")
@@ -94,46 +95,46 @@ func TestCollectMachinePC(t *testing.T) {
 	fixture(t, f.sys, "fs/cgroup/cpu.max", "max 100000\n")
 	m := collectMachine(f)
 	if m.Board != "" || m.Processor != "Intel(R) Celeron(R) N4020 CPU @ 1.10GHz" {
-		t.Errorf("placa %q, processador %q", m.Board, m.Processor)
+		t.Errorf("board %q, processor %q", m.Board, m.Processor)
 	}
 	if m.AllowedCores != 0 {
-		t.Errorf("sem teto de CPU, veio %v", m.AllowedCores)
+		t.Errorf("without a CPU ceiling, got %v", m.AllowedCores)
 	}
 }
 
 func TestCollectProcess(t *testing.T) {
 	p := collectProcess(fakeSystem(t), time.Now().Add(-time.Hour))
-	// (44346 + 36809) ticks de 10 ms.
+	// (44346 + 36809) ticks of 10 ms.
 	if p.CPUMs == nil || *p.CPUMs != 811550 {
-		t.Errorf("CPU %v ms, esperado 811550", p.CPUMs)
+		t.Errorf("CPU %v ms, expected 811550", p.CPUMs)
 	}
 	if p.AliveMs < 3600000 {
-		t.Errorf("no ar há %d ms, esperado 1 h", p.AliveMs)
+		t.Errorf("up for %d ms, expected 1 h", p.AliveMs)
 	}
 	if p.MemoryBytes != 33184<<10 {
-		t.Errorf("memória %d", p.MemoryBytes)
+		t.Errorf("memory %d", p.MemoryBytes)
 	}
 	if p.UID == nil || *p.UID != 1000 || p.GID == nil || *p.GID != 1001 {
 		t.Errorf("uid %v gid %v", p.UID, p.GID)
 	}
 	if p.OpenFiles != 3 || p.FileLimit != 1024 {
-		t.Errorf("arquivos %d de %d", p.OpenFiles, p.FileLimit)
+		t.Errorf("files %d of %d", p.OpenFiles, p.FileLimit)
 	}
 	if p.Goroutines < 1 || p.Go == "" || p.Architecture == "" {
 		t.Errorf("runtime %+v", p)
 	}
 
-	// Fora do Linux nada disso existe, e os campos somem em vez de vir zero
-	// disfarçado de medida.
+	// Outside Linux none of this exists, and the fields disappear instead of
+	// coming as a zero disguised as a measurement.
 	p = collectProcess(fontes{proc: t.TempDir()}, time.Now())
 	if p.CPUMs != nil || p.MemoryBytes != 0 || p.UID != nil || p.FileLimit != 0 {
-		t.Errorf("sem /proc: %+v", p)
+		t.Errorf("without /proc: %+v", p)
 	}
 }
 
 func TestWithoutCredential(t *testing.T) {
-	// A URL com credencial é montada, e não escrita por extenso, para o
-	// detector de segredos do pre-commit não tomá-la por uma senha de verdade.
+	// The URL with a credential is assembled, and not written out in full, so
+	// the pre-commit secrets detector does not take it for a real password.
 	comSenha := (&url.URL{Scheme: "http", Host: "go2rtc:1984", User: url.UserPassword("admin", "teste")}).String()
 	cases := map[string]string{
 		comSenha:                    "http://go2rtc:1984",
@@ -141,13 +142,13 @@ func TestWithoutCredential(t *testing.T) {
 	}
 	for entry, want := range cases {
 		if got := withoutCredential(entry); got != want {
-			t.Errorf("%s: %s, esperado %s", entry, got, want)
+			t.Errorf("%s: %s, expected %s", entry, got, want)
 		}
 	}
 }
 
-// Um PC com duas zonas "acpitz": o nome repetido ganha o número da zona, senão
-// a tela não tem como separar as duas linhas.
+// A PC with two "acpitz" zones: the repeated name gets the zone number,
+// otherwise the screen has no way to tell the two lines apart.
 func TestSensorsWithRepeatedName(t *testing.T) {
 	sys := t.TempDir()
 	for zone, temp := range map[string]string{"0": "90000", "1": "88000", "2": "50000"} {
@@ -165,7 +166,7 @@ func TestSensorsWithRepeatedName(t *testing.T) {
 	}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Errorf("sensor %d: %v, esperado %v", i, got[i], want[i])
+			t.Errorf("sensor %d: %v, expected %v", i, got[i], want[i])
 		}
 	}
 }
@@ -173,25 +174,26 @@ func TestSensorsWithRepeatedName(t *testing.T) {
 func TestCollectMemory(t *testing.T) {
 	m := collectMemory(fakeSystem(t))
 	if m == nil {
-		t.Fatal("sem memória")
+		t.Fatal("no memory")
 	}
 	if m.AvailableBytes != 204800<<10 || m.SwapUsedBytes != 262144<<10 {
-		t.Errorf("disponível %d, swap usada %d", m.AvailableBytes, m.SwapUsedBytes)
+		t.Errorf("available %d, swap used %d", m.AvailableBytes, m.SwapUsedBytes)
 	}
 	if m.LimitBytes != 512<<20 {
-		t.Errorf("limite do cgroup %d", m.LimitBytes)
+		t.Errorf("cgroup limit %d", m.LimitBytes)
 	}
 	if m.OOMKills == nil || *m.OOMKills != 2 {
 		t.Errorf("oom_kill %v", m.OOMKills)
 	}
 }
 
-// Sem arquivo de pressão de memória, as outras duas chegam e a de memória
-// some - em vez de vir zerada, que leria como "sem pressão nenhuma".
+// Without the memory pressure file, the other two arrive and the memory one
+// disappears - instead of coming zeroed, which would read as "no pressure at
+// all".
 func TestCollectPressure(t *testing.T) {
 	p := collectPressure(fakeSystem(t))
 	if _, has := p["memoria"]; has {
-		t.Error("pressão de memória inventada")
+		t.Error("made-up memory pressure")
 	}
 	io := p["io"]
 	if io.Some == nil || io.Some.Avg60 != 35.10 || io.Full == nil || io.Full.Avg10 != 30 {
@@ -201,7 +203,7 @@ func TestCollectPressure(t *testing.T) {
 		t.Errorf("cpu %+v", p["cpu"].Some)
 	}
 	if collectPressure(fontes{proc: t.TempDir()}) != nil {
-		t.Error("kernel sem PSI tem que omitir o campo inteiro")
+		t.Error("kernel without PSI must omit the whole field")
 	}
 }
 
@@ -212,10 +214,10 @@ func TestMostSpecificMount(t *testing.T) {
 		ro                     bool
 	}{
 		{"/storage", "ext4", "/dev/mmcblk0p2", false},
-		// O ro das super-opções é o do kernel remontando após erro, mesmo
-		// com a montagem dizendo rw. E o \040 é um espaço no caminho.
+		// The ro in the super options is the kernel remounting after an error,
+		// even with the mount saying rw. And \040 is a space in the path.
 		{"/mnt/hd externo/cams", "ext4", "/dev/sda1", true},
-		// /mnt/hdx não contém /mnt/hd: prefixo de texto não é prefixo de caminho.
+		// /mnt/hdx does not contain /mnt/hd: a text prefix is not a path prefix.
 		{"/mnt/hdx/cams", "fuseblk", "/dev/sdb1", false},
 	}
 	for _, c := range cases {
@@ -228,28 +230,28 @@ func TestMostSpecificMount(t *testing.T) {
 
 func TestWriteTest(t *testing.T) {
 	s, _ := testServer(t)
-	// A sobra de um dwnvr que morreu no meio do teste: o próximo a reaproveita
-	// e apaga.
+	// The leftover of a dwnvr that died in the middle of the test: the next one
+	// reuses and deletes it.
 	fixture(t, s.cfg.Storage.Root, testFile, "sobra")
 	e := s.testWrite()
 	if !e.OK || e.Error != "" {
-		t.Fatalf("escrita num diretório gravável: %+v", e)
+		t.Fatalf("write to a writable directory: %+v", e)
 	}
 	leftovers, _ := os.ReadDir(s.cfg.Storage.Root)
 	for _, x := range leftovers {
 		if !x.IsDir() {
-			t.Errorf("o teste deixou %s para trás", x.Name())
+			t.Errorf("the test left %s behind", x.Name())
 		}
 	}
 
 	s.cfg.Storage.Root = filepath.Join(t.TempDir(), "nao-existe")
 	if e := s.testWrite(); e.OK || e.Error != "o diretório do storage não existe" {
-		t.Errorf("storage inexistente: %+v", e)
+		t.Errorf("nonexistent storage: %+v", e)
 	}
 }
 
-// A mesma falha repetida vai uma vez só para o log: com o card aberto, o teste
-// roda a cada 15 s e não pode tomar as linhas que a tela mostra.
+// The same repeated failure goes to the log only once: with the card open, the
+// test runs every 15 s and must not take over the lines the screen shows.
 func TestWriteFailureDoesNotFloodTheLog(t *testing.T) {
 	s, _ := testServer(t)
 	h := logbuf.New(slog.DiscardHandler, 10)
@@ -259,27 +261,28 @@ func TestWriteFailureDoesNotFloodTheLog(t *testing.T) {
 		s.testWrite()
 	}
 	if _, total := h.Recent(); total != 1 {
-		t.Errorf("3 falhas iguais geraram %d avisos, esperado 1", total)
+		t.Errorf("3 identical failures produced %d warnings, expected 1", total)
 	}
 
-	// Voltou a gravar e falhou de novo: é outro episódio, e avisa outra vez.
+	// Writing worked again and then failed again: it is another episode, and it
+	// warns again.
 	root := s.cfg.Storage.Root
 	s.cfg.Storage.Root = t.TempDir()
 	s.testWrite()
 	s.cfg.Storage.Root = root
 	s.testWrite()
 	if _, total := h.Recent(); total != 2 {
-		t.Errorf("falha depois de um sucesso: %d avisos, esperado 2", total)
+		t.Errorf("failure after a success: %d warnings, expected 2", total)
 	}
 }
 
-// A resposta inteira, pelo handler: go2rtc fora do ar não derruba o resto, e
-// os avisos do log chegam.
+// The whole response, through the handler: go2rtc down does not take down the
+// rest, and the log warnings arrive.
 func TestHandleServerDiagnostics(t *testing.T) {
 	s, _ := testServer(t)
 	h := logbuf.New(slog.DiscardHandler, 10)
 	s.log = slog.New(h)
-	s.log.Warn("conexão caiu", "cam", "garagem")
+	s.log.Warn("connection dropped", "cam", "garagem")
 
 	rec := httptest.NewRecorder()
 	s.handleServerDiagnostics(rec, httptest.NewRequest(http.MethodGet, "/api/health/servidor", nil))
@@ -291,25 +294,26 @@ func TestHandleServerDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Go2RTC.OK || got.Go2RTC.Error == "" {
-		t.Errorf("go2rtc sem cliente: %+v", got.Go2RTC)
+		t.Errorf("go2rtc without a client: %+v", got.Go2RTC)
 	}
 	if !got.Storage.Write.OK {
-		t.Errorf("escrita: %+v", got.Storage.Write)
+		t.Errorf("write: %+v", got.Storage.Write)
 	}
-	if got.Log == nil || got.Log.Total != 1 || got.Log.Lines[0].Text != "conexão caiu cam=garagem" {
+	if got.Log == nil || got.Log.Total != 1 || got.Log.Lines[0].Text != "connection dropped cam=garagem" {
 		t.Errorf("log: %+v", got.Log)
 	}
 	if em, err := time.Parse(time.RFC3339, got.CollectedAt.Em); err != nil || time.Since(em) > time.Minute || got.CollectedAt.Abbreviation == "" {
 		t.Errorf("coletadoEm: %+v", got.CollectedAt)
 	}
-	// Sem detector configurado, nem a pergunta nem o campo.
+	// Without an object detector configured, neither the question nor the
+	// field.
 	if got.Detector != nil {
-		t.Errorf("detector sem detector.url: %+v", got.Detector)
+		t.Errorf("object detector without detector.url: %+v", got.Detector)
 	}
 }
 
-// Com detector, a resposta traz o que o /health dele disse, e o endereço sem
-// a credencial.
+// With an object detector, the response carries what its /health said, and the
+// address without the credential.
 func TestDiagnosticsWithDetector(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"modelo": "modelo.onnx", "entrada": "512x288", "threads": 2}`))

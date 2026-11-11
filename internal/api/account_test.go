@@ -16,8 +16,9 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
-// A troca da própria senha: pede a atual, derruba as outras sessões e deixa a
-// de quem trocou de pé, com um cookie novo.
+// Changing one's own password: it asks for the current one, drops the other
+// sessions and keeps the session of whoever changed it alive, with a new
+// cookie.
 func TestChangePasswordThroughTheAccount(t *testing.T) {
 	s, _ := testServer(t)
 	withAuth(t, s)
@@ -33,38 +34,38 @@ func TestChangePasswordThroughTheAccount(t *testing.T) {
 	rec, _ := requestAs(t, s, "maria", http.MethodPost, "/api/conta/senha",
 		map[string]string{"currentPassword": "senha errada", "newPassword": "outra senha boa"})
 	if rec.Code != http.StatusBadRequest {
-		t.Errorf("senha atual errada: status %d, esperava 400", rec.Code)
+		t.Errorf("wrong current password: status %d, expected 400", rec.Code)
 	}
 	if !vale(s, otherDevice.Value) {
-		t.Error("a tentativa errada derrubou a sessão")
+		t.Error("the wrong attempt dropped the session")
 	}
 
 	rec, resp := requestAs(t, s, "maria", http.MethodPost, "/api/conta/senha",
 		map[string]string{"currentPassword": "uma senha boa", "newPassword": "outra senha boa"})
 	if rec.Code != http.StatusOK {
-		t.Fatalf("trocar: status %d, %s", rec.Code, rec.Body)
+		t.Fatalf("change: status %d, %s", rec.Code, rec.Body)
 	}
-	// O último cookie é o que vale: o cookie de teste vence em uma hora, e o
-	// requireAuth o renova antes da troca.
+	// The last cookie is the one that counts: the test cookie expires in one
+	// hour, and requireAuth renews it before the change.
 	cs := rec.Result().Cookies()
 	if len(cs) == 0 || !vale(s, cs[len(cs)-1].Value) {
-		t.Errorf("quem trocou ficou sem sessão: %v", cs)
+		t.Errorf("whoever changed it was left without a session: %v", cs)
 	}
 	if vale(s, otherDevice.Value) {
-		t.Error("o outro aparelho continua entrando com a senha velha")
+		t.Error("the other device still gets in with the old password")
 	}
 	if p, _ := resp["user"].(map[string]any); p["username"] != "maria" {
-		t.Errorf("pessoa na resposta: %s", rec.Body)
+		t.Errorf("person in the response: %s", rec.Body)
 	}
 
-	// O dono troca a senha no dwnvr.yaml.
+	// The owner changes the password in dwnvr.yaml.
 	if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/conta/senha",
 		map[string]string{"currentPassword": "senha", "newPassword": "outra senha boa"}); rec.Code != http.StatusConflict {
-		t.Errorf("dono: status %d, esperava 409", rec.Code)
+		t.Errorf("owner: status %d, expected 409", rec.Code)
 	}
 }
 
-// fotoDeTeste é um JPEG cinza quadrado.
+// testPhoto is a square gray JPEG.
 func testPhoto(t *testing.T, lado int) []byte {
 	t.Helper()
 	var b bytes.Buffer
@@ -74,7 +75,7 @@ func testPhoto(t *testing.T, lado int) []byte {
 	return b.Bytes()
 }
 
-// enviarFoto manda o JPEG cru, como a tela manda.
+// sendPhoto sends the raw JPEG, as the screen does.
 func sendPhoto(t *testing.T, s *Server, username string, photo []byte) (*httptest.ResponseRecorder, map[string]any) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPut, "/api/conta/avatar", bytes.NewReader(photo))
@@ -94,7 +95,7 @@ func TestNameAndAvatarThroughTheAccount(t *testing.T) {
 
 	rec, resp := requestAs(t, s, "maria", http.MethodGet, "/api/conta", nil)
 	if rec.Code != http.StatusOK || resp["minPasswordLength"] != float64(users.MinPasswordLen) {
-		t.Errorf("conta: status %d, %s", rec.Code, rec.Body)
+		t.Errorf("account: status %d, %s", rec.Code, rec.Body)
 	}
 
 	rec, resp = requestAs(t, s, "maria", http.MethodPost, "/api/conta/nome", map[string]string{"name": "Maria Clara"})
@@ -102,30 +103,30 @@ func TestNameAndAvatarThroughTheAccount(t *testing.T) {
 		t.Errorf("nome: status %d, %s", rec.Code, rec.Body)
 	}
 	if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/conta/nome", map[string]string{"name": "Dono"}); rec.Code != http.StatusOK {
-		t.Errorf("nome do dono: status %d, %s", rec.Code, rec.Body)
+		t.Errorf("owner's name: status %d, %s", rec.Code, rec.Body)
 	}
 	if p, _ := s.who("admin"); p.Nome != "Dono" {
-		t.Errorf("o dono continua %q", p.Nome)
+		t.Errorf("the owner is still %q", p.Nome)
 	}
 
 	rec, resp = sendPhoto(t, s, "maria", testPhoto(t, users.AvatarSide))
 	p, _ := resp["user"].(map[string]any)
 	id, _ := p["avatar"].(string)
 	if rec.Code != http.StatusOK || id == "" {
-		t.Fatalf("foto: status %d, %s", rec.Code, rec.Body)
+		t.Fatalf("photo: status %d, %s", rec.Code, rec.Body)
 	}
 	if rec, _ := sendPhoto(t, s, "maria", make([]byte, users.MaxAvatarBytes+1)); rec.Code != http.StatusRequestEntityTooLarge {
-		t.Errorf("foto acima do teto: status %d, esperava 413", rec.Code)
+		t.Errorf("photo above the cap: status %d, expected 413", rec.Code)
 	}
 	if rec, _ := sendPhoto(t, s, "maria", []byte("não é foto")); rec.Code != http.StatusBadRequest {
-		t.Errorf("foto inválida: status %d, esperava 400", rec.Code)
+		t.Errorf("invalid photo: status %d, expected 400", rec.Code)
 	}
 
-	// A própria pessoa e o admin veem a foto; os outros, não.
+	// The person themselves and the admin see the photo; the others do not.
 	for username, wants := range map[string]int{"maria": http.StatusOK, "admin": http.StatusOK, "jose": http.StatusNotFound} {
 		rec, _ := requestAs(t, s, username, http.MethodGet, "/api/avatar?id="+id, nil)
 		if rec.Code != wants {
-			t.Errorf("%s vendo a foto da maria: status %d, esperava %d", username, rec.Code, wants)
+			t.Errorf("%s viewing maria's photo: status %d, expected %d", username, rec.Code, wants)
 		}
 		if wants == http.StatusOK && (rec.Header().Get("Content-Type") != "image/jpeg" ||
 			rec.Header().Get("X-Content-Type-Options") != "nosniff") {
@@ -133,28 +134,29 @@ func TestNameAndAvatarThroughTheAccount(t *testing.T) {
 		}
 	}
 
-	// O admin tira a foto dos outros; o viewer não.
+	// The admin removes other people's photos; the viewer does not.
 	if rec, _ := requestAs(t, s, "jose", http.MethodDelete, "/api/usuarios/avatar?username=maria", nil); rec.Code != http.StatusForbidden {
-		t.Errorf("viewer tirando a foto de outro: status %d", rec.Code)
+		t.Errorf("viewer removing someone else's photo: status %d", rec.Code)
 	}
 	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/usuarios/avatar?username=maria", nil); rec.Code != http.StatusOK {
-		t.Errorf("admin tirando a foto: status %d, %s", rec.Code, rec.Body)
+		t.Errorf("admin removing the photo: status %d, %s", rec.Code, rec.Body)
 	}
 	if rec, _ := requestAs(t, s, "maria", http.MethodGet, "/api/avatar?id="+id, nil); rec.Code != http.StatusNotFound {
-		t.Errorf("foto tirada ainda é servida: status %d", rec.Code)
+		t.Errorf("removed photo is still served: status %d", rec.Code)
 	}
 
 	if rec, _ := sendPhoto(t, s, "jose", testPhoto(t, 64)); rec.Code != http.StatusOK {
-		t.Fatalf("foto do josé: status %d", rec.Code)
+		t.Fatalf("josé's photo: status %d", rec.Code)
 	}
 	rec, resp = requestAs(t, s, "jose", http.MethodDelete, "/api/conta/avatar", nil)
 	if p, _ := resp["user"].(map[string]any); rec.Code != http.StatusOK || p["avatar"] != nil {
-		t.Errorf("tirar a própria foto: status %d, %s", rec.Code, rec.Body)
+		t.Errorf("removing one's own photo: status %d, %s", rec.Code, rec.Body)
 	}
 }
 
-// Sem autenticação não há de quem ser a conta nem cadastro: quem alcança a
-// tela é admin, e nada que grave no usuarios.json ou em avatares/ passa.
+// Without authentication there is no one to own the account and no registry:
+// whoever reaches the screen is admin, and nothing that writes to usuarios.json
+// or avatares/ goes through.
 func TestNoAuthNothingIsSaved(t *testing.T) {
 	s, _ := testServer(t)
 	rotas := []string{
@@ -166,10 +168,10 @@ func TestNoAuthNothingIsSaved(t *testing.T) {
 	for _, r := range rotas {
 		method, rota, _ := strings.Cut(r, " ")
 		if rec, _ := requestAs(t, s, "", method, rota, map[string]string{}); rec.Code != http.StatusConflict {
-			t.Errorf("%s sem autenticação: status %d, esperava 409", r, rec.Code)
+			t.Errorf("%s without authentication: status %d, expected 409", r, rec.Code)
 		}
 	}
 	if _, err := os.Stat(s.cfg.UsersPath()); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("o usuarios.json foi gravado sem autenticação: %v", err)
+		t.Errorf("usuarios.json was saved without authentication: %v", err)
 	}
 }

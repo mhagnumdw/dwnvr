@@ -10,12 +10,12 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
-// As rotas da Minha conta: o que cada pessoa muda de si mesma, de qualquer
-// papel. Ninguém muda o dos outros por aqui; o que o admin faz com os outros
-// está em usuarios.go.
+// The My account routes: what each person changes about themselves, in any
+// role. No one changes someone else's here; what the admin does with the others
+// is in users.go.
 
-// handleConta diz quem está logado e os números do formulário, para a tela
-// não os repetir à mão.
+// handleAccount says who is logged in and the form numbers, so the screen does
+// not repeat them by hand.
 func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -33,8 +33,8 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// respostaDaConta devolve a pessoa como ficou depois da mudança, para a tela
-// atualizar o header sem perguntar de novo.
+// accountResponse returns the person as they ended up after the change, so the
+// screen updates the header without asking again.
 func (s *Server) accountResponse(w http.ResponseWriter, username string) {
 	p, ok := s.who(username)
 	if !ok {
@@ -44,9 +44,9 @@ func (s *Server) accountResponse(w http.ResponseWriter, username string) {
 	writeJSON(w, map[string]any{"ok": true, "user": p})
 }
 
-// handleTrocarSenha troca a própria senha, pedindo a atual. Os outros
-// aparelhos da pessoa voltam para a tela de login; o que pediu recebe um
-// cookie novo e continua.
+// handleChangePassword changes one's own password, asking for the current one.
+// The person's other devices go back to the login screen; the one that asked
+// gets a new cookie and carries on.
 func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -65,7 +65,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := s.users.ChangePassword(r.Context(), p.Username, req.Current, req.Nova)
 	if r.Context().Err() != nil {
-		return // o navegador desistiu na fila
+		return // the browser gave up in the queue
 	}
 	if err != nil {
 		s.reject(w, "trocando a senha", err)
@@ -73,20 +73,20 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	newOne, ok := s.who(u.Username)
 	if !ok {
-		s.fail(w, "abrindo a sessão de quem acabou de trocar a senha", errors.New("pessoa sumiu"))
+		s.fail(w, "abrindo a sessão de quem acabou de trocar a senha", errors.New("person vanished"))
 		return
 	}
 	s.setSessionCookie(w, r, newOne)
 	writeJSON(w, map[string]any{"ok": true, "user": newOne})
-	// O aviso de sessão vai depois da resposta: o ao vivo aberto em outra aba
-	// deste navegador confere a sessão assim que o aviso cai, e precisa
-	// encontrar o cookie novo já guardado.
+	// The session warning goes after the response: live open in another tab of
+	// this browser checks the session as soon as the warning drops, and needs
+	// to find the new cookie already stored.
 	_ = http.NewResponseController(w).Flush()
-	s.dropPerson(p.Username, "senha trocada")
-	s.log.Info("senha trocada pela própria pessoa", "usuario", p.Username)
+	s.dropPerson(p.Username, "password changed")
+	s.log.Info("password changed by the person themselves", "user", p.Username)
 }
 
-// handleMudarNome troca o próprio nome de exibição.
+// handleChangeName changes one's own display name.
 func (s *Server) handleChangeName(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -105,8 +105,8 @@ func (s *Server) handleChangeName(w http.ResponseWriter, r *http.Request) {
 	s.accountResponse(w, p.Username)
 }
 
-// handleTrocarAvatar guarda a própria foto. O corpo é o JPEG, já reduzido
-// pelo navegador; acima do teto, a leitura para no meio.
+// handleChangeAvatar stores one's own photo. The body is the JPEG, already
+// shrunk by the browser; above the cap, reading stops midway.
 func (s *Server) handleChangeAvatar(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -129,7 +129,7 @@ func (s *Server) handleChangeAvatar(w http.ResponseWriter, r *http.Request) {
 	s.accountResponse(w, p.Username)
 }
 
-// handleTirarAvatar apaga a própria foto.
+// handleRemoveAvatar deletes one's own photo.
 func (s *Server) handleRemoveAvatar(w http.ResponseWriter, r *http.Request) {
 	if s.noRegistry(w) {
 		return
@@ -142,12 +142,12 @@ func (s *Server) handleRemoveAvatar(w http.ResponseWriter, r *http.Request) {
 	s.accountResponse(w, p.Username)
 }
 
-// handleAvatar serve a foto pelo id. Cada um vê a própria; o admin vê todas,
-// para a tela Usuários. A foto de outra pessoa responde como a que não
-// existe.
+// handleAvatar serves the photo by id. Each one sees their own; the admin sees
+// all, for the Users screen. Someone else's photo answers like one that does
+// not exist.
 //
-// O id muda a cada troca, então a resposta pode ficar no navegador para
-// sempre: foto nova é URL nova.
+// The id changes on every change, so the response can stay in the browser
+// forever: a new photo is a new URL.
 func (s *Server) handleAvatar(w http.ResponseWriter, r *http.Request) {
 	filePath, owner, err := s.users.Avatar(r.URL.Query().Get("id"))
 	p := personOf(r)
@@ -172,7 +172,7 @@ func (s *Server) handleAvatar(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("Content-Type", "image/jpeg")
 	h.Set("X-Content-Type-Options", "nosniff")
-	// private: um proxy no caminho não guarda a foto de ninguém.
+	// private: a proxy on the way does not store anyone's photo.
 	h.Set("Cache-Control", "private, max-age=31536000, immutable")
 	http.ServeContent(w, r, "", st.ModTime(), f)
 }

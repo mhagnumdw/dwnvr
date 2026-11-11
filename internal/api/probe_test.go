@@ -13,8 +13,9 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 )
 
-// moovComAudio é o mínimo que o ParseMoov aceita: um ftyp, uma trilha de vídeo e
-// uma de áudio. É o que a sonda lê para saber que a conexão entregou mídia.
+// moovComAudio is the minimum ParseMoov accepts: an ftyp, a video track and an
+// audio track. It is what the probe reads to know the connection delivered
+// media.
 func moovComAudio() []byte {
 	box := func(typ string, partes ...[]byte) []byte {
 		body := []byte{}
@@ -42,9 +43,9 @@ func moovComAudio() []byte {
 		box("moov", box("mvhd", u32(0)), track(1, "vide"), track(2, "soun"))...)
 }
 
-// serverComGo2RTC monta um Server apontando para um go2rtc falso, e devolve o
-// contador de aberturas de stream.mp4 - que é a métrica que interessa: cada
-// abertura é uma conexão com a câmera.
+// serverWithGo2RTC builds a Server pointing to a fake go2rtc, and returns the
+// counter of stream.mp4 opens - which is the metric that matters: each open is
+// a connection to the camera.
 func serverWithGo2RTC(t *testing.T, streams string) (*Server, *int) {
 	t.Helper()
 	opens := 0
@@ -78,35 +79,35 @@ func probe(t *testing.T, s *Server, src string) map[string]any {
 	}
 	var out map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
-		t.Fatalf("resposta ilegível: %v", err)
+		t.Fatalf("unreadable response: %v", err)
 	}
 	return out
 }
 
-// Câmera que já grava tem consumidor, e com consumidor o go2rtc já preenche o
-// `medias`. Sondar aí seria abrir uma segunda sessão com a câmera para descobrir
-// o que a resposta já dizia.
+// A camera that is already recording has a consumer, and with a consumer go2rtc
+// already fills `medias`. Probing there would open a second session with the
+// camera to find out what the answer already said.
 func TestProbeDoesNotProbeStreamWithLiveProducer(t *testing.T) {
 	s, opens := serverWithGo2RTC(t, `{"cam_x": {"producers": [
 		{"url": "rtsp://x", "medias": ["video, recvonly, H265", "audio, recvonly, PCMA/16000"]}]}}`)
 
 	r := probe(t, s, "cam_x")
 	if r["hasAudio"] != true {
-		t.Errorf("hasAudio = %v, esperava true", r["hasAudio"])
+		t.Errorf("hasAudio = %v, expected true", r["hasAudio"])
 	}
 	if r["probed"] != false {
-		t.Errorf("probed = %v, esperava false", r["probed"])
+		t.Errorf("probed = %v, expected false", r["probed"])
 	}
 	if *opens != 0 {
-		t.Errorf("abriu o stream %d vezes, esperava nenhuma", *opens)
+		t.Errorf("opened the stream %d times, expected none", *opens)
 	}
 }
 
-// ocioso é o recorte fiel de um stream que ninguém está consumindo. O go2rtc
-// LISTA o produtor configurado desde sempre, com a url - só não preenche as
-// trilhas enquanto não conecta na câmera. Ter modelado isso como
-// `"producers": null` fazia a sonda nunca disparar em stream nenhum, e o teste
-// existe para que essa suposição errada não volte.
+// idle is the faithful cut of a stream that nobody is consuming. go2rtc LISTS
+// the configured producer all along, with the url - it just does not fill the
+// tracks until it connects to the camera. Having modeled this as `"producers":
+// null` made the probe never fire on any stream, and the test exists so that
+// this wrong assumption does not come back.
 const idle = `{"cam_x": {"producers": [
 	{"url": "exec:ffmpeg -i avsynctest -f rtsp {output}"}], "consumers": []}}`
 
@@ -115,22 +116,22 @@ func TestProbeProbesIdleStreamOnlyOnce(t *testing.T) {
 
 	r := probe(t, s, "cam_x")
 	if r["hasAudio"] != true {
-		t.Errorf("hasAudio = %v, esperava true", r["hasAudio"])
+		t.Errorf("hasAudio = %v, expected true", r["hasAudio"])
 	}
 	if r["probed"] != true {
-		t.Errorf("probed = %v, esperava true", r["probed"])
+		t.Errorf("probed = %v, expected true", r["probed"])
 	}
 
-	// Abrir e fechar o formulário de novo não pode custar outra conexão.
+	// Opening and closing the form again must not cost another connection.
 	r = probe(t, s, "cam_x")
 	if r["hasAudio"] != true {
-		t.Errorf("cache devolveu hasAudio = %v", r["hasAudio"])
+		t.Errorf("cache returned hasAudio = %v", r["hasAudio"])
 	}
 	if r["probed"] != false {
-		t.Errorf("probed = %v na segunda chamada, esperava false", r["probed"])
+		t.Errorf("probed = %v on the second call, expected false", r["probed"])
 	}
 	if *opens != 1 {
-		t.Errorf("abriu o stream %d vezes, esperava 1", *opens)
+		t.Errorf("opened the stream %d times, expected 1", *opens)
 	}
 }
 
@@ -140,6 +141,6 @@ func TestProbeRejectsNonexistentStream(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.handleProbeStream(rec, httptest.NewRequest(http.MethodGet, "/api/streams/probe?src=cam_y", nil))
 	if rec.Code != http.StatusNotFound {
-		t.Errorf("HTTP %d, esperava 404", rec.Code)
+		t.Errorf("HTTP %d, expected 404", rec.Code)
 	}
 }

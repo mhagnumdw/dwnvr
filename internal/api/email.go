@@ -13,12 +13,12 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
-// O que a API faz com o e-mail: o teste do Diagnóstico, as peças do link de
-// convite por e-mail (a rota fica em users.go) e o alerta por e-mail como a
-// aba Alerta o mostra.
+// What the API does with email: the Diagnostics test, the pieces of the invite
+// link by email (the route is in users.go) and the email alert as the Alert tab
+// shows it.
 
-// semEmail recusa o que envia e-mail quando a seção smtp não está ligada,
-// dizendo por quê.
+// noEmail rejects what sends email when the smtp section is not enabled, saying
+// why.
 func (s *Server) noEmail(w http.ResponseWriter) bool {
 	if s.sending != nil {
 		return false
@@ -31,9 +31,9 @@ func (s *Server) noEmail(w http.ResponseWriter) bool {
 	return true
 }
 
-// tokenDoLink tira o token do link de convite, do jeito que a tela o monta:
-// http(s)://endereço/caminho#convite?token=…. Qualquer outra forma é
-// recusada: o e-mail só leva um link de convite.
+// tokenDoLink extracts the token from the invite link, the way the screen
+// builds it: http(s)://address/path#convite?token=…. Any other form is
+// rejected: the email only carries an invite link.
 func tokenDoLink(link string) (string, bool) {
 	u, err := url.Parse(link)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
@@ -51,7 +51,7 @@ func tokenDoLink(link string) (string, bool) {
 	return q.Get("token"), true
 }
 
-// mensagemDoConvite é o e-mail do link de definir a senha.
+// inviteMessage is the email with the link to set the password.
 func inviteMessage(u users.User, para, link string) email.Message {
 	minutes := int(users.InviteValidity.Minutes())
 	return email.Message{
@@ -66,9 +66,8 @@ func inviteMessage(u users.User, para, link string) email.Message {
 	}
 }
 
-// handleTesteEmail manda um e-mail de teste, para o admin conferir a seção
-// smtp sem cadastrar ninguém. O erro do servidor vem do jeito que ele
-// respondeu.
+// handleEmailTest sends a test email, for the admin to check the smtp section
+// without registering anyone. The server error comes the way it answered.
 func (s *Server) handleEmailTest(w http.ResponseWriter, r *http.Request) {
 	if s.noEmail(w) {
 		return
@@ -91,16 +90,17 @@ func (s *Server) handleEmailTest(w http.ResponseWriter, r *http.Request) {
 			"Se ele chegou, o envio de e-mail está funcionando.\n",
 	}
 	if err := s.sending.Send(r.Context(), m); err != nil {
-		s.log.Warn("o e-mail de teste não foi", "por", personOf(r).Username, "erro", err)
+		s.log.Warn("the test email did not go", "by", personOf(r).Username, "err", err)
 		writeError(w, http.StatusBadGateway, "o e-mail não foi: "+err.Error())
 		return
 	}
-	s.log.Info("e-mail de teste enviado", "por", personOf(r).Username)
+	s.log.Info("test email sent", "by", personOf(r).Username)
 	writeJSON(w, map[string]string{"sentTo": para})
 }
 
-// smtpInfo é a seção smtp como o Diagnóstico a mostra: sem o login e sem a
-// senha. Error é o motivo de o e-mail estar desligado, quando há.
+// smtpInfo is the smtp section as Diagnostics shows it: without the login and
+// without the password. Error is the reason email is disabled, when there is
+// one.
 type smtpInfo struct {
 	Host     string `json:"host,omitempty"`
 	Port     int    `json:"port,omitempty"`
@@ -109,8 +109,8 @@ type smtpInfo struct {
 	Error    string `json:"error,omitempty"`
 }
 
-// smtpNoDiagnostico é nil sem a seção smtp: quem não a configura não vê o
-// card.
+// smtpInDiagnostics is nil without the smtp section: whoever does not configure
+// it does not see the card.
 func smtpInDiagnostics(c config.SMTP) *smtpInfo {
 	if c.Host == "" && c.Problem == "" {
 		return nil
@@ -118,10 +118,11 @@ func smtpInDiagnostics(c config.SMTP) *smtpInfo {
 	return &smtpInfo{Host: c.Host, Port: c.Port, Security: c.Security, From: c.From, Error: c.Problem}
 }
 
-// alertaPorEmail é o "Para onde vai" da aba Alerta: a lista que recebe, com o
-// desde quando e o erro se o meio está falhando; ou, sem o meio, as seções do
-// dwnvr.yaml que faltam, com o motivo da seção smtp recusada. Só o admin a
-// recebe, porque leva os endereços.
+// emailAlert is the "Where it goes" of the Alert tab: the list that receives,
+// with the since when and the error if the notifier is failing; or, without the
+// notifier, the dwnvr.yaml sections that are missing, with the reason the smtp
+// section was rejected. Only the admin receives it, because it carries the
+// addresses.
 type emailAlert struct {
 	To           []string   `json:"to,omitempty"`
 	FailingSince *time.Time `json:"failingSince,omitempty"`
@@ -135,7 +136,7 @@ func (s *Server) emailAlert() emailAlert {
 		return emailAlert{Missing: missing, SMTPError: s.cfg.SMTP.Problem}
 	}
 	a := emailAlert{To: s.cfg.Alerts.Email.To}
-	// O estado do meio só existe depois que alguma câmera ligou o alerta.
+	// The notifier state only exists after some camera has enabled the alert.
 	if c := s.mgr.Alerts(); c != nil {
 		for _, m := range c.NotifierStates() {
 			if m.Name == alert.NotifierEmail && !m.FailingSince.IsZero() {

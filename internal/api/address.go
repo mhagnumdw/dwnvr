@@ -8,18 +8,18 @@ import (
 	"strings"
 )
 
-// clienteDe é o endereço de quem fez a requisição, para o limite do login.
+// clientOf is the address of whoever made the request, for the login limit.
 //
-// Atrás de um proxy, a conexão vem do proxy, igual para todo mundo, e quem
-// chegou de verdade está no X-Forwarded-For. Mas o header quem escreve é o
-// cliente, e só vale quando a conexão vem de um proxy confiável (o
-// server.trustedProxies). Aí ele é lido da direita para a esquerda, pulando os
-// proxies confiáveis, e o primeiro endereço fora deles é o cliente: o que está
-// à esquerda dele foi escrito por quem não é confiável e pode ser inventado.
+// Behind a proxy, the connection comes from the proxy, the same for everyone,
+// and who really arrived is in X-Forwarded-For. But the header is written by
+// the client, and it only counts when the connection comes from a trusted proxy
+// (server.trustedProxies). Then it is read from right to left, skipping the
+// trusted proxies, and the first address outside them is the client: what is to
+// its left was written by someone untrusted and may be made up.
 //
-// O `tailscale serve` e o Caddy da doc substituem o header que recebem, mas
-// um proxy que acrescenta ao que veio (o Caddy com trusted_proxies, por
-// exemplo) não engana esta leitura.
+// `tailscale serve` and the Caddy of the docs replace the header they receive,
+// but a proxy that appends to what came (Caddy with trusted_proxies, for
+// example) does not fool this reading.
 func clientOf(r *http.Request, confiaveis []netip.Prefix) netip.Addr {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -44,7 +44,7 @@ func clientOf(r *http.Request, confiaveis []netip.Prefix) netip.Addr {
 	for _, s := range slices.Backward(jumps) {
 		a, err := netip.ParseAddr(strings.TrimSpace(s))
 		if err != nil {
-			break // o resto da cadeia não é confiável: fica o último bom
+			break // the rest of the chain is not trusted: keep the last good one
 		}
 		client = a.Unmap()
 		if !confiavel(client) {

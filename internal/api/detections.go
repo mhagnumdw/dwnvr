@@ -19,24 +19,26 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
 
-// limitePadraoDeDeteccoes é a página quando a tela não diz o tamanho. Dá umas
-// seis telas de celular na grade de duas colunas.
+// defaultDetectionsLimit is the page when the screen doesn't give the size. It
+// is about six phone screens in the two-column grid.
 const defaultDetectionsLimit = 60
 
-// limiteMaximoDeDeteccoes é o teto de uma página. A resposta de 200 detecções
-// fica na casa dos 50 KB; mais que isso é a tela pedindo o que não vai mostrar.
+// maxDetectionsLimit is the cap for one page. A response with 200 detections is
+// around 50 KB; more than that is the screen asking for what it won't show.
 const maxDetectionsLimit = 200
 
-// deteccao é o cartão da tela de Detecções: uma olhada do detector de objetos
-// numa câmera, com tudo o que ele achou naquele quadro. Duas famílias no mesmo
-// instante são DUAS marcas no disco, mas uma detecção só: o quadro é um.
+// detection is the card of the Detections screen: one inference of the object
+// detector on a camera, with everything it found in that frame. Two families at
+// the same instant are TWO marks on disk, but only one detection: the frame is
+// one.
 type detection struct {
 	Cam  string `json:"cam"`
 	AtMs int64  `json:"instanteMs"`
-	// QuadroMs é o instante do quadro olhado, que é onde as caixas estão no
-	// lugar certo. Ver store.Event.
+	// FrameMs is the instant of the inferred frame, which is where the boxes
+	// are in the right place. See store.Event.
 	FrameMs int64 `json:"quadroMs,omitempty"`
-	// TemQuadro diz se há imagem em /api/deteccoes/quadro para esta detecção.
+	// HasFrame says whether there is an image at /api/deteccoes/quadro for this
+	// detection.
 	HasFrame bool            `json:"temQuadro"`
 	Objects  []objectInFrame `json:"objetos"`
 }
@@ -46,40 +48,41 @@ type objectInFrame struct {
 	Class  string      `json:"classe"`
 	Score  float64     `json:"score"`
 	Box    *[4]float64 `json:"caixa,omitempty"`
-	// Alert e AlertAreas vêm como gravados: o objeto passou na regra de
-	// alerta da câmera, nas áreas destes ids. Ver store.Event.
+	// Alert and AlertAreas come as recorded: the object passed the camera's
+	// alert rule, in the areas with these ids. See store.Event.
 	Alert      bool     `json:"alert,omitempty"`
 	AlertAreas []string `json:"alertAreas,omitempty"`
 }
 
 type detectionsPage struct {
-	// Deteccoes vêm sempre da mais nova para a mais velha, nas duas direções.
+	// Detections always come from newest to oldest, in both directions.
 	Detections []detection `json:"deteccoes"`
-	// Fim diz que não há mais nada na direção pedida. Pode vir falso numa
-	// página que por acaso pegou a última detecção; a próxima vem vazia e com
-	// Fim verdadeiro.
+	// End says there is nothing more in the requested direction. It may be
+	// false on a page that happened to get the last detection; the next one
+	// comes empty and with End true.
 	End bool `json:"fim"`
 }
 
-// handleDeteccoes devolve uma página de detecções de objeto de todas
-// as câmeras juntas, da mais nova para a mais velha. É a rolagem da tela de
-// Detecções.
+// handleDetections returns a page of object detections from all cameras together,
+// from newest to oldest. It is the scrolling of the Detections screen.
 //
-//	antes=<ms>   as detecções anteriores a este instante (rolar para baixo).
-//	             Sem ele, as mais novas.
-//	depois=<ms>  as posteriores (rolar para cima, depois de um "ir para").
-//	limite=<N>   quantas; padrão limitePadraoDeDeteccoes.
-//	cams=a,b     só estas câmeras; sem ele, todas.
-//	familias=... só estas famílias; sem ele, todas.
-//	area=...     na câmera da área, só os objetos dentro dela; ver filtroDaQuery.
-//	rule=...     a regra da área: touch ou foot (o padrão).
-//	areas=...    o mesmo, com áreas cadastradas: <câmera>/<id>,<câmera>/<id>.
-//	alert=1      só as detecções com objeto que alertou; ver filtroDaQuery.
+//	antes=<ms>   the detections before this instant (scrolling down).
+//	             Without it, the newest.
+//	depois=<ms>  the ones after (scrolling up, after a "go to").
+//	limite=<N>   how many; default defaultDetectionsLimit.
+//	cams=a,b     only these cameras; without it, all.
+//	familias=... only these families; without it, all.
+//	area=... on the area's camera, only the objects inside it; see
+//	filterFromQuery.
+//	rule=...     the area rule: touch or foot (the default).
+//	areas=...    the same, with registered areas: <camera>/<id>,<camera>/<id>.
+//	alert=1 only the detections with an object that alerted; see
+//	filterFromQuery.
 //
-// A página nunca parte um instante ao meio: se a última detecção empata com
-// outras no mesmo milissegundo, em outra câmera, elas vêm juntas e a página
-// passa um pouco do limite. Sem isso o cursor `antes` pularia as que ficaram
-// de fora.
+// The page never splits an instant in half: if the last detection ties with others
+// in the same millisecond, on another camera, they come together and the page goes
+// a little past the limit. Without this the `antes` cursor would skip the ones
+// left out.
 func (s *Server) handleDetections(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	if q.Has("antes") && q.Has("depois") {
@@ -126,11 +129,13 @@ func (s *Server) handleDetections(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, page)
 }
 
-// handleDiasDeDeteccao devolve os dias com pelo menos uma detecção, em ordem
-// crescente, e quantas detecções cada um tem. É o que o calendário da tela de
-// Detecções deixa escolher, e o número que ele mostra em cada dia.
+// handleDetectionDays returns the days with at least one detection, in
+// ascending order, and how many detections each one has. It is what the
+// calendar of the Detections screen lets you pick, and the number it shows on
+// each day.
 //
-//	cams, familias, area, rule, areas e alert: os mesmos de handleDeteccoes.
+//	cams, familias, area, rule, areas and alert: the same as
+//	handleDetections.
 func (s *Server) handleDetectionDays(w http.ResponseWriter, r *http.Request) {
 	cams, filter, err := s.filterFromQuery(r.URL.Query())
 	if err != nil {
@@ -146,12 +151,13 @@ func (s *Server) handleDetectionDays(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"dias": dias, "deteccoesPorDia": perDay})
 }
 
-// diasComDeteccao percorre os dias com gravação e conta, em cada um, as
-// detecções do filtro; o dia sem nenhuma fica de fora. Contar obriga a ler
-// todas as câmeras de cada dia: no hardware de referência, com o cache de
-// disco frio, a primeira chamada leva ~1,3 s, e as seguintes saem da memória
-// do store em ~5 ms. Dia sem gravação fica de fora mesmo com marca - a
-// rolagem também não o alcança, porque anda pelos mesmos diasDasCameras.
+// daysWithDetection walks the days with recordings and counts, in each one, the
+// detections of the filter; a day with none is left out. Counting requires
+// reading all cameras of each day: on the reference hardware, with a cold disk
+// cache, the first call takes ~1.3 s, and the following ones come from the
+// store's memory in ~5 ms. A day without recordings is left out even with a
+// mark - scrolling doesn't reach it either, because it walks the same
+// diasDasCameras.
 func daysWithDetection(cams []*store.Camera, filter objectFilter) ([]string, map[string]int, error) {
 	dias := []string{}
 	perDay := map[string]int{}
@@ -172,9 +178,9 @@ func daysWithDetection(cams []*store.Camera, filter objectFilter) ([]string, map
 	return dias, perDay, nil
 }
 
-// contaDeteccoes conta as detecções de uma câmera num dia como o agrupa as
-// monta: uma por instante, por mais famílias que o quadro tenha, e com
-// `alert=1` só o instante em que algum objeto que fica alertou.
+// countDetections counts the detections of a camera on a day the way group
+// builds them: one per instant, however many families the frame has, and with
+// `alert=1` only the instant where some remaining object alerted.
 func countDetections(marks []store.Event, filter objectFilter) int {
 	n := 0
 	ultimo := int64(-1)
@@ -188,9 +194,10 @@ func countDetections(marks []store.Event, filter objectFilter) int {
 	return n
 }
 
-// paginaDeDeteccoesDe junta as câmeras dia a dia, a partir do dia do cursor e
-// na direção pedida, até encher a página. Cada dia de cada câmera vem da
-// memória do store; só o primeiro pedido de um dia lê o disco.
+// detectionsPageOf merges the cameras day by day, starting from the cursor's
+// day and in the requested direction, until the page is full. Each day of each
+// camera comes from the store's memory; only the first request for a day reads
+// the disk.
 func detectionsPageOf(cams []*store.Camera, filter objectFilter,
 	cursor int64, descending bool, limit int) (detectionsPage, error) {
 
@@ -203,10 +210,10 @@ func detectionsPageOf(cams []*store.Camera, filter objectFilter,
 		cursorDay = time.UnixMilli(cursor).Format(store.DayLayout)
 	}
 
-	// Na direção do rolar: do mais novo para o mais velho descendo, e o
-	// contrário subindo. A resposta subindo é revertida no fim, então o
-	// desempate também inverte: um mesmo instante sai sempre na mesma ordem
-	// de câmera, venha de que direção vier.
+	// In the scrolling direction: from newest to oldest going down, and the
+	// opposite going up. The response going up is reversed at the end, so the
+	// tie-break is also inverted: the same instant always comes out in the same
+	// camera order, whichever direction it comes from.
 	comesBefore := func(a, b detection) bool {
 		if a.AtMs != b.AtMs {
 			return (a.AtMs > b.AtMs) == descending
@@ -239,7 +246,7 @@ func detectionsPageOf(cams []*store.Camera, filter objectFilter,
 			continue
 		}
 
-		// Corta no limite, mas leva junto o que empata com a última.
+		// Cuts at the limit, but takes along what ties with the last one.
 		cut := limit
 		ultimo := out.Detections[cut-1].AtMs
 		for cut < len(out.Detections) && out.Detections[cut].AtMs == ultimo {
@@ -256,14 +263,14 @@ func detectionsPageOf(cams []*store.Camera, filter objectFilter,
 	return out, nil
 }
 
-// agrupa junta as marcas de uma câmera num dia em detecções, uma por instante,
-// e as acrescenta a `em`. As marcas vêm em ordem de instante, então as do
-// mesmo instante estão lado a lado.
+// group merges the marks of a camera on a day into detections, one per instant,
+// and appends them to `em`. The marks come in instant order, so the ones at the
+// same instant are side by side.
 func group(em []detection, cam string, marks []store.Event,
 	filter objectFilter, pastCursor func(int64) bool) []detection {
 
 	start := len(em)
-	isOpen := -1 // índice, em `em`, da detecção do instante corrente
+	isOpen := -1 // index, in `em`, of the detection of the current instant
 	for _, m := range marks {
 		if !pastCursor(m.AtMs) || !filter.passes(m) {
 			continue
@@ -283,16 +290,17 @@ func group(em []detection, cam string, marks []store.Event,
 	if !filter.alertsOnly {
 		return em
 	}
-	// Com `alert=1` a detecção fica inteira, com o objeto que não alertou: a
-	// tela o mostra apagado, "não entrou no alerta".
+	// With `alert=1` the detection stays whole, with the object that didn't
+	// alert: the screen shows it dimmed, "not part of the alert".
 	novas := slices.DeleteFunc(em[start:], func(d detection) bool {
 		return !slices.ContainsFunc(d.Objects, func(o objectInFrame) bool { return o.Alert })
 	})
 	return em[:start+len(novas)]
 }
 
-// diasDasCameras é a união dos dias com gravação das câmeras, em ordem
-// crescente. Vem do resumo em memória, sem tocar o disco.
+// diasDasCameras is the union of the cameras' days with recordings, in
+// ascending order. It comes from the in-memory summary, without touching the
+// disk.
 func diasDasCameras(cams []*store.Camera) []string {
 	var dias []string
 	for _, c := range cams {
@@ -304,37 +312,39 @@ func diasDasCameras(cams []*store.Camera) []string {
 	return slices.Compact(dias)
 }
 
-// filtroDeObjetos decide, marca a marca, que objeto fica na detecção. O que
-// sai leva junto a detecção que fica sem objeto nenhum.
+// objectFilter decides, mark by mark, which object stays in the detection. What
+// goes takes along the detection left with no object at all.
 type objectFilter struct {
-	// familias nil é "todas".
+	// families nil means "all".
 	families map[string]bool
-	// porCamera são as áreas de cada câmera: o objeto fica se está em
-	// qualquer uma delas. A câmera fora do mapa segue sem filtro de área.
+	// perCamera holds the areas of each camera: the object stays if it is in
+	// any of them. A camera not in the map goes on without an area filter.
 	perCamera map[string][]areaWithRule
-	// areas são as da câmera das marcas: ver daCamera.
+	// areas are those of the marks' camera: see daCamera.
 	areas []areaWithRule
-	// soAlertas deixa só a detecção em que algum objeto que fica alertou. É
-	// por detecção, e não por objeto: o que não alertou fica nela.
+	// alertsOnly keeps only the detection in which some remaining object
+	// alerted. It is per detection, not per object: the one that didn't alert
+	// stays in it.
 	alertsOnly bool
 }
 
-// areaComRegra é uma área com a regra dela: a desenhada na hora, com o `rule`
-// da query, ou a cadastrada, com a regra do cadastro.
+// areaWithRule is an area with its rule: the one drawn on the spot, with the
+// query's `rule`, or the registered one, with the registry's rule.
 type areaWithRule struct {
 	rule area.Rule
 	area area.Area
 }
 
-// daCamera é o filtro das marcas de uma câmera: as áreas só valem na câmera
-// delas, e as outras passam só pelo filtro de família.
+// daCamera is the filter for one camera's marks: the areas only apply on their
+// own camera, and the others only go through the family filter.
 func (f objectFilter) daCamera(cam string) objectFilter {
 	f.areas = f.perCamera[cam]
 	return f
 }
 
-// passa diz se a marca fica. Com área, a marca sem caixa, de antes de a caixa
-// ser gravada, fica de fora: não há como saber onde ela estava.
+// passes says whether the mark stays. With an area, a mark without a box, from
+// before the box was recorded, is left out: there is no way to know where it
+// was.
 func (f objectFilter) passes(m store.Event) bool {
 	if f.families != nil && !f.families[m.Family] {
 		return false
@@ -353,7 +363,7 @@ func (f objectFilter) passes(m store.Event) bool {
 	return false
 }
 
-// soma acrescenta uma área à câmera dela.
+// add appends an area to its camera.
 func (f *objectFilter) add(cam string, a areaWithRule) {
 	if f.perCamera == nil {
 		f.perCamera = map[string][]areaWithRule{}
@@ -361,24 +371,25 @@ func (f *objectFilter) add(cam string, a areaWithRule) {
 	f.perCamera[cam] = append(f.perCamera[cam], a)
 }
 
-// filtroDaQuery resolve os parâmetros que a lista e o calendário dividem:
-// `cams`, `familias`, `area`, `rule`, `areas` e `alert`.
+// filterFromQuery resolves the parameters the list and the calendar share:
+// `cams`, `familias`, `area`, `rule`, `areas` and `alert`.
 //
-// `area=<cam>:<x>,<y>,<x>,<y>,...` é uma área desenhada sobre a imagem da
-// câmera, com X e Y em milésimos do quadro (inteiros de 0 a 1000), para a URL
-// ficar curta. `areas=<cam>/<id>,<cam>/<id>` são áreas cadastradas, resolvidas
-// pelo cadastro de agora: editar a área muda o filtro, inclusive sobre o
-// passado. Nem o id da câmera nem o da área têm vírgula ou barra
-// (ValidateCameraID e o id gerado da área).
+// `area=<cam>:<x>,<y>,<x>,<y>,...` is an area drawn over the camera image, with
+// X and Y in thousandths of the frame (integers from 0 to 1000), to keep the
+// URL short. `areas=<cam>/<id>,<cam>/<id>` are registered areas, resolved by
+// the current registry: editing the area changes the filter, including over the
+// past. Neither the camera id nor the area id has a comma or a slash
+// (ValidateCameraID and the generated area id).
 //
-// As áreas de uma câmera somam, a desenhada junto: qualquer uma serve. Elas
-// restringem só a câmera delas: as outras de `cams` seguem inteiras, e a
-// câmera da área fora de `cams` não aparece, com área ou sem.
+// A camera's areas add up, the drawn one included: any of them will do. They
+// restrict only their own camera: the others in `cams` stay whole, and the
+// area's camera outside `cams` doesn't show up, with or without an area.
 //
-// `alert=1` deixa só as detecções em que algum objeto que passou nos outros
-// filtros alertou, pela marca gravada na hora: mudar o alerta da câmera não
-// muda o passado. Com `familias=veiculo`, a detecção que alertou só pela
-// pessoa sai, porque a pessoa sai.
+// `alert=1` keeps only the detections in which some object that passed the
+// other filters alerted, by the mark recorded at the time: changing the
+// camera's alert doesn't change the past. With `familias=veiculo`, the
+// detection that alerted only because of the person goes, because the person
+// goes.
 func (s *Server) filterFromQuery(q url.Values) ([]*store.Camera, objectFilter, error) {
 	var f objectFilter
 	cams, err := s.filterCameras(q.Get("cams"))
@@ -421,9 +432,10 @@ func (s *Server) filterFromQuery(q url.Values) ([]*store.Camera, objectFilter, e
 	return cams, f, nil
 }
 
-// areasCadastradasDoFiltro resolve cada `<cam>/<id>` de `areas=` pelo
-// cadastro. A área que não existe mais é recusada, como a câmera que não
-// existe: o filtro em silêncio mostraria outra lista sem dizer.
+// filterRegisteredAreas resolves each `<cam>/<id>` of `areas=` through the
+// registry. An area that no longer exists is rejected, like a camera that
+// doesn't exist: filtering in silence would show a different list without
+// saying so.
 func (s *Server) filterRegisteredAreas(f *objectFilter, list string) error {
 	registry := map[string]config.Camera{}
 	for _, c := range s.mgr.Cameras() {
@@ -442,7 +454,8 @@ func (s *Server) filterRegisteredAreas(f *objectFilter, list string) error {
 		if i < 0 {
 			return fmt.Errorf("a câmera %q não tem a área %q", camID, id)
 		}
-		// O cadastro já passou pelo CheckCamera: a regra e os pontos valem.
+		// The registry has already gone through CheckCamera: the rule and the
+		// points are valid.
 		cad := cam.Areas[i]
 		rule, err := area.NewRule(cad.Rule)
 		if err != nil {
@@ -457,8 +470,8 @@ func (s *Server) filterRegisteredAreas(f *objectFilter, list string) error {
 	return nil
 }
 
-// areaDoFiltro lê `<cam>:<x>,<y>,...`, em milésimos, e devolve a câmera e a
-// área em fração do quadro.
+// filterArea reads `<cam>:<x>,<y>,...`, in thousandths, and returns the camera
+// and the area as a fraction of the frame.
 func filterArea(v string) (string, area.Area, error) {
 	i := strings.LastIndexByte(v, ':')
 	if i <= 0 {
@@ -485,9 +498,9 @@ func filterArea(v string) (string, area.Area, error) {
 	return cam, a, nil
 }
 
-// camerasDoFiltro resolve `cams=a,b`. Vazio são todas as cadastradas. Um ID
-// que não é de câmera cadastrada é recusado, pelo mesmo motivo do camParam:
-// ele vira caminho no disco.
+// filterCameras resolves `cams=a,b`. Empty means all registered ones. An ID
+// that isn't a registered camera is rejected, for the same reason as in
+// camParam: it becomes a path on disk.
 func (s *Server) filterCameras(list string) ([]*store.Camera, error) {
 	var out []*store.Camera
 	if list == "" {
@@ -505,8 +518,8 @@ func (s *Server) filterCameras(list string) ([]*store.Camera, error) {
 	return out, nil
 }
 
-// familiasDoFiltro resolve `familias=pessoa,veiculo`. Vazio devolve nil, que é
-// "todas" - inclusive uma família que um detector futuro venha a marcar.
+// filterFamilies resolves `familias=pessoa,veiculo`. Empty returns nil, which
+// means "all" - including a family that a future object detector may mark.
 func filterFamilies(list string) (map[string]bool, error) {
 	if list == "" {
 		return nil, nil
@@ -521,12 +534,12 @@ func filterFamilies(list string) (map[string]bool, error) {
 	return out, nil
 }
 
-// handleQuadroDaDeteccao serve o JPEG do quadro que o detector olhou.
+// handleDetectionFrame serves the JPEG of the frame the object detector
+// inferred on.
 //
-// O arquivo vai como está no disco: nada é redimensionado nem reencodado por
-// requisição. Ele nunca muda depois de gravado - o nome é o instante -, então
-// o navegador pode guardá-lo para sempre, e rolar de volta não pede nada ao
-// servidor.
+// The file goes as it is on disk: nothing is resized or re-encoded per request.
+// It never changes after being written - the name is the instant -, so the
+// browser can keep it forever, and scrolling back asks nothing of the server.
 func (s *Server) handleDetectionFrame(w http.ResponseWriter, r *http.Request) {
 	cam, err := s.camParam(r)
 	if err != nil {

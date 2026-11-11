@@ -268,7 +268,7 @@ func Open(path, owner string) (c *Registry, warnings []string, err error) {
 		err = json.Unmarshal(b, &c.data)
 	}
 	if err != nil {
-		c.data, c.unreadable = FileData{}, fmt.Errorf("%s ilegível: %w", path, err)
+		c.data, c.unreadable = FileData{}, fmt.Errorf("%s unreadable: %w", path, err)
 		return c, nil, c.unreadable
 	}
 
@@ -419,7 +419,7 @@ func (c *Registry) Update(f func(*FileData) error) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.unreadable != nil {
-		return fmt.Errorf("o cadastro não é gravado enquanto o arquivo estiver ilegível: %w", c.unreadable)
+		return fmt.Errorf("the registry is not saved while the file is unreadable: %w", c.unreadable)
 	}
 
 	updated := FileData{Owner: c.data.Owner, Users: append([]User(nil), c.data.Users...)}

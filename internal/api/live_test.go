@@ -9,8 +9,8 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 )
 
-// O proxy do live só leva ao go2rtc o websocket do player. O resto da API dele
-// - config, restart, streams - não pode ser alcançado pela sessão do dwnvr.
+// The live proxy only takes the player's websocket to go2rtc. The rest of its
+// API - config, restart, streams - cannot be reached by the dwnvr session.
 func TestLiveProxyOnlyForwardsTheWebsocket(t *testing.T) {
 	var received []string
 	var username, password string
@@ -30,10 +30,10 @@ func TestLiveProxyOnlyForwardsTheWebsocket(t *testing.T) {
 		t.Fatalf("GET /api/live/ws: HTTP %d: %s", rec.Code, rec.Body.String())
 	}
 	if len(received) != 1 || received[0] != "GET /api/ws?src=cam_frente" {
-		t.Fatalf("o go2rtc recebeu %v, esperava só GET /api/ws?src=cam_frente", received)
+		t.Fatalf("go2rtc received %v, expected only GET /api/ws?src=cam_frente", received)
 	}
 	if username != "admin" || password != "senha" {
-		t.Errorf("o go2rtc recebeu a credencial %q/%q", username, password)
+		t.Errorf("go2rtc received the credential %q/%q", username, password)
 	}
 
 	received = nil
@@ -47,10 +47,10 @@ func TestLiveProxyOnlyForwardsTheWebsocket(t *testing.T) {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(request.method, request.filePath, nil))
 		if rec.Code < 400 {
-			t.Errorf("%s %s: HTTP %d, esperava recusa", request.method, request.filePath, rec.Code)
+			t.Errorf("%s %s: HTTP %d, expected rejection", request.method, request.filePath, rec.Code)
 		}
 	}
 	if len(received) != 0 {
-		t.Errorf("chegou ao go2rtc o que não é o websocket: %v", received)
+		t.Errorf("what reached go2rtc is not the websocket: %v", received)
 	}
 }

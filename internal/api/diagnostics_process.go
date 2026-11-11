@@ -12,50 +12,55 @@ import (
 	"time"
 )
 
-// O grupo "Processo do dwnvr" do card "Este servidor": o dwnvr visto por ele
-// mesmo, ao lado da máquina inteira. É o que separa "a máquina está sofrendo"
-// de "é o dwnvr que faz a máquina sofrer". Como o resto do card, sai de /proc,
-// e o campo some quando a fonte não existe.
+// The "dwnvr process" group of the "This server" card: dwnvr seen by itself,
+// next to the whole machine. It is what separates "the machine is struggling"
+// from "it is dwnvr that makes the machine struggle". Like the rest of the
+// card, it comes from /proc, and the field disappears when its source does not
+// exist.
 //
-// Fica de fora o ReadMemStats (heap, GCs): ele para o programa inteiro por um
-// instante, e a memória que pesa na máquina já está em MemoriaBytes.
+// ReadMemStats (heap, GCs) is left out: it stops the whole program for an
+// instant, and the memory that weighs on the machine is already in MemoryBytes.
 
 type processInfo struct {
-	// CPUMs é o tempo de CPU que o dwnvr gastou desde que subiu, somando
-	// usuário e kernel; VivoMs, há quanto tempo ele está no ar. A tela tira a
-	// porcentagem da diferença entre duas leituras - CPU de agora, e não a
-	// média de dias -, e cai na média desde a subida na primeira leitura. Vai
-	// assim, e não já em porcentagem, para o servidor não guardar a leitura
-	// anterior de cada tela aberta. Ponteiro porque zero é medida: o dwnvr
-	// recém-subido ainda não gastou um tique de CPU.
+	// CPUMs is the CPU time dwnvr has spent since it started, adding user and
+	// kernel; AliveMs, how long it has been up. The screen derives the
+	// percentage from the difference between two readings - current CPU, and
+	// not the average over days -, and falls back to the average since startup
+	// on the first reading. It goes like this, and not already as a percentage,
+	// so the server does not keep the previous reading of each open screen.
+	// Pointer because zero is a measurement: a freshly started dwnvr has not
+	// spent a CPU tick yet.
 	CPUMs   *int64 `json:"cpuMs,omitempty"`
 	AliveMs int64  `json:"vivoMs"`
-	// MemoriaBytes é a memória física ocupada pelo dwnvr (VmRSS). É o número
-	// que bate contra o limite do container, e não o memory.current do
-	// cgroup: esse soma o cache dos vídeos gravados, que o kernel devolve
-	// quando precisa, e numa máquina que grava o dia todo vive perto do teto.
+	// MemoryBytes is the physical memory used by dwnvr (VmRSS). It is the
+	// number that hits the container limit, and not the cgroup's
+	// memory.current: that one includes the cache of the recorded videos, which
+	// the kernel gives back when it needs to, and on a machine that records all
+	// day it lives close to the ceiling.
 	MemoryBytes int64 `json:"memoriaBytes,omitempty"`
-	// Goroutines não tem teto certo - depende do número de câmeras e de quem
-	// assiste. O sinal de vazamento é crescer de uma leitura para outra.
+	// Goroutines has no fixed ceiling - it depends on the number of cameras and
+	// on who is watching. The sign of a leak is growing from one reading to the
+	// next.
 	Goroutines int `json:"goroutines"`
-	// ArquivosAbertos conta os descritores abertos (arquivos e conexões), e
-	// LimiteDeArquivos é o teto do processo. Bater nele faz falhar ao mesmo
-	// tempo a gravação, que abre segmento, e a rede, que abre socket.
+	// OpenFiles counts the open descriptors (files and connections), and
+	// FileLimit is the process ceiling. Hitting it makes recording, which opens
+	// segments, and the network, which opens sockets, fail at the same time.
 	OpenFiles int   `json:"arquivosAbertos,omitempty"`
 	FileLimit int64 `json:"limiteDeArquivos,omitempty"`
-	// UID e GID com que o dwnvr roda. Errados, o storage e o cameras.json
-	// não aceitam escrita; ver DWNVR_UID e DWNVR_GID no docker-compose.yml.
+	// UID and GID dwnvr runs as. If they are wrong, the storage and
+	// cameras.json do not accept writes; see DWNVR_UID and DWNVR_GID in
+	// docker-compose.yml.
 	UID *int `json:"uid,omitempty"`
 	GID *int `json:"gid,omitempty"`
-	// Go e Arquitetura dizem qual binário roda de fato: "go1.27.1" e
+	// Go and Architecture say which binary is actually running: "go1.27.1" and
 	// "linux/arm64".
 	Go           string `json:"go"`
 	Architecture string `json:"arquitetura"`
 }
 
-// ticksPorSegundo é o USER_HZ, a unidade dos tempos do /proc/self/stat. Ele é
-// fixo em 100 na ABI do Linux em toda arquitetura em que o dwnvr roda, e o
-// sysconf que o leria precisa de C.
+// ticksPerSecond is USER_HZ, the unit of the times in /proc/self/stat. It is
+// fixed at 100 in the Linux ABI on every architecture dwnvr runs on, and the
+// sysconf that would read it needs C.
 const ticksPerSecond = 100
 
 func collectProcess(f fontes, since time.Time) processInfo {
@@ -82,10 +87,10 @@ func collectProcess(f fontes, since time.Time) processInfo {
 	return p
 }
 
-// lerTempoDeCPU soma utime e stime do /proc/self/stat, em ms. O segundo campo
-// é o nome do programa entre parênteses, e pode ter espaço e parêntese dentro;
-// a contagem dos campos começa depois do ÚLTIMO ")". Ali, utime e stime são o
-// 12º e o 13º.
+// lerTempoDeCPU adds utime and stime from /proc/self/stat, in ms. The second
+// field is the program name in parentheses, and it can have spaces and
+// parentheses inside; the field count starts after the LAST ")". From there,
+// utime and stime are the 12th and the 13th.
 //
 //	1234 (dwnvr) S 1 1234 1234 0 -1 4194560 2200 0 0 0 44346 36809 0 0 20 0 15 0 ...
 func lerTempoDeCPU(s string) (int64, bool) {
@@ -105,8 +110,8 @@ func lerTempoDeCPU(s string) (int64, bool) {
 	return (utime + stime) * 1000 / ticksPerSecond, true
 }
 
-// lerStatus tira do /proc/self/status a memória física (VmRSS, em kB) e o UID
-// e o GID reais, que são o primeiro dos quatro números de cada linha.
+// lerStatus takes from /proc/self/status the physical memory (VmRSS, in kB) and
+// the real UID and GID, which are the first of the four numbers on each line.
 func lerStatus(b []byte) (rss int64, uid, gid *int) {
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
@@ -133,12 +138,13 @@ func lerStatus(b []byte) (rss int64, uid, gid *int) {
 	return rss, uid, gid
 }
 
-// lerLimiteDeArquivos acha o limite flexível (soft), que é o que vale, na
-// linha do /proc/self/limits:
+// readFileLimit finds the soft limit, which is the one that counts, on the
+// /proc/self/limits line:
 //
 //	Max open files            524287               524288               files
 //
-// "unlimited" e linha ausente dão 0, e o limite some da resposta.
+// "unlimited" and a missing line give 0, and the limit disappears from the
+// response.
 func readFileLimit(b []byte) int64 {
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
@@ -153,8 +159,8 @@ func readFileLimit(b []byte) int64 {
 	return 0
 }
 
-// arquitetura é o GOOS/GOARCH do binário, com a versão do ARM de 32 bits
-// quando houver: "linux/arm/v7" e "linux/arm/v6" rodam em placas diferentes.
+// architecture is the binary's GOOS/GOARCH, with the 32-bit ARM version when
+// there is one: "linux/arm/v7" and "linux/arm/v6" run on different boards.
 func architecture() string {
 	a := runtime.GOOS + "/" + runtime.GOARCH
 	if info, ok := debug.ReadBuildInfo(); ok {

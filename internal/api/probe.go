@@ -8,25 +8,27 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 )
 
-// probeTTL é quanto tempo uma sonda vale. Curto porque a resposta pode mudar sem
-// aviso - basta o dono editar o go2rtc.yaml -, e longo o bastante para abrir e
-// fechar o formulário algumas vezes sem reconectar na câmera a cada clique.
+// probeTTL is how long a probe is valid. Short because the answer can change
+// without notice - it is enough for the owner to edit go2rtc.yaml -, and long
+// enough to open and close the form a few times without reconnecting to the
+// camera on every click.
 const probeTTL = 5 * time.Minute
 
-// probeEntry é uma sonda guardada. A URL do produtor entra na comparação porque
-// é ela que identifica a FONTE: trocar o RTSP de um stream mantendo o nome
-// invalidaria o resultado sem mudar a chave do cache.
+// probeEntry is a stored probe. The producer URL is part of the comparison
+// because it is what identifies the SOURCE: changing a stream's RTSP while
+// keeping the name would invalidate the result without changing the cache key.
 type probeEntry struct {
 	probe     go2rtc.AudioProbe
 	sourceURL string
 	at        time.Time
 }
 
-// probeCache guarda o resultado das sondas e serializa as concorrentes.
+// probeCache stores the probe results and serializes concurrent ones.
 //
-// O mutex é um só, e não um por stream, de propósito: sondar é abrir conexão com
-// câmera, e duas telas abertas ao mesmo tempo não devem virar várias conexões
-// simultâneas num dispositivo com 1,5 GB de RAM. Cada sonda dura poucos segundos.
+// There is a single mutex, and not one per stream, on purpose: probing means
+// opening a connection to a camera, and two screens open at the same time must
+// not turn into several simultaneous connections on a device with 1.5 GB of RAM.
+// Each probe lasts a few seconds.
 type probeCache struct {
 	mu      sync.Mutex
 	entries map[string]probeEntry
@@ -47,15 +49,17 @@ func (c *probeCache) put(name, sourceURL string, p go2rtc.AudioProbe) {
 	c.entries[name] = probeEntry{probe: p, sourceURL: sourceURL, at: time.Now()}
 }
 
-// handleProbeStream responde se um stream entrega áudio, sondando-o se preciso.
+// handleProbeStream answers whether a stream delivers audio, probing it if
+// needed.
 //
-// A tela de cadastro precisa dessa resposta ANTES de a câmera existir, e é
-// justamente aí que o go2rtc não sabe dá-la: ele só preenche `medias` enquanto
-// alguém consome o stream. Ver go2rtc.Client.ProbeAudio para o mecanismo.
+// The registration screen needs this answer BEFORE the camera exists, and that
+// is exactly when go2rtc cannot give it: it only fills `medias` while someone
+// consumes the stream. See go2rtc.Client.ProbeAudio for the mechanism.
 //
-// Stream que já tem produtor vivo - toda câmera cadastrada e gravando - não é
-// sondado: o `medias` dele já está preenchido, e abrir uma segunda conexão só
-// para perguntar o que já se sabe custaria uma sessão a mais com a câmera.
+// A stream that already has a live producer - every registered camera that is
+// recording - is not probed: its `medias` is already filled, and opening a
+// second connection just to ask what is already known would cost one more
+// session with the camera.
 func (s *Server) handleProbeStream(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("src")
 	if name == "" {
@@ -65,7 +69,7 @@ func (s *Server) handleProbeStream(w http.ResponseWriter, r *http.Request) {
 
 	streams, err := s.client.Streams(r.Context())
 	if err != nil {
-		s.log.Error("listando streams do go2rtc", "erro", err)
+		s.log.Error("listing go2rtc streams", "erro", err)
 		writeError(w, http.StatusBadGateway, "o go2rtc não respondeu")
 		return
 	}
@@ -75,8 +79,8 @@ func (s *Server) handleProbeStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// probed diz se a resposta custou uma conexão nova com a câmera. É o que
-	// permite à tela distinguir "acabei de verificar" de "isto já se sabia".
+	// probed says whether the answer cost a new connection to the camera. It is
+	// what lets the screen tell "I just checked" from "this was already known".
 	resp := map[string]any{"name": name, "hasAudio": false, "probed": false}
 	setAudio := func(has bool, codecs []string) {
 		resp["hasAudio"] = has
@@ -85,9 +89,10 @@ func (s *Server) handleProbeStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// O que distingue stream vivo de stream ocioso é o `medias`, não a presença
-	// do produtor: o go2rtc lista o produtor CONFIGURADO desde sempre, só com a
-	// url, e só preenche as trilhas quando de fato conecta na câmera.
+	// What distinguishes a live stream from an idle one is `medias`, not the
+	// presence of the producer: go2rtc lists the CONFIGURED producer all along,
+	// with only the url, and only fills the tracks when it actually connects to
+	// the camera.
 	var sourceURL string
 	known := false
 	for _, p := range st.Producers {
@@ -116,11 +121,11 @@ func (s *Server) handleProbeStream(w http.ResponseWriter, r *http.Request) {
 
 	probe, err := s.client.ProbeAudio(r.Context(), name)
 	if err != nil {
-		// Não é erro de servidor: a câmera pode simplesmente estar fora do ar, e
-		// a tela sabe o que fazer com isso - deixar as opções de áudio
-		// clicáveis, em vez de mentir que a câmera não tem microfone. Por isso o
-		// 200 com o motivo junto, e nada guardado no cache.
-		s.log.Warn("sondando áudio do stream", "stream", name, "erro", err)
+		// It is not a server error: the camera may simply be down, and the
+		// screen knows what to do with that - leave the audio options clickable,
+		// instead of lying that the camera has no microphone. Hence the 200 with
+		// the reason attached, and nothing stored in the cache.
+		s.log.Warn("probing stream audio", "stream", name, "erro", err)
 		resp["erro"] = err.Error()
 		writeJSON(w, resp)
 		return

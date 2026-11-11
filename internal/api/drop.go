@@ -12,27 +12,28 @@ import (
 	"time"
 )
 
-// Derrubar alguém tem duas metades. A sessão cai sozinha: a chave do cookie
-// sai da senha guardada (ver chaveDaSessao), e remover a pessoa ou gerar link
-// novo muda essa senha, então toda requisição dela passa a ser recusada. O
-// que não cai sozinho são as conexões já abertas, que não voltam a apresentar
-// o cookie: o websocket do ao vivo e o aviso de sessão. É delas que este
-// arquivo cuida.
+// Dropping someone has two halves. The session falls on its own: the cookie key
+// comes from the stored password (see sessionKey), and removing the person or
+// generating a new link changes that password, so every request of theirs
+// starts being rejected. What does not fall on its own are the connections
+// already open, which do not present the cookie again: the live websocket and
+// the session warning. Those are what this file takes care of.
 //
-// O WebRTC não passa por aqui, e o dwnvr não tem como cortá-lo: a mídia vai
-// direto do go2rtc ao navegador pela UDP, e o próprio player fecha o
-// websocket da negociação assim que o vídeo toca. O go2rtc 1.9 não tem rota
-// para derrubar um consumidor; só reiniciá-lo, o que pararia todas as câmeras
-// e a gravação. Quem fecha o WebRTC é a tela: o aviso de sessão a avisa na
-// hora, e a conferência periódica do Ao vivo é a rede de segurança.
+// WebRTC does not go through here, and dwnvr has no way to cut it: the media
+// goes straight from go2rtc to the browser over UDP, and the player itself
+// closes the negotiation websocket as soon as the video plays. go2rtc 1.9 has
+// no route to drop a consumer; only restarting it, which would stop all cameras
+// and the recording. Whoever closes WebRTC is the screen: the session warning
+// tells it right away, and the periodic check of Live is the safety net.
 
-// conexoes são as conexões abertas de cada pessoa, pelo login.
+// connections are the open connections of each person, by login.
 type connections struct {
 	mu        sync.Mutex
 	perPerson map[string]map[net.Conn]struct{}
 }
 
-// registrar anota a conexão da pessoa. soltar a tira da lista, sem fechá-la.
+// registrar records the person's connection. release takes it off the list,
+// without closing it.
 func (c *connections) registrar(username string, conn net.Conn) (release func()) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -53,7 +54,7 @@ func (c *connections) registrar(username string, conn net.Conn) (release func())
 	}
 }
 
-// derrubar fecha todas as conexões abertas da pessoa e diz quantas eram.
+// drop closes all open connections of the person and says how many there were.
 func (c *connections) drop(username string) int {
 	c.mu.Lock()
 	open := c.perPerson[username]
@@ -65,17 +66,17 @@ func (c *connections) drop(username string) int {
 	return len(open)
 }
 
-// derrubarPessoa fecha o que a pessoa tem aberto, depois de ela ter sido
-// removida ou ganhado link novo.
+// dropPerson closes whatever the person has open, after they were removed or
+// got a new link.
 func (s *Server) dropPerson(username, reason string) {
 	if n := s.open.drop(username); n > 0 {
-		s.log.Info("conexões da pessoa derrubadas", "usuario", username, "motivo", reason, "conexoes", n)
+		s.log.Info("person's connections dropped", "user", username, "reason", reason, "connections", n)
 	}
 }
 
-// anotaHijack é o ResponseWriter do proxy do ao vivo: quando o
-// httputil.ReverseProxy toma a conexão para o websocket, ela é registrada
-// como da pessoa.
+// hijackRecorder is the ResponseWriter of the live proxy: when
+// httputil.ReverseProxy takes over the connection for the websocket, it is
+// recorded as the person's.
 type hijackRecorder struct {
 	http.ResponseWriter
 	onTake func(net.Conn)
@@ -91,28 +92,28 @@ func (w hijackRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 func (w hijackRecorder) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// handleLive é o proxy do ao vivo com a conexão anotada: derrubar a pessoa
-// fecha o websocket, e com ele o vídeo que vem por dentro dele (MSE) e a
-// negociação em curso.
+// handleLive is the live proxy with the connection recorded: dropping the
+// person closes the websocket, and with it the video that comes inside it (MSE)
+// and the negotiation in progress.
 func (s *Server) handleLive(proxy http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var release func()
 		username := personOf(r).Username
 		proxy.ServeHTTP(hijackRecorder{w, func(c net.Conn) { release = s.open.registrar(username, c) }}, r)
-		// O ReverseProxy só volta quando o websocket fecha.
+		// ReverseProxy only returns when the websocket closes.
 		if release != nil {
 			release()
 		}
 	}
 }
 
-// handleAvisoDeSessao é um websocket que não leva mensagem nenhuma: o
-// servidor o fecha quando a pessoa é removida ou ganha link novo, e a tela,
-// ao vê-lo fechar, confere a sessão. É como o Ao vivo fica sabendo na hora
-// que precisa fechar o WebRTC, que o dwnvr não alcança.
+// handleSessionWarning is a websocket that carries no message at all: the
+// server closes it when the person is removed or gets a new link, and the
+// screen, on seeing it close, checks the session. It is how Live learns right
+// away that it must close WebRTC, which dwnvr cannot reach.
 //
-// Escrito à mão, sem biblioteca: sem mensagens, o protocolo se resume ao
-// aperto de mão da RFC 6455 e a esperar o outro lado fechar.
+// Written by hand, without a library: with no messages, the protocol comes down
+// to the RFC 6455 handshake and waiting for the other side to close.
 func (s *Server) handleSessionWarning(w http.ResponseWriter, r *http.Request) {
 	key := r.Header.Get("Sec-WebSocket-Key")
 	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") || key == "" ||
@@ -122,7 +123,7 @@ func (s *Server) handleSessionWarning(w http.ResponseWriter, r *http.Request) {
 	}
 	conn, rw, err := http.NewResponseController(w).Hijack()
 	if err != nil {
-		s.log.Warn("aviso de sessão sem websocket", "erro", err)
+		s.log.Warn("session warning without websocket", "err", err)
 		return
 	}
 	defer conn.Close()
@@ -133,12 +134,12 @@ func (s *Server) handleSessionWarning(w http.ResponseWriter, r *http.Request) {
 	if rw.Flush() != nil {
 		return
 	}
-	// O ReadHeaderTimeout do servidor deixou um prazo na conexão.
+	// The server's ReadHeaderTimeout left a deadline on the connection.
 	_ = conn.SetDeadline(time.Time{})
 
 	release := s.open.registrar(personOf(r).Username, conn)
 	defer release()
-	// O navegador não manda nada além do fechamento: ler até o fim é esperar
-	// a aba fechar, ou o servidor derrubar.
+	// The browser sends nothing besides the close: reading to the end is
+	// waiting for the tab to close, or for the server to drop it.
 	_, _ = io.Copy(io.Discard, rw)
 }

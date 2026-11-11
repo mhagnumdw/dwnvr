@@ -14,15 +14,15 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/recorder"
 )
 
-// alertEmailDe é o alertEmail do /api/cameras do admin, com o go2rtc fora do
-// ar: ele vem mesmo assim.
+// alertEmailDe is the alertEmail of the admin's /api/cameras, with go2rtc down:
+// it comes anyway.
 func alertEmailDe(t *testing.T, s *Server) string {
 	t.Helper()
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"})
 	return string(request(t, s.requireAuth(s.handleCameras), "/api/cameras")["alertEmail"])
 }
 
-// pede chama o handler e devolve o corpo como mapa de JSON cru.
+// request calls the handler and returns the body as a map of raw JSON.
 func request(t *testing.T, h http.HandlerFunc, rota string) map[string]json.RawMessage {
 	t.Helper()
 	rec := httptest.NewRecorder()
@@ -37,16 +37,16 @@ func request(t *testing.T, h http.HandlerFunc, rota string) map[string]json.RawM
 	return resp
 }
 
-// O /api/health só fala de alerta depois que alguma câmera o liga, e então
-// leva só o total.
+// /api/health only talks about alerts after some camera turns one on, and then
+// carries only the total.
 func TestAlertsInHealth(t *testing.T) {
 	s, _ := testServer(t)
 	if _, ok := request(t, s.handleHealth, "/api/health")["alerts"]; ok {
-		t.Fatal("o /api/health falou de alerta sem câmera com alerta")
+		t.Fatal("/api/health talked about alerts without a camera with alert")
 	}
 
-	// Um Manager com detector de objetos, que só não sobe: sem ele, o alerta
-	// não nasce.
+	// A Manager with an object detector, which just does not start: without it,
+	// the alert is not born.
 	s.cfg.Detector.URL = "http://127.0.0.1:1"
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
 	sim := true
@@ -60,13 +60,13 @@ func TestAlertsInHealth(t *testing.T) {
 	}
 }
 
-// Com um episódio de descarte valendo, o /api/health leva os alertas que não
-// saíram pelos meios, por motivo, com o teto e o desde quando.
+// With a drop episode in effect, /api/health carries the alerts that did not go
+// out through the notifiers, by reason, with the ceiling and since when.
 func TestDropInHealth(t *testing.T) {
 	s, _ := testServer(t)
 	s.cfg.Detector.URL = "http://127.0.0.1:1"
-	// Um meio de e-mail para um servidor que não existe: o teto vale na
-	// entrada, antes de qualquer envio.
+	// An email notifier for a server that does not exist: the ceiling applies
+	// at the entry, before any send.
 	s.cfg.SMTP = config.SMTP{Host: "127.0.0.1", Port: 1, Security: "none", From: "dwnvr@exemplo.com"}
 	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com"}
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
@@ -94,12 +94,12 @@ func TestDropInHealth(t *testing.T) {
 	}
 }
 
-// Com o meio falhando, o /api/health leva o desde quando e o erro, para o
-// Aviso vermelho, e o /api/health/servidor, os números do meio.
+// With the notifier failing, /api/health carries the since-when and the error,
+// for the red Warning, and /api/health/servidor, the notifier's numbers.
 func TestFailingNotifierInHealth(t *testing.T) {
 	s, _ := testServer(t)
 	s.cfg.Detector.URL = "http://127.0.0.1:1"
-	// Um servidor de e-mail que não existe: o envio falha na conexão.
+	// An email server that does not exist: the send fails on connect.
 	s.cfg.SMTP = config.SMTP{Host: "127.0.0.1", Port: 1, Security: "none", From: "dwnvr@exemplo.com"}
 	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com"}
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
@@ -107,15 +107,15 @@ func TestFailingNotifierInHealth(t *testing.T) {
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
 
-	// O meio ainda não tentou: nada falhando, e os números zerados.
+	// The notifier has not tried yet: nothing failing, and the numbers zeroed.
 	if got := string(request(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":0}` {
-		t.Errorf("alerts antes do envio: %s", got)
+		t.Errorf("alerts before the send: %s", got)
 	}
 	if got := string(request(t, s.handleServerDiagnostics, "/api/health/servidor")["alertas"]); got != `[{"nome":"email","enviados":0,"falhas":0}]` {
-		t.Errorf("alertas no diagnóstico antes do envio: %s", got)
+		t.Errorf("alerts in diagnostics before the send: %s", got)
 	}
 
-	// Sem o Start do Manager, a goroutine de envio é a do teste.
+	// Without the Manager's Start, the send goroutine is the test's.
 	go s.mgr.Alerts().Run(t.Context())
 	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
 		Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
@@ -145,7 +145,7 @@ func TestFailingNotifierInHealth(t *testing.T) {
 	}
 	if len(notifiers) != 1 || notifiers[0].Failures != 1 || notifiers[0].Sent != 0 || notifiers[0].Ultimo == nil ||
 		notifiers[0].Error != alerts.Failing[0].Error {
-		t.Errorf("alertas no diagnóstico: %+v", notifiers)
+		t.Errorf("alerts in diagnostics: %+v", notifiers)
 	}
 
 	var byEmail struct{ FailingSince, Error string }
@@ -153,28 +153,28 @@ func TestFailingNotifierInHealth(t *testing.T) {
 		t.Fatal(err)
 	}
 	if byEmail.FailingSince == "" || byEmail.Error != alerts.Failing[0].Error {
-		t.Errorf("alertEmail no /api/cameras com o meio falhando: %+v", byEmail)
+		t.Errorf("alertEmail in /api/cameras with the notifier failing: %+v", byEmail)
 	}
 }
 
-// A aba Alerta diz para onde o alerta vai: sem o meio, as seções que faltam
-// no dwnvr.yaml, com o motivo da smtp recusada; com ele, a lista, mesmo antes
-// de alguma câmera ligar o alerta.
+// The Alert tab says where the alert goes: without the notifier, the sections
+// missing from dwnvr.yaml, with the reason the smtp was rejected; with it, the
+// list, even before some camera turns on the alert.
 func TestEmailAlertInCameras(t *testing.T) {
 	s, _ := testServer(t)
 	if got := alertEmailDe(t, s); got != `{"missing":["alerts.email.to","smtp"]}` {
-		t.Errorf("alertEmail sem o meio: %s", got)
+		t.Errorf("alertEmail without the notifier: %s", got)
 	}
 
 	s.cfg.SMTP = config.SMTP{Host: "smtp.exemplo.com", Problem: "smtp.from vazio"}
 	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com"}
 	if got := alertEmailDe(t, s); got != `{"missing":["smtp"],"smtpError":"smtp.from vazio"}` {
-		t.Errorf("alertEmail com a smtp recusada: %s", got)
+		t.Errorf("alertEmail with the smtp rejected: %s", got)
 	}
 
 	s.cfg.SMTP = config.SMTP{Host: "127.0.0.1", Port: 1, Security: "none", From: "dwnvr@exemplo.com"}
 	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com", "ciclana@exemplo.com"}
 	if got := alertEmailDe(t, s); got != `{"to":["fulano@exemplo.com","ciclana@exemplo.com"]}` {
-		t.Errorf("alertEmail com o meio: %s", got)
+		t.Errorf("alertEmail with the notifier: %s", got)
 	}
 }

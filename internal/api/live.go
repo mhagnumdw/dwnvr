@@ -6,23 +6,23 @@ import (
 	"net/url"
 )
 
-// liveProxy repassa ao go2rtc a sinalização da visualização ao vivo.
+// liveProxy forwards the live view signaling to go2rtc.
 //
-// O dwnvr não toca na mídia do live: a sinalização WebRTC e o fMP4 do MSE
-// passam direto para o go2rtc, que já resolve isso muito bem. O proxy existe
-// por três motivos práticos:
+// dwnvr does not touch the live media: the WebRTC signaling and the MSE fMP4 go
+// straight through to go2rtc, which already handles that very well. The proxy
+// exists for three practical reasons:
 //
-//   - uma origem só para o navegador, o que evita CORS e uma segunda porta
-//   - a credencial do go2rtc fica no servidor, nunca no navegador
-//   - o live passa a respeitar a mesma sessão do resto da interface
+//   - a single origin for the browser, which avoids CORS and a second port
+//   - the go2rtc credential stays on the server, never in the browser
+//   - live now respects the same session as the rest of the interface
 //
-// No WebRTC apenas a sinalização atravessa aqui; a mídia vai direto do
-// navegador ao go2rtc pela UDP 8555, então o proxy não entra no caminho dos
-// pacotes de vídeo.
+// In WebRTC only the signaling crosses here; the media goes straight from the
+// browser to go2rtc over UDP 8555, so the proxy is not in the path of the video
+// packets.
 //
-// Só o websocket do player passa, sempre para o /api/ws do go2rtc: a API dele
-// tem config e restart, e a sessão do dwnvr não deve alcançar nada além do que
-// a tela usa.
+// Only the player's websocket goes through, always to go2rtc's /api/ws: its API
+// has config and restart, and the dwnvr session must not reach anything beyond
+// what the screen uses.
 func (s *Server) liveProxy() http.Handler {
 	target, err := url.Parse(s.client.BaseURL)
 	if err != nil {
@@ -41,13 +41,13 @@ func (s *Server) liveProxy() http.Handler {
 			if s.client.Username != "" || s.client.Password != "" {
 				pr.Out.SetBasicAuth(s.client.Username, s.client.Password)
 			}
-			// O go2rtc valida a origem em algumas rotas; apresentar-se como
-			// ele mesmo evita recusa por origem cruzada.
+			// go2rtc validates the origin on some routes; presenting itself as
+			// go2rtc avoids a cross-origin rejection.
 			pr.Out.Host = target.Host
 			pr.Out.Header.Del("Origin")
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			s.log.Warn("proxy do go2rtc falhou", "caminho", r.URL.Path, "erro", err)
+			s.log.Warn("go2rtc proxy failed", "path", r.URL.Path, "err", err)
 			writeError(w, http.StatusBadGateway, "go2rtc indisponível")
 		},
 	}

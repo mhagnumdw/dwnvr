@@ -25,9 +25,9 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
 
-// comGo2RTC troca o Manager do testServer por um que grava de verdade contra
-// um go2rtc falso, e devolve quantas conexões de stream estão abertas agora -
-// cada uma é um recorder no ar.
+// withGo2RTC swaps the testServer's Manager for one that really records against
+// a fake go2rtc, and returns how many stream connections are open right now -
+// each one is a running recorder.
 func withGo2RTC(t *testing.T, s *Server) *atomic.Int32 {
 	t.Helper()
 	var open atomic.Int32
@@ -51,13 +51,14 @@ func withGo2RTC(t *testing.T, s *Server) *atomic.Int32 {
 	s.mgr = recorder.NewManager(s.cfg, s.client, s.store, s.log)
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mgr.Start(ctx, []config.Camera{{ID: "cam_teste", Name: "Teste", Enabled: true}})
-	// Roda antes do srv.Close: o Stop espera cada recorder largar a conexão.
+	// Runs before srv.Close: Stop waits for each recorder to let go of the
+	// connection.
 	t.Cleanup(func() { cancel(); s.mgr.Stop() })
 	return &open
 }
 
-// saveCamera faz o POST /api/cameras. `cam` é uma config.Camera, ou o JSON da
-// câmera como a tela o manda.
+// saveCamera does the POST /api/cameras. `cam` is a config.Camera, or the
+// camera JSON as the screen sends it.
 func saveCamera(t *testing.T, s *Server, cam any) {
 	t.Helper()
 	b, _ := json.Marshal(cam)
@@ -68,9 +69,10 @@ func saveCamera(t *testing.T, s *Server, cam any) {
 	}
 }
 
-// esperaAbertas espera o go2rtc falso ficar com n conexões por um instante
-// seguido. Parar um recorder solta a conexão de forma assíncrona, e subir outro
-// a abre também assim: uma leitura só pegaria o meio da troca.
+// waitOpen waits for the fake go2rtc to hold n connections for a moment in a
+// row. Stopping a recorder releases the connection asynchronously, and starting
+// another opens it the same way: a single read would catch the middle of the
+// swap.
 func waitOpen(t *testing.T, open *atomic.Int32, n int32) {
 	t.Helper()
 	end := time.Now().Add(3 * time.Second)
@@ -85,13 +87,14 @@ func waitOpen(t *testing.T, open *atomic.Int32, n int32) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatalf("%d conexões abertas no go2rtc, esperava %d", open.Load(), n)
+	t.Fatalf("%d connections open on go2rtc, want %d", open.Load(), n)
 }
 
-// Dois saves da mesma câmera ao mesmo tempo, os dois trocando o áudio - o que
-// exige reconectar. Sem o cadastro, cada um parava o recorder antigo e subia
-// um novo, e o primeiro novo ficava gravando fora do mapa até o restart: duas
-// conexões com a câmera e só uma na tela.
+// Two saves of the same camera at the same time, both changing the audio -
+// which requires reconnecting. Without the registry, each one stopped the old
+// recorder and started a new one, and the first new one kept recording outside
+// the map until the restart: two connections to the camera and only one on the
+// screen.
 func TestConcurrentSavesLeaveNoOrphanRecorder(t *testing.T) {
 	s, _ := testServer(t)
 	open := withGo2RTC(t, s)
@@ -99,8 +102,8 @@ func TestConcurrentSavesLeaveNoOrphanRecorder(t *testing.T) {
 
 	audios := []string{config.AudioNone, config.AudioAAC, config.AudioFLAC}
 	for i := range 10 {
-		// Os dois diferem do áudio atual e entre si: os dois reconectam, seja
-		// qual for a ordem em que entram.
+		// Both differ from the current audio and from each other: both
+		// reconnect, whatever the order in which they come in.
 		var wg sync.WaitGroup
 		for _, a := range []string{audios[(i+1)%3], audios[(i+2)%3]} {
 			wg.Go(func() {
@@ -112,8 +115,8 @@ func TestConcurrentSavesLeaveNoOrphanRecorder(t *testing.T) {
 	}
 }
 
-// Dois saves de câmeras diferentes ao mesmo tempo liam a mesma lista, e quem
-// gravava o cameras.json por último apagava a alteração do outro.
+// Two saves of different cameras at the same time read the same list, and
+// whoever wrote cameras.json last erased the other's change.
 func TestConcurrentSavesLoseNoChangeInTheFile(t *testing.T) {
 	s, _ := testServer(t)
 	withGo2RTC(t, s)
@@ -137,22 +140,23 @@ func TestConcurrentSavesLoseNoChangeInTheFile(t *testing.T) {
 		}
 		for _, id := range []string{"cam_a", "cam_b"} {
 			if want := fmt.Sprint(id, " ", i); nomes[id] != want {
-				t.Fatalf("rodada %d: %s no arquivo com nome %q, esperava %q", i, id, nomes[id], want)
+				t.Fatalf("round %d: %s in the file with name %q, want %q", i, id, nomes[id], want)
 			}
 		}
 	}
 }
 
-// Câmera removida sem apagar as gravações, dwnvr reiniciado e a câmera
-// cadastrada de novo com o mesmo ID. O índice só era lido no boot, e só das
-// cadastradas: o recadastro começava vazio, e as gravações antigas sumiam de
-// Gravações, das órfãs e da cota até o reinício seguinte.
+// Camera removed without deleting the recordings, dwnvr restarted and the
+// camera registered again with the same ID. The index was only read at boot,
+// and only for the registered ones: the re-registration started empty, and the
+// old recordings disappeared from Recordings, from the orphans and from the
+// quota until the next restart.
 func TestReRegistrationReadsRecordingsAlreadyOnDisk(t *testing.T) {
 	s, _ := testServer(t)
 	withGo2RTC(t, s)
 
-	// O que ficou da vida anterior: outro Store sobre o mesmo storage, como o
-	// processo que rodava antes do reinício.
+	// What was left from the previous life: another Store over the same
+	// storage, like the process that ran before the restart.
 	antes := store.New(s.store.Root()).Camera("cam_a")
 	start := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	seed(t, antes, start, [2]int64{0, 30000})
@@ -166,13 +170,13 @@ func TestReRegistrationReadsRecordingsAlreadyOnDisk(t *testing.T) {
 	saveCamera(t, s, config.Camera{ID: "cam_a", Name: "A", Enabled: true})
 
 	if got := s.store.Camera("cam_a").TotalBytes(); got != 1000 {
-		t.Errorf("índice de cam_a com %d bytes depois do recadastro, esperava 1000", got)
+		t.Errorf("cam_a index with %d bytes after the re-registration, want 1000", got)
 	}
 }
 
-// comDefaultsDeVerdade é o testServer com os defaults de quem não escreveu
-// dwnvr.yaml, todos preenchidos, e o go2rtc fora do ar: o GET lista as
-// câmeras sem os streams, e o POST salva sem conferir o stream.
+// withRealDefaults is the testServer with the defaults of someone who didn't
+// write dwnvr.yaml, all filled in, and go2rtc down: the GET lists the cameras
+// without the streams, and the POST saves without checking the stream.
 func withRealDefaults(t *testing.T) *Server {
 	t.Helper()
 	s, _ := testServer(t)
@@ -181,9 +185,9 @@ func withRealDefaults(t *testing.T) *Server {
 	return s
 }
 
-// respostaDoGet é o GET /api/cameras do admin, com cada câmera e o padrao no
-// JSON genérico: a tela edita esse objeto e o devolve inteiro, e o teste faz
-// o mesmo, sem passar pela config.Camera.
+// getResponse is the admin's GET /api/cameras, with each camera and the
+// `padrao` in generic JSON: the screen edits this object and sends it back
+// whole, and the test does the same, without going through config.Camera.
 func getResponse(t *testing.T, s *Server) (cams map[string]map[string]any, defaults map[string]any) {
 	t.Helper()
 	rec := httptest.NewRecorder()
@@ -193,7 +197,7 @@ func getResponse(t *testing.T, s *Server) (cams map[string]map[string]any, defau
 		Default map[string]any   `json:"padrao"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
+		t.Fatalf("response %s (%v)", rec.Body.String(), err)
 	}
 	cams = map[string]map[string]any{}
 	for _, c := range got.Cameras {
@@ -202,8 +206,8 @@ func getResponse(t *testing.T, s *Server) (cams map[string]map[string]any, defau
 	return cams, got.Default
 }
 
-// noArquivo é cada câmera do cameras.json, lido do disco: é o arquivo que
-// decide se o default do dwnvr.yaml ainda chega à câmera.
+// inFile is each camera of cameras.json, read from disk: it is the file that
+// decides whether the dwnvr.yaml default still reaches the camera.
 func inFile(t *testing.T, s *Server) map[string]map[string]any {
 	t.Helper()
 	b, err := os.ReadFile(s.cfg.CamerasPath())
@@ -225,10 +229,11 @@ func keys(m map[string]any) []string {
 	return slices.Sorted(maps.Keys(m))
 }
 
-// A tela edita a câmera como o GET a mostra, já com os defaults aplicados, e
-// a devolve inteira. Salvar sem mudar nada gravava cada default no
-// cameras.json, e mudar o defaults do dwnvr.yaml não chegava mais à câmera. A
-// câmera nova, que a tela monta a partir do padrao, era gravada do mesmo jeito.
+// The screen edits the camera as the GET shows it, with the defaults already
+// applied, and sends it back whole. Saving without changing anything wrote each
+// default to cameras.json, and changing the defaults in dwnvr.yaml no longer
+// reached the camera. A new camera, which the screen builds from `padrao`, was
+// written the same way.
 func TestSaveWithoutChangesDoesNotFreezeTheDefaults(t *testing.T) {
 	s := withRealDefaults(t)
 	cams, defaults := getResponse(t, s)
@@ -240,13 +245,13 @@ func TestSaveWithoutChangesDoesNotFreezeTheDefaults(t *testing.T) {
 	file := inFile(t, s)
 	for _, id := range []string{"cam_teste", "cam_a"} {
 		if got, want := keys(file[id]), []string{"enabled", "id", "name"}; !slices.Equal(got, want) {
-			t.Errorf("%s no cameras.json com %v, esperava só %v", id, got, want)
+			t.Errorf("%s in cameras.json with %v, want only %v", id, got, want)
 		}
 	}
 }
 
-// O que a câmera já definia fica no arquivo, mesmo igual ao default; o que a
-// pessoa mudou entra; o resto segue o default.
+// What the camera already defined stays in the file, even if equal to the
+// default; what the person changed goes in; the rest follows the default.
 func TestSaveKeepsWhatTheCameraSets(t *testing.T) {
 	s := withRealDefaults(t)
 	d := s.cfg.Defaults
@@ -269,8 +274,9 @@ func TestSaveKeepsWhatTheCameraSets(t *testing.T) {
 	}
 }
 
-// A área chega da tela sem id: o servidor dá um, e é ele que vai para o
-// cameras.json. A área inválida recusa o save inteiro, com o motivo.
+// The area arrives from the screen without an id: the server gives it one, and
+// that is what goes to cameras.json. An invalid area rejects the whole save,
+// with the reason.
 func TestSaveDaCameraComAreas(t *testing.T) {
 	s, _ := testServer(t)
 	withGo2RTC(t, s)
@@ -283,7 +289,7 @@ func TestSaveDaCameraComAreas(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(cams) != 1 || len(cams[0].Areas) != 1 || cams[0].Areas[0].ID == "" {
-		t.Fatalf("no arquivo: %+v", cams)
+		t.Fatalf("in the file: %+v", cams)
 	}
 
 	b, _ := json.Marshal(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
@@ -291,14 +297,14 @@ func TestSaveDaCameraComAreas(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.handleSaveCamera(rec, httptest.NewRequest(http.MethodPost, "/api/cameras", bytes.NewReader(b)))
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "pontos") {
-		t.Errorf("HTTP %d: %s, esperava 400 falando dos pontos", rec.Code, rec.Body.String())
+		t.Errorf("HTTP %d: %s, want 400 mentioning the points (pontos)", rec.Code, rec.Body.String())
 	}
 }
 
-// O alerta vai ao cameras.json como chegou, com os horários. O que aponta
-// para uma área que a câmera não tem recusa o save inteiro, com o motivo: a
-// tela tira a área do alerta antes de apagá-la. O horário que atravessa a
-// meia-noite também.
+// The alert goes to cameras.json as it arrived, with the schedules. One that
+// points to an area the camera doesn't have rejects the whole save, with the
+// reason: the screen removes the area from the alert before deleting it. So
+// does a schedule that crosses midnight.
 func TestSaveCameraWithAlert(t *testing.T) {
 	s, _ := testServer(t)
 	withGo2RTC(t, s)
@@ -313,14 +319,14 @@ func TestSaveCameraWithAlert(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(cams) != 1 || !reflect.DeepEqual(cams[0].Alert, alert) {
-		t.Fatalf("no arquivo: %+v", cams)
+		t.Fatalf("in the file: %+v", cams)
 	}
 
 	b, _ := json.Marshal(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Alert: alert})
 	rec := httptest.NewRecorder()
 	s.handleSaveCamera(rec, httptest.NewRequest(http.MethodPost, "/api/cameras", bytes.NewReader(b)))
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "alert.areas[0]") {
-		t.Errorf("HTTP %d: %s, esperava 400 falando de alert.areas[0]", rec.Code, rec.Body.String())
+		t.Errorf("HTTP %d: %s, want 400 mentioning alert.areas[0]", rec.Code, rec.Body.String())
 	}
 
 	night := &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person},
@@ -329,6 +335,6 @@ func TestSaveCameraWithAlert(t *testing.T) {
 	rec = httptest.NewRecorder()
 	s.handleSaveCamera(rec, httptest.NewRequest(http.MethodPost, "/api/cameras", bytes.NewReader(b)))
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "alert.schedules[0].to") {
-		t.Errorf("HTTP %d: %s, esperava 400 falando de alert.schedules[0].to", rec.Code, rec.Body.String())
+		t.Errorf("HTTP %d: %s, want 400 mentioning alert.schedules[0].to", rec.Code, rec.Body.String())
 	}
 }
