@@ -205,7 +205,7 @@ prepara pelo init e desenha o quadro de 640x360 no canto de uma superfície de
 
 Por isso o init só é gravado no primeiro keyframe de cada conexão, já
 corrigido: os parameter sets do `hvcC`/`avcC` passam a ser os in-band, e a
-sample entry e o `tkhd` passam a dizer a resolução real (`fmp4.CorrigeInit`,
+sample entry e o `tkhd` passam a dizer a resolução real (`fmp4.FixInit`,
 chamado por `fixaInit` no recorder). Os bytes de mídia não mudam. A correção só
 acontece quando a resolução do SPS in-band difere da do init, e, se o init
 corrigido não parsear, o original é gravado.

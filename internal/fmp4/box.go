@@ -1,7 +1,7 @@
-// Package fmp4 lê a estrutura de caixas de um MP4 fragmentado sem decodificar
-// mídia. O dwnvr nunca toca nos bytes de vídeo: ele só precisa saber onde cada
-// fragmento começa, se carrega um keyframe e qual o tempo de decodificação -
-// o suficiente para cortar segmentos e montar um índice.
+// Package fmp4 reads the box structure of a fragmented MP4 without decoding
+// media. dwnvr never touches the video bytes: it only needs to know where each
+// fragment starts, whether it carries a keyframe, and its decode time -
+// enough to cut segments and build an index.
 package fmp4
 
 import (
@@ -11,12 +11,12 @@ import (
 	"io"
 )
 
-// MaxBoxSize limita o tamanho de uma caixa aceita. Sem esse teto, um stream
-// corrompido (ou um servidor hostil) faria o recorder alocar sem limite num
-// dispositivo que tem 1,5 GB de RAM no total.
+// MaxBoxSize caps the size of an accepted box. Without that ceiling, a
+// corrupted stream (or a hostile server) would make the recorder allocate
+// without limit on a device with 1.5 GB of RAM in total.
 const MaxBoxSize = 32 << 20
 
-// Reader lê caixas de topo de um fMP4 vindo de um stream contínuo.
+// Reader reads top-level boxes of an fMP4 coming from a continuous stream.
 type Reader struct {
 	br  *bufio.Reader
 	buf []byte
@@ -26,12 +26,12 @@ func NewReader(r io.Reader) *Reader {
 	return &Reader{br: bufio.NewReaderSize(r, 64<<10)}
 }
 
-// NextBox lê a próxima caixa de topo e devolve seu tipo e os bytes completos,
-// cabeçalho incluído.
+// NextBox reads the next top-level box and returns its type and the full
+// bytes, header included.
 //
-// O slice devolvido é reaproveitado entre chamadas: quem chama deve gravá-lo ou
-// copiá-lo antes de chamar NextBox de novo. Isso evita uma alocação por frame -
-// com 9 câmeras a 15 fps seriam 135 alocações por segundo sem necessidade.
+// The returned slice is reused across calls: the caller must write or copy it
+// before calling NextBox again. That avoids one allocation per frame - with 9
+// cameras at 15 fps that would be 135 needless allocations per second.
 func (r *Reader) NextBox() (string, []byte, error) {
 	var hdr [16]byte
 	if _, err := io.ReadFull(r.br, hdr[:8]); err != nil {
@@ -44,19 +44,19 @@ func (r *Reader) NextBox() (string, []byte, error) {
 
 	switch size {
 	case 1:
-		// Tamanho estendido de 64 bits nos 8 bytes seguintes.
+		// 64-bit extended size in the next 8 bytes.
 		if _, err := io.ReadFull(r.br, hdr[8:16]); err != nil {
 			return "", nil, err
 		}
 		size = int64(binary.BigEndian.Uint64(hdr[8:16]))
 		hdrLen = 16
 	case 0:
-		// "vai até o fim do arquivo": impossível de delimitar num stream.
-		return "", nil, fmt.Errorf("fmp4: caixa %q com tamanho 0 não é suportada em stream", typ)
+		// "runs to the end of the file": impossible to delimit in a stream.
+		return "", nil, fmt.Errorf("fmp4: box %q with size 0 is not supported in a stream", typ)
 	}
 
 	if size < hdrLen || size > MaxBoxSize {
-		return "", nil, fmt.Errorf("fmp4: tamanho inválido %d para a caixa %q", size, typ)
+		return "", nil, fmt.Errorf("fmp4: invalid size %d for box %q", size, typ)
 	}
 
 	if int64(cap(r.buf)) < size {
@@ -71,8 +71,8 @@ func (r *Reader) NextBox() (string, []byte, error) {
 	return typ, b, nil
 }
 
-// boxHeaderLen devolve o tamanho do cabeçalho e o tamanho total de uma caixa
-// que já está inteira em memória.
+// boxHeaderLen returns the header length and the total size of a box that is
+// already fully in memory.
 func boxHeaderLen(b []byte) (hdrLen, size int, ok bool) {
 	if len(b) < 8 {
 		return 0, 0, false
@@ -92,7 +92,7 @@ func boxHeaderLen(b []byte) (hdrLen, size int, ok bool) {
 	return hdrLen, size, true
 }
 
-// boxType devolve o tipo de uma caixa que já está em memória.
+// boxType returns the type of a box that is already in memory.
 func boxType(b []byte) string {
 	if len(b) < 8 {
 		return ""
@@ -100,9 +100,9 @@ func boxType(b []byte) string {
 	return string(b[4:8])
 }
 
-// BoxPayload devolve o conteúdo de uma caixa sem o cabeçalho, respeitando o
-// cabeçalho estendido de 16 bytes. Um mdat grande usa essa forma, e assumir 8
-// bytes cegamente faria a leitura começar no meio de um campo.
+// BoxPayload returns a box's content without the header, honoring the 16-byte
+// extended header. A large mdat uses that form, and blindly assuming 8 bytes
+// would start reading in the middle of a field.
 func BoxPayload(b []byte) []byte {
 	hdrLen, size, ok := boxHeaderLen(b)
 	if !ok {
@@ -111,13 +111,13 @@ func BoxPayload(b []byte) []byte {
 	return b[hdrLen:size]
 }
 
-// walk percorre as caixas filhas contidas em payload, chamando fn para cada uma
-// com o corpo (sem o cabeçalho). Parar cedo é possível devolvendo errStopWalk.
+// walk goes through the child boxes contained in payload, calling fn for each
+// one with its body (without the header). Returning errStopWalk stops early.
 func walk(payload []byte, fn func(typ string, body []byte) error) error {
 	for off := 0; off+8 <= len(payload); {
 		hdrLen, size, ok := boxHeaderLen(payload[off:])
 		if !ok {
-			return fmt.Errorf("fmp4: caixa malformada no offset %d", off)
+			return fmt.Errorf("fmp4: malformed box at offset %d", off)
 		}
 		typ := boxType(payload[off:])
 		if err := fn(typ, payload[off+hdrLen:off+size]); err != nil {
@@ -128,8 +128,8 @@ func walk(payload []byte, fn func(typ string, body []byte) error) error {
 	return nil
 }
 
-// be16, be32 e be64 leem inteiros big-endian conferindo os limites, para que um
-// stream truncado vire erro em vez de panic.
+// be16, be32 and be64 read big-endian integers with bounds checks, so a
+// truncated stream becomes an error instead of a panic.
 func be16(b []byte, off int) (uint16, bool) {
 	if off < 0 || off+2 > len(b) {
 		return 0, false

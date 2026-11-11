@@ -696,7 +696,7 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── rebase.go       reescreve o tfdt para cada segmento começar do zero
 │   │   ├── probe.go        hash do init e sondagem de segmento órfão
 │   │   ├── sps.go          resolução real a partir do SPS de H264/H265
-│   │   └── corrige.go      troca os parameter sets do init pelos que vêm no stream
+│   │   └── fixinit.go      troca os parameter sets do init pelos que vêm no stream
 │   ├── go2rtc/             cliente da API do go2rtc e do stream fMP4
 │   ├── logbuf/             guarda em memória os últimos avisos e erros do log, para o Diagnóstico
 │   ├── ratelimit/          o limite de requisições por cliente (GCRA), que o login usa

@@ -78,7 +78,7 @@ pode ser confundido com ponto de corte), underflow no rebase, linha de índice
 truncada e segmento que atravessa a meia-noite.
 
 A qualidade dos testes foi conferida por mutação: desativar o teste de
-`sample_is_non_sync_sample` faz `TestParseMoofDetectaKeyframe` falhar.
+`sample_is_non_sync_sample` faz `TestParseMoofDetectsKeyframe` falhar.
 
 ## Áudio FLAC
 

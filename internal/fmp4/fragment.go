@@ -2,28 +2,28 @@ package fmp4
 
 import "errors"
 
-// Bits de sample_flags definidos em ISO/IEC 14496-12 §8.8.3.1, tratados como um
-// uint32 big-endian:
+// sample_flags bits defined in ISO/IEC 14496-12 §8.8.3.1, read as a
+// big-endian uint32:
 //
-//	bits 6-7  sample_depends_on        (2 = não depende de outros = keyframe)
-//	bit  15   sample_is_non_sync_sample (1 = NÃO é ponto de sincronismo)
+//	bits 6-7  sample_depends_on        (2 = depends on no others = keyframe)
+//	bit  15   sample_is_non_sync_sample (1 = NOT a sync point)
 //
-// go2rtc escreve exatamente esses valores em pkg/iso/atoms.go:
+// go2rtc writes exactly these values in pkg/iso/atoms.go:
 //
 //	SampleVideoIFrame    = 0x2000000
 //	SampleVideoNonIFrame = 0x1000000 | 0x10000
 const (
 	sampleIsNonSync    = 0x00010000
 	sampleDependsOnMsk = 0x03000000
-	sampleDependsOnNo  = 0x02000000 // não depende de outros samples
+	sampleDependsOnNo  = 0x02000000 // depends on no other samples
 )
 
-// isSyncSample decide se um sample é ponto de entrada válido para decodificação.
+// isSyncSample decides whether a sample is a valid entry point for decoding.
 //
-// O teste primário é o bit sample_is_non_sync_sample, que é o que o padrão
-// define. Alguns muxers deixam esse bit zerado em tudo e só preenchem
-// sample_depends_on; por isso, quando o bit de não-sincronismo está limpo,
-// ainda exigimos que depends_on não diga explicitamente "depende de outros".
+// The primary test is the sample_is_non_sync_sample bit, which is what the
+// standard defines. Some muxers leave that bit clear on everything and only
+// fill in sample_depends_on; so, when the non-sync bit is clear, we still
+// require depends_on not to say explicitly "depends on others".
 func isSyncSample(flags uint32) bool {
 	if flags&sampleIsNonSync != 0 {
 		return false
@@ -34,41 +34,42 @@ func isSyncSample(flags uint32) bool {
 	return true
 }
 
-// Fragment resume um par moof+mdat: o suficiente para decidir corte de segmento
-// e alimentar o índice, sem olhar um único byte de mídia.
+// Fragment summarizes a moof+mdat pair: enough to decide where to cut a
+// segment and to feed the index, without looking at a single media byte.
 type Fragment struct {
 	TrackID uint32
-	// BaseDecodeTime é o tfdt, na timescale da trilha.
+	// BaseDecodeTime is the tfdt, in the track's timescale.
 	BaseDecodeTime uint64
 	HasBaseTime    bool
-	// Keyframe só é verdadeiro para a trilha de vídeo indicada a ParseMoof.
+	// Keyframe is only true for the video track given to ParseMoof.
 	Keyframe bool
-	// SampleCount é quantos samples o fragmento carrega (go2rtc emite 1).
+	// SampleCount is how many samples the fragment carries (go2rtc emits 1).
 	SampleCount uint32
 
-	// Duration é a soma das durações dos samples, na timescale da trilha.
+	// Duration is the sum of the sample durations, in the track's timescale.
 	//
-	// Sem ela só se sabe QUANDO o último frame começa, não quando ele termina.
-	// A diferença é um frame - irrelevante para exibir, decisiva para emendar
-	// segmentos: sem somá-la, o segmento seguinte começa em cima do último
-	// frame do anterior em vez de depois dele, e o DTS regride na emenda.
+	// Without it we only know WHEN the last frame starts, not when it ends.
+	// The difference is one frame - irrelevant for display, decisive for
+	// splicing segments: without adding it, the next segment starts on top of
+	// the previous one's last frame instead of after it, and the DTS goes
+	// backwards at the splice.
 	Duration uint64
 }
 
-// EndTime é o instante em que o fragmento termina, na timescale da trilha.
+// EndTime is the instant the fragment ends, in the track's timescale.
 func (f Fragment) EndTime() uint64 { return f.BaseDecodeTime + f.Duration }
 
-var errNoTraf = errors.New("fmp4: moof sem traf")
+var errNoTraf = errors.New("fmp4: moof without traf")
 
-// ParseMoof lê uma caixa moof completa (com cabeçalho) e resume o traf da
-// trilha videoTrackID. Se o moof for de outra trilha (áudio), devolve o
-// TrackID encontrado com Keyframe=false.
+// ParseMoof reads a complete moof box (with header) and summarizes the traf of
+// track videoTrackID. If the moof belongs to another track (audio), it returns
+// the TrackID found with Keyframe=false.
 func ParseMoof(moof []byte, videoTrackID uint32) (Fragment, error) {
 	var f Fragment
 
 	hdrLen, size, ok := boxHeaderLen(moof)
 	if !ok || boxType(moof) != "moof" {
-		return f, errors.New("fmp4: esperava uma caixa moof")
+		return f, errors.New("fmp4: expected a moof box")
 	}
 
 	found := false
@@ -100,11 +101,11 @@ func parseTraf(traf []byte, videoTrackID uint32, f *Fragment) error {
 	err := walk(traf, func(typ string, body []byte) error {
 		switch typ {
 		case "tfhd":
-			// version(1) + flags(3), track_ID(4), depois campos opcionais na
-			// ordem dos bits de flags.
+			// version(1) + flags(3), track_ID(4), then optional fields in the
+			// order of the flag bits.
 			id, ok := be32(body, 4)
 			if !ok {
-				return errors.New("fmp4: tfhd truncado")
+				return errors.New("fmp4: truncated tfhd")
 			}
 			f.TrackID = id
 
@@ -134,7 +135,7 @@ func parseTraf(traf []byte, videoTrackID uint32, f *Fragment) error {
 
 		case "tfdt":
 			if len(body) == 0 {
-				return errors.New("fmp4: tfdt vazio")
+				return errors.New("fmp4: empty tfdt")
 			}
 			if body[0] == 1 {
 				if v, ok := be64(body, 4); ok {
@@ -149,7 +150,7 @@ func parseTraf(traf []byte, videoTrackID uint32, f *Fragment) error {
 		case "trun":
 			flags, ok := be32(body, 0)
 			if !ok {
-				return errors.New("fmp4: trun truncado")
+				return errors.New("fmp4: truncated trun")
 			}
 			flags &= 0x00FFFFFF
 			count, _ := be32(body, 4)
@@ -165,9 +166,9 @@ func parseTraf(traf []byte, videoTrackID uint32, f *Fragment) error {
 				}
 				off += 4
 			}
-			// Percorre a tabela de samples uma vez, somando durações e - se
-			// ainda não vieram em first_sample_flags - pegando os flags do
-			// primeiro sample, que é quem classifica o fragmento.
+			// Walks the sample table once, adding up durations and - if they
+			// didn't come in first_sample_flags - taking the flags of the
+			// first sample, which is what classifies the fragment.
 			entrySize := 0
 			for _, f := range []uint32{0x000100, 0x000200, 0x000400, 0x000800} {
 				if flags&f != 0 {
@@ -210,8 +211,9 @@ func parseTraf(traf []byte, videoTrackID uint32, f *Fragment) error {
 	case haveDefaultFlags:
 		f.Keyframe = isSyncSample(defaultSampleFlags)
 	default:
-		// Sem nenhum flag no fragmento a decisão caberia ao trex; quem chama
-		// resolve isso passando o default da trilha via DefaultSampleFlags.
+		// With no flags at all in the fragment the decision would fall to the
+		// trex; the caller handles that by passing the track default via
+		// DefaultSampleFlags.
 		f.Keyframe = false
 	}
 	return nil

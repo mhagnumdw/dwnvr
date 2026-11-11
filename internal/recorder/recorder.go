@@ -944,12 +944,12 @@ func (r *Recorder) setResolution(w, h uint16) {
 // os parameter sets no SDP, um SPS fixo de 2560x1440 para um stream de
 // 640x360. O Chrome do computador mostra certo, mas o decodificador de
 // hardware de alguns celulares se guia pelo init e desenha a imagem com 1/4 do
-// tamanho, num canto. O init gravado já sai corrigido (fmp4.CorrigeInit); se o
+// tamanho, num canto. O init gravado já sai corrigido (fmp4.FixInit); se o
 // corrigido não parsear, grava o original, e o pior caso é igual a antes.
 func (r *Recorder) fixaInit(seg *segmenter, keyframe []byte) error {
 	vt := seg.videoTrack
 	payload := fmp4.BoxPayload(keyframe)
-	if init, ok := fmp4.CorrigeInit(seg.init, vt, payload); ok {
+	if init, ok := fmp4.FixInit(seg.init, vt, payload); ok {
 		mv, nvt, err := leInit(init)
 		if err == nil {
 			r.log.Warn("o init anuncia uma resolução que o stream não usa; gravando o init corrigido",
