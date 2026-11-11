@@ -4,9 +4,8 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (11/11/2026):** a Etapa 1 (terreno limpo) fechou com a v0.15.0. A
-próxima é a Etapa 2 (conversão para en-US), que começa pelo glossário do
-domínio.
+**Agora (11/11/2026):** a Etapa 2 (conversão para en-US) começou, na branch
+`en-us-conversion`, com o glossário decidido. O próximo passo é o `AGENTS.md`.
 
 ## Andamento
 
@@ -24,8 +23,8 @@ próxima, em andamento ou concluída, com a data.
   - [x] PR #16 (e2e com Playwright, draft) e o worktree `modelo-reproduzivel`: ficam de lado, por decisão do mantenedor em 11/11/2026; o que a conversão quebrar neles se refaz depois
   - [x] Os PRs do Dependabot abertos: o #60 (uv 0.13.7) mergeado em 11/11/2026, antes da release
   - [x] Opcional: a fumaça das telas do PR #16 antes da conversão. Saiu junto com o PR #16; a interface entra na conversão só com a verificação estática (`svelte-check`, `tsc`, ESLint), que não pega uma chave de JSON renomeada de um lado só
-- [ ] **Etapa 2 - conversão para en-US**: a próxima ([conversao-en-us.md](conversao-en-us.md)). Em commits pequenos, cada um rodando na instalação de teste antes do próximo
-  - [ ] O glossário do domínio
+- [ ] **Etapa 2 - conversão para en-US**: em andamento desde 11/11/2026 ([conversao-en-us.md](conversao-en-us.md)). Em commits pequenos, cada um rodando na instalação de teste antes do próximo
+  - [x] O glossário do domínio ([glossario.md](glossario.md))
   - [ ] O `AGENTS.md` com a regra nova de escrita
   - [ ] Go, pacote a pacote, sem mudar comportamento
   - [ ] A interface, sem os textos da tela
@@ -67,6 +66,7 @@ próxima, em andamento ou concluída, com a data.
 | [plano.md](plano.md) | o veredito de cada atividade, a ordem e o porquê, o tamanho de cada etapa, a política de compatibilidade e de release, o que a 1.0.0 promete |
 | [sqlite.md](sqlite.md) | por que o SQLite ficou no radar, com a medição e o critério para reabrir |
 | [conversao-en-us.md](conversao-en-us.md) | o escopo da conversão, os passos e as decisões |
+| [glossario.md](glossario.md) | o nome en-US de cada termo do domínio |
 | [temas.md](temas.md) | o que já existe, as cores escritas direto e as paletas |
 | [paleta.md](paleta.md) | o contrato dos tokens e como a paleta se gera |
 | [i18n.md](i18n.md) | o inventário do que se traduz e o que se decide na etapa |
