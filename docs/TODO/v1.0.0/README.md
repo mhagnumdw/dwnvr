@@ -4,8 +4,9 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (10/11/2026):** a Etapa 0 (decisões) fechou. A próxima é a Etapa 1
-(terreno limpo), que começa pela release 0.15.0.
+**Agora (11/11/2026):** a Etapa 1 (terreno limpo) fechou com a v0.15.0. A
+próxima é a Etapa 2 (conversão para en-US), que começa pelo glossário do
+domínio.
 
 ## Andamento
 
@@ -17,13 +18,13 @@ próxima, em andamento ou concluída, com a data.
   - [x] O que entra na conversão para en-US ([as decisões](conversao-en-us.md#as-decisões))
   - [x] Sem compatibilidade, com um guia de atualização ([plano.md](plano.md#sem-compatibilidade-com-um-guia))
   - [x] Uma release por etapa ([plano.md](plano.md#uma-release-por-etapa))
-- [ ] **Etapa 1 - terreno limpo**: a próxima. A conversão renomeia quase todo arquivo, e o que estiver aberto em paralelo vira conflito em tudo
-  - [ ] A release do que está na `main` desde a v0.14.0; o `git cliff --bumped-version` sugere a 0.15.0
-  - [ ] PR #37 (limite de 5000 tokens no commit, draft): decidir antes. O hook recusa arquivo grande que cresce, e a conversão renomeia justamente os maiores (o `Deteccoes.svelte` tem 2.575 linhas)
-  - [ ] PR #16 (e2e com Playwright, draft) e o worktree `modelo-reproduzivel` (177 commits atrás da `main`): integrar antes, ou aceitar refazê-los depois
-  - [ ] Os PRs do Dependabot abertos
-  - [ ] Opcional, recomendado: a fumaça das telas do PR #16 rodando antes da conversão. O servidor tem os testes Go; a interface só tem a verificação estática (`svelte-check`, `tsc`, ESLint), que não pega uma chave de JSON renomeada de um lado só
-- [ ] **Etapa 2 - conversão para en-US**: não começou ([conversao-en-us.md](conversao-en-us.md)). Em commits pequenos, cada um rodando na instalação de teste antes do próximo
+- [x] **Etapa 1 - terreno limpo**: concluída em 11/11/2026. A conversão renomeia quase todo arquivo, e o que estiver aberto em paralelo vira conflito em tudo
+  - [x] A release do que está na `main` desde a v0.14.0: a [v0.15.0](https://github.com/mhagnumdw/dwnvr/releases/tag/v0.15.0), em 11/11/2026
+  - [x] PR #37 (limite de 5000 tokens no commit, draft): fica de lado, por decisão do mantenedor em 11/11/2026
+  - [x] PR #16 (e2e com Playwright, draft) e o worktree `modelo-reproduzivel`: ficam de lado, por decisão do mantenedor em 11/11/2026; o que a conversão quebrar neles se refaz depois
+  - [x] Os PRs do Dependabot abertos: o #60 (uv 0.13.7) mergeado em 11/11/2026, antes da release
+  - [x] Opcional: a fumaça das telas do PR #16 antes da conversão. Saiu junto com o PR #16; a interface entra na conversão só com a verificação estática (`svelte-check`, `tsc`, ESLint), que não pega uma chave de JSON renomeada de um lado só
+- [ ] **Etapa 2 - conversão para en-US**: a próxima ([conversao-en-us.md](conversao-en-us.md)). Em commits pequenos, cada um rodando na instalação de teste antes do próximo
   - [ ] O glossário do domínio
   - [ ] O `AGENTS.md` com a regra nova de escrita
   - [ ] Go, pacote a pacote, sem mudar comportamento

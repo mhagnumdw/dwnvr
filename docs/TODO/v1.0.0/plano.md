@@ -77,8 +77,8 @@ documento novo em `docs/`:
 - nasce em partes, uma por commit de contrato, e cada parte é aplicada à risca
   na instalação de teste antes da seguinte: chega à release já testado, e o que
   falhar lá volta para o guia;
-- sai em pt-BR e em en-US, como o README (a confirmar): quem o lê é quem já usa
-  uma 0.x, e todos chegaram pelo README em português;
+- sai só em en-US, decidido em 11/11/2026: não ganha par em pt-BR como o
+  README;
 - é o que o rodapé `BREAKING CHANGE` da release manda seguir.
 
 Ficam para o detalhe da Etapa 2:
