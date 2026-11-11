@@ -119,7 +119,7 @@ Em cada um:
   Commit de outra pessoa na branch muda o que revisar.
 - **Versão replicada.** A versão antiga não sobrou em outro arquivo:
   `git grep` no head do PR, fora do lockfile. Os lugares de cada versão estão
-  nas Repercussões do `AGENTS.md`.
+  na §Ripple effects do `AGENTS.md`.
 - **SHA da action.** No `github-actions`, o SHA novo é o da tag do comentário:
   `gh api repos/<dono>/<action>/commits/<tag> --jq .sha`.
 - **Changelog.** As notas de todas as versões intermediárias, e não só a de
@@ -219,8 +219,8 @@ Other das notas da release (o `cliff.toml` agrupa por prefixo). Por
 ecossistema:
 
 - **`github-actions`** e **`gomod`**: tudo. O `gomod` não mexe na versão do Go,
-  que está em vários lugares (a linha "versão de Go ou de Node" das
-  Repercussões do `AGENTS.md`) e sobe à mão.
+  que está em vários lugares (a linha "Go or Node version" da
+  §Ripple effects do `AGENTS.md`) e sobe à mão.
 - **`npm`** (em `/web`): tudo menos o major do TypeScript, que o svelte-check
   4.7.6 ainda não aceita (o PR #8 falhou no `npm ci`), e o major do
   `@types/node`, que é o do Node que roda e sobe junto com ele (o PR #57

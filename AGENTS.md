@@ -1,203 +1,224 @@
 # AGENTS.md
 
-## O que esse projeto é
+## What this project is
 
-NVR de gravação contínua **projetado para hardware extremamente limitado**
-(como o Orange Pi Zero 3), mas não feito *para* um hardware específico. Foco em
-performance, baixíssimo consumo de CPU e memória, resposta ultra rápida e uma UI
-leve, reativa e responsiva, com ótima usabilidade no mobile e no desktop
-(browser).
+A continuous-recording NVR **designed for extremely constrained hardware**
+(such as the Orange Pi Zero 3), but not built *for* any specific board. The
+focus is performance, very low CPU and memory use, fast responses, and a light,
+reactive, responsive UI that works well on mobile and desktop (browser).
 
-## Princípios
+## Principles
 
-- **Custo zero desligado.** Feature opcional não cobra nada de quem não a liga:
-  sem requisição, goroutine, buffer, arquivo ou diretório criado à toa, e sem
-  bytes no bundle (carregue com `import()`). Procure esse custo de propósito.
-- **Request nunca espera disco.** Nada de fsync ou escrita no caminho de uma
-  requisição HTTP, nem lock que ela lê segurado durante a escrita. O estado que
-  muda a cada request fica em memória, e um timer grava em segundo plano (e no
-  desligamento). O disco é o mesmo onde as câmeras gravam.
-- **Config por câmera, não premissa.** Resolução, cota, áudio e afins são
-  decisão de deployment: o dwnvr roda em câmeras e discos que ninguém aqui
-  conhece. Pergunte "isso deveria ser configurável por câmera?"; o número de uma
-  instalação serve de exemplo de validação, nunca de default.
-- **Sem C.** Nada de cgo nem de dependência com `import "C"` ou arquivos
-  `.c`/`.h` (o binário é estático e a imagem é `FROM scratch`). Subir a versão do
-  Go para respeitar isso é aceitável (onde mexer: §Repercussões).
-- **Peça trocável é contrato.** Motor, função estatística, detector de objetos e
-  afins: `interface` Go nomeada, com o comentário do que ela promete, e um mapa
-  nome -> construtor para trocar a implementação mexendo numa linha. Todo número
-  ajustável (limiar, tempo, orçamento, mapa de classes) mora num `parametros.go`,
-  nunca numa constante solta.
-- **JSON legível.** Chave por extenso (`instanteMs`, não `t`), mesmo ficando
-  maior. Exceção: o `index/{dia}.ndjson`, abreviado por volume.
-- **Chave e valor novos em en-US**, no JSON (API, `cameras.json`,
-  `usuarios.json`, `eventos/`) e no YAML (`dwnvr.yaml`, compose): `rule`, não
-  `regra`; `"touch"`, não `"encosta"`. Vale para o valor que é enumeração, e
-  não para o texto que o usuário digita (o nome de uma área). O que já existe
-  em português (`instanteMs`, `familia`, `"pessoa"`, `detectMecanismo`) fica
-  como está, porque renomear quebra o arquivo gravado e quem lê a API; campo
-  novo que guarda um valor desses o repete como ele é.
-- **O termo diz o que é.** "Detector de objetos" (o modelo), nunca "detector"
-  solto: confunde com a detecção de movimento. Prefira o verbo do que acontece
-  ("descartada", não "poupada"). Não mude o significado de um conceito do
-  servidor (fila, funil) para caber num desenho: proponha o desenho que o
-  respeita.
-- **Achado fora do escopo** não alarga a tarefa nem se perde no chat: vira
-  `docs/TODO/TODO_<assunto>.md`, no formato dos que já estão lá (o que foi
-  confirmado, prós, contras, como implementar e se vale a pena agora).
+- **Zero cost when off.** An optional feature costs nothing to whoever leaves
+  it off: no request, goroutine, buffer, file or directory created for nothing,
+  and no bytes in the bundle (load it with `import()`). Look for that cost on
+  purpose.
+- **A request never waits on disk.** No fsync or write in the path of an HTTP
+  request, and no lock the request reads held during a write. State that
+  changes on every request lives in memory, and a timer writes it in the
+  background (and on shutdown). It is the same disk the cameras record to.
+- **Per-camera config, not assumptions.** Resolution, quota, audio and the like
+  are deployment decisions: dwnvr runs on cameras and disks nobody here knows.
+  Ask "should this be configurable per camera?"; the number from one
+  installation is a validation example, never a default.
+- **No C.** No cgo and no dependency with `import "C"` or `.c`/`.h` files (the
+  binary is static and the image is `FROM scratch`). Bumping the Go version to
+  keep it that way is fine (where to change it: §Ripple effects).
+- **A swappable part is a contract.** Engine, statistical function, object
+  detector and the like: a named Go `interface`, with a comment on what it
+  promises, and a name -> constructor map, so swapping the implementation is a
+  one-line change. Every tunable number (threshold, duration, budget, class
+  map) lives in a `parametros.go`, never in a stray constant.
+- **Readable JSON.** Keys spelled out (`instanteMs`, not `t`), even if longer.
+  Exception: `index/{dia}.ndjson`, abbreviated because of its volume.
+- **Keys and values in en-US**, in JSON (API, `cameras.json`, `usuarios.json`,
+  `eventos/`) and in YAML (`dwnvr.yaml`, compose): `rule`, not `regra`;
+  `"touch"`, not `"encosta"`. This covers enum values, not text the user types
+  (an area name). The Portuguese keys and values still in place (`instanteMs`,
+  `familia`, `"pessoa"`, `detectMecanismo`) are renamed in step 6 of the
+  [conversion](docs/TODO/v1.0.0/conversao-en-us.md), together with the upgrade
+  guide, and never on their own: renaming one breaks the stored file and
+  whoever reads the API.
+- **A term says what it is.** "Object detector" (the model), never a bare
+  "detector": it gets confused with motion detection. Prefer the verb for what
+  actually happens ("dropped", not "spared"). Don't change the meaning of a
+  server concept (queue, funnel) to fit a design: propose a design that
+  respects it.
+- **An out-of-scope finding** doesn't widen the task or get lost in the chat:
+  it becomes `docs/TODO/TODO_<subject>.md`, in the format of the ones already
+  there (what was confirmed, pros, cons, how to implement, and whether it is
+  worth doing now).
 
-## Escrita
+## Writing
 
-- Português do Brasil em tudo (chat, comentário, doc, commit). O jargão técnico
-  fica em inglês, como a comunidade dev brasileira fala: timeout, build, deploy,
-  stage, registry, mount, wheel. Vale o termo que um dev diria assim numa
-  conversa de trabalho; vocabulário de domínio do projeto (quadro, pedaço) e
-  verbo comum (rodar, subir) seguem em português.
-- Use `-` (hífen) no lugar do travessão (em dash, U+2014), em qualquer texto
-  (código, comentários, docs, commits, chat), inclusive ao reescrever uma linha
-  que já tinha o caractere.
-- O repositório é público: em arquivo, comentário, commit ou PR, nunca o nome de
-  máquina, IP, usuário ou caminho da instalação de quem mantém, nem o nome de
-  projeto de outra organização. URL de câmera em exemplo ou teste é
+- en-US is the project's working language: identifiers, file names, comments,
+  tests, logs, docs, commit messages, PRs and release notes. Write it the way
+  an experienced native developer would, not as a literal translation. Domain
+  terms use the names in the [glossary](docs/TODO/v1.0.0/glossario.md); a new
+  term goes there first.
+- Three things stay in pt-BR: the chat with the maintainer; the text shown on
+  screen and in emails, until i18n (Stage 5 of the
+  [1.0.0 plan](docs/TODO/v1.0.0/README.md)) moves it into catalogs; and
+  `README.pt-BR.md`, the Portuguese twin of `README.md`.
+- Until the [conversion](docs/TODO/v1.0.0/conversao-en-us.md) is done, part of
+  the repository is still in Portuguese. New code is written in en-US anyway,
+  with the glossary names; existing names change in the conversion's own
+  commits, not alongside an unrelated change.
+- Use `-` (hyphen) instead of the em dash (U+2014) in any text (code, comments,
+  docs, commits, chat), including when rewriting a line that already had one.
+- The repository is public: in a file, comment, commit or PR, never the machine
+  name, IP, user or installation path of the maintainer, nor the name of
+  another organization's project. A camera URL in an example or test is
   `rtsp://usuario:senha@...`.
 
 ## Git
 
-- Só rode `git add`, commit, push ou abra PR quando o mantenedor pedir; "pode
-  fazer a mudança" não autoriza o commit. O stage pode ser o ponto de comparação
-  de quem revisa: sem pedido, deixe a mudança pronta no working tree (arquivo
-  a apagar: `rm`, não `git rm`), mostre o `git diff` e a mensagem proposta, e
-  pare. Doc ou TODO que descreve o fato do commit vai junto, e o diff mostrado
-  traz o texto inteiro.
-- A `main` não aceita commit de merge. Para integrar, use rebase
-  (`git pull --rebase`) ou fast-forward; nunca `git merge` que gere merge commit.
-- Consertar commit já publicado: na `main`, amend (um commit por mudança, e o
-  force push só o mantenedor libera, pois o ruleset o barra); em branch de PR
-  que vai a squash, commit novo, sem force.
-- Mensagem em conventional commits (`feat(web): ...`; escopo pelo pedaço tocado,
-  omitido se a mudança for transversal). Nunca o trailer `Claude-Session:`; o
-  `Co-Authored-By` fica. Mensagem longa vai por `git commit -F arquivo`.
-- O body do commit tem duas partes, separadas pela linha `---`:
-  1. Para o usuário final, possivelmente leigo: o que mudou na prática, em
-     linguagem do dia a dia, sem nome de arquivo, função ou termo técnico.
-     Obrigatória.
-  2. Para pessoas técnicas e agentes de IA: arquivos, decisões de implementação,
-     o que ficou de fora. Opcional; sem o que dizer, omita a parte 2 e o `---`.
+- Only run `git add`, commit, push or open a PR when the maintainer asks; "go
+  ahead with the change" does not authorize the commit. The stage may be the
+  reviewer's comparison point: without a request, leave the change ready in
+  the working tree (a file to delete: `rm`, not `git rm`), show the `git diff`
+  and the proposed message, and stop. A doc or TODO describing what the commit
+  does goes with it, and the diff shown includes its full text.
+- `main` does not accept merge commits. To integrate, use rebase
+  (`git pull --rebase`) or fast-forward; never a `git merge` that creates a
+  merge commit.
+- Fixing an already published commit: on `main`, amend (one commit per change,
+  and only the maintainer allows the force push, since the ruleset blocks it);
+  on a PR branch that will be squashed, a new commit, no force.
+- Messages follow Conventional Commits (`feat(web): ...`; the scope is the part
+  touched, omitted if the change is cross-cutting). Never the
+  `Claude-Session:` trailer; `Co-Authored-By` stays. A long message goes
+  through `git commit -F file`.
+- The commit body has two parts, separated by a `---` line:
+  1. For the end user, possibly non-technical: what changed in practice, in
+     everyday language, with no file name, function or technical term.
+     Required.
+  2. For technical people and AI agents: files, implementation decisions, what
+     was left out. Optional; with nothing to say, omit part 2 and the `---`.
 
   ```text
-  feat(web): baixa a imagem do quadro mostrado
+  feat(web): download the frame on screen as an image
 
-  Agora dá para salvar como imagem o quadro que está na tela, sem
-  precisar exportar o vídeo inteiro.
+  You can now save the frame on screen as an image, without exporting
+  the whole video.
 
   ---
 
-  `Player.svelte` desenha o `<video>` num canvas e usa `toBlob`.
-  O nome do arquivo sai de `mediaURL`.
+  `Player.svelte` draws the `<video>` on a canvas and calls `toBlob`.
+  The file name comes from `mediaURL`.
   ```
 
-- Mudança incompatível (quem só atualiza, com `git pull` e `docker compose up`,
-  perde algo que funcionava ou precisa agir): `!` no tipo (`fix(compose)!:`) e o
-  rodapé `BREAKING CHANGE:`, que vira a seção "Pede ação ao atualizar" das notas
-  da release (`cliff.toml`).
-  - O rodapé diz o que fazer (o que mudou, o assunto já diz), escrito para o
-    usuário final, num parágrafo só. Fica no fim da mensagem, depois da parte 2,
-    num parágrafo próprio e separado do `Co-Authored-By` por uma linha em
-    branco: no mesmo parágrafo, o git deixa de reconhecer o `Co-Authored-By`
-    (`BREAKING CHANGE` tem espaço, então para o git não é trailer). Confira com
-    `git interpret-trailers --parse --no-divider`, que tem de listá-lo.
+- Breaking change (someone who only updates, with `git pull` and
+  `docker compose up`, loses something that worked or has to act): `!` in the
+  type (`fix(compose)!:`) and the `BREAKING CHANGE:` footer, which becomes the
+  "Pede ação ao atualizar" section of the release notes (`cliff.toml`).
+  - The footer says what to do (the subject already says what changed),
+    written for the end user, in a single paragraph. It goes at the end of the
+    message, after part 2, in its own paragraph, separated from
+    `Co-Authored-By` by a blank line: in the same paragraph, git stops
+    recognizing `Co-Authored-By` (`BREAKING CHANGE` has a space, so to git it
+    is not a trailer). Check with `git interpret-trailers --parse --no-divider`,
+    which must list it.
 
     ```text
-    (parte 2)
+    (part 2)
 
-    BREAKING CHANGE: Depois de atualizar, todos os aparelhos voltam uma vez para a tela de login. Tenha a senha à mão.
+    BREAKING CHANGE: After updating, every device goes back to the login screen once. Have the password at hand.
 
     Co-Authored-By: ...
     ```
 
-  - Ao propor um commit que mexe em algum destes itens, diga no chat se ele é
-    incompatível e por quê, mesmo quando for "não": campo ou default em
-    `internal/config/config.go` (renomear, remover, mudar o default); porta,
-    volume, env ou serviço no `docker-compose.yml`; caminho interno ou
-    `DayLayout` (a gravação antiga continua legível?); flag em
-    `cmd/dwnvr/main.go`; rota ou JSON documentado em `docs/api.md`.
+  - When proposing a commit that touches any of these, say in the chat whether
+    it is breaking and why, even when the answer is "no": a field or default in
+    `internal/config/config.go` (rename, removal, default change); a port,
+    volume, env var or service in `docker-compose.yml`; an internal path or
+    `DayLayout` (are old recordings still readable?); a flag in
+    `cmd/dwnvr/main.go`; a route or JSON documented in `docs/api.md`.
 
-## Interface
+## UI
 
-- Ícone da interface é `<Icone nome="…" tamanho={…} />`, e o desenho mora em
-  `web/src/lib/iconesUi.ts`. Ícone novo entra lá, num viewBox 24×24. Nada de
-  `<svg>` inline numa tela nem de caractere (⋮ ✕ ▶) no lugar de ícone: o
-  caractere muda de forma a cada sistema.
-- Fora do mapa ficam só os ícones de detecção em canvas (`lib/icones.ts`) e a
-  marca do GitHub (`MarcaGitHub.svelte`).
+- A UI icon is `<Icone nome="…" tamanho={…} />`, and its drawing lives in
+  `web/src/lib/iconesUi.ts`. A new icon goes there, in a 24×24 viewBox. No
+  inline `<svg>` in a screen and no character (⋮ ✕ ▶) in place of an icon: the
+  character changes shape on every system.
+- The only icons outside the map are the detection icons drawn on canvas
+  (`lib/icones.ts`) and the GitHub mark (`MarcaGitHub.svelte`).
 
 ## Lint
 
-- Uma vez por clone: `prek install` (o prek se instala com
-  `uv tool install prek`). A cada commit os hooks do `.pre-commit-config.yaml`
-  conferem os arquivos e corrigem o que dá; se um hook corrigir algo, o commit é
-  interrompido: confira, dê `git add` e commite de novo.
-- Antes de propor um commit: `prek run --all-files`. A CI
-  (`.github/workflows/lint.yml`) roda o mesmo arquivo, sem corrigir nada.
-- O hook `betterleaks` só olha o que está no stage, então o `--all-files` verde
-  não garante o commit. Em teste, nada de literal com usuário e senha: monte a
-  URL com `url.UserPassword`, ponha a senha numa variável e use os literais que o
-  `.betterleaks.toml` libera (`senha`, `troque-me`; `admin` em `_test.go`).
-- Nunca `git commit --no-verify`. Regra de lint não se desliga para passar:
-  corrija; se não houver como, desligue só naquela linha, com o motivo nela.
+- Once per clone: `prek install` (prek installs with
+  `uv tool install prek`). On every commit the hooks in
+  `.pre-commit-config.yaml` check the files and fix what they can; if a hook
+  fixes something, the commit is aborted: review it, `git add` and commit
+  again.
+- Before proposing a commit: `prek run --all-files`. CI
+  (`.github/workflows/lint.yml`) runs the same file, without fixing anything.
+- The `betterleaks` hook only looks at what is staged, so a green
+  `--all-files` does not guarantee the commit. In tests, no literal with a user
+  and password: build the URL with `url.UserPassword`, put the password in a
+  variable and use the literals `.betterleaks.toml` allows (`senha`,
+  `troque-me`; `admin` in `_test.go`).
+- Never `git commit --no-verify`. A lint rule is not turned off to get through:
+  fix it; if there is no way, turn it off on that line only, with the reason on
+  it.
 
-## Comandos
+## Commands
 
-- `make test` (`go test -race`, que precisa de compilador C só para o detector
-  de corrida), `make web` (refaz a interface) e `make check` (o que a CI roda:
-  test + prek). `make help` lista o resto.
-- Dev server: `cd web && DWNVR_API=http://servidor:8080 npm run dev` (sem a
-  variável, aponta para `localhost:8080`; sem backend, a tela fica vazia).
-- Mudança visual: mostre-a renderizada (print ou endereço do dev server) antes
-  de commitar. Status 200 e tamanho certo não provam que o asset desenha.
+- `make test` (`go test -race`, which needs a C compiler only for the race
+  detector), `make web` (rebuilds the UI) and `make check` (what CI runs:
+  test + prek). `make help` lists the rest.
+- Dev server: `cd web && DWNVR_API=http://server:8080 npm run dev` (without the
+  variable it points to `localhost:8080`; without a backend the screen is
+  empty).
+- Visual change: show it rendered (a screenshot or the dev server address)
+  before committing. A 200 status and the right size don't prove the asset
+  draws.
 
-## Repercussões
+## Ripple effects
 
-Um mesmo fato vive em vários arquivos aqui. Antes de encerrar a tarefa, ache na
-esquerda o que você tocou e atualize tudo na direita. `§` = seção do arquivo.
+The same fact lives in several files here. Before finishing the task, find on
+the left what you touched and update everything on the right. `§` = section of
+the file.
 
-| Mexeu em | Confira |
+| Touched | Check |
 | --- | --- |
-| `web/src/`, `web/index.html`, `web/public/` | `make web`, depois commitar `internal/api/dist/` inteiro, com a remoção dos assets antigos (o hook `interface-atualizada` e a CI conferem) |
-| arquivo em `web/src/{lib,routes,components,vendor}` | §Estrutura do `web/README.md` |
-| rota em `internal/api/server.go`, inclusive entrar/sair do `requireAuth` | `docs/api.md` · `web/src/lib/api.ts` (tipos do JSON no fim; `api` para JSON, `mediaURL` para URL montada) |
-| formato do JSON de resposta ou de erro | a tela em `web/src/routes/` |
-| `.go` novo em `internal/api/` | árvore §Estrutura do projeto do `README.md` |
-| campo em `internal/config/config.go` | `dwnvr.example.yaml` (com comentário) · `docs/configuracao.md` · §Configuração do `README.md` |
-| default em `config.defaults()` | o número se repete à mão em `dwnvr.example.yaml` · `docs/configuracao.md` · `web/src/routes/Cameras.svelte` (`audio`, `quotaMB`, `segmentSeconds`, `maxDays`, e no fallback do `padrao`: `detect`, `detectMecanismo`, `detectSensibilidade`) |
-| campo em `config.Camera` | `config.Resolve` e, com default, a volta dele no `config.TiraDefaultsNovos` · `config.ConfereCamera` (a régua da API e do boot) · `Cameras.svelte` · §Política por câmera do `docs/configuracao.md` |
-| faixa em `internal/config/parametros.go` | campo com input na tela entra em `FaixasDaCamera`, de onde o `Cameras.svelte` lê `min`/`max` · coluna Aceito da §Política por câmera do `docs/configuracao.md` · comentário do campo no `dwnvr.example.yaml` · `faixas` do `docs/api.md` |
-| caminho ou `DayLayout` em `internal/store/store.go` | `docs/arquitetura.md` · `docs/operacao.md` · §Conferir por fora da interface do `README.md` |
-| campo em `store.Entry` | índice append-only: a leitura tolera zero em linha antiga · `internal/retention/retention.go` · `internal/api/recordings.go` |
-| variável de `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/imagens.yml` (`build-args`) · `GET /api/version` |
-| `image:` do dwnvr ou do dwnvr-detect no `docker-compose.yml` | manter `${DWNVR_VERSION:-vX.Y.Z}` numa linha só: o passo do compose no `.github/workflows/release.yml` reescreve o default e falha se não achar as 2 linhas |
-| versão do lychee | `rev` e `entry` (a tag da imagem) do hook `lychee-docker` no `.pre-commit-config.yaml`, juntos: o `rev` só traz a definição do hook, e o Dependabot não sobe nenhum dos dois |
-| `image:` do go2rtc no `docker-compose.yml` | manter `${GO2RTC_VERSION:-X.Y.Z}` com uma tag testada, nunca sem tag (sem ela o `--pull always` traz qualquer versão) · §Atualizar do `README.md` · §Trocar de versão do `docs/operacao.md` |
-| comando de atualizar | §Atualizar do `README.md` (a página de cada release aponta para ela) · §Trocar de versão do `docs/operacao.md` |
-| alvo ou variável no `Makefile` | comentário `## alvo:` (o `make help` lê) · §Build do `README.md` · `local.mk.example` |
-| versão de Go ou de Node | `go.mod` · `.tool-versions` (o asdf local) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` e `lint.yml` (`setup-go`/`setup-node`) · major do `@types/node` no `web/package.json` (só Node) · §Tecnologias do `README.md` · `default_language_version` do `.pre-commit-config.yaml` (o golangci-lint compilado com o Go velho se recusa a rodar) |
-| arquivo ou diretório novo na raiz | `.gitignore` se for local. O `.dockerignore` é allowlist invertida (`**` + `!`): o que o build precisar exige um `!` explícito, senão some do contexto |
-| arquivo gerado, que não se edita à mão | `exclude` do `.pre-commit-config.yaml` (hoje `internal/api/dist/` e `CHANGELOG.md`): sem ele, um hook o reescreve e o lint da CI falha |
-| volume, porta, env ou serviço no `docker-compose.yml` | §Experimentar em poucos minutos, §Instalar de verdade e §Detecção de movimento e de objetos do `README.md` · `docker-compose.build.yml` (se for serviço com imagem própria) · `docs/operacao.md` · `go2rtc.url` do `dwnvr.example.yaml` (depende do nome do serviço) |
-| caminho interno (`/etc/dwnvr`, `/storage`) | `Dockerfile` (`VOLUME`, `CMD`, `HEALTHCHECK`) · `docker-compose.yml` · `storage.root` do `dwnvr.example.yaml` · `README.md` |
-| caminho do binário na imagem (`/dwnvr`) | `Dockerfile` (`ENTRYPOINT`, `HEALTHCHECK`) · `docker cp` do `.github/workflows/govulncheck.yml` · §govulncheck semanal do `docs/github.md` |
-| flag em `cmd/dwnvr/main.go` | `CMD` e `HEALTHCHECK` do `Dockerfile` (`-config`, `-healthcheck`) · `docs/operacao.md` |
-| documento novo em `docs/` | índice `docs/README.md` · §Documentação do `README.md`. `docs/TODO/` não tem índice por arquivo |
-| renomear ou mover arquivo | links relativos nos `.md` · `README.md` e `docs/` citam `.go`/`.svelte` por caminho · árvore §Estrutura do projeto |
+| `web/src/`, `web/index.html`, `web/public/` | `make web`, then commit all of `internal/api/dist/`, including the removal of old assets (the `interface-atualizada` hook and CI check it) |
+| file in `web/src/{lib,routes,components,vendor}` | §Estrutura of `web/README.md` |
+| route in `internal/api/server.go`, including entering/leaving `requireAuth` | `docs/api.md` · `web/src/lib/api.ts` (JSON types at the end; `api` for JSON, `mediaURL` for a built URL) |
+| format of a JSON response or error | the screen in `web/src/routes/` |
+| new `.go` in `internal/api/` | the §Estrutura do projeto tree in `README.md` |
+| field in `internal/config/config.go` | `dwnvr.example.yaml` (with a comment) · `docs/configuracao.md` · §Configuração of `README.md` |
+| default in `config.defaults()` | the number is repeated by hand in `dwnvr.example.yaml` · `docs/configuracao.md` · `web/src/routes/Cameras.svelte` (`audio`, `quotaMB`, `segmentSeconds`, `maxDays`, and in the `padrao` fallback: `detect`, `detectMecanismo`, `detectSensibilidade`) |
+| field in `config.Camera` | `config.Resolve` and, with a default, its way back in `config.TiraDefaultsNovos` · `config.ConfereCamera` (the validation shared by the API and boot) · `Cameras.svelte` · §Política por câmera of `docs/configuracao.md` |
+| range in `internal/config/parametros.go` | a field with an input on screen goes into `FaixasDaCamera`, where `Cameras.svelte` reads `min`/`max` · the Aceito column of §Política por câmera in `docs/configuracao.md` · the field's comment in `dwnvr.example.yaml` · `faixas` in `docs/api.md` |
+| path or `DayLayout` in `internal/store/store.go` | `docs/arquitetura.md` · `docs/operacao.md` · §Conferir por fora da interface of `README.md` |
+| field in `store.Entry` | append-only index: reading tolerates zero in an old line · `internal/retention/retention.go` · `internal/api/recordings.go` |
+| variable in `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/imagens.yml` (`build-args`) · `GET /api/version` |
+| dwnvr or dwnvr-detect `image:` in `docker-compose.yml` | keep `${DWNVR_VERSION:-vX.Y.Z}` on a single line: the compose step in `.github/workflows/release.yml` rewrites the default and fails if it doesn't find both lines |
+| lychee version | `rev` and `entry` (the image tag) of the `lychee-docker` hook in `.pre-commit-config.yaml`, together: `rev` only brings the hook definition, and Dependabot bumps neither |
+| go2rtc `image:` in `docker-compose.yml` | keep `${GO2RTC_VERSION:-X.Y.Z}` with a tested tag, never untagged (without it, `--pull always` brings any version) · §Atualizar of `README.md` · §Trocar de versão of `docs/operacao.md` |
+| update command | §Atualizar of `README.md` (every release page points to it) · §Trocar de versão of `docs/operacao.md` |
+| target or variable in the `Makefile` | the `## target:` comment (`make help` reads it) · §Build of `README.md` · `local.mk.example` |
+| Go or Node version | `go.mod` · `.tool-versions` (local asdf) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` and `lint.yml` (`setup-go`/`setup-node`) · major of `@types/node` in `web/package.json` (Node only) · §Tecnologias of `README.md` · `default_language_version` in `.pre-commit-config.yaml` (golangci-lint built with an old Go refuses to run) |
+| new file or directory at the root | `.gitignore` if it is local. `.dockerignore` is an inverted allowlist (`**` + `!`): whatever the build needs requires an explicit `!`, or it disappears from the context |
+| generated file, not edited by hand | `exclude` in `.pre-commit-config.yaml` (today `internal/api/dist/` and `CHANGELOG.md`): without it a hook rewrites it and CI lint fails |
+| volume, port, env var or service in `docker-compose.yml` | §Experimentar em poucos minutos, §Instalar de verdade and §Detecção de movimento e de objetos of `README.md` · `docker-compose.build.yml` (if the service has its own image) · `docs/operacao.md` · `go2rtc.url` in `dwnvr.example.yaml` (depends on the service name) |
+| internal path (`/etc/dwnvr`, `/storage`) | `Dockerfile` (`VOLUME`, `CMD`, `HEALTHCHECK`) · `docker-compose.yml` · `storage.root` in `dwnvr.example.yaml` · `README.md` |
+| binary path in the image (`/dwnvr`) | `Dockerfile` (`ENTRYPOINT`, `HEALTHCHECK`) · `docker cp` in `.github/workflows/govulncheck.yml` · §govulncheck semanal of `docs/github.md` |
+| flag in `cmd/dwnvr/main.go` | `CMD` and `HEALTHCHECK` in the `Dockerfile` (`-config`, `-healthcheck`) · `docs/operacao.md` |
+| new doc in `docs/` | the `docs/README.md` index · §Documentação of `README.md`. `docs/TODO/` has no per-file index |
+| `README.md` or `README.pt-BR.md` | the other one, so both say the same thing |
+| new or renamed domain term | the [glossary](docs/TODO/v1.0.0/glossario.md) |
+| renaming or moving a file or identifier | relative links in the `.md` files · `README.md` and `docs/` cite `.go`/`.svelte` by path · the §Estrutura do projeto tree · this file, which cites files and identifiers by name |
 
-## Varredura final
+## Final sweep
 
-A tabela cobre o previsto; isto pega o resto. Antes do commit:
+The table covers what was foreseen; this catches the rest. Before committing:
 
 ```sh
-git grep -n "nome-antigo"   # renomeou algo? o nome velho não pode ter sobrado
+git grep -n "old-name"   # renamed something? the old name must not be left behind
 ```
 
-Confira também que nenhum nome pessoal ou de outra organização entrou (§Escrita).
-Link e âncora quebrados no Markdown o lychee acha no commit (§Lint).
+Also check that no personal name or name of another organization slipped in
+(§Writing). Lint (§Lint) catches broken links and anchors in Markdown at commit
+time.

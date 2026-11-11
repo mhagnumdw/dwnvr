@@ -65,17 +65,22 @@ Cerca de 67 mil linhas em 265 arquivos: a maior etapa do plano.
 
 ## Como, em passos que se testam
 
-Cada passo é uma série de commits pequenos, e cada commit chega à `main` e roda
-na instalação de teste, que segue a imagem `main`, antes do próximo. A release
-só sai no fim da etapa, com o guia inteiro.
+Cada passo é um PR, em commits pequenos. Antes de o PR ser aceito, a branch
+roda na instalação de teste (`make deploy-wip`), o teste mais perto de uma
+instalação de verdade. O `deploy-wip` só leva a imagem do dwnvr: o passo que
+mexer no `dwnvr-detect` (5) ou no compose (6 e 7) diz também como a imagem do
+detector de objetos e o compose da branch chegam lá, sem perder o `.env` da
+instalação. O PR entra na `main` por squash, e por isso um PR de rename não
+leva mudança de comportamento junto: o commit do squash entra inteiro no
+`.git-blame-ignore-revs` do passo 8. O passo seguinte só começa
+depois disso, e a release só sai no fim da etapa, com o guia inteiro.
 
 1. **O glossário.** O vocabulário do domínio se decide antes de qualquer
    rename, para o mesmo conceito ter o mesmo nome no Go, na interface, na API e
-   nos docs. Pedem decisão: quadro, olhada, marca, onset, régua, pedaço,
-   família, área, funil, fila, órfã, dono, convite, recusa, Diagnóstico. O
-   `AGENTS.md` já fixa um: "detector de objetos", nunca "detector" solto.
-2. **O `AGENTS.md`** em en-US, com a regra nova de escrita (o repositório em
-   en-US, inclusive commits e notas de release; o chat em pt-BR; mudança num
+   nos docs. Decidido em 11/11/2026: [glossario.md](glossario.md).
+2. **O `AGENTS.md`** em en-US, com a regra nova de escrita (en-US é o idioma
+   de trabalho do projeto: o repositório inteiro, inclusive commits e notas de
+   release; o chat em pt-BR; mudança num
    README vai no outro) e sem a regra "o que já existe em português fica como
    está".
 3. **Go**, pacote a pacote. O rename de identificador pelo `gopls`, que entende
@@ -115,14 +120,12 @@ só sai no fim da etapa, com o guia inteiro.
   limpo), e nenhuma feature durante a conversão.
 - **A chave renomeada de um lado só.** O TypeScript confere a interface contra
   os tipos do `web/src/lib/api.ts`, e não contra o servidor. O teste Go que lê
-  o JSON de cada rota pega o lado do servidor; a fumaça das telas (opcional na
-  Etapa 1) e a instalação de teste pegam o encontro dos dois.
+  o JSON de cada rota pega o lado do servidor; a instalação de teste pega o
+  encontro dos dois.
 - **O guia é o passo com risco de perda.** Começa pelo backup, e cada parte é
   testada com os dados reais da instalação de teste.
-- **Os dois READMEs divergem com o tempo.** A regra do passo 2 entra na tabela
-  de Repercussões do `AGENTS.md`: mexeu num, confira o outro.
-- **O limite de tokens do PR #37**, se entrar antes: um arquivo renomeado pode
-  contar como novo e ser barrado no commit.
+- **Os dois READMEs divergem com o tempo.** A regra do passo 2 está na tabela
+  §Ripple effects do `AGENTS.md`: mexeu num, confira o outro.
 
 ## As decisões
 
