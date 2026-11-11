@@ -179,15 +179,15 @@ type detectorInfo struct {
 type logInfo struct {
 	// Total é quantos avisos e erros houve desde que o dwnvr subiu; Linhas, só
 	// os mais recentes.
-	Total  int64          `json:"total"`
-	Linhas []logbuf.Linha `json:"linhas"`
+	Total  int64         `json:"total"`
+	Linhas []logbuf.Line `json:"linhas"`
 }
 
 // recentes é o que o handler de log do main.go oferece. Vai por interface, e
 // não por mais um parâmetro de New, porque o logger já chega aqui: é só
 // perguntar a ele.
 type recentes interface {
-	Recentes() ([]logbuf.Linha, int64)
+	Recentes() ([]logbuf.Line, int64)
 }
 
 func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Request) {

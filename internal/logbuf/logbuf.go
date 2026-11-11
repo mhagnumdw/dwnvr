@@ -1,13 +1,14 @@
-// Package logbuf guarda em memória os últimos avisos e erros do log, para a
-// tela de Diagnóstico mostrar.
+// Package logbuf keeps the latest log warnings and errors in memory, for the
+// Diagnostics screen to show.
 //
-// Existe porque o `docker logs` é o primeiro passo de qualquer investigação e
-// também o que quem instalou o dwnvr menos sabe fazer. Com as últimas linhas
-// na tela, a pessoa copia e cola numa conversa em vez de abrir um terminal.
+// It exists because `docker logs` is the first step of any investigation and
+// also what the person who installed dwnvr is least likely to know how to do.
+// With the latest lines on screen, they copy and paste them into a
+// conversation instead of opening a terminal.
 //
-// Só WARN e ERROR entram: o INFO do dwnvr é o dia a dia (índice carregado,
-// dwnvr no ar), e deixá-lo entrar faria um reinício empurrar para fora
-// justamente o erro que explicava o reinício.
+// Only WARN and ERROR go in: dwnvr's INFO is the day-to-day (index loaded,
+// dwnvr up), and letting it in would make a restart push out exactly the error
+// that explained the restart.
 package logbuf
 
 import (
@@ -19,53 +20,53 @@ import (
 	"time"
 )
 
-// Linha é um aviso ou erro já formatado: a mensagem seguida dos atributos em
-// chave=valor, como o TextHandler escreveria.
-type Linha struct {
-	Em    time.Time `json:"em"`
-	Nivel string    `json:"nivel"`
-	Texto string    `json:"texto"`
+// Line is a warning or error already formatted: the message followed by the
+// attributes as key=value, as the TextHandler would write them.
+type Line struct {
+	At    time.Time `json:"em"`
+	Level string    `json:"nivel"`
+	Text  string    `json:"texto"`
 }
 
-// anel é compartilhado por todos os Handler derivados de um mesmo New: o
-// log.With("cam", ...) de cada recorder grava no mesmo lugar que a raiz.
-type anel struct {
-	mu     sync.Mutex
-	linhas []Linha
-	prox   int
-	cheio  bool
-	total  int64
+// ring is shared by every Handler derived from the same New: each recorder's
+// log.With("cam", ...) writes to the same place as the root.
+type ring struct {
+	mu    sync.Mutex
+	lines []Line
+	next  int
+	full  bool
+	total int64
 }
 
-func (a *anel) guardar(l Linha) {
+func (a *ring) add(l Line) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.linhas[a.prox] = l
-	a.prox = (a.prox + 1) % len(a.linhas)
-	if a.prox == 0 {
-		a.cheio = true
+	a.lines[a.next] = l
+	a.next = (a.next + 1) % len(a.lines)
+	if a.next == 0 {
+		a.full = true
 	}
 	a.total++
 }
 
-// Handler embrulha outro slog.Handler: tudo segue para ele como antes, e o que
-// for WARN ou acima fica também guardado no anel.
+// Handler wraps another slog.Handler: everything goes on to it as before, and
+// whatever is WARN or above is also kept in the ring.
 type Handler struct {
-	prox  slog.Handler
-	anel  *anel
-	attrs string // atributos de With, já formatados
-	grupo string // prefixo de WithGroup, com o ponto
+	next  slog.Handler
+	ring  *ring
+	attrs string // attributes from With, already formatted
+	group string // prefix from WithGroup, with the dot
 }
 
-// New guarda as últimas n linhas de aviso ou erro.
-func New(prox slog.Handler, n int) *Handler {
-	return &Handler{prox: prox, anel: &anel{linhas: make([]Linha, n)}}
+// New keeps the last n warning or error lines.
+func New(next slog.Handler, n int) *Handler {
+	return &Handler{next: next, ring: &ring{lines: make([]Line, n)}}
 }
 
-// Enabled deixa passar todo aviso e erro, mesmo que o handler de baixo esteja
-// num nível acima: o anel guarda o que ele descartaria.
+// Enabled lets every warning and error through, even if the handler below is
+// at a higher level: the ring keeps what it would drop.
 func (h *Handler) Enabled(ctx context.Context, l slog.Level) bool {
-	return l >= slog.LevelWarn || h.prox.Enabled(ctx, l)
+	return l >= slog.LevelWarn || h.next.Enabled(ctx, l)
 }
 
 func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
@@ -74,62 +75,62 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 		b.WriteString(r.Message)
 		b.WriteString(h.attrs)
 		r.Attrs(func(a slog.Attr) bool {
-			escrever(&b, h.grupo, a)
+			writeAttr(&b, h.group, a)
 			return true
 		})
-		h.anel.guardar(Linha{Em: r.Time, Nivel: r.Level.String(), Texto: b.String()})
+		h.ring.add(Line{At: r.Time, Level: r.Level.String(), Text: b.String()})
 	}
-	if !h.prox.Enabled(ctx, r.Level) {
+	if !h.next.Enabled(ctx, r.Level) {
 		return nil
 	}
-	return h.prox.Handle(ctx, r)
+	return h.next.Handle(ctx, r)
 }
 
 func (h *Handler) WithAttrs(as []slog.Attr) slog.Handler {
 	var b strings.Builder
 	b.WriteString(h.attrs)
 	for _, a := range as {
-		escrever(&b, h.grupo, a)
+		writeAttr(&b, h.group, a)
 	}
-	return &Handler{prox: h.prox.WithAttrs(as), anel: h.anel, attrs: b.String(), grupo: h.grupo}
+	return &Handler{next: h.next.WithAttrs(as), ring: h.ring, attrs: b.String(), group: h.group}
 }
 
-func (h *Handler) WithGroup(nome string) slog.Handler {
-	if nome == "" {
+func (h *Handler) WithGroup(name string) slog.Handler {
+	if name == "" {
 		return h
 	}
-	return &Handler{prox: h.prox.WithGroup(nome), anel: h.anel, attrs: h.attrs, grupo: h.grupo + nome + "."}
+	return &Handler{next: h.next.WithGroup(name), ring: h.ring, attrs: h.attrs, group: h.group + name + "."}
 }
 
-// Recentes devolve as linhas guardadas, da mais nova para a mais velha, e
-// quantos avisos e erros houve desde que o dwnvr subiu - o total diz se o que
-// aparece é tudo ou só a cauda.
-func (h *Handler) Recentes() ([]Linha, int64) {
-	a := h.anel
+// Recent returns the stored lines, newest first, and how many warnings and
+// errors there have been since dwnvr started - the total says whether what
+// shows is everything or just the tail.
+func (h *Handler) Recent() ([]Line, int64) {
+	a := h.ring
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	n := a.prox
-	if a.cheio {
-		n = len(a.linhas)
+	n := a.next
+	if a.full {
+		n = len(a.lines)
 	}
-	out := make([]Linha, 0, n)
+	out := make([]Line, 0, n)
 	for i := 1; i <= n; i++ {
-		out = append(out, a.linhas[(a.prox-i+len(a.linhas))%len(a.linhas)])
+		out = append(out, a.lines[(a.next-i+len(a.lines))%len(a.lines)])
 	}
 	return out, a.total
 }
 
-// escrever acrescenta " chave=valor", com aspas quando o valor tem espaço -
-// o mesmo critério do TextHandler, para a linha ler igual à do docker logs.
-func escrever(b *strings.Builder, prefixo string, a slog.Attr) {
+// writeAttr appends " key=value", quoting the value when it has a space - the
+// same rule as the TextHandler, so the line reads the same as in docker logs.
+func writeAttr(b *strings.Builder, prefix string, a slog.Attr) {
 	v := a.Value.Resolve()
 	if v.Kind() == slog.KindGroup {
-		p := prefixo
+		p := prefix
 		if a.Key != "" {
 			p += a.Key + "."
 		}
 		for _, g := range v.Group() {
-			escrever(b, p, g)
+			writeAttr(b, p, g)
 		}
 		return
 	}
@@ -141,7 +142,7 @@ func escrever(b *strings.Builder, prefixo string, a slog.Attr) {
 		s = strconv.Quote(s)
 	}
 	b.WriteByte(' ')
-	b.WriteString(prefixo)
+	b.WriteString(prefix)
 	b.WriteString(a.Key)
 	b.WriteByte('=')
 	b.WriteString(s)

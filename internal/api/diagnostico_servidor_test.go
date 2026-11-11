@@ -258,7 +258,7 @@ func TestFalhaDeEscritaNaoEncheOLog(t *testing.T) {
 	for range 3 {
 		s.testarEscrita()
 	}
-	if _, total := h.Recentes(); total != 1 {
+	if _, total := h.Recent(); total != 1 {
 		t.Errorf("3 falhas iguais geraram %d avisos, esperado 1", total)
 	}
 
@@ -268,7 +268,7 @@ func TestFalhaDeEscritaNaoEncheOLog(t *testing.T) {
 	s.testarEscrita()
 	s.cfg.Storage.Root = root
 	s.testarEscrita()
-	if _, total := h.Recentes(); total != 2 {
+	if _, total := h.Recent(); total != 2 {
 		t.Errorf("falha depois de um sucesso: %d avisos, esperado 2", total)
 	}
 }
@@ -296,7 +296,7 @@ func TestHandleDiagnosticoServidor(t *testing.T) {
 	if !got.Storage.Escrita.OK {
 		t.Errorf("escrita: %+v", got.Storage.Escrita)
 	}
-	if got.Log == nil || got.Log.Total != 1 || got.Log.Linhas[0].Texto != "conexão caiu cam=garagem" {
+	if got.Log == nil || got.Log.Total != 1 || got.Log.Linhas[0].Text != "conexão caiu cam=garagem" {
 		t.Errorf("log: %+v", got.Log)
 	}
 	if em, err := time.Parse(time.RFC3339, got.ColetadoEm.Em); err != nil || time.Since(em) > time.Minute || got.ColetadoEm.Sigla == "" {

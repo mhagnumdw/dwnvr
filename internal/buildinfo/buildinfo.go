@@ -1,7 +1,7 @@
-// Package buildinfo diz qual código este binário está executando.
+// Package buildinfo says which code this binary is running.
 //
-// Existe como pacote próprio, e não como variáveis do main, porque a API
-// precisa lê-lo para responder /api/version.
+// It is a package of its own, and not variables in main, because the API
+// needs to read it to answer /api/version.
 package buildinfo
 
 import (
@@ -9,8 +9,8 @@ import (
 	"runtime/debug"
 )
 
-// Preenchidos na ligação, via -ldflags -X, pelo Makefile e pelo Dockerfile.
-// Ficam vazios em qualquer outro caminho de compilação - daí o fallback de Get.
+// Set at link time, via -ldflags -X, by the Makefile and the Dockerfile.
+// They are empty in any other build path - hence the fallback in Get.
 var (
 	Version = ""
 	Commit  = ""
@@ -24,20 +24,21 @@ type Info struct {
 	Go      string `json:"go"`
 }
 
-// info é calculado uma vez: ReadBuildInfo percorre a tabela de símbolos e não
-// tem por que rodar a cada requisição.
+// info is computed once: ReadBuildInfo walks the symbol table and has no
+// reason to run on every request.
 var info = resolve()
 
-// Get devolve a identificação deste binário.
+// Get returns this binary's identification.
 func Get() Info { return info }
 
-// resolve prefere os valores injetados na ligação e, quando não há nenhum, cai
-// no carimbo que o próprio Go grava ao compilar dentro de um repositório git.
+// resolve prefers the values injected at link time and, when there are none,
+// falls back to the stamp Go itself records when building inside a git
+// repository.
 //
-// Esse fallback é o que faz um `go build ./cmd/dwnvr` ou um `go run` avulso
-// ainda reportarem o commit certo, em vez de exigirem o Makefile para dizer a
-// verdade. Ele não cobre a imagem Docker: lá o .dockerignore exclui o .git/, e
-// é justamente por isso que o Dockerfile passa os valores por ARG.
+// That fallback is what makes a plain `go build ./cmd/dwnvr` or `go run` still
+// report the right commit, instead of needing the Makefile to tell the truth.
+// It doesn't cover the Docker image: there .dockerignore excludes .git/, and
+// that is exactly why the Dockerfile passes the values as ARGs.
 func resolve() Info {
 	out := Info{Version: Version, Commit: Commit, Date: Date, Go: runtime.Version()}
 
@@ -61,8 +62,8 @@ func resolve() Info {
 		if out.Date == "" {
 			out.Date = time
 		}
-		// O mesmo formato que `git describe --always --dirty` produziria, para
-		// que a versão não mude de cara conforme quem compilou.
+		// The same format `git describe --always --dirty` would produce, so the
+		// version doesn't change its look depending on who built it.
 		if out.Version == "" && revision != "" {
 			out.Version = shortHash(revision)
 			if modified {
