@@ -299,11 +299,11 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	// Falhar aqui não é erro de ninguém - um go2rtc externo pode não expor o
 	// /api/config -, e a tela segue sem o aviso. Debug, e não Warn, porque isto
 	// roda a cada abertura da tela e encheria os avisos do Diagnóstico.
-	if arquivo, err := s.client.Arquivo(r.Context()); err != nil {
+	if arquivo, err := s.client.ConfigFile(r.Context()); err != nil {
 		s.log.Debug("lendo o go2rtc.yaml pela API do go2rtc", "erro", err)
-	} else if d, err := go2rtc.Divergencias(arquivo, streams); err != nil {
+	} else if d, err := go2rtc.FindDrift(arquivo, streams); err != nil {
 		s.log.Debug("comparando o go2rtc.yaml com os streams", "erro", err)
-	} else if !d.Vazia() {
+	} else if !d.Empty() {
 		resp["go2rtcConfigFile"] = d
 	}
 	writeJSON(w, resp)
@@ -333,7 +333,7 @@ func (s *Server) camerasDoViewer(w http.ResponseWriter) {
 // handleReiniciarGo2rtc faz o go2rtc reler o go2rtc.yaml. Todas as câmeras
 // param por alguns segundos; quem avisa disso antes é a tela.
 func (s *Server) handleReiniciarGo2rtc(w http.ResponseWriter, r *http.Request) {
-	if err := s.client.Reiniciar(r.Context()); err != nil {
+	if err := s.client.Restart(r.Context()); err != nil {
 		s.log.Error("reiniciando o go2rtc", "erro", err)
 		writeError(w, http.StatusBadGateway, "o go2rtc não aceitou reiniciar: "+err.Error())
 		return
@@ -471,7 +471,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// de diagnóstico relê a cada poucos segundos: o go2rtc caindo com ela
 	// aberta precisa aparecer, e sumir quando ele volta.
 	if s.client != nil {
-		if desde, erro := s.client.Inacessivel(); !desde.IsZero() {
+		if desde, erro := s.client.Unreachable(); !desde.IsZero() {
 			resp["go2rtc"] = map[string]any{"error": erro, "since": desde}
 		}
 	}

@@ -13,12 +13,12 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/config"
 )
 
-// respostaReal é um recorte fiel do /api/streams de um go2rtc de verdade.
+// realResponse is a faithful excerpt of /api/streams from a real go2rtc.
 //
-// O formato importa: `medias` é uma lista de STRINGS no formato SDP, não de
-// objetos. Modelá-la como struct fazia o decode falhar inteiro, e o teste
-// existe para que essa suposição errada não volte.
-const respostaReal = `{
+// The format matters: `medias` is a list of STRINGS in SDP format, not of
+// objects. Modeling it as a struct made the whole decode fail, and the test
+// exists so that wrong assumption doesn't come back.
+const realResponse = `{
   "cam_gama": {
     "producers": [{
       "id": 47,
@@ -43,13 +43,13 @@ const respostaReal = `{
   "cam_ociosa": {"producers": null, "consumers": null}
 }`
 
-func TestStreamsDecodificaRespostaReal(t *testing.T) {
+func TestStreamsDecodesRealResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/streams" {
-			t.Errorf("caminho inesperado: %s", r.URL.Path)
+			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(respostaReal))
+		_, _ = w.Write([]byte(realResponse))
 	}))
 	defer srv.Close()
 
@@ -59,132 +59,133 @@ func TestStreamsDecodificaRespostaReal(t *testing.T) {
 		t.Fatalf("Streams: %v", err)
 	}
 	if len(streams) != 4 {
-		t.Fatalf("esperava 4 streams, veio %d", len(streams))
+		t.Fatalf("want 4 streams, got %d", len(streams))
 	}
 
-	camGama := streams["cam_gama"].Producers[0]
-	if !camGama.HasAudio() {
-		t.Error("cam_gama deveria ter áudio")
+	camGamma := streams["cam_gama"].Producers[0]
+	if !camGamma.HasAudio() {
+		t.Error("cam_gama should have audio")
 	}
-	if got := camGama.AudioCodecs(); len(got) != 1 || got[0] != "PCMA/16000" {
-		t.Errorf("AudioCodecs = %v, esperava [PCMA/16000]", got)
+	if got := camGamma.AudioCodecs(); len(got) != 1 || got[0] != "PCMA/16000" {
+		t.Errorf("AudioCodecs = %v, want [PCMA/16000]", got)
 	}
-	if camGama.Transcoding() {
-		t.Error("fonte rtsp não é transcodificação")
+	if camGamma.Transcoding() {
+		t.Error("an rtsp source is not transcoding")
 	}
 
 	camIota := streams["cam_iota"].Producers[0]
 	if camIota.HasAudio() {
-		t.Error("cam_iota não tem trilha de áudio")
+		t.Error("cam_iota has no audio track")
 	}
 	if len(camIota.AudioCodecs()) != 0 {
-		t.Error("AudioCodecs deveria ser vazio sem trilha de áudio")
+		t.Error("AudioCodecs should be empty without an audio track")
 	}
 
 	if !streams["cam_transcodificada"].Producers[0].Transcoding() {
-		t.Error("fonte ffmpeg: deveria ser sinalizada como transcodificação")
+		t.Error("an ffmpeg: source should be flagged as transcoding")
 	}
 
-	// Uma câmera sem produtor conectado não pode quebrar a listagem: é o
-	// estado normal de um stream que ninguém abriu ainda.
+	// A camera without a connected producer must not break the listing: it's
+	// the normal state of a stream nobody has opened yet.
 	if len(streams["cam_ociosa"].Producers) != 0 {
-		t.Error("stream ocioso deveria ter zero produtores")
+		t.Error("an idle stream should have zero producers")
 	}
 }
 
-// Com o stream em uso, o go2rtc troca a fonte ffmpeg: ou exec: pelo comando que
-// está rodando, em `source`, e deixa `url` nulo. Os produtores abaixo são
-// recortes do /api/streams do go2rtc 1.9.14, ociosos e em uso.
-func TestTranscodingComStreamEmUso(t *testing.T) {
+// With the stream in use, go2rtc replaces the ffmpeg: or exec: source with
+// the running command, in `source`, and leaves `url` null. The producers below
+// are excerpts from go2rtc 1.9.14's /api/streams, idle and in use.
+func TestTranscodingWithStreamInUse(t *testing.T) {
 	tests := []struct {
-		nome, json string
+		name, json string
 		want       bool
 	}{
 		{"ffmpeg: ocioso", `{"url": "ffmpeg:virtual?video=testsrc&size=320x180&rate=10#video=h264"}`, true},
-		{"ffmpeg: em uso", `{"url": null, "source": "exec:ffmpeg -hide_banner -v error -re -f lavfi -i testsrc -c:v libx264 -f rtsp rtsp://127.0.0.1:8554/a817"}`, true},
+		{"ffmpeg: in use", `{"url": null, "source": "exec:ffmpeg -hide_banner -v error -re -f lavfi -i testsrc -c:v libx264 -f rtsp rtsp://127.0.0.1:8554/a817"}`, true},
 		{"exec:ffmpeg ocioso", `{"url": "exec:ffmpeg -hide_banner -re -f lavfi -i testsrc -c:v libx264 -f rtsp {output}"}`, true},
-		{"exec:ffmpeg em uso", `{"url": null, "source": "exec:ffmpeg -hide_banner -re -f lavfi -i testsrc -c:v libx264 -f rtsp rtsp://127.0.0.1:8554/7ef1"}`, true},
-		{"exec: com caminho do ffmpeg", `{"url": "exec:/usr/bin/ffmpeg -i rtsp://cam/1 -c:v libx264 -f rtsp {output}"}`, true},
+		{"exec:ffmpeg in use", `{"url": null, "source": "exec:ffmpeg -hide_banner -re -f lavfi -i testsrc -c:v libx264 -f rtsp rtsp://127.0.0.1:8554/7ef1"}`, true},
+		{"exec: with the ffmpeg path", `{"url": "exec:/usr/bin/ffmpeg -i rtsp://cam/1 -c:v libx264 -f rtsp {output}"}`, true},
 		{"exec: de outro programa", `{"url": "exec:gst-launch-1.0 videotestsrc ! x264enc ! rtspclientsink location={output}"}`, false},
-		{"rtsp em uso", `{"url": "rtsp://admin:senha@192.168.0.61:554/onvif1", "format_name": "rtsp"}`, false},
+		{"rtsp in use", `{"url": "rtsp://admin:senha@192.168.0.61:554/onvif1", "format_name": "rtsp"}`, false},
 	}
 	for _, tt := range tests {
-		t.Run(tt.nome, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			var p Producer
 			if err := json.Unmarshal([]byte(tt.json), &p); err != nil {
 				t.Fatal(err)
 			}
 			if got := p.Transcoding(); got != tt.want {
-				t.Errorf("Transcoding() = %v, esperava %v", got, tt.want)
+				t.Errorf("Transcoding() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-// A URL de captura é o único lugar onde o modo de áudio vira comportamento, e
-// é isso que torna a escolha por câmera possível sem mais nenhuma mudança.
-func TestStreamURLPorModoDeAudio(t *testing.T) {
+// The capture URL is the only place where the audio mode becomes behavior,
+// and that's what makes the per-camera choice possible without any other
+// change.
+func TestStreamURLByAudioMode(t *testing.T) {
 	c := New(config.Go2RTC{URL: "http://go2rtc:1984/"})
 
 	tests := []struct {
-		modo    string
-		quer    string
-		naoQuer string
+		mode      string
+		wanted    string
+		notWanted string
 	}{
 		{config.AudioNone, "video=h264%2Ch265", "audio"},
 		{config.AudioFLAC, "mp4=flac", "video="},
 		{config.AudioAAC, "audio=aac", "mp4="},
 	}
 	for _, tt := range tests {
-		got := c.StreamURL("cam_x", tt.modo)
-		if !strings.Contains(got, tt.quer) {
-			t.Errorf("modo %s: URL %q não contém %q", tt.modo, got, tt.quer)
+		got := c.StreamURL("cam_x", tt.mode)
+		if !strings.Contains(got, tt.wanted) {
+			t.Errorf("mode %s: URL %q doesn't contain %q", tt.mode, got, tt.wanted)
 		}
-		if tt.naoQuer != "" && strings.Contains(got, tt.naoQuer) {
-			t.Errorf("modo %s: URL %q não deveria conter %q", tt.modo, got, tt.naoQuer)
+		if tt.notWanted != "" && strings.Contains(got, tt.notWanted) {
+			t.Errorf("mode %s: URL %q shouldn't contain %q", tt.mode, got, tt.notWanted)
 		}
 		if !strings.Contains(got, "src=cam_x") {
-			t.Errorf("modo %s: URL %q sem src", tt.modo, got)
+			t.Errorf("mode %s: URL %q without src", tt.mode, got)
 		}
 	}
 
-	// A barra final da URL base não pode virar barra dupla no caminho.
+	// The base URL's trailing slash must not become a double slash in the path.
 	if strings.Contains(c.StreamURL("x", config.AudioNone), "//api") {
-		t.Error("barra dupla no caminho da URL de captura")
+		t.Error("double slash in the capture URL path")
 	}
 }
 
-// Garante que Stream continua decodificável mesmo se o go2rtc acrescentar
-// campos: o dwnvr não pode quebrar a cada versão nova dele.
-func TestStreamIgnoraCamposDesconhecidos(t *testing.T) {
+// Makes sure Stream stays decodable even if go2rtc adds fields: dwnvr must
+// not break with each new version of it.
+func TestStreamIgnoresUnknownFields(t *testing.T) {
 	var s Stream
 	err := json.Unmarshal([]byte(`{"producers":[{"url":"x","medias":["video, recvonly, H264"],
 		"campo_novo":123}],"outro_campo":"z"}`), &s)
 	if err != nil {
-		t.Fatalf("campos desconhecidos quebraram o decode: %v", err)
+		t.Fatalf("unknown fields broke the decode: %v", err)
 	}
 	if len(s.Producers) != 1 || s.Producers[0].URL != "x" {
-		t.Errorf("produtor não decodificado: %+v", s.Producers)
+		t.Errorf("producer not decoded: %+v", s.Producers)
 	}
 }
 
-// streamMudo devolve um servidor que entrega `prefixo` e depois emudece sem
-// fechar a conexão - exatamente o que o go2rtc faz quando o produtor RTSP morre
-// e que custou 3h38 de gravação em 09/08/2026.
-func streamMudo(t *testing.T, prefixo string) *httptest.Server {
+// silentStream returns a server that delivers `prefix` and then goes silent
+// without closing the connection - exactly what go2rtc does when the RTSP
+// producer dies, and what cost 3h38 of recording on 08/09/2026.
+func silentStream(t *testing.T, prefix string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(prefixo))
+		_, _ = w.Write([]byte(prefix))
 		w.(http.Flusher).Flush()
-		// Sem fechar, sem escrever: só o cancelamento do guarda tira daqui.
+		// No closing, no writing: only the guard's cancellation gets out of here.
 		<-r.Context().Done()
 	}))
 	t.Cleanup(srv.Close)
 	return srv
 }
 
-func TestOpenStreamDerrubaStreamQueEmudece(t *testing.T) {
-	srv := streamMudo(t, "primeiros bytes")
+func TestOpenStreamDropsStreamThatGoesSilent(t *testing.T) {
+	srv := silentStream(t, "primeiros bytes")
 
 	c := New(config.Go2RTC{URL: srv.URL})
 	body, err := c.OpenStream(context.Background(), "cam_x", config.AudioNone, 150*time.Millisecond)
@@ -193,29 +194,29 @@ func TestOpenStreamDerrubaStreamQueEmudece(t *testing.T) {
 	}
 	defer body.Close()
 
-	inicio := time.Now()
+	start := time.Now()
 	n, err := io.Copy(io.Discard, body)
-	se := time.Since(inicio)
+	elapsed := time.Since(start)
 
 	if err == nil {
-		t.Fatal("a leitura deveria falhar quando o go2rtc emudece")
+		t.Fatal("the read should fail when go2rtc goes silent")
 	}
-	// A mensagem precisa dizer o que houve: sem isto o log mostra
-	// "context canceled" e ninguém entende por que a câmera reconectou.
-	if !strings.Contains(err.Error(), "não enviou nada") {
-		t.Errorf("erro %q não explica a estagnação", err)
+	// The message has to say what happened: without it the log shows
+	// "context canceled" and nobody understands why the camera reconnected.
+	if !strings.Contains(err.Error(), "sent nothing") {
+		t.Errorf("error %q doesn't explain the stall", err)
 	}
 	if n != int64(len("primeiros bytes")) {
-		t.Errorf("leu %d bytes antes de desistir, esperava %d", n, len("primeiros bytes"))
+		t.Errorf("read %d bytes before giving up, want %d", n, len("primeiros bytes"))
 	}
-	if se > 5*time.Second {
-		t.Errorf("demorou %s para detectar a estagnação", se)
+	if elapsed > 5*time.Second {
+		t.Errorf("took %s to detect the stall", elapsed)
 	}
 }
 
-// O guarda não pode derrubar quem está entregando: uma reconexão a cada 15s
-// abriria buracos na gravação em vez de fechá-los.
-func TestOpenStreamNaoDerrubaStreamAtivo(t *testing.T) {
+// The guard must not drop a stream that is delivering: a reconnection every
+// 15s would open gaps in the recording instead of closing them.
+func TestOpenStreamKeepsActiveStream(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for range 20 {
 			if _, err := w.Write([]byte("x")); err != nil {
@@ -234,20 +235,20 @@ func TestOpenStreamNaoDerrubaStreamAtivo(t *testing.T) {
 	}
 	defer body.Close()
 
-	// 20 escritas espaçadas de 15ms passam de 300ms no total, bem além do
-	// limiar de 100ms: só um limiar por INATIVIDADE deixa isso passar.
+	// 20 writes 15ms apart add up to over 300ms, well beyond the 100ms
+	// threshold: only an INACTIVITY threshold lets that through.
 	n, err := io.Copy(io.Discard, body)
 	if err != nil {
-		t.Fatalf("stream ativo foi derrubado: %v", err)
+		t.Fatalf("active stream was dropped: %v", err)
 	}
 	if n != 20 {
-		t.Errorf("leu %d bytes, esperava 20", n)
+		t.Errorf("read %d bytes, want 20", n)
 	}
 }
 
-// Fechar cedo não pode deixar o timer nem o context vazando.
-func TestOpenStreamCloseAntesDaEstagnacao(t *testing.T) {
-	srv := streamMudo(t, "abc")
+// Closing early must not leak the timer or the context.
+func TestOpenStreamCloseBeforeStall(t *testing.T) {
+	srv := silentStream(t, "abc")
 
 	c := New(config.Go2RTC{URL: srv.URL})
 	body, err := c.OpenStream(context.Background(), "cam_x", config.AudioNone, time.Hour)
@@ -259,31 +260,32 @@ func TestOpenStreamCloseAntesDaEstagnacao(t *testing.T) {
 	}
 }
 
-// Um go2rtc travado ainda aceita a conexão TCP e nunca responde. Sem
-// ResponseHeaderTimeout isso trava o Do() para sempre, antes de o stallGuard
-// sequer existir - a mesma perda silenciosa, num ponto que o guarda não cobre.
-func TestOpenStreamDesisteDeQuemNaoResponde(t *testing.T) {
+// A stuck go2rtc still accepts the TCP connection and never answers.
+// Without ResponseHeaderTimeout that blocks Do() forever, before the
+// stallGuard even exists - the same silent loss, at a point the guard doesn't
+// cover.
+func TestOpenStreamGivesUpOnNoResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-r.Context().Done() // aceita e emudece, sem nunca mandar cabeçalho
+		<-r.Context().Done() // accepts and goes silent, never sending a header
 	}))
 	defer srv.Close()
 
 	c := New(config.Go2RTC{URL: srv.URL})
 	c.HTTP.Transport.(*http.Transport).ResponseHeaderTimeout = 150 * time.Millisecond
 
-	inicio := time.Now()
+	start := time.Now()
 	body, err := c.OpenStream(context.Background(), "cam_x", config.AudioNone, time.Hour)
 	if err == nil {
 		body.Close()
-		t.Fatal("OpenStream deveria desistir de um go2rtc que não responde")
+		t.Fatal("OpenStream should give up on a go2rtc that doesn't answer")
 	}
-	if se := time.Since(inicio); se > 5*time.Second {
-		t.Errorf("demorou %s para desistir", se)
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("took %s to give up", elapsed)
 	}
 }
 
-// O /api de um go2rtc 1.9 traz mais que a versão; só ela deve ser lida.
-func TestVersaoLeSoAVersao(t *testing.T) {
+// The /api of a go2rtc 1.9 carries more than the version; only that must be read.
+func TestVersionReadsOnlyTheVersion(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api" {
 			http.NotFound(w, r)
@@ -293,8 +295,8 @@ func TestVersaoLeSoAVersao(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	v, err := New(config.Go2RTC{URL: srv.URL}).Versao(context.Background())
+	v, err := New(config.Go2RTC{URL: srv.URL}).Version(context.Background())
 	if err != nil || v != "1.9.9" {
-		t.Errorf("versão %q, erro %v", v, err)
+		t.Errorf("version %q, error %v", v, err)
 	}
 }

@@ -12,38 +12,39 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// O go2rtc só lê o go2rtc.yaml quando sobe. Quem edita o arquivo com tudo no
-// ar não vê efeito nenhum - nem câmera nova na tela de cadastro, nem a URL
-// trocada de uma câmera que já grava - até reiniciá-lo. Este arquivo é o que
-// deixa o dwnvr perceber isso e oferecer o reinício.
+// go2rtc only reads go2rtc.yaml when it starts. Someone editing the file with
+// everything running sees no effect at all - neither a new camera on the
+// cameras screen, nor the changed URL of a camera already recording - until
+// restarting it. This file is what lets dwnvr notice that and offer the
+// restart.
 
-// Prazo das duas conversas abaixo: respostas triviais, pedidas por uma tela
-// aberta, como a de Versao.
-const arquivoTimeout = 3 * time.Second
+// Deadline for the two exchanges below: trivial answers, asked for by an open
+// screen, like Version's.
+const configFileTimeout = 3 * time.Second
 
-// Divergencia é o que o go2rtc.yaml diz e o go2rtc em execução ainda não faz.
+// Drift is what go2rtc.yaml says and the running go2rtc doesn't do yet.
 //
-// A comparação é só da seção streams: mudança em outra seção (porta, WebRTC)
-// não aparece aqui.
-type Divergencia struct {
-	// Novas estão no arquivo e não foram carregadas.
-	Novas []string `json:"novas,omitempty"`
-	// Alteradas existem nos dois lados, com fonte diferente.
-	Alteradas []string `json:"alteradas,omitempty"`
-	// ForaDoArquivo estão rodando e não estão mais no arquivo.
-	ForaDoArquivo []string `json:"foraDoArquivo,omitempty"`
+// Only the streams section is compared: a change in another section (port,
+// WebRTC) doesn't show up here.
+type Drift struct {
+	// Added are in the file and weren't loaded.
+	Added []string `json:"novas,omitempty"`
+	// Changed exist on both sides, with a different source.
+	Changed []string `json:"alteradas,omitempty"`
+	// NotInFile are running and are no longer in the file.
+	NotInFile []string `json:"foraDoArquivo,omitempty"`
 }
 
-func (d Divergencia) Vazia() bool {
-	return len(d.Novas) == 0 && len(d.Alteradas) == 0 && len(d.ForaDoArquivo) == 0
+func (d Drift) Empty() bool {
+	return len(d.Added) == 0 && len(d.Changed) == 0 && len(d.NotInFile) == 0
 }
 
-// Arquivo devolve o go2rtc.yaml como o go2rtc o lê do disco agora.
+// ConfigFile returns go2rtc.yaml as go2rtc reads it from disk now.
 //
-// O conteúdo tem as URLs RTSP com usuário e senha: fica no servidor, só para
-// Divergencias, e nunca vai ao navegador.
-func (c *Client) Arquivo(ctx context.Context) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, arquivoTimeout)
+// The content has the RTSP URLs with user and password: it stays on the
+// server, only for FindDrift, and never goes to the browser.
+func (c *Client) ConfigFile(ctx context.Context) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, configFileTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/config", nil)
@@ -58,16 +59,16 @@ func (c *Client) Arquivo(ctx context.Context) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("go2rtc devolveu HTTP %d em /api/config", resp.StatusCode)
+		return nil, fmt.Errorf("go2rtc returned HTTP %d on /api/config", resp.StatusCode)
 	}
 	return io.ReadAll(resp.Body)
 }
 
-// Reiniciar pede ao go2rtc que reinicie o próprio processo, e com isso volte a
-// ler o go2rtc.yaml. O container continua o mesmo; todos os streams caem por
-// alguns segundos, e os gravadores reconectam sozinhos.
-func (c *Client) Reiniciar(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, arquivoTimeout)
+// Restart asks go2rtc to restart its own process, and with that read
+// go2rtc.yaml again. The container stays the same; every stream drops for a
+// few seconds, and the recorders reconnect on their own.
+func (c *Client) Restart(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, configFileTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/api/restart", nil)
@@ -82,64 +83,66 @@ func (c *Client) Reiniciar(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("go2rtc devolveu HTTP %d em /api/restart", resp.StatusCode)
+		return fmt.Errorf("go2rtc returned HTTP %d on /api/restart", resp.StatusCode)
 	}
 	return nil
 }
 
-// Divergencias compara a seção streams do go2rtc.yaml com o que o go2rtc serve.
+// FindDrift compares the streams section of go2rtc.yaml with what go2rtc
+// serves.
 //
-// Nova e fora do arquivo são sempre detectáveis: basta o nome. Alterada, só
-// quando o go2rtc mostra a fonte, e ele não mostra sempre: enquanto uma fonte
-// ffmpeg: ou exec: está sendo consumida, o produtor traz o comando já expandido
-// no lugar do url. Sem o url não há com o que comparar, e a câmera fica de
-// fora - melhor calar do que avisar mudança que não houve. RTSP ativo mantém
-// o url, e é esse o caso de câmera de verdade.
-func Divergencias(arquivo []byte, rodando map[string]Stream) (Divergencia, error) {
+// Added and not in the file are always detectable: the name is enough.
+// Changed, only when go2rtc shows the source, and it doesn't always: while an
+// ffmpeg: or exec: source is being consumed, the producer carries the
+// already-expanded command instead of the url. Without the url there's
+// nothing to compare with, and the camera is left out - better silent than
+// warning about a change that didn't happen. Active RTSP keeps the url, and
+// that's the real-camera case.
+func FindDrift(file []byte, running map[string]Stream) (Drift, error) {
 	var doc struct {
 		Streams map[string]yaml.Node `yaml:"streams"`
 	}
-	if err := yaml.Unmarshal(arquivo, &doc); err != nil {
-		return Divergencia{}, fmt.Errorf("go2rtc.yaml ilegível: %w", err)
+	if err := yaml.Unmarshal(file, &doc); err != nil {
+		return Drift{}, fmt.Errorf("unreadable go2rtc.yaml: %w", err)
 	}
 
-	var d Divergencia
-	for nome, no := range doc.Streams {
-		st, ok := rodando[nome]
+	var d Drift
+	for name, node := range doc.Streams {
+		st, ok := running[name]
 		if !ok {
-			d.Novas = append(d.Novas, nome)
+			d.Added = append(d.Added, name)
 			continue
 		}
-		if fontesMudaram(fontes(no), st.Producers) {
-			d.Alteradas = append(d.Alteradas, nome)
+		if sourcesChanged(sources(node), st.Producers) {
+			d.Changed = append(d.Changed, name)
 		}
 	}
-	for nome := range rodando {
-		if _, ok := doc.Streams[nome]; !ok {
-			d.ForaDoArquivo = append(d.ForaDoArquivo, nome)
+	for name := range running {
+		if _, ok := doc.Streams[name]; !ok {
+			d.NotInFile = append(d.NotInFile, name)
 		}
 	}
 
-	// Os dois lados são map: sem ordenar, a lista mudaria de ordem a cada
-	// recarga da tela.
-	slices.Sort(d.Novas)
-	slices.Sort(d.Alteradas)
-	slices.Sort(d.ForaDoArquivo)
+	// Both sides are maps: without sorting, the list would change order on
+	// every screen reload.
+	slices.Sort(d.Added)
+	slices.Sort(d.Changed)
+	slices.Sort(d.NotInFile)
 	return d, nil
 }
 
-// fontes lê o valor de um stream, que o go2rtc aceita como texto, lista de
-// textos ou vazio.
-func fontes(no yaml.Node) []string {
-	switch no.Kind {
+// sources reads a stream's value, which go2rtc accepts as a string, a list of
+// strings or empty.
+func sources(node yaml.Node) []string {
+	switch node.Kind {
 	case yaml.ScalarNode:
-		if no.Value == "" {
+		if node.Value == "" {
 			return nil
 		}
-		return []string{no.Value}
+		return []string{node.Value}
 	case yaml.SequenceNode:
 		var out []string
-		for _, item := range no.Content {
+		for _, item := range node.Content {
 			if item.Kind == yaml.ScalarNode && item.Value != "" {
 				out = append(out, item.Value)
 			}
@@ -149,32 +152,33 @@ func fontes(no yaml.Node) []string {
 	return nil
 }
 
-func fontesMudaram(noArquivo []string, producers []Producer) bool {
-	// O go2rtc cria um produtor por fonte, na ordem do arquivo.
-	if len(noArquivo) != len(producers) {
+func sourcesChanged(inFile []string, producers []Producer) bool {
+	// go2rtc creates one producer per source, in file order.
+	if len(inFile) != len(producers) {
 		return true
 	}
 	for i, p := range producers {
 		if p.URL == "" {
-			continue // fonte em uso sem url: não dá para saber
+			continue // source in use without url: no way to know
 		}
-		if !mesmaFonte(noArquivo[i], p.URL) {
+		if !sameSource(inFile[i], p.URL) {
 			return true
 		}
 	}
 	return false
 }
 
-// mesmaFonte compara duas fontes, tolerando o go2rtc ter guardado a URL sem os
-// parâmetros depois do #. Trocar só um desses parâmetros passa despercebido; o
-// contrário seria um aviso permanente de mudança que não houve.
-func mesmaFonte(a, b string) bool {
+// sameSource compares two sources, tolerating go2rtc having stored the URL
+// without the parameters after the #. Changing only one of those parameters
+// goes unnoticed; the alternative would be a permanent warning about a change
+// that didn't happen.
+func sameSource(a, b string) bool {
 	if a == b {
 		return true
 	}
-	semParametros := func(s string) string {
+	withoutParams := func(s string) string {
 		s, _, _ = strings.Cut(s, "#")
 		return s
 	}
-	return semParametros(a) == semParametros(b)
+	return withoutParams(a) == withoutParams(b)
 }

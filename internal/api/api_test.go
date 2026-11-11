@@ -674,7 +674,7 @@ func TestHealthJanelaDeReconexoesEGo2rtc(t *testing.T) {
 	fechado := httptest.NewServer(http.NotFoundHandler())
 	fechado.Close()
 	s.client = go2rtc.New(config.Go2RTC{URL: fechado.URL})
-	_, _ = s.client.Versao(t.Context())
+	_, _ = s.client.Version(t.Context())
 
 	var g struct {
 		Error string    `json:"error"`

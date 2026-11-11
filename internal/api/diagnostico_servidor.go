@@ -706,7 +706,7 @@ func (s *Server) sondarGo2RTC(ctx context.Context) go2rtcInfo {
 		return go2rtcInfo{Erro: "não configurado"}
 	}
 	inicio := time.Now()
-	v, err := s.client.Versao(ctx)
+	v, err := s.client.Version(ctx)
 	info := go2rtcInfo{Ms: time.Since(inicio).Milliseconds(), URL: semCredencial(s.client.BaseURL)}
 	if err != nil {
 		// Mesma exposição do go2rtcError do /api/cameras: o erro de rede é
