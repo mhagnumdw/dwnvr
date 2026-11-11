@@ -1,13 +1,14 @@
-// Package area responde "o objeto está dentro desta área?": a área é um
-// polígono desenhado sobre a imagem de uma câmera, e o objeto é a caixa que o
-// detector de objetos devolveu.
+// Package area answers "is the object inside this area?": the area is a
+// polygon drawn over a camera's image, and the object is the box the object
+// detector returned.
 //
-// A área não muda o que a detecção grava. Ela serve de filtro em Detecções e,
-// depois, decide se o alerta sai (ver "O alerta" em docs/deteccao.md).
+// The area doesn't change what the detection records. It is a filter in
+// Detections and, later, decides whether the alert goes out (see "O alerta" in
+// docs/deteccao.md).
 //
-// Tudo é fração do quadro, de 0 a 1, como a caixa: a área vale sobre o quadro
-// da detecção e sobre o keyframe do segmento, em qualquer resolução, e se
-// compara com a caixa sem conversão.
+// Everything is a fraction of the frame, from 0 to 1, like the box: the area
+// applies to the detection frame and to the segment keyframe, at any
+// resolution, and is compared with the box without conversion.
 package area
 
 import (
@@ -15,105 +16,106 @@ import (
 	"fmt"
 )
 
-// Ponto é um vértice da área: X e Y em fração do quadro, com Y crescendo para
-// baixo, como na imagem.
-type Ponto [2]float64
+// Point is a vertex of the area: X and Y as a fraction of the frame, with Y
+// growing downwards, as in the image.
+type Point [2]float64
 
-// Area é um polígono simples: os vértices em ordem, sem repetir o primeiro no
-// fim. Pode ser côncavo (um L).
+// Area is a simple polygon: the vertices in order, without repeating the first
+// one at the end. It may be concave (an L).
 type Area struct {
-	Pontos []Ponto
+	Points []Point
 }
 
-// Nova confere os pontos e devolve a área. O erro diz o motivo, para a API
-// devolver a quem mandou.
-func Nova(pontos []Ponto) (Area, error) {
-	if len(pontos) < MinPontosDaArea {
-		return Area{}, fmt.Errorf("a área precisa de pelo menos %d pontos, veio com %d", MinPontosDaArea, len(pontos))
+// New checks the points and returns the area. The error gives the reason, so
+// the API can send it back to the caller.
+func New(points []Point) (Area, error) {
+	if len(points) < MinAreaPoints {
+		return Area{}, fmt.Errorf("a área precisa de pelo menos %d pontos, veio com %d", MinAreaPoints, len(points))
 	}
-	if len(pontos) > MaxPontosDaArea {
-		return Area{}, fmt.Errorf("a área aceita até %d pontos, veio com %d", MaxPontosDaArea, len(pontos))
+	if len(points) > MaxAreaPoints {
+		return Area{}, fmt.Errorf("a área aceita até %d pontos, veio com %d", MaxAreaPoints, len(points))
 	}
-	for i, p := range pontos {
+	for i, p := range points {
 		if p[0] < 0 || p[0] > 1 || p[1] < 0 || p[1] > 1 {
 			return Area{}, fmt.Errorf("o ponto %d (%g, %g) está fora do quadro: as coordenadas vão de 0 a 1", i+1, p[0], p[1])
 		}
 	}
-	return Area{Pontos: pontos}, nil
+	return Area{Points: points}, nil
 }
 
-// RegraDaArea é o contrato que decide quando um objeto conta como dentro da
-// área. São duas, porque a câmera vê em perspectiva: quem está perto dela
-// cobre, na imagem, o chão que fica atrás.
+// Rule is the contract that decides when an object counts as inside the area.
+// There are two, because the camera sees in perspective: someone close to it
+// covers, in the image, the ground behind them.
 //
-// Não guarda estado e não aloca: o calendário de Detecções passa por todas as
-// marcas de todos os dias.
-type RegraDaArea interface {
-	// Dentro diz se a caixa [x1, y1, x2, y2], em fração do quadro, conta como
-	// dentro da área. A borda da área é dentro.
-	Dentro(a Area, caixa [4]float64) bool
+// It keeps no state and doesn't allocate: the Detections calendar goes through
+// every mark of every day.
+type Rule interface {
+	// Inside says whether the box [x1, y1, x2, y2], as a fraction of the
+	// frame, counts as inside the area. The area's edge is inside.
+	Inside(a Area, box [4]float64) bool
 
-	// Nome é o valor do JSON e da query (`rule=`).
-	Nome() string
+	// Name is the value in the JSON and in the query (`rule=`).
+	Name() string
 }
 
-// Regras é o mapa de construtores: uma regra nova entra numa linha. A chave é
-// o valor do JSON, em en-US.
-var Regras = map[string]func() RegraDaArea{
-	"touch": func() RegraDaArea { return encosta{} },
-	"foot":  func() RegraDaArea { return pisa{} },
+// Rules is the constructor map: a new rule is one more line. The key is the
+// JSON value, in en-US.
+var Rules = map[string]func() Rule{
+	"touch": func() Rule { return touch{} },
+	"foot":  func() Rule { return foot{} },
 }
 
-// ErrRegraDesconhecida é o nome que não está em Regras.
-var ErrRegraDesconhecida = errors.New("regra da área desconhecida")
+// ErrUnknownRule is a name that is not in Rules.
+var ErrUnknownRule = errors.New("regra da área desconhecida")
 
-// NovaRegra devolve a regra pelo nome, e a RegraDaAreaPadrao quando o nome
-// vem vazio. Ao contrário do NovoMarcador, nome desconhecido é erro: ele vem
-// de quem usa (a query, o cadastro), e cair calado no padrão mostraria outra
-// lista sem dizer.
-func NovaRegra(nome string) (RegraDaArea, error) {
-	if nome == "" {
-		nome = RegraDaAreaPadrao
+// NewRule returns the rule by name, and DefaultRule when the name is empty.
+// Unlike NovoMarcador, an unknown name is an error: it comes from the user (the
+// query, the camera config), and silently falling back to the default would
+// show a different list without saying so.
+func NewRule(name string) (Rule, error) {
+	if name == "" {
+		name = DefaultRule
 	}
-	nova, ok := Regras[nome]
+	ctor, ok := Rules[name]
 	if !ok {
-		return nil, fmt.Errorf("%w: %q", ErrRegraDesconhecida, nome)
+		return nil, fmt.Errorf("%w: %q", ErrUnknownRule, name)
 	}
-	return nova(), nil
+	return ctor(), nil
 }
 
-// --- encosta ----------------------------------------------------------------
+// --- touch ------------------------------------------------------------------
 
-// encosta conta a caixa como dentro quando ela e a área têm algum ponto em
-// comum. É o que se espera sem pensar, e pega o objeto pela metade na borda;
-// em perspectiva, também pega quem só passa na frente da área.
-type encosta struct{}
+// touch counts the box as inside when it and the area share any point. It's
+// what one expects without thinking, and it catches an object half over the
+// edge; in perspective, it also catches someone who only passes in front of
+// the area.
+type touch struct{}
 
-func (encosta) Nome() string { return "touch" }
+func (touch) Name() string { return "touch" }
 
-// Dentro testa os três jeitos de um retângulo e um polígono se tocarem: um
-// vértice da área dentro da caixa (a área menor que a caixa), um canto da
-// caixa dentro da área (a caixa menor que a área) ou uma borda cruzando a
-// outra. Fora esses, os dois estão separados.
-func (encosta) Dentro(a Area, caixa [4]float64) bool {
-	x1, y1, x2, y2 := caixa[0], caixa[1], caixa[2], caixa[3]
-	for _, p := range a.Pontos {
-		if p[0] >= x1-ToleranciaDaBorda && p[0] <= x2+ToleranciaDaBorda &&
-			p[1] >= y1-ToleranciaDaBorda && p[1] <= y2+ToleranciaDaBorda {
+// Inside tests the three ways a rectangle and a polygon can touch: a vertex
+// of the area inside the box (the area smaller than the box), a corner of the
+// box inside the area (the box smaller than the area), or one edge crossing
+// the other. Other than those, the two are apart.
+func (touch) Inside(a Area, box [4]float64) bool {
+	x1, y1, x2, y2 := box[0], box[1], box[2], box[3]
+	for _, p := range a.Points {
+		if p[0] >= x1-EdgeTolerance && p[0] <= x2+EdgeTolerance &&
+			p[1] >= y1-EdgeTolerance && p[1] <= y2+EdgeTolerance {
 			return true
 		}
 	}
-	cantos := [4]Ponto{{x1, y1}, {x2, y1}, {x2, y2}, {x1, y2}}
-	for _, c := range cantos {
-		if contem(a, c) {
+	corners := [4]Point{{x1, y1}, {x2, y1}, {x2, y2}, {x1, y2}}
+	for _, c := range corners {
+		if contains(a, c) {
 			return true
 		}
 	}
-	n := len(a.Pontos)
+	n := len(a.Points)
 	for i := range n {
-		p, q := a.Pontos[i], a.Pontos[(i+1)%n]
+		p, q := a.Points[i], a.Points[(i+1)%n]
 		for j := range 4 {
-			if cruzam(p, q, cantos[j], cantos[(j+1)%4]) {
+			if segmentsIntersect(p, q, corners[j], corners[(j+1)%4]) {
 				return true
 			}
 		}
@@ -121,78 +123,78 @@ func (encosta) Dentro(a Area, caixa [4]float64) bool {
 	return false
 }
 
-// --- pisa -------------------------------------------------------------------
+// --- foot -------------------------------------------------------------------
 
-// pisa conta a caixa como dentro quando o meio da borda de baixo dela, onde
-// ficam os pés e as rodas, está dentro da área. A área se desenha no chão, e
-// quem está na frente dela, mais perto da câmera, não conta.
-type pisa struct{}
+// foot counts the box as inside when the middle of its bottom edge, where
+// feet and wheels are, is inside the area. The area is drawn on the ground,
+// and someone in front of it, closer to the camera, doesn't count.
+type foot struct{}
 
-func (pisa) Nome() string { return "foot" }
+func (foot) Name() string { return "foot" }
 
-// Dentro prende o pé no quadro antes do teste: o detector de objetos devolve
-// caixa que passa um pouco da borda (256 de 7.038 caixas reais, de -0,029 a
-// 1,0115), e quem está cortado embaixo ficaria com o pé fora até da área do
-// tamanho da imagem.
-func (pisa) Dentro(a Area, caixa [4]float64) bool {
-	return contem(a, Ponto{noQuadro((caixa[0] + caixa[2]) / 2), noQuadro(caixa[3])})
+// Inside clamps the foot to the frame before testing: the object detector
+// returns boxes slightly past the edge (256 of 7,038 real boxes, from -0.029
+// to 1.0115), and someone cut off at the bottom would have their foot outside
+// even an area the size of the image.
+func (foot) Inside(a Area, box [4]float64) bool {
+	return contains(a, Point{clampToFrame((box[0] + box[2]) / 2), clampToFrame(box[3])})
 }
 
-// noQuadro prende a coordenada entre 0 e 1.
-func noQuadro(v float64) float64 {
+// clampToFrame clamps the coordinate between 0 and 1.
+func clampToFrame(v float64) float64 {
 	return min(max(v, 0), 1)
 }
 
-// --- geometria --------------------------------------------------------------
+// --- geometry ---------------------------------------------------------------
 
-// contem diz se o ponto está dentro da área ou na borda dela. O teste do raio
-// (quantas bordas uma semirreta para a direita cruza) sozinho não decide a
-// borda: na área do tamanho da imagem, o pé de quem está cortado embaixo cai
-// em Y = 1, e sairia como fora.
-func contem(a Area, pt Ponto) bool {
-	n := len(a.Pontos)
-	dentro := false
+// contains says whether the point is inside the area or on its edge. The ray
+// test (how many edges a ray to the right crosses) alone doesn't settle the
+// edge: in an area the size of the image, the foot of someone cut off at the
+// bottom lands on Y = 1, and would come out as outside.
+func contains(a Area, pt Point) bool {
+	n := len(a.Points)
+	inside := false
 	for i := range n {
-		p, q := a.Pontos[i], a.Pontos[(i+1)%n]
-		if naBorda(p, q, pt) {
+		p, q := a.Points[i], a.Points[(i+1)%n]
+		if onEdge(p, q, pt) {
 			return true
 		}
 		if (p[1] > pt[1]) != (q[1] > pt[1]) &&
 			pt[0] < p[0]+(pt[1]-p[1])*(q[0]-p[0])/(q[1]-p[1]) {
-			dentro = !dentro
+			inside = !inside
 		}
 	}
-	return dentro
+	return inside
 }
 
-// lado é o produto vetorial (q-p) x (r-p): positivo de um lado da reta pq,
-// negativo do outro, perto de zero sobre ela.
-func lado(p, q, r Ponto) float64 {
+// side is the cross product (q-p) x (r-p): positive on one side of line pq,
+// negative on the other, close to zero on it.
+func side(p, q, r Point) float64 {
 	return (q[0]-p[0])*(r[1]-p[1]) - (q[1]-p[1])*(r[0]-p[0])
 }
 
-// naCaixaDe diz se r está no retângulo que tem pq de diagonal: junto com
-// lado ≈ 0, é r sobre o segmento pq.
-func naCaixaDe(p, q, r Ponto) bool {
-	return r[0] >= min(p[0], q[0])-ToleranciaDaBorda && r[0] <= max(p[0], q[0])+ToleranciaDaBorda &&
-		r[1] >= min(p[1], q[1])-ToleranciaDaBorda && r[1] <= max(p[1], q[1])+ToleranciaDaBorda
+// inBoundingBox says whether r is in the rectangle with pq as its diagonal:
+// together with side ≈ 0, that's r on segment pq.
+func inBoundingBox(p, q, r Point) bool {
+	return r[0] >= min(p[0], q[0])-EdgeTolerance && r[0] <= max(p[0], q[0])+EdgeTolerance &&
+		r[1] >= min(p[1], q[1])-EdgeTolerance && r[1] <= max(p[1], q[1])+EdgeTolerance
 }
 
-// naBorda diz se r está sobre o segmento pq.
-func naBorda(p, q, r Ponto) bool {
-	return abs(lado(p, q, r)) <= ToleranciaDaBorda && naCaixaDe(p, q, r)
+// onEdge says whether r is on segment pq.
+func onEdge(p, q, r Point) bool {
+	return abs(side(p, q, r)) <= EdgeTolerance && inBoundingBox(p, q, r)
 }
 
-// cruzam diz se os segmentos ab e cd têm algum ponto em comum, inclusive
-// quando só se encostam ou correm um sobre o outro.
-func cruzam(a, b, c, d Ponto) bool {
-	d1, d2 := lado(c, d, a), lado(c, d, b)
-	d3, d4 := lado(a, b, c), lado(a, b, d)
-	if ((d1 > ToleranciaDaBorda && d2 < -ToleranciaDaBorda) || (d1 < -ToleranciaDaBorda && d2 > ToleranciaDaBorda)) &&
-		((d3 > ToleranciaDaBorda && d4 < -ToleranciaDaBorda) || (d3 < -ToleranciaDaBorda && d4 > ToleranciaDaBorda)) {
+// segmentsIntersect says whether segments ab and cd share any point,
+// including when they only touch or run over each other.
+func segmentsIntersect(a, b, c, d Point) bool {
+	d1, d2 := side(c, d, a), side(c, d, b)
+	d3, d4 := side(a, b, c), side(a, b, d)
+	if ((d1 > EdgeTolerance && d2 < -EdgeTolerance) || (d1 < -EdgeTolerance && d2 > EdgeTolerance)) &&
+		((d3 > EdgeTolerance && d4 < -EdgeTolerance) || (d3 < -EdgeTolerance && d4 > EdgeTolerance)) {
 		return true
 	}
-	return naBorda(c, d, a) || naBorda(c, d, b) || naBorda(a, b, c) || naBorda(a, b, d)
+	return onEdge(c, d, a) || onEdge(c, d, b) || onEdge(a, b, c) || onEdge(a, b, d)
 }
 
 func abs(x float64) float64 {

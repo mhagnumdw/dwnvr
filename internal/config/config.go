@@ -472,7 +472,7 @@ func (c *Config) Resolve(cam Camera) Camera {
 		cam.Areas = slices.Clone(cam.Areas)
 		for i := range cam.Areas {
 			if cam.Areas[i].Rule == "" {
-				cam.Areas[i].Rule = area.RegraDaAreaPadrao
+				cam.Areas[i].Rule = area.DefaultRule
 			}
 		}
 	}

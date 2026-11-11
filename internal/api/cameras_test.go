@@ -275,7 +275,7 @@ func TestSaveDaCameraComAreas(t *testing.T) {
 	s, _ := testServer(t)
 	comGo2RTC(t, s)
 
-	pontos := []area.Ponto{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}
+	pontos := []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}
 	saveCamera(t, s, config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
 		Areas: []config.Area{{Name: "Portão", Points: pontos}}})
 	cams, _, err := s.cfg.LoadCameras()
@@ -303,7 +303,7 @@ func TestSaveDaCameraComAlerta(t *testing.T) {
 	s, _ := testServer(t)
 	comGo2RTC(t, s)
 
-	portao := config.Area{ID: "k3f9a2", Name: "Portão", Points: []area.Ponto{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}
+	portao := config.Area{ID: "k3f9a2", Name: "Portão", Points: []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}
 	alerta := &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}, Areas: []string{"k3f9a2"},
 		Schedules: []config.HorarioDoAlerta{{Days: []time.Weekday{time.Saturday, time.Sunday}, From: "00:00", To: "23:59"}}}
 	saveCamera(t, s, config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,

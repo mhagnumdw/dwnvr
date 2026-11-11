@@ -19,13 +19,13 @@ type Area struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 
-	// Rule é a `touch` ou a `foot`. Ausente, é a area.RegraDaAreaPadrao.
+	// Rule é a `touch` ou a `foot`. Ausente, é a area.DefaultRule.
 	Rule   string       `json:"rule,omitempty"`
-	Points []area.Ponto `json:"points"`
+	Points []area.Point `json:"points"`
 }
 
 // tamanhoDoIDDaArea são 6 letras e dígitos: 36^6 são ~2 bilhões, e a conta só
-// precisa não repetir dentro de uma câmera, com no máximo area.MaxAreasPorCamera.
+// precisa não repetir dentro de uma câmera, com no máximo area.MaxAreasPerCamera.
 const tamanhoDoIDDaArea = 6
 
 const alfabetoDoIDDaArea = "abcdefghijklmnopqrstuvwxyz0123456789"
@@ -87,11 +87,11 @@ func confereAreas(cam Camera, av *[]Aviso) []Area {
 	}
 	for i, a := range cam.Areas {
 		nome := strings.ToLower(strings.TrimSpace(a.Name))
-		_, errRegra := area.NovaRegra(a.Rule)
-		_, errPontos := area.Nova(a.Points)
+		_, errRegra := area.NewRule(a.Rule)
+		_, errPontos := area.New(a.Points)
 		switch {
-		case len(ficam) >= area.MaxAreasPorCamera:
-			recusa(i, a, fmt.Sprintf("até %d áreas por câmera", area.MaxAreasPorCamera))
+		case len(ficam) >= area.MaxAreasPerCamera:
+			recusa(i, a, fmt.Sprintf("até %d áreas por câmera", area.MaxAreasPerCamera))
 		case nome == "":
 			recusa(i, a, "um nome, que não fique vazio")
 		case nomes[nome]:
@@ -104,7 +104,7 @@ func confereAreas(cam Camera, av *[]Aviso) []Area {
 			recusa(i, a, "a regra "+regrasAceitas())
 		case errPontos != nil:
 			recusa(i, a, fmt.Sprintf("de %d a %d pontos, com as coordenadas de 0 a 1",
-				area.MinPontosDaArea, area.MaxPontosDaArea))
+				area.MinAreaPoints, area.MaxAreaPoints))
 		default:
 			nomes[nome] = true
 			ids[a.ID] = true
@@ -128,8 +128,8 @@ func idDaAreaValido(id string) bool {
 }
 
 func regrasAceitas() string {
-	nomes := make([]string, 0, len(area.Regras))
-	for n := range area.Regras {
+	nomes := make([]string, 0, len(area.Rules))
+	for n := range area.Rules {
 		nomes = append(nomes, n)
 	}
 	slices.Sort(nomes)

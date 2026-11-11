@@ -32,7 +32,7 @@ type horarioDoDia struct{ de, ate int }
 type areaDaRegra struct {
 	id, nome string
 	area     area.Area
-	regra    area.RegraDaArea
+	regra    area.Rule
 }
 
 // NovaRegra monta a regra da câmera já conferida pelo ConfereCamera, ou
@@ -51,13 +51,13 @@ func NovaRegra(cam config.Camera) *Regra {
 			continue
 		}
 		a := cam.Areas[i]
-		poligono, errPontos := area.Nova(a.Points)
-		regra, errRegra := area.NovaRegra(a.Rule)
+		poligono, errPontos := area.New(a.Points)
+		regra, errRegra := area.NewRule(a.Rule)
 		if errPontos != nil || errRegra != nil {
 			continue
 		}
 		r.areas = append(r.areas, areaDaRegra{id: a.ID, nome: a.Name, area: poligono, regra: regra})
-		r.contornos = append(r.contornos, AreaDoAlerta{Nome: a.Name, Pontos: poligono.Pontos})
+		r.contornos = append(r.contornos, AreaDoAlerta{Nome: a.Name, Pontos: poligono.Points})
 	}
 	for _, h := range al.Schedules {
 		de, deOk := config.MinutoDoDia(h.From)
@@ -102,7 +102,7 @@ func (r *Regra) Avalia(marcas []store.Evento, quadro []byte) (Alerta, bool) {
 		}
 		var ids, nomes []string
 		for _, a := range r.areas {
-			if a.regra.Dentro(a.area, *m.Caixa) {
+			if a.regra.Inside(a.area, *m.Caixa) {
 				ids, nomes = append(ids, a.id), append(nomes, a.nome)
 			}
 		}

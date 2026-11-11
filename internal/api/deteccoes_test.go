@@ -267,8 +267,8 @@ func TestDiasDeDeteccaoPorArea(t *testing.T) {
 //	cam_teste/canto:  o canto de cima à esquerda, com a touch, onde está o veículo
 //	cam_b/portao:     o mesmo portão, na outra câmera
 func cadastraAreas(s *Server) {
-	portao := []area.Ponto{{0.4, 0.5}, {0.6, 0.5}, {0.6, 0.7}, {0.4, 0.7}}
-	canto := []area.Ponto{{0, 0}, {0.2, 0}, {0.2, 0.25}, {0, 0.25}}
+	portao := []area.Point{{0.4, 0.5}, {0.6, 0.5}, {0.6, 0.7}, {0.4, 0.7}}
+	canto := []area.Point{{0, 0}, {0.2, 0}, {0.2, 0.25}, {0, 0.25}}
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Areas: []config.Area{
 		{ID: "portao", Name: "Portão", Rule: "foot", Points: portao},
 		{ID: "canto", Name: "Canto", Rule: "touch", Points: canto},

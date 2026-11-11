@@ -9,7 +9,7 @@ import (
 )
 
 // quadrado é uma área válida qualquer.
-var quadrado = []area.Ponto{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}, {0.1, 0.5}}
+var quadrado = []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}, {0.1, 0.5}}
 
 // TestAreaSemIDGanhaUmNoBoot: a área escrita à mão sem id ganha um, e o id que
 // já existe não muda.
@@ -33,7 +33,7 @@ func TestAreaSemIDGanhaUmNoBoot(t *testing.T) {
 
 	// A regra ausente só se preenche no Resolve, e na cópia dele.
 	r := cfg.Resolve(cams[0])
-	if r.Areas[0].Rule != area.RegraDaAreaPadrao || r.Areas[1].Rule != "touch" {
+	if r.Areas[0].Rule != area.DefaultRule || r.Areas[1].Rule != "touch" {
 		t.Errorf("regras resolvidas %q e %q", r.Areas[0].Rule, r.Areas[1].Rule)
 	}
 	if cams[0].Areas[0].Rule != "" {
@@ -45,7 +45,7 @@ func TestAreaSemIDGanhaUmNoBoot(t *testing.T) {
 // diferentes, e a câmera de entrada não muda.
 func TestIDsGeradosNaoRepetem(t *testing.T) {
 	cam := Camera{ID: "cam_a"}
-	for i := range area.MaxAreasPorCamera {
+	for i := range area.MaxAreasPerCamera {
 		cam.Areas = append(cam.Areas, Area{Name: fmt.Sprint("área ", i), Points: quadrado})
 	}
 	nova := cam.ComIDsNasAreas()
@@ -77,7 +77,7 @@ func TestAreaRuimSaiComAviso(t *testing.T) {
 		"id vazio":       {Area{Name: "Outra", Points: quadrado}, "letras minúsculas"},
 		"regra estranha": {Area{ID: "x1", Name: "Outra", Rule: "inside", Points: quadrado}, "foot ou touch"},
 		"dois pontos":    {Area{ID: "x1", Name: "Outra", Points: quadrado[:2]}, "pontos"},
-		"fora do quadro": {Area{ID: "x1", Name: "Outra", Points: []area.Ponto{{0, 0}, {1.2, 0}, {0, 1}}}, "de 0 a 1"},
+		"fora do quadro": {Area{ID: "x1", Name: "Outra", Points: []area.Point{{0, 0}, {1.2, 0}, {0, 1}}}, "de 0 a 1"},
 	}
 	cfg := &Config{}
 	for nome, c := range casos {
@@ -100,12 +100,12 @@ func TestAreaRuimSaiComAviso(t *testing.T) {
 // TestAreasDemaisSaem: passando do teto, as que sobram saem.
 func TestAreasDemaisSaem(t *testing.T) {
 	cam := Camera{ID: "cam_a"}
-	for i := range area.MaxAreasPorCamera + 2 {
+	for i := range area.MaxAreasPerCamera + 2 {
 		cam.Areas = append(cam.Areas, Area{ID: fmt.Sprint("a", i), Name: fmt.Sprint("área ", i), Points: quadrado})
 	}
 	cam, avisos := (&Config{}).ConfereCamera(cam)
-	if len(cam.Areas) != area.MaxAreasPorCamera || len(avisos) != 2 {
-		t.Errorf("%d áreas e %d avisos, esperava %d e 2", len(cam.Areas), len(avisos), area.MaxAreasPorCamera)
+	if len(cam.Areas) != area.MaxAreasPerCamera || len(avisos) != 2 {
+		t.Errorf("%d áreas e %d avisos, esperava %d e 2", len(cam.Areas), len(avisos), area.MaxAreasPerCamera)
 	}
 }
 

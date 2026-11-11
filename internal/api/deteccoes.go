@@ -322,7 +322,7 @@ type filtroDeObjetos struct {
 // areaComRegra é uma área com a regra dela: a desenhada na hora, com o `rule`
 // da query, ou a cadastrada, com a regra do cadastro.
 type areaComRegra struct {
-	regra area.RegraDaArea
+	regra area.Rule
 	area  area.Area
 }
 
@@ -346,7 +346,7 @@ func (f filtroDeObjetos) passa(m store.Evento) bool {
 		return false
 	}
 	for _, a := range f.areas {
-		if a.regra.Dentro(a.area, *m.Caixa) {
+		if a.regra.Inside(a.area, *m.Caixa) {
 			return true
 		}
 	}
@@ -413,7 +413,7 @@ func (s *Server) filtroDaQuery(q url.Values) ([]*store.Camera, filtroDeObjetos, 
 	if !s.knownCamera(cam) {
 		return nil, f, fmt.Errorf("câmera %q da área não cadastrada", cam)
 	}
-	regra, err := area.NovaRegra(q.Get("rule"))
+	regra, err := area.NewRule(q.Get("rule"))
 	if err != nil {
 		return nil, f, err
 	}
@@ -444,11 +444,11 @@ func (s *Server) areasCadastradasDoFiltro(f *filtroDeObjetos, lista string) erro
 		}
 		// O cadastro já passou pelo ConfereCamera: a regra e os pontos valem.
 		cad := cam.Areas[i]
-		regra, err := area.NovaRegra(cad.Rule)
+		regra, err := area.NewRule(cad.Rule)
 		if err != nil {
 			return fmt.Errorf("área %q da câmera %q: %w", id, camID, err)
 		}
-		a, err := area.Nova(cad.Points)
+		a, err := area.New(cad.Points)
 		if err != nil {
 			return fmt.Errorf("área %q da câmera %q: %w", id, camID, err)
 		}
@@ -468,7 +468,7 @@ func areaDoFiltro(v string) (string, area.Area, error) {
 	if len(numeros)%2 != 0 {
 		return "", area.Area{}, errors.New("parâmetro area inválido: X e Y vão aos pares")
 	}
-	pontos := make([]area.Ponto, 0, len(numeros)/2)
+	pontos := make([]area.Point, 0, len(numeros)/2)
 	for j := 0; j < len(numeros); j += 2 {
 		x, errX := strconv.Atoi(numeros[j])
 		y, errY := strconv.Atoi(numeros[j+1])
@@ -476,9 +476,9 @@ func areaDoFiltro(v string) (string, area.Area, error) {
 			return "", area.Area{}, fmt.Errorf("parâmetro area inválido: %q,%q não são milésimos de 0 a 1000",
 				numeros[j], numeros[j+1])
 		}
-		pontos = append(pontos, area.Ponto{float64(x) / 1000, float64(y) / 1000})
+		pontos = append(pontos, area.Point{float64(x) / 1000, float64(y) / 1000})
 	}
-	a, err := area.Nova(pontos)
+	a, err := area.New(pontos)
 	if err != nil {
 		return "", area.Area{}, fmt.Errorf("parâmetro area inválido: %w", err)
 	}

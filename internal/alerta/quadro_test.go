@@ -117,7 +117,7 @@ func TestPrioridadePorCima(t *testing.T) {
 func TestContornoTracejado(t *testing.T) {
 	// A linha de cima vai de x = 48 a x = 432, em y = 54.
 	a := Alerta{Quadro: quadroDeTeste(t, false), Objetos: []Objeto{},
-		Areas: []AreaDoAlerta{{Nome: "Portão", Pontos: []area.Ponto{{0.1, 0.2}, {0.9, 0.2}, {0.9, 0.8}, {0.1, 0.8}}}}}
+		Areas: []AreaDoAlerta{{Nome: "Portão", Pontos: []area.Point{{0.1, 0.2}, {0.9, 0.2}, {0.9, 0.8}, {0.1, 0.8}}}}}
 	quadro, err := quadroDesenhado(a)
 	if err != nil {
 		t.Fatal(err)
@@ -198,7 +198,7 @@ func BenchmarkQuadroDesenhado(b *testing.B) {
 			{Familia: "pessoa", Caixa: [4]float64{0.25, 0.2, 0.35, 0.6}},
 			{Familia: "pessoa", Caixa: [4]float64{0.6, 0.3, 0.7, 0.9}}},
 		Areas: []AreaDoAlerta{{Nome: "Portão",
-			Pontos: []area.Ponto{{0.1, 0.3}, {0.5, 0.25}, {0.8, 0.5}, {0.7, 0.95}, {0.15, 0.9}}}}}
+			Pontos: []area.Point{{0.1, 0.3}, {0.5, 0.25}, {0.8, 0.5}, {0.7, 0.95}, {0.15, 0.9}}}}}
 	b.ReportAllocs()
 	for b.Loop() {
 		if _, err := quadroDesenhado(a); err != nil {

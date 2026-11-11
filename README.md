@@ -698,8 +698,8 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── sps.go          resolução real a partir do SPS de H264/H265
 │   │   └── corrige.go      troca os parameter sets do init pelos que vêm no stream
 │   ├── go2rtc/             cliente da API do go2rtc e do stream fMP4
-│   ├── limite/             o limite de requisições por cliente (GCRA), que o login usa
 │   ├── logbuf/             guarda em memória os últimos avisos e erros do log, para o Diagnóstico
+│   ├── ratelimit/          o limite de requisições por cliente (GCRA), que o login usa
 │   ├── recorder/           um recorder por câmera: corta em keyframe e grava
 │   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram
 │   ├── store/              layout em disco e índice NDJSON

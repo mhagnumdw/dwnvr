@@ -126,7 +126,7 @@ func TestAreaNaoReiniciaAGravacao(t *testing.T) {
 	cam := config.Camera{ID: "cam_teste", Audio: config.AudioNone, SegmentSeconds: 30, StallSeconds: 5}
 	comArea := cam
 	comArea.Areas = []config.Area{{ID: "k3f9a2", Name: "Portão",
-		Points: []area.Ponto{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}}
+		Points: []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}}
 	comArea.Alert = &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}
 	if recordingParamsChanged(cam, comArea) {
 		t.Error("mudar as áreas ou o alerta reiniciaria a gravação")
@@ -144,7 +144,7 @@ func comAlerta(t *testing.T) *Manager {
 	sim := true
 	cam := config.Camera{ID: "cam_teste", Name: "Frente", Enabled: true, Detect: &sim,
 		Areas: []config.Area{{ID: "esq", Name: "Portão",
-			Points: []area.Ponto{{0, 0}, {0.5, 0}, {0.5, 1}, {0, 1}}}},
+			Points: []area.Point{{0, 0}, {0.5, 0}, {0.5, 1}, {0, 1}}}},
 		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa},
 			Areas: []string{"esq"}}}
 	// Sem Start, o Set não sobe recorder: ele entra à mão, como o Start o deixaria.

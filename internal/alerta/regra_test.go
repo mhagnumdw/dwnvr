@@ -15,9 +15,9 @@ import (
 // metade esquerda do quadro; a segunda, a faixa de baixo dele inteira.
 var (
 	metadeEsquerda = config.Area{ID: "esq", Name: "Portão",
-		Points: []area.Ponto{{0, 0}, {0.5, 0}, {0.5, 1}, {0, 1}}}
+		Points: []area.Point{{0, 0}, {0.5, 0}, {0.5, 1}, {0, 1}}}
 	chaoDoFundo = config.Area{ID: "chao", Name: "Calçada", Rule: "touch",
-		Points: []area.Ponto{{0, 0.8}, {1, 0.8}, {1, 1}, {0, 1}}}
+		Points: []area.Point{{0, 0.8}, {1, 0.8}, {1, 1}, {0, 1}}}
 )
 
 // camera devolve uma câmera que alerta, como o Resolve a entrega.

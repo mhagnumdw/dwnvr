@@ -41,7 +41,7 @@ type Alerta struct {
 // em fração do quadro.
 type AreaDoAlerta struct {
 	Nome   string
-	Pontos []area.Ponto
+	Pontos []area.Point
 }
 
 // Objeto é uma marca que passou na regra. Areas são os nomes das áreas do

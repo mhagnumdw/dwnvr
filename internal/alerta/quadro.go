@@ -112,7 +112,7 @@ func contornoDaCaixa(img *image.RGBA, caixa [4]float64, cor color.RGBA) {
 // AreaTracoLigadoPx com vãos de AreaTracoDesligadoPx, como o setLineDash da
 // tela (area.ts). O tracejado segue de um lado ao outro sem recomeçar no
 // vértice, como no canvas.
-func contornoTracejado(img *image.RGBA, pontos []area.Ponto, cor color.RGBA) {
+func contornoTracejado(img *image.RGBA, pontos []area.Point, cor color.RGBA) {
 	if len(pontos) < 2 {
 		return
 	}
