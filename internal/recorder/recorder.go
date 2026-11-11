@@ -416,7 +416,7 @@ func (r *Recorder) movimento(instanteMs int64, keyframe bool, moof, mdat []byte)
 		return
 	}
 	r.onsets.Add(1)
-	if err := r.idx.AppendEvento(store.Evento{InstanteMs: instanteMs}); err != nil {
+	if err := r.idx.AppendEvent(store.Event{AtMs: instanteMs}); err != nil {
 		r.log.Warn("falha ao gravar marca de movimento", "erro", err)
 	}
 }
@@ -473,8 +473,8 @@ func (r *Recorder) olhou(o detect.Inference, regra *alerta.Regra) (alerta.Alerta
 	// marca: melhor uma detecção sem miniatura do que uma detecção perdida.
 	var temQuadro bool
 	if len(o.Frame) > 0 {
-		dia := store.Evento{InstanteMs: o.Clip.OnsetMs}.Day()
-		if err := r.idx.WriteQuadro(dia, o.Clip.OnsetMs, o.Frame); err != nil {
+		dia := store.Event{AtMs: o.Clip.OnsetMs}.Day()
+		if err := r.idx.WriteFrame(dia, o.Clip.OnsetMs, o.Frame); err != nil {
 			r.log.Warn("falha ao gravar o quadro da detecção", "erro", err)
 		} else {
 			temQuadro = true
@@ -491,7 +491,7 @@ func (r *Recorder) olhou(o detect.Inference, regra *alerta.Regra) (alerta.Alerta
 		fb := slices.Index(detect.Families, detect.ClassFamilies[b.Class])
 		return cmp.Or(cmp.Compare(fa, fb), cmp.Compare(b.Score, a.Score))
 	})
-	linhas := make([]store.Evento, 0, len(marcas))
+	linhas := make([]store.Event, 0, len(marcas))
 	for _, a := range marcas {
 		f, ok := detect.ClassFamilies[a.Class]
 		if !ok {
@@ -503,9 +503,9 @@ func (r *Recorder) olhou(o detect.Inference, regra *alerta.Regra) (alerta.Alerta
 		for i, v := range a.Box {
 			caixa[i] = math.Round(v*10000) / 10000
 		}
-		linhas = append(linhas, store.Evento{InstanteMs: o.Clip.OnsetMs, Familia: string(f),
-			Classe: a.Class, Score: math.Round(a.Score*1000) / 1000, QuadroMs: o.Clip.FrameMs,
-			Caixa: &caixa, TemQuadro: temQuadro})
+		linhas = append(linhas, store.Event{AtMs: o.Clip.OnsetMs, Family: string(f),
+			Class: a.Class, Score: math.Round(a.Score*1000) / 1000, FrameMs: o.Clip.FrameMs,
+			Box: &caixa, HasFrame: temQuadro})
 	}
 
 	// A regra do alerta roda antes da escrita, para a marca `alert` entrar
@@ -516,7 +516,7 @@ func (r *Recorder) olhou(o detect.Inference, regra *alerta.Regra) (alerta.Alerta
 		al, alertou = regra.Avalia(linhas, o.Frame)
 	}
 	for _, ev := range linhas {
-		if err := r.idx.AppendEvento(ev); err != nil {
+		if err := r.idx.AppendEvent(ev); err != nil {
 			r.log.Warn("falha ao gravar marca de objeto", "erro", err)
 		}
 	}
@@ -592,7 +592,7 @@ func (r *Recorder) Status() Status {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	disk, oldest, newest, gravado := r.idx.Resumo()
+	disk, oldest, newest, gravado := r.idx.Summary()
 	st := Status{
 		ID: r.cam.ID, Name: r.cam.Name, Enabled: r.cam.Enabled,
 		Connected: r.connected, ConnectedAt: r.connectedAt,

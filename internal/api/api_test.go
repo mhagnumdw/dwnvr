@@ -110,7 +110,7 @@ func TestEventsDevolveAsMarcasDoDia(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	for _, off := range []int64{0, 60_000, 120_000} {
-		if err := cam.AppendEvento(store.Evento{InstanteMs: base.UnixMilli() + off}); err != nil {
+		if err := cam.AppendEvent(store.Event{AtMs: base.UnixMilli() + off}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -129,12 +129,12 @@ func TestEventsDevolveAsMarcasDoDia(t *testing.T) {
 func TestEventsSeparaObjetoDeMovimento(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local).UnixMilli()
-	for _, ev := range []store.Evento{
-		{InstanteMs: base},
-		{InstanteMs: base, Familia: "pessoa", Classe: "person", Score: 0.87},
-		{InstanteMs: base + 60_000},
+	for _, ev := range []store.Event{
+		{AtMs: base},
+		{AtMs: base, Family: "pessoa", Class: "person", Score: 0.87},
+		{AtMs: base + 60_000},
 	} {
-		if err := cam.AppendEvento(ev); err != nil {
+		if err := cam.AppendEvent(ev); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -155,12 +155,12 @@ func TestEventsLevaACaixaSoDaMarcaQueTem(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local).UnixMilli()
 	caixa := [4]float64{0.5156, 0.2611, 0.6734, 0.9778}
-	for _, ev := range []store.Evento{
-		{InstanteMs: base, Familia: "pessoa", Classe: "person", Score: 0.87},
-		{InstanteMs: base + 60_000, Familia: "veiculo", Classe: "car", Score: 0.91,
-			QuadroMs: base + 62_000, Caixa: &caixa},
+	for _, ev := range []store.Event{
+		{AtMs: base, Family: "pessoa", Class: "person", Score: 0.87},
+		{AtMs: base + 60_000, Family: "veiculo", Class: "car", Score: 0.91,
+			FrameMs: base + 62_000, Box: &caixa},
 	} {
-		if err := cam.AppendEvento(ev); err != nil {
+		if err := cam.AppendEvent(ev); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -194,7 +194,7 @@ func TestEventsCaudaSoTrazOQueEhNovo(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	for _, off := range []int64{0, 60_000, 120_000} {
-		if err := cam.AppendEvento(store.Evento{InstanteMs: base.UnixMilli() + off}); err != nil {
+		if err := cam.AppendEvent(store.Event{AtMs: base.UnixMilli() + off}); err != nil {
 			t.Fatal(err)
 		}
 	}

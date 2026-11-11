@@ -18,7 +18,7 @@ import (
 
 // Alerta é uma olhada que passou na regra de alerta da câmera, como os meios a
 // recebem. O que fica gravado é a marca `alert` em cada linha de objeto (ver
-// store.Evento); isto é o que sai pelo log e pelos meios, como o e-mail.
+// store.Event); isto é o que sai pelo log e pelos meios, como o e-mail.
 type Alerta struct {
 	Camera, NomeDaCamera string
 	// InstanteMs é o onset, a hora da cena, e não a da resposta do detector

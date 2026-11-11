@@ -37,11 +37,11 @@ func cenarioDeDeteccoes(t *testing.T) (*Server, time.Time) {
 
 	marca := func(cam *store.Camera, base time.Time, min int64, familia string) {
 		t.Helper()
-		ev := store.Evento{InstanteMs: base.UnixMilli() + min*60_000, Familia: familia, Classe: "x", Score: 0.9}
-		if err := cam.AppendEvento(store.Evento{InstanteMs: ev.InstanteMs}); err != nil { // o onset
+		ev := store.Event{AtMs: base.UnixMilli() + min*60_000, Family: familia, Class: "x", Score: 0.9}
+		if err := cam.AppendEvent(store.Event{AtMs: ev.AtMs}); err != nil { // o onset
 			t.Fatal(err)
 		}
-		if err := cam.AppendEvento(ev); err != nil {
+		if err := cam.AppendEvent(ev); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -173,9 +173,9 @@ func cenarioDeArea(t *testing.T) (*Server, time.Time) {
 	s, hoje := cenarioDeDeteccoes(t)
 	marca := func(cam string, min int64, familia string, caixa [4]float64) {
 		t.Helper()
-		ev := store.Evento{InstanteMs: hoje.UnixMilli() + min*60_000, Familia: familia, Classe: "x",
-			Score: 0.9, Caixa: &caixa}
-		if err := s.store.Camera(cam).AppendEvento(ev); err != nil {
+		ev := store.Event{AtMs: hoje.UnixMilli() + min*60_000, Family: familia, Class: "x",
+			Score: 0.9, Box: &caixa}
+		if err := s.store.Camera(cam).AppendEvent(ev); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -377,9 +377,9 @@ func cenarioDeAlerta(t *testing.T) (*Server, time.Time) {
 	s, hoje := cenarioDeDeteccoes(t)
 	marca := func(cam string, base time.Time, min int64, familia string, alertou bool, areas ...string) {
 		t.Helper()
-		ev := store.Evento{InstanteMs: base.UnixMilli() + min*60_000, Familia: familia, Classe: "x",
+		ev := store.Event{AtMs: base.UnixMilli() + min*60_000, Family: familia, Class: "x",
 			Score: 0.9, Alert: alertou, AlertAreas: areas}
-		if err := s.store.Camera(cam).AppendEvento(ev); err != nil {
+		if err := s.store.Camera(cam).AppendEvent(ev); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -500,7 +500,7 @@ func TestQuadroDaDeteccao(t *testing.T) {
 	s, cam := testServer(t)
 	t0 := time.Date(2026, 8, 9, 12, 0, 0, 0, time.Local).UnixMilli()
 	jpeg := []byte("\xff\xd8 finge que é jpeg \xff\xd9")
-	if err := cam.WriteQuadro(time.UnixMilli(t0).Format(store.DayLayout), t0, jpeg); err != nil {
+	if err := cam.WriteFrame(time.UnixMilli(t0).Format(store.DayLayout), t0, jpeg); err != nil {
 		t.Fatal(err)
 	}
 

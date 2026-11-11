@@ -173,7 +173,7 @@ func TestOlhadaViraAlerta(t *testing.T) {
 	if c == nil || c.Total() != 1 {
 		t.Fatalf("central %v, esperava um alerta", c)
 	}
-	linhas, err := m.store.Camera("cam_teste").ObjetosDoDia(time.UnixMilli(agora).Format(store.DayLayout))
+	linhas, err := m.store.Camera("cam_teste").DayObjects(time.UnixMilli(agora).Format(store.DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestOlhadaViraAlerta(t *testing.T) {
 	for i, l := range linhas {
 		// Só a primeira, a pessoa de 0,877 no Portão, alertou.
 		if l.Alert != (i == 0) || l.Alert != (len(l.AlertAreas) == 1 && l.AlertAreas[0] == "esq") {
-			t.Errorf("linha %d (%s %.3f): alert %v em %v", i, l.Familia, l.Score, l.Alert, l.AlertAreas)
+			t.Errorf("linha %d (%s %.3f): alert %v em %v", i, l.Family, l.Score, l.Alert, l.AlertAreas)
 		}
 	}
 

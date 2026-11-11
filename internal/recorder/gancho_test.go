@@ -250,7 +250,7 @@ func TestGanchoGravaOOnsetNoArquivoDoDia(t *testing.T) {
 	if got := r.onsets.Load(); got != 2 {
 		t.Fatalf("contador de onsets = %d, esperado 2", got)
 	}
-	evs, err := idx.LoadEventos(time.Now().Format(store.DayLayout))
+	evs, err := idx.LoadEvents(time.Now().Format(store.DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -540,13 +540,13 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 		}
 	}
 
-	evs, err := idx.LoadEventos(time.Now().Format(store.DayLayout))
+	evs, err := idx.LoadEvents(time.Now().Format(store.DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var objetos []store.Evento
+	var objetos []store.Event
 	for _, ev := range evs {
-		if ev.EhObjeto() {
+		if ev.IsObject() {
 			objetos = append(objetos, ev)
 		}
 	}
@@ -555,11 +555,11 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 	}
 	// A caixa vai à parte: é ponteiro, e o != compararia o endereço.
 	got := objetos[0]
-	caixa := got.Caixa
-	got.Caixa = nil
+	caixa := got.Box
+	got.Box = nil
 	jpeg := []byte("\xff\xd8jpeg-de-teste\xff\xd9")
-	want := store.Evento{InstanteMs: onsets[0], Familia: "pessoa", Classe: "person", Score: 0.877,
-		QuadroMs: quadros[0], TemQuadro: true}
+	want := store.Event{AtMs: onsets[0], Family: "pessoa", Class: "person", Score: 0.877,
+		FrameMs: quadros[0], HasFrame: true}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("marca %+v, esperado %+v", got, want)
 	}
@@ -569,7 +569,7 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 
 	// O quadro que a tela de Detecções mostra: o arquivo tem o nome do
 	// instante da marca e os bytes que o detector mandou.
-	lido, err := os.ReadFile(idx.QuadroPath(time.Now().Format(store.DayLayout), got.InstanteMs))
+	lido, err := os.ReadFile(idx.FramePath(time.Now().Format(store.DayLayout), got.AtMs))
 	if err != nil {
 		t.Fatalf("lendo o quadro da marca: %v", err)
 	}
@@ -606,7 +606,7 @@ func TestUmaLinhaPorObjeto(t *testing.T) {
 	}, nil)
 
 	dia := time.Now().Format(store.DayLayout)
-	evs, err := idx.LoadEventos(dia)
+	evs, err := idx.LoadEvents(dia)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -624,17 +624,17 @@ func TestUmaLinhaPorObjeto(t *testing.T) {
 		t.Fatalf("%d linhas, esperadas %d: %+v", len(evs), len(want), evs)
 	}
 	for i, ev := range evs {
-		got := linha{ev.Familia, ev.Classe, ev.Score, *ev.Caixa}
+		got := linha{ev.Family, ev.Class, ev.Score, *ev.Box}
 		if got != want[i] {
 			t.Errorf("linha %d: %+v, esperada %+v", i, got, want[i])
 		}
-		if ev.InstanteMs != agora || ev.QuadroMs != agora+1400 || !ev.TemQuadro {
+		if ev.AtMs != agora || ev.FrameMs != agora+1400 || !ev.HasFrame {
 			t.Errorf("linha %d: instante %d, quadro %d, temQuadro %v; esperados %d, %d e true",
-				i, ev.InstanteMs, ev.QuadroMs, ev.TemQuadro, agora, agora+1400)
+				i, ev.AtMs, ev.FrameMs, ev.HasFrame, agora, agora+1400)
 		}
 	}
 
-	quadros, err := os.ReadDir(filepath.Dir(idx.QuadroPath(dia, agora)))
+	quadros, err := os.ReadDir(filepath.Dir(idx.FramePath(dia, agora)))
 	if err != nil {
 		t.Fatal(err)
 	}

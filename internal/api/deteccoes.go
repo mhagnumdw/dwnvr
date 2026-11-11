@@ -34,7 +34,7 @@ type deteccao struct {
 	Cam        string `json:"cam"`
 	InstanteMs int64  `json:"instanteMs"`
 	// QuadroMs é o instante do quadro olhado, que é onde as caixas estão no
-	// lugar certo. Ver store.Evento.
+	// lugar certo. Ver store.Event.
 	QuadroMs int64 `json:"quadroMs,omitempty"`
 	// TemQuadro diz se há imagem em /api/deteccoes/quadro para esta detecção.
 	TemQuadro bool             `json:"temQuadro"`
@@ -47,7 +47,7 @@ type objetoNoQuadro struct {
 	Score   float64     `json:"score"`
 	Caixa   *[4]float64 `json:"caixa,omitempty"`
 	// Alert e AlertAreas vêm como gravados: o objeto passou na regra de
-	// alerta da câmera, nas áreas destes ids. Ver store.Evento.
+	// alerta da câmera, nas áreas destes ids. Ver store.Event.
 	Alert      bool     `json:"alert,omitempty"`
 	AlertAreas []string `json:"alertAreas,omitempty"`
 }
@@ -158,7 +158,7 @@ func diasComDeteccao(cams []*store.Camera, filtro filtroDeObjetos) ([]string, ma
 	for _, dia := range diasDasCameras(cams) {
 		n := 0
 		for _, cam := range cams {
-			marcas, err := cam.ObjetosDoDia(dia)
+			marcas, err := cam.DayObjects(dia)
 			if err != nil {
 				return nil, nil, fmt.Errorf("%s, %s: %w", cam.ID, dia, err)
 			}
@@ -175,15 +175,15 @@ func diasComDeteccao(cams []*store.Camera, filtro filtroDeObjetos) ([]string, ma
 // contaDeteccoes conta as detecções de uma câmera num dia como o agrupa as
 // monta: uma por instante, por mais famílias que o quadro tenha, e com
 // `alert=1` só o instante em que algum objeto que fica alertou.
-func contaDeteccoes(marcas []store.Evento, filtro filtroDeObjetos) int {
+func contaDeteccoes(marcas []store.Event, filtro filtroDeObjetos) int {
 	n := 0
 	ultimo := int64(-1)
 	for _, m := range marcas {
-		if m.InstanteMs == ultimo || !filtro.passa(m) || filtro.soAlertas && !m.Alert {
+		if m.AtMs == ultimo || !filtro.passa(m) || filtro.soAlertas && !m.Alert {
 			continue
 		}
 		n++
-		ultimo = m.InstanteMs
+		ultimo = m.AtMs
 	}
 	return n
 }
@@ -227,7 +227,7 @@ func paginaDeDeteccoesDe(cams []*store.Camera, filtro filtroDeObjetos,
 		}
 		var doDia []deteccao
 		for _, cam := range cams {
-			marcas, err := cam.ObjetosDoDia(dia)
+			marcas, err := cam.DayObjects(dia)
 			if err != nil {
 				return out, fmt.Errorf("%s, %s: %w", cam.ID, dia, err)
 			}
@@ -259,25 +259,25 @@ func paginaDeDeteccoesDe(cams []*store.Camera, filtro filtroDeObjetos,
 // agrupa junta as marcas de uma câmera num dia em detecções, uma por instante,
 // e as acrescenta a `em`. As marcas vêm em ordem de instante, então as do
 // mesmo instante estão lado a lado.
-func agrupa(em []deteccao, cam string, marcas []store.Evento,
+func agrupa(em []deteccao, cam string, marcas []store.Event,
 	filtro filtroDeObjetos, passaDoCursor func(int64) bool) []deteccao {
 
 	inicio := len(em)
 	aberta := -1 // índice, em `em`, da detecção do instante corrente
 	for _, m := range marcas {
-		if !passaDoCursor(m.InstanteMs) || !filtro.passa(m) {
+		if !passaDoCursor(m.AtMs) || !filtro.passa(m) {
 			continue
 		}
-		obj := objetoNoQuadro{Familia: m.Familia, Classe: m.Classe, Score: m.Score, Caixa: m.Caixa,
+		obj := objetoNoQuadro{Familia: m.Family, Classe: m.Class, Score: m.Score, Caixa: m.Box,
 			Alert: m.Alert, AlertAreas: m.AlertAreas}
-		if aberta >= 0 && em[aberta].InstanteMs == m.InstanteMs {
+		if aberta >= 0 && em[aberta].InstanteMs == m.AtMs {
 			d := &em[aberta]
 			d.Objetos = append(d.Objetos, obj)
-			d.TemQuadro = d.TemQuadro || m.TemQuadro
+			d.TemQuadro = d.TemQuadro || m.HasFrame
 			continue
 		}
-		em = append(em, deteccao{Cam: cam, InstanteMs: m.InstanteMs, QuadroMs: m.QuadroMs,
-			TemQuadro: m.TemQuadro, Objetos: []objetoNoQuadro{obj}})
+		em = append(em, deteccao{Cam: cam, InstanteMs: m.AtMs, QuadroMs: m.FrameMs,
+			TemQuadro: m.HasFrame, Objetos: []objetoNoQuadro{obj}})
 		aberta = len(em) - 1
 	}
 	if !filtro.soAlertas {
@@ -335,18 +335,18 @@ func (f filtroDeObjetos) daCamera(cam string) filtroDeObjetos {
 
 // passa diz se a marca fica. Com área, a marca sem caixa, de antes de a caixa
 // ser gravada, fica de fora: não há como saber onde ela estava.
-func (f filtroDeObjetos) passa(m store.Evento) bool {
-	if f.familias != nil && !f.familias[m.Familia] {
+func (f filtroDeObjetos) passa(m store.Event) bool {
+	if f.familias != nil && !f.familias[m.Family] {
 		return false
 	}
 	if len(f.areas) == 0 {
 		return true
 	}
-	if m.Caixa == nil {
+	if m.Box == nil {
 		return false
 	}
 	for _, a := range f.areas {
-		if a.regra.Inside(a.area, *m.Caixa) {
+		if a.regra.Inside(a.area, *m.Box) {
 			return true
 		}
 	}
@@ -539,7 +539,7 @@ func (s *Server) handleQuadroDaDeteccao(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	f, err := os.Open(cam.QuadroPath(time.UnixMilli(t).Format(store.DayLayout), t))
+	f, err := os.Open(cam.FramePath(time.UnixMilli(t).Format(store.DayLayout), t))
 	if errors.Is(err, os.ErrNotExist) {
 		writeError(w, http.StatusNotFound, "detecção sem quadro")
 		return

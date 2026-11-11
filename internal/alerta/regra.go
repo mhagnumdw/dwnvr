@@ -91,18 +91,18 @@ func NovaRegra(cam config.Camera) *Regra {
 // As marcas são as linhas que o Recorder vai gravar, todas do mesmo onset, e
 // a avaliação vem antes da escrita para a marca entrar nela: o alerta tem os
 // mesmos números que Detecções mostra.
-func (r *Regra) Avalia(marcas []store.Evento, quadro []byte) (Alerta, bool) {
-	if len(marcas) == 0 || !r.noHorario(marcas[0].InstanteMs) {
+func (r *Regra) Avalia(marcas []store.Event, quadro []byte) (Alerta, bool) {
+	if len(marcas) == 0 || !r.noHorario(marcas[0].AtMs) {
 		return Alerta{}, false
 	}
 	var objetos []Objeto
 	for i, m := range marcas {
-		if m.Caixa == nil || !slices.Contains(r.familias, detect.Family(m.Familia)) {
+		if m.Box == nil || !slices.Contains(r.familias, detect.Family(m.Family)) {
 			continue
 		}
 		var ids, nomes []string
 		for _, a := range r.areas {
-			if a.regra.Inside(a.area, *m.Caixa) {
+			if a.regra.Inside(a.area, *m.Box) {
 				ids, nomes = append(ids, a.id), append(nomes, a.nome)
 			}
 		}
@@ -110,15 +110,15 @@ func (r *Regra) Avalia(marcas []store.Evento, quadro []byte) (Alerta, bool) {
 			continue
 		}
 		marcas[i].Alert, marcas[i].AlertAreas = true, ids
-		objetos = append(objetos, Objeto{Familia: m.Familia, Classe: m.Classe, Score: m.Score,
-			Caixa: *m.Caixa, Areas: nomes})
+		objetos = append(objetos, Objeto{Familia: m.Family, Classe: m.Class, Score: m.Score,
+			Caixa: *m.Box, Areas: nomes})
 	}
 	if len(objetos) == 0 {
 		return Alerta{}, false
 	}
 	m := marcas[0]
-	return Alerta{Camera: r.camera, NomeDaCamera: r.nome, InstanteMs: m.InstanteMs, QuadroMs: m.QuadroMs,
-		TemQuadro: m.TemQuadro, Objetos: objetos, Areas: r.contornos, Quadro: quadro}, true
+	return Alerta{Camera: r.camera, NomeDaCamera: r.nome, InstanteMs: m.AtMs, QuadroMs: m.FrameMs,
+		TemQuadro: m.HasFrame, Objetos: objetos, Areas: r.contornos, Quadro: quadro}, true
 }
 
 // noHorario diz se o instante cai num dos horários do alerta, no fuso do

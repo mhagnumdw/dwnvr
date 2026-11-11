@@ -189,7 +189,7 @@ type objetoMarcado struct {
 	Classe     string  `json:"classe"`
 	Score      float64 `json:"score"`
 	// Onde e quando desenhar a caixa sobre o vídeo. Marca sem eles não ganha
-	// caixa na tela. Ver o store.Evento.
+	// caixa na tela. Ver o store.Event.
 	QuadroMs int64       `json:"quadroMs,omitempty"`
 	Caixa    *[4]float64 `json:"caixa,omitempty"`
 }
@@ -214,7 +214,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventos, err := cam.EventoRange(from, to)
+	eventos, err := cam.EventRange(from, to)
 	if err != nil {
 		s.fail(w, "lendo as marcas de movimento", err)
 		return
@@ -224,11 +224,11 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	for _, ev := range eventos {
 		// A marca de objeto mora no mesmo arquivo, e não pode entrar na faixa
 		// de calor: cada objeto contaria como um segundo onset no mesmo instante.
-		if ev.EhObjeto() {
-			resp.Objetos = append(resp.Objetos, objetoMarcado{ev.InstanteMs, ev.Familia, ev.Classe, ev.Score, ev.QuadroMs, ev.Caixa})
+		if ev.IsObject() {
+			resp.Objetos = append(resp.Objetos, objetoMarcado{ev.AtMs, ev.Family, ev.Class, ev.Score, ev.FrameMs, ev.Box})
 			continue
 		}
-		resp.Onsets = append(resp.Onsets, ev.InstanteMs)
+		resp.Onsets = append(resp.Onsets, ev.AtMs)
 	}
 	writeJSON(w, resp)
 }

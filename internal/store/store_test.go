@@ -12,8 +12,8 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/fmp4"
 )
 
-// baseTime é um instante fixo às 12h locais, longe da meia-noite, para que os
-// testes não dependam do fuso de quem os roda.
+// baseTime is a fixed instant at 12:00 local time, far from midnight, so the
+// tests don't depend on the time zone of whoever runs them.
 func baseTime() time.Time {
 	return time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 }
@@ -25,8 +25,8 @@ func entryAt(t time.Time, durMs, size int64) Entry {
 	}
 }
 
-// writeSegmentFile cria o arquivo correspondente a uma entrada, para os testes
-// que precisam do disco batendo com o índice.
+// writeSegmentFile creates the file matching an entry, for the tests that
+// need the disk to match the index.
 func writeSegmentFile(t *testing.T, c *Camera, e Entry) {
 	t.Helper()
 	if err := c.EnsureDirs(e.Day()); err != nil {
@@ -42,7 +42,7 @@ func newTestCamera(t *testing.T) *Camera {
 	return New(t.TempDir()).Camera("cam_teste")
 }
 
-func TestAppendELeitura(t *testing.T) {
+func TestAppendAndRead(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 
@@ -55,10 +55,10 @@ func TestAppendELeitura(t *testing.T) {
 
 	days := c.Days()
 	if len(days) != 1 {
-		t.Fatalf("esperava 1 dia, veio %d", len(days))
+		t.Fatalf("want 1 day, got %d", len(days))
 	}
 	if days[0].Count != 3 {
-		t.Errorf("Count=%d, esperava 3", days[0].Count)
+		t.Errorf("Count=%d, want 3", days[0].Count)
 	}
 	if days[0].Bytes != 3_000_000 {
 		t.Errorf("Bytes=%d", days[0].Bytes)
@@ -72,16 +72,16 @@ func TestAppendELeitura(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(entries) != 3 {
-		t.Fatalf("LoadDay devolveu %d entradas", len(entries))
+		t.Fatalf("LoadDay returned %d entries", len(entries))
 	}
 	if entries[0].InitSize != 737 || entries[0].Gen != "abc123" {
-		t.Errorf("campos não sobreviveram ao round-trip: %+v", entries[0])
+		t.Errorf("fields didn't survive the round trip: %+v", entries[0])
 	}
 }
 
-// Os resumos precisam sobreviver ao reinício sem nenhum arquivo de cache: eles
-// são reconstruídos lendo os índices do disco.
-func TestScanReconstroiResumos(t *testing.T) {
+// The summaries must survive a restart without any cache file: they're
+// rebuilt by reading the indexes from disk.
+func TestScanRebuildsSummaries(t *testing.T) {
 	root := t.TempDir()
 	c := New(root).Camera("cam_teste")
 	base := baseTime()
@@ -92,16 +92,16 @@ func TestScanReconstroiResumos(t *testing.T) {
 		}
 	}
 
-	// Simula um reinício: instância nova, mesmo diretório.
+	// Simulates a restart: a new instance, the same directory.
 	c2 := New(root).Camera("cam_teste")
 	if err := c2.Scan(false, nil); err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
 	if got := c2.TotalBytes(); got != 10_000_000 {
-		t.Errorf("após Scan TotalBytes=%d, esperava 10000000", got)
+		t.Errorf("after Scan TotalBytes=%d, want 10000000", got)
 	}
 	if days := c2.Days(); len(days) != 1 || days[0].Count != 5 {
-		t.Errorf("resumo errado após Scan: %+v", days)
+		t.Errorf("wrong summary after Scan: %+v", days)
 	}
 }
 
@@ -110,11 +110,12 @@ func TestOldestMs(t *testing.T) {
 	base := baseTime()
 
 	if got := c.OldestMs(); got != 0 {
-		t.Errorf("câmera sem gravação devia dar 0, veio %d", got)
+		t.Errorf("a camera without recordings should give 0, got %d", got)
 	}
 
-	// Dias fora de ordem: o mapa de resumos não tem ordem nenhuma, e o mais
-	// antigo tem que sair do menor FirstMs, não do primeiro que a iteração vir.
+	// Days out of order: the summaries map has no order at all, and the oldest
+	// must come from the smallest FirstMs, not from the first one the iteration
+	// sees.
 	for _, d := range []int{2, 0, 1} {
 		e := entryAt(base.AddDate(0, 0, d), 60_000, 1_000_000)
 		if err := c.Append(e); err != nil {
@@ -122,61 +123,62 @@ func TestOldestMs(t *testing.T) {
 		}
 	}
 	if got, want := c.OldestMs(), base.UnixMilli(); got != want {
-		t.Errorf("OldestMs=%d, esperava %d", got, want)
+		t.Errorf("OldestMs=%d, want %d", got, want)
 	}
 
-	// Um segmento anterior dentro do dia que já é o mais antigo: o mínimo é
-	// por segmento, não por dia.
-	antes := base.Add(-2 * time.Hour)
-	if err := c.Append(entryAt(antes, 60_000, 1_000_000)); err != nil {
+	// An earlier segment within the day that's already the oldest: the minimum
+	// is per segment, not per day.
+	before := base.Add(-2 * time.Hour)
+	if err := c.Append(entryAt(before, 60_000, 1_000_000)); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := c.OldestMs(), antes.UnixMilli(); got != want {
-		t.Errorf("OldestMs=%d após segmento mais cedo, esperava %d", got, want)
+	if got, want := c.OldestMs(), before.UnixMilli(); got != want {
+		t.Errorf("OldestMs=%d after an earlier segment, want %d", got, want)
 	}
 }
 
-// Resumo existe para poupar uma varredura do mapa por leitura do /api/health,
-// então o que ele devolve tem que ser idêntico ao dos métodos que substitui -
-// mais o extremo novo, o mais recente.
-func TestResumoBateComOsMetodosSeparados(t *testing.T) {
+// Summary exists to save one map scan per /api/health read, so what it
+// returns must be identical to what the methods it replaces return - plus the
+// new end, the most recent.
+func TestSummaryMatchesTheSeparateMethods(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 
-	if bytes, oldest, newest, gravado := c.Resumo(); bytes != 0 || oldest != 0 || newest != 0 || gravado != 0 {
-		t.Errorf("câmera sem gravação devia dar tudo 0, veio %d/%d/%d/%d", bytes, oldest, newest, gravado)
+	if bytes, oldest, newest, written := c.Summary(); bytes != 0 || oldest != 0 || newest != 0 || written != 0 {
+		t.Errorf("a camera without recordings should give all 0, got %d/%d/%d/%d", bytes, oldest, newest, written)
 	}
 
-	// Dias fora de ordem, como o mapa de resumos entrega: os extremos têm que
-	// sair da comparação, não da ordem da iteração.
+	// Days out of order, as the summaries map delivers them: the ends have to
+	// come from the comparison, not from the iteration order.
 	for _, d := range []int{2, 0, 1} {
 		if err := c.Append(entryAt(base.AddDate(0, 0, d), 60_000, 1_000_000)); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	bytes, oldest, newest, gravado := c.Resumo()
+	bytes, oldest, newest, written := c.Summary()
 	if want := c.TotalBytes(); bytes != want {
-		t.Errorf("bytes=%d, TotalBytes diz %d", bytes, want)
+		t.Errorf("bytes=%d, TotalBytes says %d", bytes, want)
 	}
 	if want := c.OldestMs(); oldest != want {
-		t.Errorf("oldest=%d, OldestMs diz %d", oldest, want)
+		t.Errorf("oldest=%d, OldestMs says %d", oldest, want)
 	}
-	// O mais recente é o FIM do último segmento, não o começo: é o que faz o
-	// span cobrir a gravação inteira.
+	// The most recent is the END of the last segment, not its start: that's
+	// what makes the span cover the whole recording.
 	if want := base.AddDate(0, 0, 2).UnixMilli() + 60_000; newest != want {
-		t.Errorf("newest=%d, esperava %d", newest, want)
+		t.Errorf("newest=%d, want %d", newest, want)
 	}
-	// Três segmentos de um minuto em três dias: o span é de dois dias, mas o
-	// vídeo que existe são três minutos. A diferença é o buraco.
-	if gravado != 3*60_000 {
-		t.Errorf("gravado=%d, esperava %d", gravado, 3*60_000)
+	// Three one-minute segments on three days: the span is two days, but the
+	// video that exists is three minutes. The difference is the gap.
+	if written != 3*60_000 {
+		t.Errorf("recorded=%d, want %d", written, 3*60_000)
 	}
 }
 
-// somaPorLoadDay é o tempo gravado pelo caminho caro, lendo o índice de cada
-// dia do disco: a referência contra a qual o acumulado em memória se confere.
-func somaPorLoadDay(t *testing.T, c *Camera) int64 {
+// sumByLoadDay is the recorded time through the expensive path, reading
+// each day's index from disk: the reference the in-memory accumulation is
+// checked against.
+func sumByLoadDay(t *testing.T, c *Camera) int64 {
 	t.Helper()
 	var n int64
 	for _, d := range c.Days() {
@@ -191,29 +193,29 @@ func somaPorLoadDay(t *testing.T, c *Camera) int64 {
 	return n
 }
 
-// O DurMs do resumo é mantido em memória, segmento a segmento, para que o
-// /api/health não precise ler os índices. Se algum caminho que altera o índice
-// deixar de passar pelo mergeLocked, os dois divergem em silêncio - e a tela
-// passa a mostrar buraco onde não há, ou esconder o que há. Este teste confere
-// o acumulado contra o disco depois de cada um desses caminhos.
-func TestDurMsBateComOIndice(t *testing.T) {
+// The summary's DurMs is kept in memory, segment by segment, so /api/health
+// doesn't need to read the indexes. If some path that changes the index stops
+// going through mergeLocked, the two silently diverge - and the screen starts
+// showing a gap where there's none, or hiding one that exists. This test
+// checks the accumulation against the disk after each of those paths.
+func TestDurMsMatchesTheIndex(t *testing.T) {
 	root := t.TempDir()
 	c := New(root).Camera("cam_teste")
 	base := baseTime()
 
-	confere := func(c *Camera, quando string) {
+	check := func(c *Camera, when string) {
 		t.Helper()
-		_, _, _, gravado := c.Resumo()
-		if want := somaPorLoadDay(t, c); gravado != want {
-			t.Errorf("%s: gravado=%d, o índice soma %d", quando, gravado, want)
+		_, _, _, written := c.Summary()
+		if want := sumByLoadDay(t, c); written != want {
+			t.Errorf("%s: recorded=%d, the index sums %d", when, written, want)
 		}
 	}
 
-	// Durações desiguais, como na vida real: o corte é por keyframe e a
-	// reconexão encurta o segmento. Dois dias, com um buraco entre eles.
-	duracoes := []int64{60_000, 58_400, 61_200, 12_300, 60_000}
+	// Uneven durations, as in real life: the cut is by keyframe and a
+	// reconnection shortens the segment. Two days, with a gap between them.
+	durations := []int64{60_000, 58_400, 61_200, 12_300, 60_000}
 	for d := range 2 {
-		for i, dur := range duracoes {
+		for i, dur := range durations {
 			e := entryAt(base.AddDate(0, 0, d).Add(time.Duration(i)*time.Minute), dur, 1_000_000)
 			writeSegmentFile(t, c, e)
 			if err := c.Append(e); err != nil {
@@ -221,27 +223,27 @@ func TestDurMsBateComOIndice(t *testing.T) {
 			}
 		}
 	}
-	confere(c, "após Append")
+	check(c, "após Append")
 
 	c2 := New(root).Camera("cam_teste")
 	if err := c2.Scan(false, nil); err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	confere(c2, "após Scan")
+	check(c2, "após Scan")
 
-	// Evicção parcial: o dia mais antigo perde dois segmentos e é recontado.
+	// Partial eviction: the oldest day loses two segments and is recounted.
 	if _, err := c2.EvictOldest(1_500_000); err != nil {
 		t.Fatal(err)
 	}
-	confere(c2, "após EvictOldest parcial")
+	check(c2, "após EvictOldest parcial")
 
-	// Evicção do dia inteiro restante: o resumo some pelo DropDay.
+	// Eviction of the whole remaining day: the summary goes away through DropDay.
 	if _, err := c2.EvictOldest(3_000_000); err != nil {
 		t.Fatal(err)
 	}
-	confere(c2, "após EvictOldest do dia inteiro")
-	if _, _, _, gravado := c2.Resumo(); gravado == 0 {
-		t.Error("o segundo dia não devia ter sido tocado")
+	check(c2, "após EvictOldest do dia inteiro")
+	if _, _, _, written := c2.Summary(); written == 0 {
+		t.Error("the second day shouldn't have been touched")
 	}
 }
 
@@ -259,41 +261,41 @@ func TestEvictOldest(t *testing.T) {
 		}
 	}
 
-	// Pede 2,5 MB: evicta 3 segmentos inteiros, porque remoção é sempre por
-	// segmento completo.
+	// Asks for 2.5 MB: evicts 3 whole segments, because removal is always by
+	// whole segment.
 	freed, err := c.EvictOldest(2_500_000)
 	if err != nil {
 		t.Fatalf("EvictOldest: %v", err)
 	}
 	if freed != 3_000_000 {
-		t.Errorf("liberou %d, esperava 3000000", freed)
+		t.Errorf("freed %d, want 3000000", freed)
 	}
 	if got := c.TotalBytes(); got != 2_000_000 {
-		t.Errorf("TotalBytes=%d após evicção, esperava 2000000", got)
+		t.Errorf("TotalBytes=%d after eviction, want 2000000", got)
 	}
 
-	// Os arquivos mais antigos têm que ter sumido de verdade, e os novos ficado.
+	// The oldest files must really be gone, and the new ones must have stayed.
 	for i, e := range entries {
 		_, err := os.Stat(c.SegmentPath(e.StartMs))
 		if i < 3 && err == nil {
-			t.Errorf("segmento %d deveria ter sido apagado", i)
+			t.Errorf("segment %d should have been deleted", i)
 		}
 		if i >= 3 && err != nil {
-			t.Errorf("segmento %d não deveria ter sido apagado: %v", i, err)
+			t.Errorf("segment %d shouldn't have been deleted: %v", i, err)
 		}
 	}
 
-	// O índice em disco tem que refletir a remoção, não só a memória.
+	// The index on disk must reflect the removal, not just memory.
 	rest, err := c.LoadDay(base.Format(DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(rest) != 2 {
-		t.Errorf("índice em disco tem %d entradas, esperava 2", len(rest))
+		t.Errorf("index on disk has %d entries, want 2", len(rest))
 	}
 }
 
-func TestEvictOldestAtravessaDias(t *testing.T) {
+func TestEvictOldestCrossesDays(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 
@@ -307,80 +309,81 @@ func TestEvictOldestAtravessaDias(t *testing.T) {
 		}
 	}
 	if len(c.Days()) != 3 {
-		t.Fatalf("esperava 3 dias, veio %d", len(c.Days()))
+		t.Fatalf("want 3 days, got %d", len(c.Days()))
 	}
 
-	// Libera mais que um dia inteiro: o dia esvaziado tem que desaparecer.
+	// Frees more than a whole day: the emptied day has to disappear.
 	if _, err := c.EvictOldest(3_000_000); err != nil {
 		t.Fatal(err)
 	}
 	days := c.Days()
 	if len(days) != 2 {
-		t.Fatalf("esperava 2 dias após evicção, veio %d: %+v", len(days), days)
+		t.Fatalf("want 2 days after eviction, got %d: %+v", len(days), days)
 	}
 	if days[0].Day != base.AddDate(0, 0, 1).Format(DayLayout) {
-		t.Errorf("dia mais antigo agora é %s", days[0].Day)
+		t.Errorf("oldest day is now %s", days[0].Day)
 	}
-	// O diretório do dia removido não pode ficar para trás.
+	// The removed day's directory must not be left behind.
 	if _, err := os.Stat(c.DayDir(base.Format(DayLayout))); !os.IsNotExist(err) {
-		t.Error("o diretório do dia evictado ainda existe")
+		t.Error("the evicted day's directory still exists")
 	}
 }
 
-// Um segmento pode começar antes da meia-noite e se estender para dentro do
-// intervalo pedido. Se Range só olhasse os dias do intervalo, esse segmento
-// sumiria da linha do tempo logo depois da virada do dia.
-func TestRangeIncluiSegmentoQueAtravessaMeiaNoite(t *testing.T) {
+// A segment may start before midnight and extend into the requested
+// interval. If Range only looked at the interval's days, that segment would
+// disappear from the timeline right after the day turned.
+func TestRangeIncludesSegmentCrossingMidnight(t *testing.T) {
 	c := newTestCamera(t)
-	dia := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
-	antes := dia.Add(-30 * time.Second) // 23:59:30 do dia anterior
+	day := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
+	before := day.Add(-30 * time.Second) // 23:59:30 on the previous day
 
-	// Segmento que começa às 23:59:30 e dura 60s, entrando no dia seguinte.
-	if err := c.Append(entryAt(antes, 60_000, 500_000)); err != nil {
+	// A segment that starts at 23:59:30 and lasts 60s, going into the next day.
+	if err := c.Append(entryAt(before, 60_000, 500_000)); err != nil {
 		t.Fatal(err)
 	}
-	// Segmento normal, já dentro do dia.
-	if err := c.Append(entryAt(dia.Add(time.Minute), 60_000, 500_000)); err != nil {
+	// A normal segment, already within the day.
+	if err := c.Append(entryAt(day.Add(time.Minute), 60_000, 500_000)); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := c.Range(dia.UnixMilli(), dia.Add(2*time.Hour).UnixMilli())
+	got, err := c.Range(day.UnixMilli(), day.Add(2*time.Hour).UnixMilli())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 {
-		t.Fatalf("Range devolveu %d entradas, esperava 2 (a que atravessa a meia-noite foi perdida?)", len(got))
+		t.Fatalf("Range returned %d entries, want 2 (was the one crossing midnight lost?)", len(got))
 	}
-	if got[0].StartMs != antes.UnixMilli() {
-		t.Error("a primeira entrada deveria ser a que começou no dia anterior")
+	if got[0].StartMs != before.UnixMilli() {
+		t.Error("the first entry should be the one that started on the previous day")
 	}
 }
 
-// Um intervalo de 23:59:50 a 00:00:35 tem a hora do `from` maior que a do
-// `to`. Se o laço de dias comparasse instantes em vez de dias, pararia antes do
-// dia seguinte, e o que vem depois da meia-noite sumiria da exportação.
-func TestRangeAtravessaMeiaNoiteComHoraDoFromMaior(t *testing.T) {
+// An interval from 23:59:50 to 00:00:35 has a `from` time later than the
+// `to` time. If the day loop compared instants instead of days, it would stop
+// before the next day, and what comes after midnight would disappear from the
+// export.
+func TestRangeCrossesMidnightWithLaterFromTime(t *testing.T) {
 	c := newTestCamera(t)
-	dia := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
+	day := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
 
-	// Um segmento antes da meia-noite e outro depois dela.
-	if err := c.Append(entryAt(dia.Add(-30*time.Second), 30_000, 100)); err != nil {
+	// One segment before midnight and another after it.
+	if err := c.Append(entryAt(day.Add(-30*time.Second), 30_000, 100)); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Append(entryAt(dia, 30_000, 100)); err != nil {
+	if err := c.Append(entryAt(day, 30_000, 100)); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := c.Range(dia.Add(-10*time.Second).UnixMilli(), dia.Add(35*time.Second).UnixMilli())
+	got, err := c.Range(day.Add(-10*time.Second).UnixMilli(), day.Add(35*time.Second).UnixMilli())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 {
-		t.Fatalf("Range devolveu %d entradas, esperava 2 (a de depois da meia-noite foi perdida?)", len(got))
+		t.Fatalf("Range returned %d entries, want 2 (was the one after midnight lost?)", len(got))
 	}
 }
 
-func TestRangeExcluiForaDoIntervalo(t *testing.T) {
+func TestRangeExcludesOutsideTheInterval(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 	for i := range 10 {
@@ -393,12 +396,12 @@ func TestRangeExcluiForaDoIntervalo(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(got) != 3 {
-		t.Errorf("Range devolveu %d, esperava 3: %+v", len(got), got)
+		t.Errorf("Range returned %d, want 3: %+v", len(got), got)
 	}
 }
 
-// Reconciliação: é o que salva o índice depois de um kill -9.
-func TestScanReconciliaArquivoOrfao(t *testing.T) {
+// Reconciliation: it's what saves the index after a kill -9.
+func TestScanReconcilesOrphanFile(t *testing.T) {
 	root := t.TempDir()
 	c := New(root).Camera("cam_teste")
 	base := baseTime()
@@ -409,9 +412,9 @@ func TestScanReconciliaArquivoOrfao(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Órfão: o arquivo foi gravado, mas o processo morreu antes de indexar.
-	orfao := entryAt(base.Add(time.Minute), 60_000, 2_000)
-	writeSegmentFile(t, c, orfao)
+	// Orphan: the file was written, but the process died before indexing it.
+	orphan := entryAt(base.Add(time.Minute), 60_000, 2_000)
+	writeSegmentFile(t, c, orphan)
 
 	c2 := New(root).Camera("cam_teste")
 	probe := func(path string) (Entry, error) {
@@ -426,21 +429,21 @@ func TestScanReconciliaArquivoOrfao(t *testing.T) {
 	}
 
 	if got := c2.TotalBytes(); got != 3_000 {
-		t.Errorf("TotalBytes=%d, esperava 3000 (o órfão foi reincorporado?)", got)
+		t.Errorf("TotalBytes=%d, want 3000 (was the orphan brought back in?)", got)
 	}
 	entries, err := c2.LoadDay(base.Format(DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(entries) != 2 {
-		t.Fatalf("índice tem %d entradas, esperava 2", len(entries))
+		t.Fatalf("index has %d entries, want 2", len(entries))
 	}
-	if entries[1].StartMs != orfao.StartMs {
-		t.Errorf("o órfão entrou com StartMs=%d, esperava %d", entries[1].StartMs, orfao.StartMs)
+	if entries[1].StartMs != orphan.StartMs {
+		t.Errorf("the orphan came in with StartMs=%d, want %d", entries[1].StartMs, orphan.StartMs)
 	}
 }
 
-func TestScanReconciliaEntradaSemArquivo(t *testing.T) {
+func TestScanReconcilesEntryWithoutFile(t *testing.T) {
 	root := t.TempDir()
 	c := New(root).Camera("cam_teste")
 	base := baseTime()
@@ -450,7 +453,7 @@ func TestScanReconciliaEntradaSemArquivo(t *testing.T) {
 	if err := c.Append(e1); err != nil {
 		t.Fatal(err)
 	}
-	// Indexado, mas o arquivo não existe (apagado por fora).
+	// Indexed, but the file doesn't exist (deleted from outside).
 	if err := c.Append(entryAt(base.Add(time.Minute), 60_000, 9_000)); err != nil {
 		t.Fatal(err)
 	}
@@ -460,36 +463,36 @@ func TestScanReconciliaEntradaSemArquivo(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := c2.TotalBytes(); got != 1_000 {
-		t.Errorf("TotalBytes=%d, esperava 1000 (a entrada fantasma foi descartada?)", got)
+		t.Errorf("TotalBytes=%d, want 1000 (was the ghost entry dropped?)", got)
 	}
 }
 
-// Uma queda de energia deixa, por câmera, o mesmo par: um segmento indexado
-// com a duração cheia e o arquivo de zero byte (o índice tem Sync, o vídeo
-// não), e o arquivo seguinte, também de zero byte, sem linha no índice. Visto
-// na instalação real em 08, 12, 14, 18 e 20/09/2026. Nenhum dos dois pode
-// sobrar: a timeline desenharia um trecho que não toca.
-func TestScanDescartaSegmentoDeZeroByte(t *testing.T) {
+// A power cut leaves, per camera, the same pair: an indexed segment with
+// the full duration and a zero-byte file (the index has Sync, the video
+// doesn't), and the next file, also zero bytes, without an index line. Seen on
+// the real installation on 09/08, 09/12, 09/14, 09/18 and 09/20/2026. Neither
+// may be left over: the timeline would draw a stretch that doesn't play.
+func TestScanDropsZeroByteSegment(t *testing.T) {
 	root := t.TempDir()
 	c := New(root).Camera("cam_teste")
 	base := baseTime()
 
-	bom := entryAt(base, 36_000, 1_000)
-	writeSegmentFile(t, c, bom)
-	vazio := entryAt(base.Add(36*time.Second), 36_000, 5_000)
-	if err := c.Append(bom); err != nil {
+	good := entryAt(base, 36_000, 1_000)
+	writeSegmentFile(t, c, good)
+	empty := entryAt(base.Add(36*time.Second), 36_000, 5_000)
+	if err := c.Append(good); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Append(vazio); err != nil {
+	if err := c.Append(empty); err != nil {
 		t.Fatal(err)
 	}
-	vazio.Size = 0
-	writeSegmentFile(t, c, vazio)
-	orfao := entryAt(base.Add(72*time.Second), 0, 0)
-	writeSegmentFile(t, c, orfao)
+	empty.Size = 0
+	writeSegmentFile(t, c, empty)
+	orphan := entryAt(base.Add(72*time.Second), 0, 0)
+	writeSegmentFile(t, c, orphan)
 
-	// O probe de verdade: um arquivo vazio não dá erro nele, e sai uma Entry
-	// toda zerada.
+	// The real probe: an empty file doesn't make it fail, and an all-zero
+	// Entry comes out.
 	probe := func(path string) (Entry, error) {
 		info, err := fmp4.ProbeSegment(path)
 		if err != nil {
@@ -506,20 +509,20 @@ func TestScanDescartaSegmentoDeZeroByte(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 1 || entries[0].StartMs != bom.StartMs {
-		t.Fatalf("índice ficou com %v, esperava só o segmento bom", entries)
+	if len(entries) != 1 || entries[0].StartMs != good.StartMs {
+		t.Fatalf("index kept %v, want only the good segment", entries)
 	}
-	for _, e := range []Entry{vazio, orfao} {
+	for _, e := range []Entry{empty, orphan} {
 		if _, err := os.Stat(c2.SegmentPath(e.StartMs)); !os.IsNotExist(err) {
-			t.Errorf("o arquivo de zero byte em %d ficou no disco (err=%v)", e.StartMs, err)
+			t.Errorf("the zero-byte file at %d stayed on disk (err=%v)", e.StartMs, err)
 		}
 	}
 }
 
-// Uma queda no meio da escrita deixa o segmento menor do que o índice diz. O
-// tamanho real tem que prevalecer, senão a contabilidade da cota fica errada
-// para sempre.
-func TestScanCorrigeTamanhoDivergente(t *testing.T) {
+// A crash in the middle of a write leaves the segment smaller than the index
+// says. The real size has to win, otherwise quota accounting stays wrong
+// forever.
+func TestScanFixesMismatchedSize(t *testing.T) {
 	root := t.TempDir()
 	c := New(root).Camera("cam_teste")
 	base := baseTime()
@@ -529,7 +532,7 @@ func TestScanCorrigeTamanhoDivergente(t *testing.T) {
 	if err := c.Append(e); err != nil {
 		t.Fatal(err)
 	}
-	// Trunca o arquivo, como faria uma queda de energia.
+	// Truncates the file, as a power cut would.
 	if err := os.Truncate(c.SegmentPath(e.StartMs), 1_234); err != nil {
 		t.Fatal(err)
 	}
@@ -539,13 +542,13 @@ func TestScanCorrigeTamanhoDivergente(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := c2.TotalBytes(); got != 1_234 {
-		t.Errorf("TotalBytes=%d, esperava 1234", got)
+		t.Errorf("TotalBytes=%d, want 1234", got)
 	}
 }
 
-// Uma linha truncada no fim do índice é a falha esperada do formato
-// append-only e não pode derrubar a leitura do dia inteiro.
-func TestLoadDayIgnoraLinhaTruncada(t *testing.T) {
+// A truncated line at the end of the index is the expected failure of the
+// append-only format and must not bring down reading the whole day.
+func TestLoadDayIgnoresTruncatedLine(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 	if err := c.Append(entryAt(base, 60_000, 1_000)); err != nil {
@@ -557,24 +560,24 @@ func TestLoadDayIgnoraLinhaTruncada(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.WriteString(`{"t":123,"d":60000,"sz":`); err != nil { // JSON pela metade
+	if _, err := f.WriteString(`{"t":123,"d":60000,"sz":`); err != nil { // half a JSON
 		t.Fatal(err)
 	}
 	f.Close()
 
 	entries, err := c.LoadDay(base.Format(DayLayout))
 	if err != nil {
-		t.Fatalf("LoadDay falhou por causa de uma linha truncada: %v", err)
+		t.Fatalf("LoadDay failed because of a truncated line: %v", err)
 	}
 	if len(entries) != 1 {
-		t.Errorf("esperava 1 entrada válida, veio %d", len(entries))
+		t.Errorf("want 1 valid entry, got %d", len(entries))
 	}
 }
 
-// O atalho do varreDia lê o começo da linha sem decodificá-la. Se este teste
-// quebrar, a ordem dos campos do Entry mudou: o índice continua certo, mas cada
-// miniatura volta a decodificar o dia inteiro.
-func TestCabecaDaLinhaLeOQueOAppendEscreve(t *testing.T) {
+// scanDay's shortcut reads the start of the line without decoding it. If
+// this test breaks, Entry's field order changed: the index stays right, but
+// every thumbnail goes back to decoding the whole day.
+func TestLineHeadReadsWhatAppendWrites(t *testing.T) {
 	c := newTestCamera(t)
 	e := entryAt(baseTime(), 30_017, 1_000)
 	if err := c.Append(e); err != nil {
@@ -584,14 +587,14 @@ func TestCabecaDaLinhaLeOQueOAppendEscreve(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inicio, dur, ok := cabecaDaLinha(bytes.TrimSpace(b))
-	if !ok || inicio != e.StartMs || dur != e.DurMs {
-		t.Errorf("cabecaDaLinha(%q) = %d, %d, %v", b, inicio, dur, ok)
+	start, dur, ok := lineHead(bytes.TrimSpace(b))
+	if !ok || start != e.StartMs || dur != e.DurMs {
+		t.Errorf("lineHead(%q) = %d, %d, %v", b, start, dur, ok)
 	}
 }
 
-func TestCabecaDaLinhaRecusaOutroFormato(t *testing.T) {
-	for _, linha := range []string{
+func TestLineHeadRejectsOtherFormat(t *testing.T) {
+	for _, line := range []string{
 		`{"d":60000,"t":1791923604690,"sz":1}`,
 		`{"t":1791923604690,"sz":1,"d":60000}`,
 		`{"t":-5,"d":60000,"sz":1}`,
@@ -600,120 +603,120 @@ func TestCabecaDaLinhaRecusaOutroFormato(t *testing.T) {
 		`{"t":1791923604690,"d":`,
 		``,
 	} {
-		if _, _, ok := cabecaDaLinha([]byte(linha)); ok {
-			t.Errorf("cabecaDaLinha(%q) aceitou uma linha fora do formato", linha)
+		if _, _, ok := lineHead([]byte(line)); ok {
+			t.Errorf("lineHead(%q) accepted a line outside the format", line)
 		}
 	}
 }
 
-func TestEntryDevolveSoOSegmentoPedido(t *testing.T) {
+func TestEntryReturnsOnlyTheRequestedSegment(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
-	var gravadas []Entry
+	var recorded []Entry
 	for i := range 5 {
 		e := entryAt(base.Add(time.Duration(i)*time.Minute), 60_000, int64(1000+i))
 		if err := c.Append(e); err != nil {
 			t.Fatal(err)
 		}
-		gravadas = append(gravadas, e)
+		recorded = append(recorded, e)
 	}
 
-	for _, want := range gravadas {
+	for _, want := range recorded {
 		got, ok, err := c.Entry(want.StartMs)
 		if err != nil || !ok || got != want {
-			t.Errorf("Entry(%d) = %+v, %v, %v; esperava %+v", want.StartMs, got, ok, err, want)
+			t.Errorf("Entry(%d) = %+v, %v, %v; want %+v", want.StartMs, got, ok, err, want)
 		}
 	}
-	// A busca é pelo início exato: 1ms depois dele não é segmento nenhum.
-	if _, ok, err := c.Entry(gravadas[2].StartMs + 1); ok || err != nil {
-		t.Errorf("Entry fora de um início: ok=%v, err=%v", ok, err)
+	// The lookup is by exact start: 1ms after it is no segment at all.
+	if _, ok, err := c.Entry(recorded[2].StartMs + 1); ok || err != nil {
+		t.Errorf("Entry off a start: ok=%v, err=%v", ok, err)
 	}
-	// Dia sem índice: não achar não é erro.
+	// A day without an index: not finding isn't an error.
 	if _, ok, err := c.Entry(base.AddDate(0, 0, -3).UnixMilli()); ok || err != nil {
-		t.Errorf("Entry num dia sem índice: ok=%v, err=%v", ok, err)
+		t.Errorf("Entry on a day without an index: ok=%v, err=%v", ok, err)
 	}
 }
 
-// Linha fora do formato do Append - escrita à mão, por exemplo - não some: cai
-// na decodificação inteira.
-func TestEntryERangeAchamLinhaEmOutroFormato(t *testing.T) {
+// A line outside Append's format - written by hand, for example - doesn't
+// disappear: it falls through to the full decode.
+func TestEntryAndRangeFindLineInOtherFormat(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 	if err := c.Append(entryAt(base, 60_000, 1_000)); err != nil {
 		t.Fatal(err)
 	}
-	outra := base.Add(time.Minute).UnixMilli()
+	other := base.Add(time.Minute).UnixMilli()
 	f, err := os.OpenFile(c.IndexPath(base.Format(DayLayout)), os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Fprintf(f, `{"sz":7,"d":60000,"t":%d,"g":"abc123","io":737,"f0":50000}`+"\n", outra)
+	fmt.Fprintf(f, `{"sz":7,"d":60000,"t":%d,"g":"abc123","io":737,"f0":50000}`+"\n", other)
 	f.Close()
 
-	if e, ok, err := c.Entry(outra); err != nil || !ok || e.Size != 7 {
+	if e, ok, err := c.Entry(other); err != nil || !ok || e.Size != 7 {
 		t.Errorf("Entry = %+v, %v, %v", e, ok, err)
 	}
-	got, err := c.Range(outra, outra+1)
-	if err != nil || len(got) != 1 || got[0].StartMs != outra {
+	got, err := c.Range(other, other+1)
+	if err != nil || len(got) != 1 || got[0].StartMs != other {
 		t.Errorf("Range = %+v, %v", got, err)
 	}
 }
 
-// A linha truncada pode começar justamente com o início procurado: o começo
-// bate, a decodificação falha, e ela fica de fora como no LoadDay.
-func TestEntryIgnoraLinhaTruncada(t *testing.T) {
+// The truncated line may start with exactly the start being looked for: the
+// start matches, the decode fails, and it's left out as in LoadDay.
+func TestEntryIgnoresTruncatedLine(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 	if err := c.Append(entryAt(base, 60_000, 1_000)); err != nil {
 		t.Fatal(err)
 	}
-	cortada := base.Add(time.Minute).UnixMilli()
+	truncated := base.Add(time.Minute).UnixMilli()
 	f, err := os.OpenFile(c.IndexPath(base.Format(DayLayout)), os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Fprintf(f, `{"t":%d,"d":60000,"sz":`, cortada)
+	fmt.Fprintf(f, `{"t":%d,"d":60000,"sz":`, truncated)
 	f.Close()
 
-	if _, ok, err := c.Entry(cortada); ok || err != nil {
-		t.Errorf("Entry da linha truncada: ok=%v, err=%v", ok, err)
+	if _, ok, err := c.Entry(truncated); ok || err != nil {
+		t.Errorf("Entry of the truncated line: ok=%v, err=%v", ok, err)
 	}
 	if _, ok, err := c.Entry(base.UnixMilli()); !ok || err != nil {
-		t.Errorf("Entry da linha boa: ok=%v, err=%v", ok, err)
+		t.Errorf("Entry of the good line: ok=%v, err=%v", ok, err)
 	}
 }
 
-// O Range escolhe as linhas pelo começo delas; a régua é o que ele fazia antes,
-// filtrar o dia inteiro decodificado.
-func TestRangeBateComOFiltroSobreODiaInteiro(t *testing.T) {
+// Range picks lines by their start; the reference is what it did before,
+// filtering the whole decoded day.
+func TestRangeMatchesFilterOverTheWholeDay(t *testing.T) {
 	c := newTestCamera(t)
-	dia := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
+	day := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
 
-	// Durações variadas, começando no dia anterior para um segmento atravessar
-	// a meia-noite.
-	inicio := dia.Add(-90 * time.Second)
+	// Varied durations, starting on the previous day so a segment crosses
+	// midnight.
+	start := day.Add(-90 * time.Second)
 	for i := range 40 {
 		dur := int64(20_000 + (i%5)*7_000)
-		if err := c.Append(entryAt(inicio, dur, 100)); err != nil {
+		if err := c.Append(entryAt(start, dur, 100)); err != nil {
 			t.Fatal(err)
 		}
-		inicio = inicio.Add(time.Duration(dur) * time.Millisecond)
+		start = start.Add(time.Duration(dur) * time.Millisecond)
 	}
-	var todas []Entry
-	for _, d := range []time.Time{dia.AddDate(0, 0, -1), dia} {
+	var all []Entry
+	for _, d := range []time.Time{day.AddDate(0, 0, -1), day} {
 		l, err := c.LoadDay(d.Format(DayLayout))
 		if err != nil {
 			t.Fatal(err)
 		}
-		todas = append(todas, l...)
+		all = append(all, l...)
 	}
 
-	// Começa antes da meia-noite: há intervalos que atravessam a virada, com a
-	// hora do `from` maior que a do `to`.
-	for from := dia.Add(-2 * time.Minute).UnixMilli(); from < inicio.UnixMilli(); from += 11_000 {
+	// Starts before midnight: some intervals cross the turn of the day, with
+	// the `from` time later than the `to` time.
+	for from := day.Add(-2 * time.Minute).UnixMilli(); from < start.UnixMilli(); from += 11_000 {
 		to := from + 45_000
 		var want []Entry
-		for _, e := range todas {
+		for _, e := range all {
 			if e.EndMs() > from && e.StartMs < to {
 				want = append(want, e)
 			}
@@ -723,17 +726,17 @@ func TestRangeBateComOFiltroSobreODiaInteiro(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !slices.Equal(got, want) {
-			t.Fatalf("Range(%d, %d) devolveu %d entradas, esperava %d", from, to, len(got), len(want))
+			t.Fatalf("Range(%d, %d) returned %d entries, want %d", from, to, len(got), len(want))
 		}
 	}
 }
 
-func TestWriteInitEhIdempotente(t *testing.T) {
+func TestWriteInitIsIdempotent(t *testing.T) {
 	c := newTestCamera(t)
 	if err := c.WriteInit("deadbeef", []byte("init-v1")); err != nil {
 		t.Fatal(err)
 	}
-	// Um init com o mesmo hash nunca deve ser reescrito.
+	// An init with the same hash must never be rewritten.
 	if err := c.WriteInit("deadbeef", []byte("outro-conteudo")); err != nil {
 		t.Fatal(err)
 	}
@@ -742,14 +745,14 @@ func TestWriteInitEhIdempotente(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(got) != "init-v1" {
-		t.Errorf("init foi sobrescrito: %q", got)
+		t.Errorf("init was overwritten: %q", got)
 	}
 }
 
-// O índice nasce 0644 no Append e é reescrito via arquivo temporário na
-// evicção. Sem um Chmod explícito ele cairia para 0600 no meio da vida,
-// mudando a permissão em silêncio.
-func TestPermissoesConsistentesAposEviccao(t *testing.T) {
+// The index is born 0644 in Append and is rewritten through a temp file on
+// eviction. Without an explicit Chmod it would drop to 0600 in the middle of
+// its life, silently changing the permission.
+func TestPermissionsConsistentAfterEviction(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 
@@ -765,19 +768,19 @@ func TestPermissoesConsistentesAposEviccao(t *testing.T) {
 	}
 
 	idxPath := c.IndexPath(base.Format(DayLayout))
-	antes, err := os.Stat(idxPath)
+	before, err := os.Stat(idxPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := c.EvictOldest(1_500); err != nil {
 		t.Fatal(err)
 	}
-	depois, err := os.Stat(idxPath)
+	after, err := os.Stat(idxPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if antes.Mode() != depois.Mode() {
-		t.Errorf("permissão do índice mudou de %v para %v após a evicção", antes.Mode(), depois.Mode())
+	if before.Mode() != after.Mode() {
+		t.Errorf("index permission changed from %v to %v after eviction", before.Mode(), after.Mode())
 	}
 
 	init, err := os.Stat(c.InitPath("cafe01"))
@@ -785,7 +788,7 @@ func TestPermissoesConsistentesAposEviccao(t *testing.T) {
 		t.Fatal(err)
 	}
 	if init.Mode().Perm() != 0o644 {
-		t.Errorf("init gravado com permissão %v, esperava 0644", init.Mode().Perm())
+		t.Errorf("init written with permission %v, want 0644", init.Mode().Perm())
 	}
 }
 
@@ -794,28 +797,29 @@ func TestSegmentPath(t *testing.T) {
 	base := baseTime()
 	got := c.SegmentPath(base.UnixMilli())
 	want := filepath.Join(c.Dir(), base.Format(DayLayout), "1786363200000.mp4")
-	// O nome exato depende do fuso; confere só a estrutura.
+	// The exact name depends on the time zone; check only the structure.
 	if filepath.Dir(got) != filepath.Dir(want) {
-		t.Errorf("diretório do segmento = %s, esperava %s", filepath.Dir(got), filepath.Dir(want))
+		t.Errorf("segment directory = %s, want %s", filepath.Dir(got), filepath.Dir(want))
 	}
 	ms, err := ParseSegmentName(filepath.Base(got))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if ms != base.UnixMilli() {
-		t.Errorf("ida e volta do nome falhou: %d != %d", ms, base.UnixMilli())
+		t.Errorf("name round trip failed: %d != %d", ms, base.UnixMilli())
 	}
 }
 
-// Purge é a única remoção que leva o init junto. A retenção nunca o toca, então
-// sem isto sobraria um diretório init/ de uma câmera que não existe mais.
-func TestPurgeApagaSegmentosIndicesEInits(t *testing.T) {
+// Purge is the only removal that takes the init along. Retention never
+// touches it, so without this an init/ directory would be left over from a
+// camera that no longer exists.
+func TestPurgeDeletesSegmentsIndexesAndInits(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 
-	hoje := entryAt(base, 60_000, 1_000_000)
-	ontem := entryAt(base.AddDate(0, 0, -1), 60_000, 500_000)
-	for _, e := range []Entry{hoje, ontem} {
+	today := entryAt(base, 60_000, 1_000_000)
+	yesterday := entryAt(base.AddDate(0, 0, -1), 60_000, 500_000)
+	for _, e := range []Entry{today, yesterday} {
 		writeSegmentFile(t, c, e)
 		if err := c.Append(e); err != nil {
 			t.Fatal(err)
@@ -830,39 +834,40 @@ func TestPurgeApagaSegmentosIndicesEInits(t *testing.T) {
 		t.Fatalf("Purge: %v", err)
 	}
 	if freed != 1_500_000 {
-		t.Errorf("freed=%d, esperava 1500000", freed)
+		t.Errorf("freed=%d, want 1500000", freed)
 	}
 	if _, err := os.Stat(c.Dir()); !os.IsNotExist(err) {
-		t.Errorf("o diretório da câmera continua lá: err=%v", err)
+		t.Errorf("the camera directory is still there: err=%v", err)
 	}
 	if c.TotalBytes() != 0 || len(c.Days()) != 0 {
-		t.Errorf("o resumo em memória sobreviveu: %d bytes, %d dias",
+		t.Errorf("the in-memory summary survived: %d bytes, %d days",
 			c.TotalBytes(), len(c.Days()))
 	}
 }
 
-// Purgar uma câmera que nunca gravou não é erro: é o que acontece ao remover uma
-// câmera cadastrada minutos antes, com o disco ainda vazio.
-func TestPurgeSemNadaGravadoNaoFalha(t *testing.T) {
+// Purging a camera that never recorded isn't an error: it's what happens
+// when removing a camera registered minutes before, with the disk still
+// empty.
+func TestPurgeWithNothingRecordedDoesNotFail(t *testing.T) {
 	c := newTestCamera(t)
 	freed, err := c.Purge()
 	if err != nil {
 		t.Fatalf("Purge: %v", err)
 	}
 	if freed != 0 {
-		t.Errorf("freed=%d, esperava 0", freed)
+		t.Errorf("freed=%d, want 0", freed)
 	}
 }
 
-// O ID vira um diretório logo abaixo do storage. Um que desse o próprio
-// storage, ou o que há acima dele, faria o Purge apagar tudo o que há lá.
-func TestCameraRecusaIDQueNaoEhNomeDeDiretorio(t *testing.T) {
+// The ID becomes a directory right under storage. One that gave the storage
+// itself, or what's above it, would make Purge delete everything there.
+func TestCameraRejectsIDThatIsNotADirectoryName(t *testing.T) {
 	s := New(t.TempDir())
 	for _, id := range []string{"", ".", "..", "../fora", "a/b", "a/..", "/etc"} {
 		func() {
 			defer func() {
 				if recover() == nil {
-					t.Errorf("Camera(%q) aceitou um ID que não é nome de diretório", id)
+					t.Errorf("Camera(%q) accepted an ID that isn't a directory name", id)
 				}
 			}()
 			s.Camera(id)
@@ -875,7 +880,7 @@ func TestCameraRecusaIDQueNaoEhNomeDeDiretorio(t *testing.T) {
 	}
 }
 
-func TestOrphansIgnoraCamerasCadastradas(t *testing.T) {
+func TestOrphansIgnoresRegisteredCameras(t *testing.T) {
 	s := New(t.TempDir())
 	base := baseTime()
 
@@ -893,32 +898,32 @@ func TestOrphansIgnoraCamerasCadastradas(t *testing.T) {
 		t.Fatalf("Orphans: %v", err)
 	}
 	if len(got) != 2 {
-		t.Fatalf("esperava 2 órfãs, veio %d: %+v", len(got), got)
+		t.Fatalf("want 2 orphans, got %d: %+v", len(got), got)
 	}
-	// Vem ordenado, para que a lista não dance a cada recarga da tela.
+	// It comes sorted, so the list doesn't jump around on every screen reload.
 	if got[0].ID != "cam_a" || got[1].ID != "cam_b" {
 		t.Errorf("IDs = %s, %s", got[0].ID, got[1].ID)
 	}
 	if got[0].Bytes != 1_000_000 || got[0].Days != 1 {
-		t.Errorf("cam_a = %d bytes, %d dias", got[0].Bytes, got[0].Days)
+		t.Errorf("cam_a = %d bytes, %d days", got[0].Bytes, got[0].Days)
 	}
 	if got[0].FirstMs != base.UnixMilli() || got[0].LastMs != base.UnixMilli()+60_000 {
-		t.Errorf("intervalo de cam_a = %d a %d", got[0].FirstMs, got[0].LastMs)
+		t.Errorf("cam_a range = %d to %d", got[0].FirstMs, got[0].LastMs)
 	}
 }
 
-// Diretório sem índice é sobra de evicção ou de cópia à mão. Não dá para dizer o
-// tamanho, mas escondê-lo seria pior: é justamente o lixo que só sai do disco se
-// alguém o enxergar.
-func TestOrphansAceitaDiretorioSemIndice(t *testing.T) {
+// A directory without an index is leftover from eviction or a manual copy.
+// Its size can't be told, but hiding it would be worse: it's exactly the
+// garbage that only leaves the disk if someone sees it.
+func TestOrphansAcceptsDirectoryWithoutIndex(t *testing.T) {
 	root := t.TempDir()
 	s := New(root)
 
 	if err := os.MkdirAll(filepath.Join(root, "cam_lixo"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// Arquivo solto na raiz não é câmera nenhuma e não pode virar uma linha na
-	// tela.
+	// A loose file at the root is no camera and must not become a line on the
+	// screen.
 	if err := os.WriteFile(filepath.Join(root, "anotacao.txt"), []byte("oi"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -928,115 +933,115 @@ func TestOrphansAceitaDiretorioSemIndice(t *testing.T) {
 		t.Fatalf("Orphans: %v", err)
 	}
 	if len(got) != 1 {
-		t.Fatalf("esperava só cam_lixo, veio %+v", got)
+		t.Fatalf("want only cam_lixo, got %+v", got)
 	}
 	if got[0].ID != "cam_lixo" || got[0].Bytes != 0 || got[0].Days != 0 {
 		t.Errorf("cam_lixo = %+v", got[0])
 	}
 }
 
-// --- eventos de movimento ---------------------------------------------------
+// --- motion events -----------------------------------------------------------
 
 func appendEventos(t *testing.T, c *Camera, base time.Time, offsets ...time.Duration) {
 	t.Helper()
 	for _, o := range offsets {
-		if err := c.AppendEvento(Evento{InstanteMs: base.Add(o).UnixMilli()}); err != nil {
+		if err := c.AppendEvent(Event{AtMs: base.Add(o).UnixMilli()}); err != nil {
 			t.Fatal(err)
 		}
 	}
 }
 
-func TestEventosAppendELeitura(t *testing.T) {
+func TestEventsAppendAndRead(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 	appendEventos(t, c, base, 0, time.Minute, 2*time.Minute)
 
-	evs, err := c.LoadEventos(base.Format(DayLayout))
+	evs, err := c.LoadEvents(base.Format(DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(evs) != 3 {
-		t.Fatalf("esperava 3 marcas, veio %d", len(evs))
+		t.Fatalf("want 3 marks, got %d", len(evs))
 	}
-	if evs[0].InstanteMs != base.UnixMilli() {
-		t.Errorf("primeira marca em %d, esperado %d", evs[0].InstanteMs, base.UnixMilli())
+	if evs[0].AtMs != base.UnixMilli() {
+		t.Errorf("first mark at %d, expected %d", evs[0].AtMs, base.UnixMilli())
 	}
 
-	// Dia sem arquivo é o caso comum - câmera sem detecção ligada - e não pode
-	// ser erro.
-	vazio, err := c.LoadEventos("2020-01-01")
-	if err != nil || len(vazio) != 0 {
-		t.Errorf("dia sem eventos: %d marcas, erro %v", len(vazio), err)
+	// A day without a file is the common case - a camera without detection on -
+	// and must not be an error.
+	empty, err := c.LoadEvents("2020-01-01")
+	if err != nil || len(empty) != 0 {
+		t.Errorf("day without events: %d marks, error %v", len(empty), err)
 	}
 }
 
-// TestEnsureDirsNaoCriaEventos: quem só grava não ganha o diretório da
-// detecção.
-func TestEnsureDirsNaoCriaEventos(t *testing.T) {
+// TestEnsureDirsDoesNotCreateEvents: someone who only records doesn't get
+// the detection directory.
+func TestEnsureDirsDoesNotCreateEvents(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 	if err := c.EnsureDirs(base.Format(DayLayout)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(c.EventosDir()); !os.IsNotExist(err) {
-		t.Fatalf("eventos/ criado sem nenhum evento: %v", err)
+	if _, err := os.Stat(c.EventsDir()); !os.IsNotExist(err) {
+		t.Fatalf("eventos/ created without any event: %v", err)
 	}
 	appendEventos(t, c, base, 0)
-	if _, err := os.Stat(c.EventosPath(base.Format(DayLayout))); err != nil {
-		t.Errorf("o primeiro evento não criou o arquivo: %v", err)
+	if _, err := os.Stat(c.EventsPath(base.Format(DayLayout))); err != nil {
+		t.Errorf("the first event didn't create the file: %v", err)
 	}
 }
 
-func TestEventoRangeCortaNasPontas(t *testing.T) {
+func TestEventRangeCutsAtTheEnds(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 	appendEventos(t, c, base, 0, time.Minute, 2*time.Minute, 3*time.Minute)
 
-	// [base+1min, base+3min): pega a de 1 e a de 2, e não a de 3.
-	evs, err := c.EventoRange(base.Add(time.Minute).UnixMilli(), base.Add(3*time.Minute).UnixMilli())
+	// [base+1min, base+3min): takes the 1 and the 2, not the 3.
+	evs, err := c.EventRange(base.Add(time.Minute).UnixMilli(), base.Add(3*time.Minute).UnixMilli())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(evs) != 2 {
-		t.Fatalf("esperava 2 marcas, veio %d: %v", len(evs), evs)
+		t.Fatalf("want 2 marks, got %d: %v", len(evs), evs)
 	}
-	if evs[0].InstanteMs != base.Add(time.Minute).UnixMilli() {
-		t.Errorf("corte errado na ponta de baixo: %v", evs)
+	if evs[0].AtMs != base.Add(time.Minute).UnixMilli() {
+		t.Errorf("wrong cut at the lower end: %v", evs)
 	}
 }
 
-func TestEventoRangeAtravessaDias(t *testing.T) {
+func TestEventRangeCrossesDays(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
-	// Uma marca hoje ao meio-dia e outra amanhã ao meio-dia.
+	// One mark today at noon and another tomorrow at noon.
 	appendEventos(t, c, base, 0, 24*time.Hour)
 
-	evs, err := c.EventoRange(base.UnixMilli(), base.Add(48*time.Hour).UnixMilli())
+	evs, err := c.EventRange(base.UnixMilli(), base.Add(48*time.Hour).UnixMilli())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(evs) != 2 {
-		t.Fatalf("esperava 2 marcas em dois dias, veio %d", len(evs))
+		t.Fatalf("want 2 marks on two days, got %d", len(evs))
 	}
 }
 
-// O mesmo caso do TestRangeAtravessaMeiaNoiteComHoraDoFromMaior: o trecho
-// da detecção que cruza a meia-noite não pode perder as marcas do dia seguinte.
-func TestEventoRangeAtravessaMeiaNoiteComHoraDoFromMaior(t *testing.T) {
+// The same case as TestRangeCrossesMidnightWithLaterFromTime: the
+// detection stretch crossing midnight must not lose the next day's marks.
+func TestEventRangeCrossesMidnightWithLaterFromTime(t *testing.T) {
 	c := newTestCamera(t)
-	dia := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
-	appendEventos(t, c, dia, -5*time.Second, 10*time.Second)
+	day := time.Date(2026, 8, 8, 0, 0, 0, 0, time.Local)
+	appendEventos(t, c, day, -5*time.Second, 10*time.Second)
 
-	evs, err := c.EventoRange(dia.Add(-10*time.Second).UnixMilli(), dia.Add(35*time.Second).UnixMilli())
+	evs, err := c.EventRange(day.Add(-10*time.Second).UnixMilli(), day.Add(35*time.Second).UnixMilli())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(evs) != 2 {
-		t.Fatalf("esperava 2 marcas, uma de cada lado da meia-noite, veio %d", len(evs))
+		t.Fatalf("want 2 marks, one on each side of midnight, got %d", len(evs))
 	}
 }
 
-func TestDropDayLevaOsEventosJunto(t *testing.T) {
+func TestDropDayTakesTheEventsAlong(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 	e := entryAt(base, 30_000, 1000)
@@ -1049,19 +1054,19 @@ func TestDropDayLevaOsEventosJunto(t *testing.T) {
 	if _, err := c.DropDay(base.Format(DayLayout)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(c.EventosPath(base.Format(DayLayout))); !os.IsNotExist(err) {
-		t.Errorf("o arquivo de eventos sobreviveu ao DropDay: %v", err)
+	if _, err := os.Stat(c.EventsPath(base.Format(DayLayout))); !os.IsNotExist(err) {
+		t.Errorf("the events file survived DropDay: %v", err)
 	}
 }
 
-// TestEvictOldestAparaAsMarcasSemGravacao guarda a regra que faz a faixa de
-// calor ser clicável: marca sem vídeo por baixo é marca que não leva a lugar
-// nenhum.
-func TestEvictOldestAparaAsMarcasSemGravacao(t *testing.T) {
+// TestEvictOldestTrimsMarksWithoutRecording guards the rule that makes the
+// heat strip clickable: a mark without video underneath is a mark that leads
+// nowhere.
+func TestEvictOldestTrimsMarksWithoutRecording(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 
-	// Três segmentos de 1 minuto e uma marca dentro de cada um.
+	// Three 1-minute segments and one mark inside each.
 	for i := range 3 {
 		e := entryAt(base.Add(time.Duration(i)*time.Minute), 60_000, 1000)
 		writeSegmentFile(t, c, e)
@@ -1071,30 +1076,30 @@ func TestEvictOldestAparaAsMarcasSemGravacao(t *testing.T) {
 		appendEventos(t, c, base, time.Duration(i)*time.Minute+time.Second)
 	}
 
-	// Libera o primeiro segmento. A marca dele tem que ir junto; as outras
-	// duas ficam.
+	// Frees the first segment. Its mark has to go along; the other two
+	// stay.
 	if _, err := c.EvictOldest(1000); err != nil {
 		t.Fatal(err)
 	}
-	evs, err := c.LoadEventos(base.Format(DayLayout))
+	evs, err := c.LoadEvents(base.Format(DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(evs) != 2 {
-		t.Fatalf("esperava 2 marcas depois da evicção, veio %d: %v", len(evs), evs)
+		t.Fatalf("want 2 marks after eviction, got %d: %v", len(evs), evs)
 	}
-	if evs[0].InstanteMs < base.Add(time.Minute).UnixMilli() {
-		t.Errorf("sobrou marca do segmento apagado: %v", evs)
+	if evs[0].AtMs < base.Add(time.Minute).UnixMilli() {
+		t.Errorf("a mark of the deleted segment was left: %v", evs)
 	}
 }
 
-func TestEventosIgnoraLinhaTruncada(t *testing.T) {
+func TestEventsIgnoreTruncatedLine(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime()
 	appendEventos(t, c, base, 0, time.Minute)
 
-	// Uma queda no meio de um append deixa exatamente isto.
-	path := c.EventosPath(base.Format(DayLayout))
+	// A crash in the middle of an append leaves exactly this.
+	path := c.EventsPath(base.Format(DayLayout))
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		t.Fatal(err)
@@ -1104,54 +1109,54 @@ func TestEventosIgnoraLinhaTruncada(t *testing.T) {
 	}
 	f.Close()
 
-	evs, err := c.LoadEventos(base.Format(DayLayout))
+	evs, err := c.LoadEvents(base.Format(DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(evs) != 2 {
-		t.Errorf("a linha truncada não foi descartada: %d marcas", len(evs))
+		t.Errorf("the truncated line wasn't dropped: %d marks", len(evs))
 	}
 }
 
-// Os quadros das detecções: um .jpg por detecção, nomeado pelo instante dela.
-func TestQuadrosDoDia(t *testing.T) {
+// The detection frames: one .jpg per detection, named by its instant.
+func TestDayFrames(t *testing.T) {
 	c := newTestCamera(t)
-	dia := baseTime().Format(DayLayout)
+	day := baseTime().Format(DayLayout)
 	jpeg := []byte("\xff\xd8um quadro\xff\xd9")
-	instante := baseTime().UnixMilli()
+	at := baseTime().UnixMilli()
 
-	if err := c.WriteQuadro(dia, instante, jpeg); err != nil {
+	if err := c.WriteFrame(day, at, jpeg); err != nil {
 		t.Fatal(err)
 	}
 
-	caminho := c.QuadroPath(dia, instante)
-	if filepath.Base(caminho) != fmt.Sprintf("%d.jpg", instante) {
-		t.Errorf("caminho %q: o nome tem que ser o instante da detecção", caminho)
+	path := c.FramePath(day, at)
+	if filepath.Base(path) != fmt.Sprintf("%d.jpg", at) {
+		t.Errorf("path %q: the name must be the detection's instant", path)
 	}
-	got, err := os.ReadFile(caminho)
+	got, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(got) != string(jpeg) {
-		t.Errorf("quadro gravado %q, esperado %q", got, jpeg)
+		t.Errorf("frame written %q, expected %q", got, jpeg)
 	}
 
-	// As duas marcas do mesmo instante - uma por família - gravam o mesmo
-	// arquivo, e não dois.
-	if err := c.WriteQuadro(dia, instante, jpeg); err != nil {
+	// The two marks of the same instant - one per family - write the same
+	// file, not two.
+	if err := c.WriteFrame(day, at, jpeg); err != nil {
 		t.Fatal(err)
 	}
-	entradas, err := os.ReadDir(c.QuadrosDir(dia))
+	entries, err := os.ReadDir(c.FramesDir(day))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entradas) != 1 {
-		t.Errorf("%d arquivos na pasta do dia, esperado 1", len(entradas))
+	if len(entries) != 1 {
+		t.Errorf("%d files in the day's folder, expected 1", len(entries))
 	}
 }
 
-// Os quadros entram na cota da câmera e saem com o dia, como o vídeo.
-func TestQuadrosContamNaCotaESaemComODia(t *testing.T) {
+// Frames count toward the camera's quota and leave with the day, like the video.
+func TestFramesCountInQuotaAndGoWithTheDay(t *testing.T) {
 	c := newTestCamera(t)
 	e := entryAt(baseTime(), 60_000, 1_000_000)
 	if err := c.Append(e); err != nil {
@@ -1161,22 +1166,22 @@ func TestQuadrosContamNaCotaESaemComODia(t *testing.T) {
 
 	jpeg := make([]byte, 14_000)
 	for i := range 3 {
-		if err := c.WriteQuadro(e.Day(), e.StartMs+int64(i)*1000, jpeg); err != nil {
+		if err := c.WriteFrame(e.Day(), e.StartMs+int64(i)*1000, jpeg); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	if got, want := c.TotalBytes(), int64(1_000_000+3*14_000); got != want {
-		t.Errorf("TotalBytes=%d, esperado %d: os quadros contam na cota", got, want)
+		t.Errorf("TotalBytes=%d, expected %d: frames count in the quota", got, want)
 	}
 
-	// A conta de um dia é memorizada; um quadro novo depois disso tem que
-	// entrar no total, senão a cota congela no primeiro valor lido.
-	if err := c.WriteQuadro(e.Day(), e.StartMs+9000, jpeg); err != nil {
+	// A day's sum is memoized; a new frame after that must go into the total,
+	// otherwise the quota freezes at the first value read.
+	if err := c.WriteFrame(e.Day(), e.StartMs+9000, jpeg); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := c.TotalBytes(), int64(1_000_000+4*14_000); got != want {
-		t.Errorf("TotalBytes=%d, esperado %d: quadro gravado depois da conta", got, want)
+		t.Errorf("TotalBytes=%d, expected %d: frame written after the sum", got, want)
 	}
 
 	freed, err := c.DropDay(e.Day())
@@ -1184,12 +1189,12 @@ func TestQuadrosContamNaCotaESaemComODia(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := int64(1_000_000 + 4*14_000); freed != want {
-		t.Errorf("liberou %d, esperado %d: os quadros saem com o dia", freed, want)
+		t.Errorf("freed %d, expected %d: frames leave with the day", freed, want)
 	}
-	if _, err := os.Stat(c.QuadrosDir(e.Day())); !os.IsNotExist(err) {
-		t.Errorf("a pasta de quadros do dia sobrou: %v", err)
+	if _, err := os.Stat(c.FramesDir(e.Day())); !os.IsNotExist(err) {
+		t.Errorf("the day's frames folder was left: %v", err)
 	}
 	if got := c.TotalBytes(); got != 0 {
-		t.Errorf("TotalBytes=%d depois do DropDay, esperado 0", got)
+		t.Errorf("TotalBytes=%d after DropDay, expected 0", got)
 	}
 }
