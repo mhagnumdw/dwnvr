@@ -2,6 +2,39 @@
 
 > Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
 
+## [v0.15.0](https://github.com/mhagnumdw/dwnvr/compare/v0.14.0...v0.15.0) (2026-11-11)
+
+### Added
+
+- feat(alerta): assunto do e-mail diz as áreas em que o objeto caiu ([#75](https://github.com/mhagnumdw/dwnvr/pull/75)) ([9ecf2c33](https://github.com/mhagnumdw/dwnvr/commit/9ecf2c3327927ace791da160b1c24faaeabf5c1a))
+- feat(web): aviso de acesso não confirmado conta até a próxima tentativa e tem "Tentar agora" ([#72](https://github.com/mhagnumdw/dwnvr/pull/72)) ([f6b4f293](https://github.com/mhagnumdw/dwnvr/commit/f6b4f293be8458b6064358ac466b71654170b252))
+- feat(web): deslizar o vídeo das Gravações troca de câmera, como no Ao vivo ([#71](https://github.com/mhagnumdw/dwnvr/pull/71)) ([83ead572](https://github.com/mhagnumdw/dwnvr/commit/83ead572ecd440e808d14c6e4b0a4485f068510a))
+- feat(web): áreas do popover de Detecções em ladrilhos grandes, como na aba Alerta ([cf54e1ee](https://github.com/mhagnumdw/dwnvr/commit/cf54e1ee65c5120a95e58ff92c305035a719dcc8))
+- feat: o cadastro de usuário sugere o login e confere cada campo ao sair dele ([#68](https://github.com/mhagnumdw/dwnvr/pull/68)) ([ec62adae](https://github.com/mhagnumdw/dwnvr/commit/ec62adae2bbd3ad5ee8cbd987e2dca302a4780b1))
+- feat(web): áreas e alerta no card da câmera como nas abas, com atalho para cada uma ([#66](https://github.com/mhagnumdw/dwnvr/pull/66)) ([87eb42ff](https://github.com/mhagnumdw/dwnvr/commit/87eb42ff83c2946d01e0a2cedcab8097f221b8b7))
+
+### Fixed
+
+- fix(web): barra de Detecções não rola mais para o lado entre 1060 e 1220 px ([#81](https://github.com/mhagnumdw/dwnvr/pull/81)) ([19a49d96](https://github.com/mhagnumdw/dwnvr/commit/19a49d96fa1bc27a99645d0b2f6385d6fb8f9fdd))
+- fix(web): erro ao salvar a câmera aparece dentro do formulário ([#80](https://github.com/mhagnumdw/dwnvr/pull/80)) ([2ff09f1f](https://github.com/mhagnumdw/dwnvr/commit/2ff09f1fc68cd5702d30c9d866fd0ce0b29f8399))
+- fix(web): telas não dizem mais "nenhuma câmera cadastrada" quando a lista não carrega ([#79](https://github.com/mhagnumdw/dwnvr/pull/79)) ([dec5a243](https://github.com/mhagnumdw/dwnvr/commit/dec5a243630351fddc8f090fa7199555861ba4b5))
+- fix(web): app instalado no Android não rola mais depois de puxar para atualizar ([#78](https://github.com/mhagnumdw/dwnvr/pull/78)) ([1d5bd736](https://github.com/mhagnumdw/dwnvr/commit/1d5bd73635346a2b6b6781783f3f2b314a47fce7))
+- fix(web): a saúde não acumula pedidos com o servidor lento ([#77](https://github.com/mhagnumdw/dwnvr/pull/77)) ([0e9b8403](https://github.com/mhagnumdw/dwnvr/commit/0e9b8403e54ff4385c3df7d6119870d89109bc78))
+- fix(web): rodapé da saúde mostra a hora da última leitura e avisa quando o servidor não responde ([#76](https://github.com/mhagnumdw/dwnvr/pull/76)) ([53f83c0a](https://github.com/mhagnumdw/dwnvr/commit/53f83c0a60df227189145e1b2313a6a4033f57ef))
+- fix(web): Gravações usa a tela toda em monitor grande ([#74](https://github.com/mhagnumdw/dwnvr/pull/74)) ([6c331851](https://github.com/mhagnumdw/dwnvr/commit/6c331851375824943e2c9d9eba658a08b25c6550))
+- fix(web): o nome sugerido ao adicionar câmera é o da configuração, sem cortes ([#73](https://github.com/mhagnumdw/dwnvr/pull/73)) ([fa51b4b9](https://github.com/mhagnumdw/dwnvr/commit/fa51b4b92142c6ad050ddd047a07615fc2881a7a))
+- fix(web): Ao vivo usa a largura toda em tela larga e a barra não pula de lugar ([#70](https://github.com/mhagnumdw/dwnvr/pull/70)) ([f65a7231](https://github.com/mhagnumdw/dwnvr/commit/f65a72319ee07ebf74ee874de0afbd7363a197c3))
+- fix(web): miniatura da área nítida no zoom e sem recarregar sem fim com muitas câmeras ([#69](https://github.com/mhagnumdw/dwnvr/pull/69)) ([c34dbde5](https://github.com/mhagnumdw/dwnvr/commit/c34dbde52377ce63c4729fb4d82645803b607808))
+- fix(web): girar o celular em Detecções não leva mais a vista para outro horário ([#67](https://github.com/mhagnumdw/dwnvr/pull/67)) ([94f52402](https://github.com/mhagnumdw/dwnvr/commit/94f524020fb354d3f2ef913d395ec1371f3d2ba9))
+
+### Docs
+
+- docs: plano da 1.0.0, com a ordem das seis atividades ([64a51fa4](https://github.com/mhagnumdw/dwnvr/commit/64a51fa4d89889609eeb988189fb1419f7aa86d5))
+
+### CI/Build
+
+- build(deps): bump astral-sh/uv ([#60](https://github.com/mhagnumdw/dwnvr/pull/60)) ([69f3e024](https://github.com/mhagnumdw/dwnvr/commit/69f3e0244601ad2bc72d523066d0e8ced54c346e))
+
 ## [v0.14.0](https://github.com/mhagnumdw/dwnvr/compare/v0.13.0...v0.14.0) (2026-11-04)
 
 ### Added
