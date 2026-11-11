@@ -22,7 +22,7 @@ import (
 // a mesma do link de definir a senha, para a lista alerts.email.to, numa
 // mensagem só para todos.
 type Email struct {
-	envio email.Enviador
+	envio email.Sender
 	para  []string
 	// endereco é o server.publicUrl, base do link para a gravação; vazio, o
 	// e-mail sai sem o botão.
@@ -36,7 +36,7 @@ func NovoEmail(cfg *config.Config) (Notificador, error) {
 	if !cfg.SMTP.Enabled() || len(cfg.Alerts.Email.To) == 0 {
 		return nil, nil
 	}
-	smtp, err := email.NovoSMTP(cfg.SMTP)
+	smtp, err := email.NewSMTP(cfg.SMTP)
 	if err != nil {
 		return nil, err
 	}
@@ -63,13 +63,13 @@ func FaltaParaOEmail(cfg *config.Config) []string {
 }
 
 // Envia monta a mensagem do alerta e a entrega ao servidor, dentro do prazo
-// do ctx e do email.PrazoDoEnvio, o que vencer primeiro.
+// do ctx e do email.SendTimeout, o que vencer primeiro.
 func (e *Email) Envia(ctx context.Context, a Alerta) error {
 	m, err := mensagemDoAlerta(a, e.para, e.endereco)
 	if err != nil {
 		return err
 	}
-	return e.envio.Enviar(ctx, m)
+	return e.envio.Send(ctx, m)
 }
 
 // nomesDasFamilias são os nomes que a mensagem mostra, os mesmos da tela.
@@ -130,7 +130,7 @@ type objetoNoEmail struct {
 // traz a marca do dwnvr no topo, o quadro, o dia, cada objeto e as áreas em
 // que caiu, e o botão que abre a gravação no instante, quando o
 // server.publicUrl diz o endereço do dwnvr.
-func mensagemDoAlerta(a Alerta, para []string, endereco string) (email.Mensagem, error) {
+func mensagemDoAlerta(a Alerta, para []string, endereco string) (email.Message, error) {
 	// A hora é a do servidor, a mesma do dia das gravações e dos horários do
 	// alerta.
 	onset := time.UnixMilli(a.InstanteMs).In(time.Local)
@@ -185,21 +185,21 @@ func mensagemDoAlerta(a Alerta, para []string, endereco string) (email.Mensagem,
 			"direto a este momento, peça ao administrador que defina server.publicUrl.\n")
 	}
 
-	m := email.Mensagem{Para: para, Assunto: c.Assunto, Texto: t.String(),
-		Anexos: []email.Anexo{{Nome: "dwnvr.png", Tipo: "image/png", Dados: pngDaMarca, NoCorpo: idDaMarca}}}
+	m := email.Message{To: para, Subject: c.Assunto, Text: t.String(),
+		Attachments: []email.Attachment{{Name: "dwnvr.png", Type: "image/png", Data: pngDaMarca, InlineID: idDaMarca}}}
 	if len(a.Quadro) > 0 {
 		c.Imagem = idDoQuadro
 		c.AltDaImagem = fmt.Sprintf("Quadro da câmera %s às %s", a.NomeDaCamera, onset.Format("15:04:05"))
-		m.Anexos = append(m.Anexos, email.Anexo{
-			Nome:    fmt.Sprintf("%s-%s.jpg", a.Camera, onset.Format("2006-01-02-150405")),
-			Tipo:    "image/jpeg",
-			Dados:   a.Quadro,
-			NoCorpo: idDoQuadro,
+		m.Attachments = append(m.Attachments, email.Attachment{
+			Name:     fmt.Sprintf("%s-%s.jpg", a.Camera, onset.Format("2006-01-02-150405")),
+			Type:     "image/jpeg",
+			Data:     a.Quadro,
+			InlineID: idDoQuadro,
 		})
 	}
 	var h bytes.Buffer
 	if err := modeloDoAlerta.Execute(&h, c); err != nil {
-		return email.Mensagem{}, fmt.Errorf("montando o HTML do alerta: %w", err)
+		return email.Message{}, fmt.Errorf("montando o HTML do alerta: %w", err)
 	}
 	m.HTML = h.String()
 	return m, nil

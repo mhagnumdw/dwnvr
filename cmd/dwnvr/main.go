@@ -154,9 +154,9 @@ func run(log *slog.Logger, cfgPath string) error {
 
 	// Sem a seção smtp ligada, nada de e-mail é montado. Vai como interface
 	// nil, e não como um *email.SMTP nil, que a API leria como ligado.
-	var envio email.Enviador
+	var envio email.Sender
 	if cfg.SMTP.Enabled() {
-		if smtp, err := email.NovoSMTP(cfg.SMTP); err != nil {
+		if smtp, err := email.NewSMTP(cfg.SMTP); err != nil {
 			log.Warn("e-mail desligado", "arquivo", cfgPath, "problema", err)
 		} else {
 			envio = smtp

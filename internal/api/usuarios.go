@@ -301,7 +301,7 @@ func (s *Server) handleEnviarLink(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, u.Nome+" não tem e-mail cadastrado")
 		return
 	}
-	if err := s.envio.Enviar(r.Context(), mensagemDoConvite(u, para, req.Link)); err != nil {
+	if err := s.envio.Send(r.Context(), mensagemDoConvite(u, para, req.Link)); err != nil {
 		s.log.Warn("o link não foi por e-mail", "usuario", u.Usuario, "por", pessoaDe(r).Usuario, "erro", err)
 		writeError(w, http.StatusBadGateway, "o e-mail não foi: "+err.Error())
 		return

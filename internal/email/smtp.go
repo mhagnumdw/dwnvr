@@ -18,71 +18,74 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/config"
 )
 
-// SMTP envia pelo servidor da seção smtp do dwnvr.yaml. Uma conexão por
-// envio: o dwnvr manda poucos e-mails, e manter uma aberta seria pagar o
-// tempo todo pelo que se usa às vezes.
+// SMTP sends through the server in the smtp section of dwnvr.yaml. One
+// connection per send: dwnvr sends few e-mails, and keeping one open would
+// mean paying all the time for something used now and then.
 type SMTP struct {
-	cfg config.SMTP
-	de  *mail.Address
+	cfg  config.SMTP
+	from *mail.Address
 
-	// raizes são as autoridades aceitas no TLS; nil é a do sistema. Só o teste
-	// troca, para aceitar o certificado do servidor falso.
-	raizes *x509.CertPool
-	prazo  time.Duration
-	agora  func() time.Time
+	// roots are the authorities accepted for TLS; nil means the system's.
+	// Only the test swaps it, to accept the fake server's certificate.
+	roots   *x509.CertPool
+	timeout time.Duration
+	now     func() time.Time
 }
 
-// NovoSMTP prepara o envio. cfg é a seção já conferida pelo config.Load, e
-// tem de estar Ligado.
-func NovoSMTP(cfg config.SMTP) (*SMTP, error) {
+// NewSMTP prepares sending. cfg is the section already checked by
+// config.Load, and must be Enabled.
+func NewSMTP(cfg config.SMTP) (*SMTP, error) {
 	if !cfg.Enabled() {
-		return nil, errors.New("smtp desligado")
+		return nil, errors.New("smtp disabled")
 	}
-	de, err := mail.ParseAddress(cfg.From)
+	from, err := mail.ParseAddress(cfg.From)
 	if err != nil {
 		return nil, fmt.Errorf("smtp.from: %w", err)
 	}
-	return &SMTP{cfg: cfg, de: de, prazo: PrazoDoEnvio, agora: time.Now}, nil
+	return &SMTP{cfg: cfg, from: from, timeout: SendTimeout, now: time.Now}, nil
 }
 
-// Enviar abre a conexão, faz o login e entrega a mensagem. Com security
-// starttls, o servidor que não oferece o STARTTLS fica sem a mensagem e sem a
-// senha: nada sai sem TLS.
-func (s *SMTP) Enviar(ctx context.Context, m Mensagem) error {
-	if err := m.confere(); err != nil {
+// Send opens the connection, logs in and hands over the message. With
+// security starttls, a server that doesn't offer STARTTLS gets neither the
+// message nor the password: nothing goes out without TLS.
+//
+// Its errors are sentences for the admin on the Diagnostics screen, in pt-BR
+// until i18n.
+func (s *SMTP) Send(ctx context.Context, m Message) error {
+	if err := m.check(); err != nil {
 		return err
 	}
-	msg, err := montar(s.de, m, s.agora())
+	msg, err := build(s.from, m, s.now())
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, s.prazo)
+	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	err = s.entregar(ctx, m.Para, msg)
+	err = s.deliver(ctx, m.To, msg)
 	if errors.Is(err, os.ErrDeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return fmt.Errorf("o servidor %s não respondeu em %v: %w", s.endereco(), s.prazo, err)
+		return fmt.Errorf("o servidor %s não respondeu em %v: %w", s.address(), s.timeout, err)
 	}
 	return err
 }
 
-func (s *SMTP) endereco() string {
+func (s *SMTP) address() string {
 	return net.JoinHostPort(s.cfg.Host, strconv.Itoa(s.cfg.Port))
 }
 
 func (s *SMTP) tls() *tls.Config {
-	return &tls.Config{ServerName: s.cfg.Host, RootCAs: s.raizes, MinVersion: tls.VersionTLS12}
+	return &tls.Config{ServerName: s.cfg.Host, RootCAs: s.roots, MinVersion: tls.VersionTLS12}
 }
 
-func (s *SMTP) entregar(ctx context.Context, para []string, msg []byte) error {
+func (s *SMTP) deliver(ctx context.Context, to []string, msg []byte) error {
 	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", s.endereco())
+	conn, err := d.DialContext(ctx, "tcp", s.address())
 	if err != nil {
-		return fmt.Errorf("conectando em %s: %w", s.endereco(), err)
+		return fmt.Errorf("conectando em %s: %w", s.address(), err)
 	}
-	// O net/smtp não conhece contexto: o prazo vai na conexão, e o
-	// cancelamento (a tela que desistiu) a fecha.
-	if fim, ok := ctx.Deadline(); ok {
-		_ = conn.SetDeadline(fim)
+	// net/smtp knows nothing about contexts: the deadline goes on the
+	// connection, and cancellation (the screen that gave up) closes it.
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
 	}
 	defer context.AfterFunc(ctx, func() { _ = conn.Close() })()
 
@@ -90,62 +93,62 @@ func (s *SMTP) entregar(ctx context.Context, para []string, msg []byte) error {
 		tc := tls.Client(conn, s.tls())
 		if err := tc.HandshakeContext(ctx); err != nil {
 			_ = conn.Close()
-			return fmt.Errorf("abrindo o TLS com %s: %w", s.endereco(), err)
+			return fmt.Errorf("abrindo o TLS com %s: %w", s.address(), err)
 		}
 		conn = tc
 	}
 	c, err := smtp.NewClient(conn, s.cfg.Host)
 	if err != nil {
 		_ = conn.Close()
-		return fmt.Errorf("falando com %s: %w", s.endereco(), err)
+		return fmt.Errorf("falando com %s: %w", s.address(), err)
 	}
 	defer func() { _ = c.Close() }()
 
 	if s.cfg.Security == "starttls" {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
-			return fmt.Errorf("%s não oferece STARTTLS: nada foi enviado, nem a senha", s.endereco())
+			return fmt.Errorf("%s não oferece STARTTLS: nada foi enviado, nem a senha", s.address())
 		}
 		if err := c.StartTLS(s.tls()); err != nil {
-			return fmt.Errorf("abrindo o TLS com %s: %w", s.endereco(), err)
+			return fmt.Errorf("abrindo o TLS com %s: %w", s.address(), err)
 		}
 	}
 	if s.cfg.Username != "" {
 		if ok, _ := c.Extension("AUTH"); !ok {
-			return fmt.Errorf("%s não aceita login, e o smtp.username está preenchido", s.endereco())
+			return fmt.Errorf("%s não aceita login, e o smtp.username está preenchido", s.address())
 		}
 		if err := c.Auth(smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)); err != nil {
-			return fmt.Errorf("o servidor recusou o login: %w", comoVeio(err))
+			return fmt.Errorf("o servidor recusou o login: %w", asReceived(err))
 		}
 	}
 
-	if err := c.Mail(s.de.Address); err != nil {
-		return fmt.Errorf("o servidor recusou o remetente %s: %w", s.de.Address, comoVeio(err))
+	if err := c.Mail(s.from.Address); err != nil {
+		return fmt.Errorf("o servidor recusou o remetente %s: %w", s.from.Address, asReceived(err))
 	}
-	for _, p := range para {
+	for _, p := range to {
 		if err := c.Rcpt(p); err != nil {
-			return fmt.Errorf("o servidor recusou o destinatário %s: %w", p, comoVeio(err))
+			return fmt.Errorf("o servidor recusou o destinatário %s: %w", p, asReceived(err))
 		}
 	}
 	w, err := c.Data()
 	if err != nil {
-		return fmt.Errorf("o servidor recusou a mensagem: %w", comoVeio(err))
+		return fmt.Errorf("o servidor recusou a mensagem: %w", asReceived(err))
 	}
 	if _, err := w.Write(msg); err != nil {
 		return fmt.Errorf("enviando a mensagem: %w", err)
 	}
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("o servidor recusou a mensagem: %w", comoVeio(err))
+		return fmt.Errorf("o servidor recusou a mensagem: %w", asReceived(err))
 	}
-	// Com o 250 do fim da mensagem, ela já é do servidor: o QUIT que falhar
-	// não a desfaz.
+	// With the 250 at the end of the message, it already belongs to the
+	// server: a failed QUIT doesn't undo it.
 	_ = c.Quit()
 	return nil
 }
 
-// comoVeio escreve a resposta do servidor do jeito que ela veio, como
-// "535 5.7.8 Username and Password not accepted": o erro do textproto põe a
-// mensagem entre aspas, e a de várias linhas fica numa só.
-func comoVeio(err error) error {
+// asReceived writes the server's answer the way it came, like
+// "535 5.7.8 Username and Password not accepted": the textproto error puts the
+// message in quotes, and a multi-line one ends up on a single line.
+func asReceived(err error) error {
 	var te *textproto.Error
 	if !errors.As(err, &te) {
 		return err

@@ -52,12 +52,12 @@ func tokenDoLink(link string) (string, bool) {
 }
 
 // mensagemDoConvite é o e-mail do link de definir a senha.
-func mensagemDoConvite(u usuarios.Usuario, para, link string) email.Mensagem {
+func mensagemDoConvite(u usuarios.Usuario, para, link string) email.Message {
 	minutos := int(usuarios.ValidadeDoLink.Minutes())
-	return email.Mensagem{
-		Para:    []string{para},
-		Assunto: "Defina sua senha no dwnvr",
-		Texto: fmt.Sprintf("Olá, %s.\n\n"+
+	return email.Message{
+		To:      []string{para},
+		Subject: "Defina sua senha no dwnvr",
+		Text: fmt.Sprintf("Olá, %s.\n\n"+
 			"Abra o link abaixo para definir a sua senha no dwnvr. Ele vale %d minutos e funciona uma vez só.\n\n"+
 			"%s\n\n"+
 			"Seu usuário para entrar: %s\n\n"+
@@ -84,13 +84,13 @@ func (s *Server) handleTesteEmail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "e-mail inválido: escreva só o endereço, como fulano@exemplo.com")
 		return
 	}
-	m := email.Mensagem{
-		Para:    []string{para},
-		Assunto: "Teste do dwnvr",
-		Texto: "Este é um e-mail de teste do dwnvr, mandado pela tela Diagnóstico.\n\n" +
+	m := email.Message{
+		To:      []string{para},
+		Subject: "Teste do dwnvr",
+		Text: "Este é um e-mail de teste do dwnvr, mandado pela tela Diagnóstico.\n\n" +
 			"Se ele chegou, o envio de e-mail está funcionando.\n",
 	}
-	if err := s.envio.Enviar(r.Context(), m); err != nil {
+	if err := s.envio.Send(r.Context(), m); err != nil {
 		s.log.Warn("o e-mail de teste não foi", "por", pessoaDe(r).Usuario, "erro", err)
 		writeError(w, http.StatusBadGateway, "o e-mail não foi: "+err.Error())
 		return

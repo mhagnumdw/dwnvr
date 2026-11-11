@@ -40,7 +40,7 @@ type Server struct {
 	acessos *usuarios.Acessos
 	// envio manda os e-mails. É nil sem a seção smtp ligada: aí as rotas de
 	// e-mail respondem 409, e a tela esconde o que é de e-mail.
-	envio email.Enviador
+	envio email.Sender
 	// abertas são as conexões que não voltam a apresentar o cookie (o ao vivo
 	// e o aviso de sessão), para derrubar quem é removido. Ver derrubar.go.
 	abertas conexoes
@@ -78,7 +78,7 @@ type Server struct {
 // login a partir da config.
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 	mgr *recorder.Manager, ret *retention.Manager, cad *usuarios.Cadastro,
-	acessos *usuarios.Acessos, envio email.Enviador, secret []byte, log *slog.Logger) *Server {
+	acessos *usuarios.Acessos, envio email.Sender, secret []byte, log *slog.Logger) *Server {
 
 	s := &Server{cfg: cfg, store: st, client: client, mgr: mgr, ret: ret,
 		usuarios: cad, acessos: acessos, envio: envio, sessionSecret: secret, log: log,

@@ -17,11 +17,11 @@ import (
 // enviadorFalso guarda o que mandaria, ou falha com erro.
 type enviadorFalso struct {
 	mu       sync.Mutex
-	enviadas []email.Mensagem
+	enviadas []email.Message
 	erro     error
 }
 
-func (e *enviadorFalso) Enviar(_ context.Context, m email.Mensagem) error {
+func (e *enviadorFalso) Send(_ context.Context, m email.Message) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.erro != nil {
@@ -74,12 +74,12 @@ func TestLinkPorEmail(t *testing.T) {
 		t.Fatalf("%d e-mails enviados", len(falso.enviadas))
 	}
 	m := falso.enviadas[0]
-	if len(m.Para) != 1 || m.Para[0] != "maria@exemplo.com" {
-		t.Errorf("para %v", m.Para)
+	if len(m.To) != 1 || m.To[0] != "maria@exemplo.com" {
+		t.Errorf("para %v", m.To)
 	}
 	for _, trecho := range []string{"Olá, Maria Silva.", link, "vale 10 minutos", "Seu usuário para entrar: maria"} {
-		if !strings.Contains(m.Texto, trecho) {
-			t.Errorf("o texto não tem %q:\n%s", trecho, m.Texto)
+		if !strings.Contains(m.Text, trecho) {
+			t.Errorf("o texto não tem %q:\n%s", trecho, m.Text)
 		}
 	}
 	token := strings.TrimPrefix(link, "https://nvr.exemplo.com/#convite?token=")
@@ -195,7 +195,7 @@ func TestTesteDeEmail(t *testing.T) {
 	if rec.Code != http.StatusOK || resp["sentTo"] != "dono@exemplo.com" {
 		t.Fatalf("status %d, %s", rec.Code, rec.Body)
 	}
-	if len(falso.enviadas) != 1 || falso.enviadas[0].Para[0] != "dono@exemplo.com" {
+	if len(falso.enviadas) != 1 || falso.enviadas[0].To[0] != "dono@exemplo.com" {
 		t.Errorf("enviadas %+v", falso.enviadas)
 	}
 }

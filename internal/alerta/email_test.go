@@ -14,9 +14,9 @@ import (
 // enviadorFalso guarda a mensagem pronta, que é o que o meio entrega. O envio
 // de verdade, com o anexo, é testado no internal/email contra um servidor
 // SMTP falso.
-type enviadorFalso struct{ recebidas []email.Mensagem }
+type enviadorFalso struct{ recebidas []email.Message }
 
-func (f *enviadorFalso) Enviar(_ context.Context, m email.Mensagem) error {
+func (f *enviadorFalso) Send(_ context.Context, m email.Message) error {
 	f.recebidas = append(f.recebidas, m)
 	return nil
 }
@@ -86,11 +86,11 @@ func TestMensagemDoAlerta(t *testing.T) {
 		t.Fatalf("%d mensagens, esperada 1 para a lista inteira", len(f.recebidas))
 	}
 	m := f.recebidas[0]
-	if !slices.Equal(m.Para, e.para) {
-		t.Errorf("para %v", m.Para)
+	if !slices.Equal(m.To, e.para) {
+		t.Errorf("para %v", m.To)
 	}
-	if want := "[Alerta] Garagem(Portão, Calçada e Rampa): pessoa e veículo às 14:32"; m.Assunto != want {
-		t.Errorf("assunto %q, esperado %q", m.Assunto, want)
+	if want := "[Alerta] Garagem(Portão, Calçada e Rampa): pessoa e veículo às 14:32"; m.Subject != want {
+		t.Errorf("assunto %q, esperado %q", m.Subject, want)
 	}
 	// O espaço da câmera vira "+", que o URLSearchParams da tela lê de volta.
 	link := "https://dwnvr.exemplo.com/#rec?cam=cam+garagem&day=2026-10-27&t=14:32:05"
@@ -99,14 +99,14 @@ func TestMensagemDoAlerta(t *testing.T) {
 		"- Pessoa 0,55, nas áreas Portão, Calçada e Rampa\n" +
 		"- Veículo 0,70\n\n" +
 		"Ver na gravação:\n" + link + "\n"
-	if m.Texto != want {
-		t.Errorf("corpo\n%s\nesperado\n%s", m.Texto, want)
+	if m.Text != want {
+		t.Errorf("corpo\n%s\nesperado\n%s", m.Text, want)
 	}
-	if len(m.Anexos) != 2 || !ehAMarca(m.Anexos[0]) ||
-		m.Anexos[1].Nome != "cam garagem-2026-10-27-143205.jpg" ||
-		m.Anexos[1].Tipo != "image/jpeg" || string(m.Anexos[1].Dados) != "jpeg" ||
-		m.Anexos[1].NoCorpo != idDoQuadro {
-		t.Errorf("anexos %+v", m.Anexos)
+	if len(m.Attachments) != 2 || !ehAMarca(m.Attachments[0]) ||
+		m.Attachments[1].Name != "cam garagem-2026-10-27-143205.jpg" ||
+		m.Attachments[1].Type != "image/jpeg" || string(m.Attachments[1].Data) != "jpeg" ||
+		m.Attachments[1].InlineID != idDoQuadro {
+		t.Errorf("anexos %+v", m.Attachments)
 	}
 	for _, trecho := range []string{
 		// A prévia da caixa de entrada.
@@ -135,7 +135,7 @@ func TestMensagemSemEndereco(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for nome, corpo := range map[string]string{"texto": m.Texto, "HTML": m.HTML} {
+	for nome, corpo := range map[string]string{"texto": m.Text, "HTML": m.HTML} {
 		if strings.Contains(corpo, "#rec?") || !strings.Contains(corpo, "server.publicUrl") {
 			t.Errorf("%s sem o endereço:\n%s", nome, corpo)
 		}
@@ -154,11 +154,11 @@ func TestMensagemSemQuadro(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m.Anexos) != 1 || !ehAMarca(m.Anexos[0]) || strings.Contains(m.HTML, "cid:"+idDoQuadro) {
-		t.Errorf("sem quadro, anexos %+v e HTML\n%s", m.Anexos, m.HTML)
+	if len(m.Attachments) != 1 || !ehAMarca(m.Attachments[0]) || strings.Contains(m.HTML, "cid:"+idDoQuadro) {
+		t.Errorf("sem quadro, anexos %+v e HTML\n%s", m.Attachments, m.HTML)
 	}
-	if m.Assunto != "[Alerta] Frente(Portão): pessoa às 03:00" {
-		t.Errorf("assunto %q", m.Assunto)
+	if m.Subject != "[Alerta] Frente(Portão): pessoa às 03:00" {
+		t.Errorf("assunto %q", m.Subject)
 	}
 }
 
@@ -171,8 +171,8 @@ func TestAssuntoSemArea(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "[Alerta] Frente: pessoa às 03:00"; m.Assunto != want {
-		t.Errorf("assunto %q, esperado %q", m.Assunto, want)
+	if want := "[Alerta] Frente: pessoa às 03:00"; m.Subject != want {
+		t.Errorf("assunto %q, esperado %q", m.Subject, want)
 	}
 }
 
@@ -185,8 +185,8 @@ func TestAssuntoEmUmaLinha(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "[Alerta] Frente(Portão principal): pessoa às 03:00"; m.Assunto != want {
-		t.Errorf("assunto %q, esperado %q", m.Assunto, want)
+	if want := "[Alerta] Frente(Portão principal): pessoa às 03:00"; m.Subject != want {
+		t.Errorf("assunto %q, esperado %q", m.Subject, want)
 	}
 }
 
@@ -207,7 +207,7 @@ func TestMensagemEscapaONome(t *testing.T) {
 }
 
 // ehAMarca: a marca vai no corpo, como o PNG embutido.
-func ehAMarca(a email.Anexo) bool {
-	return a.Nome == "dwnvr.png" && a.Tipo == "image/png" && a.NoCorpo == idDaMarca &&
-		len(a.Dados) > 0 && string(a.Dados[1:4]) == "PNG"
+func ehAMarca(a email.Attachment) bool {
+	return a.Name == "dwnvr.png" && a.Type == "image/png" && a.InlineID == idDaMarca &&
+		len(a.Data) > 0 && string(a.Data[1:4]) == "PNG"
 }
