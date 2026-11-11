@@ -206,7 +206,7 @@ no `cams=` da API).
 A tela de Câmeras e a API usam as mesmas faixas, mas lá o valor ruim é
 **recusado** em vez de trocado, porque há alguém na frente da tela para ler a
 mensagem e corrigir na hora. As faixas moram em
-[`internal/config/parametros.go`](../internal/config/parametros.go).
+[`internal/config/params.go`](../internal/config/params.go).
 
 ## Marcação de movimento
 

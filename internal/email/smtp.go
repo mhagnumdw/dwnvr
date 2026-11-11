@@ -35,7 +35,7 @@ type SMTP struct {
 // NovoSMTP prepara o envio. cfg é a seção já conferida pelo config.Load, e
 // tem de estar Ligado.
 func NovoSMTP(cfg config.SMTP) (*SMTP, error) {
-	if !cfg.Ligado() {
+	if !cfg.Enabled() {
 		return nil, errors.New("smtp desligado")
 	}
 	de, err := mail.ParseAddress(cfg.From)

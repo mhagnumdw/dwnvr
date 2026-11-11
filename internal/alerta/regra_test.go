@@ -25,7 +25,7 @@ func camera(familias []detect.Family, areas ...string) config.Camera {
 	sim := true
 	return config.Camera{ID: "cam_a", Name: "Frente", Enabled: true, Detect: &sim,
 		Areas: []config.Area{metadeEsquerda, chaoDoFundo},
-		Alert: &config.AlertaDaCamera{Enabled: true, Families: familias, Areas: areas}}
+		Alert: &config.CameraAlert{Enabled: true, Families: familias, Areas: areas}}
 }
 
 // marca é uma linha gravada pelo Recorder, no onset 1000 e no quadro 2400.
@@ -56,7 +56,7 @@ func TestRegraSoNasceComAlertaLigado(t *testing.T) {
 		"marcação ausente":    func(c *config.Camera) { c.Detect = nil },
 		"áreas que sumiram":   func(c *config.Camera) { c.Alert.Areas = []string{"sumiu"} },
 		"horários que não valem": func(c *config.Camera) {
-			c.Alert.Schedules = []config.HorarioDoAlerta{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "06:00"}}
+			c.Alert.Schedules = []config.AlertSchedule{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "06:00"}}
 		},
 	}
 	for nome, muda := range casos {
@@ -204,7 +204,7 @@ func TestMarcaAsLinhas(t *testing.T) {
 
 // quarta são os três horários da quarta do exemplo da doc, mais o sábado
 // inteiro.
-var quarta = []config.HorarioDoAlerta{
+var quarta = []config.AlertSchedule{
 	{Days: []time.Weekday{time.Wednesday}, From: "00:00", To: "05:15"},
 	{Days: []time.Weekday{time.Wednesday}, From: "12:00", To: "13:00"},
 	{Days: []time.Weekday{time.Wednesday}, From: "18:30", To: "23:59"},

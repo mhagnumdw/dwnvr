@@ -44,11 +44,11 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 	mgr := recorder.NewManager(cfg, nil, st, log)
 	mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true})
 
-	cad, _, err := usuarios.Abrir(cfg.UsuariosPath(), cfg.Server.Username)
+	cad, _, err := usuarios.Abrir(cfg.UsersPath(), cfg.Server.Username)
 	if err != nil {
 		t.Fatal(err)
 	}
-	acessos, err := usuarios.AbrirAcessos(cfg.AcessosPath(), log)
+	acessos, err := usuarios.AbrirAcessos(cfg.AccessPath(), log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -521,7 +521,7 @@ func configPadrao(t *testing.T) *config.Config {
 func TestValidateCameraCota(t *testing.T) {
 	// O zero é o caso que separa "não informei" de "informei um valor ruim":
 	// ele tem que continuar passando para o Resolve aplicar o default.
-	piso := config.FaixaQuotaMB.Min
+	piso := config.QuotaMBRange.Min
 	validas := []int64{0, piso, piso + 1, 20480}
 	invalidas := []int64{-1, 1, piso - 1}
 
@@ -558,24 +558,24 @@ func TestValidateCameraDetect(t *testing.T) {
 	// Vazio e zero são "usar o default"; preencher só um dos dois vale.
 	validas := []config.Camera{
 		{ID: "cam_teste"},
-		{ID: "cam_teste", DetectMecanismo: "periodico"},
-		{ID: "cam_teste", DetectSensibilidade: 1},
-		{ID: "cam_teste", DetectMecanismo: "kleinberg-p", DetectSensibilidade: 5},
+		{ID: "cam_teste", DetectMethod: "periodico"},
+		{ID: "cam_teste", DetectSensitivity: 1},
+		{ID: "cam_teste", DetectMethod: "kleinberg-p", DetectSensitivity: 5},
 	}
 	invalidas := []config.Camera{
-		{ID: "cam_teste", DetectMecanismo: "magico"},
-		{ID: "cam_teste", DetectSensibilidade: 6},
-		{ID: "cam_teste", DetectMecanismo: "periodico", DetectSensibilidade: 9},
+		{ID: "cam_teste", DetectMethod: "magico"},
+		{ID: "cam_teste", DetectSensitivity: 6},
+		{ID: "cam_teste", DetectMethod: "periodico", DetectSensitivity: 9},
 	}
 	cfg := configPadrao(t)
 	for _, c := range validas {
 		if err := validateCamera(cfg, c); err != nil {
-			t.Errorf("%q nível %d recusada: %v", c.DetectMecanismo, c.DetectSensibilidade, err)
+			t.Errorf("%q nível %d recusada: %v", c.DetectMethod, c.DetectSensitivity, err)
 		}
 	}
 	for _, c := range invalidas {
 		if err := validateCamera(cfg, c); err == nil {
-			t.Errorf("%q nível %d aceita, deveria recusar", c.DetectMecanismo, c.DetectSensibilidade)
+			t.Errorf("%q nível %d aceita, deveria recusar", c.DetectMethod, c.DetectSensitivity)
 		}
 	}
 }
@@ -585,7 +585,7 @@ func TestValidateCameraDetect(t *testing.T) {
 // "faixas" fazem o mesmo pelo min/max dos inputs.
 func TestCamerasTrazOPadrao(t *testing.T) {
 	s, _ := testServer(t)
-	s.cfg.Defaults.DetectMecanismo, s.cfg.Defaults.DetectSensibilidade = "periodico", 2
+	s.cfg.Defaults.DetectMethod, s.cfg.Defaults.DetectSensitivity = "periodico", 2
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // fora do ar
 
 	rec := httptest.NewRecorder()
@@ -598,7 +598,7 @@ func TestCamerasTrazOPadrao(t *testing.T) {
 		t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
 	}
 	p := got.Padrao
-	if p.Detect == nil || *p.Detect || p.DetectMecanismo != "periodico" || p.DetectSensibilidade != 2 {
+	if p.Detect == nil || *p.Detect || p.DetectMethod != "periodico" || p.DetectSensitivity != 2 {
 		t.Errorf("padrao %+v: esperava detect false, periodico, nível 2", p)
 	}
 

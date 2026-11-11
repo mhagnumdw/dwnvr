@@ -5,21 +5,21 @@ import (
 	"testing"
 )
 
-// TestSMTPSemSecaoFicaDesligado: quem não configura não paga nada, e não
-// recebe aviso por isso.
-func TestSMTPSemSecaoFicaDesligado(t *testing.T) {
-	cfg, err := carregaYaml(t, "")
+// TestSMTPWithoutSectionStaysOff: whoever doesn't configure it pays nothing,
+// and gets no warning for it.
+func TestSMTPWithoutSectionStaysOff(t *testing.T) {
+	cfg, err := loadYAML(t, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.SMTP.Ligado() || cfg.SMTP.Recusa != "" {
-		t.Errorf("smtp %+v, esperado desligado e sem recusa", cfg.SMTP)
+	if cfg.SMTP.Enabled() || cfg.SMTP.Problem != "" {
+		t.Errorf("smtp %+v, expected off and without a problem", cfg.SMTP)
 	}
 }
 
-// TestSMTPCompletaOsPadroes: o exemplo do Gmail só com host, login e senha.
-func TestSMTPCompletaOsPadroes(t *testing.T) {
-	cfg, err := carregaYaml(t, `
+// TestSMTPFillsInDefaults: the Gmail example with only host, login and password.
+func TestSMTPFillsInDefaults(t *testing.T) {
+	cfg, err := loadYAML(t, `
 smtp:
   host: smtp.gmail.com
   username: dwnvr@exemplo.com
@@ -29,41 +29,41 @@ smtp:
 		t.Fatal(err)
 	}
 	s := cfg.SMTP
-	if !s.Ligado() {
-		t.Fatalf("smtp desligado: %s", s.Recusa)
+	if !s.Enabled() {
+		t.Fatalf("smtp off: %s", s.Problem)
 	}
 	if s.Security != "starttls" || s.Port != 587 || s.From != "dwnvr@exemplo.com" {
-		t.Errorf("security %q, port %d, from %q; esperado starttls, 587 e o username",
+		t.Errorf("security %q, port %d, from %q; expected starttls, 587 and the username",
 			s.Security, s.Port, s.From)
 	}
 }
 
-// TestSMTPPortaSegueASeguranca: cada security tem a sua porta, e a escrita
-// vale mais que a padrão.
-func TestSMTPPortaSegueASeguranca(t *testing.T) {
+// TestSMTPPortFollowsSecurity: each security has its port, and a written one
+// wins over the default.
+func TestSMTPPortFollowsSecurity(t *testing.T) {
 	for _, c := range []struct {
-		yaml  string
-		porta int
+		yaml string
+		port int
 	}{
 		{"security: tls", 465},
 		{"security: none", 25},
 		{"security: tls\n  port: 2465", 2465},
 	} {
-		cfg, err := carregaYaml(t, "smtp:\n  host: smtp.exemplo.com\n  from: dwnvr@exemplo.com\n  "+c.yaml+"\n")
+		cfg, err := loadYAML(t, "smtp:\n  host: smtp.exemplo.com\n  from: dwnvr@exemplo.com\n  "+c.yaml+"\n")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !cfg.SMTP.Ligado() || cfg.SMTP.Port != c.porta {
-			t.Errorf("%q: porta %d, recusa %q; esperado %d", c.yaml, cfg.SMTP.Port, cfg.SMTP.Recusa, c.porta)
+		if !cfg.SMTP.Enabled() || cfg.SMTP.Port != c.port {
+			t.Errorf("%q: port %d, problem %q; expected %d", c.yaml, cfg.SMTP.Port, cfg.SMTP.Problem, c.port)
 		}
 	}
 }
 
-// TestSMTPRecusaODesligaComOMotivo: cada problema desliga o e-mail e diz
-// qual campo corrigir.
-func TestSMTPRecusaODesligaComOMotivo(t *testing.T) {
+// TestSMTPProblemDisablesWithReason: each problem turns e-mail off and says
+// which field to fix.
+func TestSMTPProblemDisablesWithReason(t *testing.T) {
 	for _, c := range []struct {
-		nome, yaml, campo string
+		name, yaml, field string
 	}{
 		{"sem host", "  username: dwnvr@exemplo.com\n  password: troque-me", "smtp.host"},
 		{"host com porta", "  host: smtp.gmail.com:587\n  from: dwnvr@exemplo.com", "smtp.port"},
@@ -76,21 +76,21 @@ func TestSMTPRecusaODesligaComOMotivo(t *testing.T) {
 		{"remetente ruim", "  host: smtp.gmail.com\n  from: dwnvr", "smtp.from"},
 		{"senha sem TLS", "  host: smtp.exemplo.com\n  security: none\n  username: dwnvr@exemplo.com\n  password: troque-me", "smtp.security"},
 	} {
-		cfg, err := carregaYaml(t, "smtp:\n"+c.yaml+"\n")
+		cfg, err := loadYAML(t, "smtp:\n"+c.yaml+"\n")
 		if err != nil {
-			t.Fatalf("%s: %v", c.nome, err)
+			t.Fatalf("%s: %v", c.name, err)
 		}
-		if cfg.SMTP.Ligado() || !strings.Contains(cfg.SMTP.Recusa, c.campo) {
-			t.Errorf("%s: ligado %v, recusa %q; esperado desligado citando %s",
-				c.nome, cfg.SMTP.Ligado(), cfg.SMTP.Recusa, c.campo)
+		if cfg.SMTP.Enabled() || !strings.Contains(cfg.SMTP.Problem, c.field) {
+			t.Errorf("%s: on %v, problem %q; expected off citing %s",
+				c.name, cfg.SMTP.Enabled(), cfg.SMTP.Problem, c.field)
 		}
 	}
 }
 
-// TestSMTPSemTLSNaPropriaMaquina: o relay local, sem TLS e com login, é o
-// caso que o net/smtp aceita.
-func TestSMTPSemTLSNaPropriaMaquina(t *testing.T) {
-	cfg, err := carregaYaml(t, `
+// TestSMTPWithoutTLSOnLocalhost: a local relay, without TLS and with login,
+// is the case net/smtp accepts.
+func TestSMTPWithoutTLSOnLocalhost(t *testing.T) {
+	cfg, err := loadYAML(t, `
 smtp:
   host: 127.0.0.1
   security: none
@@ -100,13 +100,13 @@ smtp:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.SMTP.Ligado() {
-		t.Errorf("smtp desligado: %s", cfg.SMTP.Recusa)
+	if !cfg.SMTP.Enabled() {
+		t.Errorf("smtp off: %s", cfg.SMTP.Problem)
 	}
 }
 
-func carregaYaml(t *testing.T, yaml string) (*Config, error) {
+func loadYAML(t *testing.T, yaml string) (*Config, error) {
 	t.Helper()
-	cfg, _, err := carrega(t, "storage:\n  root: /tmp/x\n"+yaml, "")
+	cfg, _, err := load(t, "storage:\n  root: /tmp/x\n"+yaml, "")
 	return cfg, err
 }

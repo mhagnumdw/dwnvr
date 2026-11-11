@@ -123,7 +123,7 @@ vira o valor inicial.
    sozinho: não dá para saber o que foi escolhido e o que a tela gravou só
    porque sempre grava.
 7. Validar na API e também na leitura do arquivo, que é outra porta de entrada,
-   com as faixas do `internal/config/parametros.go`: a API recusa, o boot volta
+   com as faixas do `internal/config/params.go`: a API recusa, o boot volta
    ao padrão e avisa, como já fazem o `dwnvr.yaml` e o `cameras.json`.
 8. O `POST /detect` aceita `threads`, o sidecar se reinicia quando o número
    muda, e o `/health` informa o limite de CPU do container.

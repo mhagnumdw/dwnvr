@@ -27,7 +27,7 @@ func comAutenticacao(t *testing.T, s *Server, gente ...usuarios.Usuario) {
 	t.Helper()
 	s.cfg.Server.Username, s.cfg.Server.Password = "admin", "senha"
 	// Reaberto com o dono, como no boot: é ele que o cadastro recusa criar.
-	cad, _, err := usuarios.Abrir(s.cfg.UsuariosPath(), "admin")
+	cad, _, err := usuarios.Abrir(s.cfg.UsersPath(), "admin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,10 +272,10 @@ func TestCamerasEnxutoParaOViewer(t *testing.T) {
 	s, _ := testServer(t)
 	comAutenticacao(t, s, maria)
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
-		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person},
-			Schedules: []config.HorarioDoAlerta{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "23:59"}}}})
+		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person},
+			Schedules: []config.AlertSchedule{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "23:59"}}}})
 	s.mgr.Set(config.Camera{ID: "cam_b", Name: "B", Enabled: true,
-		Alert: &config.AlertaDaCamera{Families: []detect.Family{detect.Person}}})
+		Alert: &config.CameraAlert{Families: []detect.Family{detect.Person}}})
 	req := httptest.NewRequest(http.MethodGet, "/api/cameras", nil)
 	req.AddCookie(cookieDe(t, s, "maria"))
 	rec := httptest.NewRecorder()
@@ -466,13 +466,13 @@ func TestCadastroComProblemaViraAviso(t *testing.T) {
 		t.Errorf("users no health sem problema nenhum: %v", resp["users"])
 	}
 
-	if err := os.WriteFile(s.cfg.UsuariosPath(), []byte(`{"owner":{},"users":[
+	if err := os.WriteFile(s.cfg.UsersPath(), []byte(`{"owner":{},"users":[
 		{"username":"maria","name":"Maria","role":"viewer","email":"casa@exemplo.com"},
 		{"username":"ana","name":"Ana","role":"viewer","email":"casa@exemplo.com"}
 	]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cad, _, err := usuarios.Abrir(s.cfg.UsuariosPath(), "admin")
+	cad, _, err := usuarios.Abrir(s.cfg.UsersPath(), "admin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -484,10 +484,10 @@ func TestCadastroComProblemaViraAviso(t *testing.T) {
 		t.Errorf("users %v", resp["users"])
 	}
 
-	if err := os.WriteFile(s.cfg.UsuariosPath(), []byte(`{"users":`), 0o600); err != nil {
+	if err := os.WriteFile(s.cfg.UsersPath(), []byte(`{"users":`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	s.usuarios, _, _ = usuarios.Abrir(s.cfg.UsuariosPath(), "admin")
+	s.usuarios, _, _ = usuarios.Abrir(s.cfg.UsersPath(), "admin")
 	_, resp = pedirComo(t, s, "admin", http.MethodGet, "/api/health", nil)
 	users, _ = resp["users"].(map[string]any)
 	if erro, _ := users["error"].(string); !strings.Contains(erro, "ilegível") {
@@ -608,7 +608,7 @@ func TestLoginPassouDoLimite(t *testing.T) {
 
 // Com o server.loginAttemptsPerMinute em zero, não há limite nenhum.
 func TestLimiteDoLoginDesligado(t *testing.T) {
-	c := config.Server{LoginAttemptsPerMinute: 0, TrustedProxies: config.TrustedProxiesPadrao}
+	c := config.Server{LoginAttemptsPerMinute: 0, TrustedProxies: config.DefaultTrustedProxies}
 	if l, proxies := limiteDoLogin(c); l != nil || len(proxies) != 3 {
 		t.Errorf("limite %v, proxies %v", l, proxies)
 	}

@@ -162,7 +162,7 @@ func TestFalhaDoServidorDeEmailChegaNaTela(t *testing.T) {
 func TestSemEmailAsRotasRecusam(t *testing.T) {
 	s, _ := testServer(t)
 	comAutenticacao(t, s)
-	s.cfg.SMTP.Recusa = "smtp.from vazio"
+	s.cfg.SMTP.Problem = "smtp.from vazio"
 	link := criarComLink(t, s, "maria", "maria@exemplo.com")
 
 	_, resp := pedirComo(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
@@ -235,10 +235,10 @@ func TestSmtpRecusadoViraAviso(t *testing.T) {
 	if _, tem := resp["smtp"]; tem {
 		t.Errorf("smtp no health sem problema nenhum: %v", resp["smtp"])
 	}
-	s.cfg.SMTP.Recusa = `smtp.security "ssl" fora do aceito`
+	s.cfg.SMTP.Problem = `smtp.security "ssl" fora do aceito`
 	_, resp = pedirComo(t, s, "", http.MethodGet, "/api/health", nil)
 	smtp, _ := resp["smtp"].(map[string]any)
-	if smtp["error"] != s.cfg.SMTP.Recusa {
+	if smtp["error"] != s.cfg.SMTP.Problem {
 		t.Errorf("smtp %v", resp["smtp"])
 	}
 }
@@ -247,10 +247,10 @@ func TestSmtpRecusadoViraAviso(t *testing.T) {
 // mesmo sem câmera com alerta, porque é da configuração.
 func TestAlertsEmailViraAviso(t *testing.T) {
 	s, _ := testServer(t)
-	s.cfg.Alerts.Email.Avisos = []string{"falta a seção smtp, e sem ela a lista alerts.email.to não recebe nada"}
+	s.cfg.Alerts.Email.Warnings = []string{"falta a seção smtp, e sem ela a lista alerts.email.to não recebe nada"}
 	_, resp := pedirComo(t, s, "", http.MethodGet, "/api/health", nil)
 	alerts, _ := resp["alerts"].(map[string]any)
-	if w, _ := alerts["warnings"].([]any); len(w) != 1 || w[0] != s.cfg.Alerts.Email.Avisos[0] {
+	if w, _ := alerts["warnings"].([]any); len(w) != 1 || w[0] != s.cfg.Alerts.Email.Warnings[0] {
 		t.Errorf("alerts %v", resp["alerts"])
 	}
 	if _, tem := alerts["total"]; tem {

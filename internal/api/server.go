@@ -91,7 +91,7 @@ func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 // boot (ver config.Load): uma lista de proxies inválida ali já voltou ao
 // padrão.
 func limiteDoLogin(c config.Server) (ratelimit.Limiter, []netip.Prefix) {
-	proxies, _ := config.Prefixos(c.TrustedProxies)
+	proxies, _ := config.Prefixes(c.TrustedProxies)
 	if c.LoginAttemptsPerMinute <= 0 {
 		return nil, proxies
 	}
@@ -243,7 +243,7 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	// câmera nova parte dela, para seguir o defaults do dwnvr.yaml. "faixas"
 	// dá o min/max dos inputs, para a tela cobrar a mesma régua da API.
 	resp := map[string]any{"cameras": cams, "padrao": s.cfg.Resolve(config.Camera{}),
-		"faixas": config.FaixasDaCamera}
+		"faixas": config.CameraRanges}
 
 	// A interface só mostra a aba Detecções com o detector de objetos
 	// configurado: sem ele não há detecção nenhuma para listar. Vai aqui, e
@@ -322,7 +322,7 @@ func (s *Server) camerasDoViewer(w http.ResponseWriter) {
 		// As famílias e as áreas dele ficam com o admin: o que alertou vem
 		// marcado em cada detecção.
 		if a := cams[i].Alert; a != nil && a.Enabled {
-			cams[i].Alert = &config.AlertaDaCamera{Enabled: true}
+			cams[i].Alert = &config.CameraAlert{Enabled: true}
 		} else {
 			cams[i].Alert = nil
 		}
@@ -437,7 +437,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 			alerts["failing"] = falhando
 		}
 	}
-	if av := s.cfg.Alerts.Email.Avisos; len(av) > 0 {
+	if av := s.cfg.Alerts.Email.Warnings; len(av) > 0 {
 		alerts["warnings"] = av
 	}
 	if len(alerts) > 0 {
@@ -478,8 +478,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	// A seção smtp com problema vira Aviso na tela, e não só linha no log: o
 	// e-mail fica desligado até alguém corrigir o dwnvr.yaml e reiniciar.
-	if s.cfg.SMTP.Recusa != "" {
-		resp["smtp"] = map[string]any{"error": s.cfg.SMTP.Recusa}
+	if s.cfg.SMTP.Problem != "" {
+		resp["smtp"] = map[string]any{"error": s.cfg.SMTP.Problem}
 	}
 
 	// O usuarios.json editado à mão com problema também: a entrada ignorada

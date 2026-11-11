@@ -304,8 +304,8 @@ func TestSaveDaCameraComAlerta(t *testing.T) {
 	comGo2RTC(t, s)
 
 	portao := config.Area{ID: "k3f9a2", Name: "Portão", Points: []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}
-	alerta := &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}, Areas: []string{"k3f9a2"},
-		Schedules: []config.HorarioDoAlerta{{Days: []time.Weekday{time.Saturday, time.Sunday}, From: "00:00", To: "23:59"}}}
+	alerta := &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}, Areas: []string{"k3f9a2"},
+		Schedules: []config.AlertSchedule{{Days: []time.Weekday{time.Saturday, time.Sunday}, From: "00:00", To: "23:59"}}}
 	saveCamera(t, s, config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
 		Areas: []config.Area{portao}, Alert: alerta})
 	cams, _, err := s.cfg.LoadCameras()
@@ -323,8 +323,8 @@ func TestSaveDaCameraComAlerta(t *testing.T) {
 		t.Errorf("HTTP %d: %s, esperava 400 falando de alert.areas[0]", rec.Code, rec.Body.String())
 	}
 
-	noite := &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person},
-		Schedules: []config.HorarioDoAlerta{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "06:00"}}}
+	noite := &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person},
+		Schedules: []config.AlertSchedule{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "06:00"}}}
 	b, _ = json.Marshal(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Alert: noite})
 	rec = httptest.NewRecorder()
 	s.handleSaveCamera(rec, httptest.NewRequest(http.MethodPost, "/api/cameras", bytes.NewReader(b)))

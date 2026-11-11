@@ -433,7 +433,7 @@ func (c *Cadastro) Alterar(f func(*Arquivo) error) error {
 		return err
 	}
 	// 0600, como o .session-secret: o arquivo tem as senhas guardadas.
-	if err := config.GravarAtomico(c.caminho, append(b, '\n'), 0o600); err != nil {
+	if err := config.WriteAtomic(c.caminho, append(b, '\n'), 0o600); err != nil {
 		return err
 	}
 	c.arq = novo

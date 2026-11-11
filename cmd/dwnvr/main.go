@@ -75,11 +75,11 @@ func run(log *slog.Logger, cfgPath string) error {
 		return err
 	}
 	avisaConfig(log, cfgPath, avisos)
-	if cfg.SMTP.Recusa != "" {
+	if cfg.SMTP.Problem != "" {
 		log.Warn("e-mail desligado: a seção smtp do dwnvr.yaml não serve até ser corrigida",
-			"arquivo", cfgPath, "problema", cfg.SMTP.Recusa)
+			"arquivo", cfgPath, "problema", cfg.SMTP.Problem)
 	}
-	for _, a := range cfg.Alerts.Email.Avisos {
+	for _, a := range cfg.Alerts.Email.Warnings {
 		log.Warn("alertas por e-mail: "+a, "arquivo", cfgPath)
 	}
 	cams, avisos, err := cfg.LoadCameras()
@@ -135,19 +135,19 @@ func run(log *slog.Logger, cfgPath string) error {
 
 	// Um usuarios.json ilegível não impede a gravação: só o dono entra até ele
 	// ser corrigido, e a tela não grava por cima.
-	cad, avisosCad, err := usuarios.Abrir(cfg.UsuariosPath(), cfg.Server.Username)
+	cad, avisosCad, err := usuarios.Abrir(cfg.UsersPath(), cfg.Server.Username)
 	if err != nil {
 		log.Error("cadastro de usuários ilegível; só o dono do dwnvr.yaml entra até ser corrigido", "erro", err)
 	}
 	for _, a := range avisosCad {
-		log.Warn("cadastro de usuários: "+a, "arquivo", cfg.UsuariosPath())
+		log.Warn("cadastro de usuários: "+a, "arquivo", cfg.UsersPath())
 	}
 	if !cfg.Server.AuthEnabled() && cad.Quantos() > 0 {
 		log.Warn("autenticação desligada: os usuários do cadastro foram ignorados",
-			"arquivo", cfg.UsuariosPath(), "usuarios", cad.Quantos())
+			"arquivo", cfg.UsersPath(), "usuarios", cad.Quantos())
 	}
 
-	acessos, err := usuarios.AbrirAcessos(cfg.AcessosPath(), log)
+	acessos, err := usuarios.AbrirAcessos(cfg.AccessPath(), log)
 	if err != nil {
 		log.Warn("últimos acessos ilegíveis; recomeçam vazios", "erro", err)
 	}
@@ -155,7 +155,7 @@ func run(log *slog.Logger, cfgPath string) error {
 	// Sem a seção smtp ligada, nada de e-mail é montado. Vai como interface
 	// nil, e não como um *email.SMTP nil, que a API leria como ligado.
 	var envio email.Enviador
-	if cfg.SMTP.Ligado() {
+	if cfg.SMTP.Enabled() {
 		if smtp, err := email.NovoSMTP(cfg.SMTP); err != nil {
 			log.Warn("e-mail desligado", "arquivo", cfgPath, "problema", err)
 		} else {
@@ -191,7 +191,7 @@ func run(log *slog.Logger, cfgPath string) error {
 	// Sem requisição nova, o que os últimos minutos anotaram vai para o disco
 	// agora, e não se perde no reinício.
 	if err := acessos.GravarPendente(); err != nil {
-		log.Error("gravando os últimos acessos", "arquivo", cfg.AcessosPath(), "erro", err)
+		log.Error("gravando os últimos acessos", "arquivo", cfg.AccessPath(), "erro", err)
 	}
 
 	// Stop espera cada segmento em aberto ser fechado e indexado. Sem isso,
@@ -228,14 +228,14 @@ func prepareStorage(log *slog.Logger, cfg *config.Config) error {
 // avisaConfig loga cada valor fora da faixa que o boot trocou pelo padrão. Em
 // WARN de propósito: além do docker logs, a linha aparece na tela de
 // Diagnóstico, que é onde quem instalou vai olhar.
-func avisaConfig(log *slog.Logger, arquivo string, avisos []config.Aviso) {
+func avisaConfig(log *slog.Logger, arquivo string, avisos []config.Warning) {
 	for _, a := range avisos {
 		attrs := []any{"arquivo", arquivo}
 		if a.Camera != "" {
 			attrs = append(attrs, "cam", a.Camera)
 		}
-		attrs = append(attrs, "campo", a.Campo, "valor", a.Valor,
-			"aceito", a.Aceito, "usando", a.Usando)
+		attrs = append(attrs, "campo", a.Field, "valor", a.Value,
+			"aceito", a.Accepted, "usando", a.InEffect)
 		log.Warn("valor fora do aceito na configuração; vale o padrão até ser corrigido", attrs...)
 	}
 }

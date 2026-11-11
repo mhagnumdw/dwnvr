@@ -210,7 +210,7 @@ func comAnexo(a Anexo) Mensagem {
 
 // TestDesligadoNaoMonta: o main só monta o envio com a seção conferida.
 func TestDesligadoNaoMonta(t *testing.T) {
-	for _, cfg := range []config.SMTP{{}, {Host: "smtp.exemplo.com", Recusa: "smtp.from vazio"}} {
+	for _, cfg := range []config.SMTP{{}, {Host: "smtp.exemplo.com", Problem: "smtp.from vazio"}} {
 		if _, err := NovoSMTP(cfg); err == nil {
 			t.Errorf("montou com %+v", cfg)
 		}

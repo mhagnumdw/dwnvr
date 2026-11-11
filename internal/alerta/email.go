@@ -33,7 +33,7 @@ type Email struct {
 // lista; sem uma das duas, devolve nil, e o alerta fica só no registro. A
 // lista já vem conferida pelo config.Load.
 func NovoEmail(cfg *config.Config) (Notificador, error) {
-	if !cfg.SMTP.Ligado() || len(cfg.Alerts.Email.To) == 0 {
+	if !cfg.SMTP.Enabled() || len(cfg.Alerts.Email.To) == 0 {
 		return nil, nil
 	}
 	smtp, err := email.NovoSMTP(cfg.SMTP)
@@ -56,7 +56,7 @@ func FaltaParaOEmail(cfg *config.Config) []string {
 	if len(cfg.Alerts.Email.To) == 0 {
 		falta = append(falta, "alerts.email.to")
 	}
-	if !cfg.SMTP.Ligado() {
+	if !cfg.SMTP.Enabled() {
 		falta = append(falta, "smtp")
 	}
 	return falta

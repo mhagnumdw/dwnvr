@@ -24,8 +24,8 @@ func (s *Server) semEmail(w http.ResponseWriter) bool {
 		return false
 	}
 	msg := "o e-mail está desligado: configure a seção smtp do dwnvr.yaml (ver docs/configuracao.md)"
-	if s.cfg.SMTP.Recusa != "" {
-		msg = "o e-mail está desligado: " + s.cfg.SMTP.Recusa
+	if s.cfg.SMTP.Problem != "" {
+		msg = "o e-mail está desligado: " + s.cfg.SMTP.Problem
 	}
 	writeError(w, http.StatusConflict, msg)
 	return true
@@ -112,10 +112,10 @@ type smtpInfo struct {
 // smtpNoDiagnostico é nil sem a seção smtp: quem não a configura não vê o
 // card.
 func smtpNoDiagnostico(c config.SMTP) *smtpInfo {
-	if c.Host == "" && c.Recusa == "" {
+	if c.Host == "" && c.Problem == "" {
 		return nil
 	}
-	return &smtpInfo{Host: c.Host, Port: c.Port, Security: c.Security, From: c.From, Error: c.Recusa}
+	return &smtpInfo{Host: c.Host, Port: c.Port, Security: c.Security, From: c.From, Error: c.Problem}
 }
 
 // alertaPorEmail é o "Para onde vai" da aba Alerta: a lista que recebe, com o
@@ -132,7 +132,7 @@ type alertaPorEmail struct {
 
 func (s *Server) alertaPorEmail() alertaPorEmail {
 	if falta := alerta.FaltaParaOEmail(s.cfg); len(falta) > 0 {
-		return alertaPorEmail{Missing: falta, SMTPError: s.cfg.SMTP.Recusa}
+		return alertaPorEmail{Missing: falta, SMTPError: s.cfg.SMTP.Problem}
 	}
 	a := alertaPorEmail{To: s.cfg.Alerts.Email.To}
 	// O estado do meio só existe depois que alguma câmera ligou o alerta.

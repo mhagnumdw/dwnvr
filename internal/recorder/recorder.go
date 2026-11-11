@@ -321,8 +321,8 @@ type ajusteDetect struct {
 func detectDe(cam config.Camera) ajusteDetect {
 	return ajusteDetect{
 		ligada:        cam.Detect != nil && *cam.Detect,
-		mecanismo:     cam.DetectMecanismo,
-		sensibilidade: cam.DetectSensibilidade,
+		mecanismo:     cam.DetectMethod,
+		sensibilidade: cam.DetectSensitivity,
 	}
 }
 

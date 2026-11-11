@@ -442,7 +442,7 @@ func (s *Server) areasCadastradasDoFiltro(f *filtroDeObjetos, lista string) erro
 		if i < 0 {
 			return fmt.Errorf("a câmera %q não tem a área %q", camID, id)
 		}
-		// O cadastro já passou pelo ConfereCamera: a regra e os pontos valem.
+		// O cadastro já passou pelo CheckCamera: a regra e os pontos valem.
 		cad := cam.Areas[i]
 		regra, err := area.NewRule(cad.Rule)
 		if err != nil {

@@ -271,10 +271,10 @@ func TestAcessoDeAntesDaContaNaoAparece(t *testing.T) {
 	comAutenticacao(t, s, nova)
 
 	antigo := criada.Add(-time.Hour).Format(time.RFC3339)
-	if err := os.WriteFile(s.cfg.AcessosPath(), []byte(`{"lastAccess":{"maria":"`+antigo+`"}}`), 0o600); err != nil {
+	if err := os.WriteFile(s.cfg.AccessPath(), []byte(`{"lastAccess":{"maria":"`+antigo+`"}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	acessos, err := usuarios.AbrirAcessos(s.cfg.AcessosPath(), s.log)
+	acessos, err := usuarios.AbrirAcessos(s.cfg.AccessPath(), s.log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +302,7 @@ func TestSemAutenticacaoNaoHaUltimoAcesso(t *testing.T) {
 	if err := s.acessos.GravarPendente(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(s.cfg.AcessosPath()); !os.IsNotExist(err) {
+	if _, err := os.Stat(s.cfg.AccessPath()); !os.IsNotExist(err) {
 		t.Errorf("acessos.json criado sem autenticação (stat: %v)", err)
 	}
 }

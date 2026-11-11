@@ -11,7 +11,7 @@ import (
 // O endereço de quem fez a requisição, direto e atrás de proxy, com o
 // trustedProxies padrão.
 func TestClienteDe(t *testing.T) {
-	confiaveis, err := config.Prefixos(config.TrustedProxiesPadrao)
+	confiaveis, err := config.Prefixes(config.DefaultTrustedProxies)
 	if err != nil {
 		t.Fatal(err)
 	}

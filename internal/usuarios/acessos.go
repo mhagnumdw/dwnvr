@@ -153,7 +153,7 @@ func (a *Acessos) GravarPendente() error {
 	b, err := json.MarshalIndent(arquivoDeAcessos{UltimoAcesso: foto}, "", "  ")
 	if err == nil {
 		// 0600, como o usuarios.json: diz quando cada pessoa usou o dwnvr.
-		err = config.GravarAtomico(a.caminho, append(b, '\n'), 0o600)
+		err = config.WriteAtomic(a.caminho, append(b, '\n'), 0o600)
 	}
 	if err != nil {
 		a.mu.Lock()

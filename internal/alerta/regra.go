@@ -35,7 +35,7 @@ type areaDaRegra struct {
 	regra    area.Rule
 }
 
-// NovaRegra monta a regra da câmera já conferida pelo ConfereCamera, ou
+// NovaRegra monta a regra da câmera já conferida pelo CheckCamera, ou
 // devolve nil quando ela não alerta: câmera desabilitada, sem marcação de
 // movimento ou sem alerta ligado. O nil é o "sem alerta" que se testa a cada
 // olhada, e não custa mais do que esse teste.
@@ -60,8 +60,8 @@ func NovaRegra(cam config.Camera) *Regra {
 		r.contornos = append(r.contornos, AreaDoAlerta{Nome: a.Name, Pontos: poligono.Points})
 	}
 	for _, h := range al.Schedules {
-		de, deOk := config.MinutoDoDia(h.From)
-		ate, ateOk := config.MinutoDoDia(h.To)
+		de, deOk := config.MinuteOfDay(h.From)
+		ate, ateOk := config.MinuteOfDay(h.To)
 		if !deOk || !ateOk || ate <= de {
 			continue
 		}
@@ -72,7 +72,7 @@ func NovaRegra(cam config.Camera) *Regra {
 			r.horarios[d] = append(r.horarios[d], horarioDoDia{de: de, ate: ate})
 		}
 	}
-	// O ConfereCamera já desligou o alerta que perdeu as áreas ou os horários;
+	// O CheckCamera já desligou o alerta que perdeu as áreas ou os horários;
 	// isto só garante que ele nunca passe para a imagem inteira, ou para a
 	// qualquer hora, por outro caminho.
 	if (len(al.Areas) > 0 && len(r.areas) == 0) || (len(al.Schedules) > 0 && r.horarios == nil) {

@@ -169,7 +169,7 @@ func TestSemAutenticacaoNadaSeGrava(t *testing.T) {
 			t.Errorf("%s sem autenticação: status %d, esperava 409", r, rec.Code)
 		}
 	}
-	if _, err := os.Stat(s.cfg.UsuariosPath()); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(s.cfg.UsersPath()); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("o usuarios.json foi gravado sem autenticação: %v", err)
 	}
 }

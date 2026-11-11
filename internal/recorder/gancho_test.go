@@ -302,7 +302,7 @@ func TestTrocaDeDetectEmPlenoVooNaoCorre(t *testing.T) {
 	idx := store.New(t.TempDir()).Camera("cam_teste")
 	ligada := true
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
-		Detect: &ligada, DetectMecanismo: "kleinberg-p", DetectSensibilidade: 4}
+		Detect: &ligada, DetectMethod: "kleinberg-p", DetectSensitivity: 4}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, mudo())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -321,9 +321,9 @@ func TestTrocaDeDetectEmPlenoVooNaoCorre(t *testing.T) {
 		case 0:
 			c.Detect = &desligada
 		case 1:
-			c.DetectMecanismo, c.DetectSensibilidade = "periodico", 1+i%5
+			c.DetectMethod, c.DetectSensitivity = "periodico", 1+i%5
 		default:
-			c.DetectSensibilidade = 1 + i%5
+			c.DetectSensitivity = 1 + i%5
 		}
 		r.pedeDetect(c)
 		time.Sleep(200 * time.Microsecond)
@@ -650,7 +650,7 @@ func TestRecortadorNasceEMorreComADeteccao(t *testing.T) {
 	idx := store.New(t.TempDir()).Camera("cam_teste")
 	desligada, ligada := false, true
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
-		Detect: &desligada, DetectMecanismo: "kleinberg-p", DetectSensibilidade: 4}
+		Detect: &desligada, DetectMethod: "kleinberg-p", DetectSensitivity: 4}
 	r := newRecorder(cam, nil, idx, mudo())
 	r.pedacos = func(detect.Clip) {}
 	r.initAtual = []byte("init")

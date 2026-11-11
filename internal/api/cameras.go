@@ -24,7 +24,7 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cam = cam.ComIDsNasAreas()
+	cam = cam.WithAreaIDs()
 	if err := validateCamera(s.cfg, cam); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -48,20 +48,20 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 
 	// O que a câmera não definia e chega igual ao default não vai para o
 	// cameras.json: a tela manda a câmera resolvida, e gravá-la assim a
-	// prenderia aos defaults de hoje (ver TiraDefaultsNovos). Fica aqui dentro
+	// prenderia aos defaults de hoje (ver DropNewDefaults). Fica aqui dentro
 	// porque compara com o cadastro, que só fica parado sob o lock.
 	cams := s.mgr.Cameras()
 	found := false
 	for i := range cams {
 		if cams[i].ID == cam.ID {
-			cam = s.cfg.TiraDefaultsNovos(cam, &cams[i])
+			cam = s.cfg.DropNewDefaults(cam, &cams[i])
 			cams[i] = cam
 			found = true
 			break
 		}
 	}
 	if !found {
-		cam = s.cfg.TiraDefaultsNovos(cam, nil)
+		cam = s.cfg.DropNewDefaults(cam, nil)
 		cams = append(cams, cam)
 
 		// Câmera nova pode não ser nova no disco: uma removida sem apagar as
@@ -87,8 +87,8 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 
 	resolvida := s.cfg.Resolve(cam)
 	s.log.Info("câmera salva", "cam", cam.ID, "habilitada", cam.Enabled, "audio", resolvida.Audio,
-		"detect", *resolvida.Detect, "detect_mecanismo", resolvida.DetectMecanismo,
-		"detect_sensibilidade", resolvida.DetectSensibilidade)
+		"detect", *resolvida.Detect, "detect_mecanismo", resolvida.DetectMethod,
+		"detect_sensibilidade", resolvida.DetectSensitivity)
 	writeJSON(w, map[string]any{"ok": true, "camera": resolvida})
 }
 
@@ -147,20 +147,20 @@ func (s *Server) handleDeleteCamera(w http.ResponseWriter, r *http.Request) {
 }
 
 // validateCamera recusa a câmera com qualquer campo fora da faixa. A régua é a
-// mesma do boot (config.ConfereCamera), mas aqui o desfecho é outro: na frente
+// mesma do boot (config.CheckCamera), mas aqui o desfecho é outro: na frente
 // da tela há alguém para ler a mensagem e corrigir na hora, então em vez de
 // trocar pelo padrão em silêncio, a API devolve o que está errado.
 func validateCamera(cfg *config.Config, cam config.Camera) error {
 	if err := config.ValidateCameraID(cam.ID); err != nil {
 		return err
 	}
-	_, avisos := cfg.ConfereCamera(cam)
+	_, avisos := cfg.CheckCamera(cam)
 	if len(avisos) == 0 {
 		return nil
 	}
 	textos := make([]string, len(avisos))
 	for i, a := range avisos {
-		textos[i] = a.Texto()
+		textos[i] = a.Text()
 	}
 	return errors.New(strings.Join(textos, "; "))
 }

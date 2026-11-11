@@ -62,8 +62,8 @@ func TestSetEmPlenoVooNaoCorre(t *testing.T) {
 
 	ligada, desligada := true, false
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
-		StallSeconds: 5, QuotaMB: 1000, Detect: &ligada, DetectMecanismo: "periodico",
-		DetectSensibilidade: 5}
+		StallSeconds: 5, QuotaMB: 1000, Detect: &ligada, DetectMethod: "periodico",
+		DetectSensitivity: 5}
 
 	// O recorder entra à mão, sem o run: o teste é quem chama a sessão, uma
 	// atrás da outra, sem o backoff de reconexão no meio.
@@ -127,7 +127,7 @@ func TestAreaNaoReiniciaAGravacao(t *testing.T) {
 	comArea := cam
 	comArea.Areas = []config.Area{{ID: "k3f9a2", Name: "Portão",
 		Points: []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}}
-	comArea.Alert = &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}}
+	comArea.Alert = &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}
 	if recordingParamsChanged(cam, comArea) {
 		t.Error("mudar as áreas ou o alerta reiniciaria a gravação")
 	}
@@ -145,7 +145,7 @@ func comAlerta(t *testing.T) *Manager {
 	cam := config.Camera{ID: "cam_teste", Name: "Frente", Enabled: true, Detect: &sim,
 		Areas: []config.Area{{ID: "esq", Name: "Portão",
 			Points: []area.Point{{0, 0}, {0.5, 0}, {0.5, 1}, {0, 1}}}},
-		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person},
+		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person},
 			Areas: []string{"esq"}}}
 	// Sem Start, o Set não sobe recorder: ele entra à mão, como o Start o deixaria.
 	m.Set(cam)
@@ -202,13 +202,13 @@ func TestOlhadaViraAlerta(t *testing.T) {
 // uma instalação sem detector de objetos.
 func TestSemAlertaNadaNasce(t *testing.T) {
 	sim, nao := true, false
-	alerta := &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}}
+	alerta := &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}
 	casos := map[string]struct {
 		cam      config.Camera
 		detector bool
 	}{
 		"sem alerta":       {config.Camera{ID: "a", Enabled: true, Detect: &sim}, true},
-		"alerta desligado": {config.Camera{ID: "a", Enabled: true, Detect: &sim, Alert: &config.AlertaDaCamera{}}, true},
+		"alerta desligado": {config.Camera{ID: "a", Enabled: true, Detect: &sim, Alert: &config.CameraAlert{}}, true},
 		"sem marcação":     {config.Camera{ID: "a", Enabled: true, Detect: &nao, Alert: alerta}, true},
 		"sem detector":     {config.Camera{ID: "a", Enabled: true, Detect: &sim, Alert: alerta}, false},
 	}
@@ -242,7 +242,7 @@ func TestDesligarOAlertaGuardaOHistorico(t *testing.T) {
 	}
 
 	cam := m.Cameras()[0]
-	cam.Alert = &config.AlertaDaCamera{Families: cam.Alert.Families, Areas: cam.Alert.Areas}
+	cam.Alert = &config.CameraAlert{Families: cam.Alert.Families, Areas: cam.Alert.Areas}
 	m.Set(cam)
 	if m.regras["cam_teste"] != nil {
 		t.Errorf("regra %v: esperava sem regra", m.regras["cam_teste"])
