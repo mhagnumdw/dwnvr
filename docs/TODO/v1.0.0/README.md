@@ -4,9 +4,8 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (11/11/2026):** a Etapa 2 (conversão para en-US) começou, na branch
-`en-us-conversion`, com o glossário decidido e o `AGENTS.md` em en-US. O próximo passo é o Go,
-pacote a pacote.
+**Agora (11/11/2026):** a Etapa 2 (conversão para en-US) está no passo 4, a
+interface, na branch `en-us-web`. O Go já está em en-US na `main` (PR #86).
 
 ## Andamento
 
@@ -27,7 +26,7 @@ próxima, em andamento ou concluída, com a data.
 - [ ] **Etapa 2 - conversão para en-US**: em andamento desde 11/11/2026 ([conversao-en-us.md](conversao-en-us.md)). Um PR por passo, em commits pequenos, que roda na instalação de teste antes de ser aceito
   - [x] O glossário do domínio ([glossario.md](glossario.md))
   - [x] O `AGENTS.md` com a regra nova de escrita
-  - [ ] Go, pacote a pacote, sem mudar comportamento
+  - [x] Go, pacote a pacote, sem mudar comportamento: PR #86, em 11/11/2026
   - [ ] A interface, sem os textos da tela
   - [ ] O `dwnvr-detect`
   - [ ] Os contratos (API, o que o dwnvr grava, `dwnvr.yaml`, env), em partes, cada uma com a sua seção do guia de atualização aplicada na instalação de teste
