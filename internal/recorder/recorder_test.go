@@ -9,7 +9,7 @@ import (
 
 // mudo evita que o teste precise de um logger de verdade só para exercitar o
 // alarme, que loga por definição.
-func mudo() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
+func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
 // Uma câmera parada tem que reportar taxa ZERO, não uma taxa quase nula.
 //
@@ -18,7 +18,7 @@ func mudo() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil))
 // é "maior que zero", a estimativa de retenção dividia a cota por ele e
 // publicava 5,4e+128 dias - o diagnóstico mostrava uma câmera morta como se
 // estivesse saudável.
-func TestBitrateZeraQuandoNaoChegaByte(t *testing.T) {
+func TestBitrateDropsToZeroWhenNoByteArrives(t *testing.T) {
 	r := &Recorder{}
 	t0 := time.Now()
 
@@ -45,11 +45,11 @@ func TestBitrateZeraQuandoNaoChegaByte(t *testing.T) {
 //
 // Sem histórico em disco não há densidade, então quem responde é a taxa - e é
 // justamente aí que ela precisa do piso.
-func TestRetencaoNaoEstimaComTaxaDesprezivel(t *testing.T) {
+func TestRetentionDoesNotEstimateWithNegligibleRate(t *testing.T) {
 	tests := []struct {
-		nome   string
-		taxa   float64
-		estima bool
+		name     string
+		rate     float64
+		estimate bool
 	}{
 		{"parada", 0, false},
 		{"resíduo de média exponencial", 3.7e-126, false},
@@ -57,14 +57,14 @@ func TestRetencaoNaoEstimaComTaxaDesprezivel(t *testing.T) {
 		{"câmera de verdade", 900, true},
 	}
 	for _, tt := range tests {
-		t.Run(tt.nome, func(t *testing.T) {
-			dias := retainDays(20480, 0, 0, tt.taxa)
+		t.Run(tt.name, func(t *testing.T) {
+			days := retainDays(20480, 0, 0, tt.rate)
 
-			if tt.estima && dias <= 0 {
-				t.Errorf("taxa %v deveria produzir estimativa, veio %v", tt.taxa, dias)
+			if tt.estimate && days <= 0 {
+				t.Errorf("taxa %v deveria produzir estimativa, veio %v", tt.rate, days)
 			}
-			if !tt.estima && dias != 0 {
-				t.Errorf("taxa %v não deveria produzir estimativa, veio %v", tt.taxa, dias)
+			if !tt.estimate && days != 0 {
+				t.Errorf("taxa %v não deveria produzir estimativa, veio %v", tt.rate, days)
 			}
 		})
 	}
@@ -77,63 +77,63 @@ func TestRetencaoNaoEstimaComTaxaDesprezivel(t *testing.T) {
 // Com a cota cheia, "cabem" tem que dar o mesmo que o "retido" mostra ao lado -
 // o número velho, tirado da taxa daquele instante, dizia 9,6 dias de madrugada e
 // ~5 de tarde, e era essa oscilação que fazia a tela parecer errada.
-func TestRetencaoUsaDensidadeDoQueEstaGravado(t *testing.T) {
+func TestRetentionUsesTheDensityOfWhatIsRecorded(t *testing.T) {
 	const (
-		dia   = int64(86400000)
+		day   = int64(86400000)
 		bytes = int64(20478) << 20
-		span  = int64(8.23 * float64(dia))
+		span  = int64(8.23 * float64(day))
 	)
 
 	// Uma taxa absurda junto, de propósito: se a densidade não tivesse
 	// precedência, ela apareceria no resultado.
-	dias := retainDays(20480, bytes, span, 5000)
-	if dias < 8.1 || dias > 8.4 {
-		t.Errorf("dias = %v, esperava ~8,23 (a densidade real, não a taxa)", dias)
+	days := retainDays(20480, bytes, span, 5000)
+	if days < 8.1 || days > 8.4 {
+		t.Errorf("dias = %v, esperava ~8,23 (a densidade real, não a taxa)", days)
 	}
 
 	// A conta é linear na cota: dobrar a cota dobra o que cabe. É disso que a
 	// tela de edição depende para responder "e se eu puser 40 GB?".
-	if dobro := retainDays(40960, bytes, span, 5000); dobro < 2*dias-0.01 || dobro > 2*dias+0.01 {
-		t.Errorf("cota dobrada = %v, esperava o dobro de %v", dobro, dias)
+	if double := retainDays(40960, bytes, span, 5000); double < 2*days-0.01 || double > 2*days+0.01 {
+		t.Errorf("cota dobrada = %v, esperava o dobro de %v", double, days)
 	}
 }
 
 // Câmera recém-cadastrada é quando a estimativa mais serve - é com ela que se
 // escolhe a cota - e é quando não há histórico de onde tirar densidade. Abaixo
 // do span mínimo, quem responde é a taxa.
-func TestRetencaoCaiNaTaxaComHistoricoCurto(t *testing.T) {
+func TestRetentionFallsBackToRateWithShortHistory(t *testing.T) {
 	const bytes = int64(200) << 20
 
-	curto := retainDays(20480, bytes, minSpanForEstimate-1, 900)
-	porTaxa := retainDays(20480, 0, 0, 900)
-	if curto != porTaxa {
-		t.Errorf("span curto deu %v, esperava a estimativa por taxa (%v)", curto, porTaxa)
+	short := retainDays(20480, bytes, minSpanForEstimate-1, 900)
+	byRate := retainDays(20480, 0, 0, 900)
+	if short != byRate {
+		t.Errorf("span curto deu %v, esperava a estimativa por taxa (%v)", short, byRate)
 	}
 
 	// Um minuto a mais de histórico e a densidade assume.
-	longo := retainDays(20480, bytes, minSpanForEstimate+60000, 900)
-	if longo == porTaxa {
-		t.Errorf("com span suficiente a densidade deveria assumir, veio a taxa (%v)", longo)
+	long := retainDays(20480, bytes, minSpanForEstimate+60000, 900)
+	if long == byRate {
+		t.Errorf("com span suficiente a densidade deveria assumir, veio a taxa (%v)", long)
 	}
 
 	// Sem nenhuma das duas fontes o campo fica zerado e a tela mostra "-".
-	if vazio := retainDays(20480, 0, 0, 0); vazio != 0 {
-		t.Errorf("sem taxa e sem histórico = %v, esperava 0", vazio)
+	if empty := retainDays(20480, 0, 0, 0); empty != 0 {
+		t.Errorf("sem taxa e sem histórico = %v, esperava 0", empty)
 	}
 }
 
 // Um recorder que acabou de subir não pode ser dado como parado: o primeiro
 // segmento só fecha depois de segmentSeconds, e alarmar nesse intervalo faria a
 // tela gritar a cada reinício.
-func TestSilencioToleraSubidaEAlarmaDepois(t *testing.T) {
-	r := &Recorder{startedAt: time.Now(), log: mudo()}
+func TestSilenceToleratesStartupAndAlarmsLater(t *testing.T) {
+	r := &Recorder{startedAt: time.Now(), log: discardLogger()}
 	r.cam.SegmentSeconds = 30
 
 	r.mu.RLock()
-	limite := r.silenceLimitLocked()
+	limit := r.silenceLimitLocked()
 	r.mu.RUnlock()
-	if limite != 90*time.Second {
-		t.Fatalf("limite = %v, esperava 90s (3 segmentos)", limite)
+	if limit != 90*time.Second {
+		t.Fatalf("limite = %v, esperava 90s (3 segmentos)", limit)
 	}
 
 	// Recém-subido: nada de alarme, e nada logado.
@@ -158,7 +158,7 @@ func TestSilencioToleraSubidaEAlarmaDepois(t *testing.T) {
 
 // O piso de um minuto protege quem usa segmentos curtos: 3×5s alarmaria a cada
 // hesitação de rede.
-func TestLimiteDeSilencioTemPiso(t *testing.T) {
+func TestSilenceLimitHasAFloor(t *testing.T) {
 	r := &Recorder{}
 	r.cam.SegmentSeconds = 5
 	r.mu.RLock()

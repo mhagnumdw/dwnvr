@@ -345,7 +345,7 @@ func (s *Server) handleReiniciarGo2rtc(w http.ResponseWriter, r *http.Request) {
 // handleZerarReconexoes recomeça a contagem de reconexões de todas as câmeras.
 // Não derruba conexão nenhuma: só os números da tela voltam a zero.
 func (s *Server) handleZerarReconexoes(w http.ResponseWriter, r *http.Request) {
-	s.mgr.ZerarReconexoes()
+	s.mgr.ResetReconnects()
 	s.log.Info("reconexões zeradas pela interface")
 	writeJSON(w, map[string]bool{"zeradas": true})
 }
@@ -416,7 +416,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// dwnvr.yaml, para o card Avisos, que valem mesmo sem câmera com alerta:
 	// são da configuração.
 	alerts := map[string]any{}
-	if c := s.mgr.Alertas(); c != nil {
+	if c := s.mgr.Alerts(); c != nil {
 		alerts["total"] = c.Total()
 		if d, ok := c.Drops(); ok {
 			alerts["dropped"] = map[string]any{
@@ -465,7 +465,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	// O tamanho da janela vai junto para a tela escrever "nas últimas 8h" sem
 	// repetir o número.
-	resp["reconnectsWindowHours"] = recorder.JanelaDeReconexoes.Hours()
+	resp["reconnectsWindowHours"] = recorder.ReconnectWindow.Hours()
 
 	// Vem aqui, e não só no /api/cameras, porque este é o endpoint que a tela
 	// de diagnóstico relê a cada poucos segundos: o go2rtc caindo com ela

@@ -26,11 +26,11 @@ import (
 // exatamente igual ao de vídeo.
 
 const (
-	flagsQuadroI = 0x02000000
-	flagsQuadroP = 0x01010000
+	flagsIFrame = 0x02000000
+	flagsPFrame = 0x01010000
 
-	idVideo, idAudio = uint32(1), uint32(2)
-	timescaleVideo   = uint32(90000)
+	videoID, audioID = uint32(1), uint32(2)
+	videoTimescale   = uint32(90000)
 )
 
 func u32(v uint32) []byte {
@@ -45,91 +45,91 @@ func u64(v uint64) []byte {
 	return b
 }
 
-func caixa(typ string, partes ...[]byte) []byte {
-	var corpo []byte
-	for _, p := range partes {
-		corpo = append(corpo, p...)
+func box(typ string, parts ...[]byte) []byte {
+	var body []byte
+	for _, p := range parts {
+		body = append(body, p...)
 	}
-	out := make([]byte, 8, 8+len(corpo))
-	binary.BigEndian.PutUint32(out[0:4], uint32(8+len(corpo)))
+	out := make([]byte, 8, 8+len(body))
+	binary.BigEndian.PutUint32(out[0:4], uint32(8+len(body)))
 	copy(out[4:8], typ)
-	return append(out, corpo...)
+	return append(out, body...)
 }
 
-func trilha(id, timescale uint32, tipo string, amostra []byte) []byte {
-	return caixa("trak",
-		caixa("tkhd", u32(0), u32(0), u32(0), u32(id)),
-		caixa("mdia",
-			caixa("mdhd", u32(0), u32(0), u32(0), u32(timescale), u32(0)),
-			caixa("hdlr", u32(0), u32(0), []byte(tipo)),
-			caixa("minf", caixa("stbl", caixa("stsd", u32(0), u32(1), amostra)))))
+func track(id, timescale uint32, kind string, sample []byte) []byte {
+	return box("trak",
+		box("tkhd", u32(0), u32(0), u32(0), u32(id)),
+		box("mdia",
+			box("mdhd", u32(0), u32(0), u32(0), u32(timescale), u32(0)),
+			box("hdlr", u32(0), u32(0), []byte(kind)),
+			box("minf", box("stbl", box("stsd", u32(0), u32(1), sample)))))
 }
 
-func moovComAudio() []byte {
+func moovWithAudio() []byte {
 	// 78 bytes de campos fixos é o cabeçalho da sample entry de vídeo.
-	video := trilha(idVideo, timescaleVideo, "vide", caixa("avc1", make([]byte, 78)))
-	audio := trilha(idAudio, 16000, "soun", caixa("fLaC"))
+	video := track(videoID, videoTimescale, "vide", box("avc1", make([]byte, 78)))
+	audio := track(audioID, 16000, "soun", box("fLaC"))
 	trex := append(
-		caixa("trex", u32(0), u32(idVideo), u32(1), u32(0), u32(0), u32(flagsQuadroP)),
-		caixa("trex", u32(0), u32(idAudio), u32(1), u32(0), u32(0), u32(0))...)
-	return caixa("moov", caixa("mvhd", u32(0)), video, audio, caixa("mvex", trex))
+		box("trex", u32(0), u32(videoID), u32(1), u32(0), u32(0), u32(flagsPFrame)),
+		box("trex", u32(0), u32(audioID), u32(1), u32(0), u32(0), u32(0))...)
+	return box("moov", box("mvhd", u32(0)), video, audio, box("mvex", trex))
 }
 
 func moof(id uint32, dts uint64, flags uint32, dur uint32) []byte {
-	return caixa("moof",
-		caixa("mfhd", u32(0), u32(1)),
-		caixa("traf",
-			caixa("tfhd", u32(0), u32(id)),
-			caixa("tfdt", []byte{1, 0, 0, 0}, u64(dts)),
+	return box("moof",
+		box("mfhd", u32(0), u32(1)),
+		box("traf",
+			box("tfhd", u32(0), u32(id)),
+			box("tfdt", []byte{1, 0, 0, 0}, u64(dts)),
 			// 0x000105 = data-offset | first-sample-flags | sample-duration
-			caixa("trun", u32(0x000105), u32(1), u32(0), u32(flags), u32(dur))))
+			box("trun", u32(0x000105), u32(1), u32(0), u32(flags), u32(dur))))
 }
 
 // mdat de `n` bytes de carga, para que len(box) - que é o sinal do gatilho -
 // seja n+8.
-func mdat(n int) []byte { return caixa("mdat", make([]byte, n)) }
+func mdat(n int) []byte { return box("mdat", make([]byte, n)) }
 
 // --- o espião ---------------------------------------------------------------
 
 // espiao é um Mecanismo que não decide nada: só anota tudo o que o gancho lhe
 // entrega. É como se vê, de fora, o que o laço de gravação está considerando
 // "um quadro de vídeo".
-type espiao struct {
-	instantes []int64
-	tamanhos  []int
-	chaves    []bool
-	zeros     int
+type spy struct {
+	instants []int64
+	sizes    []int
+	keys     []bool
+	zeros    int
 }
 
-func (e *espiao) Name() string { return "espiao" }
-func (e *espiao) Reset()       { e.zeros++ }
+func (e *spy) Name() string { return "espiao" }
+func (e *spy) Reset()       { e.zeros++ }
 
-func (e *espiao) Frame(instanteMs int64, bytes int, keyframe bool) detect.Verdict {
-	e.instantes = append(e.instantes, instanteMs)
-	e.tamanhos = append(e.tamanhos, bytes)
-	e.chaves = append(e.chaves, keyframe)
+func (e *spy) Frame(atMs int64, bytes int, keyframe bool) detect.Verdict {
+	e.instants = append(e.instants, atMs)
+	e.sizes = append(e.sizes, bytes)
+	e.keys = append(e.keys, keyframe)
 	return detect.Verdict{}
 }
 
 // gravaStream sobe um go2rtc de mentira que serve `corpo` e encerra, roda uma
 // sessão inteira do recorder contra ele e devolve o que o gancho viu.
-func gravaStream(t *testing.T, corpo []byte) (*espiao, *store.Camera) {
+func recordStream(t *testing.T, body []byte) (*spy, *store.Camera) {
 	t.Helper()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(corpo)
+		_, _ = w.Write(body)
 	}))
 	t.Cleanup(srv.Close)
 
 	idx := store.New(t.TempDir()).Camera("cam_teste")
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
-	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, mudo())
+	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 
 	// O espião entra no lugar do gatilho de verdade. O pedido pendente que o
 	// newRecorder deixou é descartado, senão o primeiro quadro o substituiria.
-	esp := &espiao{}
-	r.detectPedido.Store(nil)
-	r.mec = esp
+	esp := &spy{}
+	r.detectRequest.Store(nil)
+	r.trigger = esp
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -142,41 +142,41 @@ func gravaStream(t *testing.T, corpo []byte) (*espiao, *store.Camera) {
 // também vêm marcados como sync. Sem o filtro de trilha, cada pacote de áudio
 // entraria na estatística como um frame I gigante - e a régua da câmera passaria
 // a ser a do áudio.
-func TestGanchoIgnoraOsQuadrosDeAudio(t *testing.T) {
-	var corpo []byte
-	corpo = append(corpo, caixa("ftyp", []byte("isom"))...)
-	corpo = append(corpo, moovComAudio()...)
+func TestHookIgnoresAudioFrames(t *testing.T) {
+	var body []byte
+	body = append(body, box("ftyp", []byte("isom"))...)
+	body = append(body, moovWithAudio()...)
 
 	// Vídeo: um quadro I de 5.000 bytes e dois P de 100. Entre eles, dois
 	// pacotes de áudio de 900 bytes cada.
-	corpo = append(corpo, moof(idVideo, 0, flagsQuadroI, 6000)...)
-	corpo = append(corpo, mdat(5000)...)
-	corpo = append(corpo, moof(idAudio, 0, 0, 1024)...)
-	corpo = append(corpo, mdat(900)...)
-	corpo = append(corpo, moof(idVideo, 6000, flagsQuadroP, 6000)...)
-	corpo = append(corpo, mdat(100)...)
-	corpo = append(corpo, moof(idAudio, 1024, 0, 1024)...)
-	corpo = append(corpo, mdat(900)...)
-	corpo = append(corpo, moof(idVideo, 12000, flagsQuadroP, 6000)...)
-	corpo = append(corpo, mdat(100)...)
+	body = append(body, moof(videoID, 0, flagsIFrame, 6000)...)
+	body = append(body, mdat(5000)...)
+	body = append(body, moof(audioID, 0, 0, 1024)...)
+	body = append(body, mdat(900)...)
+	body = append(body, moof(videoID, 6000, flagsPFrame, 6000)...)
+	body = append(body, mdat(100)...)
+	body = append(body, moof(audioID, 1024, 0, 1024)...)
+	body = append(body, mdat(900)...)
+	body = append(body, moof(videoID, 12000, flagsPFrame, 6000)...)
+	body = append(body, mdat(100)...)
 
-	esp, _ := gravaStream(t, corpo)
+	esp, _ := recordStream(t, body)
 
-	if len(esp.tamanhos) != 3 {
+	if len(esp.sizes) != 3 {
 		t.Fatalf("o gancho viu %d quadros, esperava os 3 de vídeo: %v",
-			len(esp.tamanhos), esp.tamanhos)
+			len(esp.sizes), esp.sizes)
 	}
-	esperados := []int{5008, 108, 108}
-	for i, want := range esperados {
-		if esp.tamanhos[i] != want {
+	expectedOnes := []int{5008, 108, 108}
+	for i, want := range expectedOnes {
+		if esp.sizes[i] != want {
 			t.Errorf("quadro %d: %d bytes, esperado %d - áudio vazou para o gatilho",
-				i, esp.tamanhos[i], want)
+				i, esp.sizes[i], want)
 		}
 	}
 	// Só o primeiro é frame I. Se o keyframe do vídeo sobrevivesse ao mdat de
 	// áudio, o quadro seguinte também apareceria como chave.
-	if !esp.chaves[0] || esp.chaves[1] || esp.chaves[2] {
-		t.Errorf("marcação de frame I errada: %v", esp.chaves)
+	if !esp.keys[0] || esp.keys[1] || esp.keys[2] {
+		t.Errorf("marcação de frame I errada: %v", esp.keys)
 	}
 }
 
@@ -184,37 +184,37 @@ func TestGanchoIgnoraOsQuadrosDeAudio(t *testing.T) {
 // segmento (relógio de parede) mais o tempo de mídia decorrido dentro dele. É a
 // mesma conta usada para medir o gatilho, e é o que faz a marca
 // cair em cima do vídeo que ela aponta.
-func TestGanchoAncoraNoRelogioDaTimeline(t *testing.T) {
-	var corpo []byte
-	corpo = append(corpo, caixa("ftyp", []byte("isom"))...)
-	corpo = append(corpo, moovComAudio()...)
+func TestHookAnchorsOnTheTimelineClock(t *testing.T) {
+	var body []byte
+	body = append(body, box("ftyp", []byte("isom"))...)
+	body = append(body, moovWithAudio()...)
 	// Quadros a cada 6000/90000 s = 66,7 ms.
 	for i := range 5 {
-		flags := uint32(flagsQuadroP)
+		flags := uint32(flagsPFrame)
 		if i == 0 {
-			flags = flagsQuadroI
+			flags = flagsIFrame
 		}
-		corpo = append(corpo, moof(idVideo, uint64(i)*6000, flags, 6000)...)
-		corpo = append(corpo, mdat(100)...)
+		body = append(body, moof(videoID, uint64(i)*6000, flags, 6000)...)
+		body = append(body, mdat(100)...)
 	}
 
-	antes := time.Now().UnixMilli()
-	esp, _ := gravaStream(t, corpo)
-	depois := time.Now().UnixMilli()
+	before := time.Now().UnixMilli()
+	esp, _ := recordStream(t, body)
+	after := time.Now().UnixMilli()
 
-	if len(esp.instantes) != 5 {
-		t.Fatalf("esperava 5 quadros, veio %d", len(esp.instantes))
+	if len(esp.instants) != 5 {
+		t.Fatalf("esperava 5 quadros, veio %d", len(esp.instants))
 	}
 	// O primeiro quadro abre o segmento, então cai no relógio de parede.
-	if esp.instantes[0] < antes || esp.instantes[0] > depois {
+	if esp.instants[0] < before || esp.instants[0] > after {
 		t.Errorf("primeiro quadro em %d, fora da janela [%d, %d]",
-			esp.instantes[0], antes, depois)
+			esp.instants[0], before, after)
 	}
 	// Os seguintes andam com o relógio de MÍDIA, e não com o de chegada: 66 ms
 	// cada, mesmo que a rede tenha entregado os cinco de uma vez.
-	for i := 1; i < len(esp.instantes); i++ {
-		got := esp.instantes[i] - esp.instantes[0]
-		want := int64(i) * 6000 * 1000 / int64(timescaleVideo)
+	for i := 1; i < len(esp.instants); i++ {
+		got := esp.instants[i] - esp.instants[0]
+		want := int64(i) * 6000 * 1000 / int64(videoTimescale)
 		if got != want {
 			t.Errorf("quadro %d a %d ms do início, esperado %d ms", i, got, want)
 		}
@@ -223,25 +223,25 @@ func TestGanchoAncoraNoRelogioDaTimeline(t *testing.T) {
 
 // TestGanchoGravaOOnsetNoArquivoDoDia fecha a ponta: o que o mecanismo aprova
 // vira linha em disco, no dia do próprio instante.
-func TestGanchoGravaOOnsetNoArquivoDoDia(t *testing.T) {
-	var corpo []byte
-	corpo = append(corpo, caixa("ftyp", []byte("isom"))...)
-	corpo = append(corpo, moovComAudio()...)
-	corpo = append(corpo, moof(idVideo, 0, flagsQuadroI, 6000)...)
-	corpo = append(corpo, mdat(100)...)
-	corpo = append(corpo, moof(idVideo, 6000, flagsQuadroP, 6000)...)
-	corpo = append(corpo, mdat(100)...)
+func TestHookWritesTheOnsetToTheDayFile(t *testing.T) {
+	var body []byte
+	body = append(body, box("ftyp", []byte("isom"))...)
+	body = append(body, moovWithAudio()...)
+	body = append(body, moof(videoID, 0, flagsIFrame, 6000)...)
+	body = append(body, mdat(100)...)
+	body = append(body, moof(videoID, 6000, flagsPFrame, 6000)...)
+	body = append(body, mdat(100)...)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(corpo)
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 
 	idx := store.New(t.TempDir()).Camera("cam_teste")
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
-	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, mudo())
-	r.detectPedido.Store(nil)
-	r.mec = sempreDispara{}
+	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
+	r.detectRequest.Store(nil)
+	r.trigger = alwaysFires{}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -259,11 +259,11 @@ func TestGanchoGravaOOnsetNoArquivoDoDia(t *testing.T) {
 	}
 }
 
-type sempreDispara struct{}
+type alwaysFires struct{}
 
-func (sempreDispara) Name() string { return "sempre" }
-func (sempreDispara) Reset()       {}
-func (sempreDispara) Frame(int64, int, bool) detect.Verdict {
+func (alwaysFires) Name() string { return "sempre" }
+func (alwaysFires) Reset()       {}
+func (alwaysFires) Frame(int64, int, bool) detect.Verdict {
 	return detect.Verdict{Onset: true, Candidate: true}
 }
 
@@ -271,22 +271,22 @@ func (sempreDispara) Frame(int64, int, bool) detect.Verdict {
 // muda a sensibilidade de uma câmera enquanto o laço de gravação está no meio
 // de uma sessão, sem lock compartilhado e sem reconectar. Rodado com -race, é
 // o que prova que a passagem pelo ponteiro atômico basta.
-func TestTrocaDeDetectEmPlenoVooNaoCorre(t *testing.T) {
-	var cabeca []byte
-	cabeca = append(cabeca, caixa("ftyp", []byte("isom"))...)
-	cabeca = append(cabeca, moovComAudio()...)
+func TestDetectChangeMidFlightDoesNotRace(t *testing.T) {
+	var head []byte
+	head = append(head, box("ftyp", []byte("isom"))...)
+	head = append(head, moovWithAudio()...)
 
 	// Um go2rtc que entrega quadros devagar, para a sessão ainda estar viva
 	// enquanto as trocas acontecem.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write(cabeca)
+		_, _ = w.Write(head)
 		fl, _ := w.(http.Flusher)
 		for i := range 300 {
-			flags := uint32(flagsQuadroP)
+			flags := uint32(flagsPFrame)
 			if i%30 == 0 {
-				flags = flagsQuadroI
+				flags = flagsIFrame
 			}
-			_, _ = w.Write(moof(idVideo, uint64(i)*6000, flags, 6000))
+			_, _ = w.Write(moof(videoID, uint64(i)*6000, flags, 6000))
 			_, _ = w.Write(mdat(100 + i%7))
 			if fl != nil {
 				fl.Flush()
@@ -300,50 +300,50 @@ func TestTrocaDeDetectEmPlenoVooNaoCorre(t *testing.T) {
 	defer srv.Close()
 
 	idx := store.New(t.TempDir()).Camera("cam_teste")
-	ligada := true
+	on := true
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
-		Detect: &ligada, DetectMethod: "kleinberg-p", DetectSensitivity: 4}
-	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, mudo())
+		Detect: &on, DetectMethod: "kleinberg-p", DetectSensitivity: 4}
+	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	fim := make(chan struct{})
+	end := make(chan struct{})
 	go func() {
-		defer close(fim)
+		defer close(end)
 		_ = r.session(ctx)
 	}()
 
 	// Do lado da "API": liga, desliga, troca mecanismo e nível, sem parar.
-	desligada := false
+	off := false
 	for i := range 200 {
 		c := cam
 		switch i % 3 {
 		case 0:
-			c.Detect = &desligada
+			c.Detect = &off
 		case 1:
 			c.DetectMethod, c.DetectSensitivity = "periodico", 1+i%5
 		default:
 			c.DetectSensitivity = 1 + i%5
 		}
-		r.pedeDetect(c)
+		r.requestDetect(c)
 		time.Sleep(200 * time.Microsecond)
 	}
-	<-fim
+	<-end
 }
 
 // roteiro é um Mecanismo que devolve vereditos escritos à mão, um por quadro de
 // vídeo. É como se escolhe, de fora, onde o pedaço tem que ser cortado.
-type roteiro struct {
-	vereditos []detect.Verdict
-	i         int
+type script struct {
+	verdicts []detect.Verdict
+	i        int
 }
 
-func (r *roteiro) Name() string { return "roteiro" }
-func (r *roteiro) Reset()       {}
-func (r *roteiro) Frame(int64, int, bool) detect.Verdict {
+func (r *script) Name() string { return "roteiro" }
+func (r *script) Reset()       {}
+func (r *script) Frame(int64, int, bool) detect.Verdict {
 	var v detect.Verdict
-	if r.i < len(r.vereditos) {
-		v = r.vereditos[r.i]
+	if r.i < len(r.verdicts) {
+		v = r.verdicts[r.i]
 	}
 	r.i++
 	return v
@@ -354,54 +354,54 @@ func (r *roteiro) Frame(int64, int, bool) detect.Verdict {
 // VÍDEO do frame I até o quadro a olhar, com os mesmos bytes que o segmento
 // gravou - o áudio fica de fora, e o candidato que ficou no GOP velho
 // sobrevive ao frame I seguinte.
-func TestGanchoCortaOPedacoComoFoiParaODisco(t *testing.T) {
-	cabeca := append(caixa("ftyp", []byte("isom")), moovComAudio()...)
-	corpo := append([]byte(nil), cabeca...)
+func TestHookCutsTheClipAsItWentToDisk(t *testing.T) {
+	head := append(box("ftyp", []byte("isom")), moovWithAudio()...)
+	body := append([]byte(nil), head...)
 	// Quadros de vídeo: I P P P I P. Áudio entre eles.
-	chaves := []bool{true, false, false, false, true, false}
+	keys := []bool{true, false, false, false, true, false}
 	var fragsVideo [][]byte
-	for i, chave := range chaves {
-		flags := uint32(flagsQuadroP)
-		if chave {
-			flags = flagsQuadroI
+	for i, key := range keys {
+		flags := uint32(flagsPFrame)
+		if key {
+			flags = flagsIFrame
 		}
-		m, d := moof(idVideo, uint64(i)*6000, flags, 6000), mdat(100+i)
-		corpo = append(corpo, m...)
-		corpo = append(corpo, d...)
+		m, d := moof(videoID, uint64(i)*6000, flags, 6000), mdat(100+i)
+		body = append(body, m...)
+		body = append(body, d...)
 		fragsVideo = append(fragsVideo, append(append([]byte(nil), m...), d...))
-		corpo = append(corpo, moof(idAudio, uint64(i)*1024, 0, 1024)...)
-		corpo = append(corpo, mdat(50)...)
+		body = append(body, moof(audioID, uint64(i)*1024, 0, 1024)...)
+		body = append(body, mdat(50)...)
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(corpo)
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 
 	dir := t.TempDir()
 	idx := store.New(dir).Camera("cam_teste")
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
-	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, mudo())
-	r.detectPedido.Store(nil)
+	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
+	r.detectRequest.Store(nil)
 	// Onset no quadro 1, pico no 2, frame I no 4 dentro da janela, corte no 5.
-	r.mec = &roteiro{vereditos: []detect.Verdict{
+	r.trigger = &script{verdicts: []detect.Verdict{
 		{}, {Onset: true, Candidate: true}, {Candidate: true}, {}, {}, {Cut: true},
 	}}
-	var saiu []detect.Clip
-	r.pedacos = func(p detect.Clip) { saiu = append(saiu, p) }
+	var out []detect.Clip
+	r.clips = func(p detect.Clip) { out = append(out, p) }
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = r.session(ctx)
 
-	if len(saiu) != 1 {
-		t.Fatalf("%d pedaços, esperado 1", len(saiu))
+	if len(out) != 1 {
+		t.Fatalf("%d pedaços, esperado 1", len(out))
 	}
-	p := saiu[0]
-	if !bytes.HasPrefix(p.Fmp4, cabeca) {
+	p := out[0]
+	if !bytes.HasPrefix(p.Fmp4, head) {
 		t.Fatal("o pedaço não começa pelo init da conexão")
 	}
-	fragmentos := p.Fmp4[len(cabeca):]
+	fragments := p.Fmp4[len(head):]
 
 	// Os fragmentos são os que foram para o disco, byte a byte - o moof já
 	// rebaseado. É o que faz o pedaço decodificar igual ao segmento gravado.
@@ -409,35 +409,35 @@ func TestGanchoCortaOPedacoComoFoiParaODisco(t *testing.T) {
 	if len(segs) != 1 {
 		t.Fatalf("esperava 1 segmento em disco, achei %v", segs)
 	}
-	gravado, err := os.ReadFile(segs[0])
+	recorded, err := os.ReadFile(segs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
 	// No disco o áudio fica entre um quadro e outro; no pedaço, não. Então a
 	// conferência é caixa a caixa: cada moof+mdat do pedaço está no segmento.
-	var caixas [][]byte
-	for resto := fragmentos; len(resto) >= 8; {
-		n := int(binary.BigEndian.Uint32(resto))
-		if n < 8 || n > len(resto) {
-			t.Fatalf("caixa de %d bytes num resto de %d", n, len(resto))
+	var boxes [][]byte
+	for rest := fragments; len(rest) >= 8; {
+		n := int(binary.BigEndian.Uint32(rest))
+		if n < 8 || n > len(rest) {
+			t.Fatalf("caixa de %d bytes num resto de %d", n, len(rest))
 		}
-		caixas, resto = append(caixas, resto[:n]), resto[n:]
+		boxes, rest = append(boxes, rest[:n]), rest[n:]
 	}
 	// Exatamente os de vídeo do frame I ao pico: quadros 0, 1 e 2, sem áudio.
-	if len(caixas) != 6 {
-		t.Fatalf("%d caixas no pedaço, esperado 6 (moof+mdat de três quadros)", len(caixas))
+	if len(boxes) != 6 {
+		t.Fatalf("%d caixas no pedaço, esperado 6 (moof+mdat de três quadros)", len(boxes))
 	}
-	for i := 0; i < len(caixas); i += 2 {
-		par := append(append([]byte(nil), caixas[i]...), caixas[i+1]...)
-		if !bytes.Contains(gravado, par) {
+	for i := 0; i < len(boxes); i += 2 {
+		pair := append(append([]byte(nil), boxes[i]...), boxes[i+1]...)
+		if !bytes.Contains(recorded, pair) {
 			t.Errorf("quadro %d do pedaço não tem os bytes que o segmento gravou", i/2)
 		}
-		if len(par) != len(fragsVideo[i/2]) {
-			t.Errorf("quadro %d do pedaço com %d bytes, o de vídeo tem %d", i/2, len(par), len(fragsVideo[i/2]))
+		if len(pair) != len(fragsVideo[i/2]) {
+			t.Errorf("quadro %d do pedaço com %d bytes, o de vídeo tem %d", i/2, len(pair), len(fragsVideo[i/2]))
 		}
 	}
 	// O onset é o quadro 1 e o pico é o 2, no relógio de mídia truncado em ms.
-	ms := func(q int64) int64 { return q * 6000 * 1000 / int64(timescaleVideo) }
+	ms := func(q int64) int64 { return q * 6000 * 1000 / int64(videoTimescale) }
 	if p.FrameMs-p.OnsetMs != ms(2)-ms(1) {
 		t.Errorf("onset %d e quadro %d: o quadro a olhar devia ser o seguinte ao onset",
 			p.OnsetMs, p.FrameMs)
@@ -446,37 +446,37 @@ func TestGanchoCortaOPedacoComoFoiParaODisco(t *testing.T) {
 
 // TestGanchoSemDestinoNaoGuardaGOP: quem não instalou o detector não paga a
 // cópia do GOP.
-func TestGanchoSemDestinoNaoGuardaGOP(t *testing.T) {
-	var corpo []byte
-	corpo = append(corpo, caixa("ftyp", []byte("isom"))...)
-	corpo = append(corpo, moovComAudio()...)
-	corpo = append(corpo, moof(idVideo, 0, flagsQuadroI, 6000)...)
-	corpo = append(corpo, mdat(100)...)
+func TestHookWithoutDestinationKeepsNoGOP(t *testing.T) {
+	var body []byte
+	body = append(body, box("ftyp", []byte("isom"))...)
+	body = append(body, moovWithAudio()...)
+	body = append(body, moof(videoID, 0, flagsIFrame, 6000)...)
+	body = append(body, mdat(100)...)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(corpo)
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 
 	idx := store.New(t.TempDir()).Camera("cam_teste")
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
-	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, mudo())
-	r.detectPedido.Store(nil)
-	r.mec = sempreDispara{}
+	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
+	r.detectRequest.Store(nil)
+	r.trigger = alwaysFires{}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = r.session(ctx)
-	if r.recorte != nil {
+	if r.clipper != nil {
 		t.Error("sem destino para o pedaço, o recortador não devia existir")
 	}
 }
 
 // detectorQueVePessoa responde sempre a mesma pessoa, no mesmo lugar.
-type detectorQueVePessoa struct{}
+type personDetector struct{}
 
-func (detectorQueVePessoa) Name() string { return "pessoa" }
-func (detectorQueVePessoa) Infer(context.Context, detect.Clip) (detect.Output, error) {
+func (personDetector) Name() string { return "pessoa" }
+func (personDetector) Infer(context.Context, detect.Clip) (detect.Output, error) {
 	return detect.Output{
 		Detections: []detect.Detection{{Class: "person", Score: 0.87654, Box: [4]float64{0.1, 0.1, 0.2, 0.4}}},
 		Frame:      []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
@@ -487,54 +487,54 @@ func (detectorQueVePessoa) Infer(context.Context, detect.Clip) (detect.Output, e
 // onset vira pedaço, o pedaço passa pela fila e pelo detector, o rastreio
 // deixa a primeira pessoa virar marca - e não a segunda, no mesmo lugar -, e a
 // marca vai para o arquivo do dia no instante do ONSET. O funil fecha a conta.
-func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
+func TestFromOnsetToObjectMark(t *testing.T) {
 	// O stream chega em duas metades, com uma folga entre elas: o segundo
 	// onset precisa encontrar o primeiro já fora da fila, sendo olhado - o
 	// teste não depende de quantos lugares a câmera tem.
-	var metades [2][]byte
-	metades[0] = append(caixa("ftyp", []byte("isom")), moovComAudio()...)
+	var halves [2][]byte
+	halves[0] = append(box("ftyp", []byte("isom")), moovWithAudio()...)
 	for i := range 6 {
-		flags := uint32(flagsQuadroP)
+		flags := uint32(flagsPFrame)
 		if i%3 == 0 {
-			flags = flagsQuadroI
+			flags = flagsIFrame
 		}
-		metades[i/3] = append(metades[i/3], moof(idVideo, uint64(i)*6000, flags, 6000)...)
-		metades[i/3] = append(metades[i/3], mdat(100)...)
+		halves[i/3] = append(halves[i/3], moof(videoID, uint64(i)*6000, flags, 6000)...)
+		halves[i/3] = append(halves[i/3], mdat(100)...)
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(metades[0])
+		_, _ = w.Write(halves[0])
 		w.(http.Flusher).Flush()
 		time.Sleep(200 * time.Millisecond)
-		_, _ = w.Write(metades[1])
+		_, _ = w.Write(halves[1])
 	}))
 	defer srv.Close()
 
 	idx := store.New(t.TempDir()).Camera("cam_teste")
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
-	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, mudo())
-	r.detectPedido.Store(nil)
+	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
+	r.detectRequest.Store(nil)
 	// Dois onsets, cada um com a janela fechando no quadro seguinte.
-	r.mec = &roteiro{vereditos: []detect.Verdict{
+	r.trigger = &script{verdicts: []detect.Verdict{
 		{}, {Onset: true, Candidate: true}, {Cut: true},
 		{}, {Onset: true, Candidate: true}, {Cut: true},
 	}}
-	olhadas := make(chan detect.Inference, 4)
-	fila := detect.NewQueue(detectorQueVePessoa{}, func(o detect.Inference) {
-		r.olhou(o, nil)
-		olhadas <- o
-	}, mudo())
-	r.pedacos = r.ofereceA(fila)
+	inferences := make(chan detect.Inference, 4)
+	queue := detect.NewQueue(personDetector{}, func(o detect.Inference) {
+		r.onInference(o, nil)
+		inferences <- o
+	}, discardLogger())
+	r.clips = r.offerTo(queue)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	go fila.Run(ctx)
+	go queue.Run(ctx)
 
 	_ = r.session(ctx)
-	var onsets, quadros []int64
+	var onsets, frames []int64
 	for range 2 {
 		select {
-		case o := <-olhadas:
+		case o := <-inferences:
 			onsets = append(onsets, o.Clip.OnsetMs)
-			quadros = append(quadros, o.Clip.FrameMs)
+			frames = append(frames, o.Clip.FrameMs)
 		case <-ctx.Done():
 			t.Fatal("a fila não devolveu as duas olhadas")
 		}
@@ -544,41 +544,41 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var objetos []store.Event
+	var objects []store.Event
 	for _, ev := range evs {
 		if ev.IsObject() {
-			objetos = append(objetos, ev)
+			objects = append(objects, ev)
 		}
 	}
-	if len(objetos) != 1 {
-		t.Fatalf("%d marcas de objeto, esperada 1: a pessoa parada no mesmo lugar não pode marcar de novo", len(objetos))
+	if len(objects) != 1 {
+		t.Fatalf("%d marcas de objeto, esperada 1: a pessoa parada no mesmo lugar não pode marcar de novo", len(objects))
 	}
 	// A caixa vai à parte: é ponteiro, e o != compararia o endereço.
-	got := objetos[0]
-	caixa := got.Box
+	got := objects[0]
+	box := got.Box
 	got.Box = nil
 	jpeg := []byte("\xff\xd8jpeg-de-teste\xff\xd9")
 	want := store.Event{AtMs: onsets[0], Family: "pessoa", Class: "person", Score: 0.877,
-		FrameMs: quadros[0], HasFrame: true}
+		FrameMs: frames[0], HasFrame: true}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("marca %+v, esperado %+v", got, want)
 	}
-	if caixa == nil || *caixa != [4]float64{0.1, 0.1, 0.2, 0.4} {
-		t.Errorf("caixa %v, esperada a do detector, [0.1 0.1 0.2 0.4]", caixa)
+	if box == nil || *box != [4]float64{0.1, 0.1, 0.2, 0.4} {
+		t.Errorf("caixa %v, esperada a do detector, [0.1 0.1 0.2 0.4]", box)
 	}
 
 	// O quadro que a tela de Detecções mostra: o arquivo tem o nome do
 	// instante da marca e os bytes que o detector mandou.
-	lido, err := os.ReadFile(idx.FramePath(time.Now().Format(store.DayLayout), got.AtMs))
+	parsed, err := os.ReadFile(idx.FramePath(time.Now().Format(store.DayLayout), got.AtMs))
 	if err != nil {
 		t.Fatalf("lendo o quadro da marca: %v", err)
 	}
-	if !bytes.Equal(lido, jpeg) {
-		t.Errorf("quadro gravado %q, esperado %q", lido, jpeg)
+	if !bytes.Equal(parsed, jpeg) {
+		t.Errorf("quadro gravado %q, esperado %q", parsed, jpeg)
 	}
 
-	f := r.funil()
-	if f.Pedacos != 2 || f.ComObjeto != 1 || f.SemObjeto != 1 || f.NaFila != 0 || f.SemVideo != 0 {
+	f := r.funnel()
+	if f.Clips != 2 || f.WithObject != 1 || f.NoObject != 1 || f.Queued != 0 || f.NoVideo != 0 {
 		t.Errorf("funil %+v: esperava 2 pedaços, 1 com objeto, 1 sem, nada na fila nem sem vídeo", *f)
 	}
 }
@@ -587,14 +587,14 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 // linhas no mesmo instante, e não uma por família. A pessoa de menor
 // confiança é a que o filtro por área pode precisar. A caixa abaixo do corte
 // não vira marca, e o quadro continua um só.
-func TestUmaLinhaPorObjeto(t *testing.T) {
+func TestOneLinePerObject(t *testing.T) {
 	idx := store.New(t.TempDir()).Camera("cam_teste")
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
-	r := newRecorder(cam, go2rtc.New(config.Go2RTC{}), idx, mudo())
+	r := newRecorder(cam, go2rtc.New(config.Go2RTC{}), idx, discardLogger())
 
-	agora := time.Now().UnixMilli()
-	r.olhou(detect.Inference{
-		Clip: detect.Clip{OnsetMs: agora, FrameMs: agora + 1400},
+	now := time.Now().UnixMilli()
+	r.onInference(detect.Inference{
+		Clip: detect.Clip{OnsetMs: now, FrameMs: now + 1400},
 		// Fora de ordem de propósito: a gravação ordena por família e confiança.
 		Detections: []detect.Detection{
 			{Class: "motorcycle", Score: 0.71, Box: [4]float64{0.60, 0.40, 0.72, 0.66}},
@@ -605,17 +605,17 @@ func TestUmaLinhaPorObjeto(t *testing.T) {
 		Frame: []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
 	}, nil)
 
-	dia := time.Now().Format(store.DayLayout)
-	evs, err := idx.LoadEvents(dia)
+	day := time.Now().Format(store.DayLayout)
+	evs, err := idx.LoadEvents(day)
 	if err != nil {
 		t.Fatal(err)
 	}
-	type linha struct {
-		familia, classe string
-		score           float64
-		caixa           [4]float64
+	type row struct {
+		family, class string
+		score         float64
+		box           [4]float64
 	}
-	want := []linha{
+	want := []row{
 		{"pessoa", "person", 0.87, [4]float64{0.41, 0.32, 0.47, 0.62}},
 		{"pessoa", "person", 0.55, [4]float64{0.18, 0.30, 0.24, 0.64}},
 		{"veiculo", "motorcycle", 0.71, [4]float64{0.60, 0.40, 0.72, 0.66}},
@@ -624,92 +624,92 @@ func TestUmaLinhaPorObjeto(t *testing.T) {
 		t.Fatalf("%d linhas, esperadas %d: %+v", len(evs), len(want), evs)
 	}
 	for i, ev := range evs {
-		got := linha{ev.Family, ev.Class, ev.Score, *ev.Box}
+		got := row{ev.Family, ev.Class, ev.Score, *ev.Box}
 		if got != want[i] {
 			t.Errorf("linha %d: %+v, esperada %+v", i, got, want[i])
 		}
-		if ev.AtMs != agora || ev.FrameMs != agora+1400 || !ev.HasFrame {
+		if ev.AtMs != now || ev.FrameMs != now+1400 || !ev.HasFrame {
 			t.Errorf("linha %d: instante %d, quadro %d, temQuadro %v; esperados %d, %d e true",
-				i, ev.AtMs, ev.FrameMs, ev.HasFrame, agora, agora+1400)
+				i, ev.AtMs, ev.FrameMs, ev.HasFrame, now, now+1400)
 		}
 	}
 
-	quadros, err := os.ReadDir(filepath.Dir(idx.FramePath(dia, agora)))
+	frames, err := os.ReadDir(filepath.Dir(idx.FramePath(day, now)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(quadros) != 1 {
-		t.Errorf("%d quadros gravados, esperado 1 para as três linhas", len(quadros))
+	if len(frames) != 1 {
+		t.Errorf("%d quadros gravados, esperado 1 para as três linhas", len(frames))
 	}
 }
 
 // TestRecortadorNasceEMorreComADeteccao: com o detector configurado, a câmera
 // com a detecção desligada não guarda GOP, e desligar a detecção devolve os
 // buffers. O que já foi contado como sem vídeo não zera na troca.
-func TestRecortadorNasceEMorreComADeteccao(t *testing.T) {
+func TestClipperLivesAndDiesWithDetection(t *testing.T) {
 	idx := store.New(t.TempDir()).Camera("cam_teste")
-	desligada, ligada := false, true
+	off, on := false, true
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
-		Detect: &desligada, DetectMethod: "kleinberg-p", DetectSensitivity: 4}
-	r := newRecorder(cam, nil, idx, mudo())
-	r.pedacos = func(detect.Clip) {}
-	r.initAtual = []byte("init")
-	quadro := func(ms int64, v detect.Verdict) {
+		Detect: &off, DetectMethod: "kleinberg-p", DetectSensitivity: 4}
+	r := newRecorder(cam, nil, idx, discardLogger())
+	r.clips = func(detect.Clip) {}
+	r.curInit = []byte("init")
+	frame := func(ms int64, v detect.Verdict) {
 		if v != (detect.Verdict{}) {
-			r.mec = &roteiro{vereditos: []detect.Verdict{v}}
+			r.trigger = &script{verdicts: []detect.Verdict{v}}
 		}
-		r.movimento(ms, false, moof(idVideo, 0, flagsQuadroP, 6000), mdat(100))
+		r.motion(ms, false, moof(videoID, 0, flagsPFrame, 6000), mdat(100))
 	}
 
-	quadro(0, detect.Verdict{})
-	if r.recorte != nil {
+	frame(0, detect.Verdict{})
+	if r.clipper != nil {
 		t.Fatal("detecção desligada e o recortador nasceu")
 	}
 
-	cam.Detect = &ligada
-	r.pedeDetect(cam)
-	quadro(40, detect.Verdict{})
-	if r.recorte == nil {
+	cam.Detect = &on
+	r.requestDetect(cam)
+	frame(40, detect.Verdict{})
+	if r.clipper == nil {
 		t.Fatal("detecção ligada e o recortador não nasceu")
 	}
 	// Um onset sem frame I guardado: quando a detecção desligar, ele fica
 	// sem vídeo.
-	quadro(80, detect.Verdict{Onset: true, Candidate: true})
+	frame(80, detect.Verdict{Onset: true, Candidate: true})
 
-	cam.Detect = &desligada
-	r.pedeDetect(cam)
-	quadro(120, detect.Verdict{})
-	if r.recorte != nil {
+	cam.Detect = &off
+	r.requestDetect(cam)
+	frame(120, detect.Verdict{})
+	if r.clipper != nil {
 		t.Fatal("detecção desligada e o recortador continua vivo")
 	}
-	if n := r.semVideo.Load(); n != 1 {
+	if n := r.noVideo.Load(); n != 1 {
 		t.Fatalf("semVideo %d, esperado 1", n)
 	}
 
-	cam.Detect = &ligada
-	r.pedeDetect(cam)
-	quadro(160, detect.Verdict{})
-	if n := r.semVideo.Load(); n != 1 {
+	cam.Detect = &on
+	r.requestDetect(cam)
+	frame(160, detect.Verdict{})
+	if n := r.noVideo.Load(); n != 1 {
 		t.Errorf("semVideo %d depois de religar, esperado o 1 de antes", n)
 	}
 }
 
 // TestFunilFechaAConta: NaFila é o que sobra dos onsets depois das fatias com
 // desfecho, e nunca fica negativo.
-func TestFunilFechaAConta(t *testing.T) {
-	r := &Recorder{pedacos: func(detect.Clip) {}}
+func TestFunnelAddsUp(t *testing.T) {
+	r := &Recorder{clips: func(detect.Clip) {}}
 	r.onsets.Add(7)
-	r.semVideo.Add(1)
-	r.descartados.Add(1)
-	r.comObjeto.Add(2)
-	if f := r.funil(); f.NaFila != 3 {
-		t.Errorf("naFila %d, esperado 3: 7 onsets, 4 com desfecho", f.NaFila)
+	r.noVideo.Add(1)
+	r.dropped.Add(1)
+	r.withObject.Add(2)
+	if f := r.funnel(); f.Queued != 3 {
+		t.Errorf("naFila %d, esperado 3: 7 onsets, 4 com desfecho", f.Queued)
 	}
-	r.semObjeto.Add(5)
-	if f := r.funil(); f.NaFila != 0 {
-		t.Errorf("naFila %d, esperado 0 com mais desfechos que onsets", f.NaFila)
+	r.noObject.Add(5)
+	if f := r.funnel(); f.Queued != 0 {
+		t.Errorf("naFila %d, esperado 0 com mais desfechos que onsets", f.Queued)
 	}
-	if (&Recorder{}).funil() != nil {
+	if (&Recorder{}).funnel() != nil {
 		t.Error("sem detector, o funil tinha que ser nil")
 	}
 }

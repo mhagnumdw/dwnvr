@@ -202,7 +202,7 @@ func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Reques
 		Pressao:    coletarPressao(f),
 		Storage:    coletarMontagem(f, s.cfg.Storage.Root),
 		SMTP:       smtpNoDiagnostico(s.cfg.SMTP),
-		Alertas:    meiosNoDiagnostico(s.mgr.Alertas()),
+		Alertas:    meiosNoDiagnostico(s.mgr.Alerts()),
 	}
 
 	// As sondas esperam por fora - disco e rede - e juntas podem somar alguns

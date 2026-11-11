@@ -52,7 +52,7 @@ func TestAlertasNoHealth(t *testing.T) {
 	sim := true
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
-	s.mgr.Alertas().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
+	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
 		Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
 
 	if got := string(pede(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":1}` {
@@ -74,7 +74,7 @@ func TestDescarteNoHealth(t *testing.T) {
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
 	for range alert.AlertBurst + 2 {
-		s.mgr.Alertas().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
+		s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
 			Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
 	}
 
@@ -116,8 +116,8 @@ func TestMeioFalhandoNoHealth(t *testing.T) {
 	}
 
 	// Sem o Start do Manager, a goroutine de envio é a do teste.
-	go s.mgr.Alertas().Run(t.Context())
-	s.mgr.Alertas().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
+	go s.mgr.Alerts().Run(t.Context())
+	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
 		Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
 
 	var alerts struct {

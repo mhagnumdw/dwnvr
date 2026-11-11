@@ -136,7 +136,7 @@ func (s *Server) alertaPorEmail() alertaPorEmail {
 	}
 	a := alertaPorEmail{To: s.cfg.Alerts.Email.To}
 	// O estado do meio só existe depois que alguma câmera ligou o alerta.
-	if c := s.mgr.Alertas(); c != nil {
+	if c := s.mgr.Alerts(); c != nil {
 		for _, m := range c.NotifierStates() {
 			if m.Name == alert.NotifierEmail && !m.FailingSince.IsZero() {
 				a.FailingSince, a.Error = &m.FailingSince, m.Err

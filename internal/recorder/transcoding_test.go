@@ -16,7 +16,7 @@ import (
 // a fonte passa por um ffmpeg, e o valor da conexão anterior não sobrevive.
 // É o que faz o aviso do Diagnóstico acompanhar um go2rtc.yaml editado: ao
 // reiniciar, o go2rtc derruba todo mundo, e cada recorder reconecta.
-func TestConexaoReleATranscodificacao(t *testing.T) {
+func TestConnectionRereadsTranscoding(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/streams":
@@ -24,7 +24,7 @@ func TestConexaoReleATranscodificacao(t *testing.T) {
 				"cam_ffmpeg": {"producers": [{"source": "exec:ffmpeg -i rtsp://x -c:v libx264"}]},
 				"cam_rtsp": {"producers": [{"url": "rtsp://x"}]}}`))
 		case "/api/stream.mp4":
-			_, _ = w.Write(append(caixa("ftyp", []byte("isom")), moovComAudio()...))
+			_, _ = w.Write(append(box("ftyp", []byte("isom")), moovWithAudio()...))
 			w.(http.Flusher).Flush()
 			<-r.Context().Done()
 		default:
@@ -34,23 +34,23 @@ func TestConexaoReleATranscodificacao(t *testing.T) {
 	defer srv.Close()
 	client := go2rtc.New(config.Go2RTC{URL: srv.URL})
 
-	for id, esperado := range map[string]bool{"cam_ffmpeg": true, "cam_rtsp": false} {
+	for id, expected := range map[string]bool{"cam_ffmpeg": true, "cam_rtsp": false} {
 		t.Run(id, func(t *testing.T) {
 			cam := config.Camera{ID: id, Enabled: true, SegmentSeconds: 30, StallSeconds: 5,
 				Audio: config.AudioAAC}
-			r := newRecorder(cam, client, store.New(t.TempDir()).Camera(id), mudo())
+			r := newRecorder(cam, client, store.New(t.TempDir()).Camera(id), discardLogger())
 			// O contrário do esperado, como se viesse da conexão anterior.
-			r.transcoding = !esperado
+			r.transcoding = !expected
 
 			ctx, cancel := context.WithCancel(context.Background())
-			fim := make(chan struct{})
-			go func() { _ = r.session(ctx); close(fim) }()
-			defer func() { cancel(); <-fim }()
+			end := make(chan struct{})
+			go func() { _ = r.session(ctx); close(end) }()
+			defer func() { cancel(); <-end }()
 
-			prazo := time.Now().Add(3 * time.Second)
-			for r.Status().Transcoding != esperado {
-				if time.Now().After(prazo) {
-					t.Fatalf("transcoding continua %v, esperava %v", !esperado, esperado)
+			timeout := time.Now().Add(3 * time.Second)
+			for r.Status().Transcoding != expected {
+				if time.Now().After(timeout) {
+					t.Fatalf("transcoding continua %v, esperava %v", !expected, expected)
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
