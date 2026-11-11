@@ -20,36 +20,36 @@ import (
 // O `tailscale serve` e o Caddy da doc substituem o header que recebem, mas
 // um proxy que acrescenta ao que veio (o Caddy com trusted_proxies, por
 // exemplo) não engana esta leitura.
-func clienteDe(r *http.Request, confiaveis []netip.Prefix) netip.Addr {
+func clientOf(r *http.Request, confiaveis []netip.Prefix) netip.Addr {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr
 	}
-	cliente, err := netip.ParseAddr(host)
+	client, err := netip.ParseAddr(host)
 	if err != nil {
 		return netip.Addr{}
 	}
-	cliente = cliente.Unmap()
+	client = client.Unmap()
 
 	confiavel := func(a netip.Addr) bool {
 		return slices.ContainsFunc(confiaveis, func(p netip.Prefix) bool { return p.Contains(a) })
 	}
-	if !confiavel(cliente) {
-		return cliente
+	if !confiavel(client) {
+		return client
 	}
-	var saltos []string
+	var jumps []string
 	for _, v := range r.Header.Values("X-Forwarded-For") {
-		saltos = append(saltos, strings.Split(v, ",")...)
+		jumps = append(jumps, strings.Split(v, ",")...)
 	}
-	for _, s := range slices.Backward(saltos) {
+	for _, s := range slices.Backward(jumps) {
 		a, err := netip.ParseAddr(strings.TrimSpace(s))
 		if err != nil {
 			break // o resto da cadeia não é confiável: fica o último bom
 		}
-		cliente = a.Unmap()
-		if !confiavel(cliente) {
+		client = a.Unmap()
+		if !confiavel(client) {
 			break
 		}
 	}
-	return cliente
+	return client
 }

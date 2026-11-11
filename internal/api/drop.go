@@ -27,81 +27,81 @@ import (
 // hora, e a conferência periódica do Ao vivo é a rede de segurança.
 
 // conexoes são as conexões abertas de cada pessoa, pelo login.
-type conexoes struct {
+type connections struct {
 	mu        sync.Mutex
-	porPessoa map[string]map[net.Conn]struct{}
+	perPerson map[string]map[net.Conn]struct{}
 }
 
 // registrar anota a conexão da pessoa. soltar a tira da lista, sem fechá-la.
-func (c *conexoes) registrar(usuario string, conn net.Conn) (soltar func()) {
+func (c *connections) registrar(username string, conn net.Conn) (release func()) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.porPessoa == nil {
-		c.porPessoa = map[string]map[net.Conn]struct{}{}
+	if c.perPerson == nil {
+		c.perPerson = map[string]map[net.Conn]struct{}{}
 	}
-	if c.porPessoa[usuario] == nil {
-		c.porPessoa[usuario] = map[net.Conn]struct{}{}
+	if c.perPerson[username] == nil {
+		c.perPerson[username] = map[net.Conn]struct{}{}
 	}
-	c.porPessoa[usuario][conn] = struct{}{}
+	c.perPerson[username][conn] = struct{}{}
 	return func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		delete(c.porPessoa[usuario], conn)
-		if len(c.porPessoa[usuario]) == 0 {
-			delete(c.porPessoa, usuario)
+		delete(c.perPerson[username], conn)
+		if len(c.perPerson[username]) == 0 {
+			delete(c.perPerson, username)
 		}
 	}
 }
 
 // derrubar fecha todas as conexões abertas da pessoa e diz quantas eram.
-func (c *conexoes) derrubar(usuario string) int {
+func (c *connections) drop(username string) int {
 	c.mu.Lock()
-	abertas := c.porPessoa[usuario]
-	delete(c.porPessoa, usuario)
+	open := c.perPerson[username]
+	delete(c.perPerson, username)
 	c.mu.Unlock()
-	for conn := range abertas {
+	for conn := range open {
 		_ = conn.Close()
 	}
-	return len(abertas)
+	return len(open)
 }
 
 // derrubarPessoa fecha o que a pessoa tem aberto, depois de ela ter sido
 // removida ou ganhado link novo.
-func (s *Server) derrubarPessoa(usuario, motivo string) {
-	if n := s.abertas.derrubar(usuario); n > 0 {
-		s.log.Info("conexões da pessoa derrubadas", "usuario", usuario, "motivo", motivo, "conexoes", n)
+func (s *Server) dropPerson(username, reason string) {
+	if n := s.open.drop(username); n > 0 {
+		s.log.Info("conexões da pessoa derrubadas", "usuario", username, "motivo", reason, "conexoes", n)
 	}
 }
 
 // anotaHijack é o ResponseWriter do proxy do ao vivo: quando o
 // httputil.ReverseProxy toma a conexão para o websocket, ela é registrada
 // como da pessoa.
-type anotaHijack struct {
+type hijackRecorder struct {
 	http.ResponseWriter
-	aoTomar func(net.Conn)
+	onTake func(net.Conn)
 }
 
-func (w anotaHijack) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (w hijackRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	conn, rw, err := http.NewResponseController(w.ResponseWriter).Hijack()
 	if err == nil {
-		w.aoTomar(conn)
+		w.onTake(conn)
 	}
 	return conn, rw, err
 }
 
-func (w anotaHijack) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w hijackRecorder) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // handleLive é o proxy do ao vivo com a conexão anotada: derrubar a pessoa
 // fecha o websocket, e com ele o vídeo que vem por dentro dele (MSE) e a
 // negociação em curso.
 func (s *Server) handleLive(proxy http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var soltar func()
-		usuario := pessoaDe(r).Usuario
-		proxy.ServeHTTP(anotaHijack{w, func(c net.Conn) { soltar = s.abertas.registrar(usuario, c) }}, r)
+		var release func()
+		username := personOf(r).Username
+		proxy.ServeHTTP(hijackRecorder{w, func(c net.Conn) { release = s.open.registrar(username, c) }}, r)
 		// O ReverseProxy só volta quando o websocket fecha.
-		if soltar != nil {
-			soltar()
+		if release != nil {
+			release()
 		}
 	}
 }
@@ -113,9 +113,9 @@ func (s *Server) handleLive(proxy http.Handler) http.HandlerFunc {
 //
 // Escrito à mão, sem biblioteca: sem mensagens, o protocolo se resume ao
 // aperto de mão da RFC 6455 e a esperar o outro lado fechar.
-func (s *Server) handleAvisoDeSessao(w http.ResponseWriter, r *http.Request) {
-	chave := r.Header.Get("Sec-WebSocket-Key")
-	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") || chave == "" ||
+func (s *Server) handleSessionWarning(w http.ResponseWriter, r *http.Request) {
+	key := r.Header.Get("Sec-WebSocket-Key")
+	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") || key == "" ||
 		r.Header.Get("Sec-WebSocket-Version") != "13" {
 		writeError(w, http.StatusBadRequest, "esperava um websocket")
 		return
@@ -127,7 +127,7 @@ func (s *Server) handleAvisoDeSessao(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	h := sha1.Sum([]byte(chave + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+	h := sha1.Sum([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
 	_, _ = rw.WriteString("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n" +
 		"Connection: Upgrade\r\nSec-WebSocket-Accept: " + base64.StdEncoding.EncodeToString(h[:]) + "\r\n\r\n")
 	if rw.Flush() != nil {
@@ -136,8 +136,8 @@ func (s *Server) handleAvisoDeSessao(w http.ResponseWriter, r *http.Request) {
 	// O ReadHeaderTimeout do servidor deixou um prazo na conexão.
 	_ = conn.SetDeadline(time.Time{})
 
-	soltar := s.abertas.registrar(pessoaDe(r).Usuario, conn)
-	defer soltar()
+	release := s.open.registrar(personOf(r).Username, conn)
+	defer release()
 	// O navegador não manda nada além do fechamento: ler até o fim é esperar
 	// a aba fechar, ou o servidor derrubar.
 	_, _ = io.Copy(io.Discard, rw)

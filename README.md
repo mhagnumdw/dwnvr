@@ -669,18 +669,18 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   ├── api/                servidor HTTP
 │   │   ├── server.go       rotas e o papel que cada uma exige
 │   │   ├── auth.go         login e sessão por pessoa, em cookie assinado (HMAC), sem estado no servidor
-│   │   ├── endereco.go     o endereço de quem fez a requisição, atrás de proxy ou não, para o limite do login
-│   │   ├── usuarios.go     a tela Usuários e o link de convite
+│   │   ├── address.go      o endereço de quem fez a requisição, atrás de proxy ou não, para o limite do login
+│   │   ├── users.go        a tela Usuários e o link de convite
 │   │   ├── email.go        o e-mail de teste do Diagnóstico e as peças do link de convite por e-mail
-│   │   ├── conta.go        a Minha conta: a própria senha, o nome e a foto, e o serviço das fotos
-│   │   ├── derrubar.go     fecha o ao vivo e o aviso de sessão de quem é removido ou ganha link novo
+│   │   ├── account.go      a Minha conta: a própria senha, o nome e a foto, e o serviço das fotos
+│   │   ├── drop.go         fecha o ao vivo e o aviso de sessão de quem é removido ou ganha link novo
 │   │   ├── cameras.go      cadastro de câmeras, cruzado com os streams do go2rtc
 │   │   ├── probe.go        descobre se um stream ocioso entrega áudio, com cache
 │   │   ├── recordings.go   dias, timeline, init, segmentos, thumbnail, HLS, exportação
-│   │   ├── deteccoes.go    as detecções de todas as câmeras, paginadas, e o quadro de cada uma
+│   │   ├── detections.go   as detecções de todas as câmeras, paginadas, e o quadro de cada uma
 │   │   ├── live.go         proxy do go2rtc, com a credencial ficando no servidor
-│   │   ├── diagnostico_servidor.go  a máquina que grava, para o Diagnóstico: temperatura, memória, storage, go2rtc, detector
-│   │   ├── diagnostico_processo.go  o próprio dwnvr, para o Diagnóstico: CPU, memória, arquivos abertos, UID
+│   │   ├── diagnostics_server.go   a máquina que grava, para o Diagnóstico: temperatura, memória, storage, go2rtc, detector
+│   │   ├── diagnostics_process.go  o próprio dwnvr, para o Diagnóstico: CPU, memória, arquivos abertos, UID
 │   │   ├── web.go          serve a SPA embutida
 │   │   └── dist/           build da interface, versionado (ver web/README.md)
 │   ├── alert/              quando a detecção vira alerta, o registro e o contrato dos meios de envio

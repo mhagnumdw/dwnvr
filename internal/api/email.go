@@ -14,13 +14,13 @@ import (
 )
 
 // O que a API faz com o e-mail: o teste do Diagnóstico, as peças do link de
-// convite por e-mail (a rota fica em usuarios.go) e o alerta por e-mail como a
+// convite por e-mail (a rota fica em users.go) e o alerta por e-mail como a
 // aba Alerta o mostra.
 
 // semEmail recusa o que envia e-mail quando a seção smtp não está ligada,
 // dizendo por quê.
-func (s *Server) semEmail(w http.ResponseWriter) bool {
-	if s.envio != nil {
+func (s *Server) noEmail(w http.ResponseWriter) bool {
+	if s.sending != nil {
 		return false
 	}
 	msg := "o e-mail está desligado: configure a seção smtp do dwnvr.yaml (ver docs/configuracao.md)"
@@ -40,11 +40,11 @@ func tokenDoLink(link string) (string, bool) {
 		u.User != nil || u.RawQuery != "" {
 		return "", false
 	}
-	resto, ok := strings.CutPrefix(u.Fragment, "convite?")
+	rest, ok := strings.CutPrefix(u.Fragment, "convite?")
 	if !ok {
 		return "", false
 	}
-	q, err := url.ParseQuery(resto)
+	q, err := url.ParseQuery(rest)
 	if err != nil || len(q) != 1 || len(q["token"]) != 1 || q.Get("token") == "" {
 		return "", false
 	}
@@ -52,8 +52,8 @@ func tokenDoLink(link string) (string, bool) {
 }
 
 // mensagemDoConvite é o e-mail do link de definir a senha.
-func mensagemDoConvite(u users.User, para, link string) email.Message {
-	minutos := int(users.InviteValidity.Minutes())
+func inviteMessage(u users.User, para, link string) email.Message {
+	minutes := int(users.InviteValidity.Minutes())
 	return email.Message{
 		To:      []string{para},
 		Subject: "Defina sua senha no dwnvr",
@@ -62,21 +62,21 @@ func mensagemDoConvite(u users.User, para, link string) email.Message {
 			"%s\n\n"+
 			"Seu usuário para entrar: %s\n\n"+
 			"Se o link vencer, peça outro a quem administra o dwnvr.\n",
-			u.Name, minutos, link, u.Username),
+			u.Name, minutes, link, u.Username),
 	}
 }
 
 // handleTesteEmail manda um e-mail de teste, para o admin conferir a seção
 // smtp sem cadastrar ninguém. O erro do servidor vem do jeito que ele
 // respondeu.
-func (s *Server) handleTesteEmail(w http.ResponseWriter, r *http.Request) {
-	if s.semEmail(w) {
+func (s *Server) handleEmailTest(w http.ResponseWriter, r *http.Request) {
+	if s.noEmail(w) {
 		return
 	}
 	var req struct {
 		Para string `json:"to"`
 	}
-	if !lerCorpo(w, r, &req) {
+	if !readBody(w, r, &req) {
 		return
 	}
 	para, err := users.ValidateEmail(req.Para)
@@ -90,12 +90,12 @@ func (s *Server) handleTesteEmail(w http.ResponseWriter, r *http.Request) {
 		Text: "Este é um e-mail de teste do dwnvr, mandado pela tela Diagnóstico.\n\n" +
 			"Se ele chegou, o envio de e-mail está funcionando.\n",
 	}
-	if err := s.envio.Send(r.Context(), m); err != nil {
-		s.log.Warn("o e-mail de teste não foi", "por", pessoaDe(r).Usuario, "erro", err)
+	if err := s.sending.Send(r.Context(), m); err != nil {
+		s.log.Warn("o e-mail de teste não foi", "por", personOf(r).Username, "erro", err)
 		writeError(w, http.StatusBadGateway, "o e-mail não foi: "+err.Error())
 		return
 	}
-	s.log.Info("e-mail de teste enviado", "por", pessoaDe(r).Usuario)
+	s.log.Info("e-mail de teste enviado", "por", personOf(r).Username)
 	writeJSON(w, map[string]string{"sentTo": para})
 }
 
@@ -111,7 +111,7 @@ type smtpInfo struct {
 
 // smtpNoDiagnostico é nil sem a seção smtp: quem não a configura não vê o
 // card.
-func smtpNoDiagnostico(c config.SMTP) *smtpInfo {
+func smtpInDiagnostics(c config.SMTP) *smtpInfo {
 	if c.Host == "" && c.Problem == "" {
 		return nil
 	}
@@ -122,7 +122,7 @@ func smtpNoDiagnostico(c config.SMTP) *smtpInfo {
 // desde quando e o erro se o meio está falhando; ou, sem o meio, as seções do
 // dwnvr.yaml que faltam, com o motivo da seção smtp recusada. Só o admin a
 // recebe, porque leva os endereços.
-type alertaPorEmail struct {
+type emailAlert struct {
 	To           []string   `json:"to,omitempty"`
 	FailingSince *time.Time `json:"failingSince,omitempty"`
 	Error        string     `json:"error,omitempty"`
@@ -130,11 +130,11 @@ type alertaPorEmail struct {
 	SMTPError    string     `json:"smtpError,omitempty"`
 }
 
-func (s *Server) alertaPorEmail() alertaPorEmail {
-	if falta := alert.MissingForEmail(s.cfg); len(falta) > 0 {
-		return alertaPorEmail{Missing: falta, SMTPError: s.cfg.SMTP.Problem}
+func (s *Server) emailAlert() emailAlert {
+	if missing := alert.MissingForEmail(s.cfg); len(missing) > 0 {
+		return emailAlert{Missing: missing, SMTPError: s.cfg.SMTP.Problem}
 	}
-	a := alertaPorEmail{To: s.cfg.Alerts.Email.To}
+	a := emailAlert{To: s.cfg.Alerts.Email.To}
 	// O estado do meio só existe depois que alguma câmera ligou o alerta.
 	if c := s.mgr.Alerts(); c != nil {
 		for _, m := range c.NotifierStates() {

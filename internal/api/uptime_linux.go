@@ -22,8 +22,8 @@ func machineUptime() (time.Duration, bool) {
 		return 0, false
 	}
 	// O arquivo é "<segundos ligado> <segundos ocioso>"; só o primeiro interessa.
-	campo, _, _ := strings.Cut(strings.TrimSpace(string(b)), " ")
-	s, err := strconv.ParseFloat(campo, 64)
+	field, _, _ := strings.Cut(strings.TrimSpace(string(b)), " ")
+	s, err := strconv.ParseFloat(field, 64)
 	if err != nil {
 		return 0, false
 	}

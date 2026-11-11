@@ -16,12 +16,12 @@ import (
 
 // handleConta diz quem está logado e os números do formulário, para a tela
 // não os repetir à mão.
-func (s *Server) handleConta(w http.ResponseWriter, r *http.Request) {
-	if s.semCadastro(w) {
+func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
+	if s.noRegistry(w) {
 		return
 	}
 	writeJSON(w, map[string]any{
-		"user":              pessoaDe(r),
+		"user":              personOf(r),
 		"minPasswordLength": users.MinPasswordLen,
 		"maxPasswordLength": users.MaxPasswordLen,
 		"maxNameLength":     users.MaxNameLen,
@@ -35,8 +35,8 @@ func (s *Server) handleConta(w http.ResponseWriter, r *http.Request) {
 
 // respostaDaConta devolve a pessoa como ficou depois da mudança, para a tela
 // atualizar o header sem perguntar de novo.
-func (s *Server) respostaDaConta(w http.ResponseWriter, usuario string) {
-	p, ok := s.quem(usuario)
+func (s *Server) accountResponse(w http.ResponseWriter, username string) {
+	p, ok := s.who(username)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "não autenticado")
 		return
@@ -47,68 +47,68 @@ func (s *Server) respostaDaConta(w http.ResponseWriter, usuario string) {
 // handleTrocarSenha troca a própria senha, pedindo a atual. Os outros
 // aparelhos da pessoa voltam para a tela de login; o que pediu recebe um
 // cookie novo e continua.
-func (s *Server) handleTrocarSenha(w http.ResponseWriter, r *http.Request) {
-	if s.semCadastro(w) {
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	if s.noRegistry(w) {
 		return
 	}
-	p := pessoaDe(r)
-	if p.Dono {
+	p := personOf(r)
+	if p.Owner {
 		writeError(w, http.StatusConflict, "a senha do dono fica no dwnvr.yaml, e se troca lá")
 		return
 	}
 	var req struct {
-		Atual string `json:"currentPassword"`
-		Nova  string `json:"newPassword"`
+		Current string `json:"currentPassword"`
+		Nova    string `json:"newPassword"`
 	}
-	if !lerCorpo(w, r, &req) {
+	if !readBody(w, r, &req) {
 		return
 	}
-	u, err := s.usuarios.ChangePassword(r.Context(), p.Usuario, req.Atual, req.Nova)
+	u, err := s.users.ChangePassword(r.Context(), p.Username, req.Current, req.Nova)
 	if r.Context().Err() != nil {
 		return // o navegador desistiu na fila
 	}
 	if err != nil {
-		s.recusa(w, "trocando a senha", err)
+		s.reject(w, "trocando a senha", err)
 		return
 	}
-	novo, ok := s.quem(u.Username)
+	newOne, ok := s.who(u.Username)
 	if !ok {
 		s.fail(w, "abrindo a sessão de quem acabou de trocar a senha", errors.New("pessoa sumiu"))
 		return
 	}
-	s.setSessionCookie(w, r, novo)
-	writeJSON(w, map[string]any{"ok": true, "user": novo})
+	s.setSessionCookie(w, r, newOne)
+	writeJSON(w, map[string]any{"ok": true, "user": newOne})
 	// O aviso de sessão vai depois da resposta: o ao vivo aberto em outra aba
 	// deste navegador confere a sessão assim que o aviso cai, e precisa
 	// encontrar o cookie novo já guardado.
 	_ = http.NewResponseController(w).Flush()
-	s.derrubarPessoa(p.Usuario, "senha trocada")
-	s.log.Info("senha trocada pela própria pessoa", "usuario", p.Usuario)
+	s.dropPerson(p.Username, "senha trocada")
+	s.log.Info("senha trocada pela própria pessoa", "usuario", p.Username)
 }
 
 // handleMudarNome troca o próprio nome de exibição.
-func (s *Server) handleMudarNome(w http.ResponseWriter, r *http.Request) {
-	if s.semCadastro(w) {
+func (s *Server) handleChangeName(w http.ResponseWriter, r *http.Request) {
+	if s.noRegistry(w) {
 		return
 	}
 	var req struct {
 		Nome string `json:"name"`
 	}
-	if !lerCorpo(w, r, &req) {
+	if !readBody(w, r, &req) {
 		return
 	}
-	p := pessoaDe(r)
-	if _, err := s.usuarios.Rename(p.Usuario, req.Nome); err != nil {
-		s.recusa(w, "trocando o nome", err)
+	p := personOf(r)
+	if _, err := s.users.Rename(p.Username, req.Nome); err != nil {
+		s.reject(w, "trocando o nome", err)
 		return
 	}
-	s.respostaDaConta(w, p.Usuario)
+	s.accountResponse(w, p.Username)
 }
 
 // handleTrocarAvatar guarda a própria foto. O corpo é o JPEG, já reduzido
 // pelo navegador; acima do teto, a leitura para no meio.
-func (s *Server) handleTrocarAvatar(w http.ResponseWriter, r *http.Request) {
-	if s.semCadastro(w) {
+func (s *Server) handleChangeAvatar(w http.ResponseWriter, r *http.Request) {
+	if s.noRegistry(w) {
 		return
 	}
 	b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, users.MaxAvatarBytes))
@@ -121,25 +121,25 @@ func (s *Server) handleTrocarAvatar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "corpo inválido")
 		return
 	}
-	p := pessoaDe(r)
-	if _, err := s.usuarios.SetAvatar(p.Usuario, b); err != nil {
-		s.recusa(w, "guardando a foto", err)
+	p := personOf(r)
+	if _, err := s.users.SetAvatar(p.Username, b); err != nil {
+		s.reject(w, "guardando a foto", err)
 		return
 	}
-	s.respostaDaConta(w, p.Usuario)
+	s.accountResponse(w, p.Username)
 }
 
 // handleTirarAvatar apaga a própria foto.
-func (s *Server) handleTirarAvatar(w http.ResponseWriter, r *http.Request) {
-	if s.semCadastro(w) {
+func (s *Server) handleRemoveAvatar(w http.ResponseWriter, r *http.Request) {
+	if s.noRegistry(w) {
 		return
 	}
-	p := pessoaDe(r)
-	if err := s.usuarios.RemoveAvatar(p.Usuario); err != nil {
-		s.recusa(w, "tirando a foto", err)
+	p := personOf(r)
+	if err := s.users.RemoveAvatar(p.Username); err != nil {
+		s.reject(w, "tirando a foto", err)
 		return
 	}
-	s.respostaDaConta(w, p.Usuario)
+	s.accountResponse(w, p.Username)
 }
 
 // handleAvatar serve a foto pelo id. Cada um vê a própria; o admin vê todas,
@@ -149,16 +149,16 @@ func (s *Server) handleTirarAvatar(w http.ResponseWriter, r *http.Request) {
 // O id muda a cada troca, então a resposta pode ficar no navegador para
 // sempre: foto nova é URL nova.
 func (s *Server) handleAvatar(w http.ResponseWriter, r *http.Request) {
-	caminho, dono, err := s.usuarios.Avatar(r.URL.Query().Get("id"))
-	p := pessoaDe(r)
-	if err == nil && !p.admin() && dono != p.Usuario {
+	filePath, owner, err := s.users.Avatar(r.URL.Query().Get("id"))
+	p := personOf(r)
+	if err == nil && !p.admin() && owner != p.Username {
 		err = users.ErrNoAvatar
 	}
 	if err != nil {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	f, err := os.Open(caminho)
+	f, err := os.Open(filePath)
 	if err != nil {
 		s.fail(w, "abrindo a foto", err)
 		return

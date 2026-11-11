@@ -21,16 +21,16 @@ import (
 
 // pedirComo faz a requisição pelo Handler, com o cookie de quem pede (ou sem
 // cookie, com usuario vazio), e devolve o status e o corpo lido como JSON.
-func pedirComo(t *testing.T, s *Server, usuario, metodo, rota string, corpo any) (*httptest.ResponseRecorder, map[string]any) {
+func requestAs(t *testing.T, s *Server, username, method, rota string, body any) (*httptest.ResponseRecorder, map[string]any) {
 	t.Helper()
-	var leitor io.Reader
-	if corpo != nil {
-		b, _ := json.Marshal(corpo)
-		leitor = strings.NewReader(string(b))
+	var reader io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		reader = strings.NewReader(string(b))
 	}
-	req := httptest.NewRequest(metodo, rota, leitor)
-	if usuario != "" {
-		req.AddCookie(cookieDe(t, s, usuario))
+	req := httptest.NewRequest(method, rota, reader)
+	if username != "" {
+		req.AddCookie(cookieDe(t, s, username))
 	}
 	if s.client == nil {
 		s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // o Handler monta o proxy do live com ele
@@ -43,11 +43,11 @@ func pedirComo(t *testing.T, s *Server, usuario, metodo, rota string, corpo any)
 }
 
 // Do admin criar até a pessoa entrar com a senha que ela mesma definiu.
-func TestConviteDaTelaAoLogin(t *testing.T) {
+func TestInviteFromScreenToLogin(t *testing.T) {
 	s, _ := testServer(t)
-	comAutenticacao(t, s)
+	withAuth(t, s)
 
-	rec, resp := pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios",
+	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios",
 		map[string]string{"username": "maria", "name": "Maria"})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("criar: status %d, %s", rec.Code, rec.Body)
@@ -60,17 +60,17 @@ func TestConviteDaTelaAoLogin(t *testing.T) {
 		t.Errorf("a resposta traz o hash do token: %s", rec.Body)
 	}
 
-	rec, resp = pedirComo(t, s, "", http.MethodPost, "/api/convite/conferir", map[string]string{"token": token})
+	rec, resp = requestAs(t, s, "", http.MethodPost, "/api/convite/conferir", map[string]string{"token": token})
 	if rec.Code != http.StatusOK || resp["name"] != "Maria" || resp["minPasswordLength"] != float64(users.MinPasswordLen) {
 		t.Errorf("conferir: status %d, %s", rec.Code, rec.Body)
 	}
 
-	rec, _ = pedirComo(t, s, "", http.MethodPost, "/api/convite", map[string]string{"token": token, "password": "curta"})
+	rec, _ = requestAs(t, s, "", http.MethodPost, "/api/convite", map[string]string{"token": token, "password": "curta"})
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("senha curta: status %d, esperava 400", rec.Code)
 	}
 
-	rec, _ = pedirComo(t, s, "", http.MethodPost, "/api/convite", map[string]string{"token": token, "password": "uma senha boa"})
+	rec, _ = requestAs(t, s, "", http.MethodPost, "/api/convite", map[string]string{"token": token, "password": "uma senha boa"})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("definir a senha: status %d, %s", rec.Code, rec.Body)
 	}
@@ -78,19 +78,19 @@ func TestConviteDaTelaAoLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("definir a senha não abriu a sessão: %v", err)
 	}
-	if p, _, ok := s.tokenPessoa(c.Value); !ok || p.Usuario != "maria" || p.Papel != users.RoleViewer {
+	if p, _, ok := s.tokenPerson(c.Value); !ok || p.Username != "maria" || p.Role != users.RoleViewer {
 		t.Errorf("sessão aberta para %+v (ok=%v)", p, ok)
 	}
 
 	// Uso único.
-	rec, _ = pedirComo(t, s, "", http.MethodPost, "/api/convite", map[string]string{"token": token, "password": "outra senha boa"})
+	rec, _ = requestAs(t, s, "", http.MethodPost, "/api/convite", map[string]string{"token": token, "password": "outra senha boa"})
 	if rec.Code != http.StatusGone {
 		t.Errorf("link usado de novo: status %d, esperava 410", rec.Code)
 	}
 
-	rec, resp = pedirComo(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
-	lista, _ := resp["users"].([]any)
-	if rec.Code != http.StatusOK || len(lista) != 1 || lista[0].(map[string]any)["status"] != "active" {
+	rec, resp = requestAs(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
+	list, _ := resp["users"].([]any)
+	if rec.Code != http.StatusOK || len(list) != 1 || list[0].(map[string]any)["status"] != "active" {
 		t.Errorf("listar: status %d, %s", rec.Code, rec.Body)
 	}
 	if strings.Contains(rec.Body.String(), "pbkdf2") {
@@ -98,20 +98,20 @@ func TestConviteDaTelaAoLogin(t *testing.T) {
 	}
 }
 
-func TestCriarUsuarioRecusa(t *testing.T) {
+func TestCreateUserRejects(t *testing.T) {
 	s, _ := testServer(t)
-	comAutenticacao(t, s, maria)
-	for _, corpo := range []map[string]string{
+	withAuth(t, s, maria)
+	for _, body := range []map[string]string{
 		{"username": "maria", "name": "Outra"}, // repetido
 		{"username": "admin", "name": "Dono"},  // o dono
 		{"username": "Zé", "name": "Zé"},       // fora do formato
 		{"username": "ze", "name": ""},
 	} {
-		if rec, _ := pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios", corpo); rec.Code != http.StatusBadRequest {
-			t.Errorf("%v: status %d, esperava 400", corpo, rec.Code)
+		if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios", body); rec.Code != http.StatusBadRequest {
+			t.Errorf("%v: status %d, esperava 400", body, rec.Code)
 		}
 	}
-	if rec, _ := pedirComo(t, s, "admin", http.MethodDelete, "/api/usuarios?username=ninguem", nil); rec.Code != http.StatusNotFound {
+	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/usuarios?username=ninguem", nil); rec.Code != http.StatusNotFound {
 		t.Errorf("remover quem não existe: status %d", rec.Code)
 	}
 }
@@ -128,10 +128,10 @@ func camposDe(t *testing.T, resp map[string]any) map[string]any {
 
 // A recusa do criar vem campo a campo, para a tela pôr cada mensagem embaixo
 // do seu campo, e a primeira também no "error" de sempre.
-func TestCriarUsuarioRecusaPorCampo(t *testing.T) {
+func TestCreateUserRejectsByField(t *testing.T) {
 	s, _ := testServer(t)
-	comAutenticacao(t, s, maria)
-	rec, resp := pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios",
+	withAuth(t, s, maria)
+	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios",
 		map[string]string{"username": "maria", "name": "Outra", "email": "outra"})
 	campos := camposDe(t, resp)
 	if rec.Code != http.StatusBadRequest || len(campos) != 2 || campos["username"] == nil || campos["email"] == nil {
@@ -144,48 +144,48 @@ func TestCriarUsuarioRecusaPorCampo(t *testing.T) {
 
 // A conferência responde o que o criar e o trocar e-mail recusariam, sem
 // gravar, e só para o admin.
-func TestConferirUsuario(t *testing.T) {
+func TestCheckUsername(t *testing.T) {
 	s, _ := testServer(t)
-	comAutenticacao(t, s, maria)
-	if _, err := s.usuarios.SetEmail("maria", "maria@exemplo.com"); err != nil {
+	withAuth(t, s, maria)
+	if _, err := s.users.SetEmail("maria", "maria@exemplo.com"); err != nil {
 		t.Fatal(err)
 	}
 
-	rec, resp := pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/conferir",
+	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/conferir",
 		map[string]string{"username": "Maria", "name": " ", "email": "MARIA@exemplo.com"})
 	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 3 {
 		t.Errorf("recusas: status %d, %s", rec.Code, rec.Body)
 	}
-	rec, resp = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/conferir",
+	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/conferir",
 		map[string]string{"username": "joao", "name": "João", "email": ""})
 	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
 		t.Errorf("tudo certo: status %d, %s", rec.Code, rec.Body)
 	}
-	if _, ok := s.usuarios.Find("joao"); ok {
+	if _, ok := s.users.Find("joao"); ok {
 		t.Error("a conferência criou a pessoa")
 	}
 
-	rec, resp = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
+	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
 		map[string]string{"username": "maria", "email": "Maria@Exemplo.com"})
 	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
 		t.Errorf("o próprio e-mail: status %d, %s", rec.Code, rec.Body)
 	}
 	// Um e-mail livre e diferente: aceito, e o gravado não muda.
-	rec, resp = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
+	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
 		map[string]string{"username": "maria", "email": "outra@exemplo.com"})
 	if campos := camposDe(t, resp); rec.Code != http.StatusOK || len(campos) != 0 {
 		t.Errorf("e-mail livre: status %d, %s", rec.Code, rec.Body)
 	}
-	if u, _ := s.usuarios.Find("maria"); u.Email != "maria@exemplo.com" {
+	if u, _ := s.users.Find("maria"); u.Email != "maria@exemplo.com" {
 		t.Errorf("a conferência gravou o e-mail: %q", u.Email)
 	}
-	if rec, _ = pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
+	if rec, _ = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
 		map[string]string{"username": "ninguem", "email": "x@exemplo.com"}); rec.Code != http.StatusNotFound {
 		t.Errorf("quem não existe: status %d, esperava 404", rec.Code)
 	}
 
 	for _, rota := range []string{"/api/usuarios/conferir", "/api/usuarios/email/conferir"} {
-		if rec, _ = pedirComo(t, s, "maria", http.MethodPost, rota,
+		if rec, _ = requestAs(t, s, "maria", http.MethodPost, rota,
 			map[string]string{"username": "maria"}); rec.Code != http.StatusForbidden {
 			t.Errorf("%s pelo viewer: status %d, esperava 403", rota, rec.Code)
 		}
@@ -193,69 +193,69 @@ func TestConferirUsuario(t *testing.T) {
 }
 
 // Sem autenticação não há cadastro: a tela não grava, e link nenhum vale.
-func TestSemAutenticacaoNaoHaCadastro(t *testing.T) {
+func TestNoAuthNoRegistry(t *testing.T) {
 	s, _ := testServer(t)
-	if rec, _ := pedirComo(t, s, "", http.MethodPost, "/api/usuarios",
+	if rec, _ := requestAs(t, s, "", http.MethodPost, "/api/usuarios",
 		map[string]string{"username": "maria", "name": "Maria"}); rec.Code != http.StatusConflict {
 		t.Errorf("criar sem autenticação: status %d, esperava 409", rec.Code)
 	}
-	if rec, _ := pedirComo(t, s, "", http.MethodPost, "/api/usuarios/conferir",
+	if rec, _ := requestAs(t, s, "", http.MethodPost, "/api/usuarios/conferir",
 		map[string]string{"username": "maria", "name": "Maria"}); rec.Code != http.StatusConflict {
 		t.Errorf("conferir o novo sem autenticação: status %d, esperava 409", rec.Code)
 	}
-	if rec, _ := pedirComo(t, s, "", http.MethodPost, "/api/convite/conferir",
+	if rec, _ := requestAs(t, s, "", http.MethodPost, "/api/convite/conferir",
 		map[string]string{"token": "x"}); rec.Code != http.StatusGone {
 		t.Errorf("conferir sem autenticação: status %d, esperava 410", rec.Code)
 	}
-	if rec, resp := pedirComo(t, s, "", http.MethodGet, "/api/usuarios", nil); rec.Code != http.StatusOK || resp["authRequired"] != false {
+	if rec, resp := requestAs(t, s, "", http.MethodGet, "/api/usuarios", nil); rec.Code != http.StatusOK || resp["authRequired"] != false {
 		t.Errorf("listar sem autenticação: status %d, %s", rec.Code, rec.Body)
 	}
 }
 
 // acessoNaTela é o lastAccessMs da pessoa no GET /api/usuarios, pedido pelo
 // admin, ou nil se não veio.
-func acessoNaTela(t *testing.T, s *Server, usuario string) any {
+func accessOnScreen(t *testing.T, s *Server, username string) any {
 	t.Helper()
-	_, resp := pedirComo(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
-	lista, _ := resp["users"].([]any)
-	for _, u := range lista {
-		if m, _ := u.(map[string]any); m["username"] == usuario {
+	_, resp := requestAs(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
+	list, _ := resp["users"].([]any)
+	for _, u := range list {
+		if m, _ := u.(map[string]any); m["username"] == username {
 			return m["lastAccessMs"]
 		}
 	}
-	t.Fatalf("%s fora da lista: %v", usuario, resp)
+	t.Fatalf("%s fora da lista: %v", username, resp)
 	return nil
 }
 
 // O último acesso: qualquer requisição com sessão o anota, a tela Usuários o
 // mostra, e remover a pessoa o apaga.
-func TestUltimoAcessoNaTelaUsuarios(t *testing.T) {
+func TestLastAccessOnUsersScreen(t *testing.T) {
 	s, _ := testServer(t)
-	comAutenticacao(t, s, maria)
+	withAuth(t, s, maria)
 
-	if got := acessoNaTela(t, s, "maria"); got != nil {
+	if got := accessOnScreen(t, s, "maria"); got != nil {
 		t.Errorf("antes de ela usar o dwnvr, lastAccessMs=%v", got)
 	}
 
 	antes := time.Now().Truncate(time.Second).UnixMilli()
-	if rec, _ := pedirComo(t, s, "maria", http.MethodGet, "/api/session", nil); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "maria", http.MethodGet, "/api/session", nil); rec.Code != http.StatusOK {
 		t.Fatalf("sessão da maria: status %d", rec.Code)
 	}
-	got, _ := acessoNaTela(t, s, "maria").(float64)
+	got, _ := accessOnScreen(t, s, "maria").(float64)
 	if int64(got) < antes || int64(got) > time.Now().UnixMilli() {
 		t.Errorf("depois de ela usar, lastAccessMs=%v, esperava entre %d e agora", got, antes)
 	}
 
 	// O admin que lista também acabou de usar: o dono vem com o dele.
-	_, resp := pedirComo(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
-	if dono, _ := resp["owner"].(map[string]any); dono["lastAccessMs"] == nil {
+	_, resp := requestAs(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
+	if owner, _ := resp["owner"].(map[string]any); owner["lastAccessMs"] == nil {
 		t.Errorf("o dono veio sem lastAccessMs: %v", resp["owner"])
 	}
 
-	if rec, _ := pedirComo(t, s, "admin", http.MethodDelete, "/api/usuarios?username=maria", nil); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/usuarios?username=maria", nil); rec.Code != http.StatusOK {
 		t.Fatalf("remover: status %d, %s", rec.Code, rec.Body)
 	}
-	if got := s.acessos.Last("maria"); !got.IsZero() {
+	if got := s.accesses.Last("maria"); !got.IsZero() {
 		t.Errorf("depois de remover, o acesso da maria ficou: %v", got)
 	}
 }
@@ -263,43 +263,43 @@ func TestUltimoAcessoNaTelaUsuarios(t *testing.T) {
 // O acessos.json que o boot lê pode ter o acesso de quem teve o mesmo usuário
 // antes, se o dwnvr caiu antes de gravar o Esquecer. Acesso de antes da
 // criação da conta não aparece; o da pessoa nova, sim.
-func TestAcessoDeAntesDaContaNaoAparece(t *testing.T) {
+func TestAccessFromBeforeTheAccountIsHidden(t *testing.T) {
 	s, _ := testServer(t)
-	criada := time.Now().Truncate(time.Second)
+	created := time.Now().Truncate(time.Second)
 	nova := maria
-	nova.CreatedAt = criada
-	comAutenticacao(t, s, nova)
+	nova.CreatedAt = created
+	withAuth(t, s, nova)
 
-	antigo := criada.Add(-time.Hour).Format(time.RFC3339)
-	if err := os.WriteFile(s.cfg.AccessPath(), []byte(`{"lastAccess":{"maria":"`+antigo+`"}}`), 0o600); err != nil {
+	old := created.Add(-time.Hour).Format(time.RFC3339)
+	if err := os.WriteFile(s.cfg.AccessPath(), []byte(`{"lastAccess":{"maria":"`+old+`"}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	acessos, err := users.OpenAccessLog(s.cfg.AccessPath(), s.log)
+	accesses, err := users.OpenAccessLog(s.cfg.AccessPath(), s.log)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.acessos = acessos
+	s.accesses = accesses
 
-	if got := acessoNaTela(t, s, "maria"); got != nil {
+	if got := accessOnScreen(t, s, "maria"); got != nil {
 		t.Errorf("acesso de antes da conta apareceu: lastAccessMs=%v", got)
 	}
 
-	if rec, _ := pedirComo(t, s, "maria", http.MethodGet, "/api/session", nil); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "maria", http.MethodGet, "/api/session", nil); rec.Code != http.StatusOK {
 		t.Fatalf("sessão da maria: status %d", rec.Code)
 	}
-	if got := acessoNaTela(t, s, "maria"); got == nil {
+	if got := accessOnScreen(t, s, "maria"); got == nil {
 		t.Error("o acesso da maria nova não apareceu")
 	}
 }
 
 // Com a autenticação desligada não há de quem anotar o acesso, e nenhum
 // arquivo nasce.
-func TestSemAutenticacaoNaoHaUltimoAcesso(t *testing.T) {
+func TestNoAuthNoLastAccess(t *testing.T) {
 	s, _ := testServer(t)
-	if rec, _ := pedirComo(t, s, "", http.MethodGet, "/api/cameras", nil); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "", http.MethodGet, "/api/cameras", nil); rec.Code != http.StatusOK {
 		t.Fatalf("câmeras sem autenticação: status %d", rec.Code)
 	}
-	if err := s.acessos.FlushPending(); err != nil {
+	if err := s.accesses.FlushPending(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(s.cfg.AccessPath()); !os.IsNotExist(err) {
@@ -310,22 +310,22 @@ func TestSemAutenticacaoNaoHaUltimoAcesso(t *testing.T) {
 // apertoDeMao é o pedido de websocket, com o cookie da pessoa. A chave é a do
 // exemplo da RFC 6455, montada a partir do nonce dela para o detector de
 // segredos do commit não a tomar por uma credencial.
-func apertoDeMao(rota string, c *http.Cookie) string {
-	chave := base64.StdEncoding.EncodeToString([]byte("the sample nonce"))
+func handshake(rota string, c *http.Cookie) string {
+	key := base64.StdEncoding.EncodeToString([]byte("the sample nonce"))
 	return "GET " + rota + " HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
-		"Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: " + chave + "\r\nCookie: " + c.String() + "\r\n\r\n"
+		"Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: " + key + "\r\nCookie: " + c.String() + "\r\n\r\n"
 }
 
 // abrirAviso abre o aviso de sessão com o cookie da pessoa, num servidor de
 // verdade: o httptest.ResponseRecorder não faz hijack.
-func abrirAviso(t *testing.T, srv *httptest.Server, c *http.Cookie) net.Conn {
+func openWarning(t *testing.T, srv *httptest.Server, c *http.Cookie) net.Conn {
 	t.Helper()
 	conn, err := net.Dial("tcp", srv.Listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { conn.Close() })
-	_, _ = io.WriteString(conn, apertoDeMao("/api/session/ws", c))
+	_, _ = io.WriteString(conn, handshake("/api/session/ws", c))
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -339,53 +339,53 @@ func abrirAviso(t *testing.T, srv *httptest.Server, c *http.Cookie) net.Conn {
 }
 
 // fecha diz se o servidor fechou a conexão dentro do prazo.
-func fecha(conn net.Conn, prazo time.Duration) bool {
-	_ = conn.SetReadDeadline(time.Now().Add(prazo))
+func closes(conn net.Conn, deadline time.Duration) bool {
+	_ = conn.SetReadDeadline(time.Now().Add(deadline))
 	_, err := conn.Read(make([]byte, 1))
 	return errors.Is(err, io.EOF)
 }
 
 // Gerar link novo ou remover derruba na hora o que a pessoa tem aberto, e só
 // dela.
-func TestDerrubaAsConexoesDaPessoa(t *testing.T) {
+func TestDropsThePersonsConnections(t *testing.T) {
 	s, _ := testServer(t)
 	ze := maria
 	ze.Username, ze.Name = "ze", "Zé"
-	comAutenticacao(t, s, maria, ze)
+	withAuth(t, s, maria, ze)
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"})
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
-	daMaria := abrirAviso(t, srv, cookieDe(t, s, "maria"))
-	doZe := abrirAviso(t, srv, cookieDe(t, s, "ze"))
-	if fecha(daMaria, 100*time.Millisecond) {
+	daMaria := openWarning(t, srv, cookieDe(t, s, "maria"))
+	zesLink := openWarning(t, srv, cookieDe(t, s, "ze"))
+	if closes(daMaria, 100*time.Millisecond) {
 		t.Fatal("o aviso fechou sozinho")
 	}
 
-	if rec, _ := pedirComo(t, s, "admin", http.MethodPost, "/api/usuarios/link",
+	if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/link",
 		map[string]string{"username": "maria"}); rec.Code != http.StatusOK {
 		t.Fatalf("link novo: status %d, %s", rec.Code, rec.Body)
 	}
-	if !fecha(daMaria, 2*time.Second) {
+	if !closes(daMaria, 2*time.Second) {
 		t.Error("o aviso da maria continuou aberto depois do link novo")
 	}
-	if fecha(doZe, 100*time.Millisecond) {
+	if closes(zesLink, 100*time.Millisecond) {
 		t.Error("o aviso do zé caiu junto")
 	}
 
-	if rec, _ := pedirComo(t, s, "admin", http.MethodDelete, "/api/usuarios?username=ze", nil); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/usuarios?username=ze", nil); rec.Code != http.StatusOK {
 		t.Fatalf("remover: status %d", rec.Code)
 	}
-	if !fecha(doZe, 2*time.Second) {
+	if !closes(zesLink, 2*time.Second) {
 		t.Error("o aviso do zé continuou aberto depois de removido")
 	}
 }
 
 // O websocket do ao vivo também entra na conta: o proxy anota a conexão que o
 // ReverseProxy toma.
-func TestDerrubaOAoVivo(t *testing.T) {
+func TestDropsTheLiveView(t *testing.T) {
 	// Um go2rtc de mentira, que aceita o websocket e fica parado.
-	falso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, rw, err := http.NewResponseController(w).Hijack()
 		if err != nil {
 			return
@@ -395,11 +395,11 @@ func TestDerrubaOAoVivo(t *testing.T) {
 		_ = rw.Flush()
 		_, _ = io.Copy(io.Discard, rw)
 	}))
-	defer falso.Close()
+	defer fake.Close()
 
 	s, _ := testServer(t)
-	s.client = go2rtc.New(config.Go2RTC{URL: falso.URL})
-	comAutenticacao(t, s, maria)
+	s.client = go2rtc.New(config.Go2RTC{URL: fake.URL})
+	withAuth(t, s, maria)
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
@@ -408,7 +408,7 @@ func TestDerrubaOAoVivo(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	_, _ = io.WriteString(conn, apertoDeMao("/api/live/ws?src=cam_teste", cookieDe(t, s, "maria")))
+	_, _ = io.WriteString(conn, handshake("/api/live/ws?src=cam_teste", cookieDe(t, s, "maria")))
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -418,10 +418,10 @@ func TestDerrubaOAoVivo(t *testing.T) {
 		t.Fatalf("ao vivo: status %d", resp.StatusCode)
 	}
 
-	if rec, _ := pedirComo(t, s, "admin", http.MethodDelete, "/api/usuarios?username=maria", nil); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/usuarios?username=maria", nil); rec.Code != http.StatusOK {
 		t.Fatalf("remover: status %d", rec.Code)
 	}
-	if !fecha(conn, 2*time.Second) {
+	if !closes(conn, 2*time.Second) {
 		t.Error("o ao vivo continuou aberto depois de a pessoa ser removida")
 	}
 }

@@ -89,18 +89,18 @@ func (s *Server) handleProbeStream(w http.ResponseWriter, r *http.Request) {
 	// do produtor: o go2rtc lista o produtor CONFIGURADO desde sempre, só com a
 	// url, e só preenche as trilhas quando de fato conecta na câmera.
 	var sourceURL string
-	conhecido := false
+	known := false
 	for _, p := range st.Producers {
 		sourceURL = p.URL
 		if len(p.Medias) == 0 {
 			continue
 		}
-		conhecido = true
+		known = true
 		if p.HasAudio() {
 			setAudio(true, p.AudioCodecs())
 		}
 	}
-	if conhecido {
+	if known {
 		writeJSON(w, resp)
 		return
 	}

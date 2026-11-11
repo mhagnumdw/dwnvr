@@ -35,15 +35,15 @@ type Server struct {
 	// assina os cookies de cada pessoa (ver chaveDaSessao).
 	sessionSecret []byte
 	// usuarios são as pessoas do usuarios.json. O dono vem do cfg.
-	usuarios *users.Registry
+	users *users.Registry
 	// acessos é o último acesso de cada pessoa, que a sessao anota.
-	acessos *users.AccessLog
+	accesses *users.AccessLog
 	// envio manda os e-mails. É nil sem a seção smtp ligada: aí as rotas de
 	// e-mail respondem 409, e a tela esconde o que é de e-mail.
-	envio email.Sender
+	sending email.Sender
 	// abertas são as conexões que não voltam a apresentar o cookie (o ao vivo
-	// e o aviso de sessão), para derrubar quem é removido. Ver derrubar.go.
-	abertas conexoes
+	// e o aviso de sessão), para derrubar quem é removido. Ver drop.go.
+	open connections
 	// ret diz desde quando o disco está abaixo do mínimo. Pode ser nil nos
 	// testes, e aí o aviso sai sem o "desde".
 	ret *retention.Manager
@@ -55,10 +55,10 @@ type Server struct {
 	// cada vez que o formulário de cadastro é aberto. Ver probe.go.
 	probes probeCache
 	// Um teste de escrita no storage em andamento, e o erro do último que
-	// falhou. Ver diagnostico_servidor.go. Só a goroutine que ganhou o
+	// falhou. Ver diagnostics_server.go. Só a goroutine que ganhou o
 	// escrevendo toca o erroEscrita.
-	escrevendo  atomic.Bool
-	erroEscrita string
+	writing  atomic.Bool
+	writeErr string
 	// cadastro enfileira quem mexe no ciclo de vida das câmeras: salvar,
 	// remover e apagar gravações. Cada um lê a lista, grava o cameras.json e
 	// para ou sobe recorder, e dois ao mesmo tempo - duas abas, dois aparelhos -
@@ -66,10 +66,10 @@ type Server struct {
 	// gravando fora do mapa do Manager. A corrida é entre goroutines deste
 	// processo, o único que escreve ali: por isso um mutex, e não um arquivo de
 	// lock, que só teria serventia entre processos.
-	cadastro sync.Mutex
+	registry sync.Mutex
 	// limiteLogin conta as tentativas de login de cada endereço. É nil com o
 	// server.loginAttemptsPerMinute em zero: aí o login não paga nada por ele.
-	limiteLogin ratelimit.Limiter
+	loginLimit ratelimit.Limiter
 	// proxies são as redes do server.trustedProxies, já lidas (ver clienteDe).
 	proxies []netip.Prefix
 }
@@ -78,19 +78,19 @@ type Server struct {
 // login a partir da config.
 func New(cfg *config.Config, st *store.Store, client *go2rtc.Client,
 	mgr *recorder.Manager, ret *retention.Manager, cad *users.Registry,
-	acessos *users.AccessLog, envio email.Sender, secret []byte, log *slog.Logger) *Server {
+	accesses *users.AccessLog, sending email.Sender, secret []byte, log *slog.Logger) *Server {
 
 	s := &Server{cfg: cfg, store: st, client: client, mgr: mgr, ret: ret,
-		usuarios: cad, acessos: acessos, envio: envio, sessionSecret: secret, log: log,
+		users: cad, accesses: accesses, sending: sending, sessionSecret: secret, log: log,
 		startedAt: time.Now()}
-	s.limiteLogin, s.proxies = limiteDoLogin(cfg.Server)
+	s.loginLimit, s.proxies = loginLimiter(cfg.Server)
 	return s
 }
 
 // limiteDoLogin monta o limite do login a partir da config, já conferida no
 // boot (ver config.Load): uma lista de proxies inválida ali já voltou ao
 // padrão.
-func limiteDoLogin(c config.Server) (ratelimit.Limiter, []netip.Prefix) {
+func loginLimiter(c config.Server) (ratelimit.Limiter, []netip.Prefix) {
 	proxies, _ := config.Prefixes(c.TrustedProxies)
 	if c.LoginAttemptsPerMinute <= 0 {
 		return nil, proxies
@@ -128,30 +128,30 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("POST /api/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/session", s.handleSession)
-	mux.HandleFunc("GET /api/session/ws", s.requireAuth(s.handleAvisoDeSessao))
+	mux.HandleFunc("GET /api/session/ws", s.requireAuth(s.handleSessionWarning))
 
 	// Link de convite: público, porque quem o abre ainda não tem senha. O
 	// token vem no corpo, e só ele dá acesso.
-	mux.HandleFunc("POST /api/convite/conferir", s.handleConferirConvite)
-	mux.HandleFunc("POST /api/convite", s.handleConvite)
+	mux.HandleFunc("POST /api/convite/conferir", s.handleCheckInvite)
+	mux.HandleFunc("POST /api/convite", s.handleInvite)
 
 	// Usuários: a tela é do admin.
-	mux.HandleFunc("GET /api/usuarios", s.requireAdmin(s.handleUsuarios))
-	mux.HandleFunc("POST /api/usuarios", s.requireAdmin(s.handleCriarUsuario))
-	mux.HandleFunc("POST /api/usuarios/conferir", s.requireAdmin(s.handleConferirNovo))
-	mux.HandleFunc("POST /api/usuarios/link", s.requireAdmin(s.handleNovoLink))
-	mux.HandleFunc("POST /api/usuarios/link/email", s.requireAdmin(s.handleEnviarLink))
-	mux.HandleFunc("POST /api/usuarios/email", s.requireAdmin(s.handleTrocarEmail))
-	mux.HandleFunc("POST /api/usuarios/email/conferir", s.requireAdmin(s.handleConferirEmail))
-	mux.HandleFunc("DELETE /api/usuarios", s.requireAdmin(s.handleRemoverUsuario))
-	mux.HandleFunc("DELETE /api/usuarios/avatar", s.requireAdmin(s.handleTirarAvatarDe))
+	mux.HandleFunc("GET /api/usuarios", s.requireAdmin(s.handleUsers))
+	mux.HandleFunc("POST /api/usuarios", s.requireAdmin(s.handleCreateUser))
+	mux.HandleFunc("POST /api/usuarios/conferir", s.requireAdmin(s.handleCheckNew))
+	mux.HandleFunc("POST /api/usuarios/link", s.requireAdmin(s.handleNewLink))
+	mux.HandleFunc("POST /api/usuarios/link/email", s.requireAdmin(s.handleSendLink))
+	mux.HandleFunc("POST /api/usuarios/email", s.requireAdmin(s.handleChangeEmail))
+	mux.HandleFunc("POST /api/usuarios/email/conferir", s.requireAdmin(s.handleCheckEmail))
+	mux.HandleFunc("DELETE /api/usuarios", s.requireAdmin(s.handleRemoveUser))
+	mux.HandleFunc("DELETE /api/usuarios/avatar", s.requireAdmin(s.handleRemoveAvatarOf))
 
 	// Minha conta: cada pessoa muda o que é dela, de qualquer papel.
-	mux.HandleFunc("GET /api/conta", s.requireAuth(s.handleConta))
-	mux.HandleFunc("POST /api/conta/senha", s.requireAuth(s.handleTrocarSenha))
-	mux.HandleFunc("POST /api/conta/nome", s.requireAuth(s.handleMudarNome))
-	mux.HandleFunc("PUT /api/conta/avatar", s.requireAuth(s.handleTrocarAvatar))
-	mux.HandleFunc("DELETE /api/conta/avatar", s.requireAuth(s.handleTirarAvatar))
+	mux.HandleFunc("GET /api/conta", s.requireAuth(s.handleAccount))
+	mux.HandleFunc("POST /api/conta/senha", s.requireAuth(s.handleChangePassword))
+	mux.HandleFunc("POST /api/conta/nome", s.requireAuth(s.handleChangeName))
+	mux.HandleFunc("PUT /api/conta/avatar", s.requireAuth(s.handleChangeAvatar))
+	mux.HandleFunc("DELETE /api/conta/avatar", s.requireAuth(s.handleRemoveAvatar))
 	mux.HandleFunc("GET /api/avatar", s.requireAuth(s.handleAvatar))
 
 	// Versão fica fora da autenticação pelo mesmo motivo da tela de login:
@@ -165,11 +165,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/cameras", s.requireAdmin(s.handleSaveCamera))
 	mux.HandleFunc("DELETE /api/cameras", s.requireAdmin(s.handleDeleteCamera))
 	mux.HandleFunc("GET /api/streams/probe", s.requireAdmin(s.handleProbeStream))
-	mux.HandleFunc("POST /api/go2rtc/restart", s.requireAdmin(s.handleReiniciarGo2rtc))
+	mux.HandleFunc("POST /api/go2rtc/restart", s.requireAdmin(s.handleRestartGo2rtc))
 	mux.HandleFunc("GET /api/health", s.requireAdmin(s.handleHealth))
-	mux.HandleFunc("POST /api/reconnects/reset", s.requireAdmin(s.handleZerarReconexoes))
-	mux.HandleFunc("GET /api/health/servidor", s.requireAdmin(s.handleDiagnosticoServidor))
-	mux.HandleFunc("POST /api/email/teste", s.requireAdmin(s.handleTesteEmail))
+	mux.HandleFunc("POST /api/reconnects/reset", s.requireAdmin(s.handleResetReconnects))
+	mux.HandleFunc("GET /api/health/servidor", s.requireAdmin(s.handleServerDiagnostics))
+	mux.HandleFunc("POST /api/email/teste", s.requireAdmin(s.handleEmailTest))
 	mux.HandleFunc("DELETE /api/rec", s.requireAdmin(s.handleDeleteRecordings))
 
 	// Gravações
@@ -183,9 +183,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/rec/export", s.requireAuth(s.handleExport))
 
 	// Detecções de objeto, de todas as câmeras juntas: a tela de Detecções.
-	mux.HandleFunc("GET /api/deteccoes", s.requireAuth(s.handleDeteccoes))
-	mux.HandleFunc("GET /api/deteccoes/quadro", s.requireAuth(s.handleQuadroDaDeteccao))
-	mux.HandleFunc("GET /api/deteccoes/dias", s.requireAuth(s.handleDiasDeDeteccao))
+	mux.HandleFunc("GET /api/deteccoes", s.requireAuth(s.handleDetections))
+	mux.HandleFunc("GET /api/deteccoes/quadro", s.requireAuth(s.handleDetectionFrame))
+	mux.HandleFunc("GET /api/deteccoes/dias", s.requireAuth(s.handleDetectionDays))
 
 	// Live: sinalização e mídia ficam com o go2rtc; o dwnvr só faz proxy do
 	// websocket do player, e o resto da API do go2rtc fica de fora.
@@ -219,7 +219,7 @@ type cameraInfo struct {
 // digite um nome e descubra o erro depois - e é onde as gravações órfãs voltam a
 // ser visíveis, já que nenhum outro endpoint enxerga câmera sem cadastro.
 func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
-	if !pessoaDe(r).admin() {
+	if !personOf(r).admin() {
 		s.camerasDoViewer(w)
 		return
 	}
@@ -252,7 +252,7 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	resp["detector"] = s.mgr.Detector() != nil
 
 	// A aba Alerta diz para onde o alerta vai, e só o admin a vê.
-	resp["alertEmail"] = s.alertaPorEmail()
+	resp["alertEmail"] = s.emailAlert()
 
 	if orphans, err := s.store.Orphans(registered); err != nil {
 		// Não impede a listagem: no caso comum não há órfão nenhum, e uma falha
@@ -299,9 +299,9 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 	// Falhar aqui não é erro de ninguém - um go2rtc externo pode não expor o
 	// /api/config -, e a tela segue sem o aviso. Debug, e não Warn, porque isto
 	// roda a cada abertura da tela e encheria os avisos do Diagnóstico.
-	if arquivo, err := s.client.ConfigFile(r.Context()); err != nil {
+	if file, err := s.client.ConfigFile(r.Context()); err != nil {
 		s.log.Debug("lendo o go2rtc.yaml pela API do go2rtc", "erro", err)
-	} else if d, err := go2rtc.FindDrift(arquivo, streams); err != nil {
+	} else if d, err := go2rtc.FindDrift(file, streams); err != nil {
 		s.log.Debug("comparando o go2rtc.yaml com os streams", "erro", err)
 	} else if !d.Empty() {
 		resp["go2rtcConfigFile"] = d
@@ -332,7 +332,7 @@ func (s *Server) camerasDoViewer(w http.ResponseWriter) {
 
 // handleReiniciarGo2rtc faz o go2rtc reler o go2rtc.yaml. Todas as câmeras
 // param por alguns segundos; quem avisa disso antes é a tela.
-func (s *Server) handleReiniciarGo2rtc(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleRestartGo2rtc(w http.ResponseWriter, r *http.Request) {
 	if err := s.client.Restart(r.Context()); err != nil {
 		s.log.Error("reiniciando o go2rtc", "erro", err)
 		writeError(w, http.StatusBadGateway, "o go2rtc não aceitou reiniciar: "+err.Error())
@@ -344,7 +344,7 @@ func (s *Server) handleReiniciarGo2rtc(w http.ResponseWriter, r *http.Request) {
 
 // handleZerarReconexoes recomeça a contagem de reconexões de todas as câmeras.
 // Não derruba conexão nenhuma: só os números da tela voltam a zero.
-func (s *Server) handleZerarReconexoes(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleResetReconnects(w http.ResponseWriter, r *http.Request) {
 	s.mgr.ResetReconnects()
 	s.log.Info("reconexões zeradas pela interface")
 	writeJSON(w, map[string]bool{"zeradas": true})
@@ -376,17 +376,17 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		// nenhum limite da retenção as alcança, e é isso que a tela precisa
 		// dizer. Fora da conta, elas apareceriam como espaço de outros
 		// programas. Sem órfã, a varredura é um ReadDir do storage.
-		if orfas, err := s.store.OrphanBytes(s.registeredIDs()); err != nil {
+		if orphans, err := s.store.OrphanBytes(s.registeredIDs()); err != nil {
 			s.log.Error("listando gravações órfãs", "erro", err)
 		} else {
-			disk["orphanBytes"] = orfas
+			disk["orphanBytes"] = orphans
 		}
 		// O "desde" vem da retenção, que mede o disco a cada passada. Logo
 		// depois de o disco cruzar o mínimo ela ainda não passou, e o aviso sai
 		// sem ele por até um minuto.
 		if s.ret != nil {
-			if desde := s.ret.BelowMinimumSince(); !desde.IsZero() {
-				disk["belowMinSince"] = desde
+			if since := s.ret.BelowMinimumSince(); !since.IsZero() {
+				disk["belowMinSince"] = since
 			}
 		}
 		resp["disk"] = disk
@@ -425,16 +425,16 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 				"since":        d.Since, "lastAt": d.Last,
 			}
 		}
-		var falhando []map[string]any
+		var failing []map[string]any
 		for _, m := range c.NotifierStates() {
 			if !m.FailingSince.IsZero() {
-				falhando = append(falhando, map[string]any{
+				failing = append(failing, map[string]any{
 					"name": m.Name, "since": m.FailingSince, "error": m.Err,
 				})
 			}
 		}
-		if len(falhando) > 0 {
-			alerts["failing"] = falhando
+		if len(failing) > 0 {
+			alerts["failing"] = failing
 		}
 	}
 	if av := s.cfg.Alerts.Email.Warnings; len(av) > 0 {
@@ -451,17 +451,17 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// vem embutido no texto e a interface o mostra sem reconverter; converter
 	// para o fuso do navegador daria a hora que o usuário já tem no relógio
 	// dele, que não é a pergunta.
-	agora := time.Now()
-	sigla, offset := agora.Zone()
-	relogio := map[string]any{
-		"now":           agora.Format(time.RFC3339),
+	now := time.Now()
+	sigla, offset := now.Zone()
+	clock := map[string]any{
+		"now":           now.Format(time.RFC3339),
 		"abbr":          sigla,
 		"offsetSeconds": offset,
 	}
-	if nome := zonaLocal(); nome != "" {
-		relogio["zone"] = nome
+	if nome := localZone(); nome != "" {
+		clock["zone"] = nome
 	}
-	resp["clock"] = relogio
+	resp["clock"] = clock
 
 	// O tamanho da janela vai junto para a tela escrever "nas últimas 8h" sem
 	// repetir o número.
@@ -471,8 +471,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// de diagnóstico relê a cada poucos segundos: o go2rtc caindo com ela
 	// aberta precisa aparecer, e sumir quando ele volta.
 	if s.client != nil {
-		if desde, erro := s.client.Unreachable(); !desde.IsZero() {
-			resp["go2rtc"] = map[string]any{"error": erro, "since": desde}
+		if since, errText := s.client.Unreachable(); !since.IsZero() {
+			resp["go2rtc"] = map[string]any{"error": errText, "since": since}
 		}
 	}
 
@@ -487,11 +487,11 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// cadastro inteiro é ignorado, e o aviso não diria nada.
 	if s.cfg.Server.AuthEnabled() {
 		u := map[string]any{}
-		if err := s.usuarios.Unreadable(); err != nil {
+		if err := s.users.Unreadable(); err != nil {
 			u["error"] = err.Error()
 		}
-		if avisos := s.usuarios.Warnings(); len(avisos) > 0 {
-			u["warnings"] = avisos
+		if warnings := s.users.Warnings(); len(warnings) > 0 {
+			u["warnings"] = warnings
 		}
 		if len(u) > 0 {
 			resp["users"] = u
@@ -510,7 +510,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 //
 // Devolve "" quando nenhuma delas responde, e aí a tela mostra só a hora e a
 // abreviação: o nome é um detalhe do title, não a informação principal.
-func zonaLocal() string {
+func localZone() string {
 	// TZ pode vir como ":America/Fortaleza" ou apontar para um arquivo; só o
 	// nome interessa.
 	if tz := strings.TrimPrefix(os.Getenv("TZ"), ":"); tz != "" && !strings.HasPrefix(tz, "/") {
@@ -522,9 +522,9 @@ func zonaLocal() string {
 		}
 	}
 	// /etc/localtime costuma ser link para .../zoneinfo/America/Fortaleza.
-	if alvo, err := os.Readlink("/etc/localtime"); err == nil {
-		if _, depois, ok := strings.Cut(alvo, "zoneinfo/"); ok {
-			return depois
+	if target, err := os.Readlink("/etc/localtime"); err == nil {
+		if _, after, ok := strings.Cut(target, "zoneinfo/"); ok {
+			return after
 		}
 	}
 	return ""
@@ -576,7 +576,7 @@ func logRequests(log *slog.Logger, next http.Handler) http.Handler {
 		// começo de cada episódio (ver limitarLogin).
 		if sw.code >= 400 && sw.code != http.StatusTooManyRequests {
 			log.Warn("requisição recusada", "status", sw.code,
-				"metodo", r.Method, "caminho", r.URL.Path, "de", r.RemoteAddr, encaminhado(r))
+				"metodo", r.Method, "caminho", r.URL.Path, "de", r.RemoteAddr, forwarded(r))
 		}
 	})
 }

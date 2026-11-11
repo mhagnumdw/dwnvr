@@ -10,15 +10,15 @@ import (
 
 // O endereço de quem fez a requisição, direto e atrás de proxy, com o
 // trustedProxies padrão.
-func TestClienteDe(t *testing.T) {
+func TestClientOf(t *testing.T) {
 	confiaveis, err := config.Prefixes(config.DefaultTrustedProxies)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, caso := range []struct {
-		nome, remoto string
+	for _, tc := range []struct {
+		nome, remote string
 		xff          []string
-		quer         string
+		wants        string
 	}{
 		// Direto na 8080, da rede de casa: o header é de quem o mandou.
 		{"direto, sem header", "192.168.1.5:5000", nil, "192.168.1.5"},
@@ -35,25 +35,25 @@ func TestClienteDe(t *testing.T) {
 		{"lixo no header", "172.18.0.1:5000", []string{"lixo, 172.20.0.2"}, "172.20.0.2"},
 		{"IPv4 dentro de IPv6", "[::ffff:172.18.0.1]:5000", []string{"100.64.0.7"}, "100.64.0.7"},
 	} {
-		t.Run(caso.nome, func(t *testing.T) {
+		t.Run(tc.nome, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/login", nil)
-			r.RemoteAddr = caso.remoto
-			for _, v := range caso.xff {
+			r.RemoteAddr = tc.remote
+			for _, v := range tc.xff {
 				r.Header.Add("X-Forwarded-For", v)
 			}
-			if got := clienteDe(r, confiaveis).String(); got != caso.quer {
-				t.Errorf("%s com %q: %s, esperava %s", caso.remoto, caso.xff, got, caso.quer)
+			if got := clientOf(r, confiaveis).String(); got != tc.wants {
+				t.Errorf("%s com %q: %s, esperava %s", tc.remote, tc.xff, got, tc.wants)
 			}
 		})
 	}
 }
 
 // Com a lista vazia, ninguém é confiável: vale sempre a conexão.
-func TestClienteDeSemProxies(t *testing.T) {
+func TestClientOfWithoutProxies(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/api/login", nil)
 	r.RemoteAddr = "172.18.0.1:5000"
 	r.Header.Set("X-Forwarded-For", "100.64.0.7")
-	if got := clienteDe(r, nil).String(); got != "172.18.0.1" {
+	if got := clientOf(r, nil).String(); got != "172.18.0.1" {
 		t.Errorf("%s, esperava a conexão", got)
 	}
 }

@@ -16,19 +16,19 @@ import (
 )
 
 // fixture cria um arquivo, com os diretórios no caminho.
-func fixture(t *testing.T, raiz, caminho, conteudo string) {
+func fixture(t *testing.T, root, filePath, content string) {
 	t.Helper()
-	p := filepath.Join(raiz, caminho)
+	p := filepath.Join(root, filePath)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(p, []byte(conteudo), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
 
 // Uma Orange Pi Zero 3 quente, recortada de arquivos reais do /proc e /sys.
-func sistemaFalso(t *testing.T) fontes {
+func fakeSystem(t *testing.T) fontes {
 	f := fontes{proc: t.TempDir(), sys: t.TempDir()}
 	fixture(t, f.proc, "loadavg", "3.10 2.05 1.50 2/180 4321\n")
 	fixture(t, f.proc, "meminfo", "MemTotal:        1012345 kB\nMemFree:           51200 kB\nMemAvailable:     204800 kB\nSwapTotal:        524288 kB\nSwapFree:         262144 kB\n")
@@ -65,10 +65,10 @@ func sistemaFalso(t *testing.T) fontes {
 	return f
 }
 
-func TestColetaMaquinaQuente(t *testing.T) {
-	m := coletarMaquina(sistemaFalso(t))
-	if len(m.Carga) != 3 || m.Carga[0] != 3.10 {
-		t.Errorf("carga %v", m.Carga)
+func TestCollectMachineHot(t *testing.T) {
+	m := collectMachine(fakeSystem(t))
+	if len(m.Load) != 3 || m.Load[0] != 3.10 {
+		t.Errorf("carga %v", m.Load)
 	}
 	if len(m.Sensores) != 2 || m.Sensores[0] != (sensor{"cpu_thermal", 84.3}) {
 		t.Errorf("sensores %v: o mais quente tem que vir primeiro, em °C", m.Sensores)
@@ -77,86 +77,86 @@ func TestColetaMaquinaQuente(t *testing.T) {
 		t.Errorf("frequência %d de %d (%s)", m.MHz, m.MHzMax, m.Governor)
 	}
 	// No ARM o cpuinfo não tem nome de processador: quem identifica é a placa.
-	if m.Placa != "OrangePi Zero3" || m.Processador != "" || m.Kernel != "6.12.58-current-sunxi64" {
-		t.Errorf("placa %q, processador %q, kernel %q", m.Placa, m.Processador, m.Kernel)
+	if m.Board != "OrangePi Zero3" || m.Processor != "" || m.Kernel != "6.12.58-current-sunxi64" {
+		t.Errorf("placa %q, processador %q, kernel %q", m.Board, m.Processor, m.Kernel)
 	}
-	if m.NucleosLiberados != 1.5 {
-		t.Errorf("teto de CPU do container %v, esperado 1.5", m.NucleosLiberados)
+	if m.AllowedCores != 1.5 {
+		t.Errorf("teto de CPU do container %v, esperado 1.5", m.AllowedCores)
 	}
 }
 
 // Num PC: sem device tree, o nome vem do cpuinfo. E sem teto de CPU, o campo
 // some.
-func TestColetaMaquinaPC(t *testing.T) {
+func TestCollectMachinePC(t *testing.T) {
 	f := fontes{proc: t.TempDir(), sys: t.TempDir()}
 	fixture(t, f.proc, "cpuinfo", "processor\t: 0\nvendor_id\t: GenuineIntel\nmodel name\t: Intel(R) Celeron(R) N4020 CPU @ 1.10GHz\n")
 	fixture(t, f.proc, "self/cgroup", "0::/\n")
 	fixture(t, f.sys, "fs/cgroup/cpu.max", "max 100000\n")
-	m := coletarMaquina(f)
-	if m.Placa != "" || m.Processador != "Intel(R) Celeron(R) N4020 CPU @ 1.10GHz" {
-		t.Errorf("placa %q, processador %q", m.Placa, m.Processador)
+	m := collectMachine(f)
+	if m.Board != "" || m.Processor != "Intel(R) Celeron(R) N4020 CPU @ 1.10GHz" {
+		t.Errorf("placa %q, processador %q", m.Board, m.Processor)
 	}
-	if m.NucleosLiberados != 0 {
-		t.Errorf("sem teto de CPU, veio %v", m.NucleosLiberados)
+	if m.AllowedCores != 0 {
+		t.Errorf("sem teto de CPU, veio %v", m.AllowedCores)
 	}
 }
 
-func TestColetaProcesso(t *testing.T) {
-	p := coletarProcesso(sistemaFalso(t), time.Now().Add(-time.Hour))
+func TestCollectProcess(t *testing.T) {
+	p := collectProcess(fakeSystem(t), time.Now().Add(-time.Hour))
 	// (44346 + 36809) ticks de 10 ms.
 	if p.CPUMs == nil || *p.CPUMs != 811550 {
 		t.Errorf("CPU %v ms, esperado 811550", p.CPUMs)
 	}
-	if p.VivoMs < 3600000 {
-		t.Errorf("no ar há %d ms, esperado 1 h", p.VivoMs)
+	if p.AliveMs < 3600000 {
+		t.Errorf("no ar há %d ms, esperado 1 h", p.AliveMs)
 	}
-	if p.MemoriaBytes != 33184<<10 {
-		t.Errorf("memória %d", p.MemoriaBytes)
+	if p.MemoryBytes != 33184<<10 {
+		t.Errorf("memória %d", p.MemoryBytes)
 	}
 	if p.UID == nil || *p.UID != 1000 || p.GID == nil || *p.GID != 1001 {
 		t.Errorf("uid %v gid %v", p.UID, p.GID)
 	}
-	if p.ArquivosAbertos != 3 || p.LimiteDeArquivos != 1024 {
-		t.Errorf("arquivos %d de %d", p.ArquivosAbertos, p.LimiteDeArquivos)
+	if p.OpenFiles != 3 || p.FileLimit != 1024 {
+		t.Errorf("arquivos %d de %d", p.OpenFiles, p.FileLimit)
 	}
-	if p.Goroutines < 1 || p.Go == "" || p.Arquitetura == "" {
+	if p.Goroutines < 1 || p.Go == "" || p.Architecture == "" {
 		t.Errorf("runtime %+v", p)
 	}
 
 	// Fora do Linux nada disso existe, e os campos somem em vez de vir zero
 	// disfarçado de medida.
-	p = coletarProcesso(fontes{proc: t.TempDir()}, time.Now())
-	if p.CPUMs != nil || p.MemoriaBytes != 0 || p.UID != nil || p.LimiteDeArquivos != 0 {
+	p = collectProcess(fontes{proc: t.TempDir()}, time.Now())
+	if p.CPUMs != nil || p.MemoryBytes != 0 || p.UID != nil || p.FileLimit != 0 {
 		t.Errorf("sem /proc: %+v", p)
 	}
 }
 
-func TestSemCredencial(t *testing.T) {
+func TestWithoutCredential(t *testing.T) {
 	// A URL com credencial é montada, e não escrita por extenso, para o
 	// detector de segredos do pre-commit não tomá-la por uma senha de verdade.
 	comSenha := (&url.URL{Scheme: "http", Host: "go2rtc:1984", User: url.UserPassword("admin", "teste")}).String()
-	casos := map[string]string{
+	cases := map[string]string{
 		comSenha:                    "http://go2rtc:1984",
 		"http://dwnvr-detect:8480/": "http://dwnvr-detect:8480/",
 	}
-	for entrada, want := range casos {
-		if got := semCredencial(entrada); got != want {
-			t.Errorf("%s: %s, esperado %s", entrada, got, want)
+	for entry, want := range cases {
+		if got := withoutCredential(entry); got != want {
+			t.Errorf("%s: %s, esperado %s", entry, got, want)
 		}
 	}
 }
 
 // Um PC com duas zonas "acpitz": o nome repetido ganha o número da zona, senão
 // a tela não tem como separar as duas linhas.
-func TestSensoresComNomeRepetido(t *testing.T) {
+func TestSensorsWithRepeatedName(t *testing.T) {
 	sys := t.TempDir()
-	for zona, temp := range map[string]string{"0": "90000", "1": "88000", "2": "50000"} {
-		tipo := "acpitz"
-		if zona == "2" {
-			tipo = "x86_pkg_temp"
+	for zone, temp := range map[string]string{"0": "90000", "1": "88000", "2": "50000"} {
+		kind := "acpitz"
+		if zone == "2" {
+			kind = "x86_pkg_temp"
 		}
-		fixture(t, sys, "class/thermal/thermal_zone"+zona+"/type", tipo+"\n")
-		fixture(t, sys, "class/thermal/thermal_zone"+zona+"/temp", temp+"\n")
+		fixture(t, sys, "class/thermal/thermal_zone"+zone+"/type", kind+"\n")
+		fixture(t, sys, "class/thermal/thermal_zone"+zone+"/temp", temp+"\n")
 	}
 	got := lerSensores(sys)
 	want := []sensor{{"acpitz 0", 90}, {"acpitz 1", 88}, {"x86_pkg_temp", 50}}
@@ -170,16 +170,16 @@ func TestSensoresComNomeRepetido(t *testing.T) {
 	}
 }
 
-func TestColetaMemoria(t *testing.T) {
-	m := coletarMemoria(sistemaFalso(t))
+func TestCollectMemory(t *testing.T) {
+	m := collectMemory(fakeSystem(t))
 	if m == nil {
 		t.Fatal("sem memória")
 	}
-	if m.DisponivelBytes != 204800<<10 || m.SwapUsadaBytes != 262144<<10 {
-		t.Errorf("disponível %d, swap usada %d", m.DisponivelBytes, m.SwapUsadaBytes)
+	if m.AvailableBytes != 204800<<10 || m.SwapUsedBytes != 262144<<10 {
+		t.Errorf("disponível %d, swap usada %d", m.AvailableBytes, m.SwapUsedBytes)
 	}
-	if m.LimiteBytes != 512<<20 {
-		t.Errorf("limite do cgroup %d", m.LimiteBytes)
+	if m.LimitBytes != 512<<20 {
+		t.Errorf("limite do cgroup %d", m.LimitBytes)
 	}
 	if m.OOMKills == nil || *m.OOMKills != 2 {
 		t.Errorf("oom_kill %v", m.OOMKills)
@@ -188,9 +188,9 @@ func TestColetaMemoria(t *testing.T) {
 
 // Sem arquivo de pressão de memória, as outras duas chegam e a de memória
 // some - em vez de vir zerada, que leria como "sem pressão nenhuma".
-func TestColetaPressao(t *testing.T) {
-	p := coletarPressao(sistemaFalso(t))
-	if _, tem := p["memoria"]; tem {
+func TestCollectPressure(t *testing.T) {
+	p := collectPressure(fakeSystem(t))
+	if _, has := p["memoria"]; has {
 		t.Error("pressão de memória inventada")
 	}
 	io := p["io"]
@@ -200,16 +200,16 @@ func TestColetaPressao(t *testing.T) {
 	if p["cpu"].Some.Avg300 != 3.25 {
 		t.Errorf("cpu %+v", p["cpu"].Some)
 	}
-	if coletarPressao(fontes{proc: t.TempDir()}) != nil {
+	if collectPressure(fontes{proc: t.TempDir()}) != nil {
 		t.Error("kernel sem PSI tem que omitir o campo inteiro")
 	}
 }
 
-func TestMontagemMaisEspecifica(t *testing.T) {
-	f := sistemaFalso(t)
-	casos := []struct {
-		caminho, tipo, origem string
-		ro                    bool
+func TestMostSpecificMount(t *testing.T) {
+	f := fakeSystem(t)
+	cases := []struct {
+		filePath, kind, origin string
+		ro                     bool
 	}{
 		{"/storage", "ext4", "/dev/mmcblk0p2", false},
 		// O ro das super-opções é o do kernel remontando após erro, mesmo
@@ -218,45 +218,45 @@ func TestMontagemMaisEspecifica(t *testing.T) {
 		// /mnt/hdx não contém /mnt/hd: prefixo de texto não é prefixo de caminho.
 		{"/mnt/hdx/cams", "fuseblk", "/dev/sdb1", false},
 	}
-	for _, c := range casos {
-		s := coletarMontagem(f, c.caminho)
-		if s.Tipo != c.tipo || s.Origem != c.origem || s.SomenteLeitura != c.ro {
-			t.Errorf("%s: %s %s ro=%v", c.caminho, s.Tipo, s.Origem, s.SomenteLeitura)
+	for _, c := range cases {
+		s := collectMount(f, c.filePath)
+		if s.Type != c.kind || s.Origin != c.origin || s.ReadOnly != c.ro {
+			t.Errorf("%s: %s %s ro=%v", c.filePath, s.Type, s.Origin, s.ReadOnly)
 		}
 	}
 }
 
-func TestTesteDeEscrita(t *testing.T) {
+func TestWriteTest(t *testing.T) {
 	s, _ := testServer(t)
 	// A sobra de um dwnvr que morreu no meio do teste: o próximo a reaproveita
 	// e apaga.
-	fixture(t, s.cfg.Storage.Root, arquivoDeTeste, "sobra")
-	e := s.testarEscrita()
-	if !e.OK || e.Erro != "" {
+	fixture(t, s.cfg.Storage.Root, testFile, "sobra")
+	e := s.testWrite()
+	if !e.OK || e.Error != "" {
 		t.Fatalf("escrita num diretório gravável: %+v", e)
 	}
-	sobras, _ := os.ReadDir(s.cfg.Storage.Root)
-	for _, x := range sobras {
+	leftovers, _ := os.ReadDir(s.cfg.Storage.Root)
+	for _, x := range leftovers {
 		if !x.IsDir() {
 			t.Errorf("o teste deixou %s para trás", x.Name())
 		}
 	}
 
 	s.cfg.Storage.Root = filepath.Join(t.TempDir(), "nao-existe")
-	if e := s.testarEscrita(); e.OK || e.Erro != "o diretório do storage não existe" {
+	if e := s.testWrite(); e.OK || e.Error != "o diretório do storage não existe" {
 		t.Errorf("storage inexistente: %+v", e)
 	}
 }
 
 // A mesma falha repetida vai uma vez só para o log: com o card aberto, o teste
 // roda a cada 15 s e não pode tomar as linhas que a tela mostra.
-func TestFalhaDeEscritaNaoEncheOLog(t *testing.T) {
+func TestWriteFailureDoesNotFloodTheLog(t *testing.T) {
 	s, _ := testServer(t)
 	h := logbuf.New(slog.DiscardHandler, 10)
 	s.log = slog.New(h)
 	s.cfg.Storage.Root = filepath.Join(t.TempDir(), "nao-existe")
 	for range 3 {
-		s.testarEscrita()
+		s.testWrite()
 	}
 	if _, total := h.Recent(); total != 1 {
 		t.Errorf("3 falhas iguais geraram %d avisos, esperado 1", total)
@@ -265,9 +265,9 @@ func TestFalhaDeEscritaNaoEncheOLog(t *testing.T) {
 	// Voltou a gravar e falhou de novo: é outro episódio, e avisa outra vez.
 	root := s.cfg.Storage.Root
 	s.cfg.Storage.Root = t.TempDir()
-	s.testarEscrita()
+	s.testWrite()
 	s.cfg.Storage.Root = root
-	s.testarEscrita()
+	s.testWrite()
 	if _, total := h.Recent(); total != 2 {
 		t.Errorf("falha depois de um sucesso: %d avisos, esperado 2", total)
 	}
@@ -275,32 +275,32 @@ func TestFalhaDeEscritaNaoEncheOLog(t *testing.T) {
 
 // A resposta inteira, pelo handler: go2rtc fora do ar não derruba o resto, e
 // os avisos do log chegam.
-func TestHandleDiagnosticoServidor(t *testing.T) {
+func TestHandleServerDiagnostics(t *testing.T) {
 	s, _ := testServer(t)
 	h := logbuf.New(slog.DiscardHandler, 10)
 	s.log = slog.New(h)
 	s.log.Warn("conexão caiu", "cam", "garagem")
 
 	rec := httptest.NewRecorder()
-	s.handleDiagnosticoServidor(rec, httptest.NewRequest(http.MethodGet, "/api/health/servidor", nil))
+	s.handleServerDiagnostics(rec, httptest.NewRequest(http.MethodGet, "/api/health/servidor", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
-	var got servidorInfo
+	var got serverInfo
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Go2RTC.OK || got.Go2RTC.Erro == "" {
+	if got.Go2RTC.OK || got.Go2RTC.Error == "" {
 		t.Errorf("go2rtc sem cliente: %+v", got.Go2RTC)
 	}
-	if !got.Storage.Escrita.OK {
-		t.Errorf("escrita: %+v", got.Storage.Escrita)
+	if !got.Storage.Write.OK {
+		t.Errorf("escrita: %+v", got.Storage.Write)
 	}
-	if got.Log == nil || got.Log.Total != 1 || got.Log.Linhas[0].Text != "conexão caiu cam=garagem" {
+	if got.Log == nil || got.Log.Total != 1 || got.Log.Lines[0].Text != "conexão caiu cam=garagem" {
 		t.Errorf("log: %+v", got.Log)
 	}
-	if em, err := time.Parse(time.RFC3339, got.ColetadoEm.Em); err != nil || time.Since(em) > time.Minute || got.ColetadoEm.Sigla == "" {
-		t.Errorf("coletadoEm: %+v", got.ColetadoEm)
+	if em, err := time.Parse(time.RFC3339, got.CollectedAt.Em); err != nil || time.Since(em) > time.Minute || got.CollectedAt.Abbreviation == "" {
+		t.Errorf("coletadoEm: %+v", got.CollectedAt)
 	}
 	// Sem detector configurado, nem a pergunta nem o campo.
 	if got.Detector != nil {
@@ -310,7 +310,7 @@ func TestHandleDiagnosticoServidor(t *testing.T) {
 
 // Com detector, a resposta traz o que o /health dele disse, e o endereço sem
 // a credencial.
-func TestDiagnosticoComDetector(t *testing.T) {
+func TestDiagnosticsWithDetector(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"modelo": "modelo.onnx", "entrada": "512x288", "threads": 2}`))
 	}))
@@ -319,13 +319,13 @@ func TestDiagnosticoComDetector(t *testing.T) {
 	s.cfg.Detector.URL = strings.Replace(srv.URL, "http://", "http://u:senha@", 1)
 
 	rec := httptest.NewRecorder()
-	s.handleDiagnosticoServidor(rec, httptest.NewRequest(http.MethodGet, "/api/health/servidor", nil))
-	var got servidorInfo
+	s.handleServerDiagnostics(rec, httptest.NewRequest(http.MethodGet, "/api/health/servidor", nil))
+	var got serverInfo
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
 	d := got.Detector
-	if d == nil || !d.OK || d.Modelo != "modelo.onnx" || d.Threads != 2 || d.URL != srv.URL {
+	if d == nil || !d.OK || d.Model != "modelo.onnx" || d.Threads != 2 || d.URL != srv.URL {
 		t.Errorf("detector: %+v", d)
 	}
 }

@@ -43,8 +43,8 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 
 	// Só daqui para baixo: a consulta ao go2rtc acima pode levar até 10 s, e
 	// segurar o cadastro nela faria o save de outra câmera esperar à toa.
-	s.cadastro.Lock()
-	defer s.cadastro.Unlock()
+	s.registry.Lock()
+	defer s.registry.Unlock()
 
 	// O que a câmera não definia e chega igual ao default não vai para o
 	// cameras.json: a tela manda a câmera resolvida, e gravá-la assim a
@@ -67,7 +67,7 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 		// Câmera nova pode não ser nova no disco: uma removida sem apagar as
 		// gravações e cadastrada de novo com o mesmo ID. O índice dela é lido
 		// aqui, antes do Set subir o recorder - ver store.Load.
-		inicio := time.Now()
+		start := time.Now()
 		idx, err := s.store.Load(cam.ID)
 		if err != nil {
 			s.fail(w, "lendo o índice da câmera", err)
@@ -75,7 +75,7 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 		}
 		if dias := idx.Days(); len(dias) > 0 {
 			s.log.Info("índice carregado", "cam", cam.ID, "dias", len(dias),
-				"mb", idx.TotalBytes()>>20, "em", time.Since(inicio).Round(time.Millisecond))
+				"mb", idx.TotalBytes()>>20, "em", time.Since(start).Round(time.Millisecond))
 		}
 	}
 
@@ -85,11 +85,11 @@ func (s *Server) handleSaveCamera(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mgr.Set(cam)
 
-	resolvida := s.cfg.Resolve(cam)
-	s.log.Info("câmera salva", "cam", cam.ID, "habilitada", cam.Enabled, "audio", resolvida.Audio,
-		"detect", *resolvida.Detect, "detect_mecanismo", resolvida.DetectMethod,
-		"detect_sensibilidade", resolvida.DetectSensitivity)
-	writeJSON(w, map[string]any{"ok": true, "camera": resolvida})
+	resolved := s.cfg.Resolve(cam)
+	s.log.Info("câmera salva", "cam", cam.ID, "habilitada", cam.Enabled, "audio", resolved.Audio,
+		"detect", *resolved.Detect, "detect_mecanismo", resolved.DetectMethod,
+		"detect_sensibilidade", resolved.DetectSensitivity)
+	writeJSON(w, map[string]any{"ok": true, "camera": resolved})
 }
 
 // handleDeleteCamera tira a câmera do dwnvr.
@@ -103,8 +103,8 @@ func (s *Server) handleDeleteCamera(w http.ResponseWriter, r *http.Request) {
 
 	// Até o fim, Purge incluído: um save da mesma câmera logo depois do Remove
 	// subiria um recorder gravando no diretório que está sendo apagado.
-	s.cadastro.Lock()
-	defer s.cadastro.Unlock()
+	s.registry.Lock()
+	defer s.registry.Unlock()
 
 	if !s.knownCamera(id) {
 		writeError(w, http.StatusNotFound, "câmera não cadastrada")
@@ -154,13 +154,13 @@ func validateCamera(cfg *config.Config, cam config.Camera) error {
 	if err := config.ValidateCameraID(cam.ID); err != nil {
 		return err
 	}
-	_, avisos := cfg.CheckCamera(cam)
-	if len(avisos) == 0 {
+	_, warnings := cfg.CheckCamera(cam)
+	if len(warnings) == 0 {
 		return nil
 	}
-	textos := make([]string, len(avisos))
-	for i, a := range avisos {
-		textos[i] = a.Text()
+	texts := make([]string, len(warnings))
+	for i, a := range warnings {
+		texts[i] = a.Text()
 	}
-	return errors.New(strings.Join(textos, "; "))
+	return errors.New(strings.Join(texts, "; "))
 }

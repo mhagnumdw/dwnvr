@@ -48,7 +48,7 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	acessos, err := users.OpenAccessLog(cfg.AccessPath(), log)
+	accesses, err := users.OpenAccessLog(cfg.AccessPath(), log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,8 +57,8 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 		cfg:           cfg,
 		store:         st,
 		mgr:           mgr,
-		usuarios:      cad,
-		acessos:       acessos,
+		users:         cad,
+		accesses:      accesses,
 		sessionSecret: []byte("segredo-de-teste-com-32-bytes!!!"),
 		log:           log,
 	}
@@ -106,7 +106,7 @@ func getEvents(t *testing.T, s *Server, query string) eventsResponse {
 	return out
 }
 
-func TestEventsDevolveAsMarcasDoDia(t *testing.T) {
+func TestEventsReturnsTheDayMarks(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	for _, off := range []int64{0, 60_000, 120_000} {
@@ -126,7 +126,7 @@ func TestEventsDevolveAsMarcasDoDia(t *testing.T) {
 
 // A marca de objeto mora no mesmo arquivo do onset, e não pode aparecer na
 // faixa de calor como um segundo onset.
-func TestEventsSeparaObjetoDeMovimento(t *testing.T) {
+func TestEventsSeparatesObjectFromMotion(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local).UnixMilli()
 	for _, ev := range []store.Event{
@@ -142,23 +142,23 @@ func TestEventsSeparaObjetoDeMovimento(t *testing.T) {
 	if len(got.Onsets) != 2 {
 		t.Errorf("onsets %v: a marca de objeto entrou na faixa de calor", got.Onsets)
 	}
-	want := objetoMarcado{InstanteMs: base, Familia: "pessoa", Classe: "person", Score: 0.87}
-	if len(got.Objetos) != 1 || got.Objetos[0] != want {
-		t.Errorf("objetos %+v, esperado [%+v]", got.Objetos, want)
+	want := markedObject{AtMs: base, Family: "pessoa", Class: "person", Score: 0.87}
+	if len(got.Objects) != 1 || got.Objects[0] != want {
+		t.Errorf("objetos %+v, esperado [%+v]", got.Objects, want)
 	}
 }
 
 // A marca com caixa leva a caixa e o instante do quadro olhado até a tela; a
 // marca sem eles sai sem as duas chaves, e não com zeros - uma caixa
 // [0,0,0,0] seria desenhada como um ponto no canto do vídeo.
-func TestEventsLevaACaixaSoDaMarcaQueTem(t *testing.T) {
+func TestEventsCarriesTheBoxOnlyForMarksThatHaveOne(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local).UnixMilli()
-	caixa := [4]float64{0.5156, 0.2611, 0.6734, 0.9778}
+	box := [4]float64{0.5156, 0.2611, 0.6734, 0.9778}
 	for _, ev := range []store.Event{
 		{AtMs: base, Family: "pessoa", Class: "person", Score: 0.87},
 		{AtMs: base + 60_000, Family: "veiculo", Class: "car", Score: 0.91,
-			FrameMs: base + 62_000, Box: &caixa},
+			FrameMs: base + 62_000, Box: &box},
 	} {
 		if err := cam.AppendEvent(ev); err != nil {
 			t.Fatal(err)
@@ -167,30 +167,30 @@ func TestEventsLevaACaixaSoDaMarcaQueTem(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	s.handleEvents(rec, httptest.NewRequest(http.MethodGet, "/api/rec/events?cam=cam_teste&day=2026-08-08", nil))
-	var cru struct {
-		Objetos []map[string]json.RawMessage `json:"objetos"`
+	var raw struct {
+		Objects []map[string]json.RawMessage `json:"objetos"`
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &cru); err != nil || len(cru.Objetos) != 2 {
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil || len(raw.Objects) != 2 {
 		t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
 	}
-	for _, chave := range []string{"quadroMs", "caixa"} {
-		if _, tem := cru.Objetos[0][chave]; tem {
-			t.Errorf("a marca sem caixa saiu com %q: %s", chave, rec.Body.String())
+	for _, key := range []string{"quadroMs", "caixa"} {
+		if _, has := raw.Objects[0][key]; has {
+			t.Errorf("a marca sem caixa saiu com %q: %s", key, rec.Body.String())
 		}
 	}
 
-	got := getEvents(t, s, "cam=cam_teste&day=2026-08-08").Objetos[1]
-	if got.QuadroMs != base+62_000 {
-		t.Errorf("quadroMs = %d, esperado %d", got.QuadroMs, base+62_000)
+	got := getEvents(t, s, "cam=cam_teste&day=2026-08-08").Objects[1]
+	if got.FrameMs != base+62_000 {
+		t.Errorf("quadroMs = %d, esperado %d", got.FrameMs, base+62_000)
 	}
-	if got.Caixa == nil || *got.Caixa != caixa {
-		t.Errorf("caixa = %v, esperado %v", got.Caixa, caixa)
+	if got.Box == nil || *got.Box != box {
+		t.Errorf("caixa = %v, esperado %v", got.Box, box)
 	}
 }
 
 // O caminho de cauda: a tela do dia corrente pergunta de novo a cada dez
 // segundos e só quer o que ainda não tem.
-func TestEventsCaudaSoTrazOQueEhNovo(t *testing.T) {
+func TestEventsTailBringsOnlyWhatIsNew(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	for _, off := range []int64{0, 60_000, 120_000} {
@@ -209,7 +209,7 @@ func TestEventsCaudaSoTrazOQueEhNovo(t *testing.T) {
 
 // Câmera sem detecção ligada é o caso comum, e a tela precisa distinguir "sem
 // marcas" de "deu erro". Lista vazia, e não null.
-func TestEventsSemMarcasDevolveListaVazia(t *testing.T) {
+func TestEventsWithoutMarksReturnsEmptyList(t *testing.T) {
 	s, _ := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 
@@ -226,7 +226,7 @@ func TestEventsSemMarcasDevolveListaVazia(t *testing.T) {
 
 // Segmentos encostados têm que virar UMA faixa: a barra de 24h ficaria coberta
 // de buracos falsos de 1 pixel se cada segmento virasse uma faixa.
-func TestTimelineFundeSegmentosContiguos(t *testing.T) {
+func TestTimelineMergesContiguousSegments(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	seed(t, cam, base, [2]int64{0, 30000}, [2]int64{30000, 30000}, [2]int64{60000, 30000})
@@ -248,7 +248,7 @@ func TestTimelineFundeSegmentosContiguos(t *testing.T) {
 
 // Um buraco de verdade precisa aparecer: é justamente o que a tela existe para
 // mostrar, e foi o que faltou nos NVRs que motivaram o projeto.
-func TestTimelineSeparaFaixasNoBuraco(t *testing.T) {
+func TestTimelineSplitsTracksAtTheGap(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	// 30s, buraco de 40s, mais 30s.
@@ -261,7 +261,7 @@ func TestTimelineSeparaFaixasNoBuraco(t *testing.T) {
 }
 
 // Uma folga menor que a tolerância é jitter, não buraco.
-func TestTimelineIgnoraFolgaPequena(t *testing.T) {
+func TestTimelineIgnoresSmallSlack(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	seed(t, cam, base, [2]int64{0, 30000}, [2]int64{30500, 30000})
@@ -274,7 +274,7 @@ func TestTimelineIgnoraFolgaPequena(t *testing.T) {
 
 // O gravador impede sobreposição, mas o índice pode ter dados antigos. A fusão
 // não pode encurtar uma faixa por causa disso.
-func TestTimelineNaoEncurtaComSobreposicao(t *testing.T) {
+func TestTimelineDoesNotShrinkWithOverlap(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	seed(t, cam, base, [2]int64{0, 30000}, [2]int64{29000, 30000})
@@ -293,30 +293,30 @@ func TestTimelineNaoEncurtaComSobreposicao(t *testing.T) {
 // segmento voltar na resposta: é a sobreposição que diz se a primeira faixa nova
 // continua a última faixa antiga, e sem ela a tela precisaria repetir do lado
 // dela a tolerância de emenda que mora aqui.
-func TestTimelineParcialDevolveOSegmentoAncora(t *testing.T) {
+func TestPartialTimelineReturnsTheAnchorSegment(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	seed(t, cam, base, [2]int64{0, 30000}, [2]int64{30000, 30000}, [2]int64{60000, 30000})
 
 	// Do último segmento que a tela conhecia (o do meio) em diante.
-	ancora := base.UnixMilli() + 30000
-	fim := base.AddDate(0, 0, 1).UnixMilli()
-	got := getTimeline(t, s, fmt.Sprintf("cam=cam_teste&from=%d&to=%d", ancora+1, fim))
+	anchor := base.UnixMilli() + 30000
+	end := base.AddDate(0, 0, 1).UnixMilli()
+	got := getTimeline(t, s, fmt.Sprintf("cam=cam_teste&from=%d&to=%d", anchor+1, end))
 
 	if len(got.Segments) != 2 {
 		t.Fatalf("esperava a âncora mais o segmento novo, veio %v", got.Segments)
 	}
-	if got.Segments[0][0] != ancora {
-		t.Errorf("primeiro segmento = %d, esperava a âncora em %d", got.Segments[0][0], ancora)
+	if got.Segments[0][0] != anchor {
+		t.Errorf("primeiro segmento = %d, esperava a âncora em %d", got.Segments[0][0], anchor)
 	}
 	// E a faixa da cauda tem que começar na âncora, não no segmento novo: é isso
 	// que faz a tela reconhecer que as duas faixas são a mesma.
-	if len(got.Ranges) != 1 || got.Ranges[0][0] != ancora {
-		t.Errorf("faixas = %v, esperava uma só começando em %d", got.Ranges, ancora)
+	if len(got.Ranges) != 1 || got.Ranges[0][0] != anchor {
+		t.Errorf("faixas = %v, esperava uma só começando em %d", got.Ranges, anchor)
 	}
 }
 
-func TestTimelineSemGravacaoDevolveListasVazias(t *testing.T) {
+func TestTimelineWithoutRecordingReturnsEmptyLists(t *testing.T) {
 	s, _ := testServer(t)
 	got := getTimeline(t, s, "cam=cam_teste&day=2026-08-08")
 	// Listas vazias, e não null: o frontend não deve precisar tratar os dois.
@@ -352,7 +352,7 @@ func freedBytes(t *testing.T, rec *httptest.ResponseRecorder) int64 {
 // A miniatura e o segmento acham a entrada pelo índice: a miniatura recorta o
 // init e o primeiro fragmento, e o segmento, tudo depois do init. Instante que
 // não é início de segmento é 404.
-func TestThumbESegmentoRecortamOArquivoDoIndice(t *testing.T) {
+func TestThumbAndSegmentCutTheIndexFile(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	var e store.Entry
@@ -366,37 +366,37 @@ func TestThumbESegmentoRecortamOArquivoDoIndice(t *testing.T) {
 		}
 	}
 	// Bytes numerados, para o recorte errado não passar despercebido.
-	conteudo := make([]byte, e.Size)
-	for i := range conteudo {
-		conteudo[i] = byte(i)
+	content := make([]byte, e.Size)
+	for i := range content {
+		content[i] = byte(i)
 	}
 	if err := cam.EnsureDirs(e.Day()); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(cam.SegmentPath(e.StartMs), conteudo, 0o644); err != nil {
+	if err := os.WriteFile(cam.SegmentPath(e.StartMs), content, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	pede := func(h http.HandlerFunc, rota string, inicio int64) *httptest.ResponseRecorder {
+	request := func(h http.HandlerFunc, rota string, start int64) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
 		h(rec, httptest.NewRequest(http.MethodGet,
-			fmt.Sprintf("/api/rec/%s?cam=cam_teste&t=%d", rota, inicio), nil))
+			fmt.Sprintf("/api/rec/%s?cam=cam_teste&t=%d", rota, start), nil))
 		return rec
 	}
-	if rec := pede(s.handleThumb, "thumb", e.StartMs); rec.Code != http.StatusOK ||
-		!bytes.Equal(rec.Body.Bytes(), conteudo[:e.InitSize+e.FirstFrag]) {
+	if rec := request(s.handleThumb, "thumb", e.StartMs); rec.Code != http.StatusOK ||
+		!bytes.Equal(rec.Body.Bytes(), content[:e.InitSize+e.FirstFrag]) {
 		t.Errorf("miniatura: HTTP %d, %d bytes", rec.Code, rec.Body.Len())
 	}
-	if rec := pede(s.handleSegment, "seg", e.StartMs); rec.Code != http.StatusOK ||
-		!bytes.Equal(rec.Body.Bytes(), conteudo[e.InitSize:]) {
+	if rec := request(s.handleSegment, "seg", e.StartMs); rec.Code != http.StatusOK ||
+		!bytes.Equal(rec.Body.Bytes(), content[e.InitSize:]) {
 		t.Errorf("segmento: HTTP %d, %d bytes", rec.Code, rec.Body.Len())
 	}
-	if rec := pede(s.handleThumb, "thumb", e.StartMs+1); rec.Code != http.StatusNotFound {
+	if rec := request(s.handleThumb, "thumb", e.StartMs+1); rec.Code != http.StatusNotFound {
 		t.Errorf("instante fora do índice: HTTP %d, esperava 404", rec.Code)
 	}
 }
 
-func TestDeleteCameraMantemGravacoesPorPadrao(t *testing.T) {
+func TestDeleteCameraKeepsRecordingsByDefault(t *testing.T) {
 	s, cam := testServer(t)
 	seed(t, cam, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
 
@@ -409,7 +409,7 @@ func TestDeleteCameraMantemGravacoesPorPadrao(t *testing.T) {
 	}
 }
 
-func TestDeleteCameraApagaGravacoesQuandoPedido(t *testing.T) {
+func TestDeleteCameraDeletesRecordingsWhenAsked(t *testing.T) {
 	s, cam := testServer(t)
 	seed(t, cam, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
 
@@ -427,7 +427,7 @@ func TestDeleteCameraApagaGravacoesQuandoPedido(t *testing.T) {
 
 // Apagar as gravações não pode descadastrar a câmera: ela precisa continuar
 // gravando, do zero.
-func TestDeleteRecordingsMantemOCadastro(t *testing.T) {
+func TestDeleteRecordingsKeepsTheRegistration(t *testing.T) {
 	s, cam := testServer(t)
 	seed(t, cam, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
 
@@ -449,16 +449,16 @@ func TestDeleteRecordingsMantemOCadastro(t *testing.T) {
 // O material de uma câmera já removida só é alcançável por aqui - e o ID, que
 // não passa mais pelo knownCamera, é conferido contra os diretórios que existem
 // de fato.
-func TestDeleteRecordingsDeCameraRemovida(t *testing.T) {
+func TestDeleteRecordingsOfRemovedCamera(t *testing.T) {
 	s, _ := testServer(t)
-	orfa := s.store.Camera("cam_antiga")
-	seed(t, orfa, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
+	orphan := s.store.Camera("cam_antiga")
+	seed(t, orphan, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
 
 	rec := deleteReq(t, s.handleDeleteRecordings, "/api/rec?cam=cam_antiga")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
-	if _, err := os.Stat(orfa.Dir()); !os.IsNotExist(err) {
+	if _, err := os.Stat(orphan.Dir()); !os.IsNotExist(err) {
 		t.Errorf("o diretório da órfã continua lá: err=%v", err)
 	}
 	// O índice em memória de uma órfã está vazio, então o total só pode vir da
@@ -468,7 +468,7 @@ func TestDeleteRecordingsDeCameraRemovida(t *testing.T) {
 	}
 }
 
-func TestDeleteRecordingsExigeDiretorioExistente(t *testing.T) {
+func TestDeleteRecordingsRequiresExistingDirectory(t *testing.T) {
 	s, _ := testServer(t)
 	for _, cam := range []string{"", "outra", "../../etc", "cam_teste/../x"} {
 		rec := deleteReq(t, s.handleDeleteRecordings, "/api/rec?cam="+cam)
@@ -479,7 +479,7 @@ func TestDeleteRecordingsExigeDiretorioExistente(t *testing.T) {
 }
 
 // Câmera não cadastrada é recusada antes de virar caminho no disco.
-func TestCameraDesconhecidaEhRecusada(t *testing.T) {
+func TestUnknownCameraIsRejected(t *testing.T) {
 	s, _ := testServer(t)
 	for _, cam := range []string{"", "outra", "../../etc", "cam_teste/../x"} {
 		rec := httptest.NewRecorder()
@@ -491,17 +491,17 @@ func TestCameraDesconhecidaEhRecusada(t *testing.T) {
 }
 
 func TestValidGen(t *testing.T) {
-	validos := []string{"aabbcc", "0123456789abcdef", "0123456789abcdef0123456789abcdef"}
-	invalidos := []string{"", "../../etc/passwd", "AABBCC", "aa-bb", "g123",
+	valid := []string{"aabbcc", "0123456789abcdef", "0123456789abcdef0123456789abcdef"}
+	invalid := []string{"", "../../etc/passwd", "AABBCC", "aa-bb", "g123",
 		"aabbccddeeff00112233445566778899aa", "0123456789abcdef0123456789abcdef0",
 		"aabbcc\n"}
 
-	for _, g := range validos {
+	for _, g := range valid {
 		if err := validGen(g); err != nil {
 			t.Errorf("validGen(%q) recusou: %v", g, err)
 		}
 	}
-	for _, g := range invalidos {
+	for _, g := range invalid {
 		if err := validGen(g); err == nil {
 			t.Errorf("validGen(%q) aceitou, deveria recusar", g)
 		}
@@ -509,7 +509,7 @@ func TestValidGen(t *testing.T) {
 }
 
 // configPadrao é a config de quem não escreveu dwnvr.yaml nenhum.
-func configPadrao(t *testing.T) *config.Config {
+func defaultConfig(t *testing.T) *config.Config {
 	t.Helper()
 	cfg, _, err := config.Load(filepath.Join(t.TempDir(), "dwnvr.yaml"))
 	if err != nil {
@@ -518,20 +518,20 @@ func configPadrao(t *testing.T) *config.Config {
 	return cfg
 }
 
-func TestValidateCameraCota(t *testing.T) {
+func TestValidateCameraQuota(t *testing.T) {
 	// O zero é o caso que separa "não informei" de "informei um valor ruim":
 	// ele tem que continuar passando para o Resolve aplicar o default.
-	piso := config.QuotaMBRange.Min
-	validas := []int64{0, piso, piso + 1, 20480}
-	invalidas := []int64{-1, 1, piso - 1}
+	floor := config.QuotaMBRange.Min
+	valid := []int64{0, floor, floor + 1, 20480}
+	invalid := []int64{-1, 1, floor - 1}
 
-	cfg := configPadrao(t)
-	for _, q := range validas {
+	cfg := defaultConfig(t)
+	for _, q := range valid {
 		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", QuotaMB: q}); err != nil {
 			t.Errorf("quotaMB=%d recusada: %v", q, err)
 		}
 	}
-	for _, q := range invalidas {
+	for _, q := range invalid {
 		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", QuotaMB: q}); err == nil {
 			t.Errorf("quotaMB=%d aceita, deveria recusar", q)
 		}
@@ -540,8 +540,8 @@ func TestValidateCameraCota(t *testing.T) {
 
 // TestValidateCameraSegmento: a API cobra a mesma faixa que a tela, de 10 a
 // 300 s. Antes ela aceitava até 3600.
-func TestValidateCameraSegmento(t *testing.T) {
-	cfg := configPadrao(t)
+func TestValidateCameraSegment(t *testing.T) {
+	cfg := defaultConfig(t)
 	for _, seg := range []int{0, 10, 30, 300} {
 		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", SegmentSeconds: seg}); err != nil {
 			t.Errorf("segmentSeconds=%d recusado: %v", seg, err)
@@ -556,24 +556,24 @@ func TestValidateCameraSegmento(t *testing.T) {
 
 func TestValidateCameraDetect(t *testing.T) {
 	// Vazio e zero são "usar o default"; preencher só um dos dois vale.
-	validas := []config.Camera{
+	valid := []config.Camera{
 		{ID: "cam_teste"},
 		{ID: "cam_teste", DetectMethod: "periodico"},
 		{ID: "cam_teste", DetectSensitivity: 1},
 		{ID: "cam_teste", DetectMethod: "kleinberg-p", DetectSensitivity: 5},
 	}
-	invalidas := []config.Camera{
+	invalid := []config.Camera{
 		{ID: "cam_teste", DetectMethod: "magico"},
 		{ID: "cam_teste", DetectSensitivity: 6},
 		{ID: "cam_teste", DetectMethod: "periodico", DetectSensitivity: 9},
 	}
-	cfg := configPadrao(t)
-	for _, c := range validas {
+	cfg := defaultConfig(t)
+	for _, c := range valid {
 		if err := validateCamera(cfg, c); err != nil {
 			t.Errorf("%q nível %d recusada: %v", c.DetectMethod, c.DetectSensitivity, err)
 		}
 	}
-	for _, c := range invalidas {
+	for _, c := range invalid {
 		if err := validateCamera(cfg, c); err == nil {
 			t.Errorf("%q nível %d aceita, deveria recusar", c.DetectMethod, c.DetectSensitivity)
 		}
@@ -583,7 +583,7 @@ func TestValidateCameraDetect(t *testing.T) {
 // O formulário de câmera nova parte do "padrao", e não de números repetidos à
 // mão na interface: é assim que ele segue o defaults do dwnvr.yaml. As
 // "faixas" fazem o mesmo pelo min/max dos inputs.
-func TestCamerasTrazOPadrao(t *testing.T) {
+func TestCamerasBringsTheDefault(t *testing.T) {
 	s, _ := testServer(t)
 	s.cfg.Defaults.DetectMethod, s.cfg.Defaults.DetectSensitivity = "periodico", 2
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // fora do ar
@@ -591,54 +591,54 @@ func TestCamerasTrazOPadrao(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.requireAuth(s.handleCameras)(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
 	var got struct {
-		Padrao config.Camera                     `json:"padrao"`
-		Faixas map[string]map[string]json.Number `json:"faixas"`
+		Default config.Camera                     `json:"padrao"`
+		Tracks  map[string]map[string]json.Number `json:"faixas"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
 	}
-	p := got.Padrao
+	p := got.Default
 	if p.Detect == nil || *p.Detect || p.DetectMethod != "periodico" || p.DetectSensitivity != 2 {
 		t.Errorf("padrao %+v: esperava detect false, periodico, nível 2", p)
 	}
 
 	// O min/max dos inputs vem daqui. Sem teto, o max some, e o input da tela
 	// fica sem max em vez de travar em zero.
-	seg, cota := got.Faixas["segmentSeconds"], got.Faixas["quotaMB"]
+	seg, quota := got.Tracks["segmentSeconds"], got.Tracks["quotaMB"]
 	if seg["min"] != "10" || seg["max"] != "300" {
 		t.Errorf("faixas.segmentSeconds %v: esperava min 10, max 300", seg)
 	}
-	if _, tem := cota["max"]; cota["min"] != "100" || tem {
-		t.Errorf("faixas.quotaMB %v: esperava min 100 e sem max", cota)
+	if _, has := quota["max"]; quota["min"] != "100" || has {
+		t.Errorf("faixas.quotaMB %v: esperava min 100 e sem max", quota)
 	}
 }
 
 // A fila do detector só aparece no /api/health com o detector configurado.
-func TestHealthMostraODetectorSoQuandoConfigurado(t *testing.T) {
-	temDetector := func(s *Server) bool {
+func TestHealthShowsTheDetectorOnlyWhenConfigured(t *testing.T) {
+	hasDetector := func(s *Server) bool {
 		rec := httptest.NewRecorder()
 		s.handleHealth(rec, httptest.NewRequest(http.MethodGet, "/api/health", nil))
 		var got map[string]json.RawMessage
 		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 			t.Fatalf("resposta %s (%v)", rec.Body.String(), err)
 		}
-		_, tem := got["detector"]
-		return tem
+		_, has := got["detector"]
+		return has
 	}
 
 	s, _ := testServer(t)
-	if temDetector(s) {
+	if hasDetector(s) {
 		t.Error("detector no /api/health sem detector.url")
 	}
 	s.cfg.Detector.URL = "http://127.0.0.1:1"
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
-	if !temDetector(s) {
+	if !hasDetector(s) {
 		t.Error("detector.url configurado e o /api/health não mostra a fila")
 	}
 }
 
 // O botão de zerar reconexões da tela de diagnóstico chega nesta rota.
-func TestZerarReconexoesTemRota(t *testing.T) {
+func TestResetReconnectsHasRoute(t *testing.T) {
 	s, _ := testServer(t)
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // o Handler monta o proxy do live com ele
 	rec := httptest.NewRecorder()
@@ -650,7 +650,7 @@ func TestZerarReconexoesTemRota(t *testing.T) {
 
 // O /api/health diz o tamanho da janela de reconexões, e só fala do go2rtc
 // quando ele não está respondendo.
-func TestHealthJanelaDeReconexoesEGo2rtc(t *testing.T) {
+func TestHealthReconnectWindowAndGo2rtc(t *testing.T) {
 	health := func(s *Server) map[string]json.RawMessage {
 		rec := httptest.NewRecorder()
 		s.handleHealth(rec, httptest.NewRequest(http.MethodGet, "/api/health", nil))
@@ -666,14 +666,14 @@ func TestHealthJanelaDeReconexoesEGo2rtc(t *testing.T) {
 	if string(got["reconnectsWindowHours"]) != "8" {
 		t.Errorf("reconnectsWindowHours = %s, esperava 8", got["reconnectsWindowHours"])
 	}
-	if _, tem := got["go2rtc"]; tem {
+	if _, has := got["go2rtc"]; has {
 		t.Error("go2rtc no /api/health sem falha nenhuma")
 	}
 
 	// Porta fechada: a primeira conversa com o go2rtc falha sem resposta.
-	fechado := httptest.NewServer(http.NotFoundHandler())
-	fechado.Close()
-	s.client = go2rtc.New(config.Go2RTC{URL: fechado.URL})
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
+	s.client = go2rtc.New(config.Go2RTC{URL: closed.URL})
 	_, _ = s.client.Version(t.Context())
 
 	var g struct {
@@ -688,7 +688,7 @@ func TestHealthJanelaDeReconexoesEGo2rtc(t *testing.T) {
 // Gravação de câmera removida é do dwnvr, mas vai num campo à parte: somada ao
 // dwnvrBytes ela sumiria do aviso, e fora de tudo a tela a creditaria a outros
 // programas.
-func TestHealthMostraAsOrfasAParte(t *testing.T) {
+func TestHealthShowsOrphansSeparately(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 9, 3, 12, 0, 0, 0, time.Local)
 	seed(t, cam, base, [2]int64{0, 30_000})
@@ -714,8 +714,8 @@ func TestHealthMostraAsOrfasAParte(t *testing.T) {
 }
 
 // A aba Detecções depende deste campo para aparecer.
-func TestCamerasDizSeHaDetector(t *testing.T) {
-	temDetector := func(s *Server) bool {
+func TestCamerasTellsWhetherThereIsADetector(t *testing.T) {
+	hasDetector := func(s *Server) bool {
 		rec := httptest.NewRecorder()
 		s.requireAuth(s.handleCameras)(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
 		var got struct {
@@ -732,12 +732,12 @@ func TestCamerasDizSeHaDetector(t *testing.T) {
 
 	s, _ := testServer(t)
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // fora do ar
-	if temDetector(s) {
+	if hasDetector(s) {
 		t.Error("detector: true sem detector.url")
 	}
 	s.cfg.Detector.URL = "http://127.0.0.1:1"
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
-	if !temDetector(s) {
+	if !hasDetector(s) {
 		t.Error("detector.url configurado e o /api/cameras diz detector: false")
 	}
 }
@@ -768,17 +768,17 @@ func TestRangeParams(t *testing.T) {
 
 // A exportação aceita até o teto e recusa um milissegundo a mais. Sem
 // gravação no intervalo, o que cabe no teto cai no 404 de "nenhuma gravação".
-func TestExportRespeitaOTeto(t *testing.T) {
+func TestExportRespectsTheCap(t *testing.T) {
 	s, _ := testServer(t)
 	const from = int64(1786176000000)
-	casos := []struct {
+	cases := []struct {
 		span time.Duration
 		code int
 	}{
 		{maxExportSpan, http.StatusNotFound},
 		{maxExportSpan + time.Millisecond, http.StatusBadRequest},
 	}
-	for _, c := range casos {
+	for _, c := range cases {
 		url := fmt.Sprintf("/api/rec/export?cam=cam_teste&from=%d&to=%d", from, from+c.span.Milliseconds())
 		rec := httptest.NewRecorder()
 		s.handleExport(rec, httptest.NewRequest(http.MethodGet, url, nil))
@@ -794,7 +794,7 @@ func TestExportRespeitaOTeto(t *testing.T) {
 // tamanho certos, e o navegador simplesmente não desenha nada. Foi assim que
 // uma versão quebrada chegou a rodar em produção sem que nenhuma verificação
 // de deploy reclamasse. Este teste é a porta que faltava.
-func TestFaviconEmbutidoEhXMLBemFormado(t *testing.T) {
+func TestEmbeddedFaviconIsWellFormedXML(t *testing.T) {
 	b, err := dist.ReadFile("dist/favicon.svg")
 	if err != nil {
 		t.Fatalf("favicon não está embutido: %v", err)
@@ -814,7 +814,7 @@ func TestFaviconEmbutidoEhXMLBemFormado(t *testing.T) {
 
 // De nada adianta o arquivo estar íntegro se a página parar de apontar para
 // ele: o resultado visível é o mesmo, aba sem ícone.
-func TestIndexApontaParaOFavicon(t *testing.T) {
+func TestIndexPointsToTheFavicon(t *testing.T) {
 	b, err := dist.ReadFile("dist/index.html")
 	if err != nil {
 		t.Fatalf("index.html não está embutido: %v", err)
@@ -830,7 +830,7 @@ func TestIndexApontaParaOFavicon(t *testing.T) {
 // servido como JSON, com os ícones declarados embutidos e no tamanho dito. O
 // nome é manifest.json, e não .webmanifest, porque a tabela de tipos do Go não
 // conhece essa extensão e a imagem não tem /etc/mime.types: sairia text/plain.
-func TestManifestDoAppInstalavel(t *testing.T) {
+func TestInstallableAppManifest(t *testing.T) {
 	s, _ := testServer(t)
 	rec := httptest.NewRecorder()
 	s.webHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/manifest.json", nil))
@@ -854,7 +854,7 @@ func TestManifestDoAppInstalavel(t *testing.T) {
 		t.Errorf("faltam name, start_url ou display standalone: %+v", m)
 	}
 
-	tamanhos := map[string]bool{}
+	sizes := map[string]bool{}
 	for _, ic := range m.Icons {
 		b, err := dist.ReadFile("dist/" + ic.Src)
 		if err != nil {
@@ -870,12 +870,12 @@ func TestManifestDoAppInstalavel(t *testing.T) {
 			t.Errorf("ícone %s declara %s e tem %s", ic.Src, ic.Sizes, got)
 		}
 		if ic.Purpose == "" {
-			tamanhos[ic.Sizes] = true
+			sizes[ic.Sizes] = true
 		}
 	}
-	for _, quer := range []string{"192x192", "512x512"} {
-		if !tamanhos[quer] {
-			t.Errorf("falta ícone %s de uso geral, que o Chrome exige para instalar", quer)
+	for _, wants := range []string{"192x192", "512x512"} {
+		if !sizes[wants] {
+			t.Errorf("falta ícone %s de uso geral, que o Chrome exige para instalar", wants)
 		}
 	}
 }

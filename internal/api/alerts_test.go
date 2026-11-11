@@ -19,11 +19,11 @@ import (
 func alertEmailDe(t *testing.T, s *Server) string {
 	t.Helper()
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"})
-	return string(pede(t, s.requireAuth(s.handleCameras), "/api/cameras")["alertEmail"])
+	return string(request(t, s.requireAuth(s.handleCameras), "/api/cameras")["alertEmail"])
 }
 
 // pede chama o handler e devolve o corpo como mapa de JSON cru.
-func pede(t *testing.T, h http.HandlerFunc, rota string) map[string]json.RawMessage {
+func request(t *testing.T, h http.HandlerFunc, rota string) map[string]json.RawMessage {
 	t.Helper()
 	rec := httptest.NewRecorder()
 	h(rec, httptest.NewRequest(http.MethodGet, rota, nil))
@@ -39,9 +39,9 @@ func pede(t *testing.T, h http.HandlerFunc, rota string) map[string]json.RawMess
 
 // O /api/health só fala de alerta depois que alguma câmera o liga, e então
 // leva só o total.
-func TestAlertasNoHealth(t *testing.T) {
+func TestAlertsInHealth(t *testing.T) {
 	s, _ := testServer(t)
-	if _, ok := pede(t, s.handleHealth, "/api/health")["alerts"]; ok {
+	if _, ok := request(t, s.handleHealth, "/api/health")["alerts"]; ok {
 		t.Fatal("o /api/health falou de alerta sem câmera com alerta")
 	}
 
@@ -55,14 +55,14 @@ func TestAlertasNoHealth(t *testing.T) {
 	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
 		Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
 
-	if got := string(pede(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":1}` {
+	if got := string(request(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":1}` {
 		t.Errorf("alerts no /api/health: %s", got)
 	}
 }
 
 // Com um episódio de descarte valendo, o /api/health leva os alertas que não
 // saíram pelos meios, por motivo, com o teto e o desde quando.
-func TestDescarteNoHealth(t *testing.T) {
+func TestDropInHealth(t *testing.T) {
 	s, _ := testServer(t)
 	s.cfg.Detector.URL = "http://127.0.0.1:1"
 	// Um meio de e-mail para um servidor que não existe: o teto vale na
@@ -84,7 +84,7 @@ func TestDescarteNoHealth(t *testing.T) {
 			Since, LastAt                      string
 		}
 	}
-	if err := json.Unmarshal(pede(t, s.handleHealth, "/api/health")["alerts"], &alerts); err != nil {
+	if err := json.Unmarshal(request(t, s.handleHealth, "/api/health")["alerts"], &alerts); err != nil {
 		t.Fatal(err)
 	}
 	d := alerts.Dropped
@@ -96,7 +96,7 @@ func TestDescarteNoHealth(t *testing.T) {
 
 // Com o meio falhando, o /api/health leva o desde quando e o erro, para o
 // Aviso vermelho, e o /api/health/servidor, os números do meio.
-func TestMeioFalhandoNoHealth(t *testing.T) {
+func TestFailingNotifierInHealth(t *testing.T) {
 	s, _ := testServer(t)
 	s.cfg.Detector.URL = "http://127.0.0.1:1"
 	// Um servidor de e-mail que não existe: o envio falha na conexão.
@@ -108,10 +108,10 @@ func TestMeioFalhandoNoHealth(t *testing.T) {
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
 
 	// O meio ainda não tentou: nada falhando, e os números zerados.
-	if got := string(pede(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":0}` {
+	if got := string(request(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":0}` {
 		t.Errorf("alerts antes do envio: %s", got)
 	}
-	if got := string(pede(t, s.handleDiagnosticoServidor, "/api/health/servidor")["alertas"]); got != `[{"nome":"email","enviados":0,"falhas":0}]` {
+	if got := string(request(t, s.handleServerDiagnostics, "/api/health/servidor")["alertas"]); got != `[{"nome":"email","enviados":0,"falhas":0}]` {
 		t.Errorf("alertas no diagnóstico antes do envio: %s", got)
 	}
 
@@ -124,7 +124,7 @@ func TestMeioFalhandoNoHealth(t *testing.T) {
 		Failing []struct{ Name, Since, Error string }
 	}
 	for range 500 {
-		if err := json.Unmarshal(pede(t, s.handleHealth, "/api/health")["alerts"], &alerts); err != nil {
+		if err := json.Unmarshal(request(t, s.handleHealth, "/api/health")["alerts"], &alerts); err != nil {
 			t.Fatal(err)
 		}
 		if len(alerts.Failing) > 0 {
@@ -139,28 +139,28 @@ func TestMeioFalhandoNoHealth(t *testing.T) {
 		t.Errorf("failing no /api/health: %+v", f)
 	}
 
-	var meios []meioDoAlertaInfo
-	if err := json.Unmarshal(pede(t, s.handleDiagnosticoServidor, "/api/health/servidor")["alertas"], &meios); err != nil {
+	var notifiers []alertNotifierInfo
+	if err := json.Unmarshal(request(t, s.handleServerDiagnostics, "/api/health/servidor")["alertas"], &notifiers); err != nil {
 		t.Fatal(err)
 	}
-	if len(meios) != 1 || meios[0].Falhas != 1 || meios[0].Enviados != 0 || meios[0].Ultimo == nil ||
-		meios[0].Erro != alerts.Failing[0].Error {
-		t.Errorf("alertas no diagnóstico: %+v", meios)
+	if len(notifiers) != 1 || notifiers[0].Failures != 1 || notifiers[0].Sent != 0 || notifiers[0].Ultimo == nil ||
+		notifiers[0].Error != alerts.Failing[0].Error {
+		t.Errorf("alertas no diagnóstico: %+v", notifiers)
 	}
 
-	var porEmail struct{ FailingSince, Error string }
-	if err := json.Unmarshal([]byte(alertEmailDe(t, s)), &porEmail); err != nil {
+	var byEmail struct{ FailingSince, Error string }
+	if err := json.Unmarshal([]byte(alertEmailDe(t, s)), &byEmail); err != nil {
 		t.Fatal(err)
 	}
-	if porEmail.FailingSince == "" || porEmail.Error != alerts.Failing[0].Error {
-		t.Errorf("alertEmail no /api/cameras com o meio falhando: %+v", porEmail)
+	if byEmail.FailingSince == "" || byEmail.Error != alerts.Failing[0].Error {
+		t.Errorf("alertEmail no /api/cameras com o meio falhando: %+v", byEmail)
 	}
 }
 
 // A aba Alerta diz para onde o alerta vai: sem o meio, as seções que faltam
 // no dwnvr.yaml, com o motivo da smtp recusada; com ele, a lista, mesmo antes
 // de alguma câmera ligar o alerta.
-func TestAlertaPorEmailNasCameras(t *testing.T) {
+func TestEmailAlertInCameras(t *testing.T) {
 	s, _ := testServer(t)
 	if got := alertEmailDe(t, s); got != `{"missing":["alerts.email.to","smtp"]}` {
 		t.Errorf("alertEmail sem o meio: %s", got)

@@ -51,8 +51,8 @@ func (s *Server) handleDeleteRecordings(w http.ResponseWriter, r *http.Request) 
 	// recorder gravando no diretório que está sendo apagado, e o Pause, ao
 	// terminar, subiria outro. Vale também para a câmera já removida, que um
 	// save pode cadastrar de novo com o mesmo ID.
-	s.cadastro.Lock()
-	defer s.cadastro.Unlock()
+	s.registry.Lock()
+	defer s.registry.Unlock()
 
 	if s.knownCamera(id) {
 		// Pause é obrigatório: purgar com o recorder no ar deixaria o segmento
@@ -180,18 +180,18 @@ type eventsResponse struct {
 	// olhada, no instante do onset que a originou. São poucas - dezenas por
 	// câmera por dia -, então vão com chave por extenso, ao contrário dos
 	// onsets. Câmera sem detector responde lista vazia.
-	Objetos []objetoMarcado `json:"objetos"`
+	Objects []markedObject `json:"objetos"`
 }
 
-type objetoMarcado struct {
-	InstanteMs int64   `json:"instanteMs"`
-	Familia    string  `json:"familia"`
-	Classe     string  `json:"classe"`
-	Score      float64 `json:"score"`
+type markedObject struct {
+	AtMs   int64   `json:"instanteMs"`
+	Family string  `json:"familia"`
+	Class  string  `json:"classe"`
+	Score  float64 `json:"score"`
 	// Onde e quando desenhar a caixa sobre o vídeo. Marca sem eles não ganha
 	// caixa na tela. Ver o store.Event.
-	QuadroMs int64       `json:"quadroMs,omitempty"`
-	Caixa    *[4]float64 `json:"caixa,omitempty"`
+	FrameMs int64       `json:"quadroMs,omitempty"`
+	Box     *[4]float64 `json:"caixa,omitempty"`
 }
 
 // handleEvents devolve as marcas de um trecho: os onsets de movimento, que a
@@ -214,18 +214,18 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventos, err := cam.EventRange(from, to)
+	events, err := cam.EventRange(from, to)
 	if err != nil {
 		s.fail(w, "lendo as marcas de movimento", err)
 		return
 	}
 
-	resp := eventsResponse{Cam: cam.ID, From: from, To: to, Onsets: []int64{}, Objetos: []objetoMarcado{}}
-	for _, ev := range eventos {
+	resp := eventsResponse{Cam: cam.ID, From: from, To: to, Onsets: []int64{}, Objects: []markedObject{}}
+	for _, ev := range events {
 		// A marca de objeto mora no mesmo arquivo, e não pode entrar na faixa
 		// de calor: cada objeto contaria como um segundo onset no mesmo instante.
 		if ev.IsObject() {
-			resp.Objetos = append(resp.Objetos, objetoMarcado{ev.AtMs, ev.Family, ev.Class, ev.Score, ev.FrameMs, ev.Box})
+			resp.Objects = append(resp.Objects, markedObject{ev.AtMs, ev.Family, ev.Class, ev.Score, ev.FrameMs, ev.Box})
 			continue
 		}
 		resp.Onsets = append(resp.Onsets, ev.AtMs)

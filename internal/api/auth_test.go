@@ -23,7 +23,7 @@ import (
 
 // comAutenticacao liga a autenticação, com o dono "admin", e cadastra as
 // pessoas dadas no usuarios.json.
-func comAutenticacao(t *testing.T, s *Server, gente ...users.User) {
+func withAuth(t *testing.T, s *Server, people ...users.User) {
 	t.Helper()
 	s.cfg.Server.Username, s.cfg.Server.Password = "admin", "senha"
 	// Reaberto com o dono, como no boot: é ele que o cadastro recusa criar.
@@ -31,9 +31,9 @@ func comAutenticacao(t *testing.T, s *Server, gente ...users.User) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.usuarios = cad
-	err = s.usuarios.Update(func(a *users.FileData) error {
-		a.Users = append(a.Users, gente...)
+	s.users = cad
+	err = s.users.Update(func(a *users.FileData) error {
+		a.Users = append(a.Users, people...)
 		return nil
 	})
 	if err != nil {
@@ -46,100 +46,100 @@ func comAutenticacao(t *testing.T, s *Server, gente ...users.User) {
 var maria = users.User{Username: "maria", Name: "Maria", Role: users.RoleViewer, PasswordHash: "$guardada$da-maria"}
 
 // cookieDe é o cookie que a pessoa recebe, valendo por mais uma hora.
-func cookieDe(t *testing.T, s *Server, usuario string) *http.Cookie {
+func cookieDe(t *testing.T, s *Server, username string) *http.Cookie {
 	t.Helper()
-	p, ok := s.quem(usuario)
+	p, ok := s.who(username)
 	if !ok {
-		t.Fatalf("%q não existe", usuario)
+		t.Fatalf("%q não existe", username)
 	}
 	return &http.Cookie{Name: sessionCookie, Value: s.signToken(p, time.Now().Add(time.Hour).Unix())}
 }
 
 func vale(s *Server, tok string) bool {
-	_, _, ok := s.tokenPessoa(tok)
+	_, _, ok := s.tokenPerson(tok)
 	return ok
 }
 
-func TestTokenDeSessao(t *testing.T) {
+func TestSessionToken(t *testing.T) {
 	s, _ := testServer(t)
-	comAutenticacao(t, s, maria)
-	dono, _ := s.quem("admin")
+	withAuth(t, s, maria)
+	owner, _ := s.who("admin")
 
-	valido := s.signToken(dono, time.Now().Add(time.Hour).Unix())
-	if p, _, ok := s.tokenPessoa(valido); !ok || p.Usuario != "admin" || !p.Dono {
+	valid := s.signToken(owner, time.Now().Add(time.Hour).Unix())
+	if p, _, ok := s.tokenPerson(valid); !ok || p.Username != "admin" || !p.Owner {
 		t.Errorf("token recém-assinado: %+v, ok=%v", p, ok)
 	}
 
-	if vale(s, s.signToken(dono, time.Now().Add(-time.Hour).Unix())) {
+	if vale(s, s.signToken(owner, time.Now().Add(-time.Hour).Unix())) {
 		t.Error("token expirado foi aceito")
 	}
 
 	// Esticar o prazo ou trocar de pessoa tem que invalidar: o HMAC cobre o
 	// login e o prazo.
-	login, resto, _ := strings.Cut(valido, ".")
-	_, sig, _ := strings.Cut(resto, ".")
+	login, rest, _ := strings.Cut(valid, ".")
+	_, sig, _ := strings.Cut(rest, ".")
 	if vale(s, login+".99999999999."+sig) {
 		t.Error("prazo esticado foi aceito")
 	}
-	if vale(s, strings.Replace(valido, login, "bWFyaWE", 1)) { // "maria"
+	if vale(s, strings.Replace(valid, login, "bWFyaWE", 1)) { // "maria"
 		t.Error("o token do dono com o login da maria foi aceito")
 	}
 
 	// Assinatura de outro segredo não pode valer.
-	outro := &Server{cfg: s.cfg, usuarios: s.usuarios, sessionSecret: []byte("outro-segredo-de-32-bytes!!!!!!!")}
-	if vale(s, outro.signToken(dono, time.Now().Add(time.Hour).Unix())) {
+	other := &Server{cfg: s.cfg, users: s.users, sessionSecret: []byte("outro-segredo-de-32-bytes!!!!!!!")}
+	if vale(s, other.signToken(owner, time.Now().Add(time.Hour).Unix())) {
 		t.Error("token assinado com outro segredo foi aceito")
 	}
 
-	for _, ruim := range []string{"", "semponto", "abc.def", ".", "123.", "YWRtaW4.abc.def", "!!.123.abc", ".."} {
-		if vale(s, ruim) {
-			t.Errorf("token malformado %q foi aceito", ruim)
+	for _, bad := range []string{"", "semponto", "abc.def", ".", "123.", "YWRtaW4.abc.def", "!!.123.abc", ".."} {
+		if vale(s, bad) {
+			t.Errorf("token malformado %q foi aceito", bad)
 		}
 	}
 }
 
 // O cookie de cada pessoa é amarrado à credencial dela: trocar a senha de uma,
 // ou removê-la, derruba só ela.
-func TestSessaoDerrubaSoAPessoa(t *testing.T) {
+func TestSessionDropsOnlyThePerson(t *testing.T) {
 	joao := users.User{Username: "joao", Name: "João", Role: users.RoleViewer, PasswordHash: "$guardada$do-joao"}
-	alterar := func(s *Server, f func(*users.FileData)) {
+	change := func(s *Server, f func(*users.FileData)) {
 		t.Helper()
-		if err := s.usuarios.Update(func(a *users.FileData) error { f(a); return nil }); err != nil {
+		if err := s.users.Update(func(a *users.FileData) error { f(a); return nil }); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	for _, caso := range []struct {
-		nome    string
-		mudar   func(s *Server)
-		caiu    string
-		ficaram []string
+	for _, tc := range []struct {
+		nome      string
+		change    func(s *Server)
+		dropped   string
+		remaining []string
 	}{
 		{"senha nova da maria", func(s *Server) {
-			alterar(s, func(a *users.FileData) { a.Users[0].PasswordHash = "$guardada$nova" })
+			change(s, func(a *users.FileData) { a.Users[0].PasswordHash = "$guardada$nova" })
 		}, "maria", []string{"admin", "joao"}},
 		{"maria sem senha, à espera de um link novo", func(s *Server) {
-			alterar(s, func(a *users.FileData) { a.Users[0].PasswordHash = "" })
+			change(s, func(a *users.FileData) { a.Users[0].PasswordHash = "" })
 		}, "maria", []string{"admin", "joao"}},
 		{"maria removida", func(s *Server) {
-			alterar(s, func(a *users.FileData) { a.Users = a.Users[1:] })
+			change(s, func(a *users.FileData) { a.Users = a.Users[1:] })
 		}, "maria", []string{"admin", "joao"}},
 		{"senha nova do dono", func(s *Server) { s.cfg.Server.Password += "-nova" }, "admin", []string{"maria", "joao"}},
 	} {
 		s, _ := testServer(t)
-		comAutenticacao(t, s, maria, joao)
+		withAuth(t, s, maria, joao)
 		cookies := map[string]string{}
 		for _, u := range []string{"admin", "maria", "joao"} {
 			cookies[u] = cookieDe(t, s, u).Value
 		}
 
-		caso.mudar(s)
-		if vale(s, cookies[caso.caiu]) {
-			t.Errorf("%s: o cookie de %s continuou valendo", caso.nome, caso.caiu)
+		tc.change(s)
+		if vale(s, cookies[tc.dropped]) {
+			t.Errorf("%s: o cookie de %s continuou valendo", tc.nome, tc.dropped)
 		}
-		for _, u := range caso.ficaram {
+		for _, u := range tc.remaining {
 			if !vale(s, cookies[u]) {
-				t.Errorf("%s: o cookie de %s caiu junto", caso.nome, u)
+				t.Errorf("%s: o cookie de %s caiu junto", tc.nome, u)
 			}
 		}
 	}
@@ -149,83 +149,83 @@ func TestSessaoDerrubaSoAPessoa(t *testing.T) {
 // porque a chave que assina o cookie sai do .session-secret junto com a
 // credencial. Reiniciar com a mesma credencial não derruba ninguém. Passa pelo
 // New, que é o caminho do boot.
-func TestTrocarACredencialDoDonoDerrubaAsSessoesDele(t *testing.T) {
-	segredo := []byte("segredo-de-teste-com-32-bytes!!!")
-	caminho := filepath.Join(t.TempDir(), "usuarios.json")
-	subir := func(usuario, senha string) *Server {
+func TestChangingOwnerCredentialDropsTheirSessions(t *testing.T) {
+	secret := []byte("segredo-de-teste-com-32-bytes!!!")
+	filePath := filepath.Join(t.TempDir(), "usuarios.json")
+	start := func(username, password string) *Server {
 		cfg := &config.Config{}
-		cfg.Server.Username, cfg.Server.Password = usuario, senha
-		cad, _, err := users.Open(caminho, usuario)
+		cfg.Server.Username, cfg.Server.Password = username, password
+		cad, _, err := users.Open(filePath, username)
 		if err != nil {
 			t.Fatal(err)
 		}
 		log := slog.New(slog.NewTextHandler(io.Discard, nil))
-		acessos, err := users.OpenAccessLog(filepath.Join(filepath.Dir(caminho), "acessos.json"), log)
+		accesses, err := users.OpenAccessLog(filepath.Join(filepath.Dir(filePath), "acessos.json"), log)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return New(cfg, nil, nil, nil, nil, cad, acessos, nil, segredo, log)
+		return New(cfg, nil, nil, nil, nil, cad, accesses, nil, secret, log)
 	}
-	antes := subir("admin", "senha")
-	dono, _ := antes.quem("admin")
-	cookie := antes.signToken(dono, time.Now().Add(time.Hour).Unix())
+	antes := start("admin", "senha")
+	owner, _ := antes.who("admin")
+	cookie := antes.signToken(owner, time.Now().Add(time.Hour).Unix())
 
-	for _, caso := range []struct {
-		nome           string
-		usuario, senha string
-		vale           bool
+	for _, tc := range []struct {
+		nome               string
+		username, password string
+		vale               bool
 	}{
 		{"mesma credencial", "admin", "senha", true},
 		{"senha nova", "admin", "senha-nova", false},
 		{"usuário novo", "dono", "senha", false},
 	} {
-		if ok := vale(subir(caso.usuario, caso.senha), cookie); ok != caso.vale {
-			t.Errorf("%s: o cookie de antes vale=%v, esperava %v", caso.nome, ok, caso.vale)
+		if ok := vale(start(tc.username, tc.password), cookie); ok != tc.vale {
+			t.Errorf("%s: o cookie de antes vale=%v, esperava %v", tc.nome, ok, tc.vale)
 		}
 	}
 }
 
 func TestRequireAuth(t *testing.T) {
 	s, _ := testServer(t)
-	var quem pessoa
-	chamou := false
-	h := s.requireAuth(func(w http.ResponseWriter, r *http.Request) { chamou, quem = true, pessoaDe(r) })
+	var who person
+	called := false
+	h := s.requireAuth(func(w http.ResponseWriter, r *http.Request) { called, who = true, personOf(r) })
 
 	// Sem credencial configurada a autenticação fica desligada, e quem chega
 	// faz tudo.
 	h(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
-	if !chamou || !quem.admin() {
-		t.Errorf("sem credenciais: chamou=%v, pessoa %+v", chamou, quem)
+	if !called || !who.admin() {
+		t.Errorf("sem credenciais: chamou=%v, pessoa %+v", called, who)
 	}
 
-	comAutenticacao(t, s, maria)
-	chamou = false
+	withAuth(t, s, maria)
+	called = false
 	rec := httptest.NewRecorder()
 	h(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
-	if chamou || rec.Code != http.StatusUnauthorized {
-		t.Errorf("com credenciais, sem cookie: chamou=%v status=%d", chamou, rec.Code)
+	if called || rec.Code != http.StatusUnauthorized {
+		t.Errorf("com credenciais, sem cookie: chamou=%v status=%d", called, rec.Code)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.AddCookie(cookieDe(t, s, "maria"))
 	h(httptest.NewRecorder(), req)
-	if !chamou || quem.Usuario != "maria" || quem.Papel != users.RoleViewer {
-		t.Errorf("cookie da maria: chamou=%v, pessoa %+v", chamou, quem)
+	if !called || who.Username != "maria" || who.Role != users.RoleViewer {
+		t.Errorf("cookie da maria: chamou=%v, pessoa %+v", called, who)
 	}
 }
 
 // Cada rota declara o papel que exige. O viewer é recusado com 403 em
 // tudo que é da tela Câmeras e do diagnóstico do servidor, mesmo sem a aba na
 // tela. Passa pelo Handler, que é onde o papel de cada rota é declarado.
-func TestPapelPorRota(t *testing.T) {
+func TestRolePerRoute(t *testing.T) {
 	s, _ := testServer(t)
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"})
-	comAutenticacao(t, s, maria)
+	withAuth(t, s, maria)
 	h := s.Handler()
 
-	pedir := func(usuario, metodo, rota string) int {
-		req := httptest.NewRequest(metodo, rota, nil)
-		req.AddCookie(cookieDe(t, s, usuario))
+	ask := func(username, method, rota string) int {
+		req := httptest.NewRequest(method, rota, nil)
+		req.AddCookie(cookieDe(t, s, username))
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		return rec.Code
@@ -239,8 +239,8 @@ func TestPapelPorRota(t *testing.T) {
 		"DELETE /api/usuarios?username=maria", "DELETE /api/usuarios/avatar?username=maria",
 	}
 	for _, r := range soAdmin {
-		metodo, rota, _ := strings.Cut(r, " ")
-		if code := pedir("maria", metodo, rota); code != http.StatusForbidden {
+		method, rota, _ := strings.Cut(r, " ")
+		if code := ask("maria", method, rota); code != http.StatusForbidden {
 			t.Errorf("viewer em %s: status %d, esperava 403", r, code)
 		}
 	}
@@ -249,17 +249,17 @@ func TestPapelPorRota(t *testing.T) {
 	}
 
 	// O que é de todos passa: aqui, só não pode ser 401 nem 403.
-	deTodos := []string{
+	ofAll := []string{
 		"GET /api/cameras", "GET /api/rec/days?cam=cam_teste", "GET /api/deteccoes/dias",
 		"GET /api/rec/timeline?cam=cam_teste&day=2026-10-09",
 	}
-	for _, r := range deTodos {
-		metodo, rota, _ := strings.Cut(r, " ")
-		if code := pedir("maria", metodo, rota); code == http.StatusForbidden || code == http.StatusUnauthorized {
+	for _, r := range ofAll {
+		method, rota, _ := strings.Cut(r, " ")
+		if code := ask("maria", method, rota); code == http.StatusForbidden || code == http.StatusUnauthorized {
 			t.Errorf("viewer em %s: status %d", r, code)
 		}
 	}
-	if code := pedir("admin", http.MethodPost, "/api/reconnects/reset"); code != http.StatusOK {
+	if code := ask("admin", http.MethodPost, "/api/reconnects/reset"); code != http.StatusOK {
 		t.Errorf("admin em /api/reconnects/reset: status %d", code)
 	}
 }
@@ -268,9 +268,9 @@ func TestPapelPorRota(t *testing.T) {
 // órfãs, do padrão, das faixas nem do caminho no disco, e do alerta só o
 // ligado, sem as famílias nem os horários. A câmera com o alerta desligado vai
 // sem ele.
-func TestCamerasEnxutoParaOViewer(t *testing.T) {
+func TestCamerasLeanForTheViewer(t *testing.T) {
 	s, _ := testServer(t)
-	comAutenticacao(t, s, maria)
+	withAuth(t, s, maria)
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person},
 			Schedules: []config.AlertSchedule{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "23:59"}}}})
@@ -297,9 +297,9 @@ func TestCamerasEnxutoParaOViewer(t *testing.T) {
 		t.Fatalf("câmeras: %s (%v)", resp["cameras"], err)
 	}
 	for _, c := range cams {
-		alerta, _ := json.Marshal(c["alert"])
+		alert, _ := json.Marshal(c["alert"])
 		want := map[any]string{"cam_teste": `{"enabled":true}`, "cam_b": "null"}[c["id"]]
-		if c["dir"] != nil || string(alerta) != want {
+		if c["dir"] != nil || string(alert) != want {
 			t.Errorf("câmera do viewer: %v", c)
 		}
 	}
@@ -307,18 +307,18 @@ func TestCamerasEnxutoParaOViewer(t *testing.T) {
 
 // Um valor estragado no usuarios.json (editado à mão, de outra versão) não
 // deixa ninguém entrar, e o log diz o problema sem copiar o valor guardado.
-func TestLoginComSenhaGuardadaEstragada(t *testing.T) {
+func TestLoginWithCorruptedStoredPassword(t *testing.T) {
 	s, _ := testServer(t)
 	var log strings.Builder
 	s.log = slog.New(slog.NewTextHandler(&log, nil))
-	estragada := maria
-	estragada.PasswordHash = "$pbkdf2-sha256$i=99999999999$c2FsdA$aGFzaA"
-	comAutenticacao(t, s, estragada)
+	corrupted := maria
+	corrupted.PasswordHash = "$pbkdf2-sha256$i=99999999999$c2FsdA$aGFzaA"
+	withAuth(t, s, corrupted)
 
-	tentativa := "qualquer uma"
-	corpo, _ := json.Marshal(map[string]string{"username": "maria", "password": tentativa})
+	attempt := "qualquer uma"
+	body, _ := json.Marshal(map[string]string{"username": "maria", "password": attempt})
 	rec := httptest.NewRecorder()
-	s.handleLogin(rec, httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(corpo))))
+	s.handleLogin(rec, httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(body))))
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status %d, esperava 401", rec.Code)
 	}
@@ -332,55 +332,55 @@ func TestLoginComSenhaGuardadaEstragada(t *testing.T) {
 
 func TestLogin(t *testing.T) {
 	s, _ := testServer(t)
-	guardada, err := users.HashPassword(context.Background(), "senha da maria")
+	stored, err := users.HashPassword(context.Background(), "senha da maria")
 	if err != nil {
 		t.Fatal(err)
 	}
 	m := maria
-	m.PasswordHash = guardada
-	comAutenticacao(t, s, m, users.User{Username: "ze", Name: "Zé", Role: users.RoleViewer})
+	m.PasswordHash = stored
+	withAuth(t, s, m, users.User{Username: "ze", Name: "Zé", Role: users.RoleViewer})
 
-	entrar := func(usuario, senha string) (*httptest.ResponseRecorder, pessoa) {
-		corpo, _ := json.Marshal(map[string]string{"username": usuario, "password": senha})
+	doLogin := func(username, password string) (*httptest.ResponseRecorder, person) {
+		body, _ := json.Marshal(map[string]string{"username": username, "password": password})
 		rec := httptest.NewRecorder()
-		s.handleLogin(rec, httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(corpo))))
+		s.handleLogin(rec, httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(body))))
 		var resp struct {
-			Pessoa pessoa `json:"user"`
+			Person person `json:"user"`
 		}
 		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
-		return rec, resp.Pessoa
+		return rec, resp.Person
 	}
 
-	for _, caso := range []struct {
-		usuario, senha string
-		papel          users.Role
+	for _, tc := range []struct {
+		username, password string
+		role               users.Role
 	}{{"admin", "senha", users.RoleAdmin}, {"maria", "senha da maria", users.RoleViewer}} {
-		rec, p := entrar(caso.usuario, caso.senha)
-		if rec.Code != http.StatusOK || p.Usuario != caso.usuario || p.Papel != caso.papel {
-			t.Errorf("%s: status %d, pessoa %+v", caso.usuario, rec.Code, p)
+		rec, p := doLogin(tc.username, tc.password)
+		if rec.Code != http.StatusOK || p.Username != tc.username || p.Role != tc.role {
+			t.Errorf("%s: status %d, pessoa %+v", tc.username, rec.Code, p)
 			continue
 		}
 		c, err := http.ParseSetCookie(rec.Header().Get("Set-Cookie"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if p, _, ok := s.tokenPessoa(c.Value); !ok || p.Usuario != caso.usuario {
-			t.Errorf("%s: o cookie do login não vale: %+v", caso.usuario, p)
+		if p, _, ok := s.tokenPerson(c.Value); !ok || p.Username != tc.username {
+			t.Errorf("%s: o cookie do login não vale: %+v", tc.username, p)
 		}
-		if strings.Contains(rec.Body.String(), guardada) || strings.Contains(rec.Body.String(), `"passwordHash"`) {
-			t.Errorf("%s: a resposta do login traz a senha: %s", caso.usuario, rec.Body.String())
+		if strings.Contains(rec.Body.String(), stored) || strings.Contains(rec.Body.String(), `"passwordHash"`) {
+			t.Errorf("%s: a resposta do login traz a senha: %s", tc.username, rec.Body.String())
 		}
 	}
 
-	for _, caso := range [][2]string{
+	for _, tc := range [][2]string{
 		{"maria", "senha"},          // a senha do dono não serve para a maria
 		{"admin", "senha da maria"}, // nem a da maria para o dono
 		{"ninguem", "senha"},
 		{"ze", ""}, // ainda não definiu a senha
 		{"", ""},
 	} {
-		if rec, _ := entrar(caso[0], caso[1]); rec.Code != http.StatusUnauthorized || rec.Header().Get("Set-Cookie") != "" {
-			t.Errorf("%q com %q: status %d, Set-Cookie %q", caso[0], caso[1], rec.Code, rec.Header().Get("Set-Cookie"))
+		if rec, _ := doLogin(tc[0], tc[1]); rec.Code != http.StatusUnauthorized || rec.Header().Get("Set-Cookie") != "" {
+			t.Errorf("%q com %q: status %d, Set-Cookie %q", tc[0], tc[1], rec.Code, rec.Header().Get("Set-Cookie"))
 		}
 	}
 }
@@ -388,38 +388,38 @@ func TestLogin(t *testing.T) {
 // Entrar pelo e-mail é entrar como a pessoa: o cookie e o log ficam com o
 // usuário. O e-mail que não acha ninguém, inclusive o repetido no arquivo,
 // responde igual à senha errada.
-func TestLoginPeloEmail(t *testing.T) {
+func TestLoginByEmail(t *testing.T) {
 	s, _ := testServer(t)
 	var log strings.Builder
 	s.log = slog.New(slog.NewTextHandler(&log, nil))
-	guardada, err := users.HashPassword(context.Background(), "senha da maria")
+	stored, err := users.HashPassword(context.Background(), "senha da maria")
 	if err != nil {
 		t.Fatal(err)
 	}
 	m := maria
-	m.PasswordHash, m.Email = guardada, "Maria@Exemplo.com"
+	m.PasswordHash, m.Email = stored, "Maria@Exemplo.com"
 	// O repetido só entra no arquivo editado à mão; o Alterar daqui não confere.
-	ana := users.User{Username: "ana", Name: "Ana", Role: users.RoleViewer, PasswordHash: guardada, Email: "casa@exemplo.com"}
+	ana := users.User{Username: "ana", Name: "Ana", Role: users.RoleViewer, PasswordHash: stored, Email: "casa@exemplo.com"}
 	bia := ana
 	bia.Username, bia.Name = "bia", "Bia"
-	comAutenticacao(t, s, m, ana, bia,
+	withAuth(t, s, m, ana, bia,
 		users.User{Username: "ze", Name: "Zé", Role: users.RoleViewer, Email: "ze@exemplo.com"})
 
-	entrar := func(login, senha string) *httptest.ResponseRecorder {
-		corpo, _ := json.Marshal(map[string]string{"username": login, "password": senha})
+	doLogin := func(login, password string) *httptest.ResponseRecorder {
+		body, _ := json.Marshal(map[string]string{"username": login, "password": password})
 		rec := httptest.NewRecorder()
-		s.handleLogin(rec, httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(corpo))))
+		s.handleLogin(rec, httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(body))))
 		return rec
 	}
 
 	for _, login := range []string{"maria@exemplo.com", " MARIA@exemplo.com "} {
-		rec := entrar(login, "senha da maria")
+		rec := doLogin(login, "senha da maria")
 		c, err := http.ParseSetCookie(rec.Header().Get("Set-Cookie"))
 		if rec.Code != http.StatusOK || err != nil {
 			t.Errorf("%q: status %d, %v", login, rec.Code, err)
 			continue
 		}
-		if p, _, ok := s.tokenPessoa(c.Value); !ok || p.Usuario != "maria" {
+		if p, _, ok := s.tokenPerson(c.Value); !ok || p.Username != "maria" {
 			t.Errorf("%q: cookie de %+v", login, p)
 		}
 	}
@@ -430,27 +430,27 @@ func TestLoginPeloEmail(t *testing.T) {
 	// O usuário do dono pode ter "@" no dwnvr.yaml, e continua entrando,
 	// mesmo que alguém do cadastro tenha o mesmo texto como e-mail.
 	s.cfg.Server.Username = "admin@casa"
-	if err := s.usuarios.Update(func(a *users.FileData) error {
+	if err := s.users.Update(func(a *users.FileData) error {
 		a.Users[0].Email = "Admin@Casa"
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if rec := entrar("admin@casa", "senha"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"owner":true`) {
+	if rec := doLogin("admin@casa", "senha"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"owner":true`) {
 		t.Errorf("dono com @ no usuário: status %d, %s", rec.Code, rec.Body.String())
 	}
 
-	senhaErrada := entrar("maria", "outra").Body.String()
-	for _, caso := range [][2]string{
+	wrongPassword := doLogin("maria", "outra").Body.String()
+	for _, tc := range [][2]string{
 		{"maria@exemplo.com", "outra"},
 		{"ninguem@exemplo.com", "senha da maria"},
 		{"casa@exemplo.com", "senha da maria"}, // de quem? ana ou bia
 		{"ze@exemplo.com", ""},                 // ainda não definiu a senha
 		{"@", ""},
 	} {
-		rec := entrar(caso[0], caso[1])
-		if rec.Code != http.StatusUnauthorized || rec.Header().Get("Set-Cookie") != "" || rec.Body.String() != senhaErrada {
-			t.Errorf("%q com %q: status %d, Set-Cookie %q, corpo %s", caso[0], caso[1], rec.Code,
+		rec := doLogin(tc[0], tc[1])
+		if rec.Code != http.StatusUnauthorized || rec.Header().Get("Set-Cookie") != "" || rec.Body.String() != wrongPassword {
+			t.Errorf("%q com %q: status %d, Set-Cookie %q, corpo %s", tc[0], tc[1], rec.Code,
 				rec.Header().Get("Set-Cookie"), rec.Body.String())
 		}
 	}
@@ -458,11 +458,11 @@ func TestLoginPeloEmail(t *testing.T) {
 
 // O usuarios.json com problema vira aviso no /api/health, para o card Avisos
 // e o sino; sem problema, o campo nem vem.
-func TestCadastroComProblemaViraAviso(t *testing.T) {
+func TestRegistryWithProblemBecomesWarning(t *testing.T) {
 	s, _ := testServer(t)
-	comAutenticacao(t, s, maria)
-	_, resp := pedirComo(t, s, "admin", http.MethodGet, "/api/health", nil)
-	if _, tem := resp["users"]; tem {
+	withAuth(t, s, maria)
+	_, resp := requestAs(t, s, "admin", http.MethodGet, "/api/health", nil)
+	if _, has := resp["users"]; has {
 		t.Errorf("users no health sem problema nenhum: %v", resp["users"])
 	}
 
@@ -476,35 +476,35 @@ func TestCadastroComProblemaViraAviso(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.usuarios = cad
-	_, resp = pedirComo(t, s, "admin", http.MethodGet, "/api/health", nil)
+	s.users = cad
+	_, resp = requestAs(t, s, "admin", http.MethodGet, "/api/health", nil)
 	usersInfo, _ := resp["users"].(map[string]any)
-	avisos, _ := usersInfo["warnings"].([]any)
-	if len(avisos) != 1 || !strings.Contains(avisos[0].(string), `o mesmo de "maria"`) || usersInfo["error"] != nil {
+	warnings, _ := usersInfo["warnings"].([]any)
+	if len(warnings) != 1 || !strings.Contains(warnings[0].(string), `o mesmo de "maria"`) || usersInfo["error"] != nil {
 		t.Errorf("users %v", resp["users"])
 	}
 
 	if err := os.WriteFile(s.cfg.UsersPath(), []byte(`{"users":`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	s.usuarios, _, _ = users.Open(s.cfg.UsersPath(), "admin")
-	_, resp = pedirComo(t, s, "admin", http.MethodGet, "/api/health", nil)
+	s.users, _, _ = users.Open(s.cfg.UsersPath(), "admin")
+	_, resp = requestAs(t, s, "admin", http.MethodGet, "/api/health", nil)
 	usersInfo, _ = resp["users"].(map[string]any)
-	if erro, _ := usersInfo["error"].(string); !strings.Contains(erro, "ilegível") {
+	if errText, _ := usersInfo["error"].(string); !strings.Contains(errText, "ilegível") {
 		t.Errorf("arquivo ilegível: users %v", resp["users"])
 	}
 }
 
 // O login aceito e o logout viram log com quem e de onde, inclusive o
 // X-Forwarded-For do proxy. Logout sem sessão válida não vira log.
-func TestLoginELogoutVaoProLog(t *testing.T) {
+func TestLoginAndLogoutGoToTheLog(t *testing.T) {
 	s, _ := testServer(t)
 	var log strings.Builder
 	s.log = slog.New(slog.NewTextHandler(&log, nil))
-	comAutenticacao(t, s)
+	withAuth(t, s)
 
-	corpo, _ := json.Marshal(map[string]string{"username": "admin", "password": "senha"})
-	req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(corpo)))
+	body, _ := json.Marshal(map[string]string{"username": "admin", "password": "senha"})
+	req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(body)))
 	req.Header.Set("X-Forwarded-For", "100.64.0.7")
 	rec := httptest.NewRecorder()
 	s.handleLogin(rec, req)
@@ -520,9 +520,9 @@ func TestLoginELogoutVaoProLog(t *testing.T) {
 	}
 
 	log.Reset()
-	sair := httptest.NewRequest(http.MethodPost, "/api/logout", nil)
-	sair.AddCookie(c)
-	s.handleLogout(httptest.NewRecorder(), sair)
+	logout := httptest.NewRequest(http.MethodPost, "/api/logout", nil)
+	logout.AddCookie(c)
+	s.handleLogout(httptest.NewRecorder(), logout)
 	if l := log.String(); !strings.Contains(l, `msg=logout usuario=admin de=192.0.2.1:1234`) || strings.Contains(l, "encaminhado") {
 		t.Errorf("log do logout: %s", l)
 	}
@@ -536,18 +536,18 @@ func TestLoginELogoutVaoProLog(t *testing.T) {
 
 // O X-Forwarded-For entra no log cortado no teto, para um header inventado
 // não encher a memória da tela de Diagnóstico.
-func TestEncaminhadoCortaNoTeto(t *testing.T) {
+func TestForwardedCutsAtTheCap(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	if a := encaminhado(req); !a.Equal(slog.Attr{}) {
+	if a := forwarded(req); !a.Equal(slog.Attr{}) {
 		t.Errorf("sem o header: %v, esperava vazio", a)
 	}
 	req.Header.Add("X-Forwarded-For", "203.0.113.5")
 	req.Header.Add("X-Forwarded-For", "100.64.0.7")
-	if v := encaminhado(req).Value.String(); v != "203.0.113.5, 100.64.0.7" {
+	if v := forwarded(req).Value.String(); v != "203.0.113.5, 100.64.0.7" {
 		t.Errorf("dois headers: %q", v)
 	}
-	req.Header.Set("X-Forwarded-For", strings.Repeat("1", encaminhadoMax+50))
-	if v := encaminhado(req).Value.String(); v != strings.Repeat("1", encaminhadoMax)+"…" {
+	req.Header.Set("X-Forwarded-For", strings.Repeat("1", forwardedMax+50))
+	if v := forwarded(req).Value.String(); v != strings.Repeat("1", forwardedMax)+"…" {
 		t.Errorf("header longo: %d bytes", len(v))
 	}
 }
@@ -556,17 +556,17 @@ func TestEncaminhadoCortaNoTeto(t *testing.T) {
 // senha, nem a certa. O episódio vira uma linha de log só, e o 429 não entra
 // no log de requisição recusada. Outro endereço, atrás do mesmo proxy, segue
 // entrando.
-func TestLoginPassouDoLimite(t *testing.T) {
+func TestLoginOverTheLimit(t *testing.T) {
 	s, _ := testServer(t)
 	var log strings.Builder
 	s.log = slog.New(slog.NewTextHandler(&log, nil))
-	comAutenticacao(t, s)
-	s.limiteLogin, s.proxies = limiteDoLogin(s.cfg.Server)
+	withAuth(t, s)
+	s.loginLimit, s.proxies = loginLimiter(s.cfg.Server)
 	h := logRequests(s.log, http.HandlerFunc(s.handleLogin))
 
-	entrar := func(senha, de string) *httptest.ResponseRecorder {
-		corpo, _ := json.Marshal(map[string]string{"username": "admin", "password": senha})
-		req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(corpo)))
+	doLogin := func(password, de string) *httptest.ResponseRecorder {
+		body, _ := json.Marshal(map[string]string{"username": "admin", "password": password})
+		req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(string(body)))
 		req.RemoteAddr = "172.18.0.1:5000" // o proxy, igual para todo mundo
 		req.Header.Set("X-Forwarded-For", de)
 		rec := httptest.NewRecorder()
@@ -575,13 +575,13 @@ func TestLoginPassouDoLimite(t *testing.T) {
 	}
 
 	for i := range ratelimit.LoginBurst {
-		if rec := entrar("errada", "100.64.0.7"); rec.Code != http.StatusUnauthorized {
+		if rec := doLogin("errada", "100.64.0.7"); rec.Code != http.StatusUnauthorized {
 			t.Fatalf("tentativa %d: status %d, esperava 401", i+1, rec.Code)
 		}
 	}
 	log.Reset()
 	for range 3 {
-		rec := entrar("senha", "100.64.0.7")
+		rec := doLogin("senha", "100.64.0.7")
 		if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Set-Cookie") != "" {
 			t.Fatalf("depois da rajada, com a senha certa: status %d, Set-Cookie %q",
 				rec.Code, rec.Header().Get("Set-Cookie"))
@@ -601,27 +601,27 @@ func TestLoginPassouDoLimite(t *testing.T) {
 		t.Errorf("o 429 entrou no log de requisição recusada: %s", l)
 	}
 
-	if rec := entrar("senha", "100.64.0.8"); rec.Code != http.StatusOK {
+	if rec := doLogin("senha", "100.64.0.8"); rec.Code != http.StatusOK {
 		t.Errorf("outro endereço: status %d, esperava 200", rec.Code)
 	}
 }
 
 // Com o server.loginAttemptsPerMinute em zero, não há limite nenhum.
-func TestLimiteDoLoginDesligado(t *testing.T) {
+func TestLoginLimitOff(t *testing.T) {
 	c := config.Server{LoginAttemptsPerMinute: 0, TrustedProxies: config.DefaultTrustedProxies}
-	if l, proxies := limiteDoLogin(c); l != nil || len(proxies) != 3 {
+	if l, proxies := loginLimiter(c); l != nil || len(proxies) != 3 {
 		t.Errorf("limite %v, proxies %v", l, proxies)
 	}
 }
 
 // O /api/session diz quem está logado, sem a credencial.
-func TestSessionDizQuemEsta(t *testing.T) {
+func TestSessionTellsWhoIsIn(t *testing.T) {
 	s, _ := testServer(t)
-	sessao := func(c *http.Cookie) (resp struct {
+	session := func(c *http.Cookie) (resp struct {
 		AuthRequired  bool    `json:"authRequired"`
 		Authenticated bool    `json:"authenticated"`
-		Pessoa        *pessoa `json:"user"`
-	}, corpo string) {
+		Person        *person `json:"user"`
+	}, body string) {
 		req := httptest.NewRequest(http.MethodGet, "/api/session", nil)
 		if c != nil {
 			req.AddCookie(c)
@@ -634,23 +634,23 @@ func TestSessionDizQuemEsta(t *testing.T) {
 		return resp, rec.Body.String()
 	}
 
-	if r, _ := sessao(nil); r.AuthRequired || !r.Authenticated || r.Pessoa == nil || !r.Pessoa.admin() {
+	if r, _ := session(nil); r.AuthRequired || !r.Authenticated || r.Person == nil || !r.Person.admin() {
 		t.Errorf("sem autenticação: %+v", r)
 	}
 
-	comAutenticacao(t, s, maria)
-	if r, _ := sessao(nil); !r.AuthRequired || r.Authenticated || r.Pessoa != nil {
+	withAuth(t, s, maria)
+	if r, _ := session(nil); !r.AuthRequired || r.Authenticated || r.Person != nil {
 		t.Errorf("sem cookie: %+v", r)
 	}
-	r, corpo := sessao(cookieDe(t, s, "maria"))
-	if !r.Authenticated || r.Pessoa == nil || *r.Pessoa != (pessoa{Usuario: "maria", Nome: "Maria", Papel: users.RoleViewer}) {
-		t.Errorf("maria: %s", corpo)
+	r, body := session(cookieDe(t, s, "maria"))
+	if !r.Authenticated || r.Person == nil || *r.Person != (person{Username: "maria", Nome: "Maria", Role: users.RoleViewer}) {
+		t.Errorf("maria: %s", body)
 	}
-	if strings.Contains(corpo, maria.PasswordHash) {
-		t.Errorf("a resposta traz a senha guardada: %s", corpo)
+	if strings.Contains(body, maria.PasswordHash) {
+		t.Errorf("a resposta traz a senha guardada: %s", body)
 	}
-	if r, _ := sessao(cookieDe(t, s, "admin")); r.Pessoa == nil || !r.Pessoa.Dono || r.Pessoa.Nome != "admin" {
-		t.Errorf("dono: %+v", r.Pessoa)
+	if r, _ := session(cookieDe(t, s, "admin")); r.Person == nil || !r.Person.Owner || r.Person.Nome != "admin" {
+		t.Errorf("dono: %+v", r.Person)
 	}
 }
 
@@ -658,19 +658,19 @@ func TestSessionDizQuemEsta(t *testing.T) {
 // cookie novo com o prazo inteiro, da mesma pessoa. Antes disso, nada de
 // Set-Cookie, para não regravar o cookie a cada requisição. Vale nas rotas
 // protegidas e no /api/session, que é o que a tela chama ao abrir.
-func TestSessaoSeRenovaComOUso(t *testing.T) {
+func TestSessionRenewsWithUse(t *testing.T) {
 	s, _ := testServer(t)
-	comAutenticacao(t, s, maria)
-	p, _ := s.quem("maria")
-	protegida := s.requireAuth(func(w http.ResponseWriter, r *http.Request) {})
+	withAuth(t, s, maria)
+	p, _ := s.who("maria")
+	protected := s.requireAuth(func(w http.ResponseWriter, r *http.Request) {})
 
 	for _, rota := range []struct {
 		nome string
 		h    http.HandlerFunc
-	}{{"requireAuth", protegida}, {"/api/session", s.handleSession}} {
-		for _, caso := range []struct {
-			falta  time.Duration
-			renova bool
+	}{{"requireAuth", protected}, {"/api/session", s.handleSession}} {
+		for _, tc := range []struct {
+			missing time.Duration
+			renews  bool
 		}{
 			{sessionTTL - time.Hour, false},
 			{sessionRenew + time.Hour, false},
@@ -680,30 +680,30 @@ func TestSessaoSeRenovaComOUso(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/x", nil)
 			req.Header.Set("X-Forwarded-Proto", "https")
 			req.AddCookie(&http.Cookie{Name: sessionCookie,
-				Value: s.signToken(p, time.Now().Add(caso.falta).Unix())})
+				Value: s.signToken(p, time.Now().Add(tc.missing).Unix())})
 			rec := httptest.NewRecorder()
 			rota.h(rec, req)
 
 			if rec.Code != http.StatusOK {
-				t.Fatalf("%s, faltando %v: status %d", rota.nome, caso.falta, rec.Code)
+				t.Fatalf("%s, faltando %v: status %d", rota.nome, tc.missing, rec.Code)
 			}
 			setCookie := rec.Header().Get("Set-Cookie")
-			if !caso.renova {
+			if !tc.renews {
 				if setCookie != "" {
-					t.Errorf("%s, faltando %v: renovou cedo demais: %s", rota.nome, caso.falta, setCookie)
+					t.Errorf("%s, faltando %v: renovou cedo demais: %s", rota.nome, tc.missing, setCookie)
 				}
 				continue
 			}
 			c, err := http.ParseSetCookie(setCookie)
 			if err != nil {
-				t.Fatalf("%s, faltando %v: sem cookie novo (%v)", rota.nome, caso.falta, err)
+				t.Fatalf("%s, faltando %v: sem cookie novo (%v)", rota.nome, tc.missing, err)
 			}
-			de, expires, ok := s.tokenPessoa(c.Value)
-			if !ok || de.Usuario != "maria" {
-				t.Fatalf("%s, faltando %v: cookie novo inválido ou de outra pessoa (%+v)", rota.nome, caso.falta, de)
+			de, expires, ok := s.tokenPerson(c.Value)
+			if !ok || de.Username != "maria" {
+				t.Fatalf("%s, faltando %v: cookie novo inválido ou de outra pessoa (%+v)", rota.nome, tc.missing, de)
 			}
-			if falta := time.Until(time.Unix(expires, 0)); falta < sessionTTL-time.Minute {
-				t.Errorf("%s: o cookie novo vale só %v, esperava o prazo inteiro", rota.nome, falta)
+			if missing := time.Until(time.Unix(expires, 0)); missing < sessionTTL-time.Minute {
+				t.Errorf("%s: o cookie novo vale só %v, esperava o prazo inteiro", rota.nome, missing)
 			}
 			if !c.Secure || !c.HttpOnly || c.Path != "/" {
 				t.Errorf("%s: cookie novo perdeu atributos: %+v", rota.nome, c)
@@ -716,7 +716,7 @@ func TestSessaoSeRenovaComOUso(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: sessionCookie,
 		Value: s.signToken(p, time.Now().Add(-time.Hour).Unix())})
 	rec := httptest.NewRecorder()
-	protegida(rec, req)
+	protected(rec, req)
 	if rec.Code != http.StatusUnauthorized || rec.Header().Get("Set-Cookie") != "" {
 		t.Errorf("sessão vencida: status %d, Set-Cookie %q", rec.Code, rec.Header().Get("Set-Cookie"))
 	}
@@ -724,9 +724,9 @@ func TestSessaoSeRenovaComOUso(t *testing.T) {
 
 // O Secure do cookie de sessão só vale atrás de um proxy TLS. Em HTTP puro, o
 // navegador descartaria o cookie e o login nunca pegaria.
-func TestCookieDeSessaoSoESecurePorHTTPS(t *testing.T) {
+func TestSessionCookieIsSecureOnlyOverHTTPS(t *testing.T) {
 	s, _ := testServer(t)
-	comAutenticacao(t, s)
+	withAuth(t, s)
 
 	secure := func(h http.HandlerFunc, req *http.Request) bool {
 		t.Helper()
@@ -739,7 +739,7 @@ func TestCookieDeSessaoSoESecurePorHTTPS(t *testing.T) {
 		return c.Secure
 	}
 
-	for proto, quer := range map[string]bool{"": false, "http": false, "https": true, "HTTPS": true} {
+	for proto, wants := range map[string]bool{"": false, "http": false, "https": true, "HTTPS": true} {
 		login := httptest.NewRequest(http.MethodPost, "/api/login",
 			strings.NewReader(`{"username":"admin","password":"senha"}`))
 		logout := httptest.NewRequest(http.MethodPost, "/api/logout", nil)
@@ -747,11 +747,11 @@ func TestCookieDeSessaoSoESecurePorHTTPS(t *testing.T) {
 			login.Header.Set("X-Forwarded-Proto", proto)
 			logout.Header.Set("X-Forwarded-Proto", proto)
 		}
-		if got := secure(s.handleLogin, login); got != quer {
-			t.Errorf("login com X-Forwarded-Proto=%q: Secure=%v, esperava %v", proto, got, quer)
+		if got := secure(s.handleLogin, login); got != wants {
+			t.Errorf("login com X-Forwarded-Proto=%q: Secure=%v, esperava %v", proto, got, wants)
 		}
-		if got := secure(s.handleLogout, logout); got != quer {
-			t.Errorf("logout com X-Forwarded-Proto=%q: Secure=%v, esperava %v", proto, got, quer)
+		if got := secure(s.handleLogout, logout); got != wants {
+			t.Errorf("logout com X-Forwarded-Proto=%q: Secure=%v, esperava %v", proto, got, wants)
 		}
 	}
 }

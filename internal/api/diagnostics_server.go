@@ -39,16 +39,16 @@ import (
 // fontes são as raízes de /proc e /sys, trocáveis nos testes.
 type fontes struct{ proc, sys string }
 
-var fontesDoSistema = fontes{proc: "/proc", sys: "/sys"}
+var systemSources = fontes{proc: "/proc", sys: "/sys"}
 
-type servidorInfo struct {
-	ColetadoEm coleta             `json:"coletadoEm"`
-	Maquina    maquinaInfo        `json:"maquina"`
-	Processo   processoInfo       `json:"processo"`
-	Memoria    *memoriaInfo       `json:"memoria,omitempty"`
-	Pressao    map[string]pressao `json:"pressao,omitempty"`
-	Storage    storageInfo        `json:"storage"`
-	Go2RTC     go2rtcInfo         `json:"go2rtc"`
+type serverInfo struct {
+	CollectedAt collection          `json:"coletadoEm"`
+	Machine     machineInfo         `json:"maquina"`
+	Process     processInfo         `json:"processo"`
+	Memory      *memoryInfo         `json:"memoria,omitempty"`
+	Pressure    map[string]pressure `json:"pressao,omitempty"`
+	Storage     storageInfo         `json:"storage"`
+	Go2RTC      go2rtcInfo          `json:"go2rtc"`
 	// Detector some sem `detector.url`: quem não usa a detecção de objetos
 	// não paga nem a ida até ele.
 	Detector *detectorInfo `json:"detector,omitempty"`
@@ -57,47 +57,47 @@ type servidorInfo struct {
 	SMTP *smtpInfo `json:"smtp,omitempty"`
 	// Alertas são os números de cada meio do alerta desde que o dwnvr subiu.
 	// Some sem meio, ou antes de alguma câmera ligar o alerta.
-	Alertas []meioDoAlertaInfo `json:"alertas,omitempty"`
-	Log     *logInfo           `json:"log,omitempty"`
+	Alerts []alertNotifierInfo `json:"alertas,omitempty"`
+	Log    *logInfo            `json:"log,omitempty"`
 }
 
 // meioDoAlertaInfo é o NotifierState da Central. Ultimo some antes do primeiro
 // envio, e Erro, com o último envio tendo dado certo.
-type meioDoAlertaInfo struct {
+type alertNotifierInfo struct {
 	Nome     string     `json:"nome"`
-	Enviados int64      `json:"enviados"`
-	Falhas   int64      `json:"falhas"`
+	Sent     int64      `json:"enviados"`
+	Failures int64      `json:"falhas"`
 	Ultimo   *time.Time `json:"ultimo,omitempty"`
-	Erro     string     `json:"erro,omitempty"`
+	Error    string     `json:"erro,omitempty"`
 }
 
 // coleta é o instante da leitura no relógio do servidor, com o fuso dele. Vai
 // com o fuso, e não só o instante, pelo mesmo motivo do `clock` do
 // /api/health: a pergunta é a hora de LÁ, e convertida para o fuso do
 // navegador ela esconderia um servidor com fuso ou NTP errado.
-type coleta struct {
+type collection struct {
 	Em            string `json:"em"`
-	Sigla         string `json:"sigla"`
+	Abbreviation  string `json:"sigla"`
 	OffsetSeconds int    `json:"offsetSeconds"`
 	// Zona é o nome IANA ("America/Sao_Paulo"), quando o servidor sabe.
-	Zona string `json:"zona,omitempty"`
+	Zone string `json:"zona,omitempty"`
 }
 
-type maquinaInfo struct {
+type machineInfo struct {
 	// Placa vem do device tree, que só existe em ARM ("OrangePi Zero3");
 	// Processador, do /proc/cpuinfo, que só traz nome no x86. Um ou outro
 	// costuma faltar, e o que falta some.
-	Placa       string `json:"placa,omitempty"`
-	Processador string `json:"processador,omitempty"`
+	Board     string `json:"placa,omitempty"`
+	Processor string `json:"processador,omitempty"`
 	// Kernel é o do host mesmo dentro do container, que não tem kernel
 	// próprio.
-	Kernel  string `json:"kernel,omitempty"`
-	Nucleos int    `json:"nucleos"`
+	Kernel string `json:"kernel,omitempty"`
+	Cores  int    `json:"nucleos"`
 	// NucleosLiberados é o teto de CPU do container (cgroup), em núcleos: 1.5
 	// é um núcleo e meio. Some sem teto.
-	NucleosLiberados float64 `json:"nucleosLiberados,omitempty"`
+	AllowedCores float64 `json:"nucleosLiberados,omitempty"`
 	// Carga é o load average de 1, 5 e 15 minutos.
-	Carga    []float64 `json:"carga,omitempty"`
+	Load     []float64 `json:"carga,omitempty"`
 	Sensores []sensor  `json:"sensores,omitempty"`
 	// MHz é a maior frequência atual entre os núcleos, e MHzMax o teto do
 	// hardware. Abaixo do teto com a máquina quente é o próprio kernel
@@ -112,13 +112,13 @@ type sensor struct {
 	Celsius float64 `json:"celsius"`
 }
 
-type memoriaInfo struct {
-	TotalBytes      int64 `json:"totalBytes"`
-	DisponivelBytes int64 `json:"disponivelBytes"`
-	SwapTotalBytes  int64 `json:"swapTotalBytes"`
-	SwapUsadaBytes  int64 `json:"swapUsadaBytes"`
+type memoryInfo struct {
+	TotalBytes     int64 `json:"totalBytes"`
+	AvailableBytes int64 `json:"disponivelBytes"`
+	SwapTotalBytes int64 `json:"swapTotalBytes"`
+	SwapUsedBytes  int64 `json:"swapUsadaBytes"`
 	// LimiteBytes é o teto de memória do container (cgroup). Some sem limite.
-	LimiteBytes int64 `json:"limiteBytes,omitempty"`
+	LimitBytes int64 `json:"limiteBytes,omitempty"`
 	// OOMKills conta os processos que o kernel matou por falta de memória desde
 	// que a MÁQUINA ligou, e não só no container: quando a vítima é o próprio
 	// dwnvr, o Docker sobe um container novo e o contador do cgroup antigo vai
@@ -129,7 +129,7 @@ type memoriaInfo struct {
 
 // pressao é uma linha do PSI (/proc/pressure/*): a fração do tempo, em %, em
 // que alguma tarefa (some) ou todas (full) ficaram paradas esperando o recurso.
-type pressao struct {
+type pressure struct {
 	Some *medias `json:"some,omitempty"`
 	Full *medias `json:"full,omitempty"`
 }
@@ -141,27 +141,27 @@ type medias struct {
 }
 
 type storageInfo struct {
-	Caminho string `json:"caminho"`
+	Path string `json:"caminho"`
 	// Tipo, Origem e Opcoes vêm da montagem que contém o caminho: "ext4",
 	// "/dev/sda1", "rw,noatime". Somem se o mountinfo não for legível.
-	Tipo           string  `json:"tipo,omitempty"`
-	Origem         string  `json:"origem,omitempty"`
-	Opcoes         string  `json:"opcoes,omitempty"`
-	SomenteLeitura bool    `json:"somenteLeitura"`
-	Escrita        escrita `json:"escrita"`
+	Type     string `json:"tipo,omitempty"`
+	Origin   string `json:"origem,omitempty"`
+	Options  string `json:"opcoes,omitempty"`
+	ReadOnly bool   `json:"somenteLeitura"`
+	Write    write  `json:"escrita"`
 }
 
-type escrita struct {
-	OK   bool   `json:"ok"`
-	Ms   int64  `json:"ms"`
-	Erro string `json:"erro,omitempty"`
+type write struct {
+	OK    bool   `json:"ok"`
+	Ms    int64  `json:"ms"`
+	Error string `json:"erro,omitempty"`
 }
 
 type go2rtcInfo struct {
-	OK     bool   `json:"ok"`
-	Ms     int64  `json:"ms"`
-	Versao string `json:"versao,omitempty"`
-	Erro   string `json:"erro,omitempty"`
+	OK      bool   `json:"ok"`
+	Ms      int64  `json:"ms"`
+	Version string `json:"versao,omitempty"`
+	Error   string `json:"erro,omitempty"`
 	// URL é o endereço que o dwnvr usa de fato, sem usuário e senha.
 	URL string `json:"url,omitempty"`
 }
@@ -169,18 +169,18 @@ type go2rtcInfo struct {
 type detectorInfo struct {
 	OK      bool   `json:"ok"`
 	Ms      int64  `json:"ms"`
-	Modelo  string `json:"modelo,omitempty"`
-	Entrada string `json:"entrada,omitempty"`
+	Model   string `json:"modelo,omitempty"`
+	Entry   string `json:"entrada,omitempty"`
 	Threads int    `json:"threads,omitempty"`
-	Erro    string `json:"erro,omitempty"`
+	Error   string `json:"erro,omitempty"`
 	URL     string `json:"url"`
 }
 
 type logInfo struct {
 	// Total é quantos avisos e erros houve desde que o dwnvr subiu; Linhas, só
 	// os mais recentes.
-	Total  int64         `json:"total"`
-	Linhas []logbuf.Line `json:"linhas"`
+	Total int64         `json:"total"`
+	Lines []logbuf.Line `json:"linhas"`
 }
 
 // recentes é o que o handler de log do main.go oferece. Vai por interface, e
@@ -190,35 +190,35 @@ type recentes interface {
 	Recent() ([]logbuf.Line, int64)
 }
 
-func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Request) {
-	f := fontesDoSistema
-	agora := time.Now()
-	sigla, offset := agora.Zone()
-	resp := servidorInfo{
-		ColetadoEm: coleta{Em: agora.Format(time.RFC3339), Sigla: sigla, OffsetSeconds: offset, Zona: zonaLocal()},
-		Maquina:    coletarMaquina(f),
-		Processo:   coletarProcesso(f, s.startedAt),
-		Memoria:    coletarMemoria(f),
-		Pressao:    coletarPressao(f),
-		Storage:    coletarMontagem(f, s.cfg.Storage.Root),
-		SMTP:       smtpNoDiagnostico(s.cfg.SMTP),
-		Alertas:    meiosNoDiagnostico(s.mgr.Alerts()),
+func (s *Server) handleServerDiagnostics(w http.ResponseWriter, r *http.Request) {
+	f := systemSources
+	now := time.Now()
+	sigla, offset := now.Zone()
+	resp := serverInfo{
+		CollectedAt: collection{Em: now.Format(time.RFC3339), Abbreviation: sigla, OffsetSeconds: offset, Zone: localZone()},
+		Machine:     collectMachine(f),
+		Process:     collectProcess(f, s.startedAt),
+		Memory:      collectMemory(f),
+		Pressure:    collectPressure(f),
+		Storage:     collectMount(f, s.cfg.Storage.Root),
+		SMTP:        smtpInDiagnostics(s.cfg.SMTP),
+		Alerts:      notifiersInDiagnostics(s.mgr.Alerts()),
 	}
 
 	// As sondas esperam por fora - disco e rede - e juntas podem somar alguns
 	// segundos num servidor ruim. Em paralelo, a tela espera a pior delas, não
 	// a soma.
 	var wg sync.WaitGroup
-	wg.Go(func() { resp.Storage.Escrita = s.testarEscrita() })
-	wg.Go(func() { resp.Go2RTC = s.sondarGo2RTC(r.Context()) })
+	wg.Go(func() { resp.Storage.Write = s.testWrite() })
+	wg.Go(func() { resp.Go2RTC = s.probeGo2RTC(r.Context()) })
 	if s.cfg.Detector.URL != "" {
-		wg.Go(func() { resp.Detector = s.sondarDetector(r.Context()) })
+		wg.Go(func() { resp.Detector = s.probeDetector(r.Context()) })
 	}
 	wg.Wait()
 
 	if h, ok := s.log.Handler().(recentes); ok {
-		linhas, total := h.Recent()
-		resp.Log = &logInfo{Total: total, Linhas: linhas}
+		lines, total := h.Recent()
+		resp.Log = &logInfo{Total: total, Lines: lines}
 	}
 
 	writeJSON(w, resp)
@@ -226,13 +226,13 @@ func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Reques
 
 // meiosNoDiagnostico é nil sem Central, que só nasce com a primeira câmera que
 // liga o alerta, e sem meio.
-func meiosNoDiagnostico(c *alert.Dispatcher) []meioDoAlertaInfo {
+func notifiersInDiagnostics(c *alert.Dispatcher) []alertNotifierInfo {
 	if c == nil {
 		return nil
 	}
-	var out []meioDoAlertaInfo
+	var out []alertNotifierInfo
 	for _, m := range c.NotifierStates() {
-		info := meioDoAlertaInfo{Nome: m.Name, Enviados: m.Sent, Falhas: m.Failures, Erro: m.Err}
+		info := alertNotifierInfo{Nome: m.Name, Sent: m.Sent, Failures: m.Failures, Error: m.Err}
 		if !m.Last.IsZero() {
 			info.Ultimo = &m.Last
 		}
@@ -243,17 +243,17 @@ func meiosNoDiagnostico(c *alert.Dispatcher) []meioDoAlertaInfo {
 
 // ---- máquina ---------------------------------------------------------------
 
-func coletarMaquina(f fontes) maquinaInfo {
-	m := maquinaInfo{
+func collectMachine(f fontes) machineInfo {
+	m := machineInfo{
 		// O device tree termina o texto com um NUL, que o TrimSpace não tira.
-		Placa:            strings.TrimRight(lerTexto(filepath.Join(f.proc, "device-tree/model")), "\x00"),
-		Processador:      lerProcessador(f.proc),
-		Kernel:           lerTexto(filepath.Join(f.proc, "sys/kernel/osrelease")),
-		Nucleos:          runtime.NumCPU(),
-		NucleosLiberados: nucleosDoCgroup(f),
+		Board:        strings.TrimRight(readText(filepath.Join(f.proc, "device-tree/model")), "\x00"),
+		Processor:    readProcessor(f.proc),
+		Kernel:       readText(filepath.Join(f.proc, "sys/kernel/osrelease")),
+		Cores:        runtime.NumCPU(),
+		AllowedCores: cgroupCores(f),
 	}
 	if b, err := os.ReadFile(filepath.Join(f.proc, "loadavg")); err == nil {
-		m.Carga = lerCarga(string(b))
+		m.Load = readLoad(string(b))
 	}
 	m.Sensores = lerSensores(f.sys)
 
@@ -266,7 +266,7 @@ func coletarMaquina(f fontes) maquinaInfo {
 			m.MHzMax = int(khz / 1000)
 		}
 		if m.Governor == "" {
-			m.Governor = lerTexto(filepath.Join(d, "scaling_governor"))
+			m.Governor = readText(filepath.Join(d, "scaling_governor"))
 		}
 	}
 	return m
@@ -275,15 +275,15 @@ func coletarMaquina(f fontes) maquinaInfo {
 // lerProcessador devolve o "model name" do primeiro núcleo. No ARM de 64 bits
 // o campo não existe - só códigos como "CPU part : 0xd03" -, e aí quem
 // identifica a máquina é a placa.
-func lerProcessador(proc string) string {
+func readProcessor(proc string) string {
 	b, err := os.ReadFile(filepath.Join(proc, "cpuinfo"))
 	if err != nil {
 		return ""
 	}
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
-		chave, valor, ok := strings.Cut(sc.Text(), ":")
-		if ok && strings.TrimSpace(chave) == "model name" {
+		key, valor, ok := strings.Cut(sc.Text(), ":")
+		if ok && strings.TrimSpace(key) == "model name" {
 			return strings.TrimSpace(valor)
 		}
 	}
@@ -291,7 +291,7 @@ func lerProcessador(proc string) string {
 }
 
 // lerCarga lê "0.52 0.40 0.31 1/123 4567".
-func lerCarga(s string) []float64 {
+func readLoad(s string) []float64 {
 	campos := strings.Fields(s)
 	if len(campos) < 3 {
 		return nil
@@ -316,30 +316,30 @@ func lerCarga(s string) []float64 {
 // número da zona ("acpitz 0", "acpitz 1"), senão as duas linhas da tela e do
 // "copiar" ficam indistinguíveis.
 func lerSensores(sys string) []sensor {
-	zonas, _ := filepath.Glob(filepath.Join(sys, "class/thermal/thermal_zone*"))
+	zones, _ := filepath.Glob(filepath.Join(sys, "class/thermal/thermal_zone*"))
 	var out []sensor
-	var numeros []string
-	vezes := map[string]int{}
-	for _, z := range zonas {
+	var numbers []string
+	times := map[string]int{}
+	for _, z := range zones {
 		b, err := os.ReadFile(filepath.Join(z, "temp"))
 		if err != nil {
 			continue
 		}
-		mili, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64)
-		if err != nil || mili <= 0 {
+		milli, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64)
+		if err != nil || milli <= 0 {
 			continue
 		}
-		nome := lerTexto(filepath.Join(z, "type"))
+		nome := readText(filepath.Join(z, "type"))
 		if nome == "" {
 			nome = filepath.Base(z)
 		}
-		out = append(out, sensor{Nome: nome, Celsius: float64(mili/100) / 10})
-		numeros = append(numeros, strings.TrimPrefix(filepath.Base(z), "thermal_zone"))
-		vezes[nome]++
+		out = append(out, sensor{Nome: nome, Celsius: float64(milli/100) / 10})
+		numbers = append(numbers, strings.TrimPrefix(filepath.Base(z), "thermal_zone"))
+		times[nome]++
 	}
 	for i := range out {
-		if vezes[out[i].Nome] > 1 {
-			out[i].Nome += " " + numeros[i]
+		if times[out[i].Nome] > 1 {
+			out[i].Nome += " " + numbers[i]
 		}
 	}
 	// Mais quente primeiro: é ele que a tela destaca.
@@ -349,21 +349,21 @@ func lerSensores(sys string) []sensor {
 
 // ---- memória ---------------------------------------------------------------
 
-func coletarMemoria(f fontes) *memoriaInfo {
+func collectMemory(f fontes) *memoryInfo {
 	b, err := os.ReadFile(filepath.Join(f.proc, "meminfo"))
 	if err != nil {
 		return nil
 	}
-	kb := lerMeminfo(b)
-	m := &memoriaInfo{
-		TotalBytes:      kb["MemTotal"] << 10,
-		DisponivelBytes: kb["MemAvailable"] << 10,
-		SwapTotalBytes:  kb["SwapTotal"] << 10,
-		SwapUsadaBytes:  (kb["SwapTotal"] - kb["SwapFree"]) << 10,
-		LimiteBytes:     limiteDoCgroup(f),
+	kb := readMeminfo(b)
+	m := &memoryInfo{
+		TotalBytes:     kb["MemTotal"] << 10,
+		AvailableBytes: kb["MemAvailable"] << 10,
+		SwapTotalBytes: kb["SwapTotal"] << 10,
+		SwapUsedBytes:  (kb["SwapTotal"] - kb["SwapFree"]) << 10,
+		LimitBytes:     cgroupLimit(f),
 	}
 	if b, err := os.ReadFile(filepath.Join(f.proc, "vmstat")); err == nil {
-		if n, ok := lerCampo(b, "oom_kill"); ok {
+		if n, ok := readField(b, "oom_kill"); ok {
 			m.OOMKills = &n
 		}
 	}
@@ -371,20 +371,20 @@ func coletarMemoria(f fontes) *memoriaInfo {
 }
 
 // lerMeminfo lê "MemTotal:  1012345 kB" em chave -> kB.
-func lerMeminfo(b []byte) map[string]int64 {
+func readMeminfo(b []byte) map[string]int64 {
 	out := map[string]int64{}
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
-		chave, resto, ok := strings.Cut(sc.Text(), ":")
+		key, rest, ok := strings.Cut(sc.Text(), ":")
 		if !ok {
 			continue
 		}
-		campos := strings.Fields(resto)
+		campos := strings.Fields(rest)
 		if len(campos) == 0 {
 			continue
 		}
 		if v, err := strconv.ParseInt(campos[0], 10, 64); err == nil {
-			out[chave] = v
+			out[key] = v
 		}
 	}
 	return out
@@ -392,7 +392,7 @@ func lerMeminfo(b []byte) map[string]int64 {
 
 // lerCampo acha "<nome> <número>" num arquivo de uma chave por linha, como o
 // /proc/vmstat.
-func lerCampo(b []byte, nome string) (int64, bool) {
+func readField(b []byte, nome string) (int64, bool) {
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
 		campos := strings.Fields(sc.Text())
@@ -408,14 +408,14 @@ func lerCampo(b []byte, nome string) (int64, bool) {
 // /proc/self/cgroup ("0::/caminho"); dentro de um container com namespace de
 // cgroup próprio ele é "/", e o arquivo está na raiz de /sys/fs/cgroup. Vazio
 // sem cgroup v2 ou sem o arquivo.
-func doCgroup(f fontes, nome string) string {
+func fromCgroup(f fontes, nome string) string {
 	b, err := os.ReadFile(filepath.Join(f.proc, "self/cgroup"))
 	if err != nil {
 		return ""
 	}
 	for l := range strings.SplitSeq(string(b), "\n") {
-		if caminho, ok := strings.CutPrefix(l, "0::"); ok {
-			return lerTexto(filepath.Join(f.sys, "fs/cgroup", caminho, nome))
+		if filePath, ok := strings.CutPrefix(l, "0::"); ok {
+			return readText(filepath.Join(f.sys, "fs/cgroup", filePath, nome))
 		}
 	}
 	return ""
@@ -423,8 +423,8 @@ func doCgroup(f fontes, nome string) string {
 
 // limiteDoCgroup devolve o teto de memória do cgroup deste processo, ou 0 sem
 // teto. O v1 fica como plano B para kernel antigo.
-func limiteDoCgroup(f fontes) int64 {
-	if v := doCgroup(f, "memory.max"); v != "" && v != "max" {
+func cgroupLimit(f fontes) int64 {
+	if v := fromCgroup(f, "memory.max"); v != "" && v != "max" {
 		n, _ := strconv.ParseInt(v, 10, 64)
 		return n
 	}
@@ -440,30 +440,30 @@ func limiteDoCgroup(f fontes) int64 {
 // teto. O cpu.max do v2 é "<cota> <período>" em microssegundos, ou "max
 // <período>" sem teto: o `--cpus 1.5` do Docker vira "150000 100000". No v1, a
 // cota é -1 sem teto.
-func nucleosDoCgroup(f fontes) float64 {
-	var cota, periodo int64
-	if campos := strings.Fields(doCgroup(f, "cpu.max")); len(campos) == 2 {
-		cota, _ = strconv.ParseInt(campos[0], 10, 64)
-		periodo, _ = strconv.ParseInt(campos[1], 10, 64)
+func cgroupCores(f fontes) float64 {
+	var quota, period int64
+	if campos := strings.Fields(fromCgroup(f, "cpu.max")); len(campos) == 2 {
+		quota, _ = strconv.ParseInt(campos[0], 10, 64)
+		period, _ = strconv.ParseInt(campos[1], 10, 64)
 	} else {
-		cota = lerInt(filepath.Join(f.sys, "fs/cgroup/cpu/cpu.cfs_quota_us"))
-		periodo = lerInt(filepath.Join(f.sys, "fs/cgroup/cpu/cpu.cfs_period_us"))
+		quota = lerInt(filepath.Join(f.sys, "fs/cgroup/cpu/cpu.cfs_quota_us"))
+		period = lerInt(filepath.Join(f.sys, "fs/cgroup/cpu/cpu.cfs_period_us"))
 	}
-	if cota <= 0 || periodo <= 0 {
+	if quota <= 0 || period <= 0 {
 		return 0
 	}
-	return float64(cota) / float64(periodo)
+	return float64(quota) / float64(period)
 }
 
 // ---- pressão ---------------------------------------------------------------
 
 // coletarPressao lê o PSI de CPU, memória e disco. Kernel sem PSI (anterior ao
 // 4.20, ou compilado sem) não tem /proc/pressure, e o campo inteiro some.
-func coletarPressao(f fontes) map[string]pressao {
-	out := map[string]pressao{}
-	for arquivo, chave := range map[string]string{"cpu": "cpu", "memory": "memoria", "io": "io"} {
-		if b, err := os.ReadFile(filepath.Join(f.proc, "pressure", arquivo)); err == nil {
-			out[chave] = lerPressao(string(b))
+func collectPressure(f fontes) map[string]pressure {
+	out := map[string]pressure{}
+	for file, key := range map[string]string{"cpu": "cpu", "memory": "memoria", "io": "io"} {
+		if b, err := os.ReadFile(filepath.Join(f.proc, "pressure", file)); err == nil {
+			out[key] = readPressure(string(b))
 		}
 	}
 	if len(out) == 0 {
@@ -476,8 +476,8 @@ func coletarPressao(f fontes) map[string]pressao {
 //
 //	some avg10=1.53 avg60=0.87 avg300=0.26 total=123456
 //	full avg10=0.00 avg60=0.00 avg300=0.00 total=0
-func lerPressao(s string) pressao {
-	var p pressao
+func readPressure(s string) pressure {
+	var p pressure
 	for l := range strings.SplitSeq(s, "\n") {
 		campos := strings.Fields(l)
 		if len(campos) < 4 {
@@ -513,28 +513,28 @@ func lerPressao(s string) pressao {
 // caros em CPU; /dev/mmcblk* é o cartão SD, que é o que costuma falhar. E um
 // cartão com defeito é remontado somente leitura pelo kernel sem avisar
 // ninguém - o dwnvr simplesmente para de conseguir gravar.
-func coletarMontagem(f fontes, root string) storageInfo {
-	info := storageInfo{Caminho: root}
-	caminho, err := filepath.Abs(root)
+func collectMount(f fontes, root string) storageInfo {
+	info := storageInfo{Path: root}
+	filePath, err := filepath.Abs(root)
 	if err != nil {
 		return info
 	}
-	if real, err := filepath.EvalSymlinks(caminho); err == nil {
-		caminho = real
+	if real, err := filepath.EvalSymlinks(filePath); err == nil {
+		filePath = real
 	}
 	b, err := os.ReadFile(filepath.Join(f.proc, "self/mountinfo"))
 	if err != nil {
 		return info
 	}
-	if m, ok := montagemDe(b, caminho); ok {
-		info.Tipo, info.Origem, info.Opcoes = m.tipo, m.origem, m.opcoes
-		info.SomenteLeitura = temOpcao(m.opcoes, "ro") || temOpcao(m.superOpcoes, "ro")
+	if m, ok := mountOf(b, filePath); ok {
+		info.Type, info.Origin, info.Options = m.kind, m.origin, m.options
+		info.ReadOnly = hasOption(m.options, "ro") || hasOption(m.superOptions, "ro")
 	}
 	return info
 }
 
-type montagem struct {
-	ponto, opcoes, tipo, origem, superOpcoes string
+type mount struct {
+	point, options, kind, origin, superOptions string
 }
 
 // montagemDe acha no mountinfo a montagem mais específica que contém o
@@ -543,9 +543,9 @@ type montagem struct {
 //	36 35 98:0 /mnt1 /mnt/parent rw,noatime master:1 - ext3 /dev/root rw,errors=continue
 //
 // com um número variável de campos opcionais antes do "-".
-func montagemDe(b []byte, caminho string) (montagem, bool) {
-	var melhor montagem
-	achou := false
+func mountOf(b []byte, filePath string) (mount, bool) {
+	var best mount
+	found := false
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
 		campos := strings.Fields(sc.Text())
@@ -559,38 +559,38 @@ func montagemDe(b []byte, caminho string) (montagem, bool) {
 		if sep < 6 || len(campos) < sep+3 {
 			continue
 		}
-		m := montagem{
-			ponto:  desescapar(campos[4]),
-			opcoes: campos[5],
-			tipo:   campos[sep+1],
-			origem: desescapar(campos[sep+2]),
+		m := mount{
+			point:   unescape(campos[4]),
+			options: campos[5],
+			kind:    campos[sep+1],
+			origin:  unescape(campos[sep+2]),
 		}
 		if len(campos) > sep+3 {
-			m.superOpcoes = campos[sep+3]
+			m.superOptions = campos[sep+3]
 		}
-		if !contem(m.ponto, caminho) {
+		if !contains(m.point, filePath) {
 			continue
 		}
 		// >= e não >: montagens empilhadas no mesmo ponto aparecem na ordem
 		// em que foram feitas, e a última é a que vale.
-		if !achou || len(m.ponto) >= len(melhor.ponto) {
-			melhor, achou = m, true
+		if !found || len(m.point) >= len(best.point) {
+			best, found = m, true
 		}
 	}
-	return melhor, achou
+	return best, found
 }
 
-func contem(ponto, caminho string) bool {
-	return ponto == "/" || caminho == ponto || strings.HasPrefix(caminho, ponto+"/")
+func contains(point, filePath string) bool {
+	return point == "/" || filePath == point || strings.HasPrefix(filePath, point+"/")
 }
 
-func temOpcao(opcoes, nome string) bool {
-	return slices.Contains(strings.Split(opcoes, ","), nome)
+func hasOption(options, nome string) bool {
+	return slices.Contains(strings.Split(options, ","), nome)
 }
 
 // desescapar desfaz o \040 (espaço) e companhia com que o kernel escreve
 // caminhos no mountinfo.
-func desescapar(s string) string {
+func unescape(s string) string {
 	if !strings.Contains(s, `\`) {
 		return s
 	}
@@ -611,7 +611,7 @@ func desescapar(s string) string {
 // Quanto o teste de escrita espera antes de desistir e dizer que o disco não
 // respondeu. Um fsync de 4 KB leva milissegundos até num cartão SD modesto;
 // passar disso é disco doente ou atolado.
-const prazoEscrita = 5 * time.Second
+const writeDeadline = 5 * time.Second
 
 // testarEscrita prova que o storage aceita escrita AGORA: cria um arquivo,
 // grava 4 KB, força para o disco e apaga. O tempo do fsync é o número que
@@ -626,32 +626,32 @@ const prazoEscrita = 5 * time.Second
 // A falha vai para o log só quando muda. Com o card aberto o teste roda de 15
 // em 15 s, e um aviso a cada rodada encheria em minutos as 50 linhas que a
 // tela mostra, empurrando para fora justamente o erro que explicava o disco.
-func (s *Server) testarEscrita() escrita {
-	if !s.escrevendo.CompareAndSwap(false, true) {
-		return escrita{Erro: "o teste anterior ainda não terminou: o disco não está respondendo"}
+func (s *Server) testWrite() write {
+	if !s.writing.CompareAndSwap(false, true) {
+		return write{Error: "o teste anterior ainda não terminou: o disco não está respondendo"}
 	}
-	pronto := make(chan escrita, 1)
+	pronto := make(chan write, 1)
 	go func() {
-		defer s.escrevendo.Store(false)
-		inicio := time.Now()
-		err := escreverTeste(s.cfg.Storage.Root)
-		ms := time.Since(inicio).Milliseconds()
+		defer s.writing.Store(false)
+		start := time.Now()
+		err := writeTest(s.cfg.Storage.Root)
+		ms := time.Since(start).Milliseconds()
 		if err != nil {
-			if err.Error() != s.erroEscrita {
+			if err.Error() != s.writeErr {
 				s.log.Warn("teste de escrita no storage falhou", "erro", err)
 			}
-			s.erroEscrita = err.Error()
-			pronto <- escrita{Ms: ms, Erro: motivoDaEscrita(err)}
+			s.writeErr = err.Error()
+			pronto <- write{Ms: ms, Error: writeReason(err)}
 			return
 		}
-		s.erroEscrita = ""
-		pronto <- escrita{OK: true, Ms: ms}
+		s.writeErr = ""
+		pronto <- write{OK: true, Ms: ms}
 	}()
 	select {
 	case e := <-pronto:
 		return e
-	case <-time.After(prazoEscrita):
-		return escrita{Ms: prazoEscrita.Milliseconds(), Erro: "o disco não respondeu em " + prazoEscrita.String()}
+	case <-time.After(writeDeadline):
+		return write{Ms: writeDeadline.Milliseconds(), Error: "o disco não respondeu em " + writeDeadline.String()}
 	}
 }
 
@@ -659,12 +659,12 @@ func (s *Server) testarEscrita() escrita {
 // dwnvr morrer entre criar e apagar, sobra no máximo este arquivo, e o próximo
 // teste o reaproveita e apaga. O ponto na frente o esconde do ls comum e ele
 // nunca parece câmera; o store.Orphans só olha diretórios.
-const arquivoDeTeste = ".dwnvr-teste"
+const testFile = ".dwnvr-teste"
 
-func escreverTeste(root string) (err error) {
+func writeTest(root string) (err error) {
 	// Um teste de cada vez, garantido pelo escrevendo: o nome fixo não tem
 	// como ser disputado.
-	f, err := os.OpenFile(filepath.Join(root, arquivoDeTeste), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	f, err := os.OpenFile(filepath.Join(root, testFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
@@ -685,7 +685,7 @@ func escreverTeste(root string) (err error) {
 // motivoDaEscrita traduz os erros que têm causa conhecida. O resto vai
 // genérico para a tela, com o detalhe no log - como o fail() faz com erro de
 // filesystem.
-func motivoDaEscrita(err error) string {
+func writeReason(err error) string {
 	switch {
 	case errors.Is(err, syscall.EROFS):
 		return "o sistema de arquivos está somente leitura"
@@ -701,21 +701,21 @@ func motivoDaEscrita(err error) string {
 
 // ---- go2rtc ----------------------------------------------------------------
 
-func (s *Server) sondarGo2RTC(ctx context.Context) go2rtcInfo {
+func (s *Server) probeGo2RTC(ctx context.Context) go2rtcInfo {
 	if s.client == nil {
-		return go2rtcInfo{Erro: "não configurado"}
+		return go2rtcInfo{Error: "não configurado"}
 	}
-	inicio := time.Now()
+	start := time.Now()
 	v, err := s.client.Version(ctx)
-	info := go2rtcInfo{Ms: time.Since(inicio).Milliseconds(), URL: semCredencial(s.client.BaseURL)}
+	info := go2rtcInfo{Ms: time.Since(start).Milliseconds(), URL: withoutCredential(s.client.BaseURL)}
 	if err != nil {
 		// Mesma exposição do go2rtcError do /api/cameras: o erro de rede é
 		// o diagnóstico, e a URL nele não traz senha (o cliente usa Basic
 		// Auth por cabeçalho).
-		info.Erro = err.Error()
+		info.Error = err.Error()
 		return info
 	}
-	info.OK, info.Versao = true, v
+	info.OK, info.Version = true, v
 	return info
 }
 
@@ -725,15 +725,15 @@ func (s *Server) sondarGo2RTC(ctx context.Context) go2rtcInfo {
 // fila do /api/health já mostra o detector fora do ar, mas só quando alguma
 // câmera manda olhar: sem movimento em câmera nenhuma, a queda passa
 // despercebida. Esta pergunta responde a qualquer hora.
-func (s *Server) sondarDetector(ctx context.Context) *detectorInfo {
-	inicio := time.Now()
-	saude, err := detect.SidecarHealth(ctx, s.cfg.Detector.URL)
-	info := &detectorInfo{Ms: time.Since(inicio).Milliseconds(), URL: semCredencial(s.cfg.Detector.URL)}
+func (s *Server) probeDetector(ctx context.Context) *detectorInfo {
+	start := time.Now()
+	health, err := detect.SidecarHealth(ctx, s.cfg.Detector.URL)
+	info := &detectorInfo{Ms: time.Since(start).Milliseconds(), URL: withoutCredential(s.cfg.Detector.URL)}
 	if err != nil {
-		info.Erro = err.Error()
+		info.Error = err.Error()
 		return info
 	}
-	info.OK, info.Modelo, info.Entrada, info.Threads = true, saude.Model, saude.InputSize, saude.Threads
+	info.OK, info.Model, info.Entry, info.Threads = true, health.Model, health.InputSize, health.Threads
 	return info
 }
 
@@ -742,7 +742,7 @@ func (s *Server) sondarDetector(ctx context.Context) *detectorInfo {
 // semCredencial tira o "usuario:senha@" de uma URL antes de ela ir para a
 // tela. O dwnvr manda a credencial do go2rtc por cabeçalho, mas nada impede
 // alguém de escrevê-la direto na URL do dwnvr.yaml.
-func semCredencial(u string) string {
+func withoutCredential(u string) string {
 	p, err := url.Parse(u)
 	if err != nil {
 		return ""
@@ -751,15 +751,15 @@ func semCredencial(u string) string {
 	return p.String()
 }
 
-func lerTexto(caminho string) string {
-	b, err := os.ReadFile(caminho)
+func readText(filePath string) string {
+	b, err := os.ReadFile(filePath)
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(string(b))
 }
 
-func lerInt(caminho string) int64 {
-	n, _ := strconv.ParseInt(lerTexto(caminho), 10, 64)
+func lerInt(filePath string) int64 {
+	n, _ := strconv.ParseInt(readText(filePath), 10, 64)
 	return n
 }

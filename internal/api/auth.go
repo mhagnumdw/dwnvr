@@ -29,49 +29,49 @@ const (
 
 	// Teto do X-Forwarded-For copiado para o log (ver encaminhado). Cabe uma
 	// cadeia de proxies inteira; o resto é cortado.
-	encaminhadoMax = 200
+	forwardedMax = 200
 )
 
 // pessoa é quem fez a requisição: o dono, do dwnvr.yaml, ou alguém do
 // usuarios.json.
-type pessoa struct {
-	Usuario string     `json:"username,omitempty"`
-	Nome    string     `json:"name,omitempty"`
-	Papel   users.Role `json:"role"`
+type person struct {
+	Username string     `json:"username,omitempty"`
+	Nome     string     `json:"name,omitempty"`
+	Role     users.Role `json:"role"`
 	// Dono é a conta do dwnvr.yaml. A senha dele se troca lá, e não pela tela.
-	Dono bool `json:"owner"`
+	Owner bool `json:"owner"`
 	// Avatar é o id da foto (ver GET /api/avatar), ou vazio.
 	Avatar string `json:"avatar,omitempty"`
 
 	// credencial é o que amarra o cookie à senha da pessoa (ver chaveDaSessao):
 	// a senha do dono, ou o valor guardado no usuarios.json.
-	credencial string
+	credential string
 }
 
-func (p pessoa) admin() bool { return p.Papel == users.RoleAdmin }
+func (p person) admin() bool { return p.Role == users.RoleAdmin }
 
 // semAutenticacao é quem usa o dwnvr com a autenticação desligada: não há
 // usuários, e quem alcança a tela faz tudo.
-var semAutenticacao = pessoa{Papel: users.RoleAdmin, Dono: true}
+var noAuth = person{Role: users.RoleAdmin, Owner: true}
 
 // quem acha a pessoa pelo login. Quem ainda não definiu a senha fica de fora:
 // não há credencial para amarrar uma sessão.
-func (s *Server) quem(usuario string) (pessoa, bool) {
-	if usuario == s.cfg.Server.Username {
-		dono := s.usuarios.Owner()
-		nome := dono.Name
+func (s *Server) who(username string) (person, bool) {
+	if username == s.cfg.Server.Username {
+		owner := s.users.Owner()
+		nome := owner.Name
 		if nome == "" {
-			nome = usuario
+			nome = username
 		}
-		return pessoa{Usuario: usuario, Nome: nome, Papel: users.RoleAdmin, Dono: true,
-			Avatar: dono.Avatar, credencial: s.cfg.Server.Password}, true
+		return person{Username: username, Nome: nome, Role: users.RoleAdmin, Owner: true,
+			Avatar: owner.Avatar, credential: s.cfg.Server.Password}, true
 	}
-	u, ok := s.usuarios.Find(usuario)
+	u, ok := s.users.Find(username)
 	if !ok || u.PasswordHash == "" {
-		return pessoa{}, false
+		return person{}, false
 	}
-	return pessoa{Usuario: u.Username, Nome: u.Name, Papel: u.Role, Avatar: u.Avatar,
-		credencial: u.PasswordHash}, true
+	return person{Username: u.Username, Nome: u.Name, Role: u.Role, Avatar: u.Avatar,
+		credential: u.PasswordHash}, true
 }
 
 // quemEntra acha a pessoa pelo que ela digitou no login: o usuário ou, com
@@ -79,17 +79,17 @@ func (s *Server) quem(usuario string) (pessoa, bool) {
 // users.ValidateUsername), então não há dúvida de qual dos dois veio. O dono
 // não tem e-mail e entra só pelo usuário, que o dwnvr.yaml deixa ter "@": o
 // dele vale antes de procurar um e-mail.
-func (s *Server) quemEntra(digitado string) (p pessoa, existe, peloEmail bool) {
-	if !strings.Contains(digitado, "@") || digitado == s.cfg.Server.Username {
-		p, existe = s.quem(digitado)
-		return p, existe, false
+func (s *Server) whoLogsIn(typed string) (p person, exists, byEmail bool) {
+	if !strings.Contains(typed, "@") || typed == s.cfg.Server.Username {
+		p, exists = s.who(typed)
+		return p, exists, false
 	}
-	u, ok := s.usuarios.FindByEmail(strings.TrimSpace(digitado))
+	u, ok := s.users.FindByEmail(strings.TrimSpace(typed))
 	if !ok {
-		return pessoa{}, false, true
+		return person{}, false, true
 	}
-	p, existe = s.quem(u.Username)
-	return p, existe, true
+	p, exists = s.who(u.Username)
+	return p, exists, true
 }
 
 // chaveDaSessao é a chave que assina os cookies de uma pessoa. Sai do
@@ -101,9 +101,9 @@ func (s *Server) quemEntra(digitado string) (p pessoa, existe, peloEmail bool) {
 //
 // Reiniciar com a mesma credencial dá a mesma chave e não derruba ninguém.
 // Derrubar todo mundo de uma vez é apagar o .session-secret.
-func (s *Server) chaveDaSessao(p pessoa) []byte {
+func (s *Server) sessionKey(p person) []byte {
 	mac := hmac.New(sha256.New, s.sessionSecret)
-	mac.Write([]byte(p.Usuario + "\x00" + p.credencial))
+	mac.Write([]byte(p.Username + "\x00" + p.credential))
 	return mac.Sum(nil)
 }
 
@@ -111,10 +111,10 @@ func (s *Server) chaveDaSessao(p pessoa) []byte {
 // (ele pode ter ponto). Não há estado no servidor: a assinatura basta para
 // validar, o que evita manter uma tabela de sessões viva num dispositivo com
 // 1,5 GB de RAM.
-func (s *Server) signToken(p pessoa, expires int64) string {
-	payload := base64.RawURLEncoding.EncodeToString([]byte(p.Usuario)) + "." +
+func (s *Server) signToken(p person, expires int64) string {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(p.Username)) + "." +
 		strconv.FormatInt(expires, 10)
-	mac := hmac.New(sha256.New, s.chaveDaSessao(p))
+	mac := hmac.New(sha256.New, s.sessionKey(p))
 	mac.Write([]byte(payload))
 	return payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
@@ -122,34 +122,34 @@ func (s *Server) signToken(p pessoa, expires int64) string {
 // tokenPessoa devolve de quem é o token e até quando ele vale, e ok=false se
 // ele estiver vencido, malformado, com assinatura que não bate, ou se a
 // pessoa não existir mais.
-func (s *Server) tokenPessoa(tok string) (p pessoa, expires int64, ok bool) {
+func (s *Server) tokenPerson(tok string) (p person, expires int64, ok bool) {
 	before, after, ok0 := strings.CutLast(tok, ".")
 	if !ok0 {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
 	payload, sig := before, after
-	login, prazo, ok := strings.Cut(payload, ".")
+	login, deadline, ok := strings.Cut(payload, ".")
 	if !ok {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
-	usuario, err := base64.RawURLEncoding.DecodeString(login)
+	username, err := base64.RawURLEncoding.DecodeString(login)
 	if err != nil {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
-	expires, err = strconv.ParseInt(prazo, 10, 64)
+	expires, err = strconv.ParseInt(deadline, 10, 64)
 	if err != nil || time.Now().Unix() > expires {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
-	p, ok = s.quem(string(usuario))
+	p, ok = s.who(string(username))
 	if !ok {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
 
-	mac := hmac.New(sha256.New, s.chaveDaSessao(p))
+	mac := hmac.New(sha256.New, s.sessionKey(p))
 	mac.Write([]byte(payload))
 	want := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 	if !hmac.Equal([]byte(sig), []byte(want)) {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
 	return p, expires, true
 }
@@ -163,23 +163,23 @@ func (s *Server) tokenPessoa(tok string) (p pessoa, expires int64, ok bool) {
 // memória (ver users.AccessLog).
 //
 // Não cria estado de sessão no servidor: renovar é só assinar outro prazo.
-func (s *Server) sessao(w http.ResponseWriter, r *http.Request) (pessoa, bool) {
+func (s *Server) session(w http.ResponseWriter, r *http.Request) (person, bool) {
 	c, err := r.Cookie(sessionCookie)
 	if err != nil {
-		return pessoa{}, false
+		return person{}, false
 	}
-	p, expires, ok := s.tokenPessoa(c.Value)
+	p, expires, ok := s.tokenPerson(c.Value)
 	if !ok {
-		return pessoa{}, false
+		return person{}, false
 	}
 	if time.Until(time.Unix(expires, 0)) < sessionRenew {
 		s.setSessionCookie(w, r, p)
 	}
-	s.acessos.Record(p.Usuario)
+	s.accesses.Record(p.Username)
 	return p, true
 }
 
-func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, p pessoa) {
+func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, p person) {
 	expires := time.Now().Add(sessionTTL)
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
@@ -192,32 +192,32 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, p pess
 	})
 }
 
-type chavePessoa struct{}
+type personKey struct{}
 
 // pessoaDe devolve quem fez a requisição. Só vale dentro de requireAuth e
 // requireAdmin, que a põem no contexto.
-func pessoaDe(r *http.Request) pessoa {
-	p, _ := r.Context().Value(chavePessoa{}).(pessoa)
+func personOf(r *http.Request) person {
+	p, _ := r.Context().Value(personKey{}).(person)
 	return p
 }
 
 // requireAuth embrulha um handler exigindo sessão válida, de qualquer papel.
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
-	return s.exigir(false, next)
+	return s.require(false, next)
 }
 
 // requireAdmin embrulha um handler exigindo sessão de admin. Esconder a aba
 // na tela não é segurança: é aqui que o viewer é recusado.
 func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return s.exigir(true, next)
+	return s.require(true, next)
 }
 
-func (s *Server) exigir(admin bool, next http.HandlerFunc) http.HandlerFunc {
+func (s *Server) require(admin bool, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p := semAutenticacao
+		p := noAuth
 		if s.cfg.Server.AuthEnabled() {
 			var ok bool
-			if p, ok = s.sessao(w, r); !ok {
+			if p, ok = s.session(w, r); !ok {
 				writeError(w, http.StatusUnauthorized, "não autenticado")
 				return
 			}
@@ -226,7 +226,7 @@ func (s *Server) exigir(admin bool, next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, http.StatusForbidden, "só o administrador")
 			return
 		}
-		next(w, r.WithContext(context.WithValue(r.Context(), chavePessoa{}, p)))
+		next(w, r.WithContext(context.WithValue(r.Context(), personKey{}, p)))
 	}
 }
 
@@ -237,7 +237,7 @@ func (s *Server) exigir(admin bool, next http.HandlerFunc) http.HandlerFunc {
 // dwnvr.yaml, e a de um usuário que não existe. Assim o tempo de resposta não
 // diz quem existe nem quem é o dono.
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	if !s.limitarLogin(w, r) {
+	if !s.limitLogin(w, r) {
 		return
 	}
 	var req struct {
@@ -249,36 +249,36 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p, existe, peloEmail := s.quemEntra(req.Username)
-	guardado := ""
-	if existe && !p.Dono {
-		guardado = p.credencial
+	p, exists, byEmail := s.whoLogsIn(req.Username)
+	stored := ""
+	if exists && !p.Owner {
+		stored = p.credential
 	}
-	ok, err := users.VerifyPassword(r.Context(), req.Password, guardado)
+	ok, err := users.VerifyPassword(r.Context(), req.Password, stored)
 	if r.Context().Err() != nil {
 		return // o navegador desistiu na fila
 	}
 	if err != nil {
 		s.log.Error("senha guardada ilegível no usuarios.json", "usuario", req.Username, "erro", err)
 	}
-	if existe && p.Dono {
-		ok = subtle.ConstantTimeCompare([]byte(req.Password), []byte(p.credencial)) == 1
+	if exists && p.Owner {
+		ok = subtle.ConstantTimeCompare([]byte(req.Password), []byte(p.credential)) == 1
 	}
-	if !existe || !ok {
-		s.log.Warn("tentativa de login recusada", "usuario", req.Username, "de", r.RemoteAddr, encaminhado(r))
+	if !exists || !ok {
+		s.log.Warn("tentativa de login recusada", "usuario", req.Username, "de", r.RemoteAddr, forwarded(r))
 		writeError(w, http.StatusUnauthorized, "usuário ou senha inválidos")
 		return
 	}
 
 	s.setSessionCookie(w, r, p)
-	s.acessos.Record(p.Usuario)
+	s.accesses.Record(p.Username)
 	// A sessão, o último acesso e o log ficam com o usuário, mesmo entrando
 	// pelo e-mail.
 	via := slog.Attr{} // vazio, o slog não escreve
-	if peloEmail {
+	if byEmail {
 		via = slog.Bool("pelo_email", true)
 	}
-	s.log.Info("login aceito", "usuario", p.Usuario, via, "de", r.RemoteAddr, encaminhado(r))
+	s.log.Info("login aceito", "usuario", p.Username, via, "de", r.RemoteAddr, forwarded(r))
 	writeJSON(w, map[string]any{"ok": true, "user": p})
 }
 
@@ -286,20 +286,20 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 // responde 429 com o Retry-After em segundos. Vem antes de tudo, inclusive de
 // ler o corpo: a conta da senha é o que o limite poupa. Conta toda tentativa,
 // a certa também, porque só depois da conta se sabe se ela era a certa.
-func (s *Server) limitarLogin(w http.ResponseWriter, r *http.Request) bool {
-	if s.limiteLogin == nil {
+func (s *Server) limitLogin(w http.ResponseWriter, r *http.Request) bool {
+	if s.loginLimit == nil {
 		return true
 	}
-	cliente := clienteDe(r, s.proxies)
-	res := s.limiteLogin.Allow(cliente.String())
+	client := clientOf(r, s.proxies)
+	res := s.loginLimit.Allow(client.String())
 	if res.Allowed {
 		return true
 	}
 	// Arredondado para cima: com 0 s a tela tentaria de novo cedo demais.
 	seg := int((res.RetryAfter + time.Second - 1) / time.Second)
 	if res.FirstDenial {
-		s.log.Warn("limite de tentativas de login atingido", "cliente", cliente, "espera_s", seg,
-			"de", r.RemoteAddr, encaminhado(r))
+		s.log.Warn("limite de tentativas de login atingido", "cliente", client, "espera_s", seg,
+			"de", r.RemoteAddr, forwarded(r))
 	}
 	w.Header().Set("Retry-After", strconv.Itoa(seg))
 	writeError(w, http.StatusTooManyRequests, fmt.Sprintf("muitas tentativas; tente de novo em %d s", seg))
@@ -310,8 +310,8 @@ func (s *Server) limitarLogin(w http.ResponseWriter, r *http.Request) bool {
 // há quem nomear, e não havia nada para encerrar.
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil {
-		if p, _, ok := s.tokenPessoa(c.Value); ok {
-			s.log.Info("logout", "usuario", p.Usuario, "de", r.RemoteAddr, encaminhado(r))
+		if p, _, ok := s.tokenPerson(c.Value); ok {
+			s.log.Info("logout", "usuario", p.Username, "de", r.RemoteAddr, forwarded(r))
 		}
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -349,13 +349,13 @@ func viaHTTPS(r *http.Request) bool {
 // O valor vai como veio, sem decidir se é confiável: quem fala direto com a
 // 8080 pode inventar o header. Por isso ele fica num campo próprio, e o "de"
 // segue sendo a conexão. Sem o header, o atributo sai vazio e o slog o omite.
-func encaminhado(r *http.Request) slog.Attr {
+func forwarded(r *http.Request) slog.Attr {
 	v := strings.Join(r.Header.Values("X-Forwarded-For"), ", ")
 	if v == "" {
 		return slog.Attr{}
 	}
-	if len(v) > encaminhadoMax {
-		v = v[:encaminhadoMax] + "…"
+	if len(v) > forwardedMax {
+		v = v[:forwardedMax] + "…"
 	}
 	return slog.String("encaminhado", v)
 }
@@ -365,9 +365,9 @@ func encaminhado(r *http.Request) slog.Attr {
 // por isso também renova a sessão.
 func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"authRequired": s.cfg.Server.AuthEnabled()}
-	p, ok := semAutenticacao, true
+	p, ok := noAuth, true
 	if s.cfg.Server.AuthEnabled() {
-		p, ok = s.sessao(w, r)
+		p, ok = s.session(w, r)
 	}
 	resp["authenticated"] = ok
 	if ok {
