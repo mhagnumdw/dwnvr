@@ -209,8 +209,8 @@ func defaults() Config {
 			Audio:               AudioNone,
 			StallSeconds:        DefaultStallSeconds,
 			Detect:              false,
-			DetectMecanismo:     detect.MecanismoPadrao,
-			DetectSensibilidade: detect.NivelPadrao,
+			DetectMecanismo:     detect.DefaultMethod,
+			DetectSensibilidade: detect.DefaultLevel,
 		},
 	}
 }
@@ -300,7 +300,7 @@ func (c *Config) confere() []Aviso {
 			Aceito: audiosAceitos, Usando: pd.Audio})
 		d.Audio = pd.Audio
 	}
-	if _, ok := detect.Mecanismos[d.DetectMecanismo]; !ok {
+	if _, ok := detect.Methods[d.DetectMecanismo]; !ok {
 		av = append(av, Aviso{Campo: "defaults.detectMecanismo", Valor: d.DetectMecanismo,
 			Aceito: mecanismosAceitos(), Usando: pd.DetectMecanismo})
 		d.DetectMecanismo = pd.DetectMecanismo
@@ -358,7 +358,7 @@ func (c *Config) ConfereCamera(cam Camera) (Camera, []Aviso) {
 		av = append(av, a)
 		cam.Audio = ""
 	}
-	if _, ok := detect.Mecanismos[cam.DetectMecanismo]; cam.DetectMecanismo != "" && !ok {
+	if _, ok := detect.Methods[cam.DetectMecanismo]; cam.DetectMecanismo != "" && !ok {
 		a := base("detectMecanismo")
 		a.Valor, a.Aceito, a.Usando = cam.DetectMecanismo, mecanismosAceitos(), c.Defaults.DetectMecanismo
 		av = append(av, a)
@@ -415,8 +415,8 @@ func audioValido(mode string) bool {
 }
 
 func mecanismosAceitos() string {
-	nomes := make([]string, 0, len(detect.Mecanismos))
-	for n := range detect.Mecanismos {
+	nomes := make([]string, 0, len(detect.Methods))
+	for n := range detect.Methods {
 		nomes = append(nomes, n)
 	}
 	sort.Strings(nomes)

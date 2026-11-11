@@ -513,7 +513,7 @@ func familiasDoFiltro(lista string) (map[string]bool, error) {
 	}
 	out := map[string]bool{}
 	for f := range strings.SplitSeq(lista, ",") {
-		if !slices.Contains(detect.Familias, detect.Familia(f)) {
+		if !slices.Contains(detect.Families, detect.Family(f)) {
 			return nil, fmt.Errorf("família %q desconhecida", f)
 		}
 		out[f] = true

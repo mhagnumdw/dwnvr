@@ -196,7 +196,7 @@ type Funil struct {
 	// SemVideo são onsets que terminaram sem pedaço para mandar - logo depois
 	// de conectar, antes do primeiro frame I. Ver Recortador.SemVideo.
 	SemVideo int64 `json:"semVideo"`
-	// Descartados a fila recusou: a câmera já tinha PedacosPorCamera esperando
+	// Descartados a fila recusou: a câmera já tinha ClipsPerCamera esperando
 	// a vez. Não são olhados nem depois: ficam só como movimento na timeline.
 	Descartados int64 `json:"descartados"`
 	// Falhas são olhadas que o detector não respondeu: fora do ar, ou travado.
@@ -232,12 +232,12 @@ type Recorder struct {
 	// sessão e só ela o toca - por isso não tem lock nenhum, e por isso a troca
 	// de configuração vem pelo detectPedido logo abaixo em vez de ser escrita
 	// aqui direto.
-	mec detect.Mecanismo
+	mec detect.Method
 
 	// pedacos é para onde vai o pedaço de vídeo que o detector deve olhar. É a
 	// fila do detector de objetos que o liga; nil é "ninguém olha", e aí o GOP
 	// nem é guardado - quem não instalou o detector não paga a cópia.
-	pedacos func(detect.Pedaco)
+	pedacos func(detect.Clip)
 
 	// recorte guarda o GOP corrente e corta o pedaço no quadro que o mec mandou
 	// olhar. Como o mec, pertence à goroutine da sessão.
@@ -245,8 +245,8 @@ type Recorder struct {
 	// Ele só existe com a detecção ligada E um destino para o pedaço: nasce no
 	// primeiro quadro em que as duas coisas valem, e morre quando a detecção é
 	// desligada. Morrer é o que devolve os buffers do GOP, que podem ter
-	// crescido até TetoDoGOPBytes cada.
-	recorte *detect.Recortador
+	// crescido até MaxGOPBytes cada.
+	recorte *detect.Clipper
 
 	// initAtual é o init da conexão corrente, para o recortador que nascer no
 	// meio dela. Da goroutine da sessão.
@@ -261,7 +261,7 @@ type Recorder struct {
 	// goroutine da FILA, e não da sessão: é ela que entrega as olhadas, uma de
 	// cada vez. Sobrevive a reconexão de propósito - o carro estacionado
 	// continua lá quando o stream volta.
-	marcador detect.Marcador
+	marcador detect.Marker
 
 	// As fatias do Funil. semVideo é a cópia do contador do recorte, somado ao
 	// semVideoAntes, que são da goroutine da sessão: é publicada aqui para o
@@ -369,21 +369,21 @@ func (r *Recorder) aplicaDetectPendente() {
 	// tinha pode ter buraco - os quadros de quando a detecção estava desligada -,
 	// e o pedaço que o mecanismo velho esperava não tem mais quem o feche.
 	if r.recorte != nil {
-		r.recorte.Esquece()
+		r.recorte.Forget()
 		r.publicaSemVideo()
 	}
 	if !pedido.ligada {
 		r.mec = nil
 		if r.recorte != nil {
-			r.semVideoAntes += r.recorte.SemVideo()
+			r.semVideoAntes += r.recorte.NoVideo()
 			r.recorte = nil
 		}
 		return
 	}
-	r.mec = detect.Novo(pedido.mecanismo, pedido.sensibilidade)
+	r.mec = detect.NewMethod(pedido.mecanismo, pedido.sensibilidade)
 	r.log.Info("gatilho de movimento ligado",
-		"mecanismo", r.mec.Nome(), "sensibilidade", pedido.sensibilidade,
-		"onsets_por_hora", detect.OnsetsPorHora[min(max(pedido.sensibilidade, detect.NivelMin), detect.NivelMax)])
+		"mecanismo", r.mec.Name(), "sensibilidade", pedido.sensibilidade,
+		"onsets_por_hora", detect.OnsetsPerHour[min(max(pedido.sensibilidade, detect.MinLevel), detect.MaxLevel)])
 }
 
 // movimento é o gancho do gatilho no laço de gravação.
@@ -404,13 +404,13 @@ func (r *Recorder) movimento(instanteMs int64, keyframe bool, moof, mdat []byte)
 	if r.mec == nil {
 		return
 	}
-	v := r.mec.Quadro(instanteMs, len(mdat), keyframe)
+	v := r.mec.Frame(instanteMs, len(mdat), keyframe)
 	if r.recorte == nil && r.pedacos != nil {
-		r.recorte = detect.NovoRecortador(r.camera().ID)
+		r.recorte = detect.NewClipper(r.camera().ID)
 		r.recorte.Init(r.initAtual)
 	}
 	if r.recorte != nil {
-		r.entrega(r.recorte.Quadro(v, instanteMs, keyframe, moof, mdat))
+		r.entrega(r.recorte.Frame(v, instanteMs, keyframe, moof, mdat))
 	}
 	if !v.Onset {
 		return
@@ -423,7 +423,7 @@ func (r *Recorder) movimento(instanteMs int64, keyframe bool, moof, mdat []byte)
 
 // entrega manda para o detector o pedaço que o recortador acabou de cortar, e
 // publica quantos onsets ficaram sem pedaço até aqui.
-func (r *Recorder) entrega(p detect.Pedaco, cortou bool) {
+func (r *Recorder) entrega(p detect.Clip, cortou bool) {
 	if cortou {
 		r.pedacos(p)
 	}
@@ -431,15 +431,15 @@ func (r *Recorder) entrega(p detect.Pedaco, cortou bool) {
 }
 
 func (r *Recorder) publicaSemVideo() {
-	r.semVideo.Store(r.semVideoAntes + r.recorte.SemVideo())
+	r.semVideo.Store(r.semVideoAntes + r.recorte.NoVideo())
 }
 
 // ofereceA liga o recorder à fila do detector. É o destino dos pedaços, e é
 // chamado no laço de gravação: a fila não bloqueia nunca.
-func (r *Recorder) ofereceA(f *detect.Fila) func(detect.Pedaco) {
-	return func(p detect.Pedaco) {
+func (r *Recorder) ofereceA(f *detect.Queue) func(detect.Clip) {
+	return func(p detect.Clip) {
 		r.cortados.Add(1)
-		if !f.Oferece(p) {
+		if !f.Offer(p) {
 			r.descartados.Add(1)
 		}
 	}
@@ -449,19 +449,19 @@ func (r *Recorder) ofereceA(f *detect.Fila) func(detect.Pedaco) {
 // da fila, e grava o que virou marca. Com a regra de alerta da câmera, nil
 // quando ela não alerta, devolve o alerta da olhada, com os mesmos números das
 // linhas gravadas, que é o que Detecções mostra.
-func (r *Recorder) olhou(o detect.Olhada, regra *alerta.Regra) (alerta.Alerta, bool) {
-	if errors.Is(o.Erro, detect.ErrPedacoRecusado) {
+func (r *Recorder) olhou(o detect.Inference, regra *alerta.Regra) (alerta.Alerta, bool) {
+	if errors.Is(o.Err, detect.ErrClipRejected) {
 		r.recusados.Add(1)
 		return alerta.Alerta{}, false
 	}
-	if o.Erro != nil {
+	if o.Err != nil {
 		r.falhas.Add(1)
 		return alerta.Alerta{}, false
 	}
 	if r.marcador == nil {
-		r.marcador = detect.NovoMarcador(detect.MarcadorPadrao)
+		r.marcador = detect.NewMarker(detect.DefaultMarker)
 	}
-	marcas := r.marcador.Olha(o.Achados)
+	marcas := r.marcador.Mark(o.Detections)
 	if len(marcas) == 0 {
 		r.semObjeto.Add(1)
 		return alerta.Alerta{}, false
@@ -472,9 +472,9 @@ func (r *Recorder) olhou(o detect.Olhada, regra *alerta.Regra) (alerta.Alerta, b
 	// mesmo instante apontam para o mesmo arquivo. Falhar aqui não cancela a
 	// marca: melhor uma detecção sem miniatura do que uma detecção perdida.
 	var temQuadro bool
-	if len(o.Quadro) > 0 {
-		dia := store.Evento{InstanteMs: o.Pedaco.OnsetMs}.Day()
-		if err := r.idx.WriteQuadro(dia, o.Pedaco.OnsetMs, o.Quadro); err != nil {
+	if len(o.Frame) > 0 {
+		dia := store.Evento{InstanteMs: o.Clip.OnsetMs}.Day()
+		if err := r.idx.WriteQuadro(dia, o.Clip.OnsetMs, o.Frame); err != nil {
 			r.log.Warn("falha ao gravar o quadro da detecção", "erro", err)
 		} else {
 			temQuadro = true
@@ -486,25 +486,25 @@ func (r *Recorder) olhou(o detect.Olhada, regra *alerta.Regra) (alerta.Alerta, b
 	// acha a detecção por qualquer uma delas. Quem quer uma chegada por família,
 	// como a timeline, junta na leitura. A ordem é a das famílias e, dentro
 	// delas, a da confiança: quem lê a linha crua vê primeiro o que mais importa.
-	slices.SortStableFunc(marcas, func(a, b detect.Achado) int {
-		fa := slices.Index(detect.Familias, detect.FamiliasPadrao[a.Classe])
-		fb := slices.Index(detect.Familias, detect.FamiliasPadrao[b.Classe])
+	slices.SortStableFunc(marcas, func(a, b detect.Detection) int {
+		fa := slices.Index(detect.Families, detect.ClassFamilies[a.Class])
+		fb := slices.Index(detect.Families, detect.ClassFamilies[b.Class])
 		return cmp.Or(cmp.Compare(fa, fb), cmp.Compare(b.Score, a.Score))
 	})
 	linhas := make([]store.Evento, 0, len(marcas))
 	for _, a := range marcas {
-		f, ok := detect.FamiliasPadrao[a.Classe]
+		f, ok := detect.ClassFamilies[a.Class]
 		if !ok {
 			continue
 		}
 		// A caixa com 4 casas: 0,0001 do quadro é menos de meio pixel numa
 		// câmera de 2560 px, e a linha fica legível num `tail`.
 		var caixa [4]float64
-		for i, v := range a.Caixa {
+		for i, v := range a.Box {
 			caixa[i] = math.Round(v*10000) / 10000
 		}
-		linhas = append(linhas, store.Evento{InstanteMs: o.Pedaco.OnsetMs, Familia: string(f),
-			Classe: a.Classe, Score: math.Round(a.Score*1000) / 1000, QuadroMs: o.Pedaco.QuadroMs,
+		linhas = append(linhas, store.Evento{InstanteMs: o.Clip.OnsetMs, Familia: string(f),
+			Classe: a.Class, Score: math.Round(a.Score*1000) / 1000, QuadroMs: o.Clip.FrameMs,
 			Caixa: &caixa, TemQuadro: temQuadro})
 	}
 
@@ -513,7 +513,7 @@ func (r *Recorder) olhou(o detect.Olhada, regra *alerta.Regra) (alerta.Alerta, b
 	var al alerta.Alerta
 	var alertou bool
 	if regra != nil {
-		al, alertou = regra.Avalia(linhas, o.Quadro)
+		al, alertou = regra.Avalia(linhas, o.Frame)
 	}
 	for _, ev := range linhas {
 		if err := r.idx.AppendEvento(ev); err != nil {
@@ -808,13 +808,13 @@ func (r *Recorder) session(ctx context.Context) error {
 	// A estatística do gatilho não atravessa reconexão: o que veio antes de um
 	// buraco não descreve mais a câmera.
 	if r.mec != nil {
-		r.mec.Zera()
+		r.mec.Reset()
 	}
 	// O pedaço que esperava a janela quando a conexão caiu continua bom: o
 	// vídeo dele já chegou inteiro.
 	defer func() {
 		if r.recorte != nil {
-			r.entrega(r.recorte.Encerra())
+			r.entrega(r.recorte.Close())
 		}
 	}()
 

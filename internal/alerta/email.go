@@ -73,9 +73,9 @@ func (e *Email) Envia(ctx context.Context, a Alerta) error {
 }
 
 // nomesDasFamilias são os nomes que a mensagem mostra, os mesmos da tela.
-var nomesDasFamilias = map[detect.Familia]string{
-	detect.Pessoa:  "Pessoa",
-	detect.Veiculo: "Veículo",
+var nomesDasFamilias = map[detect.Family]string{
+	detect.Person:  "Pessoa",
+	detect.Vehicle: "Veículo",
 	detect.Animal:  "Animal",
 }
 
@@ -239,7 +239,7 @@ func maiuscula(s string) string {
 }
 
 func corDaFamilia(f string) color.RGBA {
-	if c, ok := coresDasFamilias[detect.Familia(f)]; ok {
+	if c, ok := coresDasFamilias[detect.Family(f)]; ok {
 		return c
 	}
 	return corDesconhecida
@@ -248,7 +248,7 @@ func corDaFamilia(f string) color.RGBA {
 func hexa(c color.RGBA) string { return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B) }
 
 func nomeDaFamilia(f string) string {
-	if n, ok := nomesDasFamilias[detect.Familia(f)]; ok {
+	if n, ok := nomesDasFamilias[detect.Family(f)]; ok {
 		return n
 	}
 	return f

@@ -51,7 +51,7 @@ func TestAlertasNoHealth(t *testing.T) {
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
 	sim := true
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
-		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}})
+		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}}})
 	s.mgr.Alertas().Recebe(alerta.Alerta{Camera: "cam_teste", InstanteMs: 1000,
 		Objetos: []alerta.Objeto{{Familia: "pessoa", Classe: "person", Score: 0.87}}})
 
@@ -72,7 +72,7 @@ func TestDescarteNoHealth(t *testing.T) {
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
 	sim := true
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
-		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}})
+		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}}})
 	for range alerta.RajadaDeAlertas + 2 {
 		s.mgr.Alertas().Recebe(alerta.Alerta{Camera: "cam_teste", InstanteMs: 1000,
 			Objetos: []alerta.Objeto{{Familia: "pessoa", Classe: "person", Score: 0.87}}})
@@ -105,7 +105,7 @@ func TestMeioFalhandoNoHealth(t *testing.T) {
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
 	sim := true
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
-		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}})
+		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}}})
 
 	// O meio ainda não tentou: nada falhando, e os números zerados.
 	if got := string(pede(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":0}` {

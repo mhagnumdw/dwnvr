@@ -27,9 +27,9 @@ import (
 
 // coresDasFamilias são as da tela (web/src/lib/icones.ts): a caixa do e-mail
 // tem a cor da caixa de Detecções.
-var coresDasFamilias = map[detect.Familia]color.RGBA{
-	detect.Pessoa:  {0x3f, 0xb9, 0x50, 0xff},
-	detect.Veiculo: {0xa3, 0x71, 0xf7, 0xff},
+var coresDasFamilias = map[detect.Family]color.RGBA{
+	detect.Person:  {0x3f, 0xb9, 0x50, 0xff},
+	detect.Vehicle: {0xa3, 0x71, 0xf7, 0xff},
 	detect.Animal:  {0xdb, 0x61, 0xa2, 0xff},
 }
 
@@ -62,7 +62,7 @@ func quadroDesenhado(a Alerta) ([]byte, error) {
 	// prioridade primeiro: a caixa dela fica por cima das outras.
 	for _, o := range slices.Backward(a.Objetos) {
 
-		cor, ok := coresDasFamilias[detect.Familia(o.Familia)]
+		cor, ok := coresDasFamilias[detect.Family(o.Familia)]
 		if !ok {
 			cor = corDesconhecida
 		}

@@ -21,13 +21,13 @@ import (
 func TestTetoDaFilaCresceComAsCameras(t *testing.T) {
 	sim, nao := true, false
 	m := &Manager{
-		fila: detect.NovaFila(detect.Detectores["nenhum"](""), func(detect.Olhada) {}, mudo()),
+		fila: detect.NewQueue(detect.Detectors["nenhum"](""), func(detect.Inference) {}, mudo()),
 		recs: map[string]*running{},
 	}
 	for id, d := range map[string]*bool{"a": &sim, "b": &sim, "c": &nao, "d": nil} {
 		m.recs[id] = &running{rec: &Recorder{cam: config.Camera{ID: id, Detect: d}}}
 	}
-	if got, want := m.Detector().Fila.Cap, 2*detect.PedacosPorCamera; got != want {
+	if got, want := m.Detector().Queue.Cap, 2*detect.ClipsPerCamera; got != want {
 		t.Errorf("teto %d, esperado %d: duas câmeras com detecção", got, want)
 	}
 }
@@ -58,7 +58,7 @@ func TestSetEmPlenoVooNaoCorre(t *testing.T) {
 
 	st := store.New(t.TempDir())
 	m := NewManager(&config.Config{}, go2rtc.New(config.Go2RTC{URL: srv.URL}), st, mudo())
-	m.fila = detect.NovaFila(detect.Detectores["nenhum"](""), m.olhou, mudo())
+	m.fila = detect.NewQueue(detect.Detectors["nenhum"](""), m.olhou, mudo())
 
 	ligada, desligada := true, false
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
@@ -127,7 +127,7 @@ func TestAreaNaoReiniciaAGravacao(t *testing.T) {
 	comArea := cam
 	comArea.Areas = []config.Area{{ID: "k3f9a2", Name: "Portão",
 		Points: []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}}
-	comArea.Alert = &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}
+	comArea.Alert = &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}}
 	if recordingParamsChanged(cam, comArea) {
 		t.Error("mudar as áreas ou o alerta reiniciaria a gravação")
 	}
@@ -140,12 +140,12 @@ func comAlerta(t *testing.T) *Manager {
 	t.Helper()
 	st := store.New(t.TempDir())
 	m := NewManager(&config.Config{}, nil, st, mudo())
-	m.fila = detect.NovaFila(detect.Detectores["nenhum"](""), m.olhou, mudo())
+	m.fila = detect.NewQueue(detect.Detectors["nenhum"](""), m.olhou, mudo())
 	sim := true
 	cam := config.Camera{ID: "cam_teste", Name: "Frente", Enabled: true, Detect: &sim,
 		Areas: []config.Area{{ID: "esq", Name: "Portão",
 			Points: []area.Point{{0, 0}, {0.5, 0}, {0.5, 1}, {0, 1}}}},
-		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa},
+		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person},
 			Areas: []string{"esq"}}}
 	// Sem Start, o Set não sobe recorder: ele entra à mão, como o Start o deixaria.
 	m.Set(cam)
@@ -160,14 +160,14 @@ func comAlerta(t *testing.T) *Manager {
 func TestOlhadaViraAlerta(t *testing.T) {
 	m := comAlerta(t)
 	agora := time.Now().UnixMilli()
-	m.olhou(detect.Olhada{
-		Pedaco: detect.Pedaco{Camera: "cam_teste", OnsetMs: agora, QuadroMs: agora + 1400},
-		Achados: []detect.Achado{
-			{Classe: "person", Score: 0.87654, Caixa: [4]float64{0.25, 0.2, 0.35, 0.6}},
-			{Classe: "person", Score: 0.55, Caixa: [4]float64{0.75, 0.2, 0.85, 0.6}},
-			{Classe: "motorcycle", Score: 0.71, Caixa: [4]float64{0.1, 0.4, 0.3, 0.7}},
+	m.olhou(detect.Inference{
+		Clip: detect.Clip{Camera: "cam_teste", OnsetMs: agora, FrameMs: agora + 1400},
+		Detections: []detect.Detection{
+			{Class: "person", Score: 0.87654, Box: [4]float64{0.25, 0.2, 0.35, 0.6}},
+			{Class: "person", Score: 0.55, Box: [4]float64{0.75, 0.2, 0.85, 0.6}},
+			{Class: "motorcycle", Score: 0.71, Box: [4]float64{0.1, 0.4, 0.3, 0.7}},
 		},
-		Quadro: []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+		Frame: []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
 	})
 	c := m.Alertas()
 	if c == nil || c.Total() != 1 {
@@ -188,9 +188,9 @@ func TestOlhadaViraAlerta(t *testing.T) {
 	}
 
 	// Lugar novo para o rastreio, mas fora da área: marca, e não alerta.
-	m.olhou(detect.Olhada{
-		Pedaco:  detect.Pedaco{Camera: "cam_teste", OnsetMs: agora + 60000, QuadroMs: agora + 61000},
-		Achados: []detect.Achado{{Classe: "person", Score: 0.9, Caixa: [4]float64{0.6, 0.6, 0.7, 0.95}}},
+	m.olhou(detect.Inference{
+		Clip:       detect.Clip{Camera: "cam_teste", OnsetMs: agora + 60000, FrameMs: agora + 61000},
+		Detections: []detect.Detection{{Class: "person", Score: 0.9, Box: [4]float64{0.6, 0.6, 0.7, 0.95}}},
 	})
 	if c.Total() != 1 {
 		t.Errorf("%d alertas, esperava 1: a segunda pessoa estava fora da área", c.Total())
@@ -202,7 +202,7 @@ func TestOlhadaViraAlerta(t *testing.T) {
 // uma instalação sem detector de objetos.
 func TestSemAlertaNadaNasce(t *testing.T) {
 	sim, nao := true, false
-	alerta := &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}
+	alerta := &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}}
 	casos := map[string]struct {
 		cam      config.Camera
 		detector bool
@@ -216,7 +216,7 @@ func TestSemAlertaNadaNasce(t *testing.T) {
 		t.Run(nome, func(t *testing.T) {
 			m := NewManager(&config.Config{}, nil, store.New(t.TempDir()), mudo())
 			if c.detector {
-				m.fila = detect.NovaFila(detect.Detectores["nenhum"](""), m.olhou, mudo())
+				m.fila = detect.NewQueue(detect.Detectors["nenhum"](""), m.olhou, mudo())
 			}
 			m.Set(c.cam)
 			if m.Alertas() != nil || len(m.regras) > 0 {
@@ -231,10 +231,10 @@ func TestSemAlertaNadaNasce(t *testing.T) {
 func TestDesligarOAlertaGuardaOHistorico(t *testing.T) {
 	m := comAlerta(t)
 	agora := time.Now().UnixMilli()
-	m.olhou(detect.Olhada{
-		Pedaco:  detect.Pedaco{Camera: "cam_teste", OnsetMs: agora, QuadroMs: agora + 1400},
-		Achados: []detect.Achado{{Classe: "person", Score: 0.87654, Caixa: [4]float64{0.25, 0.2, 0.35, 0.6}}},
-		Quadro:  []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+	m.olhou(detect.Inference{
+		Clip:       detect.Clip{Camera: "cam_teste", OnsetMs: agora, FrameMs: agora + 1400},
+		Detections: []detect.Detection{{Class: "person", Score: 0.87654, Box: [4]float64{0.25, 0.2, 0.35, 0.6}}},
+		Frame:      []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
 	})
 	antes := m.Alertas()
 	if antes == nil || antes.Total() != 1 {

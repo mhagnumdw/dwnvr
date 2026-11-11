@@ -6,522 +6,526 @@ import (
 	"testing"
 )
 
-// --- o score -----------------------------------------------------------------
+// --- the score ----------------------------------------------------------------
 
-// cenaParada devolve o tamanho do i-ésimo quadro P de uma cena sem movimento:
-// ~1000 bytes com um ruído determinístico de ±10%, que é o que a compressão
-// faz com o granulado de uma câmera parada.
-func cenaParada(i int) int { return 900 + (i*7919)%200 }
+// stillScene returns the size of the i-th P frame of a scene without motion:
+// ~1000 bytes with a deterministic ±10% noise, which is what compression does
+// with the grain of a still camera.
+func stillScene(i int) int { return 900 + (i*7919)%200 }
 
-// TestSemFrameINaoMexeNoDestaque é a propriedade que faz o `kleinberg-p`
-// funcionar: o frame I volta a cada GOP, com ou sem movimento, e é dezenas de
-// vezes maior que um P. Se ele chegasse à função, cada GOP pareceria um evento.
-func TestSemFrameINaoMexeNoDestaque(t *testing.T) {
-	cru := FuncoesDeScore["kleinberg"]()
-	semI := FuncoesDeScore["kleinberg-p"]()
+// TestIFrameDoesNotMoveTheSalience is the property that makes `kleinberg-p`
+// work: the I frame comes back every GOP, with or without motion, and is
+// dozens of times larger than a P. If it reached the function, every GOP would
+// look like an event.
+func TestIFrameDoesNotMoveTheSalience(t *testing.T) {
+	raw := ScoreFuncs["kleinberg"]()
+	pOnly := ScoreFuncs["kleinberg-p"]()
 
-	var antes float64
+	var before float64
 	for i := range 400 {
-		cru.Empurra(cenaParada(i), false, 67)
-		antes = semI.Empurra(cenaParada(i), false, 67)
+		raw.Push(stillScene(i), false, 67)
+		before = pOnly.Push(stillScene(i), false, 67)
 	}
 
-	const frameI = 50_000
-	if d := cru.Empurra(frameI, true, 67); d < LimiarKleinbergP[NivelPadrao] {
-		t.Fatalf("sem esconder o frame I ele teria que destacar: %g", d)
+	const iFrame = 50_000
+	if d := raw.Push(iFrame, true, 67); d < KleinbergPThreshold[DefaultLevel] {
+		t.Fatalf("without hiding the I frame it should stand out: %g", d)
 	}
-	if d := semI.Empurra(frameI, true, 67); d != antes {
-		t.Errorf("o frame I mexeu no destaque: %g, antes %g", d, antes)
+	if d := pOnly.Push(iFrame, true, 67); d != before {
+		t.Errorf("the I frame moved the salience: %g, before %g", d, before)
 	}
 }
 
-// TestEventoLongoNaoViraONovoNormal confere o CongelaAcima: um movimento mais
-// longo que a meia vida da média não pode ser aprendido como o normal da
-// câmera. Sem congelar, a base persegue o evento e o destaque cai no meio dele.
-func TestEventoLongoNaoViraONovoNormal(t *testing.T) {
-	s := FuncoesDeScore["kleinberg"]()
+// TestLongEventDoesNotBecomeTheNewNormal checks FreezeAbove: a motion longer
+// than the mean's half life must not be learned as the camera's normal.
+// Without freezing, the baseline chases the event and the salience drops in
+// the middle of it.
+func TestLongEventDoesNotBecomeTheNewNormal(t *testing.T) {
+	s := ScoreFuncs["kleinberg"]()
 	i := 0
 	for ; i < 400; i++ {
-		s.Empurra(cenaParada(i), false, 67)
+		s.Push(stillScene(i), false, 67)
 	}
-	// Três vezes a meia vida de movimento contínuo, a 3x o tamanho normal.
+	// Three half lives of continuous motion, at 3x the normal size.
 	var d float64
-	for range 3 * int(MeiaVidaKleinberg) {
-		d = s.Empurra(3*cenaParada(i), false, 67)
+	for range 3 * int(KleinbergHalfLife) {
+		d = s.Push(3*stillScene(i), false, 67)
 		i++
 	}
-	if d < LimiarKleinbergP[NivelPadrao] {
-		t.Errorf("no fim do evento o destaque caiu para %g: a base absorveu o evento", d)
+	if d < KleinbergPThreshold[DefaultLevel] {
+		t.Errorf("at the end of the event the salience dropped to %g: the baseline absorbed the event", d)
 	}
 }
 
-// TestRajadaViraUmOnsetSo confere o score e o gatilho juntos, no mecanismo
-// padrão: cena parada não dispara, e um movimento de um segundo e meio - os
-// quadros P crescem quando a imagem muda - dispara uma vez, e não uma por
-// quadro.
-func TestRajadaViraUmOnsetSo(t *testing.T) {
-	m := Novo(MecanismoPadrao, NivelPadrao)
-	agora := int64(1_000_000)
+// TestBurstBecomesASingleOnset checks the score and the trigger together, on
+// the default method: a still scene doesn't fire, and a motion of a second and
+// a half - P frames grow when the image changes - fires once, not once per
+// frame.
+func TestBurstBecomesASingleOnset(t *testing.T) {
+	m := NewMethod(DefaultMethod, DefaultLevel)
+	now := int64(1_000_000)
 	onsets := 0
-	empurra := func(bytes int) {
-		agora += 67
-		if m.Quadro(agora, bytes, false).Onset {
+	push := func(bytes int) {
+		now += 67
+		if m.Frame(now, bytes, false).Onset {
 			onsets++
 		}
 	}
 
 	i := 0
 	for ; i < 600; i++ {
-		empurra(cenaParada(i))
+		push(stillScene(i))
 	}
 	if onsets != 0 {
-		t.Fatalf("cena parada disparou %d vezes", onsets)
+		t.Fatalf("a still scene fired %d times", onsets)
 	}
 
 	for range 22 {
-		empurra(5 * cenaParada(i))
+		push(5 * stillScene(i))
 		i++
 	}
 	for range 100 {
-		empurra(cenaParada(i))
+		push(stillScene(i))
 		i++
 	}
 	if onsets != 1 {
-		t.Errorf("a rajada deu %d onsets, esperava 1", onsets)
+		t.Errorf("the burst gave %d onsets, want 1", onsets)
 	}
 }
 
-// TestPicoEscolheOMaiorQuadroP confere o quadro a olhar: o de maior destaque
-// nos JanelaDoPicoMs depois do onset, só entre quadros P, e só quem destaca
-// ESTRITAMENTE mais toma o lugar.
-func TestPicoEscolheOMaiorQuadroP(t *testing.T) {
+// TestPeakPicksTheLargestPFrame checks the frame to infer: the one with the
+// highest salience in the PeakWindowMs after the onset, only among P frames,
+// and only one that stands out STRICTLY more takes the place.
+func TestPeakPicksTheLargestPFrame(t *testing.T) {
 	type q struct {
-		destaque float64
+		salience float64
 		keyframe bool
 	}
-	fita := []q{
+	tape := []q{
 		{0, false}, {0, false},
 		{20, false}, // onset
 		{25, false},
-		{40, true},  // o maior, mas é frame I: fica fora
-		{30, false}, // o pico
-		{30, false}, // empata: não toma o lugar
+		{40, true},  // the largest, but it's an I frame: stays out
+		{30, false}, // the peak
+		{30, false}, // ties: doesn't take the place
 		{12, false},
 	}
-	valores := make([]float64, 0, len(fita))
-	for _, f := range fita {
-		valores = append(valores, f.destaque)
+	values := make([]float64, 0, len(tape))
+	for _, f := range tape {
+		values = append(values, f.salience)
 	}
-	m := novoEstatistico(&scoreFalso{valores: valores}, 10)
+	m := newStatistical(&fakeScore{values: values}, 10)
 
-	agora := int64(1_000_000)
-	var candidato int64
-	pico := agora + 6*100
+	now := int64(1_000_000)
+	var candidate int64
+	peak := now + 6*100
 	for i := 0; ; i++ {
-		agora += 100
+		now += 100
 		k := false
-		if i < len(fita) {
-			k = fita[i].keyframe
+		if i < len(tape) {
+			k = tape[i].keyframe
 		}
-		v := m.Quadro(agora, 1000, k)
-		if v.Candidato {
-			candidato = agora
+		v := m.Frame(now, 1000, k)
+		if v.Candidate {
+			candidate = now
 		}
-		if v.Corta {
+		if v.Cut {
 			break
 		}
-		if agora > 1_000_000+2*JanelaDoPicoMs {
-			t.Fatal("a janela do pico não fechou")
+		if now > 1_000_000+2*PeakWindowMs {
+			t.Fatal("the peak window didn't close")
 		}
 	}
-	if candidato != pico {
-		t.Errorf("olhou o quadro de %d ms, o pico está em %d ms",
-			candidato-1_000_000, pico-1_000_000)
+	if candidate != peak {
+		t.Errorf("inferred the frame at %d ms, the peak is at %d ms",
+			candidate-1_000_000, peak-1_000_000)
 	}
 }
 
-// --- o gatilho de histerese -------------------------------------------------
+// --- the hysteresis trigger -------------------------------------------------
 
-// scoreFalso devolve os destaques de uma lista, na ordem. É como se testa o
-// gatilho sem depender de estatística nenhuma.
-type scoreFalso struct {
-	valores     []float64
-	i           int
-	aquecimento int
+// fakeScore returns the saliences from a list, in order. It's how the trigger
+// is tested without depending on any statistics.
+type fakeScore struct {
+	values []float64
+	i      int
+	warmup int
 }
 
-func (s *scoreFalso) Nome() string     { return "falso" }
-func (s *scoreFalso) Aquecimento() int { return s.aquecimento }
-func (s *scoreFalso) Zera()            { s.i = 0 }
-func (s *scoreFalso) Empurra(int, bool, float64) float64 {
-	v := s.valores[min(s.i, len(s.valores)-1)]
+func (s *fakeScore) Name() string { return "falso" }
+func (s *fakeScore) Warmup() int  { return s.warmup }
+func (s *fakeScore) Reset()       { s.i = 0 }
+func (s *fakeScore) Push(int, bool, float64) float64 {
+	v := s.values[min(s.i, len(s.values)-1)]
 	s.i++
 	return v
 }
 
-// piloto empurra quadros num mecanismo com um relógio que ANDA entre as
-// chamadas. Ter um relógio só é o ponto: rebobiná-lo entre dois trechos do
-// mesmo teste seria um salto para trás, que o mecanismo trata - com razão -
-// como buraco de gravação.
-type piloto struct {
-	m       Mecanismo
-	agora   int64
-	passoMs int64
+// pilot pushes frames into a method with a clock that MOVES between calls.
+// Having a single clock is the point: rewinding it between two stretches of
+// the same test would be a jump backwards, which the method treats - rightly -
+// as a recording gap.
+type pilot struct {
+	m      Method
+	now    int64
+	stepMs int64
 }
 
-func novoPiloto(m Mecanismo, passoMs int64) *piloto {
-	return &piloto{m: m, agora: 1_000_000, passoMs: passoMs}
+func newPilot(m Method, stepMs int64) *pilot {
+	return &pilot{m: m, now: 1_000_000, stepMs: stepMs}
 }
 
-// roda empurra `quantos` quadros seguidos e devolve os instantes em que o
-// gatilho abriu.
-func (p *piloto) roda(quantos int) []int64 {
+// run pushes `count` consecutive frames and returns the instants when the
+// trigger opened.
+func (p *pilot) run(count int) []int64 {
 	var out []int64
-	for range quantos {
-		p.agora += p.passoMs
-		if p.m.Quadro(p.agora, 1000, false).Onset {
-			out = append(out, p.agora)
+	for range count {
+		p.now += p.stepMs
+		if p.m.Frame(p.now, 1000, false).Onset {
+			out = append(out, p.now)
 		}
 	}
 	return out
 }
 
-// pula abre um buraco de gravação antes do próximo quadro.
-func (p *piloto) pula(ms int64) { p.agora += ms }
+// skip opens a recording gap before the next frame.
+func (p *pilot) skip(ms int64) { p.now += ms }
 
-func TestHistereseNaoPicotaUmEventoSo(t *testing.T) {
-	// Um evento que balança em volta do limiar alto: sobe, cai para o meio da
-	// faixa, sobe de novo. Sem histerese isso viraria três marcadores.
-	alto := 10.0
-	valores := []float64{0, 0, 0, 20, 5, 5, 20, 5, 20, 0, 0, 0}
-	onsets := novoPiloto(novoEstatistico(&scoreFalso{valores: valores}, alto), 100).
-		roda(len(valores))
+func TestHysteresisDoesNotSplitOneEvent(t *testing.T) {
+	// An event that hovers around the high threshold: goes up, drops to the
+	// middle of the band, goes up again. Without hysteresis this would become
+	// three markers.
+	high := 10.0
+	values := []float64{0, 0, 0, 20, 5, 5, 20, 5, 20, 0, 0, 0}
+	onsets := newPilot(newStatistical(&fakeScore{values: values}, high), 100).
+		run(len(values))
 	if len(onsets) != 1 {
-		t.Fatalf("esperava 1 onset, veio %d: %v", len(onsets), onsets)
+		t.Fatalf("want 1 onset, got %d: %v", len(onsets), onsets)
 	}
 }
 
-func TestHistereseSoFechaDepoisDeSegundosParaFechar(t *testing.T) {
-	alto := 10.0
-	// Sobe, e depois fica abaixo do limiar baixo. Com quadros de 100 ms, os 3 s
-	// de SegundosParaFechar são 30 quadros - só a partir do 31º abaixo o
-	// intervalo fecha e um novo pico pode abrir outro.
-	valores := make([]float64, 0, 80)
-	valores = append(valores, 20)
+func TestHysteresisClosesOnlyAfterSecondsToClose(t *testing.T) {
+	high := 10.0
+	// Goes up, then stays below the low threshold. With 100 ms frames, the
+	// 3 s of SecondsToClose are 30 frames - only from the 31st below does the
+	// interval close and a new peak can open another.
+	values := make([]float64, 0, 80)
+	values = append(values, 20)
 	for range 25 {
-		valores = append(valores, 0)
+		values = append(values, 0)
 	}
-	valores = append(valores, 20) // cedo demais: o intervalo ainda está aberto
+	values = append(values, 20) // too early: the interval is still open
 	for range 40 {
-		valores = append(valores, 0)
+		values = append(values, 0)
 	}
-	valores = append(valores, 20) // agora sim
+	values = append(values, 20) // now yes
 
-	onsets := novoPiloto(novoEstatistico(&scoreFalso{valores: valores}, alto), 100).
-		roda(len(valores))
+	onsets := newPilot(newStatistical(&fakeScore{values: values}, high), 100).
+		run(len(values))
 	if len(onsets) != 2 {
-		t.Fatalf("esperava 2 onsets (o do meio suprimido pela histerese), veio %d: %v",
+		t.Fatalf("want 2 onsets (the middle one suppressed by the hysteresis), got %d: %v",
 			len(onsets), onsets)
 	}
 }
 
-func TestAquecimentoNaoDispara(t *testing.T) {
-	// Destaque altíssimo desde o primeiro quadro: nada pode sair enquanto a
-	// função não tiver régua.
-	valores := []float64{999}
-	p := novoPiloto(novoEstatistico(&scoreFalso{valores: valores, aquecimento: 300}, 10), 100)
+func TestWarmupDoesNotTrigger(t *testing.T) {
+	// Very high salience from the first frame: nothing may come out while the
+	// function has no baseline.
+	values := []float64{999}
+	p := newPilot(newStatistical(&fakeScore{values: values, warmup: 300}, 10), 100)
 
-	if onsets := p.roda(300); len(onsets) != 0 {
-		t.Fatalf("disparou durante o aquecimento: %v", onsets)
+	if onsets := p.run(300); len(onsets) != 0 {
+		t.Fatalf("fired during warmup: %v", onsets)
 	}
-	if onsets := p.roda(1); len(onsets) != 1 {
-		t.Fatal("não disparou no primeiro quadro depois do aquecimento")
-	}
-}
-
-func TestBuracoDeGravacaoZeraTudo(t *testing.T) {
-	m := novoEstatistico(&scoreFalso{valores: []float64{999}, aquecimento: 300}, 10)
-	p := novoPiloto(m, 100)
-
-	p.roda(301) // aquece e abre o intervalo
-	if !m.aberto {
-		t.Fatal("o intervalo devia estar aberto")
-	}
-
-	// Um salto maior que LacunaMs é buraco de gravação: o aquecimento recomeça
-	// e o intervalo fecha à força.
-	p.pula(LacunaMs + 5_000)
-	if onsets := p.roda(1); len(onsets) != 0 {
-		t.Error("disparou no primeiro quadro depois do buraco, ainda sem régua")
-	}
-	if m.aberto {
-		t.Error("o buraco tinha que fechar o intervalo")
-	}
-	if m.quadros != 1 {
-		t.Errorf("o aquecimento não recomeçou: %d quadros", m.quadros)
+	if onsets := p.run(1); len(onsets) != 1 {
+		t.Fatal("didn't fire on the first frame after warmup")
 	}
 }
 
-// --- o mecanismo periódico --------------------------------------------------
+func TestRecordingGapResetsEverything(t *testing.T) {
+	m := newStatistical(&fakeScore{values: []float64{999}, warmup: 300}, 10)
+	p := newPilot(m, 100)
 
-// TestPeriodicoCustaExatamenteOQuePromete é a razão de este mecanismo existir:
-// ser a régua exata a bater. Se o custo dele escorregar, ele deixa de ser
-// régua.
-func TestPeriodicoCustaExatamenteOQuePromete(t *testing.T) {
-	for nivel := NivelMin; nivel <= NivelMax; nivel++ {
-		// Uma hora de câmera a 15 quadros por segundo, com quadros de 67 ms -
-		// não divisor do período, de propósito: é o resto acumulado que o
-		// "desconta em vez de zerar" existe para não perder.
-		const passoMs, quantos = 67, 3_600_000 / 67
-		onsets := novoPiloto(Novo("periodico", nivel), passoMs).roda(quantos)
+	p.run(301) // warms up and opens the interval
+	if !m.open {
+		t.Fatal("the interval should be open")
+	}
 
-		esperado := OnsetsPorHora[nivel]
-		if diff := math.Abs(float64(len(onsets)) - esperado); diff > 1 {
-			t.Errorf("nível %d: %d onsets na hora, esperado %.0f",
-				nivel, len(onsets), esperado)
+	// A jump larger than GapMs is a recording gap: warmup starts over and the
+	// interval is forced closed.
+	p.skip(GapMs + 5_000)
+	if onsets := p.run(1); len(onsets) != 0 {
+		t.Error("fired on the first frame after the gap, still without a baseline")
+	}
+	if m.open {
+		t.Error("the gap should have closed the interval")
+	}
+	if m.frames != 1 {
+		t.Errorf("warmup didn't start over: %d frames", m.frames)
+	}
+}
+
+// --- the periodic method ----------------------------------------------------
+
+// TestPeriodicCostsExactlyWhatItPromises is the reason this method exists:
+// being the exact reference to beat. If its cost slips, it stops being a
+// reference.
+func TestPeriodicCostsExactlyWhatItPromises(t *testing.T) {
+	for level := MinLevel; level <= MaxLevel; level++ {
+		// One hour of camera at 15 frames per second, with 67 ms frames - not
+		// a divisor of the period, on purpose: it's the accumulated remainder
+		// that "subtract instead of zeroing" exists not to lose.
+		const stepMs, count = 67, 3_600_000 / 67
+		onsets := newPilot(NewMethod("periodico", level), stepMs).run(count)
+
+		expected := OnsetsPerHour[level]
+		if diff := math.Abs(float64(len(onsets)) - expected); diff > 1 {
+			t.Errorf("level %d: %d onsets in the hour, expected %.0f",
+				level, len(onsets), expected)
 		}
 	}
 }
 
-func TestPeriodicoEsperaUmPeriodoInteiroDepoisDoBuraco(t *testing.T) {
-	p := novoPiloto(Novo("periodico", 5), 67) // 100/hora = um a cada 36 s
-	p.roda(500)                               // 33,5 s: quase lá
+func TestPeriodicWaitsAFullPeriodAfterAGap(t *testing.T) {
+	p := newPilot(NewMethod("periodico", 5), 67) // 100/hour = one every 36 s
+	p.run(500)                                   // 33.5 s: almost there
 
-	// O buraco tem que jogar fora o que já esperou.
-	p.pula(LacunaMs + 1)
-	if onsets := p.roda(1); len(onsets) != 0 {
-		t.Error("disparou na cara do reinício")
+	// The gap must throw away what it already waited.
+	p.skip(GapMs + 1)
+	if onsets := p.run(1); len(onsets) != 0 {
+		t.Error("fired right at the restart")
 	}
-	if onsets := p.roda(400); len(onsets) != 0 {
-		t.Errorf("disparou antes de um período inteiro: %v", onsets)
+	if onsets := p.run(400); len(onsets) != 0 {
+		t.Errorf("fired before a full period: %v", onsets)
 	}
 }
 
-func TestPeriodicoOlhaNoProprioOnset(t *testing.T) {
-	m := Novo("periodico", 5) // um a cada 36 s
-	agora := int64(1_000_000)
+func TestPeriodicInfersAtTheOnsetItself(t *testing.T) {
+	m := NewMethod("periodico", 5) // one every 36 s
+	now := int64(1_000_000)
 	var onsetMs int64
 	for range 2 * 36_000 / 67 {
-		agora += 67
-		v := m.Quadro(agora, 1000, false)
+		now += 67
+		v := m.Frame(now, 1000, false)
 		if v.Onset {
-			if !v.Candidato {
-				t.Fatal("o onset do periódico tem que ser o quadro a olhar")
+			if !v.Candidate {
+				t.Fatal("the periodic onset must be the frame to infer")
 			}
-			onsetMs = agora
+			onsetMs = now
 			continue
 		}
-		if v.Candidato {
-			t.Fatal("o periódico não tem pico: nenhum quadro depois do onset é candidato")
+		if v.Candidate {
+			t.Fatal("the periodic method has no peak: no frame after the onset is a candidate")
 		}
 		if onsetMs != 0 {
-			if !v.Corta {
-				t.Fatal("a janela do periódico tem que fechar no quadro seguinte ao onset")
+			if !v.Cut {
+				t.Fatal("the periodic window must close on the frame after the onset")
 			}
 			return
 		}
 	}
-	t.Fatal("o periódico não disparou")
+	t.Fatal("the periodic method didn't fire")
 }
 
-func TestBuracoCortaAJanelaAberta(t *testing.T) {
-	valores := []float64{999}
-	m := novoEstatistico(&scoreFalso{valores: valores, aquecimento: 10}, 10)
-	p := novoPiloto(m, 100)
-	p.roda(11) // aquece e abre
-	if !m.pico.aberta {
-		t.Fatal("a janela do pico devia estar aberta")
+func TestGapCutsTheOpenWindow(t *testing.T) {
+	values := []float64{999}
+	m := newStatistical(&fakeScore{values: values, warmup: 10}, 10)
+	p := newPilot(m, 100)
+	p.run(11) // warms up and opens
+	if !m.peak.open {
+		t.Fatal("the peak window should be open")
 	}
-	p.pula(LacunaMs + 1)
-	p.agora += p.passoMs
-	if v := m.Quadro(p.agora, 1000, false); !v.Corta {
-		t.Error("o buraco tem que cortar o pedaço que esperava a janela")
+	p.skip(GapMs + 1)
+	p.now += p.stepMs
+	if v := m.Frame(p.now, 1000, false); !v.Cut {
+		t.Error("the gap must cut the clip that was waiting for the window")
 	}
 }
 
-// --- o recortador -----------------------------------------------------------
+// --- the clipper ------------------------------------------------------------
 
-// fita monta quadros sintéticos para o recortador: o moof diz o instante, o
-// mdat diz se é I ou P. Assim o pedaço cortado se lê de volta como texto.
-type fita struct {
-	r     *Recortador
-	agora int64
-	saiu  []Pedaco
+// tape builds synthetic frames for the clipper: the moof says the instant, the
+// mdat says whether it's I or P. That way the cut clip reads back as text.
+type tape struct {
+	r       *Clipper
+	now     int64
+	emitted []Clip
 }
 
-func novaFita() *fita {
-	f := &fita{r: NovoRecortador("cam"), agora: 1000}
+func newTape() *tape {
+	f := &tape{r: NewClipper("cam"), now: 1000}
 	f.r.Init([]byte("[init]"))
 	return f
 }
 
-func (f *fita) quadro(v Veredito, keyframe bool) {
-	f.agora += 100
-	tipo := "P"
+func (f *tape) frame(v Verdict, keyframe bool) {
+	f.now += 100
+	kind := "P"
 	if keyframe {
-		tipo = "I"
+		kind = "I"
 	}
-	moof := []byte("<" + strconv.FormatInt(f.agora, 10))
-	mdat := []byte(tipo + ">")
-	if p, ok := f.r.Quadro(v, f.agora, keyframe, moof, mdat); ok {
-		f.saiu = append(f.saiu, p)
+	moof := []byte("<" + strconv.FormatInt(f.now, 10))
+	mdat := []byte(kind + ">")
+	if p, ok := f.r.Frame(v, f.now, keyframe, moof, mdat); ok {
+		f.emitted = append(f.emitted, p)
 	}
 }
 
 var (
-	nada      = Veredito{}
-	onset     = Veredito{Onset: true, Candidato: true}
-	candidato = Veredito{Candidato: true}
-	corta     = Veredito{Corta: true}
+	nothing   = Verdict{}
+	onset     = Verdict{Onset: true, Candidate: true}
+	candidate = Verdict{Candidate: true}
+	cut       = Verdict{Cut: true}
 )
 
-func TestRecortadorCortaDoFrameIAteOCandidato(t *testing.T) {
-	f := novaFita()
-	f.quadro(nada, true)       // 1100 I
-	f.quadro(nada, false)      // 1200
-	f.quadro(onset, false)     // 1300
-	f.quadro(nada, false)      // 1400
-	f.quadro(candidato, false) // 1500: o pico
-	f.quadro(nada, false)      // 1600
-	f.quadro(corta, false)     // 1700: fora da janela
+func TestClipperCutsFromIFrameToCandidate(t *testing.T) {
+	f := newTape()
+	f.frame(nothing, true)    // 1100 I
+	f.frame(nothing, false)   // 1200
+	f.frame(onset, false)     // 1300
+	f.frame(nothing, false)   // 1400
+	f.frame(candidate, false) // 1500: the peak
+	f.frame(nothing, false)   // 1600
+	f.frame(cut, false)       // 1700: outside the window
 
-	if len(f.saiu) != 1 {
-		t.Fatalf("%d pedaços, esperado 1", len(f.saiu))
+	if len(f.emitted) != 1 {
+		t.Fatalf("%d clips, expected 1", len(f.emitted))
 	}
-	p := f.saiu[0]
+	p := f.emitted[0]
 	want := "[init]<1100I><1200P><1300P><1400P><1500P>"
 	if got := string(p.Fmp4); got != want {
-		t.Errorf("pedaço\n got %s\nwant %s", got, want)
+		t.Errorf("clip\n got %s\nwant %s", got, want)
 	}
-	if p.OnsetMs != 1300 || p.QuadroMs != 1500 || p.Camera != "cam" {
-		t.Errorf("onset %d, quadro %d, câmera %q", p.OnsetMs, p.QuadroMs, p.Camera)
+	if p.OnsetMs != 1300 || p.FrameMs != 1500 || p.Camera != "cam" {
+		t.Errorf("onset %d, frame %d, camera %q", p.OnsetMs, p.FrameMs, p.Camera)
 	}
 }
 
-// TestRecortadorGuardaOGOPDoCandidatoQuandoChegaFrameI é o motivo de haver dois
-// buffers: o pico ficou no GOP velho, e o frame I que chegou depois não pode
-// apagá-lo.
-func TestRecortadorGuardaOGOPDoCandidatoQuandoChegaFrameI(t *testing.T) {
-	f := novaFita()
-	f.quadro(nada, true)       // 1100 I
-	f.quadro(onset, false)     // 1200
-	f.quadro(candidato, false) // 1300: o pico
-	f.quadro(nada, true)       // 1400 I: GOP novo, dentro da janela
-	f.quadro(nada, false)      // 1500
-	f.quadro(nada, true)       // 1600 I: e outro
-	f.quadro(corta, false)     // 1700
+// TestClipperKeepsCandidateGOPWhenIFrameArrives is the reason there are two
+// buffers: the peak stayed in the old GOP, and the I frame that came after
+// must not wipe it.
+func TestClipperKeepsCandidateGOPWhenIFrameArrives(t *testing.T) {
+	f := newTape()
+	f.frame(nothing, true)    // 1100 I
+	f.frame(onset, false)     // 1200
+	f.frame(candidate, false) // 1300: the peak
+	f.frame(nothing, true)    // 1400 I: new GOP, inside the window
+	f.frame(nothing, false)   // 1500
+	f.frame(nothing, true)    // 1600 I: and another
+	f.frame(cut, false)       // 1700
 
 	want := "[init]<1100I><1200P><1300P>"
-	if len(f.saiu) != 1 || string(f.saiu[0].Fmp4) != want {
-		t.Fatalf("pedaços %q, esperado [%s]", pedacos(f.saiu), want)
+	if len(f.emitted) != 1 || string(f.emitted[0].Fmp4) != want {
+		t.Fatalf("clips %q, expected [%s]", clips(f.emitted), want)
 	}
 }
 
-func TestRecortadorSegueOCandidatoParaOGOPNovo(t *testing.T) {
-	f := novaFita()
-	f.quadro(nada, true)       // 1100 I
-	f.quadro(onset, false)     // 1200
-	f.quadro(nada, true)       // 1300 I
-	f.quadro(nada, false)      // 1400
-	f.quadro(candidato, false) // 1500: o pico, já no GOP novo
-	f.quadro(corta, true)      // 1600 I, e fora da janela
+func TestClipperFollowsCandidateIntoNewGOP(t *testing.T) {
+	f := newTape()
+	f.frame(nothing, true)    // 1100 I
+	f.frame(onset, false)     // 1200
+	f.frame(nothing, true)    // 1300 I
+	f.frame(nothing, false)   // 1400
+	f.frame(candidate, false) // 1500: the peak, already in the new GOP
+	f.frame(cut, true)        // 1600 I, and outside the window
 
 	want := "[init]<1300I><1400P><1500P>"
-	if len(f.saiu) != 1 || string(f.saiu[0].Fmp4) != want {
-		t.Fatalf("pedaços %q, esperado [%s]", pedacos(f.saiu), want)
+	if len(f.emitted) != 1 || string(f.emitted[0].Fmp4) != want {
+		t.Fatalf("clips %q, expected [%s]", clips(f.emitted), want)
 	}
-	// E o GOP seguinte começa limpo.
-	f.quadro(onset, false) // 1700
-	f.quadro(corta, false)
-	if want := "[init]<1600I><1700P>"; len(f.saiu) != 2 || string(f.saiu[1].Fmp4) != want {
-		t.Fatalf("pedaços %q, o segundo devia ser %s", pedacos(f.saiu), want)
-	}
-}
-
-func TestRecortadorNaoCortaSemFrameI(t *testing.T) {
-	f := novaFita()
-	f.quadro(nada, false)  // a conexão começou no meio de um GOP
-	f.quadro(onset, false) // sem o frame I dele, nada se decodifica
-	f.quadro(corta, false)
-	if len(f.saiu) != 0 {
-		t.Fatalf("cortou pedaço sem frame I: %q", pedacos(f.saiu))
+	// And the next GOP starts clean.
+	f.frame(onset, false) // 1700
+	f.frame(cut, false)
+	if want := "[init]<1600I><1700P>"; len(f.emitted) != 2 || string(f.emitted[1].Fmp4) != want {
+		t.Fatalf("clips %q, the second should be %s", clips(f.emitted), want)
 	}
 }
 
-// TestRecortadorContaOOnsetSemVideo: o onset que termina sem pedaço é contado
-// onde termina, e o que ainda espera o pico NÃO é - era isso que a tela de
-// Diagnóstico mostrava como perdido durante os segundos da janela.
-func TestRecortadorContaOOnsetSemVideo(t *testing.T) {
-	f := novaFita()
-	f.quadro(nada, false)  // a conexão começou no meio de um GOP
-	f.quadro(onset, false) // janela aberta: ainda não é perdido
-	if n := f.r.SemVideo(); n != 0 {
-		t.Fatalf("contou %d com a janela aberta", n)
-	}
-	f.quadro(corta, false) // fechou sem frame I
-	if n := f.r.SemVideo(); n != 1 {
-		t.Fatalf("sem frame I: %d, esperado 1", n)
-	}
-
-	f.quadro(nada, true)
-	f.quadro(onset, false)
-	f.quadro(corta, false) // este sai
-	if n := f.r.SemVideo(); n != 1 || len(f.saiu) != 1 {
-		t.Fatalf("cortou %d e contou %d sem vídeo, esperado 1 e 1", len(f.saiu), n)
-	}
-
-	f.quadro(onset, false)
-	f.r.Esquece() // detecção trocada no meio da janela
-	if n := f.r.SemVideo(); n != 2 {
-		t.Fatalf("esquecido: %d, esperado 2", n)
-	}
-
-	f.quadro(nada, true)
-	f.quadro(onset, false)
-	f.quadro(onset, false) // o mecanismo foi trocado e o pendente não fechou
-	if n := f.r.SemVideo(); n != 3 {
-		t.Fatalf("substituído: %d, esperado 3", n)
+func TestClipperDoesNotCutWithoutIFrame(t *testing.T) {
+	f := newTape()
+	f.frame(nothing, false) // the connection started in the middle of a GOP
+	f.frame(onset, false)   // without its I frame, nothing decodes
+	f.frame(cut, false)
+	if len(f.emitted) != 0 {
+		t.Fatalf("cut a clip without an I frame: %q", clips(f.emitted))
 	}
 }
 
-func TestRecortadorEncerraDevolveOPendente(t *testing.T) {
-	f := novaFita()
-	f.quadro(nada, true)
-	f.quadro(onset, false)
-	p, ok := f.r.Encerra()
+// TestClipperCountsOnsetWithoutVideo: an onset that ends without a clip is
+// counted where it ends, and one still waiting for its peak is NOT - that's
+// what the Diagnostics screen used to show as lost during the seconds of the
+// window.
+func TestClipperCountsOnsetWithoutVideo(t *testing.T) {
+	f := newTape()
+	f.frame(nothing, false) // the connection started in the middle of a GOP
+	f.frame(onset, false)   // window open: not lost yet
+	if n := f.r.NoVideo(); n != 0 {
+		t.Fatalf("counted %d with the window open", n)
+	}
+	f.frame(cut, false) // closed without an I frame
+	if n := f.r.NoVideo(); n != 1 {
+		t.Fatalf("without an I frame: %d, expected 1", n)
+	}
+
+	f.frame(nothing, true)
+	f.frame(onset, false)
+	f.frame(cut, false) // this one comes out
+	if n := f.r.NoVideo(); n != 1 || len(f.emitted) != 1 {
+		t.Fatalf("cut %d and counted %d without video, expected 1 and 1", len(f.emitted), n)
+	}
+
+	f.frame(onset, false)
+	f.r.Forget() // detection switched in the middle of the window
+	if n := f.r.NoVideo(); n != 2 {
+		t.Fatalf("forgotten: %d, expected 2", n)
+	}
+
+	f.frame(nothing, true)
+	f.frame(onset, false)
+	f.frame(onset, false) // the method was switched and the pending one didn't close
+	if n := f.r.NoVideo(); n != 3 {
+		t.Fatalf("replaced: %d, expected 3", n)
+	}
+}
+
+func TestClipperCloseReturnsThePending(t *testing.T) {
+	f := newTape()
+	f.frame(nothing, true)
+	f.frame(onset, false)
+	p, ok := f.r.Close()
 	if !ok || string(p.Fmp4) != "[init]<1100I><1200P>" {
-		t.Fatalf("Encerra: ok=%v %q", ok, p.Fmp4)
+		t.Fatalf("Close: ok=%v %q", ok, p.Fmp4)
 	}
-	if _, ok := f.r.Encerra(); ok {
-		t.Error("o mesmo pedaço saiu duas vezes")
+	if _, ok := f.r.Close(); ok {
+		t.Error("the same clip came out twice")
 	}
-	// Até o próximo Init, nada é guardado.
-	f.quadro(nada, true)
-	f.quadro(onset, false)
-	if _, ok := f.r.Encerra(); ok {
-		t.Error("guardou quadro de uma conexão que já tinha acabado")
-	}
-}
-
-func TestRecortadorRespeitaOTeto(t *testing.T) {
-	f := novaFita()
-	f.quadro(nada, true)
-	f.quadro(onset, false)
-	// Um quadro que estoura o teto não é guardado, e não vira candidato.
-	grande := make([]byte, TetoDoGOPBytes)
-	if _, ok := f.r.Quadro(candidato, 5000, false, nil, grande); ok {
-		t.Fatal("cortou antes da hora")
-	}
-	f.quadro(corta, false)
-	if len(f.saiu) != 1 || string(f.saiu[0].Fmp4) != "[init]<1100I><1200P>" {
-		t.Fatalf("pedaços %q: o candidato que cabia tinha que continuar valendo", pedacos(f.saiu))
-	}
-	if n := cap(f.r.corrente) + cap(f.r.reserva); n > 2*TetoDoGOPBytes {
-		t.Errorf("os buffers cresceram para %d bytes", n)
+	// Until the next Init, nothing is stored.
+	f.frame(nothing, true)
+	f.frame(onset, false)
+	if _, ok := f.r.Close(); ok {
+		t.Error("stored a frame from a connection that had already ended")
 	}
 }
 
-func pedacos(ps []Pedaco) []string {
+func TestClipperRespectsTheCap(t *testing.T) {
+	f := newTape()
+	f.frame(nothing, true)
+	f.frame(onset, false)
+	// A frame that busts the cap isn't stored, and doesn't become a candidate.
+	large := make([]byte, MaxGOPBytes)
+	if _, ok := f.r.Frame(candidate, 5000, false, nil, large); ok {
+		t.Fatal("cut too early")
+	}
+	f.frame(cut, false)
+	if len(f.emitted) != 1 || string(f.emitted[0].Fmp4) != "[init]<1100I><1200P>" {
+		t.Fatalf("clips %q: the candidate that fit should still stand", clips(f.emitted))
+	}
+	if n := cap(f.r.current) + cap(f.r.spare); n > 2*MaxGOPBytes {
+		t.Errorf("the buffers grew to %d bytes", n)
+	}
+}
+
+func clips(ps []Clip) []string {
 	var out []string
 	for _, p := range ps {
 		out = append(out, string(p.Fmp4))
@@ -529,118 +533,119 @@ func pedacos(ps []Pedaco) []string {
 	return out
 }
 
-func TestRecortadorNaoAlocaAoGuardar(t *testing.T) {
-	r := NovoRecortador("cam")
+func TestClipperDoesNotAllocateWhenStoring(t *testing.T) {
+	r := NewClipper("cam")
 	r.Init(make([]byte, 700))
 	moof, mdat := make([]byte, 100), make([]byte, 900)
-	agora := int64(0)
-	quadro := func(i int) {
-		agora += 67
-		r.Quadro(nada, agora, i%60 == 0, moof, mdat)
+	now := int64(0)
+	frame := func(i int) {
+		now += 67
+		r.Frame(nothing, now, i%60 == 0, moof, mdat)
 	}
-	// Aquece fora da medição: os buffers crescem até o GOP.
+	// Warms up outside the measurement: the buffers grow to the GOP.
 	for i := range 240 {
-		quadro(i)
+		frame(i)
 	}
 	i := 240
 	n := testing.AllocsPerRun(2000, func() {
-		quadro(i)
+		frame(i)
 		i++
 	})
 	if n != 0 {
-		t.Errorf("%v alocações por quadro guardado, esperado 0", n)
+		t.Errorf("%v allocations per stored frame, expected 0", n)
 	}
 }
 
-// --- os contratos -----------------------------------------------------------
+// --- the contracts ----------------------------------------------------------
 
-func TestNovoCaiNoPadraoEmVezDeFicarSemGatilho(t *testing.T) {
-	casos := []struct {
-		mecanismo string
-		nivel     int
+func TestNewMethodFallsBackToDefault(t *testing.T) {
+	cases := []struct {
+		method string
+		level  int
 	}{
 		{"nao-existe", 4},
 		{"", 4},
 		{"kleinberg-p", 0},
 		{"kleinberg-p", 9},
 	}
-	for _, c := range casos {
-		m := Novo(c.mecanismo, c.nivel)
+	for _, c := range cases {
+		m := NewMethod(c.method, c.level)
 		if m == nil {
-			t.Fatalf("%q nível %d: sem mecanismo", c.mecanismo, c.nivel)
+			t.Fatalf("%q level %d: no method", c.method, c.level)
 		}
 	}
-	// O padrão tem que ser o padrão de verdade, e não um mecanismo qualquer.
-	if got := Novo("nao-existe", 4).Nome(); got != MecanismoPadrao {
-		t.Errorf("nome do padrão: %q, esperado %q", got, MecanismoPadrao)
+	// The default must be the actual default, not just any method.
+	if got := NewMethod("nao-existe", 4).Name(); got != DefaultMethod {
+		t.Errorf("default name: %q, expected %q", got, DefaultMethod)
 	}
-	// Nível fora da faixa cai no NivelPadrao, e o limiar tem que ser o dele.
-	e := Novo("kleinberg-p", 99).(*estatistico)
-	if e.alto != LimiarKleinbergP[NivelPadrao] {
-		t.Errorf("limiar %g, esperado o do nível padrão %g", e.alto, LimiarKleinbergP[NivelPadrao])
-	}
-}
-
-func TestLimiarBaixoDesceMesmoComLimiarNegativo(t *testing.T) {
-	if got := LimiarBaixo(10); math.Abs(got-4) > 1e-9 {
-		t.Errorf("LimiarBaixo(10) = %g, esperado 4", got)
-	}
-	if got := LimiarBaixo(-10); got >= -10 {
-		t.Errorf("LimiarBaixo(-10) = %g: com limiar negativo fechar é DESCER", got)
+	// A level out of range falls back to DefaultLevel, and the threshold must
+	// be that level's.
+	e := NewMethod("kleinberg-p", 99).(*statistical)
+	if e.high != KleinbergPThreshold[DefaultLevel] {
+		t.Errorf("threshold %g, expected the default level's %g", e.high, KleinbergPThreshold[DefaultLevel])
 	}
 }
 
-// TestNaoAlocaNoCaminhoQuente guarda um requisito que não é detalhe: isto roda
-// para cada câmera, a 15 quadros por segundo, num Orange Pi Zero 3. Com dez
-// câmeras, uma alocação por quadro seriam 150 por segundo só de lixo para o GC
-// recolher.
-func TestNaoAlocaNoCaminhoQuente(t *testing.T) {
-	for nome := range Mecanismos {
-		m := Novo(nome, NivelPadrao)
+func TestLowThresholdGoesDownEvenWhenNegative(t *testing.T) {
+	if got := LowThreshold(10); math.Abs(got-4) > 1e-9 {
+		t.Errorf("LowThreshold(10) = %g, expected 4", got)
+	}
+	if got := LowThreshold(-10); got >= -10 {
+		t.Errorf("LowThreshold(-10) = %g: with a negative threshold closing means going DOWN", got)
+	}
+}
+
+// TestNoAllocationOnHotPath guards a requirement that is not a detail: this
+// runs for every camera, at 15 frames per second, on an Orange Pi Zero 3. With
+// ten cameras, one allocation per frame would be 150 per second of garbage for
+// the GC to collect.
+func TestNoAllocationOnHotPath(t *testing.T) {
+	for name := range Methods {
+		m := NewMethod(name, DefaultLevel)
 		var t0 int64 = 1_000_000
-		// Aquece fora da medição.
+		// Warms up outside the measurement.
 		for range 400 {
 			t0 += 67
-			m.Quadro(t0, 900, false)
+			m.Frame(t0, 900, false)
 		}
 		n := testing.AllocsPerRun(2000, func() {
 			t0 += 67
-			m.Quadro(t0, 900, false)
+			m.Frame(t0, 900, false)
 		})
 		if n != 0 {
-			t.Errorf("%s: %v alocações por quadro, esperado 0", nome, n)
+			t.Errorf("%s: %v allocations per frame, expected 0", name, n)
 		}
 	}
 }
 
-// TestScoreNaoAlocaNoCaminhoQuente é o mesmo requisito do teste acima, mas
-// sobre as FUNÇÕES, e não sobre os mecanismos: função nova entra em
-// FuncoesDeScore antes de entrar em Mecanismos, e sem isto ela passaria sem
-// que ninguém medisse o preço dela por quadro.
-func TestScoreNaoAlocaNoCaminhoQuente(t *testing.T) {
-	for nome, novo := range FuncoesDeScore {
-		s := novo()
+// TestScoreDoesNotAllocateOnHotPath is the same requirement as the test above,
+// but on the FUNCTIONS, not on the methods: a new function goes into
+// ScoreFuncs before going into Methods, and without this it would get in
+// without anyone measuring its price per frame.
+func TestScoreDoesNotAllocateOnHotPath(t *testing.T) {
+	for name, ctor := range ScoreFuncs {
+		s := ctor()
 		i := 0
 		for ; i < 400; i++ {
-			s.Empurra(cenaParada(i), false, 67)
+			s.Push(stillScene(i), false, 67)
 		}
 		n := testing.AllocsPerRun(2000, func() {
 			i++
-			s.Empurra(cenaParada(i), false, 67)
+			s.Push(stillScene(i), false, 67)
 		})
 		if n != 0 {
-			t.Errorf("%s: %v alocações por quadro, esperado 0", nome, n)
+			t.Errorf("%s: %v allocations per frame, expected 0", name, n)
 		}
 	}
 }
 
-func TestDetectorNenhumNaoOlhaEIssoEUmResultado(t *testing.T) {
-	d := Detectores["nenhum"]("")
-	visao, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("gop")})
+func TestNoneDetectorReturnsAnEmptyResult(t *testing.T) {
+	d := Detectors["nenhum"]("")
+	out, err := d.Infer(t.Context(), Clip{Fmp4: []byte("gop")})
 	if err != nil {
-		t.Fatalf("erro inesperado: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(visao.Achados) != 0 {
-		t.Errorf("achou %d objetos sem olhar", len(visao.Achados))
+	if len(out.Detections) != 0 {
+		t.Errorf("found %d objects without inferring", len(out.Detections))
 	}
 }

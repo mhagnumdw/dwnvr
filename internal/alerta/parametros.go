@@ -49,7 +49,7 @@ const (
 // Acima dela não volta detalhe que já se perdeu; medido em 27/10/2026, em 4
 // quadros reais de 480×270, 85 deu ~25% a mais (de 24-43 KB para 30-54 KB)
 // sem diferença visível no traço nem na imagem, ampliada 4 vezes.
-const QualidadeDoQuadro = detect.QualidadeDoQuadro
+const QualidadeDoQuadro = detect.FrameQuality
 
 // AlertasPorHora e RajadaDeAlertas são o teto de envio dos meios, para a
 // instalação inteira: depois de RajadaDeAlertas seguidos, passa um alerta a

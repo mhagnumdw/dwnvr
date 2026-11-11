@@ -26,13 +26,13 @@ para a tela.
 | `defaults.segmentSeconds` | `dwnvr.yaml` | Ajuste técnico, não escolha de uso: troca o teto do que se perde numa queda de energia pela quantidade de arquivos. Mudar reconecta a câmera |
 | `defaults.stallSeconds` | `dwnvr.yaml` | Depende do enlace de cada câmera (Wi-Fi ruim precisa de mais folga que cabo), e mudar reconecta a câmera. Nem o formulário de câmera o mostra |
 | `TZ` | env do container do dwnvr | É do container, não da aplicação. Mudar desloca a virada de dia das gravações novas em relação às antigas |
-| constantes internas (`sessionTTL`, `maxExportSpan`, `gapTolerance`, backoff de reconexão, intervalo da retenção) | código | Ninguém pediu, e algumas estão amarradas: o `gapTolerance` precisa ser igual ao `LacunaMs` da detecção, senão os limiares medidos deixam de valer |
+| constantes internas (`sessionTTL`, `maxExportSpan`, `gapTolerance`, backoff de reconexão, intervalo da retenção) | código | Ninguém pediu, e algumas estão amarradas: o `gapTolerance` precisa ser igual ao `GapMs` da detecção, senão os limiares medidos deixam de valer |
 | `defaults.detectMecanismo` | `dwnvr.yaml` | O `periodico` existe como régua de comparação e para quem quer um comportamento sem surpresa numa câmera específica, não como padrão de todas |
 | `detector.url` | `dwnvr.yaml` | Ligação entre containers, amarrada ao nome do serviço no compose. Hoje é lida só na subida: é dela que a fila nasce ou não |
 | `DETECT_MODELO` | env do `dwnvr-detect` | Outro `.onnx` entra por volume no compose, e a tela não monta volume |
 | `DETECT_PORTA` | env do `dwnvr-detect` | Ligação entre containers, e tem que bater com a `detector.url` |
-| números do `internal/detect/parametros.go`: corte 0,40, piso 0,20, IoU 0,7, 5 faltas, janela de 3 s, 2 pedaços por câmera, timeout de 60 s, teto de 4 MB do GOP, parâmetros do score e `LimiarKleinbergP` | código | É medição, não preferência. Expor seria decisão técnica no colo do usuário, e qualquer mudança faz a medição deixar de valer. Há acoplamento que não se vê: o `LimiarKleinbergP` só corresponde aos cinco níveis enquanto os parâmetros do score não mudam. O corte de confiança é o que outros NVRs expõem, e a resposta é a mesma |
-| famílias que viram marca (`FamiliasPadrao`) | código | Desligar `animal` não economiza CPU, porque a olhada acontece igual, e a marca não seria gravada: some para sempre. Se um dia incomodar, o caminho é um filtro na timeline |
+| números do `internal/detect/params.go`: corte 0,40, piso 0,20, IoU 0,7, 5 faltas, janela de 3 s, 2 pedaços por câmera, timeout de 60 s, teto de 4 MB do GOP, parâmetros do score e `KleinbergPThreshold` | código | É medição, não preferência. Expor seria decisão técnica no colo do usuário, e qualquer mudança faz a medição deixar de valer. Há acoplamento que não se vê: o `KleinbergPThreshold` só corresponde aos cinco níveis enquanto os parâmetros do score não mudam. O corte de confiança é o que outros NVRs expõem, e a resposta é a mesma |
+| famílias que viram marca (`ClassFamilies`) | código | Desligar `animal` não economiza CPU, porque a olhada acontece igual, e a marca não seria gravada: some para sempre. Se um dia incomodar, o caminho é um filtro na timeline |
 
 ## O critério
 
@@ -85,7 +85,7 @@ seção de padrões enganaria quem usa.
   sistema dentro do mesmo processo, num container com teto de 400 MB. O seguro é
   o sidecar se reiniciar com o número novo: fica alguns segundos sem olhar, e a
   gravação não é afetada. A olhada que falhar nesse meio cai na pausa de 30 s da
-  fila (`PausaDepoisDeFalhaMs`).
+  fila (`PauseAfterFailureMs`).
 - **O teto é o de CPU do container, se houver um.** O compose padrão não põe
   `cpus`, e o `auto` já usa metade dos núcleos, até 4. Mas quem puser um teto
   à mão não pode passar dele: acima do teto, threads brigando por núcleo são

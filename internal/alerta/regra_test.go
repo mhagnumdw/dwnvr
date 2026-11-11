@@ -21,7 +21,7 @@ var (
 )
 
 // camera devolve uma câmera que alerta, como o Resolve a entrega.
-func camera(familias []detect.Familia, areas ...string) config.Camera {
+func camera(familias []detect.Family, areas ...string) config.Camera {
 	sim := true
 	return config.Camera{ID: "cam_a", Name: "Frente", Enabled: true, Detect: &sim,
 		Areas: []config.Area{metadeEsquerda, chaoDoFundo},
@@ -61,14 +61,14 @@ func TestRegraSoNasceComAlertaLigado(t *testing.T) {
 	}
 	for nome, muda := range casos {
 		t.Run(nome, func(t *testing.T) {
-			cam := camera([]detect.Familia{detect.Pessoa}, "esq")
+			cam := camera([]detect.Family{detect.Person}, "esq")
 			muda(&cam)
 			if r := NovaRegra(cam); r != nil {
 				t.Errorf("regra %+v, esperava nil", r)
 			}
 		})
 	}
-	if NovaRegra(camera([]detect.Familia{detect.Pessoa})) == nil {
+	if NovaRegra(camera([]detect.Family{detect.Person})) == nil {
 		t.Error("a câmera com alerta ligado ficou sem regra")
 	}
 }
@@ -76,7 +76,7 @@ func TestRegraSoNasceComAlertaLigado(t *testing.T) {
 // TestNaImagemInteira: sem áreas, passa toda marca de uma família do alerta,
 // e o objeto não leva área. A moto não é da família e fica de fora.
 func TestNaImagemInteira(t *testing.T) {
-	r := NovaRegra(camera([]detect.Familia{detect.Pessoa}))
+	r := NovaRegra(camera([]detect.Family{detect.Person}))
 	jpeg := []byte("jpeg")
 	a, ok := r.Avalia([]store.Evento{pessoaNaEsquerda, pessoaNaDireita, motoNaEsquerda}, jpeg)
 	if !ok {
@@ -127,7 +127,7 @@ func TestNasAreas(t *testing.T) {
 	}
 	for nome, c := range casos {
 		t.Run(nome, func(t *testing.T) {
-			r := NovaRegra(camera([]detect.Familia{detect.Pessoa}, c.areas...))
+			r := NovaRegra(camera([]detect.Family{detect.Person}, c.areas...))
 			a, ok := r.Avalia(c.marcas, nil)
 			if ok != (len(c.scores) > 0) {
 				t.Fatalf("alertou: %v, objetos %+v", ok, a.Objetos)
@@ -146,7 +146,7 @@ func TestNasAreas(t *testing.T) {
 
 // TestVariasFamilias: com pessoa e veículo, os dois passam no mesmo alerta.
 func TestVariasFamilias(t *testing.T) {
-	r := NovaRegra(camera([]detect.Familia{detect.Pessoa, detect.Veiculo}, "esq"))
+	r := NovaRegra(camera([]detect.Family{detect.Person, detect.Vehicle}, "esq"))
 	a, ok := r.Avalia([]store.Evento{pessoaNaEsquerda, motoNaEsquerda}, nil)
 	if !ok || len(a.Objetos) != 2 || a.Objetos[1].Familia != "veiculo" {
 		t.Errorf("alertou: %v, objetos %+v", ok, a.Objetos)
@@ -157,7 +157,7 @@ func TestVariasFamilias(t *testing.T) {
 // e não só as em que algum objeto caiu: o quadro desenha o contorno de todas.
 // Na imagem inteira, não leva nenhuma.
 func TestLevaAsAreasDoAlerta(t *testing.T) {
-	r := NovaRegra(camera([]detect.Familia{detect.Pessoa}, "esq", "chao"))
+	r := NovaRegra(camera([]detect.Family{detect.Person}, "esq", "chao"))
 	a, ok := r.Avalia([]store.Evento{pessoaNaEsquerda}, nil)
 	if !ok || len(a.Areas) != 2 {
 		t.Fatalf("alertou: %v, áreas %+v", ok, a.Areas)
@@ -168,7 +168,7 @@ func TestLevaAsAreasDoAlerta(t *testing.T) {
 		}
 	}
 
-	r = NovaRegra(camera([]detect.Familia{detect.Pessoa}))
+	r = NovaRegra(camera([]detect.Family{detect.Person}))
 	if a, _ := r.Avalia([]store.Evento{pessoaNaEsquerda}, nil); a.Areas != nil {
 		t.Errorf("na imagem inteira levou as áreas %+v", a.Areas)
 	}
@@ -178,7 +178,7 @@ func TestLevaAsAreasDoAlerta(t *testing.T) {
 // objeto que passou, com o id das áreas, e não o nome. O que não passou fica
 // como estava.
 func TestMarcaAsLinhas(t *testing.T) {
-	r := NovaRegra(camera([]detect.Familia{detect.Pessoa}, "esq", "chao"))
+	r := NovaRegra(camera([]detect.Family{detect.Person}, "esq", "chao"))
 	linhas := []store.Evento{pessoaNaEsquerda, pessoaNaDireita, motoNaEsquerda}
 	if _, ok := r.Avalia(linhas, nil); !ok {
 		t.Fatal("não alertou")
@@ -196,7 +196,7 @@ func TestMarcaAsLinhas(t *testing.T) {
 
 	// Sem áreas no alerta, a marca vem sem `alertAreas`.
 	linhas = []store.Evento{pessoaNaDireita}
-	NovaRegra(camera([]detect.Familia{detect.Pessoa})).Avalia(linhas, nil)
+	NovaRegra(camera([]detect.Family{detect.Person})).Avalia(linhas, nil)
 	if !linhas[0].Alert || linhas[0].AlertAreas != nil {
 		t.Errorf("imagem inteira: alert %v em %v", linhas[0].Alert, linhas[0].AlertAreas)
 	}
@@ -239,7 +239,7 @@ func TestNoHorario(t *testing.T) {
 	}
 	for nome, c := range casos {
 		t.Run(nome, func(t *testing.T) {
-			cam := camera([]detect.Familia{detect.Pessoa})
+			cam := camera([]detect.Family{detect.Person})
 			cam.Alert.Schedules = quarta
 			linha := pessoaNaEsquerda
 			linha.InstanteMs = c.instanteMs
@@ -255,7 +255,7 @@ func TestNoHorario(t *testing.T) {
 // TestHorarioComAreas: dentro do horário, a área ainda decide; fora, nem a
 // pessoa na área alerta.
 func TestHorarioComAreas(t *testing.T) {
-	cam := camera([]detect.Familia{detect.Pessoa}, "esq")
+	cam := camera([]detect.Family{detect.Person}, "esq")
 	cam.Alert.Schedules = quarta
 	r := NovaRegra(cam)
 	for _, c := range []struct {

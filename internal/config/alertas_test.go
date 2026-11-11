@@ -24,7 +24,7 @@ func TestAlertaValeNoBoot(t *testing.T) {
 		t.Fatalf("erro %v, avisos %+v", err, avisos)
 	}
 	al := cams[0].Alert
-	if al == nil || !al.Enabled || !slices.Equal(al.Families, []detect.Familia{detect.Pessoa, detect.Veiculo}) ||
+	if al == nil || !al.Enabled || !slices.Equal(al.Families, []detect.Family{detect.Person, detect.Vehicle}) ||
 		!slices.Equal(al.Areas, []string{"k3f9a2"}) {
 		t.Errorf("alerta %+v", al)
 	}
@@ -38,24 +38,24 @@ func TestAlertaRuimSaiComAviso(t *testing.T) {
 		alerta   AlertaDaCamera
 		campo    string
 		aceito   string
-		familias []detect.Familia
+		familias []detect.Family
 		areas    []string
 	}{
 		"família desconhecida": {
-			AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa, "gente"}},
-			"alert.families[1]", "pessoa, veiculo, animal", []detect.Familia{detect.Pessoa}, nil,
+			AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person, "gente"}},
+			"alert.families[1]", "pessoa, veiculo, animal", []detect.Family{detect.Person}, nil,
 		},
 		"família repetida": {
-			AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa, detect.Pessoa}},
-			"alert.families[1]", "não se repita", []detect.Familia{detect.Pessoa}, nil,
+			AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person, detect.Person}},
+			"alert.families[1]", "não se repita", []detect.Family{detect.Person}, nil,
 		},
 		"área que não existe": {
-			AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}, Areas: []string{"k3f9a2", "sumiu"}},
-			"alert.areas[1]", "área desta câmera", []detect.Familia{detect.Pessoa}, []string{"k3f9a2"},
+			AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}, Areas: []string{"k3f9a2", "sumiu"}},
+			"alert.areas[1]", "área desta câmera", []detect.Family{detect.Person}, []string{"k3f9a2"},
 		},
 		"área repetida": {
-			AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}, Areas: []string{"k3f9a2", "k3f9a2"}},
-			"alert.areas[1]", "não se repita", []detect.Familia{detect.Pessoa}, []string{"k3f9a2"},
+			AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}, Areas: []string{"k3f9a2", "k3f9a2"}},
+			"alert.areas[1]", "não se repita", []detect.Family{detect.Person}, []string{"k3f9a2"},
 		},
 	}
 	cfg := &Config{}
@@ -84,7 +84,7 @@ func TestAlertaRuimSaiComAviso(t *testing.T) {
 // TestAlertaSemFamiliaDesliga: ligado e sem família que valha, o alerta não
 // tem o que avisar, e fica desligado.
 func TestAlertaSemFamiliaDesliga(t *testing.T) {
-	for nome, familias := range map[string][]detect.Familia{
+	for nome, familias := range map[string][]detect.Family{
 		"nenhuma":      nil,
 		"só inválidas": {"gente"},
 	} {
@@ -112,7 +112,7 @@ func TestAlertaSemAsAreasDesliga(t *testing.T) {
 	} {
 		t.Run(nome, func(t *testing.T) {
 			cam, avisos := (&Config{}).ConfereCamera(Camera{ID: "cam_a", Areas: areas,
-				Alert: &AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}, Areas: []string{"k3f9a2"}}})
+				Alert: &AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person}, Areas: []string{"k3f9a2"}}})
 			if cam.Alert.Enabled {
 				t.Errorf("o alerta ficou ligado: %+v", cam.Alert)
 			}
@@ -127,7 +127,7 @@ func TestAlertaSemAsAreasDesliga(t *testing.T) {
 // áreas, e desligado sem família também vale.
 func TestAlertaDesligadoGuardaOResto(t *testing.T) {
 	cfg := &Config{}
-	guardado := AlertaDaCamera{Families: []detect.Familia{detect.Animal}, Areas: []string{"k3f9a2"}}
+	guardado := AlertaDaCamera{Families: []detect.Family{detect.Animal}, Areas: []string{"k3f9a2"}}
 	cam, avisos := cfg.ConfereCamera(Camera{ID: "cam_a", Areas: []Area{portao}, Alert: &guardado})
 	if len(avisos) > 0 || cam.Alert.Enabled || !slices.Equal(cam.Alert.Families, guardado.Families) ||
 		!slices.Equal(cam.Alert.Areas, guardado.Areas) {
@@ -209,7 +209,7 @@ func TestHorarioRuimSaiComAviso(t *testing.T) {
 			entrada := []HorarioDoAlerta{noite, c.ruim}
 			dias := slices.Clone(c.ruim.Days)
 			cam, avisos := cfg.ConfereCamera(Camera{ID: "cam_a", Alert: &AlertaDaCamera{Enabled: true,
-				Families: []detect.Familia{detect.Pessoa}, Schedules: entrada}})
+				Families: []detect.Family{detect.Person}, Schedules: entrada}})
 			if !slices.Equal(entrada[1].Days, dias) {
 				t.Error("o ConfereCamera mexeu nos dias de entrada")
 			}
@@ -237,7 +237,7 @@ func TestHorariosAlemDoTeto(t *testing.T) {
 		horarios[i] = HorarioDoAlerta{Days: []time.Weekday{time.Monday}, From: minuto, To: "23:59"}
 	}
 	cam, avisos := (&Config{}).ConfereCamera(Camera{ID: "cam_a", Alert: &AlertaDaCamera{Enabled: true,
-		Families: []detect.Familia{detect.Pessoa}, Schedules: horarios}})
+		Families: []detect.Family{detect.Person}, Schedules: horarios}})
 	if !cam.Alert.Enabled || !reflect.DeepEqual(cam.Alert.Schedules, horarios[:MaxHorariosDoAlerta]) {
 		t.Errorf("ficaram %d horários, ligado %v", len(cam.Alert.Schedules), cam.Alert.Enabled)
 	}
@@ -252,7 +252,7 @@ func TestHorariosAlemDoTeto(t *testing.T) {
 // receberia o dia.
 func TestAlertaSemHorarioQueValhaDesliga(t *testing.T) {
 	cam, avisos := (&Config{}).ConfereCamera(Camera{ID: "cam_a", Alert: &AlertaDaCamera{Enabled: true,
-		Families:  []detect.Familia{detect.Pessoa},
+		Families:  []detect.Family{detect.Person},
 		Schedules: []HorarioDoAlerta{{Days: []time.Weekday{1}, From: "22:00", To: "06:00"}}}})
 	if cam.Alert.Enabled || len(cam.Alert.Schedules) != 0 {
 		t.Errorf("alerta %+v", cam.Alert)

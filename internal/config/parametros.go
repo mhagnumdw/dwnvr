@@ -35,7 +35,7 @@ var (
 
 	// faixaSensibilidade é a dos níveis que o detect conhece; o número mora lá
 	// porque cada nível tem um limiar medido.
-	faixaSensibilidade = Faixa{Min: detect.NivelMin, Max: detect.NivelMax}
+	faixaSensibilidade = Faixa{Min: detect.MinLevel, Max: detect.MaxLevel}
 
 	// FaixaLoginAttemptsPerMinute: zero desliga o limite. Cada tentativa custa
 	// uma conta de senha inteira (0,77 s de CPU num Orange Pi Zero 3). 12 por

@@ -11,7 +11,7 @@ Medição de uma mudança candidata no score do gatilho de movimento, feita em
 ## O problema
 
 O score compara cada quadro com a média e o desvio recentes da PRÓPRIA câmera.
-Hoje ele para de aprender enquanto `z >= CongelaAcima` (3,0) - quadro a quadro.
+Hoje ele para de aprender enquanto `z >= FreezeAbove` (3,0) - quadro a quadro.
 O que escapa é a **cauda** do evento: o carro que entra na garagem produz uns
 segundos de z alto, que não são aprendidos, e depois dezenas de segundos de z
 entre 0 e 3 - a manobra, a porta, a sombra -, que são. Essa cauda entra na
@@ -30,11 +30,11 @@ minuto antes, e o gatilho os considerou normais.
 ## A candidata
 
 `kleinberg-c`: o mesmo score, com uma diferença só - o congelamento ganha
-**histerese própria**. Ele abre em `CongelaAcima`, como hoje, e só fecha depois
+**histerese própria**. Ele abre em `FreezeAbove`, como hoje, e só fecha depois
 de `QuadrosParaDescongelar` quadros SEGUIDOS abaixo de `SaiDoEventoZ`. A cauda
 inteira fica de fora do aprendizado.
 
-Com `SaiDoEventoZ = CongelaAcima` e `QuadrosParaDescongelar = 1` ele é, por
+Com `SaiDoEventoZ = FreezeAbove` e `QuadrosParaDescongelar = 1` ele é, por
 construção, o score de hoje - e há teste que segura isso
 (`TestCongeladoComHistereseDeUmQuadroEOOriginal`).
 

@@ -14,7 +14,7 @@ import (
 // polígono e regra, os horários já viram minutos, e a olhada só faz as contas.
 type Regra struct {
 	camera, nome string
-	familias     []detect.Familia
+	familias     []detect.Family
 	areas        []areaDaRegra
 	// contornos são as mesmas áreas como o Alerta as leva, montadas uma vez
 	// aqui: a olhada só passa o slice adiante.
@@ -97,7 +97,7 @@ func (r *Regra) Avalia(marcas []store.Evento, quadro []byte) (Alerta, bool) {
 	}
 	var objetos []Objeto
 	for i, m := range marcas {
-		if m.Caixa == nil || !slices.Contains(r.familias, detect.Familia(m.Familia)) {
+		if m.Caixa == nil || !slices.Contains(r.familias, detect.Family(m.Familia)) {
 			continue
 		}
 		var ids, nomes []string

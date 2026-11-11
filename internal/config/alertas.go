@@ -20,7 +20,7 @@ type AlertaDaCamera struct {
 
 	// Families são as famílias que alertam, como "pessoa". Com o alerta
 	// ligado, pelo menos uma.
-	Families []detect.Familia `json:"families,omitempty"`
+	Families []detect.Family `json:"families,omitempty"`
 
 	// Areas são os IDs das áreas desta câmera em que o objeto precisa cair.
 	// Vazio é a imagem inteira.
@@ -79,10 +79,10 @@ func confereAlerta(cam Camera, av *[]Aviso) *AlertaDaCamera {
 		*av = append(*av, Aviso{Camera: cam.ID, Campo: campo, Valor: valor, Aceito: aceito, Usando: usando})
 	}
 
-	familias := make([]detect.Familia, 0, len(al.Families))
+	familias := make([]detect.Family, 0, len(al.Families))
 	for i, f := range al.Families {
 		switch {
-		case !slices.Contains(detect.Familias, f):
+		case !slices.Contains(detect.Families, f):
 			recusa(fmt.Sprintf("alert.families[%d]", i), fmt.Sprintf("%q", f),
 				"uma família: "+familiasAceitas(), "a família fica de fora do alerta")
 		case slices.Contains(familias, f):
@@ -197,8 +197,8 @@ func confereHorarios(entrada []HorarioDoAlerta, recusa func(campo string, valor 
 }
 
 func familiasAceitas() string {
-	nomes := make([]string, len(detect.Familias))
-	for i, f := range detect.Familias {
+	nomes := make([]string, len(detect.Families))
+	for i, f := range detect.Families {
 		nomes[i] = string(f)
 	}
 	return strings.Join(nomes, ", ")

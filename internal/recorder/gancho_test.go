@@ -101,14 +101,14 @@ type espiao struct {
 	zeros     int
 }
 
-func (e *espiao) Nome() string { return "espiao" }
-func (e *espiao) Zera()        { e.zeros++ }
+func (e *espiao) Name() string { return "espiao" }
+func (e *espiao) Reset()       { e.zeros++ }
 
-func (e *espiao) Quadro(instanteMs int64, bytes int, keyframe bool) detect.Veredito {
+func (e *espiao) Frame(instanteMs int64, bytes int, keyframe bool) detect.Verdict {
 	e.instantes = append(e.instantes, instanteMs)
 	e.tamanhos = append(e.tamanhos, bytes)
 	e.chaves = append(e.chaves, keyframe)
-	return detect.Veredito{}
+	return detect.Verdict{}
 }
 
 // gravaStream sobe um go2rtc de mentira que serve `corpo` e encerra, roda uma
@@ -261,10 +261,10 @@ func TestGanchoGravaOOnsetNoArquivoDoDia(t *testing.T) {
 
 type sempreDispara struct{}
 
-func (sempreDispara) Nome() string { return "sempre" }
-func (sempreDispara) Zera()        {}
-func (sempreDispara) Quadro(int64, int, bool) detect.Veredito {
-	return detect.Veredito{Onset: true, Candidato: true}
+func (sempreDispara) Name() string { return "sempre" }
+func (sempreDispara) Reset()       {}
+func (sempreDispara) Frame(int64, int, bool) detect.Verdict {
+	return detect.Verdict{Onset: true, Candidate: true}
 }
 
 // TestTrocaDeDetectEmPlenoVooNaoCorre guarda a promessa do pedeDetect: a API
@@ -334,14 +334,14 @@ func TestTrocaDeDetectEmPlenoVooNaoCorre(t *testing.T) {
 // roteiro é um Mecanismo que devolve vereditos escritos à mão, um por quadro de
 // vídeo. É como se escolhe, de fora, onde o pedaço tem que ser cortado.
 type roteiro struct {
-	vereditos []detect.Veredito
+	vereditos []detect.Verdict
 	i         int
 }
 
-func (r *roteiro) Nome() string { return "roteiro" }
-func (r *roteiro) Zera()        {}
-func (r *roteiro) Quadro(int64, int, bool) detect.Veredito {
-	var v detect.Veredito
+func (r *roteiro) Name() string { return "roteiro" }
+func (r *roteiro) Reset()       {}
+func (r *roteiro) Frame(int64, int, bool) detect.Verdict {
+	var v detect.Verdict
 	if r.i < len(r.vereditos) {
 		v = r.vereditos[r.i]
 	}
@@ -384,11 +384,11 @@ func TestGanchoCortaOPedacoComoFoiParaODisco(t *testing.T) {
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, mudo())
 	r.detectPedido.Store(nil)
 	// Onset no quadro 1, pico no 2, frame I no 4 dentro da janela, corte no 5.
-	r.mec = &roteiro{vereditos: []detect.Veredito{
-		{}, {Onset: true, Candidato: true}, {Candidato: true}, {}, {}, {Corta: true},
+	r.mec = &roteiro{vereditos: []detect.Verdict{
+		{}, {Onset: true, Candidate: true}, {Candidate: true}, {}, {}, {Cut: true},
 	}}
-	var saiu []detect.Pedaco
-	r.pedacos = func(p detect.Pedaco) { saiu = append(saiu, p) }
+	var saiu []detect.Clip
+	r.pedacos = func(p detect.Clip) { saiu = append(saiu, p) }
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -438,9 +438,9 @@ func TestGanchoCortaOPedacoComoFoiParaODisco(t *testing.T) {
 	}
 	// O onset é o quadro 1 e o pico é o 2, no relógio de mídia truncado em ms.
 	ms := func(q int64) int64 { return q * 6000 * 1000 / int64(timescaleVideo) }
-	if p.QuadroMs-p.OnsetMs != ms(2)-ms(1) {
+	if p.FrameMs-p.OnsetMs != ms(2)-ms(1) {
 		t.Errorf("onset %d e quadro %d: o quadro a olhar devia ser o seguinte ao onset",
-			p.OnsetMs, p.QuadroMs)
+			p.OnsetMs, p.FrameMs)
 	}
 }
 
@@ -475,11 +475,11 @@ func TestGanchoSemDestinoNaoGuardaGOP(t *testing.T) {
 // detectorQueVePessoa responde sempre a mesma pessoa, no mesmo lugar.
 type detectorQueVePessoa struct{}
 
-func (detectorQueVePessoa) Nome() string { return "pessoa" }
-func (detectorQueVePessoa) Olha(context.Context, detect.Pedaco) (detect.Visao, error) {
-	return detect.Visao{
-		Achados: []detect.Achado{{Classe: "person", Score: 0.87654, Caixa: [4]float64{0.1, 0.1, 0.2, 0.4}}},
-		Quadro:  []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+func (detectorQueVePessoa) Name() string { return "pessoa" }
+func (detectorQueVePessoa) Infer(context.Context, detect.Clip) (detect.Output, error) {
+	return detect.Output{
+		Detections: []detect.Detection{{Class: "person", Score: 0.87654, Box: [4]float64{0.1, 0.1, 0.2, 0.4}}},
+		Frame:      []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
 	}, nil
 }
 
@@ -514,27 +514,27 @@ func TestDoOnsetAMarcaDeObjeto(t *testing.T) {
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, mudo())
 	r.detectPedido.Store(nil)
 	// Dois onsets, cada um com a janela fechando no quadro seguinte.
-	r.mec = &roteiro{vereditos: []detect.Veredito{
-		{}, {Onset: true, Candidato: true}, {Corta: true},
-		{}, {Onset: true, Candidato: true}, {Corta: true},
+	r.mec = &roteiro{vereditos: []detect.Verdict{
+		{}, {Onset: true, Candidate: true}, {Cut: true},
+		{}, {Onset: true, Candidate: true}, {Cut: true},
 	}}
-	olhadas := make(chan detect.Olhada, 4)
-	fila := detect.NovaFila(detectorQueVePessoa{}, func(o detect.Olhada) {
+	olhadas := make(chan detect.Inference, 4)
+	fila := detect.NewQueue(detectorQueVePessoa{}, func(o detect.Inference) {
 		r.olhou(o, nil)
 		olhadas <- o
 	}, mudo())
 	r.pedacos = r.ofereceA(fila)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	go fila.Roda(ctx)
+	go fila.Run(ctx)
 
 	_ = r.session(ctx)
 	var onsets, quadros []int64
 	for range 2 {
 		select {
 		case o := <-olhadas:
-			onsets = append(onsets, o.Pedaco.OnsetMs)
-			quadros = append(quadros, o.Pedaco.QuadroMs)
+			onsets = append(onsets, o.Clip.OnsetMs)
+			quadros = append(quadros, o.Clip.FrameMs)
 		case <-ctx.Done():
 			t.Fatal("a fila não devolveu as duas olhadas")
 		}
@@ -593,16 +593,16 @@ func TestUmaLinhaPorObjeto(t *testing.T) {
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{}), idx, mudo())
 
 	agora := time.Now().UnixMilli()
-	r.olhou(detect.Olhada{
-		Pedaco: detect.Pedaco{OnsetMs: agora, QuadroMs: agora + 1400},
+	r.olhou(detect.Inference{
+		Clip: detect.Clip{OnsetMs: agora, FrameMs: agora + 1400},
 		// Fora de ordem de propósito: a gravação ordena por família e confiança.
-		Achados: []detect.Achado{
-			{Classe: "motorcycle", Score: 0.71, Caixa: [4]float64{0.60, 0.40, 0.72, 0.66}},
-			{Classe: "person", Score: 0.55, Caixa: [4]float64{0.18, 0.30, 0.24, 0.64}},
-			{Classe: "cat", Score: 0.30, Caixa: [4]float64{0.80, 0.70, 0.85, 0.80}},
-			{Classe: "person", Score: 0.87, Caixa: [4]float64{0.41, 0.32, 0.47, 0.62}},
+		Detections: []detect.Detection{
+			{Class: "motorcycle", Score: 0.71, Box: [4]float64{0.60, 0.40, 0.72, 0.66}},
+			{Class: "person", Score: 0.55, Box: [4]float64{0.18, 0.30, 0.24, 0.64}},
+			{Class: "cat", Score: 0.30, Box: [4]float64{0.80, 0.70, 0.85, 0.80}},
+			{Class: "person", Score: 0.87, Box: [4]float64{0.41, 0.32, 0.47, 0.62}},
 		},
-		Quadro: []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+		Frame: []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
 	}, nil)
 
 	dia := time.Now().Format(store.DayLayout)
@@ -652,33 +652,33 @@ func TestRecortadorNasceEMorreComADeteccao(t *testing.T) {
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
 		Detect: &desligada, DetectMecanismo: "kleinberg-p", DetectSensibilidade: 4}
 	r := newRecorder(cam, nil, idx, mudo())
-	r.pedacos = func(detect.Pedaco) {}
+	r.pedacos = func(detect.Clip) {}
 	r.initAtual = []byte("init")
-	quadro := func(ms int64, v detect.Veredito) {
-		if v != (detect.Veredito{}) {
-			r.mec = &roteiro{vereditos: []detect.Veredito{v}}
+	quadro := func(ms int64, v detect.Verdict) {
+		if v != (detect.Verdict{}) {
+			r.mec = &roteiro{vereditos: []detect.Verdict{v}}
 		}
 		r.movimento(ms, false, moof(idVideo, 0, flagsQuadroP, 6000), mdat(100))
 	}
 
-	quadro(0, detect.Veredito{})
+	quadro(0, detect.Verdict{})
 	if r.recorte != nil {
 		t.Fatal("detecção desligada e o recortador nasceu")
 	}
 
 	cam.Detect = &ligada
 	r.pedeDetect(cam)
-	quadro(40, detect.Veredito{})
+	quadro(40, detect.Verdict{})
 	if r.recorte == nil {
 		t.Fatal("detecção ligada e o recortador não nasceu")
 	}
 	// Um onset sem frame I guardado: quando a detecção desligar, ele fica
 	// sem vídeo.
-	quadro(80, detect.Veredito{Onset: true, Candidato: true})
+	quadro(80, detect.Verdict{Onset: true, Candidate: true})
 
 	cam.Detect = &desligada
 	r.pedeDetect(cam)
-	quadro(120, detect.Veredito{})
+	quadro(120, detect.Verdict{})
 	if r.recorte != nil {
 		t.Fatal("detecção desligada e o recortador continua vivo")
 	}
@@ -688,7 +688,7 @@ func TestRecortadorNasceEMorreComADeteccao(t *testing.T) {
 
 	cam.Detect = &ligada
 	r.pedeDetect(cam)
-	quadro(160, detect.Veredito{})
+	quadro(160, detect.Verdict{})
 	if n := r.semVideo.Load(); n != 1 {
 		t.Errorf("semVideo %d depois de religar, esperado o 1 de antes", n)
 	}
@@ -697,7 +697,7 @@ func TestRecortadorNasceEMorreComADeteccao(t *testing.T) {
 // TestFunilFechaAConta: NaFila é o que sobra dos onsets depois das fatias com
 // desfecho, e nunca fica negativo.
 func TestFunilFechaAConta(t *testing.T) {
-	r := &Recorder{pedacos: func(detect.Pedaco) {}}
+	r := &Recorder{pedacos: func(detect.Clip) {}}
 	r.onsets.Add(7)
 	r.semVideo.Add(1)
 	r.descartados.Add(1)

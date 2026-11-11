@@ -15,8 +15,8 @@ export const AJUDA_CABEM =
 // tela, porque o rótulo e o custo aparecem em dois lugares - o chip da lista e
 // o formulário.
 //
-// `porHora` é o custo POR CÂMERA, e repete à mão o OnsetsPorHora de
-// internal/detect/parametros.go: com dez câmeras no nível 4 são 500 olhadas
+// `porHora` é o custo POR CÂMERA, e repete à mão o OnsetsPerHour de
+// internal/detect/params.go: com dez câmeras no nível 4 são 500 olhadas
 // por hora, não 50.
 //
 // Os níveis vão de 1 a 5, na ordem: o de número n é o NIVEIS[n - 1], e quem

@@ -187,7 +187,7 @@ type logInfo struct {
 // não por mais um parâmetro de New, porque o logger já chega aqui: é só
 // perguntar a ele.
 type recentes interface {
-	Recentes() ([]logbuf.Line, int64)
+	Recent() ([]logbuf.Line, int64)
 }
 
 func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Request) {
@@ -217,7 +217,7 @@ func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Reques
 	wg.Wait()
 
 	if h, ok := s.log.Handler().(recentes); ok {
-		linhas, total := h.Recentes()
+		linhas, total := h.Recent()
 		resp.Log = &logInfo{Total: total, Linhas: linhas}
 	}
 
@@ -727,13 +727,13 @@ func (s *Server) sondarGo2RTC(ctx context.Context) go2rtcInfo {
 // despercebida. Esta pergunta responde a qualquer hora.
 func (s *Server) sondarDetector(ctx context.Context) *detectorInfo {
 	inicio := time.Now()
-	saude, err := detect.SaudeDoSidecar(ctx, s.cfg.Detector.URL)
+	saude, err := detect.SidecarHealth(ctx, s.cfg.Detector.URL)
 	info := &detectorInfo{Ms: time.Since(inicio).Milliseconds(), URL: semCredencial(s.cfg.Detector.URL)}
 	if err != nil {
 		info.Erro = err.Error()
 		return info
 	}
-	info.OK, info.Modelo, info.Entrada, info.Threads = true, saude.Modelo, saude.Entrada, saude.Threads
+	info.OK, info.Modelo, info.Entrada, info.Threads = true, saude.Model, saude.InputSize, saude.Threads
 	return info
 }
 

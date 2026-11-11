@@ -16,7 +16,7 @@ import (
 var fundo = color.RGBA{0x20, 0x20, 0x20, 0xff}
 
 // quadroDeTeste é um JPEG de 480×270, o tamanho do quadro olhado
-// (detect.LarguraDoQuadro), na qualidade dele. Com ruído, o quadro custa
+// (detect.FrameWidth), na qualidade dele. Com ruído, o quadro custa
 // decodificar e codificar como um quadro de câmera; sem, é um fundo liso,
 // para o teste ler a cor de cada pixel.
 func quadroDeTeste(t testing.TB, ruido bool) []byte {

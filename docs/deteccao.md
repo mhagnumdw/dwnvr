@@ -239,7 +239,7 @@ GET  /health              o HEALTHCHECK do Docker e o card "Este servidor"
 
 O detector não sabe o que é "novo": o carro estacionado aparece em toda olhada
 daquela câmera, e marcaria dezenas de vezes por dia. O **rastreio**
-(`internal/detect/marcador.go`) lembra, por câmera e por família, onde já há
+(`internal/detect/marker.go`) lembra, por câmera e por família, onde já há
 objeto. Para cada caixa, a cada olhada:
 
 | A caixa | O que acontece |
@@ -393,24 +393,24 @@ espera e a goroutine de envio ficam com ela, paradas.
 | env do `dwnvr-detect` | `DETECT_THREADS`, `DETECT_MODELO`, `DETECT_PORTA` |
 
 **O que é medido**, fixo em
-[`internal/detect/parametros.go`](../internal/detect/parametros.go). Cada
+[`internal/detect/params.go`](../internal/detect/params.go). Cada
 número tem ao lado o porquê dele. Não são preferência, e mudar um sem medir de
 novo faz a medição deixar de valer em silêncio:
 
 | Número | Valor | O que é |
 | --- | --- | --- |
-| `OnsetsPorHora` | 6, 12, 25, 50, 100 | o custo de cada nível, por câmera |
-| `LimiarKleinbergP` | um por nível | o limiar que faz o `kleinberg-p` custar exatamente o que o nível manda |
-| `JanelaDoPicoMs` | 3 s | onde procurar o quadro a olhar depois do onset |
-| `CorteDaFamilia` | 0,40 | a confiança a partir da qual uma caixa pode virar marca |
-| `PisoDoDetector` | 0,20 | a menor confiança que o sidecar devolve |
-| `IoUDoMesmoLugar` | 0,7 | a sobreposição que faz duas caixas serem o mesmo lugar |
-| `FaltasParaLiberar` | 5 | olhadas sem ver que liberam um lugar |
-| `PedacosPorCamera` | 2 | os lugares de cada câmera na fila |
-| `PrazoDaOlhadaMs` | 60 s | quanto a fila espera uma resposta |
-| `PausaDepoisDeFalhaMs` | 30 s | a pausa da fila depois de uma olhada que falhou |
-| `TetoDoGOPBytes` | 4 MB | o maior GOP guardado por câmera; freio de RAM |
-| `FamiliasPadrao` | 12 classes | quais classes do COCO viram `pessoa`, `veiculo` ou `animal` |
+| `OnsetsPerHour` | 6, 12, 25, 50, 100 | o custo de cada nível, por câmera |
+| `KleinbergPThreshold` | um por nível | o limiar que faz o `kleinberg-p` custar exatamente o que o nível manda |
+| `PeakWindowMs` | 3 s | onde procurar o quadro a olhar depois do onset |
+| `FamilyCutoff` | 0,40 | a confiança a partir da qual uma caixa pode virar marca |
+| `MinScore` | 0,20 | a menor confiança que o sidecar devolve |
+| `SamePlaceIoU` | 0,7 | a sobreposição que faz duas caixas serem o mesmo lugar |
+| `MissesToRelease` | 5 | olhadas sem ver que liberam um lugar |
+| `ClipsPerCamera` | 2 | os lugares de cada câmera na fila |
+| `InferenceTimeoutMs` | 60 s | quanto a fila espera uma resposta |
+| `PauseAfterFailureMs` | 30 s | a pausa da fila depois de uma olhada que falhou |
+| `MaxGOPBytes` | 4 MB | o maior GOP guardado por câmera; freio de RAM |
+| `ClassFamilies` | 12 classes | quais classes do COCO viram `pessoa`, `veiculo` ou `animal` |
 
 Os números do alerta, que são escolha de desenho e não medida, ficam em
 [`internal/alerta/parametros.go`](../internal/alerta/parametros.go):
@@ -511,12 +511,12 @@ e [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO/TODO_recalibrar-modelo
 | Arquivo | O quê |
 | --- | --- |
 | `internal/detect/score.go` | o destaque de cada quadro |
-| `internal/detect/mecanismo.go` | o onset e o pico: `kleinberg-p` e `periodico` |
-| `internal/detect/recorte.go` | o GOP guardado e o pedaço fMP4 |
-| `internal/detect/fila.go` | a fila única, o limite por câmera, a pausa depois de falha |
+| `internal/detect/method.go` | o onset e o pico: `kleinberg-p` e `periodico` |
+| `internal/detect/clipper.go` | o GOP guardado e o pedaço fMP4 |
+| `internal/detect/queue.go` | a fila única, o limite por câmera, a pausa depois de falha |
 | `internal/detect/sidecar.go` | o cliente HTTP do `dwnvr-detect` |
-| `internal/detect/marcador.go` | o corte por família e o rastreio |
-| `internal/detect/parametros.go` | todos os números, com o porquê de cada um |
+| `internal/detect/marker.go` | o corte por família e o rastreio |
+| `internal/detect/params.go` | todos os números, com o porquê de cada um |
 | `internal/recorder/recorder.go` | o gancho no gravador e o funil |
 | `internal/area/area.go` | "o objeto está dentro da área?": as regras `foot` e `touch` |
 | `internal/alerta/regra.go` | quando as marcas de uma olhada viram alerta |

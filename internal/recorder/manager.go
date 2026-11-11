@@ -56,7 +56,7 @@ type Manager struct {
 	// fila leva os pedaços de vídeo de todas as câmeras ao detector de
 	// objetos. Nil sem `detector.url`: aí ninguém olha, e nenhum recorder
 	// guarda GOP.
-	fila *detect.Fila
+	fila *detect.Queue
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -70,7 +70,7 @@ func NewManager(cfg *config.Config, client *go2rtc.Client, st *store.Store, log 
 		regras: map[string]*alerta.Regra{},
 	}
 	if cfg.Detector.URL != "" {
-		m.fila = detect.NovaFila(detect.Detectores["sidecar"](cfg.Detector.URL), m.olhou, log)
+		m.fila = detect.NewQueue(detect.Detectors["sidecar"](cfg.Detector.URL), m.olhou, log)
 	}
 	return m
 }
@@ -78,10 +78,10 @@ func NewManager(cfg *config.Config, client *go2rtc.Client, st *store.Store, log 
 // olhou entrega a resposta do detector ao recorder da câmera, com a regra de
 // alerta dela, e passa à Central o alerta que sair. Câmera que saiu do ar
 // enquanto o pedaço dela esperava simplesmente não recebe.
-func (m *Manager) olhou(o detect.Olhada) {
+func (m *Manager) olhou(o detect.Inference) {
 	m.mu.RLock()
-	r := m.recs[o.Pedaco.Camera]
-	regra, alertas := m.regras[o.Pedaco.Camera], m.alertas
+	r := m.recs[o.Clip.Camera]
+	regra, alertas := m.regras[o.Clip.Camera], m.alertas
 	m.mu.RUnlock()
 	if r == nil {
 		return
@@ -106,7 +106,7 @@ func (m *Manager) Start(ctx context.Context, cams []config.Camera) {
 	if m.fila != nil {
 		m.log.Info("detector de objetos configurado", "url", m.cfg.Detector.URL)
 		m.wg.Go(func() {
-			m.fila.Roda(m.ctx)
+			m.fila.Run(m.ctx)
 		})
 	}
 }
@@ -374,15 +374,15 @@ func (m *Manager) Status() []Status {
 // `detector.url` - aí não há fila, e a tela não tem o que mostrar.
 //
 // O teto é contado aqui porque é o Manager quem sabe quais câmeras estão com
-// a detecção ligada agora: cada uma pode ter PedacosPorCamera esperando.
-func (m *Manager) Detector() *detect.EstadoDaFila {
+// a detecção ligada agora: cada uma pode ter ClipsPerCamera esperando.
+func (m *Manager) Detector() *detect.QueueState {
 	if m.fila == nil {
 		return nil
 	}
-	e := m.fila.Estado()
+	e := m.fila.State()
 	for _, r := range m.recorders() {
 		if d := r.camera().Detect; d != nil && *d {
-			e.Fila.Cap += detect.PedacosPorCamera
+			e.Queue.Cap += detect.ClipsPerCamera
 		}
 	}
 	return &e

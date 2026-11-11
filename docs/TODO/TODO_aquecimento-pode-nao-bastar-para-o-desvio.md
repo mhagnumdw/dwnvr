@@ -1,6 +1,6 @@
 # O aquecimento pode não bastar para o desvio da régua
 
-`AquecimentoKleinberg` são 300 quadros - 20 a 30 s, conforme a câmera. Depois
+`KleinbergWarmup` são 300 quadros - 20 a 30 s, conforme a câmera. Depois
 deles o gatilho passa a disparar. A média da EWMA já assentou aí; o **desvio**
 talvez não.
 
@@ -46,7 +46,7 @@ câmera com muito movimento, então as duas coisas se confundem.
 
 ## O que fazer
 
-Antes de mexer em `AquecimentoKleinberg`, separar as duas variáveis: medir a
+Antes de mexer em `KleinbergWarmup`, separar as duas variáveis: medir a
 taxa de onsets em função dos quadros de cena PARADA desde o `Zera`, e não do
 tempo total. Se o efeito aparecer ali, o conserto provável não é aumentar o
 aquecimento (que cegaria a câmera por minutos depois de cada buraco, e buraco

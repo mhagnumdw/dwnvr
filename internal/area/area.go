@@ -69,7 +69,7 @@ var Rules = map[string]func() Rule{
 var ErrUnknownRule = errors.New("regra da área desconhecida")
 
 // NewRule returns the rule by name, and DefaultRule when the name is empty.
-// Unlike NovoMarcador, an unknown name is an error: it comes from the user (the
+// Unlike NewMarker, an unknown name is an error: it comes from the user (the
 // query, the camera config), and silently falling back to the default would
 // show a different list without saying so.
 func NewRule(name string) (Rule, error) {

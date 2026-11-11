@@ -88,7 +88,7 @@ type Evento struct {
 	Score   float64 `json:"score,omitempty"`
 
 	// QuadroMs é o instante do quadro que o detector olhou, que pode vir até
-	// JanelaDoPicoMs depois do onset. É nele, e não no onset, que a Caixa está
+	// PeakWindowMs depois do onset. É nele, e não no onset, que a Caixa está
 	// no lugar certo: desenhada no instante da marca, ela chegaria até 3 s
 	// antes do objeto.
 	QuadroMs int64 `json:"quadroMs,omitempty"`

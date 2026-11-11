@@ -50,8 +50,8 @@ export const nomesDasFamilias = (familias: readonly string[]) =>
     .join(', ');
 
 // As classes do modelo (nomes do COCO, como o detector devolve) em português,
-// para a dica do ponteiro. Espelha o `FamiliasPadrao` de
-// internal/detect/parametros.go; classe fora dele aparece com o nome cru.
+// para a dica do ponteiro. Espelha o `ClassFamilies` de
+// internal/detect/params.go; classe fora dele aparece com o nome cru.
 export const NOME_DA_CLASSE: Readonly<Record<string, string>> = {
   person: 'pessoa',
   bicycle: 'bicicleta',

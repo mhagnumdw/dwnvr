@@ -272,10 +272,10 @@ func TestCamerasEnxutoParaOViewer(t *testing.T) {
 	s, _ := testServer(t)
 	comAutenticacao(t, s, maria)
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
-		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa},
+		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Family{detect.Person},
 			Schedules: []config.HorarioDoAlerta{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "23:59"}}}})
 	s.mgr.Set(config.Camera{ID: "cam_b", Name: "B", Enabled: true,
-		Alert: &config.AlertaDaCamera{Families: []detect.Familia{detect.Pessoa}}})
+		Alert: &config.AlertaDaCamera{Families: []detect.Family{detect.Person}}})
 	req := httptest.NewRequest(http.MethodGet, "/api/cameras", nil)
 	req.AddCookie(cookieDe(t, s, "maria"))
 	rec := httptest.NewRecorder()

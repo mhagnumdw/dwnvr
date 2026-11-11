@@ -4,8 +4,8 @@
 
 ## O problema
 
-O rastreio de lugares ocupados (`internal/detect/marcador.go`) só libera um
-lugar depois de `FaltasParaLiberar` (5) olhadas seguidas sem ver o objeto. E
+O rastreio de lugares ocupados (`internal/detect/marker.go`) só libera um
+lugar depois de `MissesToRelease` (5) olhadas seguidas sem ver o objeto. E
 olhada só acontece quando o mecanismo emite um onset.
 
 Se o carro sai e volta sem gerar 5 olhadas no meio, o lugar continua ocupado,
