@@ -65,9 +65,12 @@ Cerca de 67 mil linhas em 265 arquivos: a maior etapa do plano.
 
 ## Como, em passos que se testam
 
-Cada passo é uma série de commits pequenos, e cada commit chega à `main` e roda
-na instalação de teste, que segue a imagem `main`, antes do próximo. A release
-só sai no fim da etapa, com o guia inteiro.
+Cada passo é um PR, em commits pequenos. Antes de o PR ser aceito, a branch
+roda na instalação de teste (`make deploy-wip`), o teste mais perto de uma
+instalação de verdade. O PR entra na `main` por rebase, e não por squash: os
+commits de rename continuam separados, para o `.git-blame-ignore-revs` do
+passo 8. O passo seguinte só começa depois disso, e a release só sai no fim da
+etapa, com o guia inteiro.
 
 1. **O glossário.** O vocabulário do domínio se decide antes de qualquer
    rename, para o mesmo conceito ter o mesmo nome no Go, na interface, na API e

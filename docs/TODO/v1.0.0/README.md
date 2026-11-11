@@ -24,7 +24,7 @@ próxima, em andamento ou concluída, com a data.
   - [x] PR #16 (e2e com Playwright, draft) e o worktree `modelo-reproduzivel`: ficam de lado, por decisão do mantenedor em 11/11/2026; o que a conversão quebrar neles se refaz depois
   - [x] Os PRs do Dependabot abertos: o #60 (uv 0.13.7) mergeado em 11/11/2026, antes da release
   - [x] Opcional: a fumaça das telas do PR #16 antes da conversão. Saiu junto com o PR #16; a interface entra na conversão só com a verificação estática (`svelte-check`, `tsc`, ESLint), que não pega uma chave de JSON renomeada de um lado só
-- [ ] **Etapa 2 - conversão para en-US**: em andamento desde 11/11/2026 ([conversao-en-us.md](conversao-en-us.md)). Em commits pequenos, cada um rodando na instalação de teste antes do próximo
+- [ ] **Etapa 2 - conversão para en-US**: em andamento desde 11/11/2026 ([conversao-en-us.md](conversao-en-us.md)). Um PR por passo, em commits pequenos, que roda na instalação de teste antes de ser aceito
   - [x] O glossário do domínio ([glossario.md](glossario.md))
   - [x] O `AGENTS.md` com a regra nova de escrita
   - [ ] Go, pacote a pacote, sem mudar comportamento

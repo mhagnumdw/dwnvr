@@ -100,8 +100,8 @@ Ficam para o detalhe da Etapa 2:
 Decidido em 10/11/2026: uma release 0.x por etapa, e a 1.0.0 só no fim, depois
 da revisão dos contratos. A primeira é a da Etapa 1, com o que a `main` já tem
 desde a v0.14.0. A conversão sai numa release só, no fim da etapa, com o guia
-inteiro; até lá, cada commit dela chega à instalação de teste pela imagem
-`main`.
+inteiro; até lá, cada passo dela é um PR, que roda na instalação de teste
+antes de ser aceito.
 
 A alternativa recusada, um salto só da 0.14.0 para a 1.0.0, juntaria seis
 mudanças grandes numa atualização que, se desse errado, não diria qual delas
