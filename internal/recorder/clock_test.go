@@ -6,15 +6,16 @@ import (
 	"testing"
 )
 
-// A estimativa não pode seguir a rajada: ela só atrasa a chegada, e o quadro
-// que chega sem atraso extra é a medida certa. Aqui 1 em cada 20 quadros chega
-// no atraso mínimo e o resto até 1,1s depois - a oscilação medida na rede real.
+// The estimate can't follow the burst: a burst only delays arrival, and the
+// frame that arrives with no extra delay is the right measure. Here 1 in every
+// 20 frames arrives at the minimum delay and the rest up to 1.1s later - the
+// swing measured on the real network.
 func TestClockIgnoresBursts(t *testing.T) {
 	c := mediaClock{bucket: clockBucket.Milliseconds()}
 	rng := rand.New(rand.NewPCG(1, 2))
 	const wallStart, minDelay = int64(1_789_151_000_000), int64(300)
 
-	for i := range 15 * 120 { // 2 minutos a 15fps
+	for i := range 15 * 120 { // 2 minutes at 15fps
 		media := int64(i) * 1000 / 15
 		delay := minDelay
 		if i%20 != 0 {
@@ -26,14 +27,14 @@ func TestClockIgnoresBursts(t *testing.T) {
 	media := int64(15*120) * 1000 / 15
 	got, ok := c.wall(media)
 	if want := wallStart + media + minDelay; !ok || got != want {
-		t.Fatalf("parede = %d (ok=%v), esperava %d: errou %dms", got, ok, want, got-want)
+		t.Fatalf("wall = %d (ok=%v), want %d: off by %dms", got, ok, want, got-want)
 	}
 }
 
 func TestClockWithoutObservation(t *testing.T) {
 	var c mediaClock
 	if _, ok := c.wall(0); ok {
-		t.Fatal("sem observação não há estimativa")
+		t.Fatal("no observation, no estimate")
 	}
 }
 
@@ -44,38 +45,38 @@ func TestSplicedStart(t *testing.T) {
 		target int64
 		want   int64
 	}{
-		{"dentro da tolerância fica na emenda", splice + 200, splice},
-		{"dentro da tolerância, adiantada", splice - 200, splice},
-		{"atrasada: meio quadro para frente", splice + 600, splice + half},
-		{"adiantada: meio quadro para trás", splice - 600, splice - half},
-		{"adiantada muito: ainda só meio quadro", splice - 60_000, splice - half},
-		{"atrasada além do buraco: pula para o relógio", splice + 10_000, splice + 10_000},
+		{"within tolerance stays at the splice", splice + 200, splice},
+		{"within tolerance, ahead", splice - 200, splice},
+		{"behind: half a frame forward", splice + 600, splice + half},
+		{"ahead: half a frame back", splice - 600, splice - half},
+		{"far ahead: still only half a frame", splice - 60_000, splice - half},
+		{"behind beyond the gap: jumps to the clock", splice + 10_000, splice + 10_000},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := splicedStart(splice, tt.target, half, tol, gap); got != tt.want {
-				t.Errorf("inicioEmendado = %d, esperava %d", got, tt.want)
+				t.Errorf("splicedStart = %d, want %d", got, tt.want)
 			}
 		})
 	}
 }
 
-// sim reproduz o segmenter sobre uma conexão sintética: quadros a 15fps, um
-// keyframe a cada 2s, corte depois de 30s de mídia. O relógio da câmera anda
-// `deriva` mais rápido que o real (negativa: mais devagar), a rede atrasa cada
-// quadro entre 300ms e 1,4s, e `congela` quadros depois do índice indicado
-// chegam `congelaMs` mais tarde sem que a mídia conte esse tempo.
+// simulation reproduces the segmenter over a synthetic connection: frames at
+// 15fps, a keyframe every 2s, a cut after 30s of media. The camera clock runs
+// `drift` faster than real time (negative: slower), the network delays each
+// frame between 300ms and 1.4s, and frames after index `freeze` arrive
+// `freezeMs` later without the media counting that time.
 type simulation struct {
 	drift    float64
 	hours    float64
 	freeze   int
 	freezeMs float64
-	old      bool // usa a regra de antes: sempre na emenda quando o relógio fica atrás
+	old      bool // uses the old rule: always at the splice when the clock falls behind
 }
 
 type simSeg struct {
 	start, dur int64
-	truth      float64 // quando o keyframe foi entregue sem atraso extra
+	truth      float64 // when the keyframe was delivered with no extra delay
 }
 
 func (p simulation) run() []simSeg {
@@ -119,63 +120,64 @@ func (p simulation) run() []simSeg {
 		segs = append(segs, simSeg{start: start, truth: real + minDelay})
 		mediaStart, opened = int64(media), true
 	}
-	return segs[:len(segs)-1] // o último não fechou
+	return segs[:len(segs)-1] // the last one didn't close
 }
 
-// O defeito de 11/09/2026: a cam_zeta corre 0,04% à frente do relógio real,
-// e a regra antiga, que só empurrava o início para a emenda, deixava a timeline
-// ir se adiantando segmento após segmento. Em 8h passa de 10s.
+// The 11/09/2026 defect: cam_zeta runs 0.04% ahead of the real clock, and the
+// old rule, which only pushed the start to the splice, let the timeline creep
+// ahead segment after segment. In 8h it goes past 10s.
 func TestOldRuleAccumulatesDrift(t *testing.T) {
 	segs := simulation{drift: 0.0004, hours: 8, old: true}.run()
 	last := segs[len(segs)-1]
 	if errMsg := float64(last.start) - last.truth; errMsg < 10_000 {
-		t.Fatalf("a simulação deveria reproduzir a deriva da regra antiga; erro final %.0fms", errMsg)
+		t.Fatalf("the simulation should reproduce the old rule's drift; final error %.0fms", errMsg)
 	}
 }
 
-// A regra nova mantém a timeline perto do relógio nos dois sentidos de deriva,
-// e cada emenda sobrepõe ou afasta no máximo meio quadro - que o MSE toca sem
-// perder quadro e sem parar.
+// The new rule keeps the timeline close to the clock in both drift directions,
+// and each splice overlaps or opens at most half a frame - which MSE plays
+// without losing a frame and without stalling.
 //
-// O primeiro segmento da conexão é exceção conhecida: ele só tem a chegada do
-// próprio keyframe como medida, e herda a rajada dela. A simulação usa o pior
-// caso da Fase 2 (até 1,1s); medido no go2rtc real em 11/09/2026, o primeiro
-// fragmento chegou no máximo 74ms acima do atraso mínimo. Daí em diante a
-// correção de meio quadro por segmento tira o excesso, e o teste confere que
-// ele só diminui e some em 15 minutos.
+// The connection's first segment is a known exception: its only measure is the
+// arrival of its own keyframe, and it inherits that arrival's burst. The
+// simulation uses the worst case of Phase 2 (up to 1.1s); measured on the real
+// go2rtc on 11/09/2026, the first fragment arrived at most 74ms above the
+// minimum delay. From then on the half-frame correction per segment removes the
+// excess, and the test checks that it only shrinks and is gone within 15
+// minutes.
 func TestTimelineFollowsTheClockWithoutLosingFrames(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		drift float64
 	}{
-		{"câmera no ritmo", 0},
-		{"câmera adiantada 0,04%, a cam_zeta", 0.0004},
-		{"câmera atrasada 0,04%", -0.0004},
-		{"câmera adiantada 0,08%, o dobro da cam_zeta", 0.0008},
+		{"camera on pace", 0},
+		{"camera 0.04% ahead, cam_zeta", 0.0004},
+		{"camera 0.04% behind", -0.0004},
+		{"camera 0.08% ahead, twice cam_zeta", 0.0008},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			segs := simulation{drift: tt.drift, hours: 8}.run()
-			// O erro tolerado é a tolerância mais o que os quadros entregues
-			// com atraso mínimo deixam de folga dentro de um balde.
+			// The tolerated error is the tolerance plus the slack that frames
+			// delivered with minimum delay leave within a bucket.
 			limit := float64(clockTolerance.Milliseconds()) + 60
 			worst := math.Abs(float64(segs[0].start) - segs[0].truth)
 			for k, s := range segs {
 				if k > 0 {
 					prevEnd := segs[k-1].start + segs[k-1].dur
 					if d := s.start - prevEnd; d < -33 || d > 33 {
-						t.Fatalf("segmento %d: emenda de %dms, passa de meio quadro", k, d)
+						t.Fatalf("segment %d: splice of %dms, more than half a frame", k, d)
 					}
 				}
 				errMsg := math.Abs(float64(s.start) - s.truth)
-				if k < 30 { // os primeiros 15 minutos
+				if k < 30 { // the first 15 minutes
 					if errMsg > max(worst, limit) {
-						t.Fatalf("segmento %d: erro subiu para %.0fms na convergência", k, errMsg)
+						t.Fatalf("segment %d: error rose to %.0fms during convergence", k, errMsg)
 					}
 					worst = max(errMsg, limit)
 					continue
 				}
 				if errMsg > limit {
-					t.Fatalf("segmento %d (%.1fh): timeline a %.0fms do relógio",
+					t.Fatalf("segment %d (%.1fh): timeline %.0fms from the clock",
 						k, float64(k)*30/3600, errMsg)
 				}
 			}
@@ -183,11 +185,11 @@ func TestTimelineFollowsTheClockWithoutLosingFrames(t *testing.T) {
 	}
 }
 
-// Câmera que congela 10s e volta sem saltar o relógio dela: a mídia não contou
-// esse tempo, e a timeline tem que mostrar um buraco em vez de ficar 10s
-// atrasada até a próxima reconexão.
+// A camera that freezes for 10s and resumes without jumping its clock: the
+// media didn't count that time, and the timeline must show a gap instead of
+// staying 10s behind until the next reconnection.
 func TestFreezeBecomesAGap(t *testing.T) {
-	const freezeAt = 15 * 600 // aos 10 minutos
+	const freezeAt = 15 * 600 // at 10 minutes
 	segs := simulation{hours: 0.5, freeze: freezeAt, freezeMs: 10_000}.run()
 
 	gaps := 0
@@ -197,16 +199,16 @@ func TestFreezeBecomesAGap(t *testing.T) {
 		}
 	}
 	if gaps != 1 {
-		t.Fatalf("esperava um buraco depois do congelamento, vieram %d", gaps)
+		t.Fatalf("want a gap after the freeze, got %d", gaps)
 	}
-	// Os dois baldes do estimador precisam esvaziar do passado antes do pulo:
-	// até 3 segmentos depois do congelamento o erro ainda pode ser o dele.
+	// Both estimator buckets have to empty of the past before the jump: up to 3
+	// segments after the freeze the error can still be the freeze's.
 	for k, s := range segs {
 		if float64(k)*30 < 600+3*30 {
 			continue
 		}
 		if errMsg := float64(s.start) - s.truth; errMsg < -400 || errMsg > 400 {
-			t.Fatalf("segmento %d: timeline a %.0fms do relógio depois do congelamento", k, errMsg)
+			t.Fatalf("segment %d: timeline %.0fms from the clock after the freeze", k, errMsg)
 		}
 	}
 }

@@ -851,7 +851,7 @@ func (r *Recorder) session(ctx context.Context) error {
 		pending = append(pending[:0], box...)
 		if seg.open() {
 			if err := fmp4.RebaseMoof(pending, seg.bases); err != nil {
-				return fmt.Errorf("rebase do moof: %w", err)
+				return fmt.Errorf("moof rebase: %w", err)
 			}
 		}
 		return nil

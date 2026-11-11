@@ -18,12 +18,12 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
 
-// --- caixas sintéticas ------------------------------------------------------
+// --- synthetic boxes --------------------------------------------------------
 //
-// O mínimo de fMP4 para o laço de gravação rodar: um moov com trilha de vídeo e
-// trilha de áudio, e pares moof+mdat das duas. É o suficiente para reproduzir a
-// armadilha que este teste existe para guardar - o fragmento de áudio chega
-// exatamente igual ao de vídeo.
+// The minimum fMP4 for the recording loop to run: a moov with a video track and
+// an audio track, and moof+mdat pairs of both. That's enough to reproduce the
+// trap this test exists to guard - the audio fragment arrives exactly like the
+// video one.
 
 const (
 	flagsIFrame = 0x02000000
@@ -66,7 +66,7 @@ func track(id, timescale uint32, kind string, sample []byte) []byte {
 }
 
 func moovWithAudio() []byte {
-	// 78 bytes de campos fixos é o cabeçalho da sample entry de vídeo.
+	// 78 bytes of fixed fields is the header of the video sample entry.
 	video := track(videoID, videoTimescale, "vide", box("avc1", make([]byte, 78)))
 	audio := track(audioID, 16000, "soun", box("fLaC"))
 	trex := append(
@@ -85,15 +85,15 @@ func moof(id uint32, dts uint64, flags uint32, dur uint32) []byte {
 			box("trun", u32(0x000105), u32(1), u32(0), u32(flags), u32(dur))))
 }
 
-// mdat de `n` bytes de carga, para que len(box) - que é o sinal do gatilho -
-// seja n+8.
+// mdat with `n` bytes of payload, so that len(box) - which is the trigger's
+// signal - is n+8.
 func mdat(n int) []byte { return box("mdat", make([]byte, n)) }
 
-// --- o espião ---------------------------------------------------------------
+// --- the spy ----------------------------------------------------------------
 
-// espiao é um Mecanismo que não decide nada: só anota tudo o que o gancho lhe
-// entrega. É como se vê, de fora, o que o laço de gravação está considerando
-// "um quadro de vídeo".
+// spy is a Method that decides nothing: it just notes everything the hook hands
+// it. It's how one sees, from outside, what the recording loop is treating as
+// "a video frame".
 type spy struct {
 	instants []int64
 	sizes    []int
@@ -101,7 +101,7 @@ type spy struct {
 	zeros    int
 }
 
-func (e *spy) Name() string { return "espiao" }
+func (e *spy) Name() string { return "spy" }
 func (e *spy) Reset()       { e.zeros++ }
 
 func (e *spy) Frame(atMs int64, bytes int, keyframe bool) detect.Verdict {
@@ -111,8 +111,8 @@ func (e *spy) Frame(atMs int64, bytes int, keyframe bool) detect.Verdict {
 	return detect.Verdict{}
 }
 
-// gravaStream sobe um go2rtc de mentira que serve `corpo` e encerra, roda uma
-// sessão inteira do recorder contra ele e devolve o que o gancho viu.
+// recordStream starts a fake go2rtc that serves `body` and closes, runs a whole
+// recorder session against it and returns what the hook saw.
 func recordStream(t *testing.T, body []byte) (*spy, *store.Camera) {
 	t.Helper()
 
@@ -125,30 +125,30 @@ func recordStream(t *testing.T, body []byte) (*spy, *store.Camera) {
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 
-	// O espião entra no lugar do gatilho de verdade. O pedido pendente que o
-	// newRecorder deixou é descartado, senão o primeiro quadro o substituiria.
+	// The spy takes the place of the real trigger. The pending request
+	// newRecorder left is discarded, or else the first frame would replace it.
 	esp := &spy{}
 	r.detectRequest.Store(nil)
 	r.trigger = esp
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = r.session(ctx) // termina em EOF quando o corpo acaba
+	_ = r.session(ctx) // ends in EOF when the body runs out
 	return esp, idx
 }
 
-// TestGanchoIgnoraOsQuadrosDeAudio guarda a armadilha do `keyframePending`:
-// fragmento de áudio chega exatamente igual ao de vídeo, e os samples de áudio
-// também vêm marcados como sync. Sem o filtro de trilha, cada pacote de áudio
-// entraria na estatística como um frame I gigante - e a régua da câmera passaria
-// a ser a do áudio.
+// TestHookIgnoresAudioFrames guards the `keyframePending` trap: an audio
+// fragment arrives exactly like a video one, and audio samples also come flagged
+// as sync. Without the track filter, each audio packet would enter the
+// statistics as a giant I-frame - and the camera's baseline would become the
+// audio's.
 func TestHookIgnoresAudioFrames(t *testing.T) {
 	var body []byte
 	body = append(body, box("ftyp", []byte("isom"))...)
 	body = append(body, moovWithAudio()...)
 
-	// Vídeo: um quadro I de 5.000 bytes e dois P de 100. Entre eles, dois
-	// pacotes de áudio de 900 bytes cada.
+	// Video: one 5,000-byte I-frame and two 100-byte P-frames. Between them,
+	// two audio packets of 900 bytes each.
 	body = append(body, moof(videoID, 0, flagsIFrame, 6000)...)
 	body = append(body, mdat(5000)...)
 	body = append(body, moof(audioID, 0, 0, 1024)...)
@@ -163,32 +163,32 @@ func TestHookIgnoresAudioFrames(t *testing.T) {
 	esp, _ := recordStream(t, body)
 
 	if len(esp.sizes) != 3 {
-		t.Fatalf("o gancho viu %d quadros, esperava os 3 de vídeo: %v",
+		t.Fatalf("the hook saw %d frames, want the 3 video ones: %v",
 			len(esp.sizes), esp.sizes)
 	}
 	expectedOnes := []int{5008, 108, 108}
 	for i, want := range expectedOnes {
 		if esp.sizes[i] != want {
-			t.Errorf("quadro %d: %d bytes, esperado %d - áudio vazou para o gatilho",
+			t.Errorf("frame %d: %d bytes, want %d - audio leaked into the trigger",
 				i, esp.sizes[i], want)
 		}
 	}
-	// Só o primeiro é frame I. Se o keyframe do vídeo sobrevivesse ao mdat de
-	// áudio, o quadro seguinte também apareceria como chave.
+	// Only the first is an I-frame. If the video keyframe survived the audio
+	// mdat, the next frame would also show up as a key.
 	if !esp.keys[0] || esp.keys[1] || esp.keys[2] {
-		t.Errorf("marcação de frame I errada: %v", esp.keys)
+		t.Errorf("wrong I-frame flags: %v", esp.keys)
 	}
 }
 
-// TestGanchoAncoraNoRelogioDaTimeline: o instante de cada quadro é o início do
-// segmento (relógio de parede) mais o tempo de mídia decorrido dentro dele. É a
-// mesma conta usada para medir o gatilho, e é o que faz a marca
-// cair em cima do vídeo que ela aponta.
+// TestHookAnchorsOnTheTimelineClock: each frame's instant is the segment start
+// (wall clock) plus the media time elapsed within it. It's the same math used
+// to measure the trigger, and it's what makes the mark land on the video it
+// points to.
 func TestHookAnchorsOnTheTimelineClock(t *testing.T) {
 	var body []byte
 	body = append(body, box("ftyp", []byte("isom"))...)
 	body = append(body, moovWithAudio()...)
-	// Quadros a cada 6000/90000 s = 66,7 ms.
+	// Frames every 6000/90000 s = 66.7 ms.
 	for i := range 5 {
 		flags := uint32(flagsPFrame)
 		if i == 0 {
@@ -203,26 +203,26 @@ func TestHookAnchorsOnTheTimelineClock(t *testing.T) {
 	after := time.Now().UnixMilli()
 
 	if len(esp.instants) != 5 {
-		t.Fatalf("esperava 5 quadros, veio %d", len(esp.instants))
+		t.Fatalf("want 5 frames, got %d", len(esp.instants))
 	}
-	// O primeiro quadro abre o segmento, então cai no relógio de parede.
+	// The first frame opens the segment, so it lands on the wall clock.
 	if esp.instants[0] < before || esp.instants[0] > after {
-		t.Errorf("primeiro quadro em %d, fora da janela [%d, %d]",
+		t.Errorf("first frame at %d, outside the window [%d, %d]",
 			esp.instants[0], before, after)
 	}
-	// Os seguintes andam com o relógio de MÍDIA, e não com o de chegada: 66 ms
-	// cada, mesmo que a rede tenha entregado os cinco de uma vez.
+	// The following ones move with the MEDIA clock, not the arrival one: 66 ms
+	// each, even if the network delivered all five at once.
 	for i := 1; i < len(esp.instants); i++ {
 		got := esp.instants[i] - esp.instants[0]
 		want := int64(i) * 6000 * 1000 / int64(videoTimescale)
 		if got != want {
-			t.Errorf("quadro %d a %d ms do início, esperado %d ms", i, got, want)
+			t.Errorf("frame %d at %d ms from the start, want %d ms", i, got, want)
 		}
 	}
 }
 
-// TestGanchoGravaOOnsetNoArquivoDoDia fecha a ponta: o que o mecanismo aprova
-// vira linha em disco, no dia do próprio instante.
+// TestHookWritesTheOnsetToTheDayFile closes the loop: what the method approves
+// becomes a line on disk, in the day of its own instant.
 func TestHookWritesTheOnsetToTheDayFile(t *testing.T) {
 	var body []byte
 	body = append(body, box("ftyp", []byte("isom"))...)
@@ -248,36 +248,36 @@ func TestHookWritesTheOnsetToTheDayFile(t *testing.T) {
 	_ = r.session(ctx)
 
 	if got := r.onsets.Load(); got != 2 {
-		t.Fatalf("contador de onsets = %d, esperado 2", got)
+		t.Fatalf("onset counter = %d, want 2", got)
 	}
 	evs, err := idx.LoadEvents(time.Now().Format(store.DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(evs) != 2 {
-		t.Fatalf("esperava 2 marcas no arquivo do dia, veio %d", len(evs))
+		t.Fatalf("want 2 marks in the day file, got %d", len(evs))
 	}
 }
 
 type alwaysFires struct{}
 
-func (alwaysFires) Name() string { return "sempre" }
+func (alwaysFires) Name() string { return "always" }
 func (alwaysFires) Reset()       {}
 func (alwaysFires) Frame(int64, int, bool) detect.Verdict {
 	return detect.Verdict{Onset: true, Candidate: true}
 }
 
-// TestTrocaDeDetectEmPlenoVooNaoCorre guarda a promessa do pedeDetect: a API
-// muda a sensibilidade de uma câmera enquanto o laço de gravação está no meio
-// de uma sessão, sem lock compartilhado e sem reconectar. Rodado com -race, é
-// o que prova que a passagem pelo ponteiro atômico basta.
+// TestDetectChangeMidFlightDoesNotRace guards the promise of requestDetect: the
+// API changes a camera's sensitivity while the recording loop is in the middle
+// of a session, with no shared lock and no reconnection. Run with -race, it's
+// what proves that passing through the atomic pointer is enough.
 func TestDetectChangeMidFlightDoesNotRace(t *testing.T) {
 	var head []byte
 	head = append(head, box("ftyp", []byte("isom"))...)
 	head = append(head, moovWithAudio()...)
 
-	// Um go2rtc que entrega quadros devagar, para a sessão ainda estar viva
-	// enquanto as trocas acontecem.
+	// A go2rtc that delivers frames slowly, so the session is still alive while
+	// the changes happen.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(head)
 		fl, _ := w.(http.Flusher)
@@ -313,7 +313,7 @@ func TestDetectChangeMidFlightDoesNotRace(t *testing.T) {
 		_ = r.session(ctx)
 	}()
 
-	// Do lado da "API": liga, desliga, troca mecanismo e nível, sem parar.
+	// On the "API" side: on, off, switch method and level, nonstop.
 	off := false
 	for i := range 200 {
 		c := cam
@@ -331,14 +331,14 @@ func TestDetectChangeMidFlightDoesNotRace(t *testing.T) {
 	<-end
 }
 
-// roteiro é um Mecanismo que devolve vereditos escritos à mão, um por quadro de
-// vídeo. É como se escolhe, de fora, onde o pedaço tem que ser cortado.
+// script is a Method that returns hand-written verdicts, one per video frame.
+// It's how one picks, from outside, where the clip must be cut.
 type script struct {
 	verdicts []detect.Verdict
 	i        int
 }
 
-func (r *script) Name() string { return "roteiro" }
+func (r *script) Name() string { return "script" }
 func (r *script) Reset()       {}
 func (r *script) Frame(int64, int, bool) detect.Verdict {
 	var v detect.Verdict
@@ -349,15 +349,15 @@ func (r *script) Frame(int64, int, bool) detect.Verdict {
 	return v
 }
 
-// TestGanchoCortaOPedacoComoFoiParaODisco fecha a ponta do recortador dentro do
-// laço de gravação: o pedaço é o init da conexão seguido dos fragmentos de
-// VÍDEO do frame I até o quadro a olhar, com os mesmos bytes que o segmento
-// gravou - o áudio fica de fora, e o candidato que ficou no GOP velho
-// sobrevive ao frame I seguinte.
+// TestHookCutsTheClipAsItWentToDisk closes the clipper's loop inside the
+// recording loop: the clip is the connection's init followed by the VIDEO
+// fragments from the I-frame up to the frame to look at, with the same bytes
+// the segment recorded - audio stays out, and the candidate left in the old GOP
+// survives the next I-frame.
 func TestHookCutsTheClipAsItWentToDisk(t *testing.T) {
 	head := append(box("ftyp", []byte("isom")), moovWithAudio()...)
 	body := append([]byte(nil), head...)
-	// Quadros de vídeo: I P P P I P. Áudio entre eles.
+	// Video frames: I P P P I P. Audio between them.
 	keys := []bool{true, false, false, false, true, false}
 	var fragsVideo [][]byte
 	for i, key := range keys {
@@ -383,7 +383,7 @@ func TestHookCutsTheClipAsItWentToDisk(t *testing.T) {
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 	r.detectRequest.Store(nil)
-	// Onset no quadro 1, pico no 2, frame I no 4 dentro da janela, corte no 5.
+	// Onset at frame 1, peak at 2, I-frame at 4 within the window, cut at 5.
 	r.trigger = &script{verdicts: []detect.Verdict{
 		{}, {Onset: true, Candidate: true}, {Candidate: true}, {}, {}, {Cut: true},
 	}}
@@ -395,57 +395,61 @@ func TestHookCutsTheClipAsItWentToDisk(t *testing.T) {
 	_ = r.session(ctx)
 
 	if len(out) != 1 {
-		t.Fatalf("%d pedaços, esperado 1", len(out))
+		t.Fatalf("%d clips, want 1", len(out))
 	}
 	p := out[0]
 	if !bytes.HasPrefix(p.Fmp4, head) {
-		t.Fatal("o pedaço não começa pelo init da conexão")
+		t.Fatal("the clip doesn't start with the connection's init")
 	}
 	fragments := p.Fmp4[len(head):]
 
-	// Os fragmentos são os que foram para o disco, byte a byte - o moof já
-	// rebaseado. É o que faz o pedaço decodificar igual ao segmento gravado.
+	// The fragments are the ones that went to disk, byte for byte - the moof
+	// already rebased. That's what makes the clip decode the same as the
+	// recorded segment.
 	segs, _ := filepath.Glob(filepath.Join(dir, "cam_teste", "2*", "*.mp4"))
 	if len(segs) != 1 {
-		t.Fatalf("esperava 1 segmento em disco, achei %v", segs)
+		t.Fatalf("want 1 segment on disk, found %v", segs)
 	}
 	recorded, err := os.ReadFile(segs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	// No disco o áudio fica entre um quadro e outro; no pedaço, não. Então a
-	// conferência é caixa a caixa: cada moof+mdat do pedaço está no segmento.
+	// On disk the audio sits between one frame and the next; in the clip, it
+	// doesn't. So the check is box by box: each moof+mdat of the clip is in the
+	// segment.
 	var boxes [][]byte
 	for rest := fragments; len(rest) >= 8; {
 		n := int(binary.BigEndian.Uint32(rest))
 		if n < 8 || n > len(rest) {
-			t.Fatalf("caixa de %d bytes num resto de %d", n, len(rest))
+			t.Fatalf("box of %d bytes in a remainder of %d", n, len(rest))
 		}
 		boxes, rest = append(boxes, rest[:n]), rest[n:]
 	}
-	// Exatamente os de vídeo do frame I ao pico: quadros 0, 1 e 2, sem áudio.
+	// Exactly the video ones from the I-frame to the peak: frames 0, 1 and 2,
+	// no audio.
 	if len(boxes) != 6 {
-		t.Fatalf("%d caixas no pedaço, esperado 6 (moof+mdat de três quadros)", len(boxes))
+		t.Fatalf("%d boxes in the clip, want 6 (moof+mdat of three frames)", len(boxes))
 	}
 	for i := 0; i < len(boxes); i += 2 {
 		pair := append(append([]byte(nil), boxes[i]...), boxes[i+1]...)
 		if !bytes.Contains(recorded, pair) {
-			t.Errorf("quadro %d do pedaço não tem os bytes que o segmento gravou", i/2)
+			t.Errorf("clip frame %d doesn't have the bytes the segment recorded", i/2)
 		}
 		if len(pair) != len(fragsVideo[i/2]) {
-			t.Errorf("quadro %d do pedaço com %d bytes, o de vídeo tem %d", i/2, len(pair), len(fragsVideo[i/2]))
+			t.Errorf("clip frame %d with %d bytes, the video one has %d", i/2, len(pair), len(fragsVideo[i/2]))
 		}
 	}
-	// O onset é o quadro 1 e o pico é o 2, no relógio de mídia truncado em ms.
+	// The onset is frame 1 and the peak is 2, on the media clock truncated to
+	// ms.
 	ms := func(q int64) int64 { return q * 6000 * 1000 / int64(videoTimescale) }
 	if p.FrameMs-p.OnsetMs != ms(2)-ms(1) {
-		t.Errorf("onset %d e quadro %d: o quadro a olhar devia ser o seguinte ao onset",
+		t.Errorf("onset %d and frame %d: the frame to look at should be the one after the onset",
 			p.OnsetMs, p.FrameMs)
 	}
 }
 
-// TestGanchoSemDestinoNaoGuardaGOP: quem não instalou o detector não paga a
-// cópia do GOP.
+// TestHookWithoutDestinationKeepsNoGOP: whoever didn't install the object
+// detector doesn't pay for the GOP copy.
 func TestHookWithoutDestinationKeepsNoGOP(t *testing.T) {
 	var body []byte
 	body = append(body, box("ftyp", []byte("isom"))...)
@@ -468,29 +472,30 @@ func TestHookWithoutDestinationKeepsNoGOP(t *testing.T) {
 	defer cancel()
 	_ = r.session(ctx)
 	if r.clipper != nil {
-		t.Error("sem destino para o pedaço, o recortador não devia existir")
+		t.Error("no destination for the clip, the clipper shouldn't exist")
 	}
 }
 
-// detectorQueVePessoa responde sempre a mesma pessoa, no mesmo lugar.
+// personDetector always answers the same person, in the same place.
 type personDetector struct{}
 
-func (personDetector) Name() string { return "pessoa" }
+func (personDetector) Name() string { return "person" }
 func (personDetector) Infer(context.Context, detect.Clip) (detect.Output, error) {
 	return detect.Output{
 		Detections: []detect.Detection{{Class: "person", Score: 0.87654, Box: [4]float64{0.1, 0.1, 0.2, 0.4}}},
-		Frame:      []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+		Frame:      []byte("\xff\xd8test-jpeg\xff\xd9"),
 	}, nil
 }
 
-// TestDoOnsetAMarcaDeObjeto fecha o caminho inteiro do lado do dwnvr: o
-// onset vira pedaço, o pedaço passa pela fila e pelo detector, o rastreio
-// deixa a primeira pessoa virar marca - e não a segunda, no mesmo lugar -, e a
-// marca vai para o arquivo do dia no instante do ONSET. O funil fecha a conta.
+// TestFromOnsetToObjectMark closes the whole path on dwnvr's side: the onset
+// becomes a clip, the clip goes through the queue and the object detector,
+// tracking lets the first person become a mark - and not the second, in the
+// same place -, and the mark goes to the day file at the ONSET instant. The
+// funnel adds up.
 func TestFromOnsetToObjectMark(t *testing.T) {
-	// O stream chega em duas metades, com uma folga entre elas: o segundo
-	// onset precisa encontrar o primeiro já fora da fila, sendo olhado - o
-	// teste não depende de quantos lugares a câmera tem.
+	// The stream arrives in two halves, with a pause between them: the second
+	// onset must find the first one already out of the queue, being inferred -
+	// the test doesn't depend on how many places the camera has.
 	var halves [2][]byte
 	halves[0] = append(box("ftyp", []byte("isom")), moovWithAudio()...)
 	for i := range 6 {
@@ -513,7 +518,7 @@ func TestFromOnsetToObjectMark(t *testing.T) {
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 	r.detectRequest.Store(nil)
-	// Dois onsets, cada um com a janela fechando no quadro seguinte.
+	// Two onsets, each with the window closing on the next frame.
 	r.trigger = &script{verdicts: []detect.Verdict{
 		{}, {Onset: true, Candidate: true}, {Cut: true},
 		{}, {Onset: true, Candidate: true}, {Cut: true},
@@ -536,7 +541,7 @@ func TestFromOnsetToObjectMark(t *testing.T) {
 			onsets = append(onsets, o.Clip.OnsetMs)
 			frames = append(frames, o.Clip.FrameMs)
 		case <-ctx.Done():
-			t.Fatal("a fila não devolveu as duas olhadas")
+			t.Fatal("the queue didn't return both inferences")
 		}
 	}
 
@@ -551,42 +556,43 @@ func TestFromOnsetToObjectMark(t *testing.T) {
 		}
 	}
 	if len(objects) != 1 {
-		t.Fatalf("%d marcas de objeto, esperada 1: a pessoa parada no mesmo lugar não pode marcar de novo", len(objects))
+		t.Fatalf("%d object marks, want 1: the person standing in the same place can't mark again", len(objects))
 	}
-	// A caixa vai à parte: é ponteiro, e o != compararia o endereço.
+	// The box is checked apart: it's a pointer, and != would compare the
+	// address.
 	got := objects[0]
 	box := got.Box
 	got.Box = nil
-	jpeg := []byte("\xff\xd8jpeg-de-teste\xff\xd9")
+	jpeg := []byte("\xff\xd8test-jpeg\xff\xd9")
 	want := store.Event{AtMs: onsets[0], Family: "pessoa", Class: "person", Score: 0.877,
 		FrameMs: frames[0], HasFrame: true}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("marca %+v, esperado %+v", got, want)
+		t.Errorf("mark %+v, want %+v", got, want)
 	}
 	if box == nil || *box != [4]float64{0.1, 0.1, 0.2, 0.4} {
-		t.Errorf("caixa %v, esperada a do detector, [0.1 0.1 0.2 0.4]", box)
+		t.Errorf("box %v, want the object detector's, [0.1 0.1 0.2 0.4]", box)
 	}
 
-	// O quadro que a tela de Detecções mostra: o arquivo tem o nome do
-	// instante da marca e os bytes que o detector mandou.
+	// The frame the Detections screen shows: the file is named after the mark's
+	// instant and holds the bytes the object detector sent.
 	parsed, err := os.ReadFile(idx.FramePath(time.Now().Format(store.DayLayout), got.AtMs))
 	if err != nil {
-		t.Fatalf("lendo o quadro da marca: %v", err)
+		t.Fatalf("reading the mark's frame: %v", err)
 	}
 	if !bytes.Equal(parsed, jpeg) {
-		t.Errorf("quadro gravado %q, esperado %q", parsed, jpeg)
+		t.Errorf("recorded frame %q, want %q", parsed, jpeg)
 	}
 
 	f := r.funnel()
 	if f.Clips != 2 || f.WithObject != 1 || f.NoObject != 1 || f.Queued != 0 || f.NoVideo != 0 {
-		t.Errorf("funil %+v: esperava 2 pedaços, 1 com objeto, 1 sem, nada na fila nem sem vídeo", *f)
+		t.Errorf("funnel %+v: want 2 clips, 1 with object, 1 without, nothing queued nor without video", *f)
 	}
 }
 
-// TestUmaLinhaPorObjeto: duas pessoas e uma moto chegando juntas são três
-// linhas no mesmo instante, e não uma por família. A pessoa de menor
-// confiança é a que o filtro por área pode precisar. A caixa abaixo do corte
-// não vira marca, e o quadro continua um só.
+// TestOneLinePerObject: two people and a motorcycle arriving together are three
+// lines at the same instant, not one per family. The lower-confidence person is
+// the one the area filter may need. The box below the cut doesn't become a
+// mark, and the frame is still just one.
 func TestOneLinePerObject(t *testing.T) {
 	idx := store.New(t.TempDir()).Camera("cam_teste")
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
@@ -595,14 +601,14 @@ func TestOneLinePerObject(t *testing.T) {
 	now := time.Now().UnixMilli()
 	r.onInference(detect.Inference{
 		Clip: detect.Clip{OnsetMs: now, FrameMs: now + 1400},
-		// Fora de ordem de propósito: a gravação ordena por família e confiança.
+		// Out of order on purpose: recording sorts by family and confidence.
 		Detections: []detect.Detection{
 			{Class: "motorcycle", Score: 0.71, Box: [4]float64{0.60, 0.40, 0.72, 0.66}},
 			{Class: "person", Score: 0.55, Box: [4]float64{0.18, 0.30, 0.24, 0.64}},
 			{Class: "cat", Score: 0.30, Box: [4]float64{0.80, 0.70, 0.85, 0.80}},
 			{Class: "person", Score: 0.87, Box: [4]float64{0.41, 0.32, 0.47, 0.62}},
 		},
-		Frame: []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+		Frame: []byte("\xff\xd8test-jpeg\xff\xd9"),
 	}, nil)
 
 	day := time.Now().Format(store.DayLayout)
@@ -621,15 +627,15 @@ func TestOneLinePerObject(t *testing.T) {
 		{"veiculo", "motorcycle", 0.71, [4]float64{0.60, 0.40, 0.72, 0.66}},
 	}
 	if len(evs) != len(want) {
-		t.Fatalf("%d linhas, esperadas %d: %+v", len(evs), len(want), evs)
+		t.Fatalf("%d lines, want %d: %+v", len(evs), len(want), evs)
 	}
 	for i, ev := range evs {
 		got := row{ev.Family, ev.Class, ev.Score, *ev.Box}
 		if got != want[i] {
-			t.Errorf("linha %d: %+v, esperada %+v", i, got, want[i])
+			t.Errorf("line %d: %+v, want %+v", i, got, want[i])
 		}
 		if ev.AtMs != now || ev.FrameMs != now+1400 || !ev.HasFrame {
-			t.Errorf("linha %d: instante %d, quadro %d, temQuadro %v; esperados %d, %d e true",
+			t.Errorf("line %d: instant %d, frame %d, hasFrame %v; want %d, %d and true",
 				i, ev.AtMs, ev.FrameMs, ev.HasFrame, now, now+1400)
 		}
 	}
@@ -639,13 +645,14 @@ func TestOneLinePerObject(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(frames) != 1 {
-		t.Errorf("%d quadros gravados, esperado 1 para as três linhas", len(frames))
+		t.Errorf("%d frames recorded, want 1 for the three lines", len(frames))
 	}
 }
 
-// TestRecortadorNasceEMorreComADeteccao: com o detector configurado, a câmera
-// com a detecção desligada não guarda GOP, e desligar a detecção devolve os
-// buffers. O que já foi contado como sem vídeo não zera na troca.
+// TestClipperLivesAndDiesWithDetection: with the object detector configured,
+// the camera with detection off keeps no GOP, and turning detection off
+// releases the buffers. What was already counted as no video isn't reset by the
+// change.
 func TestClipperLivesAndDiesWithDetection(t *testing.T) {
 	idx := store.New(t.TempDir()).Camera("cam_teste")
 	off, on := false, true
@@ -663,39 +670,39 @@ func TestClipperLivesAndDiesWithDetection(t *testing.T) {
 
 	frame(0, detect.Verdict{})
 	if r.clipper != nil {
-		t.Fatal("detecção desligada e o recortador nasceu")
+		t.Fatal("detection off and the clipper was created")
 	}
 
 	cam.Detect = &on
 	r.requestDetect(cam)
 	frame(40, detect.Verdict{})
 	if r.clipper == nil {
-		t.Fatal("detecção ligada e o recortador não nasceu")
+		t.Fatal("detection on and the clipper wasn't created")
 	}
-	// Um onset sem frame I guardado: quando a detecção desligar, ele fica
-	// sem vídeo.
+	// An onset with no stored I-frame: when detection turns off, it ends up
+	// with no video.
 	frame(80, detect.Verdict{Onset: true, Candidate: true})
 
 	cam.Detect = &off
 	r.requestDetect(cam)
 	frame(120, detect.Verdict{})
 	if r.clipper != nil {
-		t.Fatal("detecção desligada e o recortador continua vivo")
+		t.Fatal("detection off and the clipper is still alive")
 	}
 	if n := r.noVideo.Load(); n != 1 {
-		t.Fatalf("semVideo %d, esperado 1", n)
+		t.Fatalf("noVideo %d, want 1", n)
 	}
 
 	cam.Detect = &on
 	r.requestDetect(cam)
 	frame(160, detect.Verdict{})
 	if n := r.noVideo.Load(); n != 1 {
-		t.Errorf("semVideo %d depois de religar, esperado o 1 de antes", n)
+		t.Errorf("noVideo %d after turning back on, want the 1 from before", n)
 	}
 }
 
-// TestFunilFechaAConta: NaFila é o que sobra dos onsets depois das fatias com
-// desfecho, e nunca fica negativo.
+// TestFunnelAddsUp: Queued is what remains of the onsets after the slices with
+// an outcome, and it's never negative.
 func TestFunnelAddsUp(t *testing.T) {
 	r := &Recorder{clips: func(detect.Clip) {}}
 	r.onsets.Add(7)
@@ -703,13 +710,13 @@ func TestFunnelAddsUp(t *testing.T) {
 	r.dropped.Add(1)
 	r.withObject.Add(2)
 	if f := r.funnel(); f.Queued != 3 {
-		t.Errorf("naFila %d, esperado 3: 7 onsets, 4 com desfecho", f.Queued)
+		t.Errorf("queued %d, want 3: 7 onsets, 4 with an outcome", f.Queued)
 	}
 	r.noObject.Add(5)
 	if f := r.funnel(); f.Queued != 0 {
-		t.Errorf("naFila %d, esperado 0 com mais desfechos que onsets", f.Queued)
+		t.Errorf("queued %d, want 0 with more outcomes than onsets", f.Queued)
 	}
 	if (&Recorder{}).funnel() != nil {
-		t.Error("sem detector, o funil tinha que ser nil")
+		t.Error("no object detector, the funnel had to be nil")
 	}
 }

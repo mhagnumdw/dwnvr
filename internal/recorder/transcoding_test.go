@@ -12,10 +12,10 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
 
-// TestConexaoReleATranscodificacao: cada conexão pergunta de novo ao go2rtc se
-// a fonte passa por um ffmpeg, e o valor da conexão anterior não sobrevive.
-// É o que faz o aviso do Diagnóstico acompanhar um go2rtc.yaml editado: ao
-// reiniciar, o go2rtc derruba todo mundo, e cada recorder reconecta.
+// TestConnectionRereadsTranscoding: each connection asks go2rtc again whether
+// the source goes through an ffmpeg, and the previous connection's value
+// doesn't survive. It's what makes the Diagnostics notice follow an edited
+// go2rtc.yaml: on restart, go2rtc drops everyone, and each recorder reconnects.
 func TestConnectionRereadsTranscoding(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -39,7 +39,8 @@ func TestConnectionRereadsTranscoding(t *testing.T) {
 			cam := config.Camera{ID: id, Enabled: true, SegmentSeconds: 30, StallSeconds: 5,
 				Audio: config.AudioAAC}
 			r := newRecorder(cam, client, store.New(t.TempDir()).Camera(id), discardLogger())
-			// O contrário do esperado, como se viesse da conexão anterior.
+			// The opposite of what's expected, as if it came from the previous
+			// connection.
 			r.transcoding = !expected
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -50,12 +51,12 @@ func TestConnectionRereadsTranscoding(t *testing.T) {
 			timeout := time.Now().Add(3 * time.Second)
 			for r.Status().Transcoding != expected {
 				if time.Now().After(timeout) {
-					t.Fatalf("transcoding continua %v, esperava %v", !expected, expected)
+					t.Fatalf("transcoding still %v, want %v", !expected, expected)
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
 			if got := r.Status().Audio; got != config.AudioAAC {
-				t.Errorf("audio = %q, esperava o configurado, %q", got, config.AudioAAC)
+				t.Errorf("audio = %q, want the configured one, %q", got, config.AudioAAC)
 			}
 		})
 	}
