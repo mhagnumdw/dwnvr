@@ -24,10 +24,10 @@ no disco".
 ## As consultas
 
 As que cruzam muitos arquivos são as de Detecções: a página
-(`handleDeteccoes`) e o calendário (`handleDiasDeDeteccao`), em
-[`internal/api/deteccoes.go`](../../../internal/api/deteccoes.go). Elas já leem
-cada dia do disco uma vez só: o `ObjetosDoDia`
-([`internal/store/objetos.go`](../../../internal/store/objetos.go)) memoriza as
+(`handleDetections`) e o calendário (`handleDetectionDays`), em
+[`internal/api/detections.go`](../../../internal/api/detections.go). Elas já leem
+cada dia do disco uma vez só: o `DayObjects`
+([`internal/store/objects.go`](../../../internal/store/objects.go)) memoriza as
 marcas de objeto de cada dia, e do dia corrente lê só o pedaço novo do arquivo.
 O comentário do `diasComDeteccao` registra o custo no hardware de referência:
 **~1,3 s na primeira chamada, com o cache de disco frio, e ~5 ms nas
