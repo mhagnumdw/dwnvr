@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/alerta"
+	"github.com/mhagnumdw/dwnvr/internal/alert"
 	"github.com/mhagnumdw/dwnvr/internal/buildinfo"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/email"
@@ -418,18 +418,18 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	alerts := map[string]any{}
 	if c := s.mgr.Alertas(); c != nil {
 		alerts["total"] = c.Total()
-		if d, ok := c.Descartes(); ok {
+		if d, ok := c.Drops(); ok {
 			alerts["dropped"] = map[string]any{
-				"queueFull": d.FilaCheia, "overLimit": d.AcimaDoTeto,
-				"limitPerHour": alerta.AlertasPorHora,
-				"since":        d.Desde, "lastAt": d.Ultimo,
+				"queueFull": d.QueueFull, "overLimit": d.OverCap,
+				"limitPerHour": alert.AlertsPerHour,
+				"since":        d.Since, "lastAt": d.Last,
 			}
 		}
 		var falhando []map[string]any
-		for _, m := range c.Meios() {
-			if !m.FalhandoDesde.IsZero() {
+		for _, m := range c.NotifierStates() {
+			if !m.FailingSince.IsZero() {
 				falhando = append(falhando, map[string]any{
-					"name": m.Nome, "since": m.FalhandoDesde, "error": m.Erro,
+					"name": m.Name, "since": m.FailingSince, "error": m.Err,
 				})
 			}
 		}

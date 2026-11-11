@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/alerta"
+	"github.com/mhagnumdw/dwnvr/internal/alert"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
@@ -52,8 +52,8 @@ func TestAlertasNoHealth(t *testing.T) {
 	sim := true
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
-	s.mgr.Alertas().Recebe(alerta.Alerta{Camera: "cam_teste", InstanteMs: 1000,
-		Objetos: []alerta.Objeto{{Familia: "pessoa", Classe: "person", Score: 0.87}}})
+	s.mgr.Alertas().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
+		Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
 
 	if got := string(pede(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":1}` {
 		t.Errorf("alerts no /api/health: %s", got)
@@ -73,9 +73,9 @@ func TestDescarteNoHealth(t *testing.T) {
 	sim := true
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &sim,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
-	for range alerta.RajadaDeAlertas + 2 {
-		s.mgr.Alertas().Recebe(alerta.Alerta{Camera: "cam_teste", InstanteMs: 1000,
-			Objetos: []alerta.Objeto{{Familia: "pessoa", Classe: "person", Score: 0.87}}})
+	for range alert.AlertBurst + 2 {
+		s.mgr.Alertas().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
+			Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
 	}
 
 	var alerts struct {
@@ -88,7 +88,7 @@ func TestDescarteNoHealth(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := alerts.Dropped
-	if d == nil || d.OverLimit != 2 || d.QueueFull != 0 || d.LimitPerHour != alerta.AlertasPorHora ||
+	if d == nil || d.OverLimit != 2 || d.QueueFull != 0 || d.LimitPerHour != alert.AlertsPerHour ||
 		d.Since == "" || d.LastAt == "" {
 		t.Errorf("dropped no /api/health: %+v", d)
 	}
@@ -116,9 +116,9 @@ func TestMeioFalhandoNoHealth(t *testing.T) {
 	}
 
 	// Sem o Start do Manager, a goroutine de envio é a do teste.
-	go s.mgr.Alertas().Roda(t.Context())
-	s.mgr.Alertas().Recebe(alerta.Alerta{Camera: "cam_teste", InstanteMs: 1000,
-		Objetos: []alerta.Objeto{{Familia: "pessoa", Classe: "person", Score: 0.87}}})
+	go s.mgr.Alertas().Run(t.Context())
+	s.mgr.Alertas().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
+		Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
 
 	var alerts struct {
 		Failing []struct{ Name, Since, Error string }

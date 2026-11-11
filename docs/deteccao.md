@@ -284,7 +284,7 @@ quem anda pela cena avisa a cada olhada que o marca de novo.
 **Ele nunca segura a fila do detector de objetos.** A avaliação roda na
 goroutine da fila, e por isso só faz contas em memória. O que pode esperar, o
 envio aos meios, fica numa goroutine própria, com uma espera de
-`AlertasNaEspera`: com ela cheia, o alerta é descartado e contado, e já está no
+`QueuedAlerts`: com ela cheia, o alerta é descartado e contado, e já está no
 registro.
 
 **O registro** é a marca na linha de cada objeto que passou, no
@@ -358,7 +358,7 @@ espera e a goroutine de envio ficam com ela, paradas.
   sobe, a rajada de 20 volta inteira. A fila de envio cheia, com o envio
   lento ou travado, também descarta e entra no mesmo Aviso. O alerta que não
   saiu fica gravado na detecção, como todos. Os números estão no
-  `internal/alerta/parametros.go`.
+  `internal/alert/params.go`.
 - **Com o disco falhando, o alerta sai do mesmo jeito:** a falha ao gravar a
   marca vai ao log, e a detecção pode faltar em Detecções e no "só alertas",
   mas o e-mail não depende do disco.
@@ -413,15 +413,15 @@ novo faz a medição deixar de valer em silêncio:
 | `ClassFamilies` | 12 classes | quais classes do COCO viram `pessoa`, `veiculo` ou `animal` |
 
 Os números do alerta, que são escolha de desenho e não medida, ficam em
-[`internal/alerta/parametros.go`](../internal/alerta/parametros.go):
+[`internal/alert/params.go`](../internal/alert/params.go):
 
 | Número | Valor | O que é |
 | --- | --- | --- |
-| `AlertasNaEspera` | 32 | quantos esperam a vez de sair pelos meios |
-| `PrazoDoEnvio` | 30 s | quanto um envio pode levar antes de contar como falha |
-| `RajadaDeAlertas` | 20 | quantos saem seguidos antes de o teto valer |
-| `AlertasPorHora` | 15 | o ritmo depois da rajada, um a cada 4 min, para a instalação inteira |
-| `AvisoDoDescarteDura` | 1 h | quanto o Aviso do alerta que não saiu fica depois do último descarte |
+| `QueuedAlerts` | 32 | quantos esperam a vez de sair pelos meios |
+| `SendTimeout` | 30 s | quanto um envio pode levar antes de contar como falha |
+| `AlertBurst` | 20 | quantos saem seguidos antes de o teto valer |
+| `AlertsPerHour` | 15 | o ritmo depois da rajada, um a cada 4 min, para a instalação inteira |
+| `DropWarningLasts` | 1 h | quanto o Aviso do alerta que não saiu fica depois do último descarte |
 
 ## O custo
 
@@ -519,8 +519,8 @@ e [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO/TODO_recalibrar-modelo
 | `internal/detect/params.go` | todos os números, com o porquê de cada um |
 | `internal/recorder/recorder.go` | o gancho no gravador e o funil |
 | `internal/area/area.go` | "o objeto está dentro da área?": as regras `foot` e `touch` |
-| `internal/alerta/regra.go` | quando as marcas de uma olhada viram alerta |
-| `internal/alerta/central.go` | o registro e a entrega aos meios |
+| `internal/alert/rule.go` | quando as marcas de uma olhada viram alerta |
+| `internal/alert/dispatcher.go` | o registro e a entrega aos meios |
 | `internal/store/store.go` | `eventos/{dia}.ndjson` |
 | `dwnvr-detect/servidor.py` | decodificar e rodar o modelo |
 | `web/src/components/Timeline.svelte` | a faixa de calor e as marcas de objeto |

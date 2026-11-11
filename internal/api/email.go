@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/alerta"
+	"github.com/mhagnumdw/dwnvr/internal/alert"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/email"
 	"github.com/mhagnumdw/dwnvr/internal/users"
@@ -131,15 +131,15 @@ type alertaPorEmail struct {
 }
 
 func (s *Server) alertaPorEmail() alertaPorEmail {
-	if falta := alerta.FaltaParaOEmail(s.cfg); len(falta) > 0 {
+	if falta := alert.MissingForEmail(s.cfg); len(falta) > 0 {
 		return alertaPorEmail{Missing: falta, SMTPError: s.cfg.SMTP.Problem}
 	}
 	a := alertaPorEmail{To: s.cfg.Alerts.Email.To}
 	// O estado do meio só existe depois que alguma câmera ligou o alerta.
 	if c := s.mgr.Alertas(); c != nil {
-		for _, m := range c.Meios() {
-			if m.Nome == alerta.MeioEmail && !m.FalhandoDesde.IsZero() {
-				a.FailingSince, a.Error = &m.FalhandoDesde, m.Erro
+		for _, m := range c.NotifierStates() {
+			if m.Name == alert.NotifierEmail && !m.FailingSince.IsZero() {
+				a.FailingSince, a.Error = &m.FailingSince, m.Err
 			}
 		}
 	}

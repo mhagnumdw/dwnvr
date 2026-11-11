@@ -2,7 +2,7 @@
 // over the allowed rate.
 //
 // Login uses it (see internal/api/auth.go), and so does the alert cap, with a
-// single key for the whole installation (see internal/alerta). A limit on
+// single key for the whole installation (see internal/alert). A limit on
 // other routes would use the same Limiter, with a different rate and burst.
 package ratelimit
 

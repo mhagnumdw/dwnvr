@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/alerta"
+	"github.com/mhagnumdw/dwnvr/internal/alert"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
@@ -47,11 +47,11 @@ type Manager struct {
 
 	// regras é o alerta de cada câmera que alerta, montado no Set. Câmera sem
 	// alerta não tem entrada, e a olhada dela não faz conta nenhuma.
-	regras map[string]*alerta.Regra
+	regras map[string]*alert.Rule
 	// alertas nasce com a primeira regra e fica até o dwnvr parar, para o
 	// total do /api/health não voltar a zero quando o último alerta é
 	// desligado. Nil é "nenhuma câmera ligou o alerta": nada do alerta existe.
-	alertas *alerta.Central
+	alertas *alert.Dispatcher
 
 	// fila leva os pedaços de vídeo de todas as câmeras ao detector de
 	// objetos. Nil sem `detector.url`: aí ninguém olha, e nenhum recorder
@@ -67,7 +67,7 @@ func NewManager(cfg *config.Config, client *go2rtc.Client, st *store.Store, log 
 	m := &Manager{
 		cfg: cfg, client: client, store: st, log: log,
 		recs: map[string]*running{}, cams: map[string]config.Camera{},
-		regras: map[string]*alerta.Regra{},
+		regras: map[string]*alert.Rule{},
 	}
 	if cfg.Detector.URL != "" {
 		m.fila = detect.NewQueue(detect.Detectors["sidecar"](cfg.Detector.URL), m.olhou, log)
@@ -87,7 +87,7 @@ func (m *Manager) olhou(o detect.Inference) {
 		return
 	}
 	if a, ok := r.rec.olhou(o, regra); ok {
-		alertas.Recebe(a)
+		alertas.Receive(a)
 	}
 }
 
@@ -117,9 +117,9 @@ func (m *Manager) Set(raw config.Camera) {
 	cam := m.cfg.Resolve(raw)
 	// Sem detector de objetos não há olhada, e o alerta não teria o que
 	// avisar: nem a regra nasce.
-	var regra *alerta.Regra
+	var regra *alert.Rule
 	if m.fila != nil {
-		regra = alerta.NovaRegra(cam)
+		regra = alert.NewRule(cam)
 	}
 
 	m.mu.Lock()
@@ -168,17 +168,17 @@ func (m *Manager) ligaAlertasLocked() {
 	if m.alertas != nil {
 		return
 	}
-	m.alertas = alerta.NovaCentral(alerta.Meios(m.cfg, m.log), m.log)
+	m.alertas = alert.NewDispatcher(alert.BuildNotifiers(m.cfg, m.log), m.log)
 	if m.ctx != nil {
 		c := m.alertas
 		m.wg.Go(func() {
-			c.Roda(m.ctx)
+			c.Run(m.ctx)
 		})
 	}
 }
 
 // Alertas devolve a Central, ou nil enquanto nenhuma câmera ligou o alerta.
-func (m *Manager) Alertas() *alerta.Central {
+func (m *Manager) Alertas() *alert.Dispatcher {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.alertas

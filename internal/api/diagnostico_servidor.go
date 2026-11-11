@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/alerta"
+	"github.com/mhagnumdw/dwnvr/internal/alert"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/logbuf"
 )
@@ -61,7 +61,7 @@ type servidorInfo struct {
 	Log     *logInfo           `json:"log,omitempty"`
 }
 
-// meioDoAlertaInfo é o EstadoDoMeio da Central. Ultimo some antes do primeiro
+// meioDoAlertaInfo é o NotifierState da Central. Ultimo some antes do primeiro
 // envio, e Erro, com o último envio tendo dado certo.
 type meioDoAlertaInfo struct {
 	Nome     string     `json:"nome"`
@@ -226,15 +226,15 @@ func (s *Server) handleDiagnosticoServidor(w http.ResponseWriter, r *http.Reques
 
 // meiosNoDiagnostico é nil sem Central, que só nasce com a primeira câmera que
 // liga o alerta, e sem meio.
-func meiosNoDiagnostico(c *alerta.Central) []meioDoAlertaInfo {
+func meiosNoDiagnostico(c *alert.Dispatcher) []meioDoAlertaInfo {
 	if c == nil {
 		return nil
 	}
 	var out []meioDoAlertaInfo
-	for _, m := range c.Meios() {
-		info := meioDoAlertaInfo{Nome: m.Nome, Enviados: m.Enviados, Falhas: m.Falhas, Erro: m.Erro}
-		if !m.Ultimo.IsZero() {
-			info.Ultimo = &m.Ultimo
+	for _, m := range c.NotifierStates() {
+		info := meioDoAlertaInfo{Nome: m.Name, Enviados: m.Sent, Falhas: m.Failures, Erro: m.Err}
+		if !m.Last.IsZero() {
+			info.Ultimo = &m.Last
 		}
 		out = append(out, info)
 	}

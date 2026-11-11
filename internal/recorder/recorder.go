@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/alerta"
+	"github.com/mhagnumdw/dwnvr/internal/alert"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/fmp4"
@@ -449,14 +449,14 @@ func (r *Recorder) ofereceA(f *detect.Queue) func(detect.Clip) {
 // da fila, e grava o que virou marca. Com a regra de alerta da câmera, nil
 // quando ela não alerta, devolve o alerta da olhada, com os mesmos números das
 // linhas gravadas, que é o que Detecções mostra.
-func (r *Recorder) olhou(o detect.Inference, regra *alerta.Regra) (alerta.Alerta, bool) {
+func (r *Recorder) olhou(o detect.Inference, regra *alert.Rule) (alert.Alert, bool) {
 	if errors.Is(o.Err, detect.ErrClipRejected) {
 		r.recusados.Add(1)
-		return alerta.Alerta{}, false
+		return alert.Alert{}, false
 	}
 	if o.Err != nil {
 		r.falhas.Add(1)
-		return alerta.Alerta{}, false
+		return alert.Alert{}, false
 	}
 	if r.marcador == nil {
 		r.marcador = detect.NewMarker(detect.DefaultMarker)
@@ -464,7 +464,7 @@ func (r *Recorder) olhou(o detect.Inference, regra *alerta.Regra) (alerta.Alerta
 	marcas := r.marcador.Mark(o.Detections)
 	if len(marcas) == 0 {
 		r.semObjeto.Add(1)
-		return alerta.Alerta{}, false
+		return alert.Alert{}, false
 	}
 	r.comObjeto.Add(1)
 
@@ -510,10 +510,10 @@ func (r *Recorder) olhou(o detect.Inference, regra *alerta.Regra) (alerta.Alerta
 
 	// A regra do alerta roda antes da escrita, para a marca `alert` entrar
 	// na linha do objeto que passou.
-	var al alerta.Alerta
+	var al alert.Alert
 	var alertou bool
 	if regra != nil {
-		al, alertou = regra.Avalia(linhas, o.Frame)
+		al, alertou = regra.Evaluate(linhas, o.Frame)
 	}
 	for _, ev := range linhas {
 		if err := r.idx.AppendEvent(ev); err != nil {
