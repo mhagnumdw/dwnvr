@@ -565,7 +565,7 @@ sem cgroup, fora do Linux).
   ],
   "log": {
     "total": 37,
-    "linhas": [{ "em": "2026-09-22T18:37:12-03:00", "nivel": "WARN", "texto": "conexão caiu cam=garagem erro=EOF" }]
+    "linhas": [{ "em": "2026-09-22T18:37:12-03:00", "nivel": "WARN", "texto": "connection dropped cam=garagem err=EOF" }]
   }
 }
 ```

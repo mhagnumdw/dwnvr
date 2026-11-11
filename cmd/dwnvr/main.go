@@ -1,8 +1,8 @@
-// Command dwnvr é um NVR de gravação contínua para hardware modesto.
+// Command dwnvr is a continuous-recording NVR for modest hardware.
 //
-// Ele consome o fMP4 que o go2rtc já produz, corta em segmentos alinhados a
-// keyframe e indexa em arquivos NDJSON. Não decodifica, não transcodifica e não
-// usa banco de dados.
+// It consumes the fMP4 go2rtc already produces, cuts it into keyframe-aligned
+// segments and indexes them in NDJSON files. It doesn't decode, doesn't
+// transcode and doesn't use a database.
 package main
 
 import (
@@ -18,10 +18,10 @@ import (
 	"syscall"
 	"time"
 
-	// A base de fusos horários vai embutida no binário. O dwnvr usa hora local
-	// para decidir a que dia um segmento pertence, e numa imagem FROM scratch
-	// não existe /usr/share/zoneinfo - sem isto, TZ seria silenciosamente
-	// ignorado e todos os dias virariam UTC.
+	// The time zone database is embedded in the binary. dwnvr uses local time
+	// to decide which day a segment belongs to, and a FROM scratch image has no
+	// /usr/share/zoneinfo - without this, TZ would be silently ignored and
+	// every day would become UTC.
 	_ "time/tzdata"
 
 	"github.com/mhagnumdw/dwnvr/internal/api"
@@ -38,14 +38,14 @@ import (
 
 func main() {
 	var (
-		cfgPath = flag.String("config", "/etc/dwnvr/dwnvr.yaml", "caminho do dwnvr.yaml")
-		debug   = flag.Bool("debug", false, "log em nível debug")
-		health  = flag.Bool("healthcheck", false, "consulta o dwnvr local e sai com 0 se estiver saudável")
+		cfgPath = flag.String("config", "/etc/dwnvr/dwnvr.yaml", "path of dwnvr.yaml")
+		debug   = flag.Bool("debug", false, "debug-level log")
+		health  = flag.Bool("healthcheck", false, "queries the local dwnvr and exits with 0 if it is healthy")
 	)
 	flag.Parse()
 
-	// O healthcheck é o próprio binário porque a imagem é FROM scratch: não há
-	// shell nem curl lá dentro para o HEALTHCHECK do Docker chamar.
+	// The healthcheck is the binary itself because the image is FROM scratch:
+	// there's no shell or curl inside it for the Docker HEALTHCHECK to call.
 	if *health {
 		os.Exit(healthcheck(*cfgPath))
 	}
@@ -54,41 +54,41 @@ func main() {
 	if *debug {
 		level = slog.LevelDebug
 	}
-	// Os últimos avisos e erros ficam também em memória, para a tela de
-	// Diagnóstico mostrar sem ninguém precisar do docker logs.
+	// The latest warnings and errors also stay in memory, so the Diagnostics
+	// screen shows them without anyone needing docker logs.
 	log := slog.New(logbuf.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}), 50))
 
 	if err := run(log, *cfgPath); err != nil {
-		log.Error("dwnvr encerrou com erro", "erro", err)
+		log.Error("dwnvr exited with an error", "err", err)
 		os.Exit(1)
 	}
 }
 
 func run(log *slog.Logger, cfgPath string) error {
-	// Primeira linha do log de propósito: `docker logs dwnvr | head -1` é a
-	// forma mais barata de conferir que o deploy realmente trocou a versão.
+	// First log line on purpose: `docker logs dwnvr | head -1` is the cheapest
+	// way to check that the deploy really changed the version.
 	b := buildinfo.Get()
-	log.Info("dwnvr iniciando", "versao", b.Version, "commit", b.Commit, "build", b.Date)
+	log.Info("dwnvr starting", "version", b.Version, "commit", b.Commit, "build", b.Date)
 
-	cfg, avisos, err := config.Load(cfgPath)
+	cfg, warnings, err := config.Load(cfgPath)
 	if err != nil {
 		return err
 	}
-	avisaConfig(log, cfgPath, avisos)
+	warnConfig(log, cfgPath, warnings)
 	if cfg.SMTP.Problem != "" {
-		log.Warn("e-mail desligado: a seção smtp do dwnvr.yaml não serve até ser corrigida",
-			"arquivo", cfgPath, "problema", cfg.SMTP.Problem)
+		log.Warn("e-mail off: the smtp section of dwnvr.yaml is unusable until it is fixed",
+			"file", cfgPath, "problem", cfg.SMTP.Problem)
 	}
 	for _, a := range cfg.Alerts.Email.Warnings {
-		log.Warn("alertas por e-mail: "+a, "arquivo", cfgPath)
+		log.Warn("e-mail alerts: "+a, "file", cfgPath)
 	}
-	cams, avisos, err := cfg.LoadCameras()
+	cams, warnings, err := cfg.LoadCameras()
 	if err != nil {
 		return err
 	}
-	avisaConfig(log, cfg.CamerasPath(), avisos)
+	warnConfig(log, cfg.CamerasPath(), warnings)
 	if len(cams) == 0 {
-		log.Warn("nenhuma câmera cadastrada", "arquivo", cfg.CamerasPath())
+		log.Warn("no camera registered", "file", cfg.CamerasPath())
 	}
 
 	if err := prepareStorage(log, cfg); err != nil {
@@ -98,20 +98,20 @@ func run(log *slog.Logger, cfgPath string) error {
 	st := store.New(cfg.Storage.Root)
 	client := go2rtc.New(cfg.Go2RTC)
 
-	// Carrega o índice do disco. O dia mais recente é conferido contra os
-	// arquivos: é ali que uma queda deixa estrago, e conferir só ele evita
-	// varrer centenas de milhares de arquivos a cada boot.
+	// Loads the index from disk. The most recent day is checked against the
+	// files: that's where a crash leaves damage, and checking only it avoids
+	// scanning hundreds of thousands of files on every boot.
 	start := time.Now()
 	for _, cam := range cams {
 		idx, err := st.Load(cam.ID)
 		if err != nil {
-			return fmt.Errorf("lendo índice de %s: %w", cam.ID, err)
+			return fmt.Errorf("reading index of %s: %w", cam.ID, err)
 		}
 		days := idx.Days()
-		log.Info("índice carregado", "cam", cam.ID,
+		log.Info("index loaded", "cam", cam.ID,
 			"dias", len(days), "mb", idx.TotalBytes()>>20)
 	}
-	log.Info("índice pronto", "em", time.Since(start).Round(time.Millisecond))
+	log.Info("index ready", "em", time.Since(start).Round(time.Millisecond))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -119,56 +119,57 @@ func run(log *slog.Logger, cfgPath string) error {
 	mgr := recorder.NewManager(cfg, client, st, log)
 	mgr.Start(ctx, cams)
 
-	// A retenção lê a lista viva do gerenciador: uma cota alterada pela tela de
-	// cadastro precisa valer na passada seguinte, não só após reiniciar.
+	// Retention reads the manager's live list: a quota changed on the
+	// registration screen must apply on the next pass, not only after a
+	// restart.
 	ret := retention.New(cfg, st, mgr.Cameras, log)
 	go ret.Run(ctx)
 
 	secret, err := cfg.SessionSecret()
 	if err != nil {
-		return fmt.Errorf("preparando o segredo de sessão: %w", err)
+		return fmt.Errorf("preparing the session secret: %w", err)
 	}
 	if !cfg.Server.AuthEnabled() {
-		log.Warn("autenticação desligada: qualquer um na rede vê as gravações de todas as câmeras",
-			"como_ligar", "defina server.username e server.password em "+cfgPath)
+		log.Warn("authentication off: anyone on the network sees the recordings of every camera",
+			"como_ligar", "set server.username and server.password in "+cfgPath)
 	}
 
-	// Um usuarios.json ilegível não impede a gravação: só o dono entra até ele
-	// ser corrigido, e a tela não grava por cima.
-	cad, avisosCad, err := users.Open(cfg.UsersPath(), cfg.Server.Username)
+	// An unreadable usuarios.json doesn't stop recording: only the owner logs
+	// in until it is fixed, and the screen doesn't write over it.
+	registry, registryWarnings, err := users.Open(cfg.UsersPath(), cfg.Server.Username)
 	if err != nil {
-		log.Error("cadastro de usuários ilegível; só o dono do dwnvr.yaml entra até ser corrigido", "erro", err)
+		log.Error("unreadable user registry; only the owner from dwnvr.yaml logs in until it is fixed", "err", err)
 	}
-	for _, a := range avisosCad {
-		log.Warn("cadastro de usuários: "+a, "arquivo", cfg.UsersPath())
+	for _, a := range registryWarnings {
+		log.Warn("user registry: "+a, "file", cfg.UsersPath())
 	}
-	if !cfg.Server.AuthEnabled() && cad.Count() > 0 {
-		log.Warn("autenticação desligada: os usuários do cadastro foram ignorados",
-			"arquivo", cfg.UsersPath(), "usuarios", cad.Count())
+	if !cfg.Server.AuthEnabled() && registry.Count() > 0 {
+		log.Warn("authentication off: the registry users were ignored",
+			"file", cfg.UsersPath(), "users", registry.Count())
 	}
 
-	acessos, err := users.OpenAccessLog(cfg.AccessPath(), log)
+	accesses, err := users.OpenAccessLog(cfg.AccessPath(), log)
 	if err != nil {
-		log.Warn("últimos acessos ilegíveis; recomeçam vazios", "erro", err)
+		log.Warn("unreadable last accesses; they start over empty", "err", err)
 	}
 
-	// Sem a seção smtp ligada, nada de e-mail é montado. Vai como interface
-	// nil, e não como um *email.SMTP nil, que a API leria como ligado.
-	var envio email.Sender
+	// Without the smtp section on, no e-mail is set up. It goes as a nil
+	// interface, not as a nil *email.SMTP, which the API would read as on.
+	var sender email.Sender
 	if cfg.SMTP.Enabled() {
 		if smtp, err := email.NewSMTP(cfg.SMTP); err != nil {
-			log.Warn("e-mail desligado", "arquivo", cfgPath, "problema", err)
+			log.Warn("e-mail off", "file", cfgPath, "problem", err)
 		} else {
-			envio = smtp
-			log.Info("e-mail ligado", "servidor", cfg.SMTP.Host, "remetente", cfg.SMTP.From)
+			sender = smtp
+			log.Info("e-mail on", "server", cfg.SMTP.Host, "from", cfg.SMTP.From)
 		}
 	}
 
 	srv := &http.Server{
 		Addr:    cfg.Server.Listen,
-		Handler: api.New(cfg, st, client, mgr, ret, cad, acessos, envio, secret, log).Handler(),
-		// Sem WriteTimeout: exportação e proxy de live são respostas longas por
-		// natureza, e um teto aqui as cortaria no meio.
+		Handler: api.New(cfg, st, client, mgr, ret, registry, accesses, sender, secret, log).Handler(),
+		// No WriteTimeout: export and the live proxy are long responses by
+		// nature, and a cap here would cut them in the middle.
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -176,35 +177,35 @@ func run(log *slog.Logger, cfgPath string) error {
 		log.Info("dwnvr no ar", "http", cfg.Server.Listen,
 			"storage", cfg.Storage.Root, "go2rtc", cfg.Go2RTC.URL)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("servidor HTTP caiu", "erro", err)
+			log.Error("HTTP server went down", "err", err)
 			stop()
 		}
 	}()
 
 	<-ctx.Done()
-	log.Info("encerrando; fechando segmentos em aberto")
+	log.Info("shutting down; closing open segments")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
 
-	// Sem requisição nova, o que os últimos minutos anotaram vai para o disco
-	// agora, e não se perde no reinício.
-	if err := acessos.FlushPending(); err != nil {
-		log.Error("gravando os últimos acessos", "arquivo", cfg.AccessPath(), "erro", err)
+	// With no new request, what the last minutes noted goes to disk now, and
+	// isn't lost on restart.
+	if err := accesses.FlushPending(); err != nil {
+		log.Error("saving the last accesses", "file", cfg.AccessPath(), "err", err)
 	}
 
-	// Stop espera cada segmento em aberto ser fechado e indexado. Sem isso,
-	// todo reinício perderia o último minuto de cada câmera.
+	// Stop waits for each open segment to be closed and indexed. Without it,
+	// every restart would lose the last minute of each camera.
 	mgr.Stop()
-	log.Info("encerrado")
+	log.Info("stopped")
 	return nil
 }
 
-// prepareStorage valida o destino das gravações antes de qualquer escrita.
+// prepareStorage validates the recordings destination before any write.
 func prepareStorage(log *slog.Logger, cfg *config.Config) error {
 	if err := os.MkdirAll(cfg.Storage.Root, 0o755); err != nil {
-		return fmt.Errorf("criando %s: %w", cfg.Storage.Root, err)
+		return fmt.Errorf("creating %s: %w", cfg.Storage.Root, err)
 	}
 
 	free, err := retention.FreeBytes(cfg.Storage.Root)
@@ -215,42 +216,43 @@ func prepareStorage(log *slog.Logger, cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	log.Info("storage", "caminho", cfg.Storage.Root,
+	log.Info("storage", "path", cfg.Storage.Root,
 		"livre_gb", free>>30, "total_gb", total>>30, "min_livre_mb", cfg.Storage.MinFreeMB)
 
 	if free < cfg.Storage.MinFreeMB<<20 {
-		log.Warn("disco já abaixo do mínimo livre; a retenção vai evictar gravações antigas",
+		log.Warn("disk already below the minimum free; retention will evict old recordings",
 			"livre_mb", free>>20, "minimo_mb", cfg.Storage.MinFreeMB)
 	}
 	return nil
 }
 
-// avisaConfig loga cada valor fora da faixa que o boot trocou pelo padrão. Em
-// WARN de propósito: além do docker logs, a linha aparece na tela de
-// Diagnóstico, que é onde quem instalou vai olhar.
-func avisaConfig(log *slog.Logger, arquivo string, avisos []config.Warning) {
-	for _, a := range avisos {
-		attrs := []any{"arquivo", arquivo}
+// warnConfig logs each out-of-range value the boot replaced with the default.
+// As WARN on purpose: besides docker logs, the line shows on the Diagnostics
+// screen, which is where whoever installed it will look.
+func warnConfig(log *slog.Logger, file string, warnings []config.Warning) {
+	for _, a := range warnings {
+		attrs := []any{"file", file}
 		if a.Camera != "" {
 			attrs = append(attrs, "cam", a.Camera)
 		}
-		attrs = append(attrs, "campo", a.Field, "valor", a.Value,
-			"aceito", a.Accepted, "usando", a.InEffect)
-		log.Warn("valor fora do aceito na configuração; vale o padrão até ser corrigido", attrs...)
+		attrs = append(attrs, "field", a.Field, "value", a.Value,
+			"accepted", a.Accepted, "using", a.InEffect)
+		log.Warn("value out of range in the configuration; the default applies until it is fixed", attrs...)
 	}
 }
 
-// healthcheck consulta a instância local e devolve o código de saída para o
-// HEALTHCHECK do Docker.
+// healthcheck queries the local instance and returns the exit code for the
+// Docker HEALTHCHECK.
 func healthcheck(cfgPath string) int {
-	// Os avisos são do processo principal, que já os logou ao subir.
+	// The warnings belong to the main process, which already logged them on
+	// startup.
 	cfg, _, err := config.Load(cfgPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "healthcheck: configuração ilegível:", err)
+		fmt.Fprintln(os.Stderr, "healthcheck: unreadable configuration:", err)
 		return 1
 	}
 
-	// listen costuma ser ":8080"; o healthcheck fala com o loopback.
+	// listen is usually ":8080"; the healthcheck talks to the loopback.
 	addr := cfg.Server.Listen
 	if strings.HasPrefix(addr, ":") {
 		addr = "127.0.0.1" + addr
