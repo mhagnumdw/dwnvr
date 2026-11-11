@@ -5,7 +5,7 @@ contras, o mantenedor está um pouco mais inclinado a NÃO fazer.
 
 ## O problema
 
-O rastreio de lugares ocupados (`internal/detect/marcador.go`) vive em memória.
+O rastreio de lugares ocupados (`internal/detect/marker.go`) vive em memória.
 Ele sobrevive à reconexão do stream de propósito, mas some quando o recorder é
 recriado: o dwnvr reinicia, a câmera muda áudio, segmento ou stall
 (`recordingParamsChanged`), a câmera é desligada e ligada, as gravações dela
@@ -56,10 +56,10 @@ onset, que ensina o rastreio e não marca nada.
 
 1. **Quem chega bem na hora do boot não marca.** A pessoa que está na cena é
    aprendida como "já estava lá" e só volta a marcar depois de
-   `FaltasParaLiberar` (5) olhadas seguidas sem ela.
+   `MissesToRelease` (5) olhadas seguidas sem ela.
 2. **Atraso no boot.** Com 9 câmeras, as primeiras marcas reais esperam até
    ~45 s atrás dos aquecimentos (3,6 a 6,5 s por olhada num Orange Pi Zero 3).
-   Cada aquecimento ocupa uma das `PedacosPorCamera` (2) vagas da câmera.
+   Cada aquecimento ocupa uma das `ClipsPerCamera` (2) vagas da câmera.
 3. **Os 10 s são medidos num hardware só.** Numa placa mais lenta, o "fora do
    ar" falso volta em todo boot. A nova tentativa conserta o rastreio, mas o
    Aviso continua acendendo.

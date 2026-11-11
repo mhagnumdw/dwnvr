@@ -14,172 +14,175 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
 const (
 	sessionCookie = "dwnvr_session"
 	sessionTTL    = 30 * 24 * time.Hour
 
-	// Faltando menos que isto para vencer, a sessão em uso ganha um cookie
-	// novo, com o prazo inteiro. Assim os 30 dias contam da última vez que a
-	// tela falou com o dwnvr, e não do login: quem usa o app instalado não é
-	// mandado de volta para a tela de login a cada mês.
+	// With less than this left before it expires, the session in use gets a new
+	// cookie, with the full term. That way the 30 days count from the last time
+	// the screen talked to dwnvr, and not from the login: whoever uses the
+	// installed app is not sent back to the login screen every month.
 	sessionRenew = sessionTTL / 2
 
-	// Teto do X-Forwarded-For copiado para o log (ver encaminhado). Cabe uma
-	// cadeia de proxies inteira; o resto é cortado.
-	encaminhadoMax = 200
+	// Cap of the X-Forwarded-For copied to the log (see forwarded). A whole
+	// proxy chain fits; the rest is cut.
+	forwardedMax = 200
 )
 
-// pessoa é quem fez a requisição: o dono, do dwnvr.yaml, ou alguém do
+// person is who made the request: the owner, from dwnvr.yaml, or someone from
 // usuarios.json.
-type pessoa struct {
-	Usuario string         `json:"username,omitempty"`
-	Nome    string         `json:"name,omitempty"`
-	Papel   usuarios.Papel `json:"role"`
-	// Dono é a conta do dwnvr.yaml. A senha dele se troca lá, e não pela tela.
-	Dono bool `json:"owner"`
-	// Avatar é o id da foto (ver GET /api/avatar), ou vazio.
+type person struct {
+	Username string     `json:"username,omitempty"`
+	Name     string     `json:"name,omitempty"`
+	Role     users.Role `json:"role"`
+	// Owner is the dwnvr.yaml account. Its password is changed there, and not
+	// through the screen.
+	Owner bool `json:"owner"`
+	// Avatar is the photo id (see GET /api/avatar), or empty.
 	Avatar string `json:"avatar,omitempty"`
 
-	// credencial é o que amarra o cookie à senha da pessoa (ver chaveDaSessao):
-	// a senha do dono, ou o valor guardado no usuarios.json.
-	credencial string
+	// credential is what ties the cookie to the person's password (see
+	// sessionKey): the owner's password, or the value stored in usuarios.json.
+	credential string
 }
 
-func (p pessoa) admin() bool { return p.Papel == usuarios.PapelAdmin }
+func (p person) admin() bool { return p.Role == users.RoleAdmin }
 
-// semAutenticacao é quem usa o dwnvr com a autenticação desligada: não há
-// usuários, e quem alcança a tela faz tudo.
-var semAutenticacao = pessoa{Papel: usuarios.PapelAdmin, Dono: true}
+// noAuth is who uses dwnvr with authentication disabled: there are no users,
+// and whoever reaches the screen does everything.
+var noAuth = person{Role: users.RoleAdmin, Owner: true}
 
-// quem acha a pessoa pelo login. Quem ainda não definiu a senha fica de fora:
-// não há credencial para amarrar uma sessão.
-func (s *Server) quem(usuario string) (pessoa, bool) {
-	if usuario == s.cfg.Server.Username {
-		dono := s.usuarios.Dono()
-		nome := dono.Nome
-		if nome == "" {
-			nome = usuario
+// who finds the person by login. Whoever has not set the password yet is left
+// out: there is no credential to tie a session to.
+func (s *Server) who(username string) (person, bool) {
+	if username == s.cfg.Server.Username {
+		owner := s.users.Owner()
+		name := owner.Name
+		if name == "" {
+			name = username
 		}
-		return pessoa{Usuario: usuario, Nome: nome, Papel: usuarios.PapelAdmin, Dono: true,
-			Avatar: dono.Avatar, credencial: s.cfg.Server.Password}, true
+		return person{Username: username, Name: name, Role: users.RoleAdmin, Owner: true,
+			Avatar: owner.Avatar, credential: s.cfg.Server.Password}, true
 	}
-	u, ok := s.usuarios.Buscar(usuario)
-	if !ok || u.Senha == "" {
-		return pessoa{}, false
+	u, ok := s.users.Find(username)
+	if !ok || u.PasswordHash == "" {
+		return person{}, false
 	}
-	return pessoa{Usuario: u.Usuario, Nome: u.Nome, Papel: u.Papel, Avatar: u.Avatar,
-		credencial: u.Senha}, true
+	return person{Username: u.Username, Name: u.Name, Role: u.Role, Avatar: u.Avatar,
+		credential: u.PasswordHash}, true
 }
 
-// quemEntra acha a pessoa pelo que ela digitou no login: o usuário ou, com
-// "@", o e-mail. O usuário do cadastro não aceita "@" (ver
-// usuarios.ValidarUsuario), então não há dúvida de qual dos dois veio. O dono
-// não tem e-mail e entra só pelo usuário, que o dwnvr.yaml deixa ter "@": o
-// dele vale antes de procurar um e-mail.
-func (s *Server) quemEntra(digitado string) (p pessoa, existe, peloEmail bool) {
-	if !strings.Contains(digitado, "@") || digitado == s.cfg.Server.Username {
-		p, existe = s.quem(digitado)
-		return p, existe, false
+// whoLogsIn finds the person by what they typed at login: the username or, with
+// "@", the email. The registry username does not accept "@" (see
+// users.ValidateUsername), so there is no doubt which of the two came. The
+// owner has no email and signs in only by username, which dwnvr.yaml lets have
+// "@": the owner's counts before looking for an email.
+func (s *Server) whoLogsIn(typed string) (p person, exists, byEmail bool) {
+	if !strings.Contains(typed, "@") || typed == s.cfg.Server.Username {
+		p, exists = s.who(typed)
+		return p, exists, false
 	}
-	u, ok := s.usuarios.BuscarPorEmail(strings.TrimSpace(digitado))
+	u, ok := s.users.FindByEmail(strings.TrimSpace(typed))
 	if !ok {
-		return pessoa{}, false, true
+		return person{}, false, true
 	}
-	p, existe = s.quem(u.Usuario)
-	return p, existe, true
+	p, exists = s.who(u.Username)
+	return p, exists, true
 }
 
-// chaveDaSessao é a chave que assina os cookies de uma pessoa. Sai do
-// .session-secret, do login e da credencial dela: trocar a senha, ou gerar um
-// link novo, muda a chave, e todo cookie dela emitido antes deixa de bater com
-// a assinatura. Só ela volta para a tela de login; os outros seguem. Sem isso,
-// trocar a senha não tiraria ninguém, e a sessão em uso, que se renova, não
-// venceria nunca.
+// sessionKey is the key that signs a person's cookies. It comes from
+// .session-secret, from the login and from their credential: changing the
+// password, or generating a new link, changes the key, and every cookie of
+// theirs issued before stops matching the signature. Only they go back to the
+// login screen; the others carry on. Without this, changing the password would
+// kick no one out, and the session in use, which renews itself, would never
+// expire.
 //
-// Reiniciar com a mesma credencial dá a mesma chave e não derruba ninguém.
-// Derrubar todo mundo de uma vez é apagar o .session-secret.
-func (s *Server) chaveDaSessao(p pessoa) []byte {
+// Restarting with the same credential gives the same key and drops no one.
+// Dropping everyone at once is deleting .session-secret.
+func (s *Server) sessionKey(p person) []byte {
 	mac := hmac.New(sha256.New, s.sessionSecret)
-	mac.Write([]byte(p.Usuario + "\x00" + p.credencial))
+	mac.Write([]byte(p.Username + "\x00" + p.credential))
 	return mac.Sum(nil)
 }
 
-// O token de sessão é "<login>.<expiraEmUnix>.<hmac>", com o login em base64
-// (ele pode ter ponto). Não há estado no servidor: a assinatura basta para
-// validar, o que evita manter uma tabela de sessões viva num dispositivo com
-// 1,5 GB de RAM.
-func (s *Server) signToken(p pessoa, expires int64) string {
-	payload := base64.RawURLEncoding.EncodeToString([]byte(p.Usuario)) + "." +
+// The session token is "<login>.<expiresAtUnix>.<hmac>", with the login in
+// base64 (it may have a dot). There is no state on the server: the signature is
+// enough to validate, which avoids keeping a live session table on a device
+// with 1.5 GB of RAM.
+func (s *Server) signToken(p person, expires int64) string {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(p.Username)) + "." +
 		strconv.FormatInt(expires, 10)
-	mac := hmac.New(sha256.New, s.chaveDaSessao(p))
+	mac := hmac.New(sha256.New, s.sessionKey(p))
 	mac.Write([]byte(payload))
 	return payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// tokenPessoa devolve de quem é o token e até quando ele vale, e ok=false se
-// ele estiver vencido, malformado, com assinatura que não bate, ou se a
-// pessoa não existir mais.
-func (s *Server) tokenPessoa(tok string) (p pessoa, expires int64, ok bool) {
+// tokenPerson returns whose the token is and until when it is valid, and
+// ok=false if it is expired, malformed, with a signature that does not match,
+// or if the person no longer exists.
+func (s *Server) tokenPerson(tok string) (p person, expires int64, ok bool) {
 	before, after, ok0 := strings.CutLast(tok, ".")
 	if !ok0 {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
 	payload, sig := before, after
-	login, prazo, ok := strings.Cut(payload, ".")
+	login, deadline, ok := strings.Cut(payload, ".")
 	if !ok {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
-	usuario, err := base64.RawURLEncoding.DecodeString(login)
+	username, err := base64.RawURLEncoding.DecodeString(login)
 	if err != nil {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
-	expires, err = strconv.ParseInt(prazo, 10, 64)
+	expires, err = strconv.ParseInt(deadline, 10, 64)
 	if err != nil || time.Now().Unix() > expires {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
-	p, ok = s.quem(string(usuario))
+	p, ok = s.who(string(username))
 	if !ok {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
 
-	mac := hmac.New(sha256.New, s.chaveDaSessao(p))
+	mac := hmac.New(sha256.New, s.sessionKey(p))
 	mac.Write([]byte(payload))
 	want := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 	if !hmac.Equal([]byte(sig), []byte(want)) {
-		return pessoa{}, 0, false
+		return person{}, 0, false
 	}
 	return p, expires, true
 }
 
-// sessao diz quem é a pessoa da requisição, se a sessão for válida. Se ela já
-// passou da metade do prazo, a resposta leva um cookie novo (ver
+// session says who the person of the request is, if the session is valid. If it
+// is already past half of its term, the response carries a new cookie (see
 // sessionRenew).
 //
-// É também onde o último acesso da pessoa é anotado: toda requisição
-// autenticada passa por aqui, inclusive o /api/session. A anotação só toca a
-// memória (ver usuarios.Acessos).
+// It is also where the person's last access is recorded: every authenticated
+// request goes through here, including /api/session. The record only touches
+// memory (see users.AccessLog).
 //
-// Não cria estado de sessão no servidor: renovar é só assinar outro prazo.
-func (s *Server) sessao(w http.ResponseWriter, r *http.Request) (pessoa, bool) {
+// It creates no session state on the server: renewing is just signing another
+// term.
+func (s *Server) session(w http.ResponseWriter, r *http.Request) (person, bool) {
 	c, err := r.Cookie(sessionCookie)
 	if err != nil {
-		return pessoa{}, false
+		return person{}, false
 	}
-	p, expires, ok := s.tokenPessoa(c.Value)
+	p, expires, ok := s.tokenPerson(c.Value)
 	if !ok {
-		return pessoa{}, false
+		return person{}, false
 	}
 	if time.Until(time.Unix(expires, 0)) < sessionRenew {
 		s.setSessionCookie(w, r, p)
 	}
-	s.acessos.Registrar(p.Usuario)
+	s.accesses.Record(p.Username)
 	return p, true
 }
 
-func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, p pessoa) {
+func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, p person) {
 	expires := time.Now().Add(sessionTTL)
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
@@ -192,32 +195,32 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, p pess
 	})
 }
 
-type chavePessoa struct{}
+type personKey struct{}
 
-// pessoaDe devolve quem fez a requisição. Só vale dentro de requireAuth e
-// requireAdmin, que a põem no contexto.
-func pessoaDe(r *http.Request) pessoa {
-	p, _ := r.Context().Value(chavePessoa{}).(pessoa)
+// personOf returns who made the request. Only valid inside requireAuth and
+// requireAdmin, which put it in the context.
+func personOf(r *http.Request) person {
+	p, _ := r.Context().Value(personKey{}).(person)
 	return p
 }
 
-// requireAuth embrulha um handler exigindo sessão válida, de qualquer papel.
+// requireAuth wraps a handler requiring a valid session, of any role.
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
-	return s.exigir(false, next)
+	return s.require(false, next)
 }
 
-// requireAdmin embrulha um handler exigindo sessão de admin. Esconder a aba
-// na tela não é segurança: é aqui que o viewer é recusado.
+// requireAdmin wraps a handler requiring an admin session. Hiding the tab on
+// the screen is not security: this is where the viewer is rejected.
 func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return s.exigir(true, next)
+	return s.require(true, next)
 }
 
-func (s *Server) exigir(admin bool, next http.HandlerFunc) http.HandlerFunc {
+func (s *Server) require(admin bool, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p := semAutenticacao
+		p := noAuth
 		if s.cfg.Server.AuthEnabled() {
 			var ok bool
-			if p, ok = s.sessao(w, r); !ok {
+			if p, ok = s.session(w, r); !ok {
 				writeError(w, http.StatusUnauthorized, "não autenticado")
 				return
 			}
@@ -226,18 +229,19 @@ func (s *Server) exigir(admin bool, next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, http.StatusForbidden, "só o administrador")
 			return
 		}
-		next(w, r.WithContext(context.WithValue(r.Context(), chavePessoa{}, p)))
+		next(w, r.WithContext(context.WithValue(r.Context(), personKey{}, p)))
 	}
 }
 
-// handleLogin confere a senha e abre a sessão.
+// handleLogin checks the password and opens the session.
 //
-// Toda tentativa paga uma conta de senha inteira (ver usuarios.ConferirSenha),
-// na fila de uma por vez, inclusive a do dono, cuja senha está em texto no
-// dwnvr.yaml, e a de um usuário que não existe. Assim o tempo de resposta não
-// diz quem existe nem quem é o dono.
+// Every attempt pays for a full password computation (see
+// users.VerifyPassword), in the one-at-a-time queue, including the owner's,
+// whose password is in plain text in dwnvr.yaml, and that of a user who does
+// not exist. That way the response time does not tell who exists nor who the
+// owner is.
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	if !s.limitarLogin(w, r) {
+	if !s.limitLogin(w, r) {
 		return
 	}
 	var req struct {
@@ -249,69 +253,70 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p, existe, peloEmail := s.quemEntra(req.Username)
-	guardado := ""
-	if existe && !p.Dono {
-		guardado = p.credencial
+	p, exists, byEmail := s.whoLogsIn(req.Username)
+	stored := ""
+	if exists && !p.Owner {
+		stored = p.credential
 	}
-	ok, err := usuarios.ConferirSenha(r.Context(), req.Password, guardado)
+	ok, err := users.VerifyPassword(r.Context(), req.Password, stored)
 	if r.Context().Err() != nil {
-		return // o navegador desistiu na fila
+		return // the browser gave up in the queue
 	}
 	if err != nil {
-		s.log.Error("senha guardada ilegível no usuarios.json", "usuario", req.Username, "erro", err)
+		s.log.Error("unreadable stored password in usuarios.json", "user", req.Username, "err", err)
 	}
-	if existe && p.Dono {
-		ok = subtle.ConstantTimeCompare([]byte(req.Password), []byte(p.credencial)) == 1
+	if exists && p.Owner {
+		ok = subtle.ConstantTimeCompare([]byte(req.Password), []byte(p.credential)) == 1
 	}
-	if !existe || !ok {
-		s.log.Warn("tentativa de login recusada", "usuario", req.Username, "de", r.RemoteAddr, encaminhado(r))
+	if !exists || !ok {
+		s.log.Warn("login attempt rejected", "user", req.Username, "from", r.RemoteAddr, forwarded(r))
 		writeError(w, http.StatusUnauthorized, "usuário ou senha inválidos")
 		return
 	}
 
 	s.setSessionCookie(w, r, p)
-	s.acessos.Registrar(p.Usuario)
-	// A sessão, o último acesso e o log ficam com o usuário, mesmo entrando
-	// pelo e-mail.
-	via := slog.Attr{} // vazio, o slog não escreve
-	if peloEmail {
-		via = slog.Bool("pelo_email", true)
+	s.accesses.Record(p.Username)
+	// The session, the last access and the log stay with the username, even
+	// when signing in by email.
+	via := slog.Attr{} // empty, slog does not write it
+	if byEmail {
+		via = slog.Bool("via_email", true)
 	}
-	s.log.Info("login aceito", "usuario", p.Usuario, via, "de", r.RemoteAddr, encaminhado(r))
+	s.log.Info("login accepted", "user", p.Username, via, "from", r.RemoteAddr, forwarded(r))
 	writeJSON(w, map[string]any{"ok": true, "user": p})
 }
 
-// limitarLogin conta a tentativa no limite do endereço e, passado dele,
-// responde 429 com o Retry-After em segundos. Vem antes de tudo, inclusive de
-// ler o corpo: a conta da senha é o que o limite poupa. Conta toda tentativa,
-// a certa também, porque só depois da conta se sabe se ela era a certa.
-func (s *Server) limitarLogin(w http.ResponseWriter, r *http.Request) bool {
-	if s.limiteLogin == nil {
+// limitLogin counts the attempt against the address limit and, past it, answers
+// 429 with Retry-After in seconds. It comes before everything, including
+// reading the body: the password computation is what the limit saves. It counts
+// every attempt, the right one too, because only after the computation is it
+// known whether it was the right one.
+func (s *Server) limitLogin(w http.ResponseWriter, r *http.Request) bool {
+	if s.loginLimit == nil {
 		return true
 	}
-	cliente := clienteDe(r, s.proxies)
-	res := s.limiteLogin.Permite(cliente.String())
-	if res.Permitido {
+	client := clientOf(r, s.proxies)
+	res := s.loginLimit.Allow(client.String())
+	if res.Allowed {
 		return true
 	}
-	// Arredondado para cima: com 0 s a tela tentaria de novo cedo demais.
-	seg := int((res.Espera + time.Second - 1) / time.Second)
-	if res.PrimeiraRecusa {
-		s.log.Warn("limite de tentativas de login atingido", "cliente", cliente, "espera_s", seg,
-			"de", r.RemoteAddr, encaminhado(r))
+	// Rounded up: with 0 s the screen would try again too early.
+	seg := int((res.RetryAfter + time.Second - 1) / time.Second)
+	if res.FirstDenial {
+		s.log.Warn("login attempt limit reached", "client", client, "wait_s", seg,
+			"from", r.RemoteAddr, forwarded(r))
 	}
 	w.Header().Set("Retry-After", strconv.Itoa(seg))
 	writeError(w, http.StatusTooManyRequests, fmt.Sprintf("muitas tentativas; tente de novo em %d s", seg))
 	return false
 }
 
-// handleLogout apaga o cookie. Só vira log com uma sessão válida: sem ela não
-// há quem nomear, e não havia nada para encerrar.
+// handleLogout deletes the cookie. It only becomes a log with a valid session:
+// without one there is no one to name, and there was nothing to end.
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil {
-		if p, _, ok := s.tokenPessoa(c.Value); ok {
-			s.log.Info("logout", "usuario", p.Usuario, "de", r.RemoteAddr, encaminhado(r))
+		if p, _, ok := s.tokenPerson(c.Value); ok {
+			s.log.Info("logout", "user", p.Username, "from", r.RemoteAddr, forwarded(r))
 		}
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -321,53 +326,54 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-// viaHTTPS diz se o navegador fala com o dwnvr por HTTPS, e é o que liga o
-// Secure do cookie de sessão.
+// viaHTTPS says whether the browser talks to dwnvr over HTTPS, and it is what
+// turns on the Secure of the session cookie.
 //
-// O dwnvr só serve HTTP, e a instalação típica é HTTP na LAN, onde um cookie
-// Secure seria descartado em silêncio e o login nunca pegaria. O HTTPS vem de
-// um proxy TLS na frente, e o `tailscale serve` e o Caddy avisam pelo
-// X-Forwarded-Proto. Aí o cookie sai Secure e não vaza numa requisição em HTTP
-// para o mesmo endereço.
+// dwnvr only serves HTTP, and the typical install is HTTP on the LAN, where a
+// Secure cookie would be silently discarded and login would never stick. HTTPS
+// comes from a TLS proxy in front, and `tailscale serve` and Caddy announce it
+// through X-Forwarded-Proto. Then the cookie goes out Secure and does not leak
+// in an HTTP request to the same address.
 //
-// Confiar no header não abre nada, porque ele só decide o Secure: um cliente em
-// HTTP que o forje recebe um cookie que o próprio navegador recusa.
+// Trusting the header opens nothing, because it only decides Secure: an HTTP
+// client that forges it gets a cookie the browser itself rejects.
 //
-// Com o proxy e a porta HTTP no mesmo nome de host, depois de um login por
-// HTTPS o navegador não deixa o HTTP gravar um cookie com o mesmo nome. Quem
-// montar assim precisa entrar sempre pelo mesmo endereço.
+// With the proxy and the HTTP port on the same host name, after a login over
+// HTTPS the browser does not let HTTP store a cookie with the same name.
+// Whoever sets it up that way must always come in through the same address.
 func viaHTTPS(r *http.Request) bool {
 	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
-// encaminhado é o X-Forwarded-For da requisição, para o log ao lado do "de".
+// forwarded is the X-Forwarded-For of the request, for the log next to "from".
 //
-// Atrás do Caddy ou do `tailscale serve`, o "de" (o RemoteAddr) é o endereço
-// do proxy, igual para todo mundo. Quem chegou de verdade está no
-// X-Forwarded-For, que os dois preenchem.
+// Behind Caddy or `tailscale serve`, "from" (the RemoteAddr) is the proxy
+// address, the same for everyone. Who really arrived is in X-Forwarded-For,
+// which both fill in.
 //
-// O valor vai como veio, sem decidir se é confiável: quem fala direto com a
-// 8080 pode inventar o header. Por isso ele fica num campo próprio, e o "de"
-// segue sendo a conexão. Sem o header, o atributo sai vazio e o slog o omite.
-func encaminhado(r *http.Request) slog.Attr {
+// The value goes as it came, without deciding whether it is trustworthy:
+// whoever talks directly to 8080 can make up the header. That is why it stays
+// in a field of its own, and "from" remains the connection. Without the header,
+// the attribute comes out empty and slog omits it.
+func forwarded(r *http.Request) slog.Attr {
 	v := strings.Join(r.Header.Values("X-Forwarded-For"), ", ")
 	if v == "" {
 		return slog.Attr{}
 	}
-	if len(v) > encaminhadoMax {
-		v = v[:encaminhadoMax] + "…"
+	if len(v) > forwardedMax {
+		v = v[:forwardedMax] + "…"
 	}
-	return slog.String("encaminhado", v)
+	return slog.String("forwarded", v)
 }
 
-// handleSession diz ao frontend se precisa mostrar a tela de login e, com a
-// sessão válida, quem está logado. É a primeira chamada quando a tela abre, e
-// por isso também renova a sessão.
+// handleSession tells the frontend whether it needs to show the login screen
+// and, with a valid session, who is logged in. It is the first call when the
+// screen opens, and so it also renews the session.
 func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"authRequired": s.cfg.Server.AuthEnabled()}
-	p, ok := semAutenticacao, true
+	p, ok := noAuth, true
 	if s.cfg.Server.AuthEnabled() {
-		p, ok = s.sessao(w, r)
+		p, ok = s.session(w, r)
 	}
 	resp["authenticated"] = ok
 	if ok {

@@ -8,59 +8,59 @@ import (
 	"testing"
 )
 
-func TestSoAvisoEErroEntram(t *testing.T) {
-	var saida bytes.Buffer
-	h := New(slog.NewTextHandler(&saida, nil), 10)
+func TestOnlyWarnAndErrorAreKept(t *testing.T) {
+	var out bytes.Buffer
+	h := New(slog.NewTextHandler(&out, nil), 10)
 	log := slog.New(h)
 
-	log.Info("índice carregado", "cam", "a")
-	log.Warn("conexão caiu", "erro", errors.New("EOF"))
-	log.Error("câmera parou de gravar")
+	log.Info("index loaded", "cam", "a")
+	log.Warn("connection dropped", "err", errors.New("EOF"))
+	log.Error("camera stopped recording")
 
-	linhas, total := h.Recentes()
-	if total != 2 || len(linhas) != 2 {
-		t.Fatalf("guardou %d de total %d, esperava 2 e 2", len(linhas), total)
+	lines, total := h.Recent()
+	if total != 2 || len(lines) != 2 {
+		t.Fatalf("kept %d of total %d, want 2 and 2", len(lines), total)
 	}
-	// Mais nova primeiro.
-	if linhas[0].Nivel != "ERROR" || linhas[1].Texto != "conexão caiu erro=EOF" {
-		t.Errorf("linhas %+v", linhas)
+	// Newest first.
+	if lines[0].Level != "ERROR" || lines[1].Text != "connection dropped err=EOF" {
+		t.Errorf("lines %+v", lines)
 	}
-	// O log de sempre continua saindo inteiro.
-	if !strings.Contains(saida.String(), "índice carregado") {
-		t.Error("o INFO sumiu do log de saída")
+	// The regular log still comes out whole.
+	if !strings.Contains(out.String(), "index loaded") {
+		t.Error("the INFO line is missing from the output log")
 	}
 }
 
-func TestAnelDescartaOMaisVelho(t *testing.T) {
+func TestRingDropsOldest(t *testing.T) {
 	h := New(slog.DiscardHandler, 3)
 	log := slog.New(h)
 	for _, m := range []string{"1", "2", "3", "4", "5"} {
 		log.Warn(m)
 	}
-	linhas, total := h.Recentes()
+	lines, total := h.Recent()
 	if total != 5 {
-		t.Errorf("total %d, esperava 5", total)
+		t.Errorf("total %d, want 5", total)
 	}
 	var got []string
-	for _, l := range linhas {
-		got = append(got, l.Texto)
+	for _, l := range lines {
+		got = append(got, l.Text)
 	}
 	if strings.Join(got, ",") != "5,4,3" {
-		t.Errorf("guardou %v, esperava 5,4,3", got)
+		t.Errorf("kept %v, want 5,4,3", got)
 	}
 }
 
-// O log.With("cam", ...) de cada recorder precisa gravar no mesmo anel, e com
-// o atributo junto - é ele que diz de qual câmera é o erro.
-func TestWithCompartilhaOAnel(t *testing.T) {
+// Each recorder's log.With("cam", ...) must write to the same ring, with the
+// attribute along - it's what says which camera the error is from.
+func TestWithSharesTheRing(t *testing.T) {
 	h := New(slog.DiscardHandler, 5)
-	slog.New(h).With("cam", "garagem").WithGroup("g").Warn("conexão caiu", "espera", "2s depois")
+	slog.New(h).With("cam", "garage").WithGroup("g").Warn("connection dropped", "wait", "2s later")
 
-	linhas, _ := h.Recentes()
-	if len(linhas) != 1 {
-		t.Fatalf("guardou %d linhas", len(linhas))
+	lines, _ := h.Recent()
+	if len(lines) != 1 {
+		t.Fatalf("kept %d lines", len(lines))
 	}
-	if want := `conexão caiu cam=garagem g.espera="2s depois"`; linhas[0].Texto != want {
-		t.Errorf("texto %q, esperava %q", linhas[0].Texto, want)
+	if want := `connection dropped cam=garage g.wait="2s later"`; lines[0].Text != want {
+		t.Errorf("text %q, want %q", lines[0].Text, want)
 	}
 }

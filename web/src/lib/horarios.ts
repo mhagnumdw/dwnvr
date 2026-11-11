@@ -12,7 +12,7 @@ import { horaDoMinuto } from './format.ts';
 
 export const DIA = 1440;
 
-// O mesmo teto do internal/config/parametros.go (MaxHorariosDoAlerta).
+// O mesmo teto do internal/config/params.go (MaxAlertSchedules).
 export const MAX_HORARIOS = 84;
 
 // Um horário como a tela o edita: as horas são nulas com o campo vazio. A
@@ -41,7 +41,7 @@ export const novoHorario = (
 export const valido = (h: Horario): h is Horario & { from: number; to: number } =>
   h.days.length > 0 && h.from !== null && h.to !== null && h.to > h.from;
 
-// "HH:MM" em minutos do dia, como o MinutoDoDia do servidor.
+// "HH:MM" em minutos do dia, como o MinuteOfDay do servidor.
 function minutoDoTexto(s: string): number | null {
   const m = /^(\d\d):(\d\d)$/.exec(s);
   const hora = Number(m?.[1]);

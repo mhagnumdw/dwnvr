@@ -9,19 +9,19 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 )
 
-// O proxy do live só leva ao go2rtc o websocket do player. O resto da API dele
-// - config, restart, streams - não pode ser alcançado pela sessão do dwnvr.
-func TestLiveProxySoRepassaOWebsocket(t *testing.T) {
-	var recebidas []string
-	var usuario, senha string
-	go2rtcFalso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		recebidas = append(recebidas, r.Method+" "+r.URL.RequestURI())
-		usuario, senha, _ = r.BasicAuth()
+// The live proxy only takes the player's websocket to go2rtc. The rest of its
+// API - config, restart, streams - cannot be reached by the dwnvr session.
+func TestLiveProxyOnlyForwardsTheWebsocket(t *testing.T) {
+	var received []string
+	var username, password string
+	fakeGo2rtc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received = append(received, r.Method+" "+r.URL.RequestURI())
+		username, password, _ = r.BasicAuth()
 	}))
-	t.Cleanup(go2rtcFalso.Close)
+	t.Cleanup(fakeGo2rtc.Close)
 
 	s, _ := testServer(t)
-	s.client = go2rtc.New(config.Go2RTC{URL: go2rtcFalso.URL, Username: "admin", Password: "senha"})
+	s.client = go2rtc.New(config.Go2RTC{URL: fakeGo2rtc.URL, Username: "admin", Password: "senha"})
 	h := s.Handler()
 
 	rec := httptest.NewRecorder()
@@ -29,15 +29,15 @@ func TestLiveProxySoRepassaOWebsocket(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET /api/live/ws: HTTP %d: %s", rec.Code, rec.Body.String())
 	}
-	if len(recebidas) != 1 || recebidas[0] != "GET /api/ws?src=cam_frente" {
-		t.Fatalf("o go2rtc recebeu %v, esperava só GET /api/ws?src=cam_frente", recebidas)
+	if len(received) != 1 || received[0] != "GET /api/ws?src=cam_frente" {
+		t.Fatalf("go2rtc received %v, expected only GET /api/ws?src=cam_frente", received)
 	}
-	if usuario != "admin" || senha != "senha" {
-		t.Errorf("o go2rtc recebeu a credencial %q/%q", usuario, senha)
+	if username != "admin" || password != "senha" {
+		t.Errorf("go2rtc received the credential %q/%q", username, password)
 	}
 
-	recebidas = nil
-	for _, pedido := range []struct{ metodo, caminho string }{
+	received = nil
+	for _, request := range []struct{ method, filePath string }{
 		{http.MethodGet, "/api/live/config"},
 		{http.MethodPatch, "/api/live/config"},
 		{http.MethodPost, "/api/live/restart"},
@@ -45,12 +45,12 @@ func TestLiveProxySoRepassaOWebsocket(t *testing.T) {
 		{http.MethodPost, "/api/live/ws?src=cam_frente"},
 	} {
 		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, httptest.NewRequest(pedido.metodo, pedido.caminho, nil))
+		h.ServeHTTP(rec, httptest.NewRequest(request.method, request.filePath, nil))
 		if rec.Code < 400 {
-			t.Errorf("%s %s: HTTP %d, esperava recusa", pedido.metodo, pedido.caminho, rec.Code)
+			t.Errorf("%s %s: HTTP %d, expected rejection", request.method, request.filePath, rec.Code)
 		}
 	}
-	if len(recebidas) != 0 {
-		t.Errorf("chegou ao go2rtc o que não é o websocket: %v", recebidas)
+	if len(received) != 0 {
+		t.Errorf("what reached go2rtc is not the websocket: %v", received)
 	}
 }

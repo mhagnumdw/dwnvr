@@ -4,7 +4,7 @@ package api
 
 import "time"
 
-// O dwnvr roda em Linux; fora dele não há /proc/uptime. O stub existe para que
-// `go build ./...` e o editor funcionem no desenvolvimento - a tela simplesmente
-// omite o uptime da máquina quando ele não é conhecido.
+// dwnvr runs on Linux; outside it there is no /proc/uptime. The stub exists so
+// that `go build ./...` and the editor work during development - the screen
+// simply omits the machine uptime when it is not known.
 func machineUptime() (time.Duration, bool) { return 0, false }

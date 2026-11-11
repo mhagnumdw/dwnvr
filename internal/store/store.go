@@ -1,17 +1,17 @@
-// Package store cuida do layout em disco e do índice das gravações.
+// Package store handles the on-disk layout and the index of the recordings.
 //
-// Não há banco de dados. O índice é um arquivo NDJSON por câmera por dia,
-// escrito em modo append: cada segmento fechado vira uma linha. Isso dá três
-// coisas que um banco custaria caro num hardware modesto: escrita sequencial
-// barata, recuperação trivial depois de uma queda (basta descartar uma linha
-// parcial) e um formato que dá para inspecionar com `tail`.
+// There's no database. The index is one NDJSON file per camera per day,
+// written in append mode: each closed segment becomes a line. That gives three
+// things a database would cost dearly on modest hardware: cheap sequential
+// writes, trivial recovery after a crash (just drop a partial line) and a
+// format you can inspect with `tail`.
 //
 // Layout:
 //
-//	{root}/{cam}/init/{gen}.mp4             init segment por geração de codec
-//	{root}/{cam}/2026-08-08/{startMs}.mp4   segmentos, nome = início em ms
-//	{root}/{cam}/index/2026-08-08.ndjson    índice do dia
-//	{root}/{cam}/eventos/2026-08-08.ndjson  onsets de movimento do dia
+//	{root}/{cam}/init/{gen}.mp4             init segment per codec generation
+//	{root}/{cam}/2026-08-08/{startMs}.mp4   segments, name = start in ms
+//	{root}/{cam}/index/2026-08-08.ndjson    the day's index
+//	{root}/{cam}/eventos/2026-08-08.ndjson  the day's motion onsets
 package store
 
 import (
@@ -31,100 +31,103 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/fmp4"
 )
 
-// DayLayout é o formato do diretório e do arquivo de índice de um dia.
+// DayLayout is the format of a day's directory and index file.
 const DayLayout = "2006-01-02"
 
-// Entry descreve um segmento gravado.
+// Entry describes a recorded segment.
 //
-// O caminho do arquivo NÃO é guardado: ele é derivável de StartMs
-// ({dia}/{startMs}.mp4). Guardar os dois abriria espaço para divergirem.
+// The file path is NOT stored: it can be derived from StartMs
+// ({day}/{startMs}.mp4). Storing both would leave room for them to diverge.
 type Entry struct {
-	StartMs int64 `json:"t"`  // início, epoch ms (relógio de parede)
-	DurMs   int64 `json:"d"`  // duração coberta pelo segmento
-	Size    int64 `json:"sz"` // bytes do arquivo
+	StartMs int64 `json:"t"`  // start, epoch ms (wall clock)
+	DurMs   int64 `json:"d"`  // duration the segment covers
+	Size    int64 `json:"sz"` // file bytes
 
-	// Gen identifica o init segment por hash do conteúdo, não por contador.
-	// Assim a troca de codec (SPS diferente após reconexão) é detectada sozinha,
-	// inits idênticos são deduplicados e não há contador a persistir entre
-	// reinícios.
+	// Gen identifies the init segment by content hash, not by counter. That
+	// way a codec change (a different SPS after reconnecting) is detected on its
+	// own, identical inits are deduplicated and there's no counter to persist
+	// across restarts.
 	Gen string `json:"g"`
 
-	// InitSize é onde terminam ftyp+moov. A entrega via MSE pula esse prefixo
-	// e serve o init separado, uma vez só.
+	// InitSize is where ftyp+moov end. MSE delivery skips that prefix and
+	// serves the init separately, only once.
 	InitSize int64 `json:"io"`
-	// FirstFrag é o tamanho do primeiro moof+mdat. Init + primeiro fragmento
-	// formam um MP4 de um frame: é a thumbnail, sem decodificar nada no
-	// servidor.
+	// FirstFrag is the size of the first moof+mdat. Init + first fragment make
+	// a one-frame MP4: that's the thumbnail, without decoding anything on the
+	// server.
 	FirstFrag int64 `json:"f0"`
 }
 
 func (e Entry) EndMs() int64 { return e.StartMs + e.DurMs }
 
-// Day devolve o dia (hora local) ao qual o segmento pertence.
+// Day returns the day (local time) the segment belongs to.
 func (e Entry) Day() string { return time.UnixMilli(e.StartMs).Format(DayLayout) }
 
-// Evento é um ONSET: o instante em que a imagem de uma câmera mudou o bastante
-// para valer uma olhada mais cara. É o que a faixa de calor da timeline
-// desenha, e o que acorda o detector de objetos.
+// Event is an ONSET: the instant a camera's image changed enough to be
+// worth a more expensive inference. It's what the timeline heat strip draws,
+// and what wakes the object detector.
 //
-// A chave vai por extenso, ao contrário das do Entry acima. Ali a abreviação se
-// paga: são centenas de milhares de segmentos num histórico de 30 dias. Aqui
-// são da ordem de mil linhas por câmera por dia no nível padrão, e economizar
-// oito bytes numa linha que alguém pode precisar ler com `tail` não vale a
-// troca.
+// The key is spelled out, unlike Entry's above. There the abbreviation pays
+// off: hundreds of thousands of segments in a 30-day history. Here it's on the
+// order of a thousand lines per camera per day at the default level, and
+// saving eight bytes on a line someone may need to read with `tail` isn't
+// worth the trade.
 //
-// A mesma linha serve para a MARCA DE OBJETO que o detector devolve depois,
-// com `familia` preenchida: {"instanteMs":...,"familia":"pessoa",
+// The same line serves the OBJECT MARK the object detector returns later, with
+// `familia` filled in: {"instanteMs":...,"familia":"pessoa",
 // "classe":"person","score":0.87,"quadroMs":...,"caixa":[0.51,0.26,0.67,0.98]}.
-// O instante é o do ONSET que a originou - é ele que casa com a chegada -,
-// mesmo que a resposta tenha vindo segundos depois. Morar no mesmo arquivo dá
-// de graça a mesma retenção: a marca some junto com o vídeo que ela aponta.
-type Evento struct {
-	InstanteMs int64 `json:"instanteMs"`
+// The instant is that of the ONSET that originated it - that's what matches
+// the arrival -, even if the answer came seconds later. Living in the same
+// file gets the same retention for free: the mark goes away together with the
+// video it points to.
+type Event struct {
+	AtMs int64 `json:"instanteMs"`
 
-	// Familia vazia é onset de movimento; preenchida, é marca de objeto.
-	Familia string  `json:"familia,omitempty"`
-	Classe  string  `json:"classe,omitempty"`
-	Score   float64 `json:"score,omitempty"`
+	// An empty Family is a motion onset; filled in, it's an object mark.
+	Family string  `json:"familia,omitempty"`
+	Class  string  `json:"classe,omitempty"`
+	Score  float64 `json:"score,omitempty"`
 
-	// QuadroMs é o instante do quadro que o detector olhou, que pode vir até
-	// JanelaDoPicoMs depois do onset. É nele, e não no onset, que a Caixa está
-	// no lugar certo: desenhada no instante da marca, ela chegaria até 3 s
-	// antes do objeto.
-	QuadroMs int64 `json:"quadroMs,omitempty"`
-	// Caixa é X1, Y1, X2, Y2 em fração do quadro, de 0 a 1. Ponteiro, e não
-	// array, por causa do omitempty: array nunca é "vazio" para o JSON, e cada
-	// linha de onset do dia sairia com "caixa":[0,0,0,0].
-	Caixa *[4]float64 `json:"caixa,omitempty"`
+	// FrameMs is the instant of the frame the object detector inferred, which
+	// may come up to PeakWindowMs after the onset. It's on that frame, not on the
+	// onset, that the Box is in the right place: drawn at the mark's instant, it
+	// would arrive up to 3 s before the object.
+	FrameMs int64 `json:"quadroMs,omitempty"`
+	// Box is X1, Y1, X2, Y2 as a fraction of the frame, from 0 to 1. A
+	// pointer, not an array, because of omitempty: an array is never "empty" to
+	// JSON, and every onset line of the day would come out with
+	// "caixa":[0,0,0,0].
+	Box *[4]float64 `json:"caixa,omitempty"`
 
-	// TemQuadro diz que o JPEG do quadro olhado foi gravado, em
-	// quadros/{dia}/{instanteMs}.jpg. Falso é marca sem imagem: anterior a
-	// esta versão, ou olhada em que o quadro não voltou do detector.
+	// HasFrame says the JPEG of the inferred frame was written, in
+	// quadros/{day}/{atMs}.jpg. False is a mark without an image: older than this
+	// version, or an inference where the frame didn't come back from the object
+	// detector.
 	//
-	// O caminho não é guardado porque é derivável do instante, como o do
-	// segmento não é guardado no índice. As duas marcas de famílias
-	// diferentes do mesmo instante apontam para o MESMO arquivo: o quadro é
-	// um só.
-	TemQuadro bool `json:"temQuadro,omitempty"`
+	// The path isn't stored because it can be derived from the instant, just as
+	// the segment's isn't stored in the index. Two marks of different families at
+	// the same instant point to the SAME file: there's only one frame.
+	HasFrame bool `json:"temQuadro,omitempty"`
 
-	// Alert diz que este objeto passou na regra de alerta da câmera, na hora
-	// em que foi olhado. AlertAreas são os ids das áreas do alerta em que ele
-	// caiu, e não os nomes: renomear a área segue valendo, e a apagada a tela
-	// mostra como "área apagada". Vazio quando o alerta vale na imagem
-	// inteira. Linha de antes do alerta não tem nenhum dos dois.
+	// Alert says this object passed the camera's alert rule, at the time it was
+	// inferred. AlertAreas are the ids of the alert areas it fell in, not the
+	// names: renaming the area still holds, and a deleted one the screen shows as
+	// "área apagada". Empty when the alert applies to the whole image. A line from
+	// before alerts has neither.
 	Alert      bool     `json:"alert,omitempty"`
 	AlertAreas []string `json:"alertAreas,omitempty"`
 }
 
-// EhObjeto diz se a linha é marca de objeto, e não onset de movimento.
-func (e Evento) EhObjeto() bool { return e.Familia != "" }
+// IsObject says whether the line is an object mark, not a motion onset.
+func (e Event) IsObject() bool { return e.Family != "" }
 
-// Day devolve o dia (hora local) a que o evento pertence.
-func (e Evento) Day() string { return time.UnixMilli(e.InstanteMs).Format(DayLayout) }
+// Day returns the day (local time) the event belongs to.
+func (e Event) Day() string { return time.UnixMilli(e.AtMs).Format(DayLayout) }
 
-// DaySummary é o que fica em memória por dia. Manter só isto - em vez da lista
-// completa de segmentos - é o que segura o uso de RAM: são ~270 resumos para 9
-// câmeras com 30 dias, contra ~390 mil entradas se tudo ficasse carregado.
+// DaySummary is what's kept in memory per day. Keeping only this - instead
+// of the full list of segments - is what holds down RAM use: ~270 summaries
+// for 9 cameras with 30 days, against ~390 thousand entries if everything
+// stayed loaded.
 type DaySummary struct {
 	Day     string `json:"day"`
 	Count   int    `json:"count"`
@@ -132,14 +135,14 @@ type DaySummary struct {
 	FirstMs int64  `json:"firstMs"`
 	LastMs  int64  `json:"lastMs"`
 
-	// DurMs é a soma das durações dos segmentos do dia: o vídeo que existe de
-	// fato. LastMs - FirstMs não dá isto, porque cobre também o tempo em que a
-	// câmera ficou fora do ar.
+	// DurMs is the sum of the day's segment durations: the video that actually
+	// exists. LastMs - FirstMs doesn't give this, because it also covers the time
+	// the camera was offline.
 	DurMs int64 `json:"durMs"`
 }
 
-// Camera é o índice de uma câmera. Os métodos são seguros para uso concorrente:
-// o recorder escreve, a retenção evicta e a API lê, tudo ao mesmo tempo.
+// Camera is a camera's index. Its methods are safe for concurrent use: the
+// recorder writes, retention evicts and the API reads, all at the same time.
 type Camera struct {
 	ID   string
 	root string
@@ -147,12 +150,12 @@ type Camera struct {
 	mu   sync.RWMutex
 	days map[string]*DaySummary
 
-	// quadrosBytes é o que os quadros de cada dia ocupam, memorizado. Ver
-	// QuadrosBytes.
-	quadrosBytes map[string]int64
+	// framesBytes is what each day's frames take, memoized. See
+	// FramesBytes.
+	framesBytes map[string]int64
 
-	// memo são as marcas de objeto de cada dia já lido. Ver ObjetosDoDia.
-	memo objetosMemo
+	// memo are the object marks of each day already read. See DayObjects.
+	memo objectsMemo
 }
 
 type Store struct {
@@ -168,28 +171,29 @@ func New(root string) *Store {
 
 func (s *Store) Root() string { return s.root }
 
-// newCamera é o único ponto em que o ID de uma câmera vira caminho no disco.
+// newCamera is the only place where a camera ID becomes a path on disk.
 //
-// Quem chama já conferiu o ID: o cadastro e a leitura do cameras.json passam
-// por config.ValidateCameraID, a API só aceita câmera cadastrada e os órfãos
-// saem de um ReadDir. Esta é a última trava, e mora no store porque só ele sabe
-// que {root}/{cam} tem de ser um diretório logo abaixo do storage: com "", "."
-// ou "..", o Join daria o próprio storage ou o diretório acima dele, e um Purge
-// apagaria tudo o que houvesse lá. Chegar aqui com um desses é bug de quem
-// chamou, não entrada de usuário - por isso o panic.
+// The caller has already checked the ID: registration and reading
+// cameras.json go through config.ValidateCameraID, the API only accepts a
+// registered camera and orphans come from a ReadDir. This is the last lock,
+// and it lives in store because only it knows {root}/{cam} must be a directory
+// right under storage: with "", "." or "..", the Join would give the storage
+// itself or the directory above it, and a Purge would delete everything
+// there. Getting here with one of those is a bug in the caller, not user
+// input - hence the panic.
 //
-// O IsLocal sozinho não basta, porque aceita "." e "a/..", que dão o próprio
-// storage. Mas ele fica: é a checagem que o CodeQL reconhece, e sem ela o
-// go/path-injection volta a apontar cada acesso a disco do store.
+// IsLocal alone isn't enough, because it accepts "." and "a/..", which give
+// the storage itself. But it stays: it's the check CodeQL recognizes, and
+// without it go/path-injection flags every disk access in store again.
 func newCamera(root, id string) *Camera {
 	if filepath.IsLocal(id) && filepath.Base(id) == id && id != "." {
 		return &Camera{ID: id, root: filepath.Join(root, id), days: map[string]*DaySummary{},
-			quadrosBytes: map[string]int64{}}
+			framesBytes: map[string]int64{}}
 	}
-	panic(fmt.Sprintf("store: id de câmera %q não é um nome de diretório", id))
+	panic(fmt.Sprintf("store: camera id %q is not a directory name", id))
 }
 
-// Camera devolve (criando se preciso) o índice de uma câmera.
+// Camera returns (creating it if needed) a camera's index.
 func (s *Store) Camera(id string) *Camera {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -201,32 +205,33 @@ func (s *Store) Camera(id string) *Camera {
 	return c
 }
 
-// Forget tira a câmera do mapa em memória.
+// Forget removes the camera from the in-memory map.
 //
-// Sem isto, todo ID já consultado ficaria no Store para sempre - inclusive o de
-// uma câmera que acabou de ser removida e ter as gravações apagadas, que
-// continuaria respondendo como um índice vazio.
+// Without this, every ID ever looked up would stay in the Store forever -
+// including that of a camera that was just removed and had its recordings
+// deleted, which would keep answering as an empty index.
 func (s *Store) Forget(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.cams, id)
 }
 
-// Load devolve o índice de uma câmera, lendo-o do disco se ele ainda não estiver
-// em memória.
+// Load returns a camera's index, reading it from disk if it isn't in memory
+// yet.
 //
-// É a entrada de toda câmera cadastrada: o boot passa por aqui, e o cadastro de
-// uma câmera nova também. Sem a segunda, recadastrar com o mesmo ID uma câmera
-// removida antes de um reinício começava com o índice vazio, e as gravações dela
-// ficavam fora de Gravações, das órfãs e da cota até o reinício seguinte - que
-// as devolvia de uma vez.
+// It's the entry point of every registered camera: boot goes through here,
+// and so does registering a new camera. Without the latter, re-registering
+// with the same ID a camera removed before a restart started with an empty
+// index, and its recordings stayed out of Recordings, orphans and the quota
+// until the next restart - which brought them all back at once.
 //
-// Câmera já em memória volta como está: ou foi lida aqui, ou é uma removida sem
-// apagar no mesmo processo, cujo índice continua valendo.
+// A camera already in memory comes back as it is: either it was read here, or
+// it was removed without deleting in the same process, and its index still
+// holds.
 //
-// O Scan confere o último dia e apaga os segmentos de zero byte, o que só é
-// seguro com o recorder da câmera parado. Quem chama garante isso: no boot ele
-// ainda não subiu, e no cadastro o Load vem antes do Manager.Set.
+// Scan checks the last day and deletes zero-byte segments, which is only safe
+// with the camera's recorder stopped. The caller guarantees that: at boot it
+// hasn't started yet, and on registration Load comes before Manager.Set.
 func (s *Store) Load(id string) (*Camera, error) {
 	s.mu.Lock()
 	c, ok := s.cams[id]
@@ -242,17 +247,16 @@ func (s *Store) Load(id string) (*Camera, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// Alguém pode ter posto a câmera no mapa durante o Scan; a dele fica.
-	if atual, ok := s.cams[id]; ok {
-		return atual, nil
+	// Someone may have put the camera in the map during the Scan; theirs stays.
+	if existing, ok := s.cams[id]; ok {
+		return existing, nil
 	}
 	s.cams[id] = c
 	return c, nil
 }
 
-// ProbeSegment reconstrói a entrada de índice de um segmento órfão - gravado
-// por completo, mas cuja linha de índice não chegou a ser escrita antes de uma
-// queda.
+// ProbeSegment rebuilds the index entry of an orphan segment - fully
+// written, but whose index line didn't get written before a crash.
 func ProbeSegment(path string) (Entry, error) {
 	info, err := fmp4.ProbeSegment(path)
 	if err != nil {
@@ -271,30 +275,29 @@ func ProbeSegment(path string) (Entry, error) {
 	}, nil
 }
 
-// --- caminhos ---------------------------------------------------------------
+// --- paths ------------------------------------------------------------------
 
 func (c *Camera) Dir() string            { return c.root }
 func (c *Camera) IndexDir() string       { return filepath.Join(c.root, "index") }
 func (c *Camera) InitDir() string        { return filepath.Join(c.root, "init") }
 func (c *Camera) DayDir(d string) string { return filepath.Join(c.root, d) }
 
-func (c *Camera) EventosDir() string { return filepath.Join(c.root, "eventos") }
+func (c *Camera) EventsDir() string { return filepath.Join(c.root, "eventos") }
 
-func (c *Camera) EventosPath(day string) string {
-	return filepath.Join(c.EventosDir(), day+".ndjson")
+func (c *Camera) EventsPath(day string) string {
+	return filepath.Join(c.EventsDir(), day+".ndjson")
 }
 
-// QuadrosDir é a pasta do dia com os quadros das detecções, um .jpg por
-// detecção, nomeado pelo instante dela - como o segmento é nomeado pelo seu
-// início.
-func (c *Camera) QuadrosDir(day string) string {
+// FramesDir is the day's folder with the detection frames, one .jpg per
+// detection, named by its instant - as a segment is named by its start.
+func (c *Camera) FramesDir(day string) string {
 	return filepath.Join(c.root, "quadros", day)
 }
 
-// QuadroPath é o JPEG do quadro que o detector olhou naquela detecção. Abre
-// com qualquer visualizador, e apagar um é apagar um arquivo.
-func (c *Camera) QuadroPath(day string, instanteMs int64) string {
-	return filepath.Join(c.QuadrosDir(day), strconv.FormatInt(instanteMs, 10)+".jpg")
+// FramePath is the JPEG of the frame the object detector inferred for that
+// detection. It opens with any viewer, and deleting one is deleting a file.
+func (c *Camera) FramePath(day string, atMs int64) string {
+	return filepath.Join(c.FramesDir(day), strconv.FormatInt(atMs, 10)+".jpg")
 }
 
 func (c *Camera) IndexPath(day string) string {
@@ -305,8 +308,8 @@ func (c *Camera) InitPath(gen string) string {
 	return filepath.Join(c.InitDir(), gen+".mp4")
 }
 
-// WriteInit grava o init segment de uma geração, se ainda não existir. Como o
-// nome é o hash do conteúdo, reescrever seria sempre redundante.
+// WriteInit writes a generation's init segment, if it doesn't exist yet.
+// Since the name is the content hash, rewriting would always be redundant.
 func (c *Camera) WriteInit(gen string, b []byte) error {
 	if err := os.MkdirAll(c.InitDir(), 0o755); err != nil {
 		return err
@@ -324,8 +327,8 @@ func (c *Camera) WriteInit(gen string, b []byte) error {
 		tmp.Close()
 		return err
 	}
-	// CreateTemp cria com 0600; sem isto o init ficaria ilegível para outro
-	// usuário, ao contrário dos segmentos, que saem com 0644.
+	// CreateTemp creates it with 0600; without this the init would be
+	// unreadable by another user, unlike segments, which come out with 0644.
 	if err := tmp.Chmod(0o644); err != nil {
 		tmp.Close()
 		return err
@@ -336,18 +339,19 @@ func (c *Camera) WriteInit(gen string, b []byte) error {
 	return os.Rename(tmp.Name(), path)
 }
 
-// SegmentPath devolve o caminho do arquivo de um segmento a partir do início.
+// SegmentPath returns a segment's file path from its start.
 func (c *Camera) SegmentPath(startMs int64) string {
 	t := time.UnixMilli(startMs)
 	return filepath.Join(c.root, t.Format(DayLayout), strconv.FormatInt(startMs, 10)+".mp4")
 }
 
-// --- escrita ----------------------------------------------------------------
+// --- writing ----------------------------------------------------------------
 
-// EnsureDirs cria a estrutura de diretórios necessária para gravar no dia dado.
+// EnsureDirs creates the directory structure needed to record on the given
+// day.
 //
-// O eventos/ não entra: ele nasce no primeiro AppendEvento, e câmera sem
-// detecção ligada não ganha um diretório vazio.
+// eventos/ isn't included: it's born on the first AppendEvent, and a camera
+// without detection on doesn't get an empty directory.
 func (c *Camera) EnsureDirs(day string) error {
 	for _, d := range []string{c.IndexDir(), c.InitDir(), c.DayDir(day)} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
@@ -357,11 +361,11 @@ func (c *Camera) EnsureDirs(day string) error {
 	return nil
 }
 
-// Append acrescenta uma entrada ao índice do dia correspondente.
+// Append adds an entry to the matching day's index.
 //
-// O fsync aqui é barato (uma vez por segmento, ou seja, uma vez por minuto por
-// câmera) e é o que garante que uma queda de energia não perca o registro de um
-// segmento que já está inteiro no disco.
+// The fsync here is cheap (once per segment, that is, once a minute per
+// camera) and it's what guarantees a power cut doesn't lose the record of a
+// segment already whole on disk.
 func (c *Camera) Append(e Entry) error {
 	day := e.Day()
 	if err := os.MkdirAll(c.IndexDir(), 0o755); err != nil {
@@ -413,19 +417,20 @@ func (c *Camera) mergeLocked(day string, e Entry) {
 	}
 }
 
-// AppendEvento acrescenta um onset ao arquivo do dia.
+// AppendEvent adds an onset to the day's file.
 //
-// SEM fsync, ao contrário do Append acima, e a diferença é deliberada: um
-// segmento perdido do índice é vídeo que existe em disco e some da interface,
-// enquanto um onset perdido é uma marca a menos numa faixa de calor que tem
-// milhares. Pagar um fsync por marca seria caro pelo motivo errado.
+// WITHOUT fsync, unlike Append above, and the difference is deliberate: a
+// segment lost from the index is video that exists on disk and disappears from
+// the UI, while a lost onset is one mark less on a heat strip that has
+// thousands. Paying an fsync per mark would be expensive for the wrong
+// reason.
 //
-// Isto é chamado de dentro do laço do recorder, uma vez a cada dezenas de
-// segundos. Três syscalls nessa cadência não incomodam o mesmo laço que já
-// escreve o vídeo.
-func (c *Camera) AppendEvento(ev Evento) error {
+// This is called from inside the recorder loop, once every few dozen seconds.
+// Three syscalls at that pace don't bother the same loop that already writes
+// the video.
+func (c *Camera) AppendEvent(ev Event) error {
 	day := ev.Day()
-	if err := os.MkdirAll(c.EventosDir(), 0o755); err != nil {
+	if err := os.MkdirAll(c.EventsDir(), 0o755); err != nil {
 		return err
 	}
 
@@ -435,7 +440,7 @@ func (c *Camera) AppendEvento(ev Evento) error {
 	}
 	b = append(b, '\n')
 
-	f, err := os.OpenFile(c.EventosPath(day), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(c.EventsPath(day), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
@@ -446,52 +451,51 @@ func (c *Camera) AppendEvento(ev Evento) error {
 	return f.Close()
 }
 
-// WriteQuadro grava o JPEG do quadro daquela detecção.
+// WriteFrame writes the JPEG of that detection's frame.
 //
-// Sem fsync e sem arquivo temporário, ao contrário do init: quadro perdido é
-// uma miniatura a menos numa grade de milhares, e a tela já sabe mostrar
-// detecção sem imagem. Escrever direto poupa o rename numa chamada que
-// acontece dentro do laço de gravação da câmera.
-func (c *Camera) WriteQuadro(day string, instanteMs int64, jpeg []byte) error {
+// No fsync and no temp file, unlike the init: a lost frame is one thumbnail
+// less in a grid of thousands, and the screen already knows how to show a
+// detection without an image. Writing directly saves the rename on a call
+// that happens inside the camera's recording loop.
+func (c *Camera) WriteFrame(day string, atMs int64, jpeg []byte) error {
 	if len(jpeg) == 0 {
 		return nil
 	}
-	if err := os.MkdirAll(c.QuadrosDir(day), 0o755); err != nil {
+	if err := os.MkdirAll(c.FramesDir(day), 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(c.QuadroPath(day, instanteMs), jpeg, 0o644); err != nil {
+	if err := os.WriteFile(c.FramePath(day, atMs), jpeg, 0o644); err != nil {
 		return err
 	}
 
 	c.mu.Lock()
-	if n, ok := c.quadrosBytes[day]; ok {
-		c.quadrosBytes[day] = n + int64(len(jpeg))
+	if n, ok := c.framesBytes[day]; ok {
+		c.framesBytes[day] = n + int64(len(jpeg))
 	}
 	c.mu.Unlock()
 	return nil
 }
 
-// QuadrosBytes é quanto os quadros de um dia ocupam. Entra na cota da câmera,
-// como o vídeo.
+// FramesBytes is how much a day's frames take. It counts toward the
+// camera's quota, like the video.
 //
-// O número é memorizado por dia, e o WriteQuadro o mantém em dia: sem isso,
-// cada passada da retenção faria um stat em cada quadro de cada dia - dezenas
-// de milhares num histórico de 30 dias, que é justamente o preço de ter um
-// arquivo por detecção. A conta de um dia é feita UMA vez, na primeira vez que
-// alguém pergunta por ele.
-func (c *Camera) QuadrosBytes(day string) int64 {
+// The number is memoized per day, and WriteFrame keeps it current: without
+// that, every retention pass would stat every frame of every day - tens of
+// thousands in a 30-day history, which is exactly the price of one file per
+// detection. A day's sum is done ONCE, the first time someone asks for it.
+func (c *Camera) FramesBytes(day string) int64 {
 	c.mu.RLock()
-	n, ok := c.quadrosBytes[day]
+	n, ok := c.framesBytes[day]
 	c.mu.RUnlock()
 	if ok {
 		return n
 	}
 
-	entradas, err := os.ReadDir(c.QuadrosDir(day))
+	entries, err := os.ReadDir(c.FramesDir(day))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return 0 // pasta ilegível: não inventa número para a cota
+		return 0 // unreadable folder: don't make up a number for the quota
 	}
-	for _, e := range entradas {
+	for _, e := range entries {
 		info, err := e.Info()
 		if err != nil {
 			continue
@@ -500,14 +504,14 @@ func (c *Camera) QuadrosBytes(day string) int64 {
 	}
 
 	c.mu.Lock()
-	c.quadrosBytes[day] = n
+	c.framesBytes[day] = n
 	c.mu.Unlock()
 	return n
 }
 
-// --- leitura ----------------------------------------------------------------
+// --- reading ----------------------------------------------------------------
 
-// Days devolve os resumos por dia, do mais antigo para o mais recente.
+// Days returns the per-day summaries, oldest first.
 func (c *Camera) Days() []DaySummary {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -520,22 +524,23 @@ func (c *Camera) Days() []DaySummary {
 	return out
 }
 
-// OldestMs é o início do segmento mais antigo em disco, ou 0 se não há nenhum.
+// OldestMs is the start of the oldest segment on disk, or 0 if there's
+// none.
 //
-// É o que a interface usa para dizer há quanto tempo a câmera tem gravação -
-// a retenção real, em oposição à estimativa "cabem N dias na cota".
+// It's what the UI uses to say how long the camera has had recordings - the
+// real retention, as opposed to the estimate "N days fit in the quota".
 //
-// Não é Days()[0].FirstMs porque isto roda a cada leitura do /api/health, de
-// 3 em 3 segundos e para cada câmera: Days() aloca a lista inteira de resumos
-// e a ordena só para que se leia o primeiro item.
+// It's not Days()[0].FirstMs because this runs on every /api/health read,
+// every 3 seconds and for every camera: Days() allocates the whole list of
+// summaries and sorts it just to read the first item.
 func (c *Camera) OldestMs() int64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	var oldest int64
 	for _, s := range c.days {
-		// FirstMs zerado seria um resumo sem segmento algum, que não deve
-		// existir - mas se existisse, puxaria o mínimo para zero e apagaria a
-		// informação de todas as outras.
+		// A zero FirstMs would be a summary without any segment, which shouldn't
+		// exist - but if it did, it would pull the minimum to zero and wipe out the
+		// information of all the others.
 		if s.FirstMs > 0 && (oldest == 0 || s.FirstMs < oldest) {
 			oldest = s.FirstMs
 		}
@@ -543,25 +548,25 @@ func (c *Camera) OldestMs() int64 {
 	return oldest
 }
 
-// Resumo devolve, numa passada só, o que a tela precisa para descrever a cota:
-// quanto a câmera ocupa, as duas pontas do histórico em disco e quanto vídeo
-// existe de fato entre elas. O que falta de `newestMs - oldestMs` para chegar
-// a recordedMs são os buracos de gravação.
+// Summary returns, in a single pass, what the screen needs to describe the
+// quota: how much the camera takes, both ends of the history on disk and how
+// much video actually exists between them. What `newestMs - oldestMs` lacks to
+// reach recordedMs are the recording gaps.
 //
-// Existe por economia: OldestMs e TotalBytes fazem exatamente estas somas, mas
-// quem monta o Status precisa das duas ao mesmo tempo, e chamá-las em sequência
-// custava dois RLock e duas varreduras do mapa a cada leitura do /api/health -
-// vezes o número de câmeras. Os dois métodos separados continuam existindo para
-// quem quer só um dos números (a retenção, o Purge).
-func (c *Camera) Resumo() (bytes, oldestMs, newestMs, recordedMs int64) {
+// It exists for economy: OldestMs and TotalBytes do exactly these sums, but
+// whoever builds the Status needs both at once, and calling them in sequence
+// cost two RLocks and two map scans on every /api/health read - times the
+// number of cameras. The two separate methods still exist for whoever wants
+// only one of the numbers (retention, Purge).
+func (c *Camera) Summary() (bytes, oldestMs, newestMs, recordedMs int64) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, s := range c.days {
 		bytes += s.Bytes
 		recordedMs += s.DurMs
-		// FirstMs zerado seria um resumo sem segmento algum, que não deve
-		// existir - mas se existisse, puxaria o mínimo para zero e apagaria a
-		// informação de todas as outras. Mesma razão do lado do LastMs.
+		// A zero FirstMs would be a summary without any segment, which shouldn't
+		// exist - but if it did, it would pull the minimum to zero and wipe out the
+		// information of all the others. Same reason on the LastMs side.
 		if s.FirstMs > 0 && (oldestMs == 0 || s.FirstMs < oldestMs) {
 			oldestMs = s.FirstMs
 		}
@@ -572,61 +577,61 @@ func (c *Camera) Resumo() (bytes, oldestMs, newestMs, recordedMs int64) {
 	return bytes, oldestMs, newestMs, recordedMs
 }
 
-// TotalBytes é tudo o que a câmera ocupa: o vídeo mais os quadros das
-// detecções. É o número que a cota por câmera limita.
+// TotalBytes is everything the camera takes: the video plus the detection
+// frames. It's the number the per-camera quota limits.
 //
-// Os quadros entram pela conta memorizada de cada dia, e não por um stat em
-// cada arquivo: são um arquivo por detecção, dezenas de milhares num histórico
-// de 30 dias, e a retenção pergunta isto a cada passada. Ver QuadrosBytes.
+// Frames come in through each day's memoized sum, not a stat on every file:
+// they're one file per detection, tens of thousands in a 30-day history, and
+// retention asks for this on every pass. See FramesBytes.
 func (c *Camera) TotalBytes() int64 {
 	c.mu.RLock()
-	dias := make([]string, 0, len(c.days))
+	days := make([]string, 0, len(c.days))
 	var n int64
 	for _, s := range c.days {
 		n += s.Bytes
-		dias = append(dias, s.Day)
+		days = append(days, s.Day)
 	}
 	c.mu.RUnlock()
 
-	for _, d := range dias {
-		n += c.QuadrosBytes(d)
+	for _, d := range days {
+		n += c.FramesBytes(d)
 	}
 	return n
 }
 
-// LoadDay lê as entradas de um dia, ordenadas por início.
+// LoadDay reads a day's entries, sorted by start.
 //
-// Uma última linha truncada (queda no meio de um append) é descartada em
-// silêncio: é exatamente a falha que o formato append-only prevê.
+// A truncated last line (a crash in the middle of an append) is silently
+// dropped: it's exactly the failure the append-only format anticipates.
 func (c *Camera) LoadDay(day string) ([]Entry, error) {
-	return c.varreDia(day, func(int64, int64) bool { return true })
+	return c.scanDay(day, func(int64, int64) bool { return true })
 }
 
-// Entry devolve a entrada do segmento que começa em startMs, e false se o
-// índice não tem nenhuma. É a pergunta da miniatura e de cada segmento do
-// player, e por isso decodifica só a linha certa, e não o dia inteiro.
+// Entry returns the entry of the segment starting at startMs, and false if
+// the index has none. It's the question of the thumbnail and of each player
+// segment, so it decodes only the right line, not the whole day.
 func (c *Camera) Entry(startMs int64) (Entry, bool, error) {
 	day := time.UnixMilli(startMs).Format(DayLayout)
-	list, err := c.varreDia(day, func(inicioMs, _ int64) bool { return inicioMs == startMs })
+	list, err := c.scanDay(day, func(segStartMs, _ int64) bool { return segStartMs == startMs })
 	if err != nil || len(list) == 0 {
 		return Entry{}, false, err
 	}
 	return list[0], true, nil
 }
 
-// Range devolve as entradas que cobrem [fromMs, toMs).
+// Range returns the entries that cover [fromMs, toMs).
 //
-// O dia anterior a `from` também é lido: um segmento pode ter começado antes da
-// meia-noite e se estender para dentro do intervalo pedido.
+// The day before `from` is read too: a segment may have started before
+// midnight and extend into the requested interval.
 func (c *Camera) Range(fromMs, toMs int64) ([]Entry, error) {
 	if toMs <= fromMs {
 		return nil, nil
 	}
-	cobre := func(inicioMs, durMs int64) bool { return inicioMs+durMs > fromMs && inicioMs < toMs }
+	covers := func(segStartMs, durMs int64) bool { return segStartMs+durMs > fromMs && segStartMs < toMs }
 
 	var out []Entry
-	for _, d := range dias(time.UnixMilli(fromMs).AddDate(0, 0, -1), toMs) {
-		entries, err := c.varreDia(d, cobre)
+	for _, d := range days(time.UnixMilli(fromMs).AddDate(0, 0, -1), toMs) {
+		entries, err := c.scanDay(d, covers)
 		if err != nil {
 			return nil, err
 		}
@@ -635,31 +640,32 @@ func (c *Camera) Range(fromMs, toMs int64) ([]Entry, error) {
 	return out, nil
 }
 
-// dias devolve os dias (DayLayout) de `de` até o do último instante antes de
-// toMs, inclusive.
+// days returns the days (DayLayout) from `from` up to the day of the last
+// instant before toMs, inclusive.
 //
-// O fim compara dias, e não instantes: de 23:59:50 a 00:00:35, o passo de um
-// dia a partir de `de` cai às 23:59:50 do dia seguinte, já depois de toMs, e o
-// dia seguinte ficaria de fora.
-func dias(de time.Time, toMs int64) []string {
-	ultimo := time.UnixMilli(toMs - 1).Format(DayLayout)
+// The end compares days, not instants: from 23:59:50 to 00:00:35, stepping
+// one day from `from` lands at 23:59:50 on the next day, already after toMs,
+// and the next day would be left out.
+func days(from time.Time, toMs int64) []string {
+	last := time.UnixMilli(toMs - 1).Format(DayLayout)
 	var out []string
-	for d := de; d.Format(DayLayout) <= ultimo; d = d.AddDate(0, 0, 1) {
+	for d := from; d.Format(DayLayout) <= last; d = d.AddDate(0, 0, 1) {
 		out = append(out, d.Format(DayLayout))
 	}
 	return out
 }
 
-// varreDia lê as entradas de um dia que `quer` aceita, ordenadas por início.
+// scanDay reads the entries of a day that `keep` accepts, sorted by start.
 //
-// O caro no índice é decodificar a linha: um dia de segmentos de 30s tem
-// ~2.700 linhas, e decodificar todas custa ~45ms de CPU num Orange Pi Zero 3.
-// A miniatura quer uma linha só, e a cauda do dia de hoje, uma ou duas. Então
-// o início e a duração saem do começo da linha, que o json.Marshal do Entry
-// escreve sempre igual (`{"t":…,"d":…,`), e só a linha aceita é decodificada.
-// Linha que não começa assim - editada à mão, ou de um Entry com outra ordem
-// de campos - é decodificada inteira: mais lenta, nunca errada.
-func (c *Camera) varreDia(day string, quer func(inicioMs, durMs int64) bool) ([]Entry, error) {
+// The expensive part of the index is decoding the line: a day of 30s segments
+// has ~2,700 lines, and decoding all of them costs ~45ms of CPU on an Orange
+// Pi Zero 3. The thumbnail wants a single line, and the tail of today, one or
+// two. So the start and duration come from the start of the line, which
+// json.Marshal of Entry always writes the same way (`{"t":…,"d":…,`), and only
+// the accepted line is decoded. A line that doesn't start like that - edited
+// by hand, or from an Entry with a different field order - is decoded whole:
+// slower, never wrong.
+func (c *Camera) scanDay(day string, keep func(segStartMs, durMs int64) bool) ([]Entry, error) {
 	f, err := os.Open(c.IndexPath(day))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -677,16 +683,16 @@ func (c *Camera) varreDia(day string, quer func(inicioMs, durMs int64) bool) ([]
 		if len(line) == 0 {
 			continue
 		}
-		if inicioMs, durMs, ok := cabecaDaLinha(line); ok && !quer(inicioMs, durMs) {
+		if segStartMs, durMs, ok := lineHead(line); ok && !keep(segStartMs, durMs) {
 			continue
 		}
 		var e Entry
 		if err := json.Unmarshal(line, &e); err != nil {
-			// Só a última linha pode estar truncada; qualquer outra indica
-			// corrupção de verdade e merece ser reportada.
+			// Only the last line can be truncated; any other means real corruption
+			// and deserves to be reported.
 			continue
 		}
-		if quer(e.StartMs, e.DurMs) {
+		if keep(e.StartMs, e.DurMs) {
 			entries = append(entries, e)
 		}
 	}
@@ -697,44 +703,45 @@ func (c *Camera) varreDia(day string, quer func(inicioMs, durMs int64) bool) ([]
 	return entries, nil
 }
 
-// cabecaDaLinha lê o início e a duração do começo de uma linha do índice sem
-// decodificá-la: `{"t":1791923604690,"d":30017,"sz":…`. O ok sai falso quando
-// a linha não começa exatamente assim.
-func cabecaDaLinha(line []byte) (inicioMs, durMs int64, ok bool) {
-	resto, ok := bytes.CutPrefix(line, []byte(`{"t":`))
+// lineHead reads the start and the duration from the beginning of an index
+// line without decoding it: `{"t":1791923604690,"d":30017,"sz":…`. ok comes
+// out false when the line doesn't start exactly like that.
+func lineHead(line []byte) (segStartMs, durMs int64, ok bool) {
+	rest, ok := bytes.CutPrefix(line, []byte(`{"t":`))
 	if !ok {
 		return 0, 0, false
 	}
-	if inicioMs, resto, ok = numeroAte(resto, ','); !ok {
+	if segStartMs, rest, ok = numberUntil(rest, ','); !ok {
 		return 0, 0, false
 	}
-	if resto, ok = bytes.CutPrefix(resto, []byte(`"d":`)); !ok {
+	if rest, ok = bytes.CutPrefix(rest, []byte(`"d":`)); !ok {
 		return 0, 0, false
 	}
-	if durMs, _, ok = numeroAte(resto, ','); !ok {
+	if durMs, _, ok = numberUntil(rest, ','); !ok {
 		return 0, 0, false
 	}
-	return inicioMs, durMs, true
+	return segStartMs, durMs, true
 }
 
-// numeroAte lê os dígitos do começo de b até o byte `fim`, e devolve o que
-// vem depois dele. Sem sinal e com no máximo 18 dígitos, para nunca estourar
-// o int64: o que fugir disso fica para a decodificação inteira.
-func numeroAte(b []byte, fim byte) (n int64, resto []byte, ok bool) {
+// numberUntil reads the digits at the start of b up to the byte `end`, and
+// returns what comes after it. Unsigned and with at most 18 digits, so it
+// never overflows int64: anything else is left for the full decode.
+func numberUntil(b []byte, end byte) (n int64, rest []byte, ok bool) {
 	i := 0
 	for ; i < len(b) && b[i] >= '0' && b[i] <= '9'; i++ {
 		n = n*10 + int64(b[i]-'0')
 	}
-	if i == 0 || i > 18 || i == len(b) || b[i] != fim {
+	if i == 0 || i > 18 || i == len(b) || b[i] != end {
 		return 0, nil, false
 	}
 	return n, b[i+1:], true
 }
 
-// LoadEventos lê os onsets de um dia, ordenados. Dia sem arquivo devolve fatia
-// vazia sem erro: câmera sem detecção ligada é o caso comum, não uma falha.
-func (c *Camera) LoadEventos(day string) ([]Evento, error) {
-	f, err := os.Open(c.EventosPath(day))
+// LoadEvents reads a day's onsets, sorted. A day without a file returns an
+// empty slice and no error: a camera without detection on is the common
+// case, not a failure.
+func (c *Camera) LoadEvents(day string) ([]Event, error) {
+	f, err := os.Open(c.EventsPath(day))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -743,7 +750,7 @@ func (c *Camera) LoadEventos(day string) ([]Evento, error) {
 	}
 	defer f.Close()
 
-	var out []Evento
+	var out []Event
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
 	for sc.Scan() {
@@ -751,9 +758,9 @@ func (c *Camera) LoadEventos(day string) ([]Evento, error) {
 		if len(line) == 0 {
 			continue
 		}
-		var ev Evento
-		// Mesma tolerância do LoadDay: a última linha pode ter sido cortada por
-		// uma queda, e o formato append-only prevê exatamente isso.
+		var ev Event
+		// Same tolerance as LoadDay: the last line may have been cut by a crash,
+		// and the append-only format anticipates exactly that.
 		if err := json.Unmarshal(line, &ev); err != nil {
 			continue
 		}
@@ -762,26 +769,26 @@ func (c *Camera) LoadEventos(day string) ([]Evento, error) {
 	if err := sc.Err(); err != nil {
 		return nil, err
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].InstanteMs < out[j].InstanteMs })
+	sort.Slice(out, func(i, j int) bool { return out[i].AtMs < out[j].AtMs })
 	return out, nil
 }
 
-// EventoRange devolve os onsets de [fromMs, toMs).
+// EventRange returns the onsets in [fromMs, toMs).
 //
-// Ao contrário do Range dos segmentos, o dia anterior NÃO precisa ser lido: um
-// onset é um instante, não um intervalo, e não atravessa a meia-noite.
-func (c *Camera) EventoRange(fromMs, toMs int64) ([]Evento, error) {
+// Unlike the segments' Range, the previous day does NOT need to be read: an
+// onset is an instant, not an interval, and doesn't cross midnight.
+func (c *Camera) EventRange(fromMs, toMs int64) ([]Event, error) {
 	if toMs <= fromMs {
 		return nil, nil
 	}
-	var out []Evento
-	for _, d := range dias(time.UnixMilli(fromMs), toMs) {
-		evs, err := c.LoadEventos(d)
+	var out []Event
+	for _, d := range days(time.UnixMilli(fromMs), toMs) {
+		evs, err := c.LoadEvents(d)
 		if err != nil {
 			return nil, err
 		}
 		for _, ev := range evs {
-			if ev.InstanteMs >= fromMs && ev.InstanteMs < toMs {
+			if ev.AtMs >= fromMs && ev.AtMs < toMs {
 				out = append(out, ev)
 			}
 		}
@@ -789,15 +796,15 @@ func (c *Camera) EventoRange(fromMs, toMs int64) ([]Evento, error) {
 	return out, nil
 }
 
-// --- carga inicial ----------------------------------------------------------
+// --- initial load -----------------------------------------------------------
 
-// Scan reconstrói os resumos em memória lendo os índices do disco.
+// Scan rebuilds the in-memory summaries by reading the indexes from disk.
 //
-// Se reconcileLastDay for verdadeiro, o dia mais recente é conferido contra o
-// filesystem: entradas cujo arquivo sumiu são descartadas e arquivos órfãos
-// (gravados, mas cuja linha de índice não chegou a ser escrita) são
-// reincorporados. É onde mora o dano de uma queda, e é barato porque olha um
-// dia só em vez dos milhares de arquivos de todo o histórico.
+// If reconcileLastDay is true, the most recent day is checked against the
+// filesystem: entries whose file is gone are dropped and orphan files
+// (written, but whose index line didn't get written) are brought back in.
+// That's where crash damage lives, and it's cheap because it looks at a
+// single day instead of the thousands of files of the whole history.
 func (c *Camera) Scan(reconcileLastDay bool, probe func(path string) (Entry, error)) error {
 	entries, err := os.ReadDir(c.IndexDir())
 	if errors.Is(err, os.ErrNotExist) {
@@ -847,12 +854,12 @@ func (c *Camera) Scan(reconcileLastDay bool, probe func(path string) (Entry, err
 	return nil
 }
 
-// reconcile alinha o índice de um dia com o que está de fato no disco e
-// reescreve o arquivo se algo mudou.
+// reconcile aligns a day's index with what's actually on disk and rewrites
+// the file if anything changed.
 func (c *Camera) reconcile(day string, list []Entry, probe func(string) (Entry, error)) ([]Entry, error) {
 	files, err := os.ReadDir(c.DayDir(day))
 	if errors.Is(err, os.ErrNotExist) {
-		// O índice tem entradas mas o diretório sumiu: confia no disco.
+		// The index has entries but the directory is gone: trust the disk.
 		if len(list) > 0 {
 			return nil, c.rewrite(day, nil)
 		}
@@ -862,7 +869,7 @@ func (c *Camera) reconcile(day string, list []Entry, probe func(string) (Entry, 
 		return nil, err
 	}
 
-	onDisk := map[int64]int64{} // startMs -> tamanho
+	onDisk := map[int64]int64{} // startMs -> size
 	for _, f := range files {
 		if f.IsDir() || !strings.HasSuffix(f.Name(), ".mp4") {
 			continue
@@ -878,12 +885,12 @@ func (c *Camera) reconcile(day string, list []Entry, probe func(string) (Entry, 
 		onDisk[ms] = info.Size()
 	}
 
-	// Segmento de zero byte é gravação que não houve: a queda levou o vídeo
-	// antes de ele sair do page cache, mas a linha do índice, que tem Sync, já
-	// estava no disco. Sai daqui como um arquivo que sumiu, senão a timeline
-	// desenha um trecho que o player não toca. Apagar é seguro porque o Scan
-	// roda antes de o recorder da câmera abrir qualquer segmento (ver Load); se falhar,
-	// sem linha no índice a retenção o leva junto com o dia.
+	// A zero-byte segment is a recording that didn't happen: the crash took the
+	// video before it left the page cache, but the index line, which has Sync, was
+	// already on disk. It leaves here like a file that's gone, otherwise the
+	// timeline draws a stretch the player doesn't play. Deleting is safe because
+	// Scan runs before the camera's recorder opens any segment (see Load); if it
+	// fails, without an index line retention takes it along with the day.
 	for ms, size := range onDisk {
 		if size == 0 {
 			_ = os.Remove(c.SegmentPath(ms))
@@ -897,12 +904,12 @@ func (c *Camera) reconcile(day string, list []Entry, probe func(string) (Entry, 
 	for _, e := range list {
 		size, ok := onDisk[e.StartMs]
 		if !ok {
-			changed = true // arquivo sumiu
+			changed = true // file is gone
 			continue
 		}
 		if size != e.Size {
-			// Segmento truncado por queda no meio da escrita: o tamanho real
-			// manda, e o índice passa a refletir o que existe.
+			// Segment truncated by a crash mid-write: the real size wins, and the index
+			// now reflects what exists.
 			e.Size = size
 			changed = true
 		}
@@ -910,20 +917,20 @@ func (c *Camera) reconcile(day string, list []Entry, probe func(string) (Entry, 
 		kept = append(kept, e)
 	}
 
-	// Arquivos órfãos: gravados, mas cuja linha de índice não chegou a sair.
+	// Orphan files: written, but whose index line didn't make it out.
 	for ms := range onDisk {
 		if indexed[ms] || probe == nil {
 			continue
 		}
 		e, err := probe(c.SegmentPath(ms))
 		if err != nil {
-			continue // ilegível: deixa quieto, a retenção acaba levando
+			continue // unreadable: leave it, retention takes it eventually
 		}
 		if e.Gen == "" || e.DurMs == 0 {
-			// Legível, mas sem init ou sem fragmento: não há o que tocar, e a
-			// geração vazia cortaria a faixa que o player emenda. Recusar zero
-			// só vale aqui, com a Entry recém-saída do probe: numa linha
-			// antiga do índice, zero é campo que ainda não existia.
+			// Readable, but without an init or without a fragment: there's nothing to
+			// play, and an empty generation would cut the strip the player splices.
+			// Rejecting zero only holds here, with the Entry fresh from the probe: on an
+			// old index line, zero is a field that didn't exist yet.
 			continue
 		}
 		e.StartMs = ms
@@ -940,9 +947,9 @@ func (c *Camera) reconcile(day string, list []Entry, probe func(string) (Entry, 
 	return kept, nil
 }
 
-// --- remoção ----------------------------------------------------------------
+// --- removal ----------------------------------------------------------------
 
-// DropOldestDay remove por completo o dia mais antigo, arquivos e índice.
+// DropOldestDay removes the oldest day entirely, files and index.
 func (c *Camera) DropOldestDay() (freed int64, err error) {
 	days := c.Days()
 	if len(days) == 0 {
@@ -961,15 +968,15 @@ func (c *Camera) DropDay(day string) (freed int64, err error) {
 	if !ok {
 		return 0, nil
 	}
-	freed += c.QuadrosBytes(day) // os quadros das detecções vão junto, abaixo
+	freed += c.FramesBytes(day) // the detections' frames go along, below
 
 	if err := os.RemoveAll(c.DayDir(day)); err != nil {
 		return 0, err
 	}
-	if err := os.RemoveAll(c.QuadrosDir(day)); err != nil {
+	if err := os.RemoveAll(c.FramesDir(day)); err != nil {
 		return 0, err
 	}
-	for _, p := range []string{c.IndexPath(day), c.EventosPath(day)} {
+	for _, p := range []string{c.IndexPath(day), c.EventsPath(day)} {
 		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return 0, err
 		}
@@ -977,22 +984,23 @@ func (c *Camera) DropDay(day string) (freed int64, err error) {
 
 	c.mu.Lock()
 	delete(c.days, day)
-	delete(c.quadrosBytes, day)
+	delete(c.framesBytes, day)
 	c.mu.Unlock()
-	c.esqueceObjetos(day)
+	c.forgetObjects(day)
 	return freed, nil
 }
 
-// Purge apaga tudo o que a câmera tem em disco: segmentos, índices e inits.
+// Purge deletes everything the camera has on disk: segments, indexes and
+// inits.
 //
-// É a única remoção que leva o diretório `init/` junto. A retenção nunca o
-// toca, porque um init é minúsculo e serve a vários dias de segmentos ao mesmo
-// tempo - mas quando não sobra segmento nenhum, ele também não tem mais razão de
-// existir.
+// It's the only removal that takes the `init/` directory along. Retention
+// never touches it, because an init is tiny and serves several days of
+// segments at once - but when no segment is left, it has no reason to exist
+// either.
 //
-// O total devolvido sai do índice, não de um walk pelo filesystem: é a mesma
-// medida que a cota usa, então o número bate com o que a tela mostrava antes de
-// apagar. Arquivo em disco sem linha de índice não entra na conta.
+// The total returned comes from the index, not from a filesystem walk: it's
+// the same measure the quota uses, so the number matches what the screen
+// showed before deleting. A file on disk without an index line doesn't count.
 func (c *Camera) Purge() (freed int64, err error) {
 	freed = c.TotalBytes()
 
@@ -1003,14 +1011,14 @@ func (c *Camera) Purge() (freed int64, err error) {
 	c.mu.Lock()
 	c.days = map[string]*DaySummary{}
 	c.mu.Unlock()
-	c.esqueceObjetos("")
+	c.forgetObjects("")
 	return freed, nil
 }
 
-// EvictOldest apaga os segmentos mais antigos até liberar pelo menos `want`
-// bytes, ou até acabarem os segmentos. Devolve quanto liberou.
+// EvictOldest deletes the oldest segments until it frees at least `want`
+// bytes, or runs out of segments. It returns how much it freed.
 //
-// A remoção é sempre por segmento inteiro: nunca se apaga parte de um arquivo.
+// Removal is always of whole segments: part of a file is never deleted.
 func (c *Camera) EvictOldest(want int64) (freed int64, err error) {
 	for freed < want {
 		days := c.Days()
@@ -1053,10 +1061,10 @@ func (c *Camera) EvictOldest(want int64) (freed int64, err error) {
 		if err := c.rewrite(day, rest); err != nil {
 			return freed, err
 		}
-		// As marcas do trecho que acabou de ser apagado vão junto. Marca sem
-		// gravação por baixo é faixa de calor apontando para vídeo que não
-		// existe mais: o clique não leva a lugar nenhum.
-		if err := c.aparaEventos(day, rest[0].StartMs); err != nil {
+		// The marks of the stretch just deleted go along. A mark without a
+		// recording underneath is a heat strip pointing to video that no longer
+		// exists: clicking it leads nowhere.
+		if err := c.trimEvents(day, rest[0].StartMs); err != nil {
 			return freed, err
 		}
 		c.recount(day, rest)
@@ -1064,19 +1072,19 @@ func (c *Camera) EvictOldest(want int64) (freed int64, err error) {
 	return freed, nil
 }
 
-// aparaEventos descarta os onsets anteriores a partirMs, regravando o arquivo
-// do dia. Dia sem eventos não é erro nem trabalho.
-func (c *Camera) aparaEventos(day string, partirMs int64) error {
-	evs, err := c.LoadEventos(day)
+// trimEvents drops the onsets before keepFromMs, rewriting the day's file.
+// A day without events is neither an error nor work.
+func (c *Camera) trimEvents(day string, keepFromMs int64) error {
+	evs, err := c.LoadEvents(day)
 	if err != nil || len(evs) == 0 {
 		return err
 	}
-	corte := sort.Search(len(evs), func(i int) bool { return evs[i].InstanteMs >= partirMs })
-	if corte == 0 {
+	cut := sort.Search(len(evs), func(i int) bool { return evs[i].AtMs >= keepFromMs })
+	if cut == 0 {
 		return nil
 	}
-	if corte == len(evs) {
-		err := os.Remove(c.EventosPath(day))
+	if cut == len(evs) {
+		err := os.Remove(c.EventsPath(day))
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
@@ -1085,22 +1093,22 @@ func (c *Camera) aparaEventos(day string, partirMs int64) error {
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
-	for _, ev := range evs[corte:] {
+	for _, ev := range evs[cut:] {
 		if err := enc.Encode(ev); err != nil {
 			return err
 		}
 	}
-	return escreveAtomico(c.EventosPath(day), buf.Bytes())
+	return writeAtomic(c.EventsPath(day), buf.Bytes())
 }
 
-// escreveAtomico regrava um arquivo inteiro sem nunca deixar um estado
-// intermediário visível: escreve num temporário do MESMO diretório e renomeia.
+// writeAtomic rewrites a whole file without ever leaving an intermediate
+// state visible: it writes to a temp file in the SAME directory and renames.
 //
-// O Chmod não é detalhe: sem ele o arquivo, criado com 0644 pelo append,
-// cairia para 0600 na primeira reescrita - uma mudança silenciosa de permissão
-// no meio da vida do arquivo.
-func escreveAtomico(caminho string, conteudo []byte) error {
-	dir := filepath.Dir(caminho)
+// The Chmod is not a detail: without it the file, created with 0644 by the
+// append, would drop to 0600 on the first rewrite - a silent permission change
+// in the middle of the file's life.
+func writeAtomic(path string, content []byte) error {
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -1110,7 +1118,7 @@ func escreveAtomico(caminho string, conteudo []byte) error {
 	}
 	defer os.Remove(tmp.Name())
 
-	if _, err := tmp.Write(conteudo); err != nil {
+	if _, err := tmp.Write(content); err != nil {
 		tmp.Close()
 		return err
 	}
@@ -1125,12 +1133,12 @@ func escreveAtomico(caminho string, conteudo []byte) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), caminho)
+	return os.Rename(tmp.Name(), path)
 }
 
-// rewrite regrava o índice de um dia. Os arquivos de índice são pequenos
-// (~100 KB por dia), então reescrever sai mais barato - e é mais simples de
-// acertar - que manter marcas de remoção.
+// rewrite rewrites a day's index. Index files are small (~100 KB a day),
+// so rewriting comes out cheaper - and simpler to get right - than keeping
+// deletion marks.
 func (c *Camera) rewrite(day string, entries []Entry) error {
 	if len(entries) == 0 {
 		err := os.Remove(c.IndexPath(day))
@@ -1147,7 +1155,7 @@ func (c *Camera) rewrite(day string, entries []Entry) error {
 			return err
 		}
 	}
-	return escreveAtomico(c.IndexPath(day), buf.Bytes())
+	return writeAtomic(c.IndexPath(day), buf.Bytes())
 }
 
 func (c *Camera) recount(day string, entries []Entry) {
@@ -1159,10 +1167,10 @@ func (c *Camera) recount(day string, entries []Entry) {
 	}
 }
 
-// --- órfãos -----------------------------------------------------------------
+// --- orphans ----------------------------------------------------------------
 
-// OrphanInfo descreve um diretório de gravação que não pertence a nenhuma
-// câmera cadastrada.
+// OrphanInfo describes a recording directory that doesn't belong to any
+// registered camera.
 type OrphanInfo struct {
 	ID      string `json:"id"`
 	Bytes   int64  `json:"bytes"`
@@ -1171,16 +1179,16 @@ type OrphanInfo struct {
 	LastMs  int64  `json:"lastMs"`
 }
 
-// Orphans lista o que ficou em disco de câmeras que já foram removidas.
+// Orphans lists what was left on disk by cameras already removed.
 //
-// Remover uma câmera não apaga as gravações dela, e a partir daí esse material
-// some de toda a aplicação: os endpoints de gravação só aceitam câmera
-// cadastrada, e a retenção só percorre as cadastradas. Sem esta varredura ele
-// ocuparia disco sem aparecer em lugar nenhum.
+// Removing a camera doesn't delete its recordings, and from then on that
+// material disappears from the whole application: the recording endpoints
+// only accept a registered camera, and retention only walks the registered
+// ones. Without this scan it would take up disk without showing up anywhere.
 //
-// O tamanho sai dos arquivos de índice - algumas dezenas por câmera - e não de
-// um walk sobre os segmentos, que seriam dezenas de milhares. É também a mesma
-// fonte que a cota usa, então os números não divergem entre as telas.
+// The size comes from the index files - a few dozen per camera - and not from
+// a walk over the segments, which would be tens of thousands. It's also the
+// same source the quota uses, so the numbers don't diverge between screens.
 func (s *Store) Orphans(registered map[string]bool) ([]OrphanInfo, error) {
 	entries, err := os.ReadDir(s.root)
 	if errors.Is(err, os.ErrNotExist) {
@@ -1192,15 +1200,15 @@ func (s *Store) Orphans(registered map[string]bool) ([]OrphanInfo, error) {
 
 	out := make([]OrphanInfo, 0)
 	for _, e := range entries {
-		// Nomes vindos do ReadDir são sempre um único componente de caminho,
-		// então não há travessia de diretório a fechar aqui.
+		// Names from ReadDir are always a single path component, so there's no
+		// directory traversal to close here.
 		id := e.Name()
 		if !e.IsDir() || registered[id] {
 			continue
 		}
 
-		// Câmera descartável: memorizá-la no Store faria um ID sem cadastro
-		// virar entrada permanente em memória a cada listagem.
+		// A throwaway camera: memoizing it in the Store would turn an unregistered
+		// ID into a permanent in-memory entry on every listing.
 		c := newCamera(s.root, id)
 		if err := c.Scan(false, nil); err != nil {
 			return nil, err
@@ -1224,7 +1232,7 @@ func (s *Store) Orphans(registered map[string]bool) ([]OrphanInfo, error) {
 	return out, nil
 }
 
-// OrphanBytes soma o tamanho de tudo o que Orphans lista.
+// OrphanBytes sums the size of everything Orphans lists.
 func (s *Store) OrphanBytes(registered map[string]bool) (int64, error) {
 	orphans, err := s.Orphans(registered)
 	if err != nil {
@@ -1237,10 +1245,10 @@ func (s *Store) OrphanBytes(registered map[string]bool) (int64, error) {
 	return total, nil
 }
 
-// ParseSegmentName extrai o início em ms do nome de um arquivo de segmento.
+// ParseSegmentName extracts the start in ms from a segment file name.
 func ParseSegmentName(name string) (int64, error) {
 	if !strings.HasSuffix(name, ".mp4") {
-		return 0, fmt.Errorf("store: %q não é um segmento", name)
+		return 0, fmt.Errorf("store: %q is not a segment", name)
 	}
 	return strconv.ParseInt(strings.TrimSuffix(name, ".mp4"), 10, 64)
 }

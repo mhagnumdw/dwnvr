@@ -16,37 +16,37 @@ import (
 
 const mb = 1 << 20
 
-// agoraFixo é o relógio dos testes: 12h locais, longe da meia-noite, para que
-// "N dias atrás" não dependa da hora nem do fuso de quem roda.
-var agoraFixo = time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
+// fixedNow is the tests' clock: 12:00 local time, far from midnight, so "N
+// days ago" doesn't depend on the hour nor on the time zone of whoever runs it.
+var fixedNow = time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 
-// diaAtras é o meio-dia de N dias antes do relógio dos testes.
-func diaAtras(n int) time.Time { return agoraFixo.AddDate(0, 0, -n) }
+// daysAgo is noon N days before the tests' clock.
+func daysAgo(n int) time.Time { return fixedNow.AddDate(0, 0, -n) }
 
-func dia(n int) string { return diaAtras(n).Format(store.DayLayout) }
+func dayOf(n int) string { return daysAgo(n).Format(store.DayLayout) }
 
-// novoManager monta a retenção sobre um store vazio num diretório temporário,
-// com o relógio fixo. O disco livre, cada teste que o usa define.
-func novoManager(t *testing.T, minFreeMB int64, cams *[]config.Camera) (*Manager, *store.Store) {
+// newManager builds retention over an empty store in a temp directory, with
+// the fixed clock. The free disk is defined by each test that uses it.
+func newManager(t *testing.T, minFreeMB int64, cams *[]config.Camera) (*Manager, *store.Store) {
 	t.Helper()
 	st := store.New(t.TempDir())
 	cfg := &config.Config{Storage: config.Storage{MinFreeMB: minFreeMB}}
 	m := New(cfg, st, func() []config.Camera { return *cams }, slog.New(slog.DiscardHandler))
-	m.agora = func() time.Time { return agoraFixo }
-	m.livre = func(string) (int64, error) {
-		t.Fatal("este teste não deveria consultar o disco")
+	m.now = func() time.Time { return fixedNow }
+	m.free = func(string) (int64, error) {
+		t.Fatal("this test shouldn't query the disk")
 		return 0, nil
 	}
 	return m, st
 }
 
-// grava registra `n` segmentos de `tamanho` bytes, um por minuto a partir de
-// `inicio`. O arquivo é esparso: tem o tamanho certo sem ocupar disco.
-func grava(t *testing.T, st *store.Store, cam string, inicio time.Time, n int, tamanho int64) {
+// record writes `n` segments of `size` bytes, one per minute starting at
+// `start`. The file is sparse: it has the right size without taking disk.
+func record(t *testing.T, st *store.Store, cam string, start time.Time, n int, size int64) {
 	t.Helper()
 	c := st.Camera(cam)
 	for i := range n {
-		e := store.Entry{StartMs: inicio.Add(time.Duration(i) * time.Minute).UnixMilli(), DurMs: 60_000, Size: tamanho}
+		e := store.Entry{StartMs: start.Add(time.Duration(i) * time.Minute).UnixMilli(), DurMs: 60_000, Size: size}
 		if err := c.EnsureDirs(e.Day()); err != nil {
 			t.Fatal(err)
 		}
@@ -54,7 +54,7 @@ func grava(t *testing.T, st *store.Store, cam string, inicio time.Time, n int, t
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := f.Truncate(tamanho); err != nil {
+		if err := f.Truncate(size); err != nil {
 			t.Fatal(err)
 		}
 		f.Close()
@@ -64,19 +64,20 @@ func grava(t *testing.T, st *store.Store, cam string, inicio time.Time, n int, t
 	}
 }
 
-// discoDe simula um disco de `capacidade` bytes onde só o dwnvr escreve: o
-// livre é o que as câmeras ainda não ocupam, e cai a cada gravação apagada.
-func discoDe(st *store.Store, capacidade int64, cams ...string) func(string) (int64, error) {
+// diskOf simulates a disk of `capacity` bytes where only dwnvr writes: free
+// is what the cameras don't take yet, and it drops with each deleted
+// recording.
+func diskOf(st *store.Store, capacity int64, cams ...string) func(string) (int64, error) {
 	return func(string) (int64, error) {
-		usado := int64(0)
+		used := int64(0)
 		for _, c := range cams {
-			usado += st.Camera(c).TotalBytes()
+			used += st.Camera(c).TotalBytes()
 		}
-		return capacidade - usado, nil
+		return capacity - used, nil
 	}
 }
 
-func dias(st *store.Store, cam string) []string {
+func dayList(st *store.Store, cam string) []string {
 	var out []string
 	for _, d := range st.Camera(cam).Days() {
 		out = append(out, d.Day)
@@ -84,26 +85,26 @@ func dias(st *store.Store, cam string) []string {
 	return out
 }
 
-func confereDias(t *testing.T, st *store.Store, cam string, want ...string) {
+func checkDays(t *testing.T, st *store.Store, cam string, want ...string) {
 	t.Helper()
-	got := dias(st, cam)
+	got := dayList(st, cam)
 	if len(got) != len(want) {
-		t.Fatalf("%s ficou com os dias %v, esperava %v", cam, got, want)
+		t.Fatalf("%s kept the days %v, want %v", cam, got, want)
 	}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Fatalf("%s ficou com os dias %v, esperava %v", cam, got, want)
+			t.Fatalf("%s kept the days %v, want %v", cam, got, want)
 		}
 	}
 }
 
-// A câmera acima da cota perde o mais antigo até caber, e só ela: a cota de
-// uma não pode apagar gravação da outra.
-func TestCotaApagaSoDaCameraAcima(t *testing.T) {
+// A camera over its quota loses its oldest until it fits, and only it: one
+// camera's quota must not delete another's recordings.
+func TestQuotaDeletesOnlyFromTheCameraOver(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 3}, {ID: "cam_b", QuotaMB: 10}}
-	m, st := novoManager(t, 0, &cams)
-	grava(t, st, "cam_a", diaAtras(0), 5, mb)
-	grava(t, st, "cam_b", diaAtras(0), 5, mb)
+	m, st := newManager(t, 0, &cams)
+	record(t, st, "cam_a", daysAgo(0), 5, mb)
+	record(t, st, "cam_b", daysAgo(0), 5, mb)
 
 	if err := m.Enforce(); err != nil {
 		t.Fatal(err)
@@ -111,105 +112,105 @@ func TestCotaApagaSoDaCameraAcima(t *testing.T) {
 
 	a := st.Camera("cam_a")
 	if got := a.TotalBytes(); got != 3*mb {
-		t.Errorf("cam_a ocupa %d MB, esperava a cota, 3", got/mb)
+		t.Errorf("cam_a takes %d MB, want the quota, 3", got/mb)
 	}
-	// Saíram os dois primeiros segmentos, não dois quaisquer.
-	if got, want := a.OldestMs(), diaAtras(0).Add(2*time.Minute).UnixMilli(); got != want {
-		t.Errorf("o mais antigo da cam_a começa em %d, esperava %d (o terceiro)", got, want)
+	// The first two segments went away, not any two.
+	if got, want := a.OldestMs(), daysAgo(0).Add(2*time.Minute).UnixMilli(); got != want {
+		t.Errorf("cam_a's oldest starts at %d, want %d (the third)", got, want)
 	}
 	if got := st.Camera("cam_b").TotalBytes(); got != 5*mb {
-		t.Errorf("cam_b ocupa %d MB, esperava os 5 intactos", got/mb)
+		t.Errorf("cam_b takes %d MB, want the 5 intact", got/mb)
 	}
 }
 
-// O dia além do maxDays sai inteiro; o próprio dia do limite fica.
-func TestIdadeMaximaApagaOsDiasAlem(t *testing.T) {
+// A day beyond maxDays goes away whole; the limit day itself stays.
+func TestMaxAgeDeletesTheDaysBeyond(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 100, MaxDays: 3}}
-	m, st := novoManager(t, 0, &cams)
+	m, st := newManager(t, 0, &cams)
 	for d := 5; d >= 0; d-- {
-		grava(t, st, "cam_a", diaAtras(d), 1, mb)
+		record(t, st, "cam_a", daysAgo(d), 1, mb)
 	}
 
 	if err := m.Enforce(); err != nil {
 		t.Fatal(err)
 	}
-	confereDias(t, st, "cam_a", dia(3), dia(2), dia(1), dia(0))
+	checkDays(t, st, "cam_a", dayOf(3), dayOf(2), dayOf(1), dayOf(0))
 }
 
-// maxDays zero é "sem limite de idade": quem pensa em GB não perde gravação
-// por ela ser velha.
-func TestIdadeMaximaZeroNaoApagaNada(t *testing.T) {
+// maxDays zero means "no age limit": whoever thinks in GB doesn't lose
+// recordings for being old.
+func TestMaxAgeZeroDeletesNothing(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 100}}
-	m, st := novoManager(t, 0, &cams)
+	m, st := newManager(t, 0, &cams)
 	for d := 400; d >= 0; d -= 100 {
-		grava(t, st, "cam_a", diaAtras(d), 1, mb)
+		record(t, st, "cam_a", daysAgo(d), 1, mb)
 	}
 
 	if err := m.Enforce(); err != nil {
 		t.Fatal(err)
 	}
-	confereDias(t, st, "cam_a", dia(400), dia(300), dia(200), dia(100), dia(0))
+	checkDays(t, st, "cam_a", dayOf(400), dayOf(300), dayOf(200), dayOf(100), dayOf(0))
 }
 
-// Com o disco abaixo do mínimo, sai o dia mais antigo de qualquer câmera, um
-// por vez, até o disco voltar; as cotas não seguram nada.
-func TestDiscoApertadoApagaODiaMaisAntigoDeQualquerCamera(t *testing.T) {
+// With the disk below the minimum, the oldest day of any camera goes, one at
+// a time, until the disk recovers; the quotas hold nothing back.
+func TestTightDiskDeletesTheOldestDayOfAnyCamera(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 100}, {ID: "cam_b", QuotaMB: 100}}
-	m, st := novoManager(t, 5, &cams)
+	m, st := newManager(t, 5, &cams)
 	for _, d := range []int{2, 1, 0} {
-		grava(t, st, "cam_a", diaAtras(d), 2, mb)
+		record(t, st, "cam_a", daysAgo(d), 2, mb)
 	}
 	for _, d := range []int{3, 0} {
-		grava(t, st, "cam_b", diaAtras(d), 2, mb)
+		record(t, st, "cam_b", daysAgo(d), 2, mb)
 	}
-	// 10 MB ocupados num disco de 12: sobram 2, e o mínimo é 5. Apagar o
-	// dia 3 da cam_b dá 4, ainda pouco; o dia 2 da cam_a dá 6.
-	m.livre = discoDe(st, 12*mb, "cam_a", "cam_b")
+	// 10 MB taken on a 12 MB disk: 2 left, and the minimum is 5. Deleting
+	// day 3 of cam_b gives 4, still too little; day 2 of cam_a gives 6.
+	m.free = diskOf(st, 12*mb, "cam_a", "cam_b")
 
 	if err := m.Enforce(); err != nil {
 		t.Fatal(err)
 	}
-	confereDias(t, st, "cam_a", dia(1), dia(0))
-	confereDias(t, st, "cam_b", dia(0))
-	if !m.AbaixoDoMinimoDesde().IsZero() {
-		t.Error("o disco voltou ao mínimo e o aviso ficou")
+	checkDays(t, st, "cam_a", dayOf(1), dayOf(0))
+	checkDays(t, st, "cam_b", dayOf(0))
+	if !m.BelowMinimumSince().IsZero() {
+		t.Error("the disk went back to the minimum and the warning stayed")
 	}
 }
 
-// A cota roda antes do disco. Ela apara segmento a segmento, e o disco apaga
-// um dia inteiro: na ordem invertida, um aperto que a cota resolveria com 1 MB
-// custaria o dia todo.
-func TestCotaRodaAntesDoDisco(t *testing.T) {
+// The quota runs before the disk. It trims segment by segment, and the disk
+// deletes a whole day: in the reverse order, a squeeze the quota would solve
+// with 1 MB would cost the whole day.
+func TestQuotaRunsBeforeDisk(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 5}}
-	m, st := novoManager(t, 5, &cams)
+	m, st := newManager(t, 5, &cams)
 	for _, d := range []int{2, 1, 0} {
-		grava(t, st, "cam_a", diaAtras(d), 2, mb)
+		record(t, st, "cam_a", daysAgo(d), 2, mb)
 	}
-	// 6 MB ocupados, 4,5 livres: abaixo do mínimo de 5 até a cota tirar 1 MB.
-	m.livre = discoDe(st, 10*mb+mb/2, "cam_a")
+	// 6 MB taken, 4.5 free: below the minimum of 5 until the quota takes out 1 MB.
+	m.free = diskOf(st, 10*mb+mb/2, "cam_a")
 
 	if err := m.Enforce(); err != nil {
 		t.Fatal(err)
 	}
-	confereDias(t, st, "cam_a", dia(2), dia(1), dia(0))
+	checkDays(t, st, "cam_a", dayOf(2), dayOf(1), dayOf(0))
 	if got := st.Camera("cam_a").TotalBytes(); got != 5*mb {
-		t.Errorf("cam_a ocupa %d MB, esperava 5: só a cota deveria ter apagado", got/mb)
+		t.Errorf("cam_a takes %d MB, want 5: only the quota should have deleted", got/mb)
 	}
 }
 
-// Câmera cadastrada ou alterada com o dwnvr no ar vale na passada seguinte,
-// sem reiniciar.
-func TestCameraNovaOuAlteradaValeNaPassadaSeguinte(t *testing.T) {
+// A camera added or changed with dwnvr running applies on the next pass,
+// without a restart.
+func TestNewOrChangedCameraAppliesOnTheNextPass(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 10}}
-	m, st := novoManager(t, 0, &cams)
-	grava(t, st, "cam_a", diaAtras(0), 5, mb)
-	grava(t, st, "cam_b", diaAtras(0), 5, mb)
+	m, st := newManager(t, 0, &cams)
+	record(t, st, "cam_a", daysAgo(0), 5, mb)
+	record(t, st, "cam_b", daysAgo(0), 5, mb)
 
 	if err := m.Enforce(); err != nil {
 		t.Fatal(err)
 	}
 	if got := st.Camera("cam_a").TotalBytes(); got != 5*mb {
-		t.Fatalf("cam_a ocupa %d MB antes de mudar a cota, esperava 5", got/mb)
+		t.Fatalf("cam_a takes %d MB before changing the quota, want 5", got/mb)
 	}
 
 	cams = []config.Camera{{ID: "cam_a", QuotaMB: 2}, {ID: "cam_b", QuotaMB: 3}}
@@ -217,112 +218,112 @@ func TestCameraNovaOuAlteradaValeNaPassadaSeguinte(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := st.Camera("cam_a").TotalBytes(); got != 2*mb {
-		t.Errorf("cam_a ocupa %d MB, esperava a cota nova, 2", got/mb)
+		t.Errorf("cam_a takes %d MB, want the new quota, 2", got/mb)
 	}
 	if got := st.Camera("cam_b").TotalBytes(); got != 3*mb {
-		t.Errorf("cam_b ocupa %d MB, esperava a cota da câmera nova, 3", got/mb)
+		t.Errorf("cam_b takes %d MB, want the new camera's quota, 3", got/mb)
 	}
 }
 
-// minFreeMB zero desliga a rede de segurança: o disco nem é consultado.
-func TestDiscoSemMinimoNaoConsultaODisco(t *testing.T) {
+// minFreeMB zero turns the safety net off: the disk isn't even queried.
+func TestNoMinimumDoesNotQueryTheDisk(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 100}}
-	m, st := novoManager(t, 0, &cams)
-	grava(t, st, "cam_a", diaAtras(0), 1, mb)
+	m, st := newManager(t, 0, &cams)
+	record(t, st, "cam_a", daysAgo(0), 1, mb)
 
 	if err := m.Enforce(); err != nil {
 		t.Fatal(err)
 	}
-	if !m.AbaixoDoMinimoDesde().IsZero() {
-		t.Error("sem mínimo configurado não há aviso de disco")
+	if !m.BelowMinimumSince().IsZero() {
+		t.Error("without a configured minimum there's no disk warning")
 	}
 }
 
-// Disco tomado por algo fora do dwnvr: apagar não devolve o espaço. A passada
-// apaga tudo o que é do dwnvr e para, em vez de girar para sempre, e o aviso
-// fica ligado.
-func TestDiscoQueNaoVoltaApagaTudoEPara(t *testing.T) {
+// A disk taken by something outside dwnvr: deleting doesn't give the space
+// back. The pass deletes everything that belongs to dwnvr and stops, instead
+// of spinning forever, and the warning stays on.
+func TestDiskThatDoesNotRecoverDeletesEverythingAndStops(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 100}}
-	m, st := novoManager(t, 5, &cams)
+	m, st := newManager(t, 5, &cams)
 	for _, d := range []int{1, 0} {
-		grava(t, st, "cam_a", diaAtras(d), 1, mb)
+		record(t, st, "cam_a", daysAgo(d), 1, mb)
 	}
-	m.livre = func(string) (int64, error) { return mb, nil }
+	m.free = func(string) (int64, error) { return mb, nil }
 
 	if err := m.Enforce(); err != nil {
 		t.Fatal(err)
 	}
-	confereDias(t, st, "cam_a")
-	if got := m.AbaixoDoMinimoDesde(); !got.Equal(agoraFixo) {
-		t.Errorf("aviso de disco desde %v, esperava %v", got, agoraFixo)
+	checkDays(t, st, "cam_a")
+	if got := m.BelowMinimumSince(); !got.Equal(fixedNow) {
+		t.Errorf("disk warning since %v, want %v", got, fixedNow)
 	}
 }
 
-// Gravação de câmera removida não sai nem com o disco apertado: quem paga é a
-// câmera no ar, e os avisos dizem quanto há em órfãs. No fim, com as cadastradas
-// drenadas, o aviso não pode dizer que não sobrou nada.
-func TestDiscoApertadoNaoApagaOrfaMasAvisa(t *testing.T) {
+// Recordings of a removed camera don't go even with the disk tight: the live
+// camera pays, and the warnings say how much is in orphans. In the end, with
+// the registered ones drained, the warning must not say nothing is left.
+func TestTightDiskDoesNotDeleteOrphansButWarns(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 100}}
-	m, st := novoManager(t, 5, &cams)
+	m, st := newManager(t, 5, &cams)
 	var log bytes.Buffer
 	m.log = slog.New(slog.NewTextHandler(&log, nil))
-	grava(t, st, "cam_velha", diaAtras(5), 3, mb)
+	record(t, st, "cam_velha", daysAgo(5), 3, mb)
 	for _, d := range []int{1, 0} {
-		grava(t, st, "cam_a", diaAtras(d), 1, mb)
+		record(t, st, "cam_a", daysAgo(d), 1, mb)
 	}
-	m.livre = func(string) (int64, error) { return mb, nil }
+	m.free = func(string) (int64, error) { return mb, nil }
 
 	if err := m.Enforce(); err != nil {
 		t.Fatal(err)
 	}
-	confereDias(t, st, "cam_a")
-	confereDias(t, st, "cam_velha", dia(5))
+	checkDays(t, st, "cam_a")
+	checkDays(t, st, "cam_velha", dayOf(5))
 
-	saida := log.String()
-	if got := strings.Count(saida, "orfas_mb=3"); got != 3 {
-		t.Errorf("orfas_mb=3 em %d avisos, esperava nos 3 (2 dias evictados e o fim):\n%s", got, saida)
+	out := log.String()
+	if got := strings.Count(out, "orphans_mb=3"); got != 3 {
+		t.Errorf("orphans_mb=3 in %d warnings, want in all 3 (2 evicted days and the end):\n%s", got, out)
 	}
-	if strings.Contains(saida, "não há mais nada a evictar") {
-		t.Errorf("o aviso disse que não sobrou nada, com 3 MB de órfã:\n%s", saida)
+	if strings.Contains(out, "nothing left to evict") {
+		t.Errorf("the warning said nothing was left, with 3 MB of orphans:\n%s", out)
 	}
-	if !strings.Contains(saida, "só restam gravações de câmeras removidas") {
-		t.Errorf("faltou o aviso de que só restam órfãs:\n%s", saida)
+	if !strings.Contains(out, "only recordings of removed cameras are left") {
+		t.Errorf("missing the warning that only orphans are left:\n%s", out)
 	}
 }
 
-// Sem saber o espaço livre, a passada não apaga nada às cegas: devolve o erro.
-func TestDiscoIlegivelDevolveOErro(t *testing.T) {
+// Without knowing the free space, the pass deletes nothing blindly: it returns the error.
+func TestUnreadableDiskReturnsTheError(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 100}}
-	m, st := novoManager(t, 5, &cams)
-	grava(t, st, "cam_a", diaAtras(0), 1, mb)
-	falha := errors.New("statfs falhou")
-	m.livre = func(string) (int64, error) { return 0, falha }
+	m, st := newManager(t, 5, &cams)
+	record(t, st, "cam_a", daysAgo(0), 1, mb)
+	failure := errors.New("statfs failed")
+	m.free = func(string) (int64, error) { return 0, failure }
 
-	if err := m.Enforce(); !errors.Is(err, falha) {
-		t.Fatalf("Enforce devolveu %v, esperava o erro do disco", err)
+	if err := m.Enforce(); !errors.Is(err, failure) {
+		t.Fatalf("Enforce returned %v, want the disk error", err)
 	}
-	confereDias(t, st, "cam_a", dia(0))
+	checkDays(t, st, "cam_a", dayOf(0))
 }
 
-// Run faz uma passada logo na subida, antes do primeiro tique, e sai quando o
-// contexto acaba.
-func TestRunPassaNaSubida(t *testing.T) {
+// Run does one pass right at startup, before the first tick, and leaves when
+// the context is done.
+func TestRunPassesAtStartup(t *testing.T) {
 	cams := []config.Camera{{ID: "cam_a", QuotaMB: 1}}
-	m, st := novoManager(t, 0, &cams)
-	grava(t, st, "cam_a", diaAtras(0), 3, mb)
+	m, st := newManager(t, 0, &cams)
+	record(t, st, "cam_a", daysAgo(0), 3, mb)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	m.Run(ctx)
 
 	if got := st.Camera("cam_a").TotalBytes(); got != mb {
-		t.Errorf("cam_a ocupa %d MB depois da subida, esperava a cota, 1", got/mb)
+		t.Errorf("cam_a takes %d MB after startup, want the quota, 1", got/mb)
 	}
 }
 
-// O espaço livre que a retenção lê é o do usuário comum, e nunca passa da
-// capacidade.
-func TestFreeBytesETotalBytes(t *testing.T) {
+// The free space retention reads is a regular user's, and never exceeds
+// the capacity.
+func TestFreeBytesAndTotalBytes(t *testing.T) {
 	dir := t.TempDir()
 	free, err := FreeBytes(dir)
 	if err != nil {
@@ -333,29 +334,29 @@ func TestFreeBytesETotalBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if free <= 0 || total <= 0 || free > total {
-		t.Errorf("livre %d, total %d", free, total)
+		t.Errorf("free %d, total %d", free, total)
 	}
 }
 
-// O "desde" do disco abaixo do mínimo fica preso na primeira passada que viu o
-// problema, e some na primeira que o vê resolvido.
-func TestAbaixoDoMinimoDesde(t *testing.T) {
+// The "since" of the disk below the minimum stays at the first pass that
+// saw the problem, and goes away on the first that sees it solved.
+func TestBelowMinimumSince(t *testing.T) {
 	m := &Manager{}
 	t0 := time.Now()
 
-	m.anotaDisco(false, t0)
-	if !m.AbaixoDoMinimoDesde().IsZero() {
-		t.Fatal("disco acima do mínimo não deveria ter desde")
+	m.recordDisk(false, t0)
+	if !m.BelowMinimumSince().IsZero() {
+		t.Fatal("a disk above the minimum shouldn't have a since")
 	}
 
-	m.anotaDisco(true, t0.Add(time.Minute))
-	m.anotaDisco(true, t0.Add(2*time.Minute))
-	if got := m.AbaixoDoMinimoDesde(); !got.Equal(t0.Add(time.Minute)) {
-		t.Errorf("desde %v, esperava a primeira passada abaixo (%v)", got, t0.Add(time.Minute))
+	m.recordDisk(true, t0.Add(time.Minute))
+	m.recordDisk(true, t0.Add(2*time.Minute))
+	if got := m.BelowMinimumSince(); !got.Equal(t0.Add(time.Minute)) {
+		t.Errorf("since %v, want the first pass below (%v)", got, t0.Add(time.Minute))
 	}
 
-	m.anotaDisco(false, t0.Add(3*time.Minute))
-	if !m.AbaixoDoMinimoDesde().IsZero() {
-		t.Error("o disco voltou e o desde ficou")
+	m.recordDisk(false, t0.Add(3*time.Minute))
+	if !m.BelowMinimumSince().IsZero() {
+		t.Error("the disk recovered and since stayed")
 	}
 }

@@ -5,47 +5,48 @@ import (
 	"fmt"
 )
 
-// Handlers de mídia que interessam ao dwnvr.
+// The media handlers dwnvr cares about.
 const (
 	HandlerVideo = "vide"
 	HandlerAudio = "soun"
 )
 
-// Track descreve uma trilha do init segment.
+// Track describes one track of the init segment.
 type Track struct {
 	ID        uint32
-	Handler   string // "vide" ou "soun"
-	Timescale uint32 // unidades por segundo dos timestamps desta trilha
-	Codec     string // 4CC da sample entry: hev1, hvc1, avc1, mp4a, fLaC, Opus…
+	Handler   string // "vide" or "soun"
+	Timescale uint32 // units per second of this track's timestamps
+	Codec     string // 4CC of the sample entry: hev1, hvc1, avc1, mp4a, fLaC, Opus…
 
-	// Width e Height são as dimensões da trilha de vídeo, lidas do SPS que o
-	// avcC/hvcC carrega. Ficam zeradas nas trilhas de áudio e quando o SPS não
-	// é legível.
+	// Width and Height are the video track's dimensions, read from the SPS the
+	// avcC/hvcC carries. They are zero on audio tracks and when the SPS isn't
+	// readable.
 	//
-	// Não vêm dos campos width/height da VisualSampleEntry de propósito: o
-	// go2rtc os preenche com o que a câmera ANUNCIA, e há câmera anunciando
-	// 2560x1440 enquanto transmite 1920x1080. Ver sps.go.
+	// They deliberately don't come from the VisualSampleEntry width/height
+	// fields: go2rtc fills those with what the camera ADVERTISES, and there
+	// are cameras advertising 2560x1440 while streaming 1920x1080. See sps.go.
 	Width  uint16
 	Height uint16
 
-	// NALLengthSize é o tamanho do prefixo de comprimento dos NALs, declarado
-	// no avcC/hvcC. Necessário para varrer os NALs de um fragmento.
+	// NALLengthSize is the size of the NAL length prefix, declared in the
+	// avcC/hvcC. Needed to scan the NALs of a fragment.
 	NALLengthSize int
 
-	// DefaultSampleFlags vem do trex e é o último recurso para classificar um
-	// sample quando o fragmento não traz flags próprios.
+	// DefaultSampleFlags comes from the trex and is the last resort to
+	// classify a sample when the fragment carries no flags of its own.
 	DefaultSampleFlags uint32
 }
 
-// Movie é o resultado da leitura de um init segment (ftyp + moov).
+// Movie is the result of reading an init segment (ftyp + moov).
 type Movie struct {
 	Tracks []Track
 }
 
-// VideoTrack devolve a primeira trilha de vídeo. Só ela decide onde cortar um
-// segmento: samples de áudio também vêm marcados como "não dependem de outros"
-// (go2rtc usa SampleAudio = sampleDependsOn2), então classificar keyframe sem
-// olhar a trilha faria todo pacote de áudio parecer um ponto de corte válido.
+// VideoTrack returns the first video track. Only it decides where to cut a
+// segment: audio samples are also flagged as "depends on no others" (go2rtc
+// uses SampleAudio = sampleDependsOn2), so classifying keyframes without
+// looking at the track would make every audio packet look like a valid cut
+// point.
 func (m *Movie) VideoTrack() (Track, bool) {
 	for _, t := range m.Tracks {
 		if t.Handler == HandlerVideo {
@@ -64,11 +65,11 @@ func (m *Movie) HasAudio() bool {
 	return false
 }
 
-// ParseMoov lê a caixa moov completa (com cabeçalho) e extrai as trilhas.
+// ParseMoov reads the complete moov box (with header) and extracts the tracks.
 func ParseMoov(moov []byte) (*Movie, error) {
 	hdrLen, size, ok := boxHeaderLen(moov)
 	if !ok || boxType(moov) != "moov" {
-		return nil, errors.New("fmp4: esperava uma caixa moov")
+		return nil, errors.New("fmp4: expected a moov box")
 	}
 
 	mv := &Movie{}
@@ -107,23 +108,24 @@ func ParseMoov(moov []byte) (*Movie, error) {
 		mv.Tracks[i].DefaultSampleFlags = trexFlags[mv.Tracks[i].ID]
 	}
 	if len(mv.Tracks) == 0 {
-		return nil, errors.New("fmp4: moov sem nenhuma trilha")
+		return nil, errors.New("fmp4: moov without any track")
 	}
 	return mv, nil
 }
 
-// visualSampleEntryFixed é o tamanho da parte fixa de uma VisualSampleEntry,
-// contando o cabeçalho da caixa: 8 do cabeçalho, 8 da SampleEntry (reservados
-// e data_reference_index) e 70 dos campos visuais (pre_defined, dimensões,
-// resoluções, frame_count, compressorname, depth). Depois disso começam as
-// caixas filhas, entre elas o avcC/hvcC.
+// visualSampleEntryFixed is the size of the fixed part of a VisualSampleEntry,
+// counting the box header: 8 for the header, 8 for the SampleEntry (reserved
+// and data_reference_index) and 70 for the visual fields (pre_defined,
+// dimensions, resolutions, frame_count, compressorname, depth). The child
+// boxes start after that, the avcC/hvcC among them.
 const visualSampleEntryFixed = 86
 
-// videoConfig lê o SPS e o tamanho do prefixo de NAL de dentro do avcC/hvcC de
-// uma sample entry de vídeo.
+// videoConfig reads the SPS and the NAL prefix size from inside the avcC/hvcC
+// of a video sample entry.
 //
-// Uma entrada sem configuração legível devolve zeros: não saber a resolução não
-// invalida o init, e recusar a gravação por causa disso seria desproporcional.
+// An entry without a readable configuration returns zeros: not knowing the
+// resolution doesn't invalidate the init, and refusing to record because of
+// it would be out of proportion.
 func videoConfig(codec string, entry []byte) (w, h uint16, nalLen int) {
 	if len(entry) <= visualSampleEntryFixed {
 		return 0, 0, 0
@@ -146,7 +148,7 @@ func videoConfig(codec string, entry []byte) (w, h uint16, nalLen int) {
 	return w, h, nalLen
 }
 
-// avcCSPS extrai o primeiro SPS de um AVCDecoderConfigurationRecord.
+// avcCSPS extracts the first SPS from an AVCDecoderConfigurationRecord.
 //
 //	version(1) profile(1) compat(1) level(1)
 //	0b111111|lengthSizeMinusOne(1)  0b111|numOfSPS(1)
@@ -166,8 +168,8 @@ func avcCSPS(b []byte) ([]byte, int) {
 	return b[8 : 8+int(n)], nalLen
 }
 
-// hvcCSPS extrai o SPS de um HEVCDecoderConfigurationRecord, cujos parameter
-// sets vêm agrupados por tipo de NAL depois de 22 bytes de cabeçalho fixo.
+// hvcCSPS extracts the SPS from an HEVCDecoderConfigurationRecord, whose
+// parameter sets come grouped by NAL type after a 22-byte fixed header.
 func hvcCSPS(b []byte) ([]byte, int) {
 	if len(b) < 23 {
 		return nil, 0
@@ -200,9 +202,9 @@ func hvcCSPS(b []byte) ([]byte, int) {
 func parseTrak(trak []byte) (Track, error) {
 	var t Track
 
-	// A sample entry é guardada para ser lida depois do walk: o layout dela
-	// depende do handler da trilha, e não há garantia na ordem das caixas de
-	// que o hdlr tenha sido visto antes do stsd.
+	// The sample entry is kept to be read after the walk: its layout depends
+	// on the track's handler, and the box order doesn't guarantee the hdlr is
+	// seen before the stsd.
 	var sampleEntry []byte
 
 	err := walk(trak, func(typ string, body []byte) error {
@@ -221,7 +223,7 @@ func parseTrak(trak []byte) (Track, error) {
 			return walk(body, func(typ string, body []byte) error {
 				switch typ {
 				case "mdhd":
-					// mesma variação de layout por versão que o tkhd
+					// same per-version layout variation as the tkhd
 					off := 12
 					if len(body) > 0 && body[0] == 1 {
 						off = 20
@@ -243,7 +245,7 @@ func parseTrak(trak []byte) (Track, error) {
 							if typ != "stsd" {
 								return nil
 							}
-							// stsd: version+flags(4), entry_count(4), depois as sample entries
+							// stsd: version+flags(4), entry_count(4), then the sample entries
 							if len(body) >= 16 {
 								t.Codec = boxType(body[8:])
 								sampleEntry = body[8:]
@@ -264,7 +266,7 @@ func parseTrak(trak []byte) (Track, error) {
 		t.Width, t.Height, t.NALLengthSize = videoConfig(t.Codec, sampleEntry)
 	}
 	if t.Timescale == 0 {
-		return t, fmt.Errorf("fmp4: trilha %d sem timescale", t.ID)
+		return t, fmt.Errorf("fmp4: track %d without timescale", t.ID)
 	}
 	return t, nil
 }

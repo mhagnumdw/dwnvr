@@ -52,5 +52,5 @@ sidecar devolve ao olhar um pedaço, e esse caminho passa pela fila e custa de
   do servidor, com "sem o quadro: o motivo" quando o anexo não veio.
 
 **Repercussões:** `docs/api.md` e `web/src/lib/api.ts` (a rota nova), testes em
-`internal/api` (com o go2rtc e o `Enviador` falsos) e em `internal/alerta` (a
+`internal/api` (com o go2rtc e o `Enviador` falsos) e em `internal/alert` (a
 mensagem de teste).

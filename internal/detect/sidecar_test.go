@@ -12,122 +12,123 @@ import (
 	"time"
 )
 
-func sidecarFalso(t *testing.T, f http.HandlerFunc) Detector {
+func fakeSidecar(t *testing.T, f http.HandlerFunc) Detector {
 	t.Helper()
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
-	return Detectores["sidecar"](srv.URL + "/")
+	return Detectors["sidecar"](srv.URL + "/")
 }
 
-func TestSidecarMandaOPedacoEOPisoELeOsAchados(t *testing.T) {
-	pedaco := []byte("init+fragmentos")
-	d := sidecarFalso(t, func(w http.ResponseWriter, r *http.Request) {
-		corpo, _ := io.ReadAll(r.Body)
+func TestSidecarSendsClipAndMinScoreAndReadsDetections(t *testing.T) {
+	clip := []byte("init+fragments")
+	d := fakeSidecar(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
 		switch {
 		case r.Method != http.MethodPost || r.URL.Path != "/detect":
-			t.Errorf("%s %s, esperado POST /detect", r.Method, r.URL.Path)
+			t.Errorf("%s %s, expected POST /detect", r.Method, r.URL.Path)
 		case r.URL.Query().Get("piso") != "0.2":
-			t.Errorf("piso %q, esperado o PisoDoDetector", r.URL.Query().Get("piso"))
-		case !bytes.Equal(corpo, pedaco):
-			t.Errorf("corpo %q, esperado o pedaço", corpo)
+			t.Errorf("piso %q, expected MinScore", r.URL.Query().Get("piso"))
+		case !bytes.Equal(body, clip):
+			t.Errorf("body %q, expected the clip", body)
 		}
 		_, _ = io.WriteString(w, `{"achados":[{"classe":"person","score":0.87,"caixa":[0.1,0.2,0.3,0.4]}]}`)
 	})
-	visao, err := d.Olha(t.Context(), Pedaco{Fmp4: pedaco})
+	out, err := d.Infer(t.Context(), Clip{Fmp4: clip})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Achado{Classe: "person", Score: 0.87, Caixa: [4]float64{0.1, 0.2, 0.3, 0.4}}
-	if len(visao.Achados) != 1 || visao.Achados[0] != want {
-		t.Errorf("achados %+v, esperado [%+v]", visao.Achados, want)
+	want := Detection{Class: "person", Score: 0.87, Box: [4]float64{0.1, 0.2, 0.3, 0.4}}
+	if len(out.Detections) != 1 || out.Detections[0] != want {
+		t.Errorf("detections %+v, expected [%+v]", out.Detections, want)
 	}
 }
 
-// Olhada sem nada é resultado: é ela que conta como falta no rastreio. Não
-// pode voltar nil, que é como se lê "não olhou".
-// Vale também para a resposta sem o campo, ou com ele nulo.
-func TestSidecarOlhadaVaziaEResultado(t *testing.T) {
-	for _, corpo := range []string{`{"achados":[]}`, `{"achados":null}`, `{}`} {
-		d := sidecarFalso(t, func(w http.ResponseWriter, r *http.Request) {
-			_, _ = io.WriteString(w, corpo)
+// An inference with nothing is a result: it's what counts as a miss in the
+// tracker. It must not come back nil, which reads as "didn't infer".
+// That also holds for a response without the field, or with it null.
+func TestSidecarEmptyInferenceIsAResult(t *testing.T) {
+	for _, body := range []string{`{"achados":[]}`, `{"achados":null}`, `{}`} {
+		d := fakeSidecar(t, func(w http.ResponseWriter, r *http.Request) {
+			_, _ = io.WriteString(w, body)
 		})
-		visao, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("x")})
-		if err != nil || visao.Achados == nil || len(visao.Achados) != 0 {
-			t.Errorf("%s: achados %v, erro %v: esperado fatia vazia sem erro", corpo, visao.Achados, err)
+		out, err := d.Infer(t.Context(), Clip{Fmp4: []byte("x")})
+		if err != nil || out.Detections == nil || len(out.Detections) != 0 {
+			t.Errorf("%s: detections %v, error %v: expected an empty slice and no error", body, out.Detections, err)
 		}
 	}
 }
 
-func TestSidecarErroVoltaComOMotivo(t *testing.T) {
-	d := sidecarFalso(t, func(w http.ResponseWriter, r *http.Request) {
+func TestSidecarErrorComesBackWithReason(t *testing.T) {
+	d := fakeSidecar(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = io.WriteString(w, `{"erro":"pedaço não decodifica: nenhum quadro"}`)
 	})
-	_, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("x")})
+	_, err := d.Infer(t.Context(), Clip{Fmp4: []byte("x")})
 	if err == nil || !strings.Contains(err.Error(), "nenhum quadro") || !strings.Contains(err.Error(), "422") {
-		t.Errorf("erro %v: esperado o HTTP e o motivo do sidecar", err)
+		t.Errorf("error %v: expected the HTTP status and the sidecar's reason", err)
 	}
-	// 422 é pedaço ruim com o detector no ar - não pode virar "fora do ar".
-	if !errors.Is(err, ErrPedacoRecusado) {
-		t.Errorf("erro %v: um 4xx tinha que ser ErrPedacoRecusado", err)
+	// 422 is a bad clip with the object detector up - it must not become
+	// "down".
+	if !errors.Is(err, ErrClipRejected) {
+		t.Errorf("error %v: a 4xx should be ErrClipRejected", err)
 	}
 }
 
-func TestSidecarErroDoServidorNaoERecusa(t *testing.T) {
-	d := sidecarFalso(t, func(w http.ResponseWriter, r *http.Request) {
+func TestSidecarServerErrorIsNotRejection(t *testing.T) {
+	d := fakeSidecar(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = io.WriteString(w, `{"erro":"quebrou"}`)
 	})
-	_, err := d.Olha(t.Context(), Pedaco{Fmp4: []byte("x")})
-	if err == nil || errors.Is(err, ErrPedacoRecusado) {
-		t.Errorf("erro %v: 5xx é detector com problema, não pedaço recusado", err)
+	_, err := d.Infer(t.Context(), Clip{Fmp4: []byte("x")})
+	if err == nil || errors.Is(err, ErrClipRejected) {
+		t.Errorf("error %v: 5xx is an object detector with a problem, not a rejected clip", err)
 	}
 }
 
-func TestSidecarObedeceOPrazo(t *testing.T) {
-	// O servidor falso fica mudo até o teste acabar. O Cleanup dele roda
-	// depois deste (a ordem é inversa), então ele é solto antes de fechar.
-	solta := make(chan struct{})
-	d := sidecarFalso(t, func(w http.ResponseWriter, r *http.Request) {
-		<-solta
+func TestSidecarHonorsTheDeadline(t *testing.T) {
+	// The fake server stays silent until the test ends. Its Cleanup runs after
+	// this one (the order is reversed), so it's released before closing.
+	release := make(chan struct{})
+	d := fakeSidecar(t, func(w http.ResponseWriter, r *http.Request) {
+		<-release
 	})
-	t.Cleanup(func() { close(solta) })
+	t.Cleanup(func() { close(release) })
 	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
-	inicio := time.Now()
-	if _, err := d.Olha(ctx, Pedaco{Fmp4: []byte("x")}); err == nil {
-		t.Fatal("sidecar mudo tinha que dar erro")
+	start := time.Now()
+	if _, err := d.Infer(ctx, Clip{Fmp4: []byte("x")}); err == nil {
+		t.Fatal("a silent sidecar should give an error")
 	}
-	if d := time.Since(inicio); d > 2*time.Second {
-		t.Errorf("esperou %v por um sidecar mudo", d)
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("waited %v for a silent sidecar", d)
 	}
 }
 
-func TestSaudeDoSidecar(t *testing.T) {
+func TestSidecarHealth(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/health" {
-			t.Errorf("%s %s, esperado GET /health", r.Method, r.URL.Path)
+			t.Errorf("%s %s, expected GET /health", r.Method, r.URL.Path)
 		}
 		_, _ = io.WriteString(w, `{"modelo": "modelo.onnx", "entrada": "512x288", "threads": 2}`)
 	}))
 	defer srv.Close()
-	s, err := SaudeDoSidecar(t.Context(), srv.URL+"/")
+	s, err := SidecarHealth(t.Context(), srv.URL+"/")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s != (Saude{Modelo: "modelo.onnx", Entrada: "512x288", Threads: 2}) {
-		t.Errorf("saúde %+v", s)
+	if s != (Health{Model: "modelo.onnx", InputSize: "512x288", Threads: 2}) {
+		t.Errorf("health %+v", s)
 	}
 }
 
-// Fora do ar, o erro vem sem o `Get "<url>":` na frente: a tela mostra o
-// endereço numa linha à parte.
-func TestSaudeDoSidecarForaDoAr(t *testing.T) {
+// When down, the error comes without the `Get "<url>":` in front: the screen
+// shows the address on a separate line.
+func TestSidecarHealthDown(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	url := srv.URL
 	srv.Close()
-	_, err := SaudeDoSidecar(t.Context(), url)
+	_, err := SidecarHealth(t.Context(), url)
 	if err == nil || strings.Contains(err.Error(), "/health") {
-		t.Errorf("erro %v, esperado só a falha de rede", err)
+		t.Errorf("error %v, expected only the network failure", err)
 	}
 }

@@ -28,7 +28,7 @@ reactive, responsive UI that works well on mobile and desktop (browser).
   detector and the like: a named Go `interface`, with a comment on what it
   promises, and a name -> constructor map, so swapping the implementation is a
   one-line change. Every tunable number (threshold, duration, budget, class
-  map) lives in a `parametros.go`, never in a stray constant.
+  map) lives in a `params.go`, never in a stray constant.
 - **Readable JSON.** Keys spelled out (`instanteMs`, not `t`), even if longer.
   Exception: `index/{dia}.ndjson`, abbreviated because of its volume.
 - **Keys and values in en-US**, in JSON (API, `cameras.json`, `usuarios.json`,
@@ -189,8 +189,8 @@ the file.
 | new `.go` in `internal/api/` | the §Estrutura do projeto tree in `README.md` |
 | field in `internal/config/config.go` | `dwnvr.example.yaml` (with a comment) · `docs/configuracao.md` · §Configuração of `README.md` |
 | default in `config.defaults()` | the number is repeated by hand in `dwnvr.example.yaml` · `docs/configuracao.md` · `web/src/routes/Cameras.svelte` (`audio`, `quotaMB`, `segmentSeconds`, `maxDays`, and in the `padrao` fallback: `detect`, `detectMecanismo`, `detectSensibilidade`) |
-| field in `config.Camera` | `config.Resolve` and, with a default, its way back in `config.TiraDefaultsNovos` · `config.ConfereCamera` (the validation shared by the API and boot) · `Cameras.svelte` · §Política por câmera of `docs/configuracao.md` |
-| range in `internal/config/parametros.go` | a field with an input on screen goes into `FaixasDaCamera`, where `Cameras.svelte` reads `min`/`max` · the Aceito column of §Política por câmera in `docs/configuracao.md` · the field's comment in `dwnvr.example.yaml` · `faixas` in `docs/api.md` |
+| field in `config.Camera` | `config.Resolve` and, with a default, its way back in `config.DropNewDefaults` · `config.CheckCamera` (the validation shared by the API and boot) · `Cameras.svelte` · §Política por câmera of `docs/configuracao.md` |
+| range in `internal/config/params.go` | a field with an input on screen goes into `CameraRanges`, where `Cameras.svelte` reads `min`/`max` · the Aceito column of §Política por câmera in `docs/configuracao.md` · the field's comment in `dwnvr.example.yaml` · `faixas` in `docs/api.md` |
 | path or `DayLayout` in `internal/store/store.go` | `docs/arquitetura.md` · `docs/operacao.md` · §Conferir por fora da interface of `README.md` |
 | field in `store.Entry` | append-only index: reading tolerates zero in an old line · `internal/retention/retention.go` · `internal/api/recordings.go` |
 | variable in `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/imagens.yml` (`build-args`) · `GET /api/version` |

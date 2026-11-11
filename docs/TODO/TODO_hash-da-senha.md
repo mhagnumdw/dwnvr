@@ -7,7 +7,7 @@ ainda falta decidir.
 **Status: em parte feito.** Desde o cadastro de usuários (09/10/2026), o
 contrato do item 1, o valor guardado do item 2, os números do item 4, a conta
 sempre feita do item 5 e a fila do item 7 existem em
-[`internal/usuarios/senha.go`](../../internal/usuarios/senha.go), e guardam a
+[`internal/users/password.go`](../../internal/users/password.go), e guardam a
 senha de quem é cadastrado pela tela. O login do dono já paga a conta inteira,
 para o tempo não dizer quem é o dono. Falta o que é do dono: o
 `server.password` em hash no `dwnvr.yaml` (itens 3, 6 e 9) e a flag
@@ -166,7 +166,7 @@ Argon2id deixa de custar a dependência.
    hashes que já existem.
 3. **O texto puro continua valendo.** Um valor sem o prefixo é comparado como
    hoje. Não é mudança incompatível, e quem não gerar o hash não paga nada.
-4. **Os números num `parametros.go`**: as iterações (600.000), o salt (16
+4. **Os números num `params.go`**: as iterações (600.000), o salt (16
    bytes do `crypto/rand`), o tamanho do hash (32 bytes) e a faixa de
    iterações aceita na leitura.
 5. **O login calcula o hash sempre**, mesmo com o usuário errado, para manter

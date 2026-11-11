@@ -669,21 +669,21 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   ├── api/                servidor HTTP
 │   │   ├── server.go       rotas e o papel que cada uma exige
 │   │   ├── auth.go         login e sessão por pessoa, em cookie assinado (HMAC), sem estado no servidor
-│   │   ├── endereco.go     o endereço de quem fez a requisição, atrás de proxy ou não, para o limite do login
-│   │   ├── usuarios.go     a tela Usuários e o link de convite
+│   │   ├── address.go      o endereço de quem fez a requisição, atrás de proxy ou não, para o limite do login
+│   │   ├── users.go        a tela Usuários e o link de convite
 │   │   ├── email.go        o e-mail de teste do Diagnóstico e as peças do link de convite por e-mail
-│   │   ├── conta.go        a Minha conta: a própria senha, o nome e a foto, e o serviço das fotos
-│   │   ├── derrubar.go     fecha o ao vivo e o aviso de sessão de quem é removido ou ganha link novo
+│   │   ├── account.go      a Minha conta: a própria senha, o nome e a foto, e o serviço das fotos
+│   │   ├── drop.go         fecha o ao vivo e o aviso de sessão de quem é removido ou ganha link novo
 │   │   ├── cameras.go      cadastro de câmeras, cruzado com os streams do go2rtc
 │   │   ├── probe.go        descobre se um stream ocioso entrega áudio, com cache
 │   │   ├── recordings.go   dias, timeline, init, segmentos, thumbnail, HLS, exportação
-│   │   ├── deteccoes.go    as detecções de todas as câmeras, paginadas, e o quadro de cada uma
+│   │   ├── detections.go   as detecções de todas as câmeras, paginadas, e o quadro de cada uma
 │   │   ├── live.go         proxy do go2rtc, com a credencial ficando no servidor
-│   │   ├── diagnostico_servidor.go  a máquina que grava, para o Diagnóstico: temperatura, memória, storage, go2rtc, detector
-│   │   ├── diagnostico_processo.go  o próprio dwnvr, para o Diagnóstico: CPU, memória, arquivos abertos, UID
+│   │   ├── diagnostics_server.go   a máquina que grava, para o Diagnóstico: temperatura, memória, storage, go2rtc, detector
+│   │   ├── diagnostics_process.go  o próprio dwnvr, para o Diagnóstico: CPU, memória, arquivos abertos, UID
 │   │   ├── web.go          serve a SPA embutida
 │   │   └── dist/           build da interface, versionado (ver web/README.md)
-│   ├── alerta/             quando a detecção vira alerta, o registro e o contrato dos meios de envio
+│   ├── alert/              quando a detecção vira alerta, o registro e o contrato dos meios de envio
 │   ├── area/               o polígono sobre a imagem e as regras de "o objeto está dentro?"
 │   ├── buildinfo/          versão, commit e data injetados no build
 │   ├── config/             leitura do dwnvr.yaml (infra) e do cameras.json (câmeras)
@@ -696,14 +696,14 @@ visão, mora fora do binário, no container opcional `dwnvr-detect`.
 │   │   ├── rebase.go       reescreve o tfdt para cada segmento começar do zero
 │   │   ├── probe.go        hash do init e sondagem de segmento órfão
 │   │   ├── sps.go          resolução real a partir do SPS de H264/H265
-│   │   └── corrige.go      troca os parameter sets do init pelos que vêm no stream
+│   │   └── fixinit.go      troca os parameter sets do init pelos que vêm no stream
 │   ├── go2rtc/             cliente da API do go2rtc e do stream fMP4
-│   ├── limite/             o limite de requisições por cliente (GCRA), que o login usa
 │   ├── logbuf/             guarda em memória os últimos avisos e erros do log, para o Diagnóstico
+│   ├── ratelimit/          o limite de requisições por cliente (GCRA), que o login usa
 │   ├── recorder/           um recorder por câmera: corta em keyframe e grava
 │   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram
 │   ├── store/              layout em disco e índice NDJSON
-│   └── usuarios/           o usuarios.json, o papel e o e-mail de cada um, o link de convite, a senha em hash (PBKDF2, uma conta por vez), a foto e o último acesso
+│   └── users/              o usuarios.json, o papel e o e-mail de cada um, o link de convite, a senha em hash (PBKDF2, uma conta por vez), a foto e o último acesso
 ├── dwnvr-detect/           o detector de objetos, opcional, num container à parte (ver dwnvr-detect/README.md)
 ├── web/                    interface Svelte 5 + TypeScript + Vite (ver web/README.md)
 ├── docs/                   documentação longa (ver docs/README.md)

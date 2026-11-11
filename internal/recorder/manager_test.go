@@ -15,72 +15,72 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
 
-// TestTetoDaFilaCresceComAsCameras: o teto que a tela de Diagnóstico mostra é
-// o limite por câmera vezes as câmeras com detecção ligada - e a desligada não
-// conta, porque não oferece nada.
-func TestTetoDaFilaCresceComAsCameras(t *testing.T) {
-	sim, nao := true, false
+// TestQueueCapGrowsWithTheCameras: the cap the Diagnostics screen shows is the
+// per-camera limit times the cameras with detection on - and the one turned off
+// doesn't count, because it offers nothing.
+func TestQueueCapGrowsWithTheCameras(t *testing.T) {
+	yes, no := true, false
 	m := &Manager{
-		fila: detect.NovaFila(detect.Detectores["nenhum"](""), func(detect.Olhada) {}, mudo()),
-		recs: map[string]*running{},
+		queue: detect.NewQueue(detect.Detectors["nenhum"](""), func(detect.Inference) {}, discardLogger()),
+		recs:  map[string]*running{},
 	}
-	for id, d := range map[string]*bool{"a": &sim, "b": &sim, "c": &nao, "d": nil} {
+	for id, d := range map[string]*bool{"a": &yes, "b": &yes, "c": &no, "d": nil} {
 		m.recs[id] = &running{rec: &Recorder{cam: config.Camera{ID: id, Detect: d}}}
 	}
-	if got, want := m.Detector().Fila.Cap, 2*detect.PedacosPorCamera; got != want {
-		t.Errorf("teto %d, esperado %d: duas câmeras com detecção", got, want)
+	if got, want := m.Detector().Queue.Cap, 2*detect.ClipsPerCamera; got != want {
+		t.Errorf("cap %d, want %d: two cameras with detection", got, want)
 	}
 }
 
-// TestSetEmPlenoVooNaoCorre: trocar o que não exige reconectar (nome, cota,
-// detecção) escreve a câmera nova no recorder que está no ar, e quem lê a
-// câmera dele - a sessão ao conectar, o recortador ao nascer, o Status, o
-// alarme de silêncio e o teto da fila - lê ao mesmo tempo, cada um na sua
-// goroutine. Só pega a corrida com `go test -race`.
-func TestSetEmPlenoVooNaoCorre(t *testing.T) {
-	var corpo []byte
-	corpo = append(corpo, caixa("ftyp", []byte("isom"))...)
-	corpo = append(corpo, moovComAudio()...)
+// TestSetMidFlightDoesNotRace: changing what doesn't require reconnecting
+// (name, quota, detection) writes the new camera into the live recorder, while
+// whoever reads its camera - the session on connect, the clipper when created,
+// Status, the silence alarm and the queue cap - reads at the same time, each in
+// its own goroutine. Only `go test -race` catches the race.
+func TestSetMidFlightDoesNotRace(t *testing.T) {
+	var body []byte
+	body = append(body, box("ftyp", []byte("isom"))...)
+	body = append(body, moovWithAudio()...)
 	for i := range 30 {
-		flags := uint32(flagsQuadroP)
+		flags := uint32(flagsPFrame)
 		if i%10 == 0 {
-			flags = flagsQuadroI
+			flags = flagsIFrame
 		}
-		corpo = append(corpo, moof(idVideo, uint64(i)*6000, flags, 6000)...)
-		corpo = append(corpo, mdat(100+i%7)...)
+		body = append(body, moof(videoID, uint64(i)*6000, flags, 6000)...)
+		body = append(body, mdat(100+i%7)...)
 	}
-	// Um go2rtc que entrega poucos quadros e encerra: cada sessão termina logo,
-	// e a próxima lê a câmera de novo ao conectar.
+	// A go2rtc that delivers a few frames and closes: each session ends
+	// quickly, and the next one reads the camera again on connect.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(corpo)
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 
 	st := store.New(t.TempDir())
-	m := NewManager(&config.Config{}, go2rtc.New(config.Go2RTC{URL: srv.URL}), st, mudo())
-	m.fila = detect.NovaFila(detect.Detectores["nenhum"](""), m.olhou, mudo())
+	m := NewManager(&config.Config{}, go2rtc.New(config.Go2RTC{URL: srv.URL}), st, discardLogger())
+	m.queue = detect.NewQueue(detect.Detectors["nenhum"](""), m.onInference, discardLogger())
 
-	ligada, desligada := true, false
+	on, off := true, false
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
-		StallSeconds: 5, QuotaMB: 1000, Detect: &ligada, DetectMecanismo: "periodico",
-		DetectSensibilidade: 5}
+		StallSeconds: 5, QuotaMB: 1000, Detect: &on, DetectMethod: "periodico",
+		DetectSensitivity: 5}
 
-	// O recorder entra à mão, sem o run: o teste é quem chama a sessão, uma
-	// atrás da outra, sem o backoff de reconexão no meio.
-	rec := newRecorder(cam, m.client, st.Camera(cam.ID), mudo())
-	rec.pedacos = rec.ofereceA(m.fila)
+	// The recorder is set up by hand, without run: the test is what calls the
+	// session, one after another, without the reconnection backoff in between.
+	rec := newRecorder(cam, m.client, st.Camera(cam.ID), discardLogger())
+	rec.clips = rec.offerTo(m.queue)
 	m.recs[cam.ID] = &running{rec: rec}
 	m.cams[cam.ID] = cam
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	pronto := make(chan struct{})
+	ready := make(chan struct{})
 
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		for {
 			select {
-			case <-pronto:
+			case <-ready:
 				return
 			default:
 			}
@@ -90,7 +90,7 @@ func TestSetEmPlenoVooNaoCorre(t *testing.T) {
 	wg.Go(func() {
 		for {
 			select {
-			case <-pronto:
+			case <-ready:
 				return
 			default:
 			}
@@ -100,154 +100,159 @@ func TestSetEmPlenoVooNaoCorre(t *testing.T) {
 		}
 	})
 
-	// Do lado da "API": nome, cota e detecção mudam; nada que reconecte. A
-	// detecção alternando é o que faz o recortador nascer de novo.
+	// On the "API" side: name, quota and detection change; nothing that
+	// reconnects. Detection toggling is what makes the clipper be created
+	// again.
 	for i := range 200 {
 		c := cam
 		c.Name = "Teste " + string(rune('A'+i%26))
 		c.QuotaMB = int64(1000 + i)
 		if i%2 == 1 {
-			c.Detect = &desligada
+			c.Detect = &off
 		}
 		m.Set(c)
 		time.Sleep(200 * time.Microsecond)
 	}
-	close(pronto)
+	close(ready)
 	wg.Wait()
 
 	if got := m.Status()[0].Name; got != "Teste "+string(rune('A'+199%26)) {
-		t.Errorf("nome no Status: %q, esperava o do último Set", got)
+		t.Errorf("name in Status: %q, want the one from the last Set", got)
 	}
 }
 
-// TestAreaNaoReiniciaAGravacao: a área e o alerta são do filtro e do aviso, e
-// desenhar uma área ou ligar o alerta não pode abrir buraco na gravação.
-func TestAreaNaoReiniciaAGravacao(t *testing.T) {
+// TestAreaDoesNotRestartRecording: the area and the alert belong to the filter
+// and the notice, and drawing an area or turning the alert on can't open a gap
+// in the recording.
+func TestAreaDoesNotRestartRecording(t *testing.T) {
 	cam := config.Camera{ID: "cam_teste", Audio: config.AudioNone, SegmentSeconds: 30, StallSeconds: 5}
-	comArea := cam
-	comArea.Areas = []config.Area{{ID: "k3f9a2", Name: "Portão",
-		Points: []area.Ponto{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}}
-	comArea.Alert = &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}
-	if recordingParamsChanged(cam, comArea) {
-		t.Error("mudar as áreas ou o alerta reiniciaria a gravação")
+	withArea := cam
+	withArea.Areas = []config.Area{{ID: "k3f9a2", Name: "Gate",
+		Points: []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}}
+	withArea.Alert = &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}
+	if recordingParamsChanged(cam, withArea) {
+		t.Error("changing the areas or the alert would restart recording")
 	}
 }
 
-// comAlerta devolve um Manager com detector de objetos e uma câmera com o
-// alerta de pessoa no Portão, a metade esquerda do quadro, e o recorder dela
-// no lugar, sem gravar nada.
-func comAlerta(t *testing.T) *Manager {
+// withAlert returns a Manager with an object detector and a camera with a
+// person alert on the Gate, the left half of the frame, and its recorder in
+// place, recording nothing.
+func withAlert(t *testing.T) *Manager {
 	t.Helper()
 	st := store.New(t.TempDir())
-	m := NewManager(&config.Config{}, nil, st, mudo())
-	m.fila = detect.NovaFila(detect.Detectores["nenhum"](""), m.olhou, mudo())
-	sim := true
-	cam := config.Camera{ID: "cam_teste", Name: "Frente", Enabled: true, Detect: &sim,
-		Areas: []config.Area{{ID: "esq", Name: "Portão",
-			Points: []area.Ponto{{0, 0}, {0.5, 0}, {0.5, 1}, {0, 1}}}},
-		Alert: &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa},
+	m := NewManager(&config.Config{}, nil, st, discardLogger())
+	m.queue = detect.NewQueue(detect.Detectors["nenhum"](""), m.onInference, discardLogger())
+	yes := true
+	cam := config.Camera{ID: "cam_teste", Name: "Front", Enabled: true, Detect: &yes,
+		Areas: []config.Area{{ID: "esq", Name: "Gate",
+			Points: []area.Point{{0, 0}, {0.5, 0}, {0.5, 1}, {0, 1}}}},
+		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person},
 			Areas: []string{"esq"}}}
-	// Sem Start, o Set não sobe recorder: ele entra à mão, como o Start o deixaria.
+	// Without Start, Set doesn't start a recorder: it is set up by hand, as Start
+	// would leave it.
 	m.Set(cam)
-	m.recs[cam.ID] = &running{rec: newRecorder(m.cfg.Resolve(cam), nil, st.Camera(cam.ID), mudo())}
+	m.recs[cam.ID] = &running{rec: newRecorder(m.cfg.Resolve(cam), nil, st.Camera(cam.ID), discardLogger())}
 	return m
 }
 
-// TestOlhadaViraAlerta: a olhada passa pelo Recorder, que marca na linha do
-// objeto que passou na regra o `alert` e o id da área, e a Central conta o
-// alerta. A pessoa fora da área e a moto, que não é da família, são gravadas
-// sem marca; a olhada só com elas não alerta.
-func TestOlhadaViraAlerta(t *testing.T) {
-	m := comAlerta(t)
-	agora := time.Now().UnixMilli()
-	m.olhou(detect.Olhada{
-		Pedaco: detect.Pedaco{Camera: "cam_teste", OnsetMs: agora, QuadroMs: agora + 1400},
-		Achados: []detect.Achado{
-			{Classe: "person", Score: 0.87654, Caixa: [4]float64{0.25, 0.2, 0.35, 0.6}},
-			{Classe: "person", Score: 0.55, Caixa: [4]float64{0.75, 0.2, 0.85, 0.6}},
-			{Classe: "motorcycle", Score: 0.71, Caixa: [4]float64{0.1, 0.4, 0.3, 0.7}},
+// TestInferenceBecomesAlert: the inference goes through the Recorder, which
+// marks `alert` and the area id on the line of the object that passed the rule,
+// and the Dispatcher counts the alert. The person outside the area and the
+// motorcycle, which isn't of the family, are recorded with no mark; an
+// inference with only them doesn't alert.
+func TestInferenceBecomesAlert(t *testing.T) {
+	m := withAlert(t)
+	now := time.Now().UnixMilli()
+	m.onInference(detect.Inference{
+		Clip: detect.Clip{Camera: "cam_teste", OnsetMs: now, FrameMs: now + 1400},
+		Detections: []detect.Detection{
+			{Class: "person", Score: 0.87654, Box: [4]float64{0.25, 0.2, 0.35, 0.6}},
+			{Class: "person", Score: 0.55, Box: [4]float64{0.75, 0.2, 0.85, 0.6}},
+			{Class: "motorcycle", Score: 0.71, Box: [4]float64{0.1, 0.4, 0.3, 0.7}},
 		},
-		Quadro: []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+		Frame: []byte("\xff\xd8test-jpeg\xff\xd9"),
 	})
-	c := m.Alertas()
+	c := m.Alerts()
 	if c == nil || c.Total() != 1 {
-		t.Fatalf("central %v, esperava um alerta", c)
+		t.Fatalf("dispatcher %v, want one alert", c)
 	}
-	linhas, err := m.store.Camera("cam_teste").ObjetosDoDia(time.UnixMilli(agora).Format(store.DayLayout))
+	lines, err := m.store.Camera("cam_teste").DayObjects(time.UnixMilli(now).Format(store.DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(linhas) != 3 {
-		t.Fatalf("%d linhas, esperava as 3 marcas", len(linhas))
+	if len(lines) != 3 {
+		t.Fatalf("%d lines, want the 3 marks", len(lines))
 	}
-	for i, l := range linhas {
-		// Só a primeira, a pessoa de 0,877 no Portão, alertou.
+	for i, l := range lines {
+		// Only the first one, the 0.877 person on the Gate, alerted.
 		if l.Alert != (i == 0) || l.Alert != (len(l.AlertAreas) == 1 && l.AlertAreas[0] == "esq") {
-			t.Errorf("linha %d (%s %.3f): alert %v em %v", i, l.Familia, l.Score, l.Alert, l.AlertAreas)
+			t.Errorf("line %d (%s %.3f): alert %v in %v", i, l.Family, l.Score, l.Alert, l.AlertAreas)
 		}
 	}
 
-	// Lugar novo para o rastreio, mas fora da área: marca, e não alerta.
-	m.olhou(detect.Olhada{
-		Pedaco:  detect.Pedaco{Camera: "cam_teste", OnsetMs: agora + 60000, QuadroMs: agora + 61000},
-		Achados: []detect.Achado{{Classe: "person", Score: 0.9, Caixa: [4]float64{0.6, 0.6, 0.7, 0.95}}},
+	// New place for tracking, but outside the area: marks, and doesn't alert.
+	m.onInference(detect.Inference{
+		Clip:       detect.Clip{Camera: "cam_teste", OnsetMs: now + 60000, FrameMs: now + 61000},
+		Detections: []detect.Detection{{Class: "person", Score: 0.9, Box: [4]float64{0.6, 0.6, 0.7, 0.95}}},
 	})
 	if c.Total() != 1 {
-		t.Errorf("%d alertas, esperava 1: a segunda pessoa estava fora da área", c.Total())
+		t.Errorf("%d alerts, want 1: the second person was outside the area", c.Total())
 	}
 }
 
-// TestSemAlertaNadaNasce: sem câmera que alerte, a Central não existe. Não
-// alerta a câmera sem alerta ligado, a sem marcação de movimento, nem a de
-// uma instalação sem detector de objetos.
-func TestSemAlertaNadaNasce(t *testing.T) {
-	sim, nao := true, false
-	alerta := &config.AlertaDaCamera{Enabled: true, Families: []detect.Familia{detect.Pessoa}}
-	casos := map[string]struct {
+// TestNoAlertNothingIsCreated: with no camera that alerts, the Dispatcher
+// doesn't exist. Neither the camera without the alert on alerts, nor the one
+// without motion marking, nor the one in an install without an object detector.
+func TestNoAlertNothingIsCreated(t *testing.T) {
+	yes, no := true, false
+	alertItem := &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}
+	cases := map[string]struct {
 		cam      config.Camera
 		detector bool
 	}{
-		"sem alerta":       {config.Camera{ID: "a", Enabled: true, Detect: &sim}, true},
-		"alerta desligado": {config.Camera{ID: "a", Enabled: true, Detect: &sim, Alert: &config.AlertaDaCamera{}}, true},
-		"sem marcação":     {config.Camera{ID: "a", Enabled: true, Detect: &nao, Alert: alerta}, true},
-		"sem detector":     {config.Camera{ID: "a", Enabled: true, Detect: &sim, Alert: alerta}, false},
+		"no alert":    {config.Camera{ID: "a", Enabled: true, Detect: &yes}, true},
+		"alert off":   {config.Camera{ID: "a", Enabled: true, Detect: &yes, Alert: &config.CameraAlert{}}, true},
+		"no marking":  {config.Camera{ID: "a", Enabled: true, Detect: &no, Alert: alertItem}, true},
+		"no detector": {config.Camera{ID: "a", Enabled: true, Detect: &yes, Alert: alertItem}, false},
 	}
-	for nome, c := range casos {
-		t.Run(nome, func(t *testing.T) {
-			m := NewManager(&config.Config{}, nil, store.New(t.TempDir()), mudo())
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			m := NewManager(&config.Config{}, nil, store.New(t.TempDir()), discardLogger())
 			if c.detector {
-				m.fila = detect.NovaFila(detect.Detectores["nenhum"](""), m.olhou, mudo())
+				m.queue = detect.NewQueue(detect.Detectors["nenhum"](""), m.onInference, discardLogger())
 			}
 			m.Set(c.cam)
-			if m.Alertas() != nil || len(m.regras) > 0 {
-				t.Errorf("nasceu: central %v, regras %v", m.Alertas(), m.regras)
+			if m.Alerts() != nil || len(m.rules) > 0 {
+				t.Errorf("created: dispatcher %v, rules %v", m.Alerts(), m.rules)
 			}
 		})
 	}
 }
 
-// TestDesligarOAlertaGuardaOHistorico: a câmera que desliga o alerta perde a
-// regra, e a Central fica, a mesma, com o que já registrou.
-func TestDesligarOAlertaGuardaOHistorico(t *testing.T) {
-	m := comAlerta(t)
-	agora := time.Now().UnixMilli()
-	m.olhou(detect.Olhada{
-		Pedaco:  detect.Pedaco{Camera: "cam_teste", OnsetMs: agora, QuadroMs: agora + 1400},
-		Achados: []detect.Achado{{Classe: "person", Score: 0.87654, Caixa: [4]float64{0.25, 0.2, 0.35, 0.6}}},
-		Quadro:  []byte("\xff\xd8jpeg-de-teste\xff\xd9"),
+// TestTurningOffTheAlertKeepsTheHistory: the camera that turns the alert off
+// loses its rule, and the Dispatcher stays, the same one, with what it already
+// recorded.
+func TestTurningOffTheAlertKeepsTheHistory(t *testing.T) {
+	m := withAlert(t)
+	now := time.Now().UnixMilli()
+	m.onInference(detect.Inference{
+		Clip:       detect.Clip{Camera: "cam_teste", OnsetMs: now, FrameMs: now + 1400},
+		Detections: []detect.Detection{{Class: "person", Score: 0.87654, Box: [4]float64{0.25, 0.2, 0.35, 0.6}}},
+		Frame:      []byte("\xff\xd8test-jpeg\xff\xd9"),
 	})
-	antes := m.Alertas()
-	if antes == nil || antes.Total() != 1 {
-		t.Fatalf("central %v, esperava um alerta antes de desligar", antes)
+	before := m.Alerts()
+	if before == nil || before.Total() != 1 {
+		t.Fatalf("dispatcher %v, want one alert before turning off", before)
 	}
 
 	cam := m.Cameras()[0]
-	cam.Alert = &config.AlertaDaCamera{Families: cam.Alert.Families, Areas: cam.Alert.Areas}
+	cam.Alert = &config.CameraAlert{Families: cam.Alert.Families, Areas: cam.Alert.Areas}
 	m.Set(cam)
-	if m.regras["cam_teste"] != nil {
-		t.Errorf("regra %v: esperava sem regra", m.regras["cam_teste"])
+	if m.rules["cam_teste"] != nil {
+		t.Errorf("rule %v: want no rule", m.rules["cam_teste"])
 	}
-	if depois := m.Alertas(); depois != antes || antes.Total() != 1 {
-		t.Errorf("central %p com %d, esperava a mesma %p com 1", depois, antes.Total(), antes)
+	if after := m.Alerts(); after != before || before.Total() != 1 {
+		t.Errorf("dispatcher %p with %d, want the same %p with 1", after, before.Total(), before)
 	}
 }

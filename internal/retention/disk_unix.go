@@ -7,24 +7,24 @@ import (
 	"syscall"
 )
 
-// FreeBytes devolve o espaço livre disponível para um usuário sem privilégios.
+// FreeBytes returns the free space available to an unprivileged user.
 //
-// Usa Bavail e não Bfree de propósito: parte dos blocos livres é reservada para
-// o root, e contar com eles faria o dwnvr achar que ainda há espaço quando já
-// não consegue escrever.
+// It uses Bavail and not Bfree on purpose: part of the free blocks is reserved
+// for root, and counting on them would make dwnvr think there's still space
+// when it can no longer write.
 func FreeBytes(path string) (int64, error) {
 	var st syscall.Statfs_t
 	if err := syscall.Statfs(path, &st); err != nil {
 		return 0, fmt.Errorf("statfs %s: %w", path, err)
 	}
-	return int64(st.Bavail) * int64(st.Bsize), nil //nolint:unconvert // Bsize é int32 no linux/arm e uint32 no darwin
+	return int64(st.Bavail) * int64(st.Bsize), nil //nolint:unconvert // Bsize is int32 on linux/arm and uint32 on darwin
 }
 
-// TotalBytes é a capacidade do sistema de arquivos.
+// TotalBytes is the file system capacity.
 func TotalBytes(path string) (int64, error) {
 	var st syscall.Statfs_t
 	if err := syscall.Statfs(path, &st); err != nil {
 		return 0, fmt.Errorf("statfs %s: %w", path, err)
 	}
-	return int64(st.Blocks) * int64(st.Bsize), nil //nolint:unconvert // Bsize é int32 no linux/arm e uint32 no darwin
+	return int64(st.Blocks) * int64(st.Bsize), nil //nolint:unconvert // Bsize is int32 on linux/arm and uint32 on darwin
 }

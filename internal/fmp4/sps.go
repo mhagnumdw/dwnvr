@@ -1,27 +1,27 @@
 package fmp4
 
-// Leitura de resolução a partir do SPS (Sequence Parameter Set) de H.264 e
+// Reading the resolution from the SPS (Sequence Parameter Set) of H.264 and
 // H.265.
 //
-// Existe porque os campos width/height da VisualSampleEntry MENTEM. A cam_teta
-// do primeiro deployment é o caso real: a câmera anuncia 2560x1440 no DESCRIBE
-// do RTSP, o go2rtc monta o hvcC com esse anúncio, e o stream que chega é
-// 1920x1080 com um SPS in-band diferente. Quem decodifica obedece o SPS, então
-// é o SPS que diz a verdade sobre o que está gravado no disco.
+// It exists because the VisualSampleEntry width/height fields LIE. A camera in
+// the first deployment is the real case: it advertises 2560x1440 in the RTSP
+// DESCRIBE, go2rtc builds the hvcC from that, and the stream that arrives is
+// 1920x1080 with a different in-band SPS. Decoders obey the SPS, so the SPS is
+// what tells the truth about what's recorded on disk.
 //
-// Nada disso decodifica mídia: o SPS é um cabeçalho de ~60 bytes, lido uma vez
-// por conexão.
+// None of this decodes media: the SPS is a ~60-byte header, read once per
+// connection.
 
-// Tipos de NAL que carregam o SPS em cada codec.
+// NAL types that carry the SPS in each codec.
 const (
 	nalTypeSPS264 = 7
 	nalTypeSPS265 = 33
 )
 
-// bitReader lê campos de largura em bits de um RBSP já desescapado.
+// bitReader reads bit-width fields from an already unescaped RBSP.
 type bitReader struct {
 	b   []byte
-	pos int // em bits
+	pos int // in bits
 	err bool
 }
 
@@ -50,13 +50,14 @@ func (r *bitReader) skip(n int) {
 
 func (r *bitReader) flag() bool { return r.u(1) == 1 }
 
-// ue lê um inteiro Exp-Golomb sem sinal.
+// ue reads an unsigned Exp-Golomb integer.
 func (r *bitReader) ue() uint32 {
 	zeros := 0
 	for !r.err && r.u(1) == 0 {
 		zeros++
-		// Um prefixo maior que isto não é um SPS válido, é lixo - e sem o teto
-		// um stream corrompido prenderia o laço até o fim do buffer.
+		// A prefix longer than this is not a valid SPS, it's garbage - and
+		// without the cap a corrupted stream would hold the loop until the end
+		// of the buffer.
 		if zeros > 32 {
 			r.err = true
 			return 0
@@ -76,9 +77,9 @@ func (r *bitReader) se() int32 {
 	return -int32(k / 2)
 }
 
-// unescape remove os bytes de prevenção de emulação (00 00 03 -> 00 00), que
-// existem no NAL para que a sequência de início nunca apareça no meio dos
-// dados. Sem tirá-los, os campos saem deslocados.
+// unescape removes the emulation prevention bytes (00 00 03 -> 00 00), which
+// exist in the NAL so the start code never shows up in the middle of the data.
+// Without removing them, the fields come out shifted.
 func unescape(nal []byte) []byte {
 	out := make([]byte, 0, len(nal))
 	zeros := 0
@@ -97,21 +98,21 @@ func unescape(nal []byte) []byte {
 	return out
 }
 
-// chromaSub devolve SubWidthC e SubHeightC, os fatores que convertem a janela
-// de corte (expressa em amostras de croma) para amostras de luma.
+// chromaSub returns SubWidthC and SubHeightC, the factors that convert the
+// cropping window (in chroma samples) to luma samples.
 func chromaSub(format uint32) (uint32, uint32) {
 	switch format {
 	case 1: // 4:2:0
 		return 2, 2
 	case 2: // 4:2:2
 		return 2, 1
-	default: // monocromático e 4:4:4 não subamostram
+	default: // monochrome and 4:4:4 don't subsample
 		return 1, 1
 	}
 }
 
-// SPSSize devolve a resolução declarada num SPS, já descontada a janela de
-// corte. O codec vem do 4CC da sample entry.
+// SPSSize returns the resolution declared in an SPS, with the cropping window
+// already taken off. The codec comes from the sample entry 4CC.
 func SPSSize(codec string, nal []byte) (w, h uint16, ok bool) {
 	switch codec {
 	case "avc1", "avc3":
@@ -122,18 +123,18 @@ func SPSSize(codec string, nal []byte) (w, h uint16, ok bool) {
 	return 0, 0, false
 }
 
-// h264SPSSize lê a resolução de um SPS de H.264 (ISO/IEC 14496-10, 7.3.2.1.1).
+// h264SPSSize reads the resolution of an H.264 SPS (ISO/IEC 14496-10, 7.3.2.1.1).
 func h264SPSSize(nal []byte) (uint16, uint16, bool) {
 	if len(nal) < 4 {
 		return 0, 0, false
 	}
-	r := &bitReader{b: unescape(nal[1:])} // 1 byte de cabeçalho do NAL
+	r := &bitReader{b: unescape(nal[1:])} // 1-byte NAL header
 
 	profile := r.u(8)
 	r.skip(16) // constraint flags + level_idc
 	r.ue()     // seq_parameter_set_id
 
-	chroma := uint32(1) // 4:2:0 é o implícito nos perfis que não trazem o campo
+	chroma := uint32(1) // 4:2:0 is implied by the profiles that don't carry the field
 	switch profile {
 	case 100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135:
 		chroma = r.ue()
@@ -186,7 +187,7 @@ func h264SPSSize(nal []byte) (uint16, uint16, bool) {
 	w := widthMBs * 16
 	h := heightUnits * 16
 	if !frameMBsOnly {
-		// Sem frame_mbs_only cada unidade do mapa é meio quadro.
+		// Without frame_mbs_only each map unit is half a frame.
 		h *= 2
 	}
 
@@ -205,8 +206,8 @@ func h264SPSSize(nal []byte) (uint16, uint16, bool) {
 	return finish(r, w, h)
 }
 
-// skipScalingList consome uma lista de escala sem guardá-la: só o tamanho da
-// imagem interessa aqui, mas pular errado desalinharia tudo que vem depois.
+// skipScalingList consumes a scaling list without keeping it: only the image
+// size matters here, but skipping it wrong would misalign everything after.
 func skipScalingList(r *bitReader, size int) {
 	last, next := int32(8), int32(8)
 	for i := 0; i < size && !r.err; i++ {
@@ -219,12 +220,12 @@ func skipScalingList(r *bitReader, size int) {
 	}
 }
 
-// h265SPSSize lê a resolução de um SPS de H.265 (ISO/IEC 23008-2, 7.3.2.2.1).
+// h265SPSSize reads the resolution of an H.265 SPS (ISO/IEC 23008-2, 7.3.2.2.1).
 func h265SPSSize(nal []byte) (uint16, uint16, bool) {
 	if len(nal) < 8 {
 		return 0, 0, false
 	}
-	r := &bitReader{b: unescape(nal[2:])} // 2 bytes de cabeçalho do NAL
+	r := &bitReader{b: unescape(nal[2:])} // 2-byte NAL header
 
 	r.skip(4) // sps_video_parameter_set_id
 	maxSubLayers := int(r.u(3))
@@ -249,11 +250,11 @@ func h265SPSSize(nal []byte) (uint16, uint16, bool) {
 	return finish(r, w, h)
 }
 
-// skipProfileTierLevel consome o bloco de perfil/nível, cujo tamanho depende do
-// número de subcamadas. É o campo de comprimento variável que vem antes da
-// resolução, então errar aqui é ler dimensão de lugar nenhum.
+// skipProfileTierLevel consumes the profile/level block, whose size depends on
+// the number of sub-layers. It's the variable-length field that comes before
+// the resolution, so getting it wrong means reading dimensions from nowhere.
 func skipProfileTierLevel(r *bitReader, maxSubLayers int) {
-	r.skip(96) // perfil, tier, compatibilidade, restrições e nível gerais
+	r.skip(96) // general profile, tier, compatibility, constraints and level
 
 	if maxSubLayers == 0 {
 		return
@@ -276,8 +277,8 @@ func skipProfileTierLevel(r *bitReader, maxSubLayers int) {
 	}
 }
 
-// subCrop tira o corte sem dar a volta no inteiro: um SPS corrompido não pode
-// virar uma resolução gigante.
+// subCrop takes off the crop without wrapping the integer around: a corrupted
+// SPS must not turn into a huge resolution.
 func subCrop(v, crop uint32) uint32 {
 	if crop >= v {
 		return 0
@@ -285,8 +286,9 @@ func subCrop(v, crop uint32) uint32 {
 	return v - crop
 }
 
-// finish valida o resultado. Uma leitura que estourou o buffer produz números
-// sem significado, e mostrar isso na tela seria pior que não mostrar nada.
+// finish validates the result. A read that overran the buffer produces
+// meaningless numbers, and showing those on screen would be worse than showing
+// nothing.
 func finish(r *bitReader, w, h uint32) (uint16, uint16, bool) {
 	const maxDim = 1 << 16
 	if r.err || w == 0 || h == 0 || w >= maxDim || h >= maxDim {
@@ -295,11 +297,11 @@ func finish(r *bitReader, w, h uint32) (uint16, uint16, bool) {
 	return uint16(w), uint16(h), true
 }
 
-// FindSPS procura um SPS entre os NALs prefixados por tamanho de um fragmento.
+// FindSPS looks for an SPS among a fragment's length-prefixed NALs.
 //
-// É por onde a verdade entra quando o init mente: parameter sets in-band vêm
-// sempre logo antes do IDR, então basta olhar o fragmento do primeiro keyframe
-// de cada conexão.
+// It's where the truth comes in when the init lies: in-band parameter sets
+// always come right before the IDR, so looking at the fragment of the first
+// keyframe of each connection is enough.
 func FindSPS(codec string, data []byte, lengthSize int) ([]byte, bool) {
 	if lengthSize < 1 || lengthSize > 4 {
 		return nil, false

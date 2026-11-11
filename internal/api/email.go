@@ -7,100 +7,100 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/alerta"
+	"github.com/mhagnumdw/dwnvr/internal/alert"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/email"
-	"github.com/mhagnumdw/dwnvr/internal/usuarios"
+	"github.com/mhagnumdw/dwnvr/internal/users"
 )
 
-// O que a API faz com o e-mail: o teste do Diagnóstico, as peças do link de
-// convite por e-mail (a rota fica em usuarios.go) e o alerta por e-mail como a
-// aba Alerta o mostra.
+// What the API does with email: the Diagnostics test, the pieces of the invite
+// link by email (the route is in users.go) and the email alert as the Alert tab
+// shows it.
 
-// semEmail recusa o que envia e-mail quando a seção smtp não está ligada,
-// dizendo por quê.
-func (s *Server) semEmail(w http.ResponseWriter) bool {
-	if s.envio != nil {
+// noEmail rejects what sends email when the smtp section is not enabled, saying
+// why.
+func (s *Server) noEmail(w http.ResponseWriter) bool {
+	if s.sending != nil {
 		return false
 	}
 	msg := "o e-mail está desligado: configure a seção smtp do dwnvr.yaml (ver docs/configuracao.md)"
-	if s.cfg.SMTP.Recusa != "" {
-		msg = "o e-mail está desligado: " + s.cfg.SMTP.Recusa
+	if s.cfg.SMTP.Problem != "" {
+		msg = "o e-mail está desligado: " + s.cfg.SMTP.Problem
 	}
 	writeError(w, http.StatusConflict, msg)
 	return true
 }
 
-// tokenDoLink tira o token do link de convite, do jeito que a tela o monta:
-// http(s)://endereço/caminho#convite?token=…. Qualquer outra forma é
-// recusada: o e-mail só leva um link de convite.
-func tokenDoLink(link string) (string, bool) {
+// linkToken extracts the token from the invite link, the way the screen
+// builds it: http(s)://address/path#convite?token=…. Any other form is
+// rejected: the email only carries an invite link.
+func linkToken(link string) (string, bool) {
 	u, err := url.Parse(link)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
 		u.User != nil || u.RawQuery != "" {
 		return "", false
 	}
-	resto, ok := strings.CutPrefix(u.Fragment, "convite?")
+	rest, ok := strings.CutPrefix(u.Fragment, "convite?")
 	if !ok {
 		return "", false
 	}
-	q, err := url.ParseQuery(resto)
+	q, err := url.ParseQuery(rest)
 	if err != nil || len(q) != 1 || len(q["token"]) != 1 || q.Get("token") == "" {
 		return "", false
 	}
 	return q.Get("token"), true
 }
 
-// mensagemDoConvite é o e-mail do link de definir a senha.
-func mensagemDoConvite(u usuarios.Usuario, para, link string) email.Mensagem {
-	minutos := int(usuarios.ValidadeDoLink.Minutes())
-	return email.Mensagem{
-		Para:    []string{para},
-		Assunto: "Defina sua senha no dwnvr",
-		Texto: fmt.Sprintf("Olá, %s.\n\n"+
+// inviteMessage is the email with the link to set the password.
+func inviteMessage(u users.User, to, link string) email.Message {
+	minutes := int(users.InviteValidity.Minutes())
+	return email.Message{
+		To:      []string{to},
+		Subject: "Defina sua senha no dwnvr",
+		Text: fmt.Sprintf("Olá, %s.\n\n"+
 			"Abra o link abaixo para definir a sua senha no dwnvr. Ele vale %d minutos e funciona uma vez só.\n\n"+
 			"%s\n\n"+
 			"Seu usuário para entrar: %s\n\n"+
 			"Se o link vencer, peça outro a quem administra o dwnvr.\n",
-			u.Nome, minutos, link, u.Usuario),
+			u.Name, minutes, link, u.Username),
 	}
 }
 
-// handleTesteEmail manda um e-mail de teste, para o admin conferir a seção
-// smtp sem cadastrar ninguém. O erro do servidor vem do jeito que ele
-// respondeu.
-func (s *Server) handleTesteEmail(w http.ResponseWriter, r *http.Request) {
-	if s.semEmail(w) {
+// handleEmailTest sends a test email, for the admin to check the smtp section
+// without registering anyone. The server error comes the way it answered.
+func (s *Server) handleEmailTest(w http.ResponseWriter, r *http.Request) {
+	if s.noEmail(w) {
 		return
 	}
 	var req struct {
-		Para string `json:"to"`
+		To string `json:"to"`
 	}
-	if !lerCorpo(w, r, &req) {
+	if !readBody(w, r, &req) {
 		return
 	}
-	para, err := usuarios.ValidarEmail(req.Para)
-	if err != nil || para == "" {
+	to, err := users.ValidateEmail(req.To)
+	if err != nil || to == "" {
 		writeError(w, http.StatusBadRequest, "e-mail inválido: escreva só o endereço, como fulano@exemplo.com")
 		return
 	}
-	m := email.Mensagem{
-		Para:    []string{para},
-		Assunto: "Teste do dwnvr",
-		Texto: "Este é um e-mail de teste do dwnvr, mandado pela tela Diagnóstico.\n\n" +
+	m := email.Message{
+		To:      []string{to},
+		Subject: "Teste do dwnvr",
+		Text: "Este é um e-mail de teste do dwnvr, mandado pela tela Diagnóstico.\n\n" +
 			"Se ele chegou, o envio de e-mail está funcionando.\n",
 	}
-	if err := s.envio.Enviar(r.Context(), m); err != nil {
-		s.log.Warn("o e-mail de teste não foi", "por", pessoaDe(r).Usuario, "erro", err)
+	if err := s.sending.Send(r.Context(), m); err != nil {
+		s.log.Warn("the test email did not go", "by", personOf(r).Username, "err", err)
 		writeError(w, http.StatusBadGateway, "o e-mail não foi: "+err.Error())
 		return
 	}
-	s.log.Info("e-mail de teste enviado", "por", pessoaDe(r).Usuario)
-	writeJSON(w, map[string]string{"sentTo": para})
+	s.log.Info("test email sent", "by", personOf(r).Username)
+	writeJSON(w, map[string]string{"sentTo": to})
 }
 
-// smtpInfo é a seção smtp como o Diagnóstico a mostra: sem o login e sem a
-// senha. Error é o motivo de o e-mail estar desligado, quando há.
+// smtpInfo is the smtp section as Diagnostics shows it: without the login and
+// without the password. Error is the reason email is disabled, when there is
+// one.
 type smtpInfo struct {
 	Host     string `json:"host,omitempty"`
 	Port     int    `json:"port,omitempty"`
@@ -109,20 +109,21 @@ type smtpInfo struct {
 	Error    string `json:"error,omitempty"`
 }
 
-// smtpNoDiagnostico é nil sem a seção smtp: quem não a configura não vê o
-// card.
-func smtpNoDiagnostico(c config.SMTP) *smtpInfo {
-	if c.Host == "" && c.Recusa == "" {
+// smtpInDiagnostics is nil without the smtp section: whoever does not configure
+// it does not see the card.
+func smtpInDiagnostics(c config.SMTP) *smtpInfo {
+	if c.Host == "" && c.Problem == "" {
 		return nil
 	}
-	return &smtpInfo{Host: c.Host, Port: c.Port, Security: c.Security, From: c.From, Error: c.Recusa}
+	return &smtpInfo{Host: c.Host, Port: c.Port, Security: c.Security, From: c.From, Error: c.Problem}
 }
 
-// alertaPorEmail é o "Para onde vai" da aba Alerta: a lista que recebe, com o
-// desde quando e o erro se o meio está falhando; ou, sem o meio, as seções do
-// dwnvr.yaml que faltam, com o motivo da seção smtp recusada. Só o admin a
-// recebe, porque leva os endereços.
-type alertaPorEmail struct {
+// emailAlert is the "Where it goes" of the Alert tab: the list that receives,
+// with the since when and the error if the notifier is failing; or, without the
+// notifier, the dwnvr.yaml sections that are missing, with the reason the smtp
+// section was rejected. Only the admin receives it, because it carries the
+// addresses.
+type emailAlert struct {
 	To           []string   `json:"to,omitempty"`
 	FailingSince *time.Time `json:"failingSince,omitempty"`
 	Error        string     `json:"error,omitempty"`
@@ -130,16 +131,16 @@ type alertaPorEmail struct {
 	SMTPError    string     `json:"smtpError,omitempty"`
 }
 
-func (s *Server) alertaPorEmail() alertaPorEmail {
-	if falta := alerta.FaltaParaOEmail(s.cfg); len(falta) > 0 {
-		return alertaPorEmail{Missing: falta, SMTPError: s.cfg.SMTP.Recusa}
+func (s *Server) emailAlert() emailAlert {
+	if missing := alert.MissingForEmail(s.cfg); len(missing) > 0 {
+		return emailAlert{Missing: missing, SMTPError: s.cfg.SMTP.Problem}
 	}
-	a := alertaPorEmail{To: s.cfg.Alerts.Email.To}
-	// O estado do meio só existe depois que alguma câmera ligou o alerta.
-	if c := s.mgr.Alertas(); c != nil {
-		for _, m := range c.Meios() {
-			if m.Nome == alerta.MeioEmail && !m.FalhandoDesde.IsZero() {
-				a.FailingSince, a.Error = &m.FalhandoDesde, m.Erro
+	a := emailAlert{To: s.cfg.Alerts.Email.To}
+	// The notifier state only exists after some camera has enabled the alert.
+	if c := s.mgr.Alerts(); c != nil {
+		for _, m := range c.NotifierStates() {
+			if m.Name == alert.NotifierEmail && !m.FailingSince.IsZero() {
+				a.FailingSince, a.Error = &m.FailingSince, m.Err
 			}
 		}
 	}

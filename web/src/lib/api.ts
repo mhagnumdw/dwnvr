@@ -504,7 +504,7 @@ export interface Faixa {
   max?: number;
 }
 
-// Os campos da câmera com faixa: o FaixasDaCamera de internal/config/parametros.go.
+// Os campos da câmera com faixa: o CameraRanges de internal/config/params.go.
 export type CampoComFaixa =
   'quotaMB' | 'segmentSeconds' | 'maxDays' | 'stallSeconds' | 'detectSensibilidade';
 export type Faixas = Partial<Record<CampoComFaixa, Faixa>>;

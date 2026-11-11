@@ -22,11 +22,11 @@ export const REGRAS = {
 } as const;
 export type Regra = keyof typeof REGRAS;
 
-// A padrão, a mesma do RegraDaAreaPadrao do servidor.
+// A padrão, a mesma do area.DefaultRule do servidor.
 export const REGRA_PADRAO: Regra = 'foot';
 
-// Os mesmos limites do internal/area/parametros.go (MAX_AREAS é o
-// MaxAreasPorCamera).
+// Os mesmos limites do internal/area/params.go (MAX_AREAS é o
+// MaxAreasPerCamera).
 export const MIN_PONTOS = 3;
 export const MAX_PONTOS = 20;
 export const MAX_AREAS = 8;

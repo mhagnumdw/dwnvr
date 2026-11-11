@@ -932,8 +932,8 @@
   // sempre o objeto de um onset que já estava na tela. Por isso a cauda volta
   // ATRASO_DO_OBJETO_MS antes do último onset, e o que já se tinha é filtrado.
   //
-  // O atraso máximo sai de internal/detect/parametros.go: cada câmera guarda
-  // até PedacosPorCamera (2) na fila, e uma olhada desiste em PrazoDaOlhadaMs
+  // O atraso máximo sai de internal/detect/params.go: cada câmera guarda
+  // até ClipsPerCamera (2) na fila, e uma olhada desiste em InferenceTimeoutMs
   // (60 s). O pior caso é 2 x câmeras x 60 s, com o detector no limite em
   // todas, e 30 min o cobrem até 15 câmeras. Com o detector são, o atraso é de
   // segundos; a folga custa uns poucos KB de onsets por rodada.

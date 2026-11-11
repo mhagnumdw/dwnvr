@@ -178,9 +178,9 @@ outras paradas. No boot, cada valor assim:
   o valor escrito, o que é aceito e o que ficou valendo:
 
   ```text
-  valor fora do aceito na configuração; vale o padrão até ser corrigido
-  arquivo=/etc/dwnvr/cameras.json cam=cam_portao campo=quotaMB valor=5
-  aceito="100 MB ou mais" usando=10240
+  value out of range in the configuration; the default applies until it is fixed
+  file=/etc/dwnvr/cameras.json cam=cam_portao field=quotaMB value=5
+  accepted="100 MB ou mais" using=10240
   ```
 
 No `cameras.json`, zero e campo ausente são "usar o padrão" e nunca dão aviso.
@@ -206,7 +206,7 @@ no `cams=` da API).
 A tela de Câmeras e a API usam as mesmas faixas, mas lá o valor ruim é
 **recusado** em vez de trocado, porque há alguém na frente da tela para ler a
 mensagem e corrigir na hora. As faixas moram em
-[`internal/config/parametros.go`](../internal/config/parametros.go).
+[`internal/config/params.go`](../internal/config/params.go).
 
 ## Marcação de movimento
 
@@ -434,8 +434,8 @@ substitua um servidor errado, então o e-mail fica desligado até o
 e no sino do header, e vai também para o log:
 
 ```text
-e-mail desligado: a seção smtp do dwnvr.yaml não serve até ser corrigida
-arquivo=/etc/dwnvr/dwnvr.yaml problema="smtp.security \"ssl\" fora do aceito: use starttls, tls ou none"
+e-mail off: the smtp section of dwnvr.yaml is unusable until it is fixed
+file=/etc/dwnvr/dwnvr.yaml problem="smtp.security \"ssl\" fora do aceito: use starttls, tls ou none"
 ```
 
 Para conferir sem cadastrar ninguém, abra o card **Este servidor** do
@@ -502,7 +502,7 @@ no sino do header, e vão também para o log:
   recusada, o aviso é o dela, que diz o motivo.
 
 ```text
-alertas por e-mail: alerts.email.to "Fulano <fulano@exemplo.com>" não é um endereço de e-mail e ficou de fora da lista arquivo=/etc/dwnvr/dwnvr.yaml
+e-mail alerts: alerts.email.to "Fulano <fulano@exemplo.com>" não é um endereço de e-mail e ficou de fora da lista file=/etc/dwnvr/dwnvr.yaml
 ```
 
 O `dwnvr.yaml` só é lido quando o dwnvr sobe: a lista nova vale depois de
@@ -549,7 +549,7 @@ endereço `http://` ou `https://`, ou tiver `?`, `#` ou usuário e senha, vira
 aviso no log e no Diagnóstico, e conta como não escrito: o dwnvr sobe do mesmo jeito.
 
 ```text
-level=WARN msg="valor fora do aceito na configuração; vale o padrão até ser corrigido" arquivo=/etc/dwnvr/dwnvr.yaml campo=server.publicUrl valor=dwnvr.exemplo.ts.net aceito="o endereço do dwnvr, como https://dwnvr.exemplo.ts.net" usando="nenhum: o e-mail de alerta sai sem o botão"
+level=WARN msg="value out of range in the configuration; the default applies until it is fixed" file=/etc/dwnvr/dwnvr.yaml field=server.publicUrl value=dwnvr.exemplo.ts.net accepted="o endereço do dwnvr, como https://dwnvr.exemplo.ts.net" using="nenhum: o e-mail de alerta sai sem o botão"
 ```
 
 O `dwnvr.yaml` só é lido quando o dwnvr sobe: o endereço novo vale depois de

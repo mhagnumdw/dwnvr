@@ -2,72 +2,74 @@ package detect
 
 import "context"
 
-// Achado é um objeto que o detector viu num quadro.
+// Detection is an object the object detector saw in a frame.
 //
-// A caixa vai em FRAÇÃO do quadro, e não em pixels, porque é a única forma que
-// continua valendo quando a resolução da câmera muda - e ela muda: há câmera
-// cujo init anuncia 2560x1440 enquanto o stream entrega 1920x1080.
-type Achado struct {
-	Classe string  `json:"classe"`
-	Score  float64 `json:"score"`
-	// X1, Y1, X2, Y2 em fração do quadro, de 0 a 1.
-	Caixa [4]float64 `json:"caixa"`
+// The box is a FRACTION of the frame, not pixels, because that's the only form
+// that still holds when the camera's resolution changes - and it does: some
+// cameras' init advertises 2560x1440 while the stream delivers 1920x1080.
+type Detection struct {
+	Class string  `json:"classe"`
+	Score float64 `json:"score"`
+	// X1, Y1, X2, Y2 as a fraction of the frame, from 0 to 1.
+	Box [4]float64 `json:"caixa"`
 }
 
-// Visao é o que o detector devolve de uma olhada: os achados e, quando o
-// quadro foi pedido, o próprio quadro em JPEG.
+// Output is what the object detector returns from an inference: the
+// detections and, when the frame was asked for, the frame itself as JPEG.
 //
-// O quadro é o MESMO que o modelo olhou - o último do pedaço -, e por isso a
-// caixa do Achado, que vai em fração, cai no lugar certo sobre ele em qualquer
-// tamanho. É ele que a tela de Detecções mostra.
-type Visao struct {
-	// Achados é toda caixa a partir de PisoDoDetector. Fatia vazia é
-	// resultado: "este onset foi olhado, e não era nada".
-	Achados []Achado
+// The frame is the SAME one the model looked at - the clip's last one -, so
+// the Detection box, being a fraction, lands in the right place over it at any
+// size. It's what the Detections screen shows.
+type Output struct {
+	// Detections is every box from MinScore up. An empty slice is a result:
+	// "this onset was inferred, and it was nothing".
+	Detections []Detection
 
-	// Quadro é o JPEG do quadro olhado, já reduzido a LarguraDoQuadro, ou
-	// nil. Vem só quando houve achado: quadro de onset sem objeto ninguém vê,
-	// e gravá-lo custaria disco para nada.
-	Quadro []byte
+	// Frame is the JPEG of the inferred frame, already scaled down to
+	// FrameWidth, or nil. It only comes when there was a detection: nobody
+	// looks at the frame of an onset without an object, and storing it would
+	// cost disk for nothing.
+	Frame []byte
 }
 
-// Detector é o terceiro contrato: quem olha o pedaço de vídeo e diz o que
-// havia no último quadro dele.
+// Detector is the third contract: what looks at the video clip and says what
+// was in its last frame.
 //
-// Ele é o único dos contratos que custa caro - ~6,5 s de parede e 244 MB de
-// pico num Orange Pi Zero 3 -, e é por isso que mora atrás de um gatilho e
-// num container à parte: decodificar H264/HEVC e rodar um modelo exigem código
-// nativo, e o dwnvr continua Go puro, CGO_ENABLED=0, numa imagem de 8 MB.
+// It's the only one of the contracts that is expensive - ~6.5 s wall time and
+// 244 MB peak on an Orange Pi Zero 3 -, which is why it lives behind a trigger
+// and in a separate container: decoding H264/HEVC and running a model require
+// native code, and dwnvr stays pure Go, CGO_ENABLED=0, in an 8 MB image.
 //
-// NÃO TEM ESTADO, e não decide o que vira marca. Ele devolve toda caixa a
-// partir de PisoDoDetector, de qualquer classe; o corte por família e a
-// memória de objeto parado são do Marcador, no dwnvr. Um detector que
-// reinicia não pode virar marca falsa na timeline.
+// IT HAS NO STATE, and doesn't decide what becomes a mark. It returns every
+// box from MinScore up, of any class; the per-family cutoff and the memory of
+// still objects belong to the Marker, in dwnvr. An object detector that
+// restarts must not turn into a false mark on the timeline.
 type Detector interface {
-	// Olha manda o pedaço e devolve o que havia no ÚLTIMO quadro dele, que é
-	// o quadro que o Mecanismo mandou olhar. Visao com Achados vazio é
-	// resultado, não falta de resultado: é ela que diz "este onset já foi
-	// olhado, e não era nada" - e é ela que conta como falta no rastreio.
-	Olha(ctx context.Context, p Pedaco) (Visao, error)
+	// Infer sends the clip and returns what was in its LAST frame, which is
+	// the frame the Method picked. An Output with empty Detections is a
+	// result, not a missing one: it's what says "this onset was already
+	// inferred, and it was nothing" - and it's what counts as a miss in the
+	// tracker.
+	Infer(ctx context.Context, p Clip) (Output, error)
 
-	Nome() string
+	Name() string
 }
 
-// Detectores é o mapa de construtores, gêmeo dos outros. O argumento é o
-// endereço do detector, para quem tem um; o `nenhum` o ignora.
+// Detectors is the constructor map, twin of the others. The argument is the
+// object detector's address, for those who have one; `nenhum` ignores it.
 //
-// O `nenhum` é o que faz a detecção de movimento funcionar sem sidecar nenhum:
-// o gatilho marca movimento na timeline, e ninguém olha.
-var Detectores = map[string]func(url string) Detector{
-	"nenhum":  func(string) Detector { return nenhum{} },
-	"sidecar": NovoSidecar,
+// `nenhum` is what makes motion detection work without any sidecar: the
+// trigger marks motion on the timeline, and nobody infers.
+var Detectors = map[string]func(url string) Detector{
+	"nenhum":  func(string) Detector { return none{} },
+	"sidecar": NewSidecar,
 }
 
-// nenhum é o detector que não olha. Não é um esboço: é o comportamento correto
-// de quem não instalou o sidecar, e o que garante que a marcação de movimento
-// seja usável sozinha.
-type nenhum struct{}
+// none is the object detector that doesn't infer. It's not a stub: it's the
+// correct behavior for someone who didn't install the sidecar, and what
+// guarantees motion marking is usable on its own.
+type none struct{}
 
-func (nenhum) Nome() string { return "nenhum" }
+func (none) Name() string { return "nenhum" }
 
-func (nenhum) Olha(context.Context, Pedaco) (Visao, error) { return Visao{}, nil }
+func (none) Infer(context.Context, Clip) (Output, error) { return Output{}, nil }

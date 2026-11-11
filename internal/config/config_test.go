@@ -10,20 +10,20 @@ import (
 	"testing"
 )
 
-// carrega grava o dwnvr.yaml e o cameras.json num diretório temporário e lê
-// os dois como o dwnvr lê ao subir. Os avisos ficam de fora; quem quer
-// olhá-los usa carregaComAvisos.
-func carrega(t *testing.T, yaml, cameras string) (*Config, []Camera, error) {
+// load writes dwnvr.yaml and cameras.json to a temp directory and reads
+// both as dwnvr reads them at startup. Warnings are left out; whoever wants to
+// look at them uses loadWithWarnings.
+func load(t *testing.T, yaml, cameras string) (*Config, []Camera, error) {
 	t.Helper()
-	cfg, cams, _, err := carregaComAvisos(t, yaml, cameras)
+	cfg, cams, _, err := loadWithWarnings(t, yaml, cameras)
 	return cfg, cams, err
 }
 
-func carregaComAvisos(t *testing.T, yaml, cameras string) (*Config, []Camera, []Aviso, error) {
+func loadWithWarnings(t *testing.T, yaml, cameras string) (*Config, []Camera, []Warning, error) {
 	t.Helper()
 	dir := t.TempDir()
-	caminho := filepath.Join(dir, "dwnvr.yaml")
-	if err := os.WriteFile(caminho, []byte(yaml), 0o644); err != nil {
+	path := filepath.Join(dir, "dwnvr.yaml")
+	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if cameras != "" {
@@ -31,153 +31,155 @@ func carregaComAvisos(t *testing.T, yaml, cameras string) (*Config, []Camera, []
 			t.Fatal(err)
 		}
 	}
-	cfg, avisos, err := Load(caminho)
+	cfg, warnings, err := Load(path)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	cams, avisosCam, err := cfg.LoadCameras()
-	return cfg, cams, append(avisos, avisosCam...), err
+	cams, camWarnings, err := cfg.LoadCameras()
+	return cfg, cams, append(warnings, camWarnings...), err
 }
 
-// TestDeteccaoVemDesligada: quem só grava não liga nada sem pedir.
-func TestDeteccaoVemDesligada(t *testing.T) {
-	cfg, cams, err := carrega(t, "", `[{"id":"cam_a","stream":"cam_a"}]`)
+// TestDetectionComesOff: someone who only records doesn't turn anything on without asking.
+func TestDetectionComesOff(t *testing.T) {
+	cfg, cams, err := load(t, "", `[{"id":"cam_a","stream":"cam_a"}]`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Detector.URL != "" {
-		t.Errorf("detector.url %q sem ninguém configurar", cfg.Detector.URL)
+		t.Errorf("detector.url %q without anyone configuring it", cfg.Detector.URL)
 	}
 	r := cfg.Resolve(cams[0])
 	if r.Detect == nil || *r.Detect {
-		t.Errorf("detect %v, esperado desligado", r.Detect)
+		t.Errorf("detect %v, expected off", r.Detect)
 	}
 }
 
-// TestDetectDesligadoNaCameraVenceODefault: a câmera desligada à mão não
-// volta a ligar quando o default muda. É por isso que o campo é ponteiro.
-func TestDetectDesligadoNaCameraVenceODefault(t *testing.T) {
-	cfg, cams, err := carrega(t, "defaults:\n  detect: true\n",
+// TestDetectOffOnCameraBeatsTheDefault: a camera turned off by hand doesn't
+// turn back on when the default changes. That's why the field is a pointer.
+func TestDetectOffOnCameraBeatsTheDefault(t *testing.T) {
+	cfg, cams, err := load(t, "defaults:\n  detect: true\n",
 		`[{"id":"cam_a","stream":"cam_a","detect":false},{"id":"cam_b","stream":"cam_b"}]`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if a := cfg.Resolve(cams[0]); *a.Detect {
-		t.Error("cam_a desligada à mão ligou pelo default")
+		t.Error("cam_a turned off by hand was turned on by the default")
 	}
 	if b := cfg.Resolve(cams[1]); !*b.Detect {
-		t.Error("cam_b sem o campo não herdou o default ligado")
+		t.Error("cam_b without the field didn't inherit the default on")
 	}
 }
 
-// TestTiraDefaultsNovosDesfazOResolve: a câmera nova, resolvida, volta a ter
-// só o id, o nome e o enabled. Um campo que entrar no Resolve e ficar de fora
-// do TiraDefaultsNovos falha aqui. O maxDays vai no yaml porque o default
-// dele é zero, e com zero o teste não o veria.
-func TestTiraDefaultsNovosDesfazOResolve(t *testing.T) {
-	cfg, _, err := carrega(t, "defaults:\n  maxDays: 7\n", "")
+// TestDropNewDefaultsUndoesResolve: a new camera, resolved, goes back to
+// having only the id, the name and enabled. A field that goes into Resolve and
+// is left out of DropNewDefaults fails here. maxDays goes in the yaml because
+// its default is zero, and with zero the test wouldn't see it.
+func TestDropNewDefaultsUndoesResolve(t *testing.T) {
+	cfg, _, err := load(t, "defaults:\n  maxDays: 7\n", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	crua := Camera{ID: "cam_a", Name: "A", Enabled: true}
-	resolvida := cfg.Resolve(crua)
-	if got := cfg.TiraDefaultsNovos(resolvida, nil); !reflect.DeepEqual(got, crua) {
-		t.Errorf("câmera nova gravada como %+v, esperava %+v", got, crua)
+	raw := Camera{ID: "cam_a", Name: "A", Enabled: true}
+	resolved := cfg.Resolve(raw)
+	if got := cfg.DropNewDefaults(resolved, nil); !reflect.DeepEqual(got, raw) {
+		t.Errorf("new camera saved as %+v, want %+v", got, raw)
 	}
 
-	// A câmera que já definia cada campo, com o mesmo valor do default, fica
-	// como estava: o valor foi escolhido por alguém.
-	if got := cfg.TiraDefaultsNovos(resolvida, &resolvida); !reflect.DeepEqual(got, resolvida) {
-		t.Errorf("câmera definida gravada como %+v, esperava %+v", got, resolvida)
+	// A camera that already set each field, with the same value as the default,
+	// stays as it was: the value was chosen by someone.
+	if got := cfg.DropNewDefaults(resolved, &resolved); !reflect.DeepEqual(got, resolved) {
+		t.Errorf("configured camera saved as %+v, want %+v", got, resolved)
 	}
 }
 
-// porCampo indexa os avisos pelo campo, para o teste conferir um a um.
-func porCampo(avisos []Aviso) map[string]Aviso {
-	m := make(map[string]Aviso, len(avisos))
-	for _, a := range avisos {
-		m[a.Campo] = a
+// byField indexes the warnings by field, for the test to check one by one.
+func byField(warnings []Warning) map[string]Warning {
+	m := make(map[string]Warning, len(warnings))
+	for _, a := range warnings {
+		m[a.Field] = a
 	}
 	return m
 }
 
-// TestValorRuimNaCameraSobeComOPadrao: um número fora da faixa no cameras.json
-// não derruba o boot. O campo volta ao padrão, e o aviso diz o que estava
-// escrito, o que é aceito e o que ficou valendo. A câmera boa não é tocada.
-func TestValorRuimNaCameraSobeComOPadrao(t *testing.T) {
-	cfg, cams, avisos, err := carregaComAvisos(t, "", `[
+// TestBadCameraValueStartsWithDefault: an out-of-range number in
+// cameras.json doesn't bring boot down. The field goes back to the default, and
+// the warning says what was written, what's accepted and what took effect. The
+// good camera isn't touched.
+func TestBadCameraValueStartsWithDefault(t *testing.T) {
+	cfg, cams, warnings, err := loadWithWarnings(t, "", `[
 		{"id":"cam_ruim","quotaMB":5,"segmentSeconds":600,"maxDays":-1,"stallSeconds":99999,
 		 "audio":"mp3","detectMecanismo":"magico","detectSensibilidade":9},
 		{"id":"cam_boa","quotaMB":100,"segmentSeconds":300,"maxDays":7,"stallSeconds":30,
 		 "audio":"flac","detectMecanismo":"periodico","detectSensibilidade":1}]`)
 	if err != nil {
-		t.Fatalf("o boot recusou: %v", err)
+		t.Fatalf("boot failed: %v", err)
 	}
 
 	p := defaults().Defaults
-	quer := map[string]any{
+	wanted := map[string]any{
 		"quotaMB": p.QuotaMB, "segmentSeconds": p.SegmentSeconds, "maxDays": p.MaxDays,
 		"stallSeconds": p.StallSeconds, "audio": p.Audio,
-		"detectMecanismo": p.DetectMecanismo, "detectSensibilidade": p.DetectSensibilidade,
+		"detectMecanismo": p.DetectMethod, "detectSensibilidade": p.DetectSensitivity,
 	}
-	got := porCampo(avisos)
-	if len(avisos) != len(quer) {
-		t.Errorf("%d avisos, esperava %d: %+v", len(avisos), len(quer), avisos)
+	got := byField(warnings)
+	if len(warnings) != len(wanted) {
+		t.Errorf("%d warnings, want %d: %+v", len(warnings), len(wanted), warnings)
 	}
-	for campo, usando := range quer {
-		a, ok := got[campo]
+	for field, inEffect := range wanted {
+		a, ok := got[field]
 		switch {
 		case !ok:
-			t.Errorf("%s sem aviso", campo)
-		case a.Camera != "cam_ruim" || a.Aceito == "" || a.Usando != usando:
-			t.Errorf("%s: aviso %+v, esperava cam_ruim usando %v", campo, a, usando)
+			t.Errorf("%s without a warning", field)
+		case a.Camera != "cam_ruim" || a.Accepted == "" || a.InEffect != inEffect:
+			t.Errorf("%s: warning %+v, want cam_ruim using %v", field, a, inEffect)
 		}
 	}
 
 	r := cfg.Resolve(cams[0])
 	if r.QuotaMB != p.QuotaMB || r.SegmentSeconds != p.SegmentSeconds || r.MaxDays != p.MaxDays ||
 		r.StallSeconds != p.StallSeconds || r.Audio != p.Audio ||
-		r.DetectMecanismo != p.DetectMecanismo || r.DetectSensibilidade != p.DetectSensibilidade {
-		t.Errorf("cam_ruim resolvida %+v, esperava os padrões", r)
+		r.DetectMethod != p.DetectMethod || r.DetectSensitivity != p.DetectSensitivity {
+		t.Errorf("cam_ruim resolved %+v, want the defaults", r)
 	}
 	if b := cams[1]; b.QuotaMB != 100 || b.SegmentSeconds != 300 || b.MaxDays != 7 ||
 		b.StallSeconds != 30 || b.Audio != AudioFLAC ||
-		b.DetectMecanismo != "periodico" || b.DetectSensibilidade != 1 {
-		t.Errorf("cam_boa foi alterada: %+v", b)
+		b.DetectMethod != "periodico" || b.DetectSensitivity != 1 {
+		t.Errorf("cam_boa was changed: %+v", b)
 	}
 }
 
-// TestZeroNaCameraNaoAvisa: zero e vazio são "usar o padrão", não erro.
-func TestZeroNaCameraNaoAvisa(t *testing.T) {
-	_, _, avisos, err := carregaComAvisos(t, "", `[{"id":"cam_a"}]`)
-	if err != nil || len(avisos) > 0 {
-		t.Errorf("erro %v, avisos %+v", err, avisos)
+// TestZeroOnCameraDoesNotWarn: zero and empty mean "use the default", not an error.
+func TestZeroOnCameraDoesNotWarn(t *testing.T) {
+	_, _, warnings, err := loadWithWarnings(t, "", `[{"id":"cam_a"}]`)
+	if err != nil || len(warnings) > 0 {
+		t.Errorf("error %v, warnings %+v", err, warnings)
 	}
 }
 
-// TestIDInvalidoAindaRecusa: o ID vira nome de diretório no disco, e não
-// existe padrão que o substitua. É o único campo da câmera que derruba o boot.
-func TestIDInvalidoAindaRecusa(t *testing.T) {
-	if _, _, err := carrega(t, "", `[{"id":"../fora"}]`); err == nil {
-		t.Error("ID com caminho aceito no boot")
+// TestInvalidIDStillFails: the ID becomes a directory name on disk, and
+// there's no default to stand in for it. It's the only camera field that brings
+// boot down.
+func TestInvalidIDStillFails(t *testing.T) {
+	if _, _, err := load(t, "", `[{"id":"../fora"}]`); err == nil {
+		t.Error("ID with a path accepted at boot")
 	}
 }
 
-// TestIDComVirgulaRecusa: a vírgula separa os IDs no `cams=` da API, então uma
-// câmera com vírgula no ID nunca seria filtrada sozinha.
-func TestIDComVirgulaRecusa(t *testing.T) {
-	if _, _, err := carrega(t, "", `[{"id":"cam_a,cam_b"}]`); err == nil {
-		t.Error("ID com vírgula aceito no boot")
+// TestIDWithCommaFails: the comma separates the IDs in the API's `cams=`,
+// so a camera with a comma in its ID could never be filtered on its own.
+func TestIDWithCommaFails(t *testing.T) {
+	if _, _, err := load(t, "", `[{"id":"cam_a,cam_b"}]`); err == nil {
+		t.Error("ID with a comma accepted at boot")
 	}
 	if err := ValidateCameraID("cam,a"); err == nil {
-		t.Error("ValidateCameraID aceitou vírgula")
+		t.Error("ValidateCameraID accepted a comma")
 	}
 }
 
-// TestValorRuimNoYamlSobeComOPadrao: o mesmo vale para o dwnvr.yaml, mas lá o
-// zero também é inválido, porque o padrão é o próprio valor escrito.
-func TestValorRuimNoYamlSobeComOPadrao(t *testing.T) {
-	cfg, _, avisos, err := carregaComAvisos(t, `
+// TestBadYamlValueStartsWithDefault: the same holds for dwnvr.yaml, but
+// there zero is invalid too, because the default is the written value itself.
+func TestBadYamlValueStartsWithDefault(t *testing.T) {
+	cfg, _, warnings, err := loadWithWarnings(t, `
 storage:
   minFreeMB: -1
 defaults:
@@ -190,199 +192,201 @@ defaults:
   detectSensibilidade: 9
 `, "")
 	if err != nil {
-		t.Fatalf("o boot recusou: %v", err)
+		t.Fatalf("boot failed: %v", err)
 	}
 	p := defaults()
 	if cfg.Storage.MinFreeMB != p.Storage.MinFreeMB || cfg.Defaults != p.Defaults {
-		t.Errorf("config %+v %+v, esperava os padrões do código", cfg.Storage, cfg.Defaults)
+		t.Errorf("config %+v %+v, want the code defaults", cfg.Storage, cfg.Defaults)
 	}
-	got := porCampo(avisos)
-	for _, campo := range []string{"storage.minFreeMB", "defaults.segmentSeconds",
+	got := byField(warnings)
+	for _, field := range []string{"storage.minFreeMB", "defaults.segmentSeconds",
 		"defaults.quotaMB", "defaults.maxDays", "defaults.stallSeconds", "defaults.audio",
 		"defaults.detectMecanismo", "defaults.detectSensibilidade"} {
-		if a, ok := got[campo]; !ok || a.Camera != "" {
-			t.Errorf("%s: aviso %+v", campo, a)
+		if a, ok := got[field]; !ok || a.Camera != "" {
+			t.Errorf("%s: warning %+v", field, a)
 		}
 	}
-	if len(avisos) != 8 {
-		t.Errorf("%d avisos, esperava 8: %+v", len(avisos), avisos)
+	if len(warnings) != 8 {
+		t.Errorf("%d warnings, want 8: %+v", len(warnings), warnings)
 	}
 }
 
-// TestSemArquivoSobeComOsPadroes: o primeiro uso não exige escrever nada. Sem
-// dwnvr.yaml e sem cameras.json o dwnvr sobe com os padrões, sem aviso.
-func TestSemArquivoSobeComOsPadroes(t *testing.T) {
-	cfg, avisos, err := Load(filepath.Join(t.TempDir(), "dwnvr.yaml"))
-	if err != nil || len(avisos) > 0 {
-		t.Fatalf("erro %v, avisos %+v", err, avisos)
+// TestNoFileStartsWithDefaults: first use doesn't require writing anything.
+// Without dwnvr.yaml and without cameras.json dwnvr starts with the defaults,
+// with no warning.
+func TestNoFileStartsWithDefaults(t *testing.T) {
+	cfg, warnings, err := Load(filepath.Join(t.TempDir(), "dwnvr.yaml"))
+	if err != nil || len(warnings) > 0 {
+		t.Fatalf("error %v, warnings %+v", err, warnings)
 	}
 	if cfg.Defaults != defaults().Defaults {
-		t.Errorf("defaults %+v, esperava os do código", cfg.Defaults)
+		t.Errorf("defaults %+v, want the code's", cfg.Defaults)
 	}
-	cams, avisos, err := cfg.LoadCameras()
-	if err != nil || len(cams) > 0 || len(avisos) > 0 {
-		t.Errorf("cameras.json ausente: câmeras %v, avisos %+v, erro %v", cams, avisos, err)
-	}
-}
-
-// TestCamerasIlegivelRecusa: um cameras.json que não é JSON não tem campo para
-// voltar ao padrão. Subir sem câmera nenhuma esconderia o problema.
-func TestCamerasIlegivelRecusa(t *testing.T) {
-	if _, _, err := carrega(t, "", `[{"id":"cam_a",`); err == nil {
-		t.Error("cameras.json quebrado aceito no boot")
+	cams, warnings, err := cfg.LoadCameras()
+	if err != nil || len(cams) > 0 || len(warnings) > 0 {
+		t.Errorf("missing cameras.json: cameras %v, warnings %+v, error %v", cams, warnings, err)
 	}
 }
 
-// TestAvisoTextoDizOQueUsar: é a frase que a API devolve à tela quando recusa.
-func TestAvisoTextoDizOQueUsar(t *testing.T) {
+// TestUnreadableCamerasFails: a cameras.json that isn't JSON has no field to
+// go back to the default. Starting with no camera at all would hide the
+// problem.
+func TestUnreadableCamerasFails(t *testing.T) {
+	if _, _, err := load(t, "", `[{"id":"cam_a",`); err == nil {
+		t.Error("broken cameras.json accepted at boot")
+	}
+}
+
+// TestWarningTextSaysWhatToUse: it's the sentence the API returns to the screen when it rejects.
+func TestWarningTextSaysWhatToUse(t *testing.T) {
 	cfg := defaults()
-	_, avisos := cfg.ConfereCamera(Camera{ID: "cam_a", QuotaMB: 5})
-	if len(avisos) != 1 {
-		t.Fatalf("avisos %+v, esperava 1", avisos)
+	_, warnings := cfg.CheckCamera(Camera{ID: "cam_a", QuotaMB: 5})
+	if len(warnings) != 1 {
+		t.Fatalf("warnings %+v, want 1", warnings)
 	}
-	if got, quer := avisos[0].Texto(), "quotaMB 5 fora do aceito: use 100 MB ou mais"; got != quer {
-		t.Errorf("%q, esperava %q", got, quer)
-	}
-}
-
-// TestStorageRootVazioRecusa: sem saber onde gravar, não há padrão seguro.
-func TestStorageRootVazioRecusa(t *testing.T) {
-	if _, _, err := carrega(t, "storage:\n  root: \"\"\n", ""); err == nil {
-		t.Error("storage.root vazio aceito")
+	if got, wanted := warnings[0].Text(), "quotaMB 5 fora do aceito: use 100 MB ou mais"; got != wanted {
+		t.Errorf("%q, want %q", got, wanted)
 	}
 }
 
-func TestFaixaDescreveARecomendacao(t *testing.T) {
-	casos := map[Faixa]string{
-		FaixaSegmentSeconds: "de 10 a 300 s",
-		FaixaQuotaMB:        "100 MB ou mais",
-		faixaSensibilidade:  "de 1 a 5",
+// TestEmptyStorageRootFails: without knowing where to record, there's no safe default.
+func TestEmptyStorageRootFails(t *testing.T) {
+	if _, _, err := load(t, "storage:\n  root: \"\"\n", ""); err == nil {
+		t.Error("empty storage.root accepted")
 	}
-	for f, quer := range casos {
-		if got := f.String(); got != quer {
-			t.Errorf("%+v: %q, esperava %q", f, got, quer)
+}
+
+func TestRangeDescribesTheRecommendation(t *testing.T) {
+	cases := map[Range]string{
+		SegmentSecondsRange: "de 10 a 300 s",
+		QuotaMBRange:        "100 MB ou mais",
+		sensitivityRange:    "de 1 a 5",
+	}
+	for f, wanted := range cases {
+		if got := f.String(); got != wanted {
+			t.Errorf("%+v: %q, want %q", f, got, wanted)
 		}
 	}
 }
 
-// TestExemploCarrega: o dwnvr.example.yaml da raiz é o que o usuário copia, e
-// tem que subir sem edição.
-func TestExemploCarrega(t *testing.T) {
+// TestExampleLoads: the dwnvr.example.yaml at the root is what the user
+// copies, and it must start without editing.
+func TestExampleLoads(t *testing.T) {
 	b, err := os.ReadFile("../../dwnvr.example.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg, _, err := carrega(t, string(b), "")
+	cfg, _, err := load(t, string(b), "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Defaults.Detect {
-		t.Error("o exemplo liga a detecção")
+		t.Error("the example turns detection on")
 	}
 }
 
-// TestLimiteDoLoginVemLigado: sem as chaves no yaml, o login já sai limitado e
-// o proxy do compose é confiável. Zero desliga, e lista vazia não confia em
-// ninguém: os dois valem como escritos, sem aviso.
-func TestLimiteDoLoginVemLigado(t *testing.T) {
-	cfg, _, err := carrega(t, "", "")
+// TestLoginLimitComesOn: without the keys in the yaml, login already comes
+// out limited and the compose proxy is trusted. Zero turns it off, and an empty
+// list trusts nobody: both apply as written, with no warning.
+func TestLoginLimitComesOn(t *testing.T) {
+	cfg, _, err := load(t, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Server.LoginAttemptsPerMinute != LoginAttemptsPerMinutePadrao ||
-		!slices.Equal(cfg.Server.TrustedProxies, TrustedProxiesPadrao) {
-		t.Errorf("sem as chaves: %+v", cfg.Server)
+	if cfg.Server.LoginAttemptsPerMinute != DefaultLoginAttemptsPerMinute ||
+		!slices.Equal(cfg.Server.TrustedProxies, DefaultTrustedProxies) {
+		t.Errorf("without the keys: %+v", cfg.Server)
 	}
 
-	cfg, avisos := carregaAvisosDe(t, `
+	cfg, warnings := loadWarningsOf(t, `
 server:
   loginAttemptsPerMinute: 0
   trustedProxies: []
 `)
-	if len(avisos) > 0 {
-		t.Fatalf("avisos %+v", avisos)
+	if len(warnings) > 0 {
+		t.Fatalf("warnings %+v", warnings)
 	}
 	if cfg.Server.LoginAttemptsPerMinute != 0 || len(cfg.Server.TrustedProxies) != 0 {
-		t.Errorf("desligado: %+v", cfg.Server)
+		t.Errorf("off: %+v", cfg.Server)
 	}
 }
 
-// TestLimiteDoLoginRuimSobeComOPadrao: fora da faixa, ou um proxy que não é
-// endereço, volta ao padrão com aviso. Um proxy ruim derruba a lista inteira:
-// confiar só na parte escrita certa mudaria o endereço de quem o dono quis
-// cobrir.
-func TestLimiteDoLoginRuimSobeComOPadrao(t *testing.T) {
-	cfg, avisos := carregaAvisosDe(t, `
+// TestBadLoginLimitStartsWithDefault: out of range, or a proxy that isn't
+// an address, goes back to the default with a warning. One bad proxy drops the
+// whole list: trusting only the part written right would change the address of
+// whoever the owner meant to cover.
+func TestBadLoginLimitStartsWithDefault(t *testing.T) {
+	cfg, warnings := loadWarningsOf(t, `
 server:
   loginAttemptsPerMinute: -1
   trustedProxies: [10.0.0.0/8, servidor-do-proxy]
 `)
-	if cfg.Server.LoginAttemptsPerMinute != LoginAttemptsPerMinutePadrao ||
-		!slices.Equal(cfg.Server.TrustedProxies, TrustedProxiesPadrao) {
-		t.Errorf("config %+v, esperava os padrões", cfg.Server)
+	if cfg.Server.LoginAttemptsPerMinute != DefaultLoginAttemptsPerMinute ||
+		!slices.Equal(cfg.Server.TrustedProxies, DefaultTrustedProxies) {
+		t.Errorf("config %+v, want the defaults", cfg.Server)
 	}
-	got := porCampo(avisos)
-	for _, campo := range []string{"server.loginAttemptsPerMinute", "server.trustedProxies"} {
-		if _, ok := got[campo]; !ok {
-			t.Errorf("sem aviso de %s: %+v", campo, avisos)
+	got := byField(warnings)
+	for _, field := range []string{"server.loginAttemptsPerMinute", "server.trustedProxies"} {
+		if _, ok := got[field]; !ok {
+			t.Errorf("no warning for %s: %+v", field, warnings)
 		}
 	}
 
-	if _, avisos := carregaAvisosDe(t, "server:\n  loginAttemptsPerMinute: 13\n"); len(avisos) != 1 {
-		t.Errorf("13 por minuto: avisos %+v, esperava 1", avisos)
+	if _, warnings := loadWarningsOf(t, "server:\n  loginAttemptsPerMinute: 13\n"); len(warnings) != 1 {
+		t.Errorf("13 per minute: warnings %+v, want 1", warnings)
 	}
 }
 
-// TestPrefixosAceitaEnderecoSolto: um IP sem máscara é a rede só dele.
-func TestPrefixosAceitaEnderecoSolto(t *testing.T) {
-	ps, err := Prefixos([]string{"192.168.0.10", "fd00::1", "10.1.2.3/8"})
+// TestPrefixesAcceptsBareAddress: an IP without a mask is a network of its own.
+func TestPrefixesAcceptsBareAddress(t *testing.T) {
+	ps, err := Prefixes([]string{"192.168.0.10", "fd00::1", "10.1.2.3/8"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	quer := []string{"192.168.0.10/32", "fd00::1/128", "10.0.0.0/8"}
+	wanted := []string{"192.168.0.10/32", "fd00::1/128", "10.0.0.0/8"}
 	for i, p := range ps {
-		if p.String() != quer[i] {
-			t.Errorf("%d: %s, esperava %s", i, p, quer[i])
+		if p.String() != wanted[i] {
+			t.Errorf("%d: %s, want %s", i, p, wanted[i])
 		}
 	}
 }
 
-// carregaAvisosDe lê só o dwnvr.yaml e devolve a config e os avisos; um erro
-// de leitura falha o teste.
-func carregaAvisosDe(t *testing.T, yaml string) (*Config, []Aviso) {
+// loadWarningsOf reads only dwnvr.yaml and returns the config and the
+// warnings; a read error fails the test.
+func loadWarningsOf(t *testing.T, yaml string) (*Config, []Warning) {
 	t.Helper()
-	cfg, _, avisos, err := carregaComAvisos(t, yaml, "")
+	cfg, _, warnings, err := loadWithWarnings(t, yaml, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return cfg, avisos
+	return cfg, warnings
 }
 
-// TestPublicURL: o endereço sai sem a "/" do fim, e com um caminho serve para
-// o dwnvr atrás de proxy. O que estragaria o link montado em cima dele vira
-// aviso e conta como não escrito.
+// TestPublicURL: the address comes out without the trailing "/", and with a
+// path it works for dwnvr behind a proxy. What would break the link built on
+// top of it becomes a warning and counts as not written.
 func TestPublicURL(t *testing.T) {
-	for escrito, want := range map[string]string{
+	for written, want := range map[string]string{
 		"":                              "",
 		"https://dwnvr.exemplo.ts.net":  "https://dwnvr.exemplo.ts.net",
 		"https://dwnvr.exemplo.ts.net/": "https://dwnvr.exemplo.ts.net",
 		"http://192.168.0.10:8080":      "http://192.168.0.10:8080",
 		" https://exemplo.com/dwnvr/ ":  "https://exemplo.com/dwnvr",
 	} {
-		cfg, avisos := carregaAvisosDe(t, fmt.Sprintf("server:\n  publicUrl: %q\n", escrito))
-		if len(avisos) > 0 || cfg.Server.PublicURL != want {
-			t.Errorf("%q: %q com avisos %+v, esperado %q", escrito, cfg.Server.PublicURL, avisos, want)
+		cfg, warnings := loadWarningsOf(t, fmt.Sprintf("server:\n  publicUrl: %q\n", written))
+		if len(warnings) > 0 || cfg.Server.PublicURL != want {
+			t.Errorf("%q: %q with warnings %+v, expected %q", written, cfg.Server.PublicURL, warnings, want)
 		}
 	}
-	senha := "senha"
-	comSenha := (&url.URL{Scheme: "https", User: url.UserPassword("fulano", senha), Host: "exemplo.com"}).String()
-	for _, ruim := range []string{
+	password := "senha"
+	withPassword := (&url.URL{Scheme: "https", User: url.UserPassword("fulano", password), Host: "exemplo.com"}).String()
+	for _, bad := range []string{
 		"dwnvr.exemplo.ts.net", "ftp://exemplo.com", "https://", "https://:8080", "https://exemplo.com/?a=1",
-		"https://exemplo.com/#rec", comSenha, "https://exemplo.com/?",
+		"https://exemplo.com/#rec", withPassword, "https://exemplo.com/?",
 	} {
-		cfg, avisos := carregaAvisosDe(t, fmt.Sprintf("server:\n  publicUrl: %q\n", ruim))
-		if _, ok := porCampo(avisos)["server.publicUrl"]; !ok || cfg.Server.PublicURL != "" {
-			t.Errorf("%q: %q com avisos %+v, esperado vazio com aviso", ruim, cfg.Server.PublicURL, avisos)
+		cfg, warnings := loadWarningsOf(t, fmt.Sprintf("server:\n  publicUrl: %q\n", bad))
+		if _, ok := byField(warnings)["server.publicUrl"]; !ok || cfg.Server.PublicURL != "" {
+			t.Errorf("%q: %q with warnings %+v, expected empty with a warning", bad, cfg.Server.PublicURL, warnings)
 		}
 	}
 }

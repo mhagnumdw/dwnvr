@@ -8,40 +8,40 @@ import (
 	"os"
 )
 
-// InitGen identifica um init segment pelo hash do conteúdo.
+// InitGen identifies an init segment by the hash of its content.
 //
-// É o que permite detectar sozinho que o codec mudou (SPS diferente depois de
-// uma reconexão) sem manter contador nenhum, e o que faz um segmento órfão
-// recuperado no boot voltar apontando para o init certo.
+// It's what lets us notice on our own that the codec changed (a different SPS
+// after a reconnection) without keeping any counter, and what makes an orphan
+// segment recovered at boot point back to the right init.
 func InitGen(init []byte) string {
 	sum := sha256.Sum256(init)
 	return hex.EncodeToString(sum[:6])
 }
 
-// SegmentInfo é o que o índice do dwnvr precisa saber sobre um segmento já
-// gravado. Tudo isso sai da estrutura de caixas, sem decodificar mídia.
+// SegmentInfo is what dwnvr's index needs to know about a segment already
+// written. All of it comes from the box structure, without decoding media.
 type SegmentInfo struct {
-	// InitSize é o tamanho de ftyp+moov no começo do arquivo. A entrega via
-	// MSE/HLS pula esse prefixo e serve o init separado, uma vez só.
+	// InitSize is the size of ftyp+moov at the start of the file. Delivery via
+	// MSE/HLS skips that prefix and serves the init separately, only once.
 	InitSize int64
-	// FirstFragSize é o tamanho do primeiro par moof+mdat. Init +
-	// primeiro fragmento formam um MP4 de um frame só: é assim que o dwnvr
-	// serve thumbnail sem decodificar nada no servidor.
+	// FirstFragSize is the size of the first moof+mdat pair. Init + first
+	// fragment make a single-frame MP4: that's how dwnvr serves a thumbnail
+	// without decoding anything on the server.
 	FirstFragSize int64
-	// DurationMs é o tempo coberto pelo segmento.
+	// DurationMs is the time the segment covers.
 	DurationMs int64
-	// Keyframes é quantos keyframes de vídeo o segmento contém.
+	// Keyframes is how many video keyframes the segment contains.
 	Keyframes int
-	// Frames é o total de fragmentos de vídeo.
+	// Frames is the total number of video fragments.
 	Frames int
-	// Gen é o hash do init embutido, igual ao usado pelo recorder.
+	// Gen is the hash of the embedded init, the same one the recorder uses.
 	Gen   string
 	Movie *Movie
 }
 
-// ProbeSegment lê a estrutura de um segmento gravado. É usado para reconstruir
-// o índice quando ele se perde e para conferir, no boot, que o rabo do índice
-// bate com o que está no disco.
+// ProbeSegment reads the structure of a recorded segment. It's used to rebuild
+// the index when it's lost and to check, at boot, that the tail of the index
+// matches what's on disk.
 func ProbeSegment(path string) (*SegmentInfo, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -107,7 +107,7 @@ func probeSegment(r io.Reader) (*SegmentInfo, error) {
 				lastVideoEnd = frag.EndTime()
 			}
 		case "mdat":
-			// O primeiro moof+mdat completo define o tamanho da thumbnail.
+			// The first complete moof+mdat sets the thumbnail size.
 			if info.FirstFragSize == 0 && fragStart >= 0 {
 				info.FirstFragSize = offset + n - fragStart
 			}

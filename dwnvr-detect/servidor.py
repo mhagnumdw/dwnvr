@@ -71,11 +71,11 @@ PORTA = int(os.environ.get("DETECT_PORTA", "8480"))
 #: cresce com a máquina: são as olhadas que as câmeras pedem.
 TETO_DO_AUTO = 4
 
-#: O piso de quem não disser outro. O dwnvr diz: é o `PisoDoDetector` dele.
+#: O piso de quem não disser outro. O dwnvr diz: é o `MinScore` dele.
 PISO_PADRAO = 0.20
 
 #: Maior pedaço aceito. O dwnvr não guarda GOP maior que 4 MB por câmera
-#: (`TetoDoGOPBytes`); isto é só para um cliente errado não esgotar a RAM.
+#: (`MaxGOPBytes`); isto é só para um cliente errado não esgotar a RAM.
 MAIOR_PEDACO = 16 << 20
 
 #: Maior largura aceita para o quadro de volta. Acima disso o JPEG custaria
@@ -84,7 +84,7 @@ MAIOR_QUADRO = 1920
 
 #: Acima disto a olhada está travada, não lenta: uma leva ~6,5 s num núcleo de
 #: um Orange Pi Zero 3. Fica abaixo dos 60 s que o dwnvr espera
-#: (`PrazoDaOlhadaMs`) para o container já estar de pé de novo quando a fila
+#: (`InferenceTimeoutMs`) para o container já estar de pé de novo quando a fila
 #: dele, depois da pausa de 30 s, mandar a próxima.
 PRAZO_DA_OLHADA_S = 50
 

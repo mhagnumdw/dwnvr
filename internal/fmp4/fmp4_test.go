@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// --- construtores de caixas sintéticas --------------------------------------
+// --- synthetic box builders -------------------------------------------------
 
 func box(typ string, parts ...[]byte) []byte {
 	var body []byte
@@ -33,7 +33,7 @@ func u64(v uint64) []byte {
 	return b
 }
 
-// Valores que o go2rtc realmente escreve (pkg/iso/atoms.go).
+// Values go2rtc actually writes (pkg/iso/atoms.go).
 const (
 	flagsIFrame    = 0x02000000
 	flagsNonIFrame = 0x01010000
@@ -45,9 +45,9 @@ func u16(v uint16) []byte {
 	return b
 }
 
-// SPS reais, capturados das câmeras do primeiro deployment. Valem mais que
-// qualquer SPS sintético porque foi exatamente aqui que a suposição furou: a
-// mesma câmera anuncia 1440p no init e transmite 1080p.
+// Real SPSs, captured from the cameras of the first deployment. They're worth
+// more than any synthetic SPS because this is exactly where the assumption
+// broke: the same camera advertises 1440p in the init and streams 1080p.
 var (
 	spsH264720p  = mustHex("6742001f95a814016e40")
 	spsH2651440p = mustHex("42010101400000030000030000030000030099a001402005a1fe5aee46c1ae5504")
@@ -62,19 +62,19 @@ func mustHex(s string) []byte {
 	return b
 }
 
-// avcC e hvcC montam o registro de configuração que carrega o SPS, no formato
-// que o go2rtc escreve.
+// avcC and hvcC build the configuration record that carries the SPS, in the
+// format go2rtc writes.
 func avcC(sps []byte) []byte {
 	b := []byte{1, sps[1], sps[2], sps[3], 0xff, 0xe1}
 	b = append(b, u16(uint16(len(sps)))...)
 	b = append(b, sps...)
-	return box("avcC", b, []byte{0}) // nenhum PPS
+	return box("avcC", b, []byte{0}) // no PPS
 }
 
 func hvcC(sps []byte) []byte {
 	b := make([]byte, 22)
 	b[0] = 1
-	b[21] = 0xf3 // lengthSizeMinusOne = 3, ou seja, prefixo de 4 bytes
+	b[21] = 0xf3 // lengthSizeMinusOne = 3, that is, a 4-byte prefix
 	b = append(b, 1, 33)
 	b = append(b, u16(1)...)
 	b = append(b, u16(uint16(len(sps)))...)
@@ -89,9 +89,9 @@ func configFor(codec string) []byte {
 	return avcC(spsH264720p)
 }
 
-// visualSampleEntry monta a sample entry de vídeo: 78 bytes de campos fixos
-// depois do cabeçalho da caixa (reserved, data_reference_index, dimensões,
-// resoluções, compressorname, depth) e então as caixas filhas.
+// visualSampleEntry builds the video sample entry: 78 bytes of fixed fields
+// after the box header (reserved, data_reference_index, dimensions,
+// resolutions, compressorname, depth) and then the child boxes.
 func visualSampleEntry(codec string, children ...[]byte) []byte {
 	parts := append([][]byte{make([]byte, 78)}, children...)
 	return box(codec, parts...)
@@ -124,12 +124,12 @@ func makeMoov(trackID, timescale uint32, codec string, audio bool) []byte {
 	return box("moov", children...)
 }
 
-// makeMoof monta um moof com um único sample, como o go2rtc faz.
+// makeMoof builds a moof with a single sample, as go2rtc does.
 func makeMoof(trackID uint32, dts uint64, sampleFlags uint32, v1 bool) []byte {
 	return makeMoofDur(trackID, dts, sampleFlags, v1, 6000)
 }
 
-// makeMoofDur inclui a duração do sample no trun, que é como o go2rtc escreve.
+// makeMoofDur includes the sample duration in the trun, which is how go2rtc writes it.
 func makeMoofDur(trackID uint32, dts uint64, sampleFlags uint32, v1 bool, dur uint32) []byte {
 	tfhd := box("tfhd", u32(0), u32(trackID))
 
@@ -145,106 +145,108 @@ func makeMoofDur(trackID uint32, dts uint64, sampleFlags uint32, v1 bool, dur ui
 	return box("moof", box("mfhd", u32(0), u32(1)), box("traf", tfhd, tfdt, trun))
 }
 
-// --- testes -----------------------------------------------------------------
+// --- tests ------------------------------------------------------------------
 
-func TestParseMoovExtraiTrilhas(t *testing.T) {
+func TestParseMoovReadsTracks(t *testing.T) {
 	mv, err := ParseMoov(makeMoov(1, 90000, "hev1", true))
 	if err != nil {
 		t.Fatalf("ParseMoov: %v", err)
 	}
 	if len(mv.Tracks) != 2 {
-		t.Fatalf("esperava 2 trilhas, veio %d", len(mv.Tracks))
+		t.Fatalf("want 2 tracks, got %d", len(mv.Tracks))
 	}
 
 	vt, ok := mv.VideoTrack()
 	if !ok {
-		t.Fatal("não achou a trilha de vídeo")
+		t.Fatal("video track not found")
 	}
 	if vt.ID != 1 || vt.Timescale != 90000 || vt.Codec != "hev1" {
-		t.Errorf("trilha de vídeo errada: %+v", vt)
+		t.Errorf("wrong video track: %+v", vt)
 	}
 	if vt.DefaultSampleFlags != flagsNonIFrame {
-		t.Errorf("default_sample_flags do trex = %#x, esperava %#x", vt.DefaultSampleFlags, flagsNonIFrame)
+		t.Errorf("trex default_sample_flags = %#x, want %#x", vt.DefaultSampleFlags, flagsNonIFrame)
 	}
 	if !mv.HasAudio() {
-		t.Error("HasAudio() devia ser true")
+		t.Error("HasAudio() should be true")
 	}
 }
 
-// A resolução sai do SPS, não dos campos width/height da sample entry. Estes
-// SPS vieram das câmeras de verdade, e o resultado esperado é o que o ffmpeg
-// decodifica dos mesmos bytes.
+// The resolution comes from the SPS, not from the sample entry width/height
+// fields. These SPSs came from real cameras, and the expected result is what
+// ffmpeg decodes from the same bytes.
 func TestSPSSize(t *testing.T) {
 	tests := []struct {
-		nome  string
+		name  string
 		codec string
 		sps   []byte
 		w, h  uint16
 	}{
-		{"h264 da porta", "avc1", spsH264720p, 1280, 720},
-		{"h265 anunciado no init da cam_teta", "hev1", spsH2651440p, 2560, 1440},
-		{"h265 in-band que a cam_teta realmente transmite", "hev1", spsH2651080p, 1920, 1080},
+		{"h264 from the door camera", "avc1", spsH264720p, 1280, 720},
+		{"h265 advertised in the init", "hev1", spsH2651440p, 2560, 1440},
+		{"h265 in-band that the camera actually streams", "hev1", spsH2651080p, 1920, 1080},
 	}
 	for _, tt := range tests {
-		t.Run(tt.nome, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			w, h, ok := SPSSize(tt.codec, tt.sps)
 			if !ok {
-				t.Fatal("não conseguiu ler o SPS")
+				t.Fatal("couldn't read the SPS")
 			}
 			if w != tt.w || h != tt.h {
-				t.Errorf("resolução = %dx%d, esperava %dx%d", w, h, tt.w, tt.h)
+				t.Errorf("resolution = %dx%d, want %dx%d", w, h, tt.w, tt.h)
 			}
 		})
 	}
 }
 
-// Um SPS truncado tem que virar "não sei", nunca um número inventado: a tela
-// mostra "-" e ninguém é enganado.
-func TestSPSSizeTruncadoNaoInventa(t *testing.T) {
+// A truncated SPS must become "don't know", never a made-up number: the screen
+// shows "-" and nobody is misled.
+func TestSPSSizeTruncatedDoesNotGuess(t *testing.T) {
 	for n := 1; n < len(spsH2651080p); n++ {
 		if _, _, ok := SPSSize("hev1", spsH2651080p[:n]); ok {
-			// Um prefixo pode até ser legível, mas nunca pode passar por
-			// resolução plausível se os campos não chegaram inteiros.
+			// A prefix may even be readable, but must never pass for a
+			// plausible resolution if the fields didn't arrive whole.
 			w, h, _ := SPSSize("hev1", spsH2651080p[:n])
 			if w == 1920 && h == 1080 {
-				continue // o SPS acabou de ficar completo o bastante
+				continue // the SPS has just become complete enough
 			}
-			t.Fatalf("SPS cortado em %d bytes devolveu %dx%d como se fosse válido", n, w, h)
+			t.Fatalf("SPS cut at %d bytes returned %dx%d as if it were valid", n, w, h)
 		}
 	}
 	if _, _, ok := SPSSize("mp4a", spsH264720p); ok {
-		t.Error("codec de áudio não devia produzir resolução")
+		t.Error("an audio codec should not produce a resolution")
 	}
 }
 
-// A resolução do init vem do SPS que o hvcC/avcC carrega. A trilha de áudio,
-// cuja sample entry tem outro layout, não pode inventar dimensão nenhuma.
-func TestParseMoovExtraiResolucaoDoSPS(t *testing.T) {
+// The init's resolution comes from the SPS the hvcC/avcC carries. The audio
+// track, whose sample entry has another layout, must not make up any
+// dimension.
+func TestParseMoovReadsResolutionFromSPS(t *testing.T) {
 	mv, err := ParseMoov(makeMoov(1, 90000, "hev1", true))
 	if err != nil {
 		t.Fatal(err)
 	}
 	vt, _ := mv.VideoTrack()
 	if vt.Width != 2560 || vt.Height != 1440 {
-		t.Errorf("resolução = %dx%d, esperava 2560x1440", vt.Width, vt.Height)
+		t.Errorf("resolution = %dx%d, want 2560x1440", vt.Width, vt.Height)
 	}
 	if vt.NALLengthSize != 4 {
-		t.Errorf("NALLengthSize = %d, esperava 4", vt.NALLengthSize)
+		t.Errorf("NALLengthSize = %d, want 4", vt.NALLengthSize)
 	}
 	for _, tr := range mv.Tracks {
 		if tr.Handler == HandlerAudio && (tr.Width != 0 || tr.Height != 0) {
-			t.Errorf("trilha de áudio veio com dimensão %dx%d", tr.Width, tr.Height)
+			t.Errorf("audio track came with dimensions %dx%d", tr.Width, tr.Height)
 		}
 	}
 }
 
-// Uma sample entry sem configuração de codec não pode derrubar a leitura do
-// init: sem resolução ainda dá para gravar, e falhar aqui custaria a gravação.
-func TestParseMoovSemConfigDeCodec(t *testing.T) {
+// A sample entry without codec configuration must not break reading the init:
+// recording still works without the resolution, and failing here would cost
+// the recording.
+func TestParseMoovWithoutCodecConfig(t *testing.T) {
 	tkhd := box("tkhd", u32(0), u32(0), u32(0), u32(1))
 	mdhd := box("mdhd", u32(0), u32(0), u32(0), u32(90000), u32(0))
 	hdlr := box("hdlr", u32(0), u32(0), []byte("vide"))
-	stsd := box("stsd", u32(0), u32(1), box("avc1")) // sem sequer os campos fixos
+	stsd := box("stsd", u32(0), u32(1), box("avc1")) // not even the fixed fields
 	trak := box("trak", tkhd, box("mdia", mdhd, hdlr, box("minf", box("stbl", stsd))))
 
 	mv, err := ParseMoov(box("moov", box("mvhd", u32(0)), trak))
@@ -253,18 +255,18 @@ func TestParseMoovSemConfigDeCodec(t *testing.T) {
 	}
 	vt, ok := mv.VideoTrack()
 	if !ok {
-		t.Fatal("não achou a trilha de vídeo")
+		t.Fatal("video track not found")
 	}
 	if vt.Codec != "avc1" {
 		t.Errorf("codec = %q", vt.Codec)
 	}
 	if vt.Width != 0 || vt.Height != 0 {
-		t.Errorf("esperava dimensão zerada, veio %dx%d", vt.Width, vt.Height)
+		t.Errorf("want zero dimensions, got %dx%d", vt.Width, vt.Height)
 	}
 }
 
-// FindSPS acha o parameter set no meio dos NALs do fragmento - o caminho que
-// corrige um init mentiroso.
+// FindSPS finds the parameter set among the fragment's NALs - the path that
+// fixes a lying init.
 func TestFindSPSInband(t *testing.T) {
 	nal := func(b []byte) []byte {
 		return append(u32(uint32(len(b))), b...)
@@ -275,37 +277,37 @@ func TestFindSPSInband(t *testing.T) {
 
 	sps, ok := FindSPS("hev1", BoxPayload(mdat), 4)
 	if !ok {
-		t.Fatal("não achou o SPS in-band")
+		t.Fatal("in-band SPS not found")
 	}
 	w, h, ok := SPSSize("hev1", sps)
 	if !ok || w != 1920 || h != 1080 {
-		t.Errorf("SPS in-band deu %dx%d (ok=%v), esperava 1920x1080", w, h, ok)
+		t.Errorf("in-band SPS gave %dx%d (ok=%v), want 1920x1080", w, h, ok)
 	}
 
-	// Um fragmento só de dados não pode devolver lixo como se fosse SPS.
-	semSPS := box("mdat", nal(idr))
-	if _, ok := FindSPS("hev1", BoxPayload(semSPS), 4); ok {
-		t.Error("achou SPS onde não há")
+	// A data-only fragment must not return garbage as if it were an SPS.
+	noSPS := box("mdat", nal(idr))
+	if _, ok := FindSPS("hev1", BoxPayload(noSPS), 4); ok {
+		t.Error("found an SPS where there is none")
 	}
-	// Nem um comprimento maior que o próprio buffer pode virar leitura fora.
+	// Nor may a length larger than the buffer itself turn into an out-of-bounds read.
 	if _, ok := FindSPS("hev1", []byte{0xff, 0xff, 0xff, 0xff, 1, 2}, 4); ok {
-		t.Error("aceitou um NAL que não cabe no fragmento")
+		t.Error("accepted a NAL that doesn't fit in the fragment")
 	}
 }
 
-// O custo precisa caber num hardware modesto: o parse roda uma vez por
-// conexão, mas se ele fosse caro isso apareceria aqui.
+// The cost must fit modest hardware: the parse runs once per connection, but
+// if it were expensive it would show up here.
 func BenchmarkSPSSize(b *testing.B) {
 	for b.Loop() {
 		if _, _, ok := SPSSize("hev1", spsH2651080p); !ok {
-			b.Fatal("SPS ilegível")
+			b.Fatal("unreadable SPS")
 		}
 	}
 }
 
-// O pior caso é o SPS chegar depois de todos os outros NALs do fragmento,
-// obrigando a varredura a percorrer o keyframe inteiro.
-func BenchmarkFindSPSPiorCaso(b *testing.B) {
+// The worst case is the SPS arriving after all the other NALs of the
+// fragment, forcing the scan through the whole keyframe.
+func BenchmarkFindSPSWorstCase(b *testing.B) {
 	nal := func(x []byte) []byte { return append(u32(uint32(len(x))), x...) }
 	parts := [][]byte{}
 	for range 32 {
@@ -316,89 +318,89 @@ func BenchmarkFindSPSPiorCaso(b *testing.B) {
 	b.SetBytes(int64(len(mdat)))
 	for b.Loop() {
 		if _, ok := FindSPS("hev1", mdat, 4); !ok {
-			b.Fatal("não achou")
+			b.Fatal("not found")
 		}
 	}
 }
 
-// A trilha de vídeo é quem decide onde cortar um segmento. Como o go2rtc marca
-// samples de áudio com o mesmo sampleDependsOn2 dos keyframes, confundir as
-// trilhas faria todo pacote de áudio parecer um ponto de corte válido.
-func TestVideoTrackIgnoraAudio(t *testing.T) {
+// The video track decides where to cut a segment. Since go2rtc flags audio
+// samples with the same sampleDependsOn2 as keyframes, mixing up the tracks
+// would make every audio packet look like a valid cut point.
+func TestVideoTrackIgnoresAudio(t *testing.T) {
 	mv, err := ParseMoov(makeMoov(1, 90000, "avc1", true))
 	if err != nil {
 		t.Fatal(err)
 	}
 	vt, _ := mv.VideoTrack()
 	if vt.Handler != HandlerVideo {
-		t.Errorf("VideoTrack devolveu handler %q", vt.Handler)
+		t.Errorf("VideoTrack returned handler %q", vt.Handler)
 	}
 }
 
-func TestParseMoofDetectaKeyframe(t *testing.T) {
+func TestParseMoofDetectsKeyframe(t *testing.T) {
 	tests := []struct {
-		nome     string
+		name     string
 		flags    uint32
 		keyframe bool
 	}{
-		{"keyframe do go2rtc", flagsIFrame, true},
-		{"frame P do go2rtc", flagsNonIFrame, false},
-		{"apenas bit de não-sincronismo", sampleIsNonSync, false},
-		{"tudo zerado conta como sync", 0, true},
-		{"depends_on=1 sem bit de não-sync", 0x01000000, false},
+		{"go2rtc keyframe", flagsIFrame, true},
+		{"go2rtc P frame", flagsNonIFrame, false},
+		{"only the non-sync bit", sampleIsNonSync, false},
+		{"all zeros counts as sync", 0, true},
+		{"depends_on=1 without the non-sync bit", 0x01000000, false},
 	}
 	for _, tt := range tests {
-		t.Run(tt.nome, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			frag, err := ParseMoof(makeMoof(1, 1000, tt.flags, true), 1)
 			if err != nil {
 				t.Fatalf("ParseMoof: %v", err)
 			}
 			if frag.Keyframe != tt.keyframe {
-				t.Errorf("flags %#x: Keyframe=%v, esperava %v", tt.flags, frag.Keyframe, tt.keyframe)
+				t.Errorf("flags %#x: Keyframe=%v, want %v", tt.flags, frag.Keyframe, tt.keyframe)
 			}
 			if frag.TrackID != 1 {
 				t.Errorf("TrackID=%d", frag.TrackID)
 			}
 			if !frag.HasBaseTime || frag.BaseDecodeTime != 1000 {
-				t.Errorf("tfdt=%d (presente=%v)", frag.BaseDecodeTime, frag.HasBaseTime)
+				t.Errorf("tfdt=%d (present=%v)", frag.BaseDecodeTime, frag.HasBaseTime)
 			}
 		})
 	}
 }
 
-// Um moof da trilha de áudio nunca pode ser classificado como keyframe, senão o
-// corte de segmento aconteceria fora de um keyframe de vídeo.
-func TestParseMoofOutraTrilhaNuncaEhKeyframe(t *testing.T) {
+// A moof from the audio track must never be classified as a keyframe, or the
+// segment cut would happen outside a video keyframe.
+func TestParseMoofOtherTrackIsNeverKeyframe(t *testing.T) {
 	frag, err := ParseMoof(makeMoof(2, 500, flagsIFrame, true), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if frag.Keyframe {
-		t.Error("moof da trilha 2 foi classificado como keyframe da trilha 1")
+		t.Error("moof from track 2 was classified as a keyframe of track 1")
 	}
 	if frag.TrackID != 2 {
-		t.Errorf("TrackID=%d, esperava 2", frag.TrackID)
+		t.Errorf("TrackID=%d, want 2", frag.TrackID)
 	}
 }
 
-// A duração do fragmento é o que separa "onde o último frame começa" de "onde
-// o segmento termina". Ignorá-la fazia cada emenda da exportação colocar o
-// segmento seguinte em cima do último frame do anterior, e o DTS regredia.
+// The fragment duration is what separates "where the last frame starts" from
+// "where the segment ends". Ignoring it made every export splice put the next
+// segment on top of the previous one's last frame, and the DTS went backwards.
 func TestFragmentEndTime(t *testing.T) {
 	frag, err := ParseMoof(makeMoofDur(1, 90000, flagsIFrame, true, 6000), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if frag.Duration != 6000 {
-		t.Errorf("Duration=%d, esperava 6000", frag.Duration)
+		t.Errorf("Duration=%d, want 6000", frag.Duration)
 	}
 	if frag.EndTime() != 96000 {
-		t.Errorf("EndTime=%d, esperava 96000 (90000 + 6000)", frag.EndTime())
+		t.Errorf("EndTime=%d, want 96000 (90000 + 6000)", frag.EndTime())
 	}
 }
 
-// Com vários samples num fragmento, a duração é a soma de todos.
-func TestFragmentDuracaoMultiplosSamples(t *testing.T) {
+// With several samples in a fragment, the duration is the sum of all of them.
+func TestFragmentDurationMultipleSamples(t *testing.T) {
 	tfhd := box("tfhd", u32(0), u32(1))
 	tfdt := box("tfdt", []byte{1, 0, 0, 0}, u64(0))
 	// flags 0x000301 = data-offset | sample-duration | sample-size
@@ -414,16 +416,16 @@ func TestFragmentDuracaoMultiplosSamples(t *testing.T) {
 		t.Errorf("SampleCount=%d", frag.SampleCount)
 	}
 	if frag.Duration != 6000 {
-		t.Errorf("Duration=%d, esperava 6000 (1000+2000+3000)", frag.Duration)
+		t.Errorf("Duration=%d, want 6000 (1000+2000+3000)", frag.Duration)
 	}
 }
 
-// Quando o trun não traz durações, vale o default_sample_duration do tfhd.
-func TestFragmentDuracaoPeloDefaultDoTfhd(t *testing.T) {
+// When the trun carries no durations, the tfhd default_sample_duration applies.
+func TestFragmentDurationFromTfhdDefault(t *testing.T) {
 	// tfhd flags 0x8 = default-sample-duration-present
 	tfhd := box("tfhd", u32(0x000008), u32(1), u32(1500))
 	tfdt := box("tfdt", []byte{1, 0, 0, 0}, u64(0))
-	trun := box("trun", u32(0x000001), u32(4), u32(0)) // só data_offset
+	trun := box("trun", u32(0x000001), u32(4), u32(0)) // only data_offset
 	moof := box("moof", box("mfhd", u32(0), u32(1)), box("traf", tfhd, tfdt, trun))
 
 	frag, err := ParseMoof(moof, 1)
@@ -431,15 +433,15 @@ func TestFragmentDuracaoPeloDefaultDoTfhd(t *testing.T) {
 		t.Fatal(err)
 	}
 	if frag.Duration != 6000 {
-		t.Errorf("Duration=%d, esperava 6000 (4 × 1500)", frag.Duration)
+		t.Errorf("Duration=%d, want 6000 (4 × 1500)", frag.Duration)
 	}
 }
 
-// Emendar dois segmentos usando o FIM do primeiro tem que produzir DTS
-// estritamente crescente - é a invariante que a exportação depende.
-func TestEmendaDeSegmentosNaoRegrideDTS(t *testing.T) {
+// Splicing two segments using the END of the first must produce strictly
+// increasing DTS - it's the invariant the export depends on.
+func TestSegmentSpliceDoesNotRegressDTS(t *testing.T) {
 	const dur = 6000
-	// Segmento A: frames em 0, 6000, 12000; termina em 18000.
+	// Segment A: frames at 0, 6000, 12000; ends at 18000.
 	var aEnd uint64
 	for _, dts := range []uint64{0, 6000, 12000} {
 		frag, err := ParseMoof(makeMoofDur(1, dts, flagsIFrame, true, dur), 1)
@@ -449,10 +451,10 @@ func TestEmendaDeSegmentosNaoRegrideDTS(t *testing.T) {
 		aEnd = frag.EndTime()
 	}
 	if aEnd != 18000 {
-		t.Fatalf("fim do segmento A = %d, esperava 18000", aEnd)
+		t.Fatalf("end of segment A = %d, want 18000", aEnd)
 	}
 
-	// Segmento B começa em zero e é deslocado pelo fim de A.
+	// Segment B starts at zero and is shifted by the end of A.
 	moof := makeMoofDur(1, 0, flagsIFrame, true, dur)
 	if err := ShiftMoof(moof, map[uint32]int64{1: int64(aEnd)}); err != nil {
 		t.Fatal(err)
@@ -462,18 +464,18 @@ func TestEmendaDeSegmentosNaoRegrideDTS(t *testing.T) {
 		t.Fatal(err)
 	}
 	if frag.BaseDecodeTime <= 12000 {
-		t.Errorf("primeiro frame de B em %d, deveria vir DEPOIS do último de A (12000)",
+		t.Errorf("first frame of B at %d, should come AFTER the last of A (12000)",
 			frag.BaseDecodeTime)
 	}
 	if frag.BaseDecodeTime != 18000 {
-		t.Errorf("primeiro frame de B em %d, esperava 18000 (sem buraco nem sobreposição)",
+		t.Errorf("first frame of B at %d, want 18000 (no gap or overlap)",
 			frag.BaseDecodeTime)
 	}
 }
 
-func TestRebaseMoofZeraOSegmento(t *testing.T) {
+func TestRebaseMoofZeroesSegment(t *testing.T) {
 	for _, v1 := range []bool{true, false} {
-		moof := makeMoof(1, 2_160_000, flagsIFrame, v1) // 24s a 90kHz
+		moof := makeMoof(1, 2_160_000, flagsIFrame, v1) // 24s at 90kHz
 		if err := RebaseMoof(moof, map[uint32]uint64{1: 2_160_000}); err != nil {
 			t.Fatalf("RebaseMoof: %v", err)
 		}
@@ -482,50 +484,50 @@ func TestRebaseMoofZeraOSegmento(t *testing.T) {
 			t.Fatal(err)
 		}
 		if frag.BaseDecodeTime != 0 {
-			t.Errorf("v1=%v: tfdt=%d após rebase, esperava 0", v1, frag.BaseDecodeTime)
+			t.Errorf("v1=%v: tfdt=%d after rebase, want 0", v1, frag.BaseDecodeTime)
 		}
 	}
 }
 
-// O áudio pode estar alguns milissegundos atrás do keyframe de vídeo que abriu
-// o segmento. Sem o clamp, o uint64 daria a volta e viraria um timestamp
-// astronômico, que quebraria a reprodução.
-func TestRebaseMoofNaoFazUnderflow(t *testing.T) {
+// Audio may be a few milliseconds behind the video keyframe that opened the
+// segment. Without the clamp, the uint64 would wrap around into an
+// astronomical timestamp, which would break playback.
+func TestRebaseMoofDoesNotUnderflow(t *testing.T) {
 	moof := makeMoof(1, 100, flagsIFrame, true)
 	if err := RebaseMoof(moof, map[uint32]uint64{1: 5000}); err != nil {
 		t.Fatal(err)
 	}
 	frag, _ := ParseMoof(moof, 1)
 	if frag.BaseDecodeTime != 0 {
-		t.Errorf("tfdt=%d, esperava 0 (clamp)", frag.BaseDecodeTime)
+		t.Errorf("tfdt=%d, want 0 (clamp)", frag.BaseDecodeTime)
 	}
 }
 
-func TestRebaseMoofPreservaTamanho(t *testing.T) {
+func TestRebaseMoofKeepsSize(t *testing.T) {
 	moof := makeMoof(1, 900000, flagsIFrame, true)
-	antes := len(moof)
+	before := len(moof)
 	if err := RebaseMoof(moof, map[uint32]uint64{1: 90000}); err != nil {
 		t.Fatal(err)
 	}
-	if len(moof) != antes {
-		t.Errorf("tamanho mudou de %d para %d; nenhum tamanho de caixa acima seria recalculado", antes, len(moof))
+	if len(moof) != before {
+		t.Errorf("size changed from %d to %d; no box size above it would be recomputed", before, len(moof))
 	}
 }
 
-// Trilhas com timescales diferentes precisam ser rebaseadas no MESMO instante,
-// senão o desalinhamento real entre áudio e vídeo se perde.
+// Tracks with different timescales must be rebased at the SAME instant, or the
+// real offset between audio and video is lost.
 func TestScaleTime(t *testing.T) {
-	// 2 segundos a 90kHz devem virar 2 segundos a 16kHz.
+	// 2 seconds at 90kHz must become 2 seconds at 16kHz.
 	if got := ScaleTime(180000, 90000, 16000); got != 32000 {
-		t.Errorf("ScaleTime(180000, 90000, 16000) = %d, esperava 32000", got)
+		t.Errorf("ScaleTime(180000, 90000, 16000) = %d, want 32000", got)
 	}
 	if got := ScaleTime(12345, 90000, 90000); got != 12345 {
-		t.Errorf("mesma timescale deveria ser identidade, veio %d", got)
+		t.Errorf("same timescale should be identity, got %d", got)
 	}
 }
 
-func TestReaderCaixaGrande(t *testing.T) {
-	// size==1 sinaliza tamanho estendido de 64 bits.
+func TestReaderLargeBox(t *testing.T) {
+	// size==1 signals a 64-bit extended size.
 	payload := bytes.Repeat([]byte{0xAB}, 32)
 	var b []byte
 	b = append(b, u32(1)...)
@@ -539,19 +541,19 @@ func TestReaderCaixaGrande(t *testing.T) {
 		t.Fatalf("NextBox: %v", err)
 	}
 	if typ != "mdat" {
-		t.Errorf("tipo=%q", typ)
+		t.Errorf("type=%q", typ)
 	}
 	if len(got) != len(b) {
-		t.Errorf("len=%d, esperava %d", len(got), len(b))
+		t.Errorf("len=%d, want %d", len(got), len(b))
 	}
 }
 
-func TestReaderRejeitaTamanhoInvalido(t *testing.T) {
-	// Tamanho menor que o próprio cabeçalho: stream corrompido.
+func TestReaderRejectsInvalidSize(t *testing.T) {
+	// Size smaller than the header itself: corrupted stream.
 	b := append(u32(4), []byte("moof")...)
 	r := NewReader(bytes.NewReader(b))
 	if _, _, err := r.NextBox(); err == nil {
-		t.Error("esperava erro para caixa com tamanho 4")
+		t.Error("want an error for a box of size 4")
 	}
 }
 
@@ -568,7 +570,7 @@ func TestProbeSegment(t *testing.T) {
 	seg = append(seg, frag0...)
 	seg = append(seg, makeMoof(1, 6000, flagsNonIFrame, true)...)
 	seg = append(seg, box("mdat", bytes.Repeat([]byte{2}, 50))...)
-	// 90000 = 1 segundo
+	// 90000 = 1 second
 	seg = append(seg, makeMoof(1, 90000, flagsIFrame, true)...)
 	seg = append(seg, box("mdat", bytes.Repeat([]byte{3}, 70))...)
 
@@ -577,39 +579,39 @@ func TestProbeSegment(t *testing.T) {
 		t.Fatalf("probeSegment: %v", err)
 	}
 	if info.InitSize != int64(initSize) {
-		t.Errorf("InitSize=%d, esperava %d", info.InitSize, initSize)
+		t.Errorf("InitSize=%d, want %d", info.InitSize, initSize)
 	}
 	if info.FirstFragSize != int64(firstFrag) {
-		t.Errorf("FirstFragSize=%d, esperava %d", info.FirstFragSize, firstFrag)
+		t.Errorf("FirstFragSize=%d, want %d", info.FirstFragSize, firstFrag)
 	}
 	if info.Frames != 3 {
-		t.Errorf("Frames=%d, esperava 3", info.Frames)
+		t.Errorf("Frames=%d, want 3", info.Frames)
 	}
 	if info.Keyframes != 2 {
-		t.Errorf("Keyframes=%d, esperava 2", info.Keyframes)
+		t.Errorf("Keyframes=%d, want 2", info.Keyframes)
 	}
-	// O último frame começa em 90000 (1s) e dura 6000, então o segmento cobre
-	// 96000/90000 = 1,0667s. Reportar 1000 aqui seria omitir o último frame -
-	// exatamente o erro que fazia a emenda da exportação regredir o DTS.
+	// The last frame starts at 90000 (1s) and lasts 6000, so the segment covers
+	// 96000/90000 = 1.0667s. Reporting 1000 here would leave out the last frame -
+	// exactly the bug that made the export splice move the DTS backwards.
 	if info.DurationMs != 1066 {
-		t.Errorf("DurationMs=%d, esperava 1066 (fim do último frame, não o início dele)",
+		t.Errorf("DurationMs=%d, want 1066 (end of the last frame, not its start)",
 			info.DurationMs)
 	}
 	if info.Gen == "" {
-		t.Error("Gen vazio; um segmento órfão recuperado no boot não acharia o init")
+		t.Error("empty Gen; an orphan segment recovered at boot wouldn't find the init")
 	}
 }
 
-// O mesmo init tem que produzir sempre a mesma geração, e inits diferentes têm
-// que produzir gerações diferentes - é isso que detecta troca de codec.
+// The same init must always produce the same generation, and different inits
+// must produce different generations - that's what detects a codec change.
 func TestInitGen(t *testing.T) {
 	a := makeMoov(1, 90000, "hev1", false)
 	b := makeMoov(1, 90000, "avc1", false)
 
 	if g1, g2 := InitGen(a), InitGen(a); g1 != g2 {
-		t.Error("InitGen não é determinística")
+		t.Error("InitGen is not deterministic")
 	}
 	if InitGen(a) == InitGen(b) {
-		t.Error("inits com codecs diferentes produziram a mesma geração")
+		t.Error("inits with different codecs produced the same generation")
 	}
 }

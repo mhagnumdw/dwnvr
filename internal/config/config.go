@@ -1,13 +1,13 @@
-// Package config carrega a configuração do dwnvr.
+// Package config loads dwnvr's configuration.
 //
-// A configuração é deliberadamente dividida em dois arquivos:
+// The configuration is deliberately split in two files:
 //
-//   - dwnvr.yaml   infraestrutura, editado à mão, NUNCA reescrito pela aplicação
-//   - cameras.json lista de câmeras, gerenciada pela API de cadastro
+//   - dwnvr.yaml   infrastructure, edited by hand, NEVER rewritten by the app
+//   - cameras.json the camera list, managed by the camera API
 //
-// A separação existe porque reescrever um YAML apaga os comentários de quem o
-// escreveu. Como a tela de cadastro precisa gravar câmeras, misturar as duas
-// coisas destruiria as anotações do usuário a cada clique.
+// The split exists because rewriting a YAML file wipes out the comments of
+// whoever wrote it. Since the cameras screen needs to save cameras, mixing the
+// two would destroy the user's notes on every click.
 package config
 
 import (
@@ -29,19 +29,19 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 )
 
-// Modos de áudio suportados por câmera.
+// Audio modes supported per camera.
 const (
 	AudioNone = "none"
 	AudioFLAC = "flac"
 	AudioAAC  = "aac"
 )
 
-// DefaultStallSeconds é quanto tempo sem receber um único byte basta para
-// considerar o stream morto.
+// DefaultStallSeconds is how long without receiving a single byte is enough
+// to consider the stream dead.
 //
-// Quinze segundos é folgado: mesmo uma câmera de 1 fps manda bytes todo
-// segundo. O número não precisa ser justo - precisa ser MUITO menor que as 3h38
-// que uma câmera passou parada em silêncio antes disto existir.
+// Fifteen seconds is generous: even a 1 fps camera sends bytes every second.
+// The number doesn't need to be tight - it needs to be MUCH smaller than the
+// 3h38 a camera spent silently stopped before this existed.
 const DefaultStallSeconds = 15
 
 type Config struct {
@@ -53,45 +53,46 @@ type Config struct {
 	SMTP     SMTP     `yaml:"smtp"`
 	Alerts   Alerts   `yaml:"alerts"`
 
-	// dir é o diretório do dwnvr.yaml; cameras.json fica ao lado dele.
+	// dir is the directory of dwnvr.yaml; cameras.json sits next to it.
 	dir string `yaml:"-"`
 }
 
 type Server struct {
 	Listen string `yaml:"listen"`
 
-	// Deixar usuário e senha vazios desliga a autenticação. Isso é aceitável
-	// numa rede confiável, e é o padrão para não travar o primeiro uso - mas o
-	// dwnvr avisa no log, porque quem acessa a interface enxerga as gravações
-	// de todas as câmeras.
+	// Leaving username and password empty turns authentication off. That's
+	// acceptable on a trusted network, and it's the default so as not to block
+	// the first use - but dwnvr warns in the log, because whoever opens the
+	// UI sees the recordings of every camera.
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 
-	// LoginAttemptsPerMinute é o ritmo das tentativas de login de cada
-	// endereço, depois de uma rajada de limite.RajadaDoLogin seguidas. Zero
-	// desliga o limite.
+	// LoginAttemptsPerMinute is the rate of login attempts from each address,
+	// after a burst of ratelimit.LoginBurst in a row. Zero turns the limit
+	// off.
 	LoginAttemptsPerMinute int `yaml:"loginAttemptsPerMinute"`
 
-	// TrustedProxies são as redes dos proxies cujo X-Forwarded-For diz quem
-	// chegou de verdade (ver api.clienteDe). Fora delas, vale o endereço da
-	// conexão, porque o header quem escreve é o cliente. Lista vazia não
-	// confia em ninguém.
+	// TrustedProxies are the networks of the proxies whose X-Forwarded-For
+	// says who really arrived (see api.clientOf). Outside them, the
+	// connection's address counts, because the client is the one writing the
+	// header. An empty list trusts nobody.
 	TrustedProxies []string `yaml:"trustedProxies"`
 
-	// PublicURL é o endereço pelo qual se abre o dwnvr, como
-	// "https://dwnvr.exemplo.ts.net": o servidor não tem como sabê-lo, porque
-	// cada um chega por um caminho. O e-mail de alerta o usa no botão que
-	// abre a gravação no instante. Vazio, o e-mail sai sem o botão. Sai sem a
-	// "/" do fim (ver confereEndereco).
+	// PublicURL is the address dwnvr is opened at, like
+	// "https://dwnvr.exemplo.ts.net": the server has no way to know it,
+	// because each person comes in a different way. The alert e-mail uses it
+	// in the button that opens the recording at the instant. Empty, the
+	// e-mail goes out without the button. It's stored without the trailing
+	// "/" (see checkPublicURL).
 	PublicURL string `yaml:"publicUrl"`
 }
 
-// AuthEnabled diz se alguma credencial foi configurada.
+// AuthEnabled says whether any credential was configured.
 func (s Server) AuthEnabled() bool { return s.Username != "" || s.Password != "" }
 
-// SecretPath é onde fica o segredo que assina os cookies de sessão. Ele é
-// gerado no primeiro uso; guardá-lo em arquivo evita derrubar todas as sessões
-// a cada reinício do processo.
+// SecretPath is where the secret that signs the session cookies lives. It's
+// generated on first use; keeping it in a file avoids dropping every session
+// on each process restart.
 func (c *Config) SecretPath() string { return filepath.Join(c.dir, ".session-secret") }
 
 type Go2RTC struct {
@@ -100,29 +101,29 @@ type Go2RTC struct {
 	Password string `yaml:"password"`
 }
 
-// Detector é o detector de objetos: o container `dwnvr-detect`, que diz se o
-// movimento era pessoa, veículo ou animal. É opcional e fica à parte porque
-// decodificar vídeo e rodar um modelo exigem código nativo, e o dwnvr é Go
-// puro.
+// Detector is the object detector: the `dwnvr-detect` container, which says
+// whether the motion was a person, a vehicle or an animal. It's optional and
+// kept apart because decoding video and running a model require native code,
+// and dwnvr is pure Go.
 type Detector struct {
-	// URL do sidecar, ex.: http://dwnvr-detect:8480. Vazio é "sem detector":
-	// as câmeras com `detect` ligado continuam marcando só movimento, e o
-	// dwnvr não guarda um byte de vídeo a mais por causa disso.
+	// URL of the sidecar, e.g. http://dwnvr-detect:8480. Empty means "no
+	// object detector": cameras with `detect` on keep marking only motion, and
+	// dwnvr doesn't keep a single extra byte of video because of it.
 	URL string `yaml:"url"`
 }
 
 type Storage struct {
-	// Root é onde as gravações são escritas.
+	// Root is where the recordings are written.
 	Root string `yaml:"root"`
 
-	// MinFreeMB é a trava global de disco livre. Quando o disco cai abaixo
-	// disso, o dwnvr evicta as gravações mais antigas de todas as câmeras,
-	// independentemente das cotas individuais. Existe porque a soma das cotas
-	// erra fácil, e encher o disco é pior que perder gravação antiga.
+	// MinFreeMB is the global free-disk lock. When the disk drops below it,
+	// dwnvr evicts the oldest recordings of every camera, regardless of the
+	// individual quotas. It exists because the sum of the quotas is easy to
+	// get wrong, and filling the disk is worse than losing old recordings.
 	MinFreeMB int64 `yaml:"minFreeMB"`
 }
 
-// Defaults são aplicados a qualquer câmera que não sobrescreva o campo.
+// Defaults apply to any camera that doesn't override the field.
 type Defaults struct {
 	SegmentSeconds int    `yaml:"segmentSeconds"`
 	QuotaMB        int64  `yaml:"quotaMB"`
@@ -130,73 +131,74 @@ type Defaults struct {
 	Audio          string `yaml:"audio"`
 	StallSeconds   int    `yaml:"stallSeconds"`
 
-	// Detect liga a marcação de movimento. Vem desligada: quem não pediu a
-	// faixa de calor na timeline - nem o detector de objetos que acorda por
-	// ela - não deve começar a pagar por isso.
+	// Detect turns motion marking on. It comes off: whoever didn't ask for the
+	// heat strip on the timeline - nor the object detector it wakes up -
+	// shouldn't start paying for it.
 	Detect bool `yaml:"detect"`
 
-	DetectMecanismo     string `yaml:"detectMecanismo"`
-	DetectSensibilidade int    `yaml:"detectSensibilidade"`
+	DetectMethod      string `yaml:"detectMecanismo"`
+	DetectSensitivity int    `yaml:"detectSensibilidade"`
 }
 
-// Camera é uma câmera registrada. O ID é o nome do stream no go2rtc: o dwnvr
-// não guarda URL nem credencial de câmera, porque configurar o go2rtc não é
-// responsabilidade dele.
+// Camera is a registered camera. The ID is the stream name in go2rtc: dwnvr
+// stores no camera URL or credential, because configuring go2rtc is not its
+// job.
 type Camera struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	Enabled bool   `json:"enabled"`
 
-	// Zero em qualquer campo abaixo significa "usar o default".
+	// Zero in any field below means "use the default".
 	SegmentSeconds int    `json:"segmentSeconds,omitempty"`
 	QuotaMB        int64  `json:"quotaMB,omitempty"`
 	MaxDays        int    `json:"maxDays,omitempty"`
 	Audio          string `json:"audio,omitempty"`
 
-	// StallSeconds é por câmera porque a tolerância depende do enlace: uma
-	// câmera num Wi-Fi ruim pode precisar de mais folga que uma no cabo, e
-	// baixar o limiar demais troca perda silenciosa por reconexão em excesso.
+	// StallSeconds is per camera because the tolerance depends on the link: a
+	// camera on poor Wi-Fi may need more slack than one on a cable, and
+	// lowering the threshold too much trades silent loss for excessive
+	// reconnections.
 	StallSeconds int `json:"stallSeconds,omitempty"`
 
-	// Detect liga a marcação de movimento nesta câmera.
+	// Detect turns motion marking on for this camera.
 	//
-	// Ele é ponteiro, e não bool, porque aqui o zero PRECISA se distinguir do
-	// ausente: com um bool, "desligada" e "não configurada" seriam a mesma
-	// coisa, e uma câmera desligada à mão voltaria a ligar sozinha assim que o
-	// default mudasse.
+	// It's a pointer, not a bool, because here zero MUST be distinguishable
+	// from absent: with a bool, "off" and "not configured" would be the same
+	// thing, and a camera turned off by hand would turn itself back on as soon
+	// as the default changed.
 	Detect *bool `json:"detect,omitempty"`
 
-	// DetectMecanismo escolhe quem decide disparar: `kleinberg-p`, o melhor
-	// dos 24 candidatos medidos, ou `periodico`, que dispara de X em X
-	// segundos e é a régua honesta a bater.
+	// DetectMethod picks what decides to fire: `kleinberg-p`, the best of the
+	// 24 candidates measured, or `periodico`, which fires every X seconds and
+	// is the honest reference to beat.
 	//
-	// É por câmera porque as câmeras não são iguais: numa delas, medida, o
-	// campeão pegou 10,1% das chegadas e o segundo colocado 23,4%. Trocar o
-	// mecanismo de uma câmera difícil é mais barato que subir o nível de
-	// todas.
-	DetectMecanismo string `json:"detectMecanismo,omitempty"`
+	// It's per camera because cameras aren't alike: on one of them, measured,
+	// the winner caught 10.1% of arrivals and the runner-up 23.4%. Switching
+	// the method of a difficult camera is cheaper than raising the level of
+	// all of them.
+	DetectMethod string `json:"detectMecanismo,omitempty"`
 
-	// DetectSensibilidade é o nível de 1 a 5. Ele é o CUSTO: cada nível dobra
-	// o número de detecções por hora, e cada detecção é o gasto de CPU inteiro
-	// da feature.
-	DetectSensibilidade int `json:"detectSensibilidade,omitempty"`
+	// DetectSensitivity is the level from 1 to 5. It's the COST: each level
+	// doubles the number of detections per hour, and each detection is the
+	// feature's entire CPU cost.
+	DetectSensitivity int `json:"detectSensibilidade,omitempty"`
 
-	// Areas são as áreas desenhadas sobre a imagem desta câmera, que o filtro
-	// de Detecções e o alerta usam. Mudar uma área não reinicia a gravação:
-	// o recordingParamsChanged não olha para elas.
+	// Areas are the areas drawn over this camera's image, which the
+	// Detections filter and the alert use. Changing an area doesn't restart
+	// recording: recordingParamsChanged doesn't look at them.
 	Areas []Area `json:"areas,omitempty"`
 
-	// Alert diz quando uma detecção desta câmera vira alerta. Ausente é sem
-	// alerta, como desligado. Também não reinicia a gravação.
-	Alert *AlertaDaCamera `json:"alert,omitempty"`
+	// Alert says when a detection from this camera becomes an alert. Absent
+	// means no alert, same as off. It doesn't restart recording either.
+	Alert *CameraAlert `json:"alert,omitempty"`
 }
 
 func defaults() Config {
 	return Config{
 		Server: Server{
 			Listen:                 ":8080",
-			LoginAttemptsPerMinute: LoginAttemptsPerMinutePadrao,
-			TrustedProxies:         slices.Clone(TrustedProxiesPadrao),
+			LoginAttemptsPerMinute: DefaultLoginAttemptsPerMinute,
+			TrustedProxies:         slices.Clone(DefaultTrustedProxies),
 		},
 		Go2RTC: Go2RTC{URL: "http://localhost:1984"},
 		Storage: Storage{
@@ -204,28 +206,29 @@ func defaults() Config {
 			MinFreeMB: 2048,
 		},
 		Defaults: Defaults{
-			SegmentSeconds:      30,
-			QuotaMB:             10240,
-			Audio:               AudioNone,
-			StallSeconds:        DefaultStallSeconds,
-			Detect:              false,
-			DetectMecanismo:     detect.MecanismoPadrao,
-			DetectSensibilidade: detect.NivelPadrao,
+			SegmentSeconds:    30,
+			QuotaMB:           10240,
+			Audio:             AudioNone,
+			StallSeconds:      DefaultStallSeconds,
+			Detect:            false,
+			DetectMethod:      detect.DefaultMethod,
+			DetectSensitivity: detect.DefaultLevel,
 		},
 	}
 }
 
-// Load lê o dwnvr.yaml. Um arquivo ausente não é erro: o dwnvr sobe com os
-// padrões, o que torna o primeiro uso trivial.
+// Load reads dwnvr.yaml. A missing file is not an error: dwnvr starts with
+// the defaults, which makes first use trivial.
 //
-// Só é erro o que impede o dwnvr de funcionar: o arquivo ilegível e o
-// storage.root vazio. Um valor fora da faixa volta ao padrão do código e vira
-// Aviso, porque gravar com o padrão é melhor que não gravar nada. A seção smtp
-// com problema também não impede o boot, mas não vira Aviso: não há padrão que
-// substitua um servidor errado, e o e-mail fica desligado (ver SMTP.Recusa). A
-// seção alerts nunca impede o boot: a lista alerts.email.to fica só com os
-// endereços que servem (ver Alerts.UnmarshalYAML e AlertsEmail.Avisos).
-func Load(path string) (*Config, []Aviso, error) {
+// Only what keeps dwnvr from working is an error: an unreadable file and an
+// empty storage.root. A value out of range goes back to the code's default
+// and becomes a Warning, because recording with the default is better than
+// recording nothing. A broken smtp section doesn't block boot either, but
+// doesn't become a Warning: there's no default to stand in for a wrong server,
+// and e-mail stays off (see SMTP.Problem). The alerts section never blocks
+// boot: the alerts.email.to list keeps only the addresses that work (see
+// Alerts.UnmarshalYAML and AlertsEmail.Warnings).
+func Load(path string) (*Config, []Warning, error) {
 	cfg := defaults()
 	cfg.dir = filepath.Dir(path)
 
@@ -241,80 +244,85 @@ func Load(path string) (*Config, []Aviso, error) {
 		return nil, nil, fmt.Errorf("%s: %w", path, err)
 	}
 	if cfg.Storage.Root == "" {
-		return nil, nil, errors.New("storage.root não pode ser vazio")
+		return nil, nil, errors.New("storage.root can't be empty")
 	}
-	cfg.SMTP.Recusa = cfg.SMTP.confere()
-	cfg.Alerts.Email.Avisos = append(cfg.Alerts.Email.Avisos, cfg.Alerts.Email.confere(cfg.SMTP)...)
-	return &cfg, cfg.confere(), nil
+	cfg.SMTP.Problem = cfg.SMTP.check()
+	cfg.Alerts.Email.Warnings = append(cfg.Alerts.Email.Warnings, cfg.Alerts.Email.check(cfg.SMTP)...)
+	return &cfg, cfg.check(), nil
 }
 
-// Aviso é um valor fora da faixa encontrado num arquivo de configuração. Ele
-// não impede o dwnvr de subir: o campo passa a valer o padrão, e o aviso diz o
-// que estava escrito, o que é aceito e o que ficou valendo no lugar.
-type Aviso struct {
-	Camera string // vazio quando o valor veio do dwnvr.yaml
-	Campo  string // como está escrito no arquivo: "quotaMB", "defaults.quotaMB"
-	Valor  any
-	Aceito string // a recomendação: "de 10 a 300 s"
-	Usando any    // o que passou a valer no lugar
+// Warning is an out-of-range value found in a configuration file. It doesn't
+// keep dwnvr from starting: the field takes the default, and the warning says
+// what was written, what's accepted and what took effect instead.
+//
+// Its texts are in pt-BR because they reach the screen; they move to the
+// catalogs with i18n.
+type Warning struct {
+	Camera   string // empty when the value came from dwnvr.yaml
+	Field    string // as written in the file: "quotaMB", "defaults.quotaMB"
+	Value    any
+	Accepted string // the recommendation: "de 10 a 300 s"
+	InEffect any    // what took effect instead
 }
 
-// Texto é a frase para quem pode corrigir na hora; a API recusa com ela.
-func (a Aviso) Texto() string {
-	return fmt.Sprintf("%s %v fora do aceito: use %s", a.Campo, a.Valor, a.Aceito)
+// Text is the sentence for whoever can fix it right away; the API rejects
+// with it.
+func (a Warning) Text() string {
+	return fmt.Sprintf("%s %v fora do aceito: use %s", a.Field, a.Value, a.Accepted)
 }
 
-// confere troca pelo padrão do código todo valor de defaults e de storage fora
-// da faixa. Aqui o zero não é "usar o padrão" como na câmera: o padrão é o
-// próprio valor, então um zero escrito é tão inválido quanto um negativo.
-func (c *Config) confere() []Aviso {
+// check swaps every out-of-range value in defaults and storage for the code's
+// default. Here zero isn't "use the default" as on the camera: the default is
+// the value itself, so a written zero is as invalid as a negative.
+func (c *Config) check() []Warning {
 	p := defaults()
-	var av []Aviso
-	confereFaixa(&av, Aviso{Campo: "server.loginAttemptsPerMinute"}, &c.Server.LoginAttemptsPerMinute,
-		FaixaLoginAttemptsPerMinute, p.Server.LoginAttemptsPerMinute, p.Server.LoginAttemptsPerMinute)
-	if _, err := Prefixos(c.Server.TrustedProxies); err != nil {
-		av = append(av, Aviso{Campo: "server.trustedProxies", Valor: c.Server.TrustedProxies,
-			Aceito: "endereços IP ou redes CIDR, como 172.16.0.0/12", Usando: p.Server.TrustedProxies})
+	var av []Warning
+	checkRange(&av, Warning{Field: "server.loginAttemptsPerMinute"}, &c.Server.LoginAttemptsPerMinute,
+		LoginAttemptsPerMinuteRange, p.Server.LoginAttemptsPerMinute, p.Server.LoginAttemptsPerMinute)
+	if _, err := Prefixes(c.Server.TrustedProxies); err != nil {
+		av = append(av, Warning{Field: "server.trustedProxies", Value: c.Server.TrustedProxies,
+			Accepted: "endereços IP ou redes CIDR, como 172.16.0.0/12", InEffect: p.Server.TrustedProxies})
 		c.Server.TrustedProxies = p.Server.TrustedProxies
 	}
-	if e, ok := confereEndereco(c.Server.PublicURL); ok {
+	if e, ok := checkPublicURL(c.Server.PublicURL); ok {
 		c.Server.PublicURL = e
 	} else {
-		av = append(av, Aviso{Campo: "server.publicUrl", Valor: c.Server.PublicURL,
-			Aceito: "o endereço do dwnvr, como https://dwnvr.exemplo.ts.net",
-			Usando: "nenhum: o e-mail de alerta sai sem o botão"})
+		av = append(av, Warning{Field: "server.publicUrl", Value: c.Server.PublicURL,
+			Accepted: "o endereço do dwnvr, como https://dwnvr.exemplo.ts.net",
+			InEffect: "nenhum: o e-mail de alerta sai sem o botão"})
 		c.Server.PublicURL = p.Server.PublicURL
 	}
-	confereFaixa(&av, Aviso{Campo: "storage.minFreeMB"}, &c.Storage.MinFreeMB,
-		FaixaMinFreeMB, p.Storage.MinFreeMB, p.Storage.MinFreeMB)
+	checkRange(&av, Warning{Field: "storage.minFreeMB"}, &c.Storage.MinFreeMB,
+		MinFreeMBRange, p.Storage.MinFreeMB, p.Storage.MinFreeMB)
 
 	d, pd := &c.Defaults, p.Defaults
-	confereFaixa(&av, Aviso{Campo: "defaults.segmentSeconds"}, &d.SegmentSeconds,
-		FaixaSegmentSeconds, pd.SegmentSeconds, pd.SegmentSeconds)
-	confereFaixa(&av, Aviso{Campo: "defaults.quotaMB"}, &d.QuotaMB, FaixaQuotaMB, pd.QuotaMB, pd.QuotaMB)
-	confereFaixa(&av, Aviso{Campo: "defaults.maxDays"}, &d.MaxDays, FaixaMaxDays, pd.MaxDays, pd.MaxDays)
-	confereFaixa(&av, Aviso{Campo: "defaults.stallSeconds"}, &d.StallSeconds,
-		FaixaStallSeconds, pd.StallSeconds, pd.StallSeconds)
-	if !audioValido(d.Audio) {
-		av = append(av, Aviso{Campo: "defaults.audio", Valor: d.Audio,
-			Aceito: audiosAceitos, Usando: pd.Audio})
+	checkRange(&av, Warning{Field: "defaults.segmentSeconds"}, &d.SegmentSeconds,
+		SegmentSecondsRange, pd.SegmentSeconds, pd.SegmentSeconds)
+	checkRange(&av, Warning{Field: "defaults.quotaMB"}, &d.QuotaMB, QuotaMBRange, pd.QuotaMB, pd.QuotaMB)
+	checkRange(&av, Warning{Field: "defaults.maxDays"}, &d.MaxDays, MaxDaysRange, pd.MaxDays, pd.MaxDays)
+	checkRange(&av, Warning{Field: "defaults.stallSeconds"}, &d.StallSeconds,
+		StallSecondsRange, pd.StallSeconds, pd.StallSeconds)
+	if !validAudio(d.Audio) {
+		av = append(av, Warning{Field: "defaults.audio", Value: d.Audio,
+			Accepted: acceptedAudio, InEffect: pd.Audio})
 		d.Audio = pd.Audio
 	}
-	if _, ok := detect.Mecanismos[d.DetectMecanismo]; !ok {
-		av = append(av, Aviso{Campo: "defaults.detectMecanismo", Valor: d.DetectMecanismo,
-			Aceito: mecanismosAceitos(), Usando: pd.DetectMecanismo})
-		d.DetectMecanismo = pd.DetectMecanismo
+	if _, ok := detect.Methods[d.DetectMethod]; !ok {
+		av = append(av, Warning{Field: "defaults.detectMecanismo", Value: d.DetectMethod,
+			Accepted: acceptedMethods(), InEffect: pd.DetectMethod})
+		d.DetectMethod = pd.DetectMethod
 	}
-	confereFaixa(&av, Aviso{Campo: "defaults.detectSensibilidade"}, &d.DetectSensibilidade,
-		faixaSensibilidade, pd.DetectSensibilidade, pd.DetectSensibilidade)
+	checkRange(&av, Warning{Field: "defaults.detectSensibilidade"}, &d.DetectSensitivity,
+		sensitivityRange, pd.DetectSensitivity, pd.DetectSensitivity)
 	return av
 }
 
-// confereEndereco aceita o server.publicUrl vazio, ou http(s)://host com um
-// caminho opcional, para o dwnvr atrás de um proxy num subcaminho. Recusa o
-// endereço só com a porta (https://:8080), a query, o "#" e o usuário:senha,
-// que estragariam o link que se monta em cima dele. Devolve o endereço sem a "/" do fim.
-func confereEndereco(e string) (string, bool) {
+// checkPublicURL accepts an empty server.publicUrl, or http(s)://host with an
+// optional path, for dwnvr behind a proxy on a subpath. It rejects an address
+// with only the port (https://:8080), a query, a "#" and user:password, which
+// would break the link built on top of it. It returns the address without the
+// trailing "/".
+func checkPublicURL(e string) (string, bool) {
 	e = strings.TrimSpace(e)
 	if e == "" {
 		return "", true
@@ -327,86 +335,87 @@ func confereEndereco(e string) (string, bool) {
 	return strings.TrimRight(e, "/"), true
 }
 
-// ConfereCamera devolve a câmera com cada campo fora da faixa zerado, que é o
-// "usar o padrão" do Resolve, e um Aviso por campo trocado. É a régua das duas
-// portas: a API recusa se houver aviso, o boot sobe com a câmera corrigida.
+// CheckCamera returns the camera with each out-of-range field zeroed, which is
+// Resolve's "use the default", and one Warning per replaced field. It's the
+// rule for both doors: the API rejects if there's a warning, boot starts with
+// the camera fixed.
 //
-// O ID não passa por aqui: ele vira nome de diretório, e não há padrão que o
-// substitua. Ver ValidateCameraID.
-func (c *Config) ConfereCamera(cam Camera) (Camera, []Aviso) {
-	var av []Aviso
-	base := func(campo string) Aviso { return Aviso{Camera: cam.ID, Campo: campo} }
+// The ID doesn't go through here: it becomes a directory name, and there's no
+// default to stand in for it. See ValidateCameraID.
+func (c *Config) CheckCamera(cam Camera) (Camera, []Warning) {
+	var av []Warning
+	base := func(field string) Warning { return Warning{Camera: cam.ID, Field: field} }
 
-	// Zero em qualquer campo é "usar o padrão", e por isso nunca é inválido.
+	// Zero in any field is "use the default", and so it's never invalid.
 	if cam.QuotaMB != 0 {
-		confereFaixa(&av, base("quotaMB"), &cam.QuotaMB, FaixaQuotaMB, 0, c.Defaults.QuotaMB)
+		checkRange(&av, base("quotaMB"), &cam.QuotaMB, QuotaMBRange, 0, c.Defaults.QuotaMB)
 	}
 	if cam.SegmentSeconds != 0 {
-		confereFaixa(&av, base("segmentSeconds"), &cam.SegmentSeconds,
-			FaixaSegmentSeconds, 0, c.Defaults.SegmentSeconds)
+		checkRange(&av, base("segmentSeconds"), &cam.SegmentSeconds,
+			SegmentSecondsRange, 0, c.Defaults.SegmentSeconds)
 	}
 	if cam.MaxDays != 0 {
-		confereFaixa(&av, base("maxDays"), &cam.MaxDays, FaixaMaxDays, 0, c.Defaults.MaxDays)
+		checkRange(&av, base("maxDays"), &cam.MaxDays, MaxDaysRange, 0, c.Defaults.MaxDays)
 	}
 	if cam.StallSeconds != 0 {
-		confereFaixa(&av, base("stallSeconds"), &cam.StallSeconds,
-			FaixaStallSeconds, 0, c.Defaults.StallSeconds)
+		checkRange(&av, base("stallSeconds"), &cam.StallSeconds,
+			StallSecondsRange, 0, c.Defaults.StallSeconds)
 	}
-	if cam.Audio != "" && !audioValido(cam.Audio) {
+	if cam.Audio != "" && !validAudio(cam.Audio) {
 		a := base("audio")
-		a.Valor, a.Aceito, a.Usando = cam.Audio, audiosAceitos, c.Defaults.Audio
+		a.Value, a.Accepted, a.InEffect = cam.Audio, acceptedAudio, c.Defaults.Audio
 		av = append(av, a)
 		cam.Audio = ""
 	}
-	if _, ok := detect.Mecanismos[cam.DetectMecanismo]; cam.DetectMecanismo != "" && !ok {
+	if _, ok := detect.Methods[cam.DetectMethod]; cam.DetectMethod != "" && !ok {
 		a := base("detectMecanismo")
-		a.Valor, a.Aceito, a.Usando = cam.DetectMecanismo, mecanismosAceitos(), c.Defaults.DetectMecanismo
+		a.Value, a.Accepted, a.InEffect = cam.DetectMethod, acceptedMethods(), c.Defaults.DetectMethod
 		av = append(av, a)
-		cam.DetectMecanismo = ""
+		cam.DetectMethod = ""
 	}
-	if cam.DetectSensibilidade != 0 {
-		confereFaixa(&av, base("detectSensibilidade"), &cam.DetectSensibilidade,
-			faixaSensibilidade, 0, c.Defaults.DetectSensibilidade)
+	if cam.DetectSensitivity != 0 {
+		checkRange(&av, base("detectSensibilidade"), &cam.DetectSensitivity,
+			sensitivityRange, 0, c.Defaults.DetectSensitivity)
 	}
-	cam.Areas = confereAreas(cam, &av)
-	cam.Alert = confereAlerta(cam, &av)
+	cam.Areas = checkAreas(cam, &av)
+	cam.Alert = checkAlert(cam, &av)
 	return cam, av
 }
 
-// confereFaixa confere um campo numérico. Fora da faixa, o valor é trocado por
-// `troca` e vira um Aviso que conta o que passou a valer, `usando`. Na câmera
-// os dois diferem (a troca é o zero, e quem vale é o default); no dwnvr.yaml
-// são o mesmo número.
-func confereFaixa[T int | int64](av *[]Aviso, a Aviso, v *T, f Faixa, troca, usando T) {
-	if f.Contem(int64(*v)) {
+// checkRange checks a numeric field. Out of range, the value is swapped for
+// `replacement` and becomes a Warning that says what took effect,
+// `inEffect`. On the camera the two differ (the replacement is zero, and the
+// default is what applies); in dwnvr.yaml they're the same number.
+func checkRange[T int | int64](av *[]Warning, a Warning, v *T, f Range, replacement, inEffect T) {
+	if f.Contains(int64(*v)) {
 		return
 	}
-	a.Valor, a.Aceito, a.Usando = *v, f.String(), usando
+	a.Value, a.Accepted, a.InEffect = *v, f.String(), inEffect
 	*av = append(*av, a)
-	*v = troca
+	*v = replacement
 }
 
-// Prefixos lê a lista do server.trustedProxies. Cada item é uma rede CIDR ou
-// um endereço só, que vira a rede dele sozinho (/32 ou /128).
-func Prefixos(itens []string) ([]netip.Prefix, error) {
-	ps := make([]netip.Prefix, 0, len(itens))
-	for _, it := range itens {
+// Prefixes reads the server.trustedProxies list. Each item is a CIDR network
+// or a single address, which becomes a network of its own (/32 or /128).
+func Prefixes(items []string) ([]netip.Prefix, error) {
+	ps := make([]netip.Prefix, 0, len(items))
+	for _, it := range items {
 		if p, err := netip.ParsePrefix(it); err == nil {
 			ps = append(ps, p.Masked())
 			continue
 		}
 		a, err := netip.ParseAddr(it)
 		if err != nil {
-			return nil, fmt.Errorf("%q não é endereço nem rede", it)
+			return nil, fmt.Errorf("%q is neither an address nor a network", it)
 		}
 		ps = append(ps, netip.PrefixFrom(a, a.BitLen()))
 	}
 	return ps, nil
 }
 
-const audiosAceitos = "none, flac ou aac"
+const acceptedAudio = "none, flac ou aac"
 
-func audioValido(mode string) bool {
+func validAudio(mode string) bool {
 	switch mode {
 	case AudioNone, AudioFLAC, AudioAAC:
 		return true
@@ -414,29 +423,29 @@ func audioValido(mode string) bool {
 	return false
 }
 
-func mecanismosAceitos() string {
-	nomes := make([]string, 0, len(detect.Mecanismos))
-	for n := range detect.Mecanismos {
-		nomes = append(nomes, n)
+func acceptedMethods() string {
+	names := make([]string, 0, len(detect.Methods))
+	for n := range detect.Methods {
+		names = append(names, n)
 	}
-	sort.Strings(nomes)
-	return strings.Join(nomes, " ou ")
+	sort.Strings(names)
+	return strings.Join(names, " ou ")
 }
 
-// CamerasPath é o caminho do cameras.json, ao lado do dwnvr.yaml.
+// CamerasPath is the path of cameras.json, next to dwnvr.yaml.
 func (c *Config) CamerasPath() string { return filepath.Join(c.dir, "cameras.json") }
 
-// UsuariosPath é onde ficam as pessoas cadastradas pela tela, além do dono do
-// dwnvr.yaml. Fica ao lado do cameras.json, e não no storage, que é só de
-// gravação.
-func (c *Config) UsuariosPath() string { return filepath.Join(c.dir, "usuarios.json") }
+// UsersPath is where the people added on screen live, besides the owner from
+// dwnvr.yaml. It sits next to cameras.json, not in storage, which is only for
+// recordings.
+func (c *Config) UsersPath() string { return filepath.Join(c.dir, "usuarios.json") }
 
-// AcessosPath é onde fica o último acesso de cada pessoa, ao lado do
-// usuarios.json, mas num arquivo à parte (ver usuarios.Acessos).
-func (c *Config) AcessosPath() string { return filepath.Join(c.dir, "acessos.json") }
+// AccessPath is where each person's last access lives, next to usuarios.json,
+// but in a separate file (see users.AccessLog).
+func (c *Config) AccessPath() string { return filepath.Join(c.dir, "acessos.json") }
 
-// Resolve devolve a câmera com os defaults já aplicados, para que o resto do
-// código nunca precise perguntar "esse zero é intencional?".
+// Resolve returns the camera with the defaults already applied, so the rest of
+// the code never has to ask "is this zero intentional?".
 func (c *Config) Resolve(cam Camera) Camera {
 	if cam.SegmentSeconds <= 0 {
 		cam.SegmentSeconds = c.Defaults.SegmentSeconds
@@ -457,43 +466,44 @@ func (c *Config) Resolve(cam Camera) Camera {
 		v := c.Defaults.Detect
 		cam.Detect = &v
 	}
-	if cam.DetectMecanismo == "" {
-		cam.DetectMecanismo = c.Defaults.DetectMecanismo
+	if cam.DetectMethod == "" {
+		cam.DetectMethod = c.Defaults.DetectMethod
 	}
-	if cam.DetectSensibilidade <= 0 {
-		cam.DetectSensibilidade = c.Defaults.DetectSensibilidade
+	if cam.DetectSensitivity <= 0 {
+		cam.DetectSensitivity = c.Defaults.DetectSensitivity
 	}
 	if cam.Name == "" {
 		cam.Name = cam.ID
 	}
-	// A cópia: o slice é o mesmo da câmera crua que o Manager guarda, e a regra
-	// escrita aqui mudaria a dela.
+	// The copy: the slice is the same as the raw camera the Manager keeps, and
+	// the rule written here would change its.
 	if len(cam.Areas) > 0 {
 		cam.Areas = slices.Clone(cam.Areas)
 		for i := range cam.Areas {
 			if cam.Areas[i].Rule == "" {
-				cam.Areas[i].Rule = area.RegraDaAreaPadrao
+				cam.Areas[i].Rule = area.DefaultRule
 			}
 		}
 	}
 	return cam
 }
 
-// TiraDefaultsNovos é a volta do Resolve na hora de gravar: zera o campo que
-// chega igual ao default e que a câmera não definia antes. `antes` é a câmera
-// como estava no cadastro, ou nil quando ela é nova.
+// DropNewDefaults is Resolve in reverse at save time: it zeroes the field that
+// arrives equal to the default and that the camera didn't set before.
+// `before` is the camera as it was stored, or nil when it's new.
 //
-// A tela edita a câmera como o GET /api/cameras a mostra, já resolvida, e a
-// devolve inteira. Gravada assim, ela passava a ter no cameras.json o valor de
-// cada default, e mudar o defaults do dwnvr.yaml não chegava mais a ela.
+// The screen edits the camera as GET /api/cameras shows it, already resolved,
+// and sends it back whole. Saved like that, it ended up with every default's
+// value in cameras.json, and changing the defaults in dwnvr.yaml no longer
+// reached it.
 //
-// O campo que a câmera já definia fica, mesmo igual ao default: alguém o
-// escolheu. O preço é que a tela não consegue fixar numa câmera um valor
-// igual ao default de hoje; ele segue o default.
-func (c *Config) TiraDefaultsNovos(cam Camera, antes *Camera) Camera {
+// A field the camera already set stays, even if equal to the default: someone
+// chose it. The price is that the screen can't pin on a camera a value equal
+// to today's default; it follows the default.
+func (c *Config) DropNewDefaults(cam Camera, before *Camera) Camera {
 	var a Camera
-	if antes != nil {
-		a = *antes
+	if before != nil {
+		a = *before
 	}
 	d := c.Defaults
 	if a.SegmentSeconds <= 0 && cam.SegmentSeconds == d.SegmentSeconds {
@@ -514,23 +524,23 @@ func (c *Config) TiraDefaultsNovos(cam Camera, antes *Camera) Camera {
 	if a.Detect == nil && cam.Detect != nil && *cam.Detect == d.Detect {
 		cam.Detect = nil
 	}
-	if a.DetectMecanismo == "" && cam.DetectMecanismo == d.DetectMecanismo {
-		cam.DetectMecanismo = ""
+	if a.DetectMethod == "" && cam.DetectMethod == d.DetectMethod {
+		cam.DetectMethod = ""
 	}
-	if a.DetectSensibilidade <= 0 && cam.DetectSensibilidade == d.DetectSensibilidade {
-		cam.DetectSensibilidade = 0
+	if a.DetectSensitivity <= 0 && cam.DetectSensitivity == d.DetectSensitivity {
+		cam.DetectSensitivity = 0
 	}
 	return cam
 }
 
-// LoadCameras lê o cameras.json. Ausente significa "nenhuma câmera cadastrada".
+// LoadCameras reads cameras.json. Absent means "no camera registered".
 //
-// Só o ID inválido impede o boot, porque ele vira nome de diretório no disco.
-// Qualquer outro campo fora da faixa passa a usar o padrão e vira Aviso: um
-// número ruim numa câmera não pode deixar todas sem gravar. O arquivo não é
-// reescrito aqui; o próximo save pela tela grava a câmera já corrigida, que é
-// a que está rodando.
-func (c *Config) LoadCameras() ([]Camera, []Aviso, error) {
+// Only an invalid ID blocks boot, because it becomes a directory name on disk.
+// Any other out-of-range field takes the default and becomes a Warning: one
+// bad number on one camera must not leave all of them without recording. The
+// file isn't rewritten here; the next save from the screen writes the camera
+// already fixed, which is the one running.
+func (c *Config) LoadCameras() ([]Camera, []Warning, error) {
 	b, err := os.ReadFile(c.CamerasPath())
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil, nil
@@ -543,32 +553,32 @@ func (c *Config) LoadCameras() ([]Camera, []Aviso, error) {
 	if err := json.Unmarshal(b, &cams); err != nil {
 		return nil, nil, fmt.Errorf("%s: %w", c.CamerasPath(), err)
 	}
-	var avisos []Aviso
+	var warnings []Warning
 	for i := range cams {
 		if err := ValidateCameraID(cams[i].ID); err != nil {
-			return nil, nil, fmt.Errorf("câmera #%d: %w", i, err)
+			return nil, nil, fmt.Errorf("camera #%d: %w", i, err)
 		}
-		var av []Aviso
-		cams[i], av = c.ConfereCamera(cams[i].ComIDsNasAreas())
-		avisos = append(avisos, av...)
+		var av []Warning
+		cams[i], av = c.CheckCamera(cams[i].WithAreaIDs())
+		warnings = append(warnings, av...)
 	}
-	return cams, avisos, nil
+	return cams, warnings, nil
 }
 
-// SaveCameras grava o cameras.json de forma atômica (ver GravarAtomico).
+// SaveCameras writes cameras.json atomically (see WriteAtomic).
 func (c *Config) SaveCameras(cams []Camera) error {
 	b, err := json.MarshalIndent(cams, "", "  ")
 	if err != nil {
 		return err
 	}
-	// O cameras.json precisa ser legível por quem administra a instalação.
-	return GravarAtomico(c.CamerasPath(), append(b, '\n'), 0o644)
+	// cameras.json must be readable by whoever administers the installation.
+	return WriteAtomic(c.CamerasPath(), append(b, '\n'), 0o644)
 }
 
-// GravarAtomico grava o arquivo de forma atômica (arquivo temporário no mesmo
-// diretório + rename), para que uma queda no meio da escrita nunca deixe um
-// cadastro truncado.
-func GravarAtomico(path string, b []byte, modo os.FileMode) error {
+// WriteAtomic writes the file atomically (a temp file in the same directory +
+// rename), so a crash in the middle of the write never leaves a truncated
+// file.
+func WriteAtomic(path string, b []byte, mode os.FileMode) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*")
 	if err != nil {
 		return err
@@ -583,8 +593,8 @@ func GravarAtomico(path string, b []byte, modo os.FileMode) error {
 		tmp.Close()
 		return err
 	}
-	// CreateTemp cria com 0600.
-	if err := tmp.Chmod(modo); err != nil {
+	// CreateTemp creates it with 0600.
+	if err := tmp.Chmod(mode); err != nil {
 		tmp.Close()
 		return err
 	}
@@ -594,8 +604,8 @@ func GravarAtomico(path string, b []byte, modo os.FileMode) error {
 	return os.Rename(tmp.Name(), path)
 }
 
-// SessionSecret devolve o segredo de assinatura dos cookies, gerando-o na
-// primeira chamada.
+// SessionSecret returns the cookie signing secret, generating it on the first
+// call.
 func (c *Config) SessionSecret() ([]byte, error) {
 	path := c.SecretPath()
 	b, err := os.ReadFile(path)
@@ -610,16 +620,18 @@ func (c *Config) SessionSecret() ([]byte, error) {
 	if _, err := rand.Read(secret); err != nil {
 		return nil, err
 	}
-	// 0600: quem lê este arquivo consegue forjar sessões.
+	// 0600: whoever reads this file can forge sessions.
 	if err := os.WriteFile(path, secret, 0o600); err != nil {
 		return nil, err
 	}
 	return secret, nil
 }
 
-// ValidateCameraID recusa nomes que virariam caminho perigoso: o ID da câmera
-// é usado diretamente como nome de diretório dentro do storage. Recusa também
-// a vírgula, que separa os IDs nas listas da API (`cams=a,b`).
+// ValidateCameraID rejects names that would become a dangerous path: the
+// camera ID is used directly as a directory name inside storage. It also
+// rejects the comma, which separates IDs in the API lists (`cams=a,b`).
+//
+// Its errors are in pt-BR because the API shows them on screen.
 func ValidateCameraID(id string) error {
 	if id == "" {
 		return errors.New("id vazio")

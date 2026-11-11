@@ -26,13 +26,13 @@ A pessoa produziu quadros **71% maiores** que os que dispararam o onset um
 minuto antes, e o gatilho os considerou normais. Não é o modelo: forçando uma
 olhada nesse instante, o `dwnvr-detect` devolve `person=0,841`.
 
-`CongelaAcima` (3,0) só bloqueia o aprendizado quadro a quadro, enquanto
+`FreezeAbove` (3,0) só bloqueia o aprendizado quadro a quadro, enquanto
 `z >= 3`. A **cauda** do evento, com z entre 0 e 3, é aprendida - e é ela que
 dobra a média e dobra o desvio.
 
 ## O que já foi tentado, e por que não serve
 
-`kleinberg-c`: o congelamento com histerese própria - abre em `CongelaAcima` e
+`kleinberg-c`: o congelamento com histerese própria - abre em `FreezeAbove` e
 só fecha depois de N quadros seguidos abaixo de `SaiDoEventoZ`.
 
 Medido sobre **379,9 horas**, 18 câmera-dias, as 9 câmeras, com as duas funções
@@ -101,7 +101,7 @@ comando:
 ```
 
 O `kleinberg-c` medido aqui **foi removido de `internal/detect`**: ele reprovou,
-e o comentário do mapa `FuncoesDeScore` diz que só as que venceram a medição
+e o comentário do mapa `ScoreFuncs` diz que só as que venceram a medição
 ficam lá. O código dele, a fixture com os quadros reais deste episódio e o
 construtor exportado `detect.NovoEstatistico` de que a calibração precisa estão
 no histórico do git, no commit desta medição.

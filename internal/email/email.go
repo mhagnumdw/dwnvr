@@ -1,5 +1,5 @@
-// Package email envia os e-mails do dwnvr pelo servidor SMTP da seção smtp
-// do dwnvr.yaml. Só com a biblioteca padrão: sem dependência nova e sem C.
+// Package email sends dwnvr's e-mails through the SMTP server in the smtp
+// section of dwnvr.yaml. Standard library only: no new dependency and no C.
 package email
 
 import (
@@ -20,79 +20,80 @@ import (
 	"time"
 )
 
-// Enviador entrega uma mensagem pronta ao servidor de e-mail. Promete voltar
-// em até PrazoDoEnvio, e o erro traz a resposta do servidor do jeito que ela
-// veio: é o que o admin lê na tela para corrigir a configuração. Entregue ao
-// servidor não é entregue na caixa da pessoa: o que acontece depois (spam,
-// caixa cheia) o dwnvr não vê.
-type Enviador interface {
-	Enviar(ctx context.Context, m Mensagem) error
+// Sender hands a ready message to the mail server. It promises to return
+// within SendTimeout, and the error carries the server's answer as it came:
+// it's what the admin reads on screen to fix the configuration, so its text
+// is in pt-BR until i18n. Handed to the server is not delivered to the
+// person's inbox: what happens after that (spam, full mailbox) dwnvr doesn't
+// see.
+type Sender interface {
+	Send(ctx context.Context, m Message) error
 }
 
-// Mensagem é um e-mail de texto, com anexos ou sem, e com uma versão em HTML
-// ou sem. Para leva só endereços, sem nome: "fulano@exemplo.com".
-type Mensagem struct {
-	Para    []string
-	Assunto string
-	// Texto vai sempre: é a mensagem inteira sem HTML, e com HTML é o que
-	// mostra o leitor de e-mail que não mostra HTML.
-	Texto string
-	// HTML, quando há, é o que o leitor de e-mail mostra no lugar do Texto. É
-	// o documento inteiro, já escapado por quem o montou.
-	HTML   string
-	Anexos []Anexo
+// Message is a text e-mail, with or without attachments, and with or without
+// an HTML version. To carries only addresses, no name: "fulano@exemplo.com".
+type Message struct {
+	To      []string
+	Subject string
+	// Text always goes: it's the whole message without HTML, and with HTML
+	// it's what a mail reader that doesn't show HTML displays.
+	Text string
+	// HTML, when present, is what the mail reader shows instead of Text. It's
+	// the whole document, already escaped by whoever built it.
+	HTML        string
+	Attachments []Attachment
 }
 
-// Anexo é um arquivo que vai junto do texto, como o quadro do alerta. Ele vai
-// em base64, como todo anexo de e-mail: o SMTP só leva texto em linhas
-// curtas, e o leitor de e-mail decodifica de volta. Custa um terço a mais no
-// tamanho.
-type Anexo struct {
-	// Nome é como ele aparece para quem recebe: "deteccao.jpg".
-	Nome string
-	// Tipo é o tipo MIME, sem parâmetros: "image/jpeg".
-	Tipo  string
-	Dados []byte
-	// NoCorpo, quando preenchido, faz o anexo aparecer dentro do HTML, e não
-	// como arquivo solto: o HTML o mostra com <img src="cid:NoCorpo">. Só
-	// vale com HTML, e só com letras, dígitos e ".-_@".
-	NoCorpo string
+// Attachment is a file that goes along with the text, like the alert frame.
+// It goes in base64, like every e-mail attachment: SMTP only carries text in
+// short lines, and the mail reader decodes it back. It costs a third more in
+// size.
+type Attachment struct {
+	// Name is how it shows up to the recipient: "deteccao.jpg".
+	Name string
+	// Type is the MIME type, without parameters: "image/jpeg".
+	Type string
+	Data []byte
+	// InlineID, when set, makes the attachment show up inside the HTML, and
+	// not as a loose file: the HTML shows it with <img src="cid:InlineID">.
+	// Only valid with HTML, and only with letters, digits and ".-_@".
+	InlineID string
 }
 
-// confere recusa o que viraria outro cabeçalho: um assunto com quebra de
-// linha, um destinatário com nome e vírgula, ou o nome e o tipo de um anexo
-// que não cabem no cabeçalho dele, escreveriam por cima da mensagem.
-func (m Mensagem) confere() error {
-	if len(m.Para) == 0 {
+// check rejects what would become another header: a subject with a line
+// break, a recipient with a name and a comma, or an attachment name and type
+// that don't fit in its header, would write over the message.
+func (m Message) check() error {
+	if len(m.To) == 0 {
 		return errors.New("mensagem sem destinatário")
 	}
-	for _, p := range m.Para {
+	for _, p := range m.To {
 		if a, err := mail.ParseAddress(p); err != nil || a.Address != p {
 			return fmt.Errorf("destinatário %q não é um endereço de e-mail", p)
 		}
 	}
-	if strings.ContainsAny(m.Assunto, "\r\n") {
+	if strings.ContainsAny(m.Subject, "\r\n") {
 		return errors.New("assunto com quebra de linha")
 	}
-	for _, a := range m.Anexos {
-		// O FormatMediaType devolve vazio para o que não cabe no cabeçalho;
-		// o nome com acento ele codifica (RFC 2231).
-		if a.Nome == "" || strings.ContainsAny(a.Nome, "\r\n") || disposicao(a) == "" {
-			return fmt.Errorf("anexo com nome %q", a.Nome)
+	for _, a := range m.Attachments {
+		// FormatMediaType returns empty for what doesn't fit in the header; a
+		// name with accents it encodes (RFC 2231).
+		if a.Name == "" || strings.ContainsAny(a.Name, "\r\n") || disposition(a) == "" {
+			return fmt.Errorf("anexo com nome %q", a.Name)
 		}
-		if mime.FormatMediaType(a.Tipo, nil) == "" {
-			return fmt.Errorf("anexo %q com tipo %q", a.Nome, a.Tipo)
+		if mime.FormatMediaType(a.Type, nil) == "" {
+			return fmt.Errorf("anexo %q com tipo %q", a.Name, a.Type)
 		}
-		if a.NoCorpo != "" && (m.HTML == "" || !idValido(a.NoCorpo)) {
-			return fmt.Errorf("anexo %q no corpo com id %q", a.Nome, a.NoCorpo)
+		if a.InlineID != "" && (m.HTML == "" || !validID(a.InlineID)) {
+			return fmt.Errorf("anexo %q no corpo com id %q", a.Name, a.InlineID)
 		}
 	}
 	return nil
 }
 
-// idValido aceita o id de um anexo no corpo só com o que não precisa de
-// escape nem no cabeçalho Content-ID nem no cid: do HTML.
-func idValido(id string) bool {
+// validID accepts an inline attachment id only with what needs no escaping,
+// neither in the Content-ID header nor in the HTML cid:.
+func validID(id string) bool {
 	for _, c := range id {
 		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(".-_@", c) {
 			return false
@@ -101,99 +102,100 @@ func idValido(id string) bool {
 	return true
 }
 
-func disposicao(a Anexo) string {
-	tipo := "attachment"
-	if a.NoCorpo != "" {
-		tipo = "inline"
+func disposition(a Attachment) string {
+	ctype := "attachment"
+	if a.InlineID != "" {
+		ctype = "inline"
 	}
-	return mime.FormatMediaType(tipo, map[string]string{"filename": a.Nome})
+	return mime.FormatMediaType(ctype, map[string]string{"filename": a.Name})
 }
 
-// montar escreve a mensagem no formato da RFC 5322. O texto e o HTML vão em
-// quoted-printable: o acento passa por servidor que só aceita 7 bits, e a
-// linha longa, como a do link, quebra sem estragar.
+// build writes the message in RFC 5322 format. The text and the HTML go in
+// quoted-printable: accents survive a server that only takes 7 bits, and a
+// long line, like the link's, wraps without breaking.
 //
-// Sem HTML e sem anexo, o texto é a mensagem inteira, como sempre foi. O
-// resto se monta por camadas, cada uma só quando há o que pôr nela:
+// Without HTML and without attachments, the text is the whole message, as it
+// always was. The rest is built in layers, each only when there's something to
+// put in it:
 //
-//	multipart/mixed          os anexos soltos, depois do corpo
-//	  multipart/related      o HTML e os anexos que ele mostra no corpo
-//	    multipart/alternative o texto e o HTML: o leitor mostra o último que sabe
+//	multipart/mixed          the loose attachments, after the body
+//	  multipart/related      the HTML and the attachments it shows inline
+//	    multipart/alternative the text and the HTML: the reader shows the last one it can
 //	      text/plain
 //	      text/html
 //	    image/jpeg (inline)
 //	  image/jpeg (attachment)
-func montar(de *mail.Address, m Mensagem, agora time.Time) ([]byte, error) {
-	id, err := idDaMensagem(de.Address)
+func build(from *mail.Address, m Message, now time.Time) ([]byte, error) {
+	id, err := messageID(from.Address)
 	if err != nil {
 		return nil, err
 	}
 	var b bytes.Buffer
-	cabecalho := func(nome, valor string) { fmt.Fprintf(&b, "%s: %s\r\n", nome, valor) }
-	cabecalho("From", de.String())
-	// Uma linha por endereço: a RFC 5322 limita a linha a 998 caracteres, e
-	// com uns 35 endereços numa linha só o servidor rigoroso recusaria a
-	// mensagem inteira. A quebra seguida de espaço continua o mesmo campo, e
-	// com um endereço só nada muda.
-	cabecalho("To", strings.Join(m.Para, ",\r\n "))
-	// O assunto também se quebra em linhas: o do alerta leva as áreas, e com
-	// nomes longos e acentuados passaria dos 998 caracteres numa linha só.
-	b.WriteString(dobrado("Subject", mime.QEncoding.Encode("utf-8", m.Assunto)))
-	cabecalho("Date", agora.Format(time.RFC1123Z))
-	cabecalho("Message-ID", id)
-	cabecalho("MIME-Version", "1.0")
+	header := func(name, value string) { fmt.Fprintf(&b, "%s: %s\r\n", name, value) }
+	header("From", from.String())
+	// One line per address: RFC 5322 limits a line to 998 characters, and with
+	// some 35 addresses on a single line a strict server would reject the
+	// whole message. A line break followed by a space continues the same
+	// field, and with a single address nothing changes.
+	header("To", strings.Join(m.To, ",\r\n "))
+	// The subject is folded into lines too: the alert's carries the areas, and
+	// with long accented names it would go past 998 characters on one line.
+	b.WriteString(folded("Subject", mime.QEncoding.Encode("utf-8", m.Subject)))
+	header("Date", now.Format(time.RFC1123Z))
+	header("Message-ID", id)
+	header("MIME-Version", "1.0")
 
-	raiz := corpoDe(m)
-	cabecalho("Content-Type", raiz.tipo)
-	if raiz.codificacao != "" {
-		cabecalho("Content-Transfer-Encoding", raiz.codificacao)
+	root := bodyOf(m)
+	header("Content-Type", root.ctype)
+	if root.encoding != "" {
+		header("Content-Transfer-Encoding", root.encoding)
 	}
 	b.WriteString("\r\n")
-	if err := raiz.escreve(&b); err != nil {
+	if err := root.write(&b); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil
 }
 
-// dobrado escreve um cabeçalho quebrado nos espaços, para nenhuma linha passar
-// de 76 caracteres, o limite da RFC 2047 para a linha com palavra codificada;
-// o limite duro da RFC 5322 é 998. A quebra seguida de espaço continua o
-// mesmo campo, e o leitor junta as linhas sem perder nada. O valor codificado
-// só tem espaço entre as palavras codificadas, de até 75 caracteres cada, e o
-// espaço entre elas o leitor ignora. A primeira palavra que não cabe depois do
-// nome vai para a linha de baixo; uma palavra maior que a linha fica inteira.
-func dobrado(nome, valor string) string {
-	const maxLinha = 76
+// folded writes a header broken at the spaces, so no line goes past 76
+// characters, the RFC 2047 limit for a line with an encoded word; the hard
+// RFC 5322 limit is 998. A line break followed by a space continues the same
+// field, and the reader joins the lines losing nothing. The encoded value only
+// has spaces between the encoded words, of up to 75 characters each, and the
+// reader ignores the space between them. The first word that doesn't fit after
+// the name goes to the next line; a word longer than the line stays whole.
+func folded(name, value string) string {
+	const maxLine = 76
 	var b strings.Builder
-	b.WriteString(nome + ":")
-	linha := len(nome) + 1
-	for palavra := range strings.SplitSeq(valor, " ") {
-		if linha+1+len(palavra) > maxLinha {
+	b.WriteString(name + ":")
+	line := len(name) + 1
+	for word := range strings.SplitSeq(value, " ") {
+		if line+1+len(word) > maxLine {
 			b.WriteString("\r\n")
-			linha = 0
+			line = 0
 		}
-		b.WriteString(" " + palavra)
-		linha += 1 + len(palavra)
+		b.WriteString(" " + word)
+		line += 1 + len(word)
 	}
 	b.WriteString("\r\n")
 	return b.String()
 }
 
-// parte é um pedaço da mensagem: o cabeçalho dele e quem escreve o conteúdo.
-// A raiz tem o cabeçalho escrito no da mensagem; as outras, dentro do
-// multipart de cima.
-type parte struct {
-	tipo, codificacao, disposicao, id string
-	escreve                           func(io.Writer) error
+// part is a piece of the message: its header and what writes the content. The
+// root has its header written in the message's; the others, inside the
+// enclosing multipart.
+type part struct {
+	ctype, encoding, disposition, id string
+	write                            func(io.Writer) error
 }
 
-func (p parte) cabecalho() textproto.MIMEHeader {
-	h := textproto.MIMEHeader{"Content-Type": {p.tipo}}
-	if p.codificacao != "" {
-		h.Set("Content-Transfer-Encoding", p.codificacao)
+func (p part) header() textproto.MIMEHeader {
+	h := textproto.MIMEHeader{"Content-Type": {p.ctype}}
+	if p.encoding != "" {
+		h.Set("Content-Transfer-Encoding", p.encoding)
 	}
-	if p.disposicao != "" {
-		h.Set("Content-Disposition", p.disposicao)
+	if p.disposition != "" {
+		h.Set("Content-Disposition", p.disposition)
 	}
 	if p.id != "" {
 		h.Set("Content-ID", "<"+p.id+">")
@@ -201,56 +203,56 @@ func (p parte) cabecalho() textproto.MIMEHeader {
 	return h
 }
 
-// corpoDe arma as camadas de montar.
-func corpoDe(m Mensagem) parte {
-	corpo := textoQP("text/plain; charset=utf-8", m.Texto)
-	var soltos, noCorpo []parte
-	for _, a := range m.Anexos {
-		if a.NoCorpo != "" {
-			noCorpo = append(noCorpo, anexo(a))
+// bodyOf assembles build's layers.
+func bodyOf(m Message) part {
+	body := textQP("text/plain; charset=utf-8", m.Text)
+	var loose, inline []part
+	for _, a := range m.Attachments {
+		if a.InlineID != "" {
+			inline = append(inline, attachmentPart(a))
 		} else {
-			soltos = append(soltos, anexo(a))
+			loose = append(loose, attachmentPart(a))
 		}
 	}
 	if m.HTML != "" {
-		corpo = multipartDe("multipart/alternative", corpo, textoQP("text/html; charset=utf-8", m.HTML))
-		if len(noCorpo) > 0 {
-			corpo = multipartDe("multipart/related", append([]parte{corpo}, noCorpo...)...)
+		body = multipartOf("multipart/alternative", body, textQP("text/html; charset=utf-8", m.HTML))
+		if len(inline) > 0 {
+			body = multipartOf("multipart/related", append([]part{body}, inline...)...)
 		}
 	}
-	if len(soltos) > 0 {
-		corpo = multipartDe("multipart/mixed", append([]parte{corpo}, soltos...)...)
+	if len(loose) > 0 {
+		body = multipartOf("multipart/mixed", append([]part{body}, loose...)...)
 	}
-	return corpo
+	return body
 }
 
-func textoQP(tipo, texto string) parte {
-	return parte{tipo: tipo, codificacao: "quoted-printable",
-		escreve: func(w io.Writer) error { return escreveTexto(w, texto) }}
+func textQP(ctype, text string) part {
+	return part{ctype: ctype, encoding: "quoted-printable",
+		write: func(w io.Writer) error { return writeText(w, text) }}
 }
 
-func anexo(a Anexo) parte {
-	return parte{tipo: a.Tipo, codificacao: "base64", disposicao: disposicao(a), id: a.NoCorpo,
-		escreve: func(w io.Writer) error { return escreveBase64(w, a.Dados) }}
+func attachmentPart(a Attachment) part {
+	return part{ctype: a.Type, encoding: "base64", disposition: disposition(a), id: a.InlineID,
+		write: func(w io.Writer) error { return writeBase64(w, a.Data) }}
 }
 
-// multipartDe junta as filhas num multipart. O separador é sorteado agora,
-// porque vai no Content-Type, que é escrito antes do conteúdo.
-func multipartDe(tipo string, filhas ...parte) parte {
-	separador := multipart.NewWriter(io.Discard).Boundary()
-	return parte{
-		tipo: mime.FormatMediaType(tipo, map[string]string{"boundary": separador}),
-		escreve: func(w io.Writer) error {
+// multipartOf joins the children in a multipart. The boundary is drawn now,
+// because it goes in the Content-Type, which is written before the content.
+func multipartOf(ctype string, children ...part) part {
+	boundary := multipart.NewWriter(io.Discard).Boundary()
+	return part{
+		ctype: mime.FormatMediaType(ctype, map[string]string{"boundary": boundary}),
+		write: func(w io.Writer) error {
 			mw := multipart.NewWriter(w)
-			if err := mw.SetBoundary(separador); err != nil {
+			if err := mw.SetBoundary(boundary); err != nil {
 				return err
 			}
-			for _, f := range filhas {
-				pw, err := mw.CreatePart(f.cabecalho())
+			for _, f := range children {
+				pw, err := mw.CreatePart(f.header())
 				if err != nil {
 					return err
 				}
-				if err := f.escreve(pw); err != nil {
+				if err := f.write(pw); err != nil {
 					return err
 				}
 			}
@@ -259,20 +261,20 @@ func multipartDe(tipo string, filhas ...parte) parte {
 	}
 }
 
-func escreveTexto(w io.Writer, texto string) error {
+func writeText(w io.Writer, text string) error {
 	qp := quotedprintable.NewWriter(w)
-	if _, err := qp.Write([]byte(texto)); err != nil {
+	if _, err := qp.Write([]byte(text)); err != nil {
 		return err
 	}
 	return qp.Close()
 }
 
-// escreveBase64 quebra o base64 em linhas de LinhaDoBase64: o encoder da
-// biblioteca escreve uma linha só, e o servidor recusa linha longa.
-func escreveBase64(w io.Writer, dados []byte) error {
-	s := base64.StdEncoding.EncodeToString(dados)
+// writeBase64 breaks the base64 into Base64LineLen lines: the library's
+// encoder writes a single line, and the server rejects long lines.
+func writeBase64(w io.Writer, data []byte) error {
+	s := base64.StdEncoding.EncodeToString(data)
 	for len(s) > 0 {
-		n := min(len(s), LinhaDoBase64)
+		n := min(len(s), Base64LineLen)
 		if _, err := io.WriteString(w, s[:n]+"\r\n"); err != nil {
 			return err
 		}
@@ -281,13 +283,13 @@ func escreveBase64(w io.Writer, dados []byte) error {
 	return nil
 }
 
-// idDaMensagem sorteia um Message-ID no domínio do remetente, como pede a
-// RFC 5322: único no mundo, e de quem o escreveu.
-func idDaMensagem(remetente string) (string, error) {
+// messageID draws a Message-ID in the sender's domain, as RFC 5322 asks:
+// unique in the world, and owned by whoever wrote it.
+func messageID(sender string) (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	_, dominio, _ := strings.Cut(remetente, "@")
-	return "<" + hex.EncodeToString(b) + "@" + dominio + ">", nil
+	_, domain, _ := strings.Cut(sender, "@")
+	return "<" + hex.EncodeToString(b) + "@" + domain + ">", nil
 }

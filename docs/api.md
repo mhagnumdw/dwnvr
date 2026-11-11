@@ -120,7 +120,7 @@ SHA-256 dele. Mandado por e-mail, o link fica guardado na caixa de saída da
 conta que envia e na de entrada da pessoa: como vale minutos e uma vez só, o
 que sobra lá é link morto.
 
-O link vale 10 minutos (`usuarios.ValidadeDoLink`) e uma vez só. Cada pessoa
+O link vale 10 minutos (`users.InviteValidity`) e uma vez só. Cada pessoa
 tem um link por vez: gerar outro invalida o anterior. Vencido, usado,
 substituído ou inventado, a resposta é a mesma, `410`.
 
@@ -298,7 +298,7 @@ a subida do recorder, que é a do dwnvr ou a última vez em que a câmera foi
 reiniciada por mudança de configuração, ou o último
 `POST /api/reconnects/reset`. `reconnectsInWindow` são as que caíram dentro das
 últimas `reconnectsWindowHours` horas, que vem na raiz da resposta e mora em
-`recorder.JanelaDeReconexoes` (`internal/recorder/parametros.go`).
+`recorder.ReconnectWindow` (`internal/recorder/params.go`).
 `lastReconnectAt` é a mais recente, e `disconnectedAt`, que só vem com
 `connected: false`, é quando a conexão caiu:
 
@@ -565,7 +565,7 @@ sem cgroup, fora do Linux).
   ],
   "log": {
     "total": 37,
-    "linhas": [{ "em": "2026-09-22T18:37:12-03:00", "nivel": "WARN", "texto": "conexão caiu cam=garagem erro=EOF" }]
+    "linhas": [{ "em": "2026-09-22T18:37:12-03:00", "nivel": "WARN", "texto": "connection dropped cam=garagem err=EOF" }]
   }
 }
 ```
@@ -855,12 +855,12 @@ muda, e o link novo o apaga.
 
 O `lastAccessMs` é a última requisição da pessoa com sessão válida, e não o
 último login, que diz pouco com a sessão se renovando sozinha. Anda de minuto
-em minuto (`usuarios.PassoDoUltimoAcesso`) e vem em qualquer `status`: quem
+em minuto (`users.LastAccessStep`) e vem em qualquer `status`: quem
 ganhou link novo continua com o acesso de antes. Some de quem não usou o
 dwnvr desde que o campo existe, e de quem é removido ou criado de novo com o
 mesmo usuário. A requisição só anota na memória; o `acessos.json`, na pasta de
 config, é gravado em segundo plano, no máximo a cada 5 minutos
-(`usuarios.EsperaParaGravarOsAcessos`) e ao desligar.
+(`users.AccessFlushDelay`) e ao desligar.
 
 Criar e o link novo devolvem
 `{"user": {...}, "token": "..."}`: o token só existe nessa resposta, e a

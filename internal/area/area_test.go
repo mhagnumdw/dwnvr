@@ -5,167 +5,167 @@ import (
 	"testing"
 )
 
-// As áreas, em fração do quadro.
+// The areas, as a fraction of the frame.
 var (
-	// imagemInteira é a área do tamanho da imagem: tem de dar o mesmo que sem
-	// filtro.
-	imagemInteira = []Ponto{{0, 0}, {1, 0}, {1, 1}, {0, 1}}
+	// wholeImage is the area the size of the image: it must give the same as
+	// no filter.
+	wholeImage = []Point{{0, 0}, {1, 0}, {1, 1}, {0, 1}}
 
-	// portao é um retângulo no meio do chão, de 0,4 a 0,6 em X e de 0,5 a 0,7
-	// em Y.
-	portao = []Ponto{{0.4, 0.5}, {0.6, 0.5}, {0.6, 0.7}, {0.4, 0.7}}
+	// gate is a rectangle in the middle of the ground, from 0.4 to 0.6 in X
+	// and from 0.5 to 0.7 in Y.
+	gate = []Point{{0.4, 0.5}, {0.6, 0.5}, {0.6, 0.7}, {0.4, 0.7}}
 
-	// emL é côncava: a perna de baixo vai de X 0,1 a 0,9 e de Y 0,7 a 0,9, e a
-	// de cima sobe pela esquerda até Y 0,3. O canto de dentro (X 0,3 a 0,9, Y
-	// 0,3 a 0,7) é fora.
-	emL = []Ponto{{0.1, 0.3}, {0.3, 0.3}, {0.3, 0.7}, {0.9, 0.7}, {0.9, 0.9}, {0.1, 0.9}}
+	// lShape is concave: the bottom leg goes from X 0.1 to 0.9 and from Y 0.7
+	// to 0.9, and the top one goes up the left side to Y 0.3. The inner corner
+	// (X 0.3 to 0.9, Y 0.3 to 0.7) is outside.
+	lShape = []Point{{0.1, 0.3}, {0.3, 0.3}, {0.3, 0.7}, {0.9, 0.7}, {0.9, 0.9}, {0.1, 0.9}}
 )
 
-func area(t *testing.T, pontos []Ponto) Area {
+func area(t *testing.T, points []Point) Area {
 	t.Helper()
-	a, err := Nova(pontos)
+	a, err := New(points)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return a
 }
 
-func regra(t *testing.T, nome string) RegraDaArea {
+func rule(t *testing.T, name string) Rule {
 	t.Helper()
-	r, err := NovaRegra(nome)
+	r, err := NewRule(name)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return r
 }
 
-// confere roda os casos nas duas regras: cada caso diz o que cada uma
-// responde.
-func confere(t *testing.T, a Area, casos []struct {
-	nome        string
-	caixa       [4]float64
+// check runs the cases against both rules: each case says what each one
+// answers.
+func check(t *testing.T, a Area, cases []struct {
+	name        string
+	box         [4]float64
 	touch, foot bool
 },
 ) {
 	t.Helper()
-	for _, c := range casos {
-		if got := regra(t, "touch").Dentro(a, c.caixa); got != c.touch {
-			t.Errorf("%s: touch deu %v, devia dar %v", c.nome, got, c.touch)
+	for _, c := range cases {
+		if got := rule(t, "touch").Inside(a, c.box); got != c.touch {
+			t.Errorf("%s: touch gave %v, want %v", c.name, got, c.touch)
 		}
-		if got := regra(t, "foot").Dentro(a, c.caixa); got != c.foot {
-			t.Errorf("%s: foot deu %v, devia dar %v", c.nome, got, c.foot)
+		if got := rule(t, "foot").Inside(a, c.box); got != c.foot {
+			t.Errorf("%s: foot gave %v, want %v", c.name, got, c.foot)
 		}
 	}
 }
 
-// TestImagemInteiraEOMesmoQueSemFiltro inclui as caixas cortadas nas bordas
-// da imagem, as mais comuns: quem está perto da câmera sai cortado embaixo, e
-// o pé cai em Y = 1, sobre a borda da área.
-func TestImagemInteiraEOMesmoQueSemFiltro(t *testing.T) {
-	confere(t, area(t, imagemInteira), []struct {
-		nome        string
-		caixa       [4]float64
+// TestWholeImageMatchesNoFilter includes the boxes cut off at the image edges,
+// the most common ones: someone close to the camera is cut off at the bottom,
+// and the foot lands on Y = 1, on the area's edge.
+func TestWholeImageMatchesNoFilter(t *testing.T) {
+	check(t, area(t, wholeImage), []struct {
+		name        string
+		box         [4]float64
 		touch, foot bool
 	}{
-		{"no meio", [4]float64{0.4, 0.3, 0.5, 0.6}, true, true},
-		{"cortada embaixo", [4]float64{0.4, 0.5, 0.6, 1}, true, true},
-		{"cortada à esquerda", [4]float64{0, 0.2, 0.1, 0.5}, true, true},
-		{"cortada à direita", [4]float64{0.9, 0.2, 1, 0.5}, true, true},
-		{"a imagem toda", [4]float64{0, 0, 1, 1}, true, true},
-		// O detector de objetos devolve caixa que passa um pouco da borda.
-		{"passando da borda de baixo", [4]float64{0.4, 0.5, 0.6, 1.0015}, true, true},
-		{"passando das laterais", [4]float64{-0.0293, 0.5, 1.0115, 0.9}, true, true},
+		{"in the middle", [4]float64{0.4, 0.3, 0.5, 0.6}, true, true},
+		{"cut off at the bottom", [4]float64{0.4, 0.5, 0.6, 1}, true, true},
+		{"cut off on the left", [4]float64{0, 0.2, 0.1, 0.5}, true, true},
+		{"cut off on the right", [4]float64{0.9, 0.2, 1, 0.5}, true, true},
+		{"the whole image", [4]float64{0, 0, 1, 1}, true, true},
+		// The object detector returns boxes slightly past the edge.
+		{"past the bottom edge", [4]float64{0.4, 0.5, 0.6, 1.0015}, true, true},
+		{"past the sides", [4]float64{-0.0293, 0.5, 1.0115, 0.9}, true, true},
 	})
 }
 
-// TestQuemPassaNaFrenteNaoPisa é o motivo das duas regras: a pessoa perto da
-// câmera cobre, na imagem, a área que fica atrás dela.
-func TestQuemPassaNaFrenteNaoPisa(t *testing.T) {
-	confere(t, area(t, portao), []struct {
-		nome        string
-		caixa       [4]float64
+// TestPassingInFrontIsNotFoot is the reason for the two rules: a person close
+// to the camera covers, in the image, the area behind them.
+func TestPassingInFrontIsNotFoot(t *testing.T) {
+	check(t, area(t, gate), []struct {
+		name        string
+		box         [4]float64
 		touch, foot bool
 	}{
-		{"no portão", [4]float64{0.45, 0.3, 0.55, 0.65}, true, true},
-		{"na frente, cobrindo o portão", [4]float64{0.35, 0.2, 0.65, 0.95}, true, false},
-		{"pé na borda de baixo do portão", [4]float64{0.45, 0.3, 0.55, 0.7}, true, true},
-		{"longe", [4]float64{0.05, 0.05, 0.15, 0.2}, false, false},
-		{"a caixa dentro do portão, pequena", [4]float64{0.45, 0.55, 0.5, 0.6}, true, true},
-		{"o portão dentro da caixa, que pisa abaixo dele", [4]float64{0.3, 0.4, 0.7, 0.8}, true, false},
+		{"at the gate", [4]float64{0.45, 0.3, 0.55, 0.65}, true, true},
+		{"in front, covering the gate", [4]float64{0.35, 0.2, 0.65, 0.95}, true, false},
+		{"foot on the gate's bottom edge", [4]float64{0.45, 0.3, 0.55, 0.7}, true, true},
+		{"far away", [4]float64{0.05, 0.05, 0.15, 0.2}, false, false},
+		{"small box inside the gate", [4]float64{0.45, 0.55, 0.5, 0.6}, true, true},
+		{"the gate inside the box, whose foot is below it", [4]float64{0.3, 0.4, 0.7, 0.8}, true, false},
 	})
 }
 
-// TestCaixaQueSoEncostaNaBorda: um ponto em comum já é encostar.
-func TestCaixaQueSoEncostaNaBorda(t *testing.T) {
-	confere(t, area(t, portao), []struct {
-		nome        string
-		caixa       [4]float64
+// TestBoxThatOnlyTouchesTheEdge: one shared point is already touching.
+func TestBoxThatOnlyTouchesTheEdge(t *testing.T) {
+	check(t, area(t, gate), []struct {
+		name        string
+		box         [4]float64
 		touch, foot bool
 	}{
-		{"borda direita da caixa na esquerda do portão", [4]float64{0.3, 0.55, 0.4, 0.65}, true, false},
-		{"um canto da caixa no canto do portão", [4]float64{0.6, 0.7, 0.7, 0.8}, true, false},
-		{"a um milésimo da esquerda do portão", [4]float64{0.3, 0.55, 0.399, 0.65}, false, false},
-		{"base da caixa no topo do portão", [4]float64{0.45, 0.3, 0.55, 0.5}, true, true},
-		{"cruzando o portão de lado a lado, sem canto dentro", [4]float64{0.3, 0.55, 0.7, 0.6}, true, true},
-		{"cruzando o portão de lado a lado, com o pé abaixo", [4]float64{0.3, 0.55, 0.7, 0.75}, true, false},
+		{"box's right edge on the gate's left", [4]float64{0.3, 0.55, 0.4, 0.65}, true, false},
+		{"a box corner on the gate corner", [4]float64{0.6, 0.7, 0.7, 0.8}, true, false},
+		{"one thousandth left of the gate", [4]float64{0.3, 0.55, 0.399, 0.65}, false, false},
+		{"box bottom on the gate top", [4]float64{0.45, 0.3, 0.55, 0.5}, true, true},
+		{"across the gate side to side, no corner inside", [4]float64{0.3, 0.55, 0.7, 0.6}, true, true},
+		{"across the gate side to side, foot below", [4]float64{0.3, 0.55, 0.7, 0.75}, true, false},
 	})
 }
 
-// TestAreaConcava: o canto de dentro do L é fora, nas duas regras.
-func TestAreaConcava(t *testing.T) {
-	confere(t, area(t, emL), []struct {
-		nome        string
-		caixa       [4]float64
+// TestConcaveArea: the inner corner of the L is outside, for both rules.
+func TestConcaveArea(t *testing.T) {
+	check(t, area(t, lShape), []struct {
+		name        string
+		box         [4]float64
 		touch, foot bool
 	}{
-		{"na perna de baixo", [4]float64{0.5, 0.6, 0.6, 0.8}, true, true},
-		{"na perna de cima", [4]float64{0.15, 0.2, 0.25, 0.5}, true, true},
-		{"no canto de dentro", [4]float64{0.5, 0.35, 0.7, 0.6}, false, false},
-		{"no canto de dentro, com o pé na perna de baixo", [4]float64{0.5, 0.35, 0.7, 0.75}, true, true},
-		{"sobre a quina de dentro, com o pé fora", [4]float64{0.25, 0.4, 0.4, 0.6}, true, false},
+		{"in the bottom leg", [4]float64{0.5, 0.6, 0.6, 0.8}, true, true},
+		{"in the top leg", [4]float64{0.15, 0.2, 0.25, 0.5}, true, true},
+		{"in the inner corner", [4]float64{0.5, 0.35, 0.7, 0.6}, false, false},
+		{"in the inner corner, foot on the bottom leg", [4]float64{0.5, 0.35, 0.7, 0.75}, true, true},
+		{"over the inner corner, foot outside", [4]float64{0.25, 0.4, 0.4, 0.6}, true, false},
 	})
 }
 
-func TestNovaRecusaComOMotivo(t *testing.T) {
-	demais := make([]Ponto, MaxPontosDaArea+1)
+func TestNewRejectsWithReason(t *testing.T) {
+	tooMany := make([]Point, MaxAreaPoints+1)
 	for _, c := range []struct {
-		nome   string
-		pontos []Ponto
+		name   string
+		points []Point
 	}{
-		{"dois pontos", []Ponto{{0, 0}, {1, 1}}},
-		{"pontos demais", demais},
-		{"X acima de 1", []Ponto{{0, 0}, {1.2, 0}, {1, 1}}},
-		{"Y negativo", []Ponto{{0, 0}, {1, -0.1}, {1, 1}}},
+		{"two points", []Point{{0, 0}, {1, 1}}},
+		{"too many points", tooMany},
+		{"X above 1", []Point{{0, 0}, {1.2, 0}, {1, 1}}},
+		{"negative Y", []Point{{0, 0}, {1, -0.1}, {1, 1}}},
 	} {
-		if _, err := Nova(c.pontos); err == nil {
-			t.Errorf("%s: devia recusar", c.nome)
+		if _, err := New(c.points); err == nil {
+			t.Errorf("%s: should be rejected", c.name)
 		}
 	}
 }
 
-func TestNovaRegra(t *testing.T) {
-	if r := regra(t, ""); r.Nome() != RegraDaAreaPadrao {
-		t.Errorf("sem nome devia ser a padrão, %q; veio %q", RegraDaAreaPadrao, r.Nome())
+func TestNewRule(t *testing.T) {
+	if r := rule(t, ""); r.Name() != DefaultRule {
+		t.Errorf("no name should give the default, %q; got %q", DefaultRule, r.Name())
 	}
-	for nome := range Regras {
-		if r := regra(t, nome); r.Nome() != nome {
-			t.Errorf("Regras[%q] devolve uma regra que se chama %q", nome, r.Nome())
+	for name := range Rules {
+		if r := rule(t, name); r.Name() != name {
+			t.Errorf("Rules[%q] returns a rule named %q", name, r.Name())
 		}
 	}
-	if _, err := NovaRegra("pisa"); !errors.Is(err, ErrRegraDesconhecida) {
-		t.Errorf("nome fora do mapa devia ser ErrRegraDesconhecida, veio %v", err)
+	if _, err := NewRule("pisa"); !errors.Is(err, ErrUnknownRule) {
+		t.Errorf("a name not in the map should be ErrUnknownRule, got %v", err)
 	}
 }
 
-// TestRegrasNaoAlocam: o calendário de Detecções passa por todas as marcas de
-// todos os dias.
-func TestRegrasNaoAlocam(t *testing.T) {
-	a := area(t, emL)
-	caixa := [4]float64{0.25, 0.4, 0.4, 0.6}
-	for nome := range Regras {
-		r := regra(t, nome)
-		if n := testing.AllocsPerRun(100, func() { r.Dentro(a, caixa) }); n != 0 {
-			t.Errorf("%s aloca %v vezes por caixa", nome, n)
+// TestRulesDoNotAllocate: the Detections calendar goes through every mark of
+// every day.
+func TestRulesDoNotAllocate(t *testing.T) {
+	a := area(t, lShape)
+	box := [4]float64{0.25, 0.4, 0.4, 0.6}
+	for name := range Rules {
+		r := rule(t, name)
+		if n := testing.AllocsPerRun(100, func() { r.Inside(a, box) }); n != 0 {
+			t.Errorf("%s allocates %v times per box", name, n)
 		}
 	}
 }

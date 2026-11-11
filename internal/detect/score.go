@@ -2,169 +2,172 @@ package detect
 
 import "math"
 
-// Score responde "o quanto ESTE quadro destoa do que esta câmera costuma
-// fazer". Zero é o normal dela; 3 é três desvios acima do normal dela.
+// Score answers "how much does THIS frame stand out from what this camera
+// usually does". Zero is its normal; 3 is three deviations above its normal.
 //
-// Ele não sabe o que é um onset e não decide nada: quem decide é o Mecanismo.
-// Essa separação é o que permite regular todas as funções no mesmo custo e
-// comparar o que elas pegam - foi assim que a função padrão foi escolhida entre
-// duas dezenas de candidatas.
+// It doesn't know what an onset is and decides nothing: the Method decides.
+// That separation is what allows tuning every function to the same cost and
+// comparing what they catch - that's how the default function was picked
+// among two dozen candidates.
 //
-// Não é seguro para uso concorrente: cada câmera tem o seu, e só a goroutine
-// dela o toca.
+// Not safe for concurrent use: each camera has its own, and only its goroutine
+// touches it.
 type Score interface {
-	// Empurra recebe UM quadro e devolve o destaque dele. `bytes` é a caixa
-	// mdat inteira, cabeçalho incluído, que é o número que o recorder tem na
-	// mão sem conta nenhuma. `dtMs` é quanto tempo passou desde o quadro
-	// anterior.
-	Empurra(bytes int, keyframe bool, dtMs float64) float64
+	// Push takes ONE frame and returns its salience. `bytes` is the whole mdat
+	// box, header included, which is the number the recorder has at hand
+	// without any math. `dtMs` is how much time passed since the previous
+	// frame.
+	Push(bytes int, keyframe bool, dtMs float64) float64
 
-	// Zera esquece tudo. Buraco de gravação ou reconexão: o que veio antes não
-	// vale mais.
-	Zera()
+	// Reset forgets everything. Recording gap or reconnection: what came
+	// before no longer counts.
+	Reset()
 
-	// Aquecimento é quantos quadros a função precisa ver depois de cada Zera
-	// antes de o número dela valer.
-	Aquecimento() int
+	// Warmup is how many frames the function needs to see after each Reset
+	// before its number counts.
+	Warmup() int
 
-	Nome() string
+	Name() string
 }
 
-// FuncoesDeScore é o mapa que faz trocar de função ser trocar uma string, para
-// que a função padrão possa ser substituída sem tocar em quem a usa.
+// ScoreFuncs is the map that makes swapping a function a matter of swapping a
+// string, so the default function can be replaced without touching its users.
 //
-// Só as que venceram a medição estão aqui. Função nova entra depois de medida
-// contra estas, no mesmo custo.
-var FuncoesDeScore = map[string]func() Score{
-	"kleinberg":   func() Score { return novoKleinberg() },
-	"kleinberg-p": func() Score { return soP(novoKleinberg()) },
+// Only the ones that won the measurement are here. A new function goes in
+// after being measured against these, at the same cost.
+var ScoreFuncs = map[string]func() Score{
+	"kleinberg":   func() Score { return newKleinberg() },
+	"kleinberg-p": func() Score { return hideIFrames(newKleinberg()) },
 }
 
-// --- média e desvio exponenciais --------------------------------------------
+// --- exponential mean and deviation -----------------------------------------
 
-// ewma é a média e o desvio exponenciais sobre os quais o `kleinberg` mede o z.
+// ewma is the exponential mean and deviation over which `kleinberg` measures
+// the z.
 //
-// A meia vida é em QUADROS, não em segundos: as câmeras vão de 10 a 15 fps e a
-// régua tem que ser a mesma em número de amostras.
+// The half life is in FRAMES, not seconds: cameras range from 10 to 15 fps and
+// the baseline has to be the same in number of samples.
 type ewma struct {
-	alfa        float64
-	media, vari float64
-	n           int
-	temMedia    bool
+	alpha          float64
+	mean, variance float64
+	n              int
+	hasMean        bool
 }
 
-func novoEwma(meiaVida float64) *ewma {
-	return &ewma{alfa: 1 - math.Exp(math.Log(0.5)/meiaVida)}
+func newEWMA(halfLife float64) *ewma {
+	return &ewma{alpha: 1 - math.Exp(math.Log(0.5)/halfLife)}
 }
 
-func (e *ewma) zera() { e.media, e.vari, e.n, e.temMedia = 0, 0, 0, false }
+func (e *ewma) reset() { e.mean, e.variance, e.n, e.hasMean = 0, 0, 0, false }
 
-func (e *ewma) empurra(x float64) {
+func (e *ewma) push(x float64) {
 	e.n++
-	if !e.temMedia {
-		e.media, e.vari, e.temMedia = x, 0, true
+	if !e.hasMean {
+		e.mean, e.variance, e.hasMean = x, 0, true
 		return
 	}
-	d := x - e.media
-	e.media += e.alfa * d
-	e.vari = (1 - e.alfa) * (e.vari + e.alfa*d*d)
+	d := x - e.mean
+	e.mean += e.alpha * d
+	e.variance = (1 - e.alpha) * (e.variance + e.alpha*d*d)
 }
 
-func (e *ewma) desvio() float64 { return math.Sqrt(e.vari) }
+func (e *ewma) stdDev() float64 { return math.Sqrt(e.variance) }
 
-// --- o `kleinberg` ----------------------------------------------------------
+// --- `kleinberg` ------------------------------------------------------------
 
-// kleinberg é um detector de rajada em dois estados, "calmo" e "agitado".
+// kleinberg is a two-state burst detector, "calm" and "bursty".
 //
-// Ele foi feito exatamente para a pergunta "quando começou a rajada num
-// fluxo", e aqui está na forma online e barata: a razão de verossimilhança
-// entre os dois estados, acumulada com um custo para trocar de estado.
+// It was made precisely for the question "when did the burst start in a
+// stream", and here it's in its cheap online form: the likelihood ratio
+// between the two states, accumulated with a cost to switch states.
 //
-// Ganhou das outras candidatas com folga de sete erros padrão sobre a segunda
-// colocada, e não se degrada à noite - metade das horas de um NVR é noite.
+// It beat the other candidates by a margin of seven standard errors over the
+// runner-up, and doesn't degrade at night - half the hours of an NVR are
+// night.
 type kleinberg struct {
-	e              *ewma
-	calmo, agitado float64
+	e            *ewma
+	calm, bursty float64
 }
 
-func novoKleinberg() *kleinberg {
-	k := &kleinberg{e: novoEwma(MeiaVidaKleinberg)}
-	k.Zera()
+func newKleinberg() *kleinberg {
+	k := &kleinberg{e: newEWMA(KleinbergHalfLife)}
+	k.Reset()
 	return k
 }
 
-func (k *kleinberg) Nome() string     { return "kleinberg" }
-func (k *kleinberg) Aquecimento() int { return AquecimentoKleinberg }
+func (k *kleinberg) Name() string { return "kleinberg" }
+func (k *kleinberg) Warmup() int  { return KleinbergWarmup }
 
-func (k *kleinberg) Zera() {
-	k.e.zera()
-	k.calmo, k.agitado = 0, -CustoTrocaKleinberg
+func (k *kleinberg) Reset() {
+	k.e.reset()
+	k.calm, k.bursty = 0, -KleinbergSwitchCost
 }
 
-func (k *kleinberg) Empurra(bytes int, _ bool, _ float64) float64 {
-	// O log é o que põe câmeras de 28 e de 305 kbps na mesma escala: o que
-	// interessa é a RAZÃO entre o quadro e o normal dela, não a diferença.
+func (k *kleinberg) Push(bytes int, _ bool, _ float64) float64 {
+	// The log is what puts 28 and 305 kbps cameras on the same scale: what
+	// matters is the RATIO between the frame and its normal, not the
+	// difference.
 	x := math.Log(float64(max(bytes, 1)))
 
-	if !k.e.temMedia || k.e.n < QuadrosAntesDoPrimeiroDestaque {
-		k.e.empurra(x)
+	if !k.e.hasMean || k.e.n < FramesBeforeFirstScore {
+		k.e.push(x)
 		return 0
 	}
 
-	z := (x - k.e.media) / math.Max(k.e.desvio(), PisoDesvioLog)
-	// Aprende só fora do evento. Ver CongelaAcima.
-	if z < CongelaAcima {
-		k.e.empurra(x)
+	z := (x - k.e.mean) / math.Max(k.e.stdDev(), LogStdDevFloor)
+	// Learns only outside the event. See FreezeAbove.
+	if z < FreezeAbove {
+		k.e.push(x)
 	}
 
-	// Log-verossimilhança de cada estado. O agitado espera a média
-	// FatorKleinberg desvios acima.
+	// Log-likelihood of each state. The bursty one expects the mean
+	// KleinbergFactor deviations higher.
 	lc := -0.5 * z * z
-	la := -0.5 * (z - FatorKleinberg) * (z - FatorKleinberg)
-	novoCalmo := math.Max(k.calmo, k.agitado-CustoTrocaKleinberg) + lc
-	novoAgitado := math.Max(k.agitado, k.calmo-CustoTrocaKleinberg) + la
+	la := -0.5 * (z - KleinbergFactor) * (z - KleinbergFactor)
+	newCalm := math.Max(k.calm, k.bursty-KleinbergSwitchCost) + lc
+	newBursty := math.Max(k.bursty, k.calm-KleinbergSwitchCost) + la
 
-	// Normaliza, senão os dois afundam juntos e o float estoura.
-	piso := math.Max(novoCalmo, novoAgitado)
-	k.calmo, k.agitado = novoCalmo-piso, novoAgitado-piso
-	return k.agitado - k.calmo
+	// Normalizes, otherwise both sink together and the float overflows.
+	floor := math.Max(newCalm, newBursty)
+	k.calm, k.bursty = newCalm-floor, newBursty-floor
+	return k.bursty - k.calm
 }
 
-// --- a variante que esconde o frame I ---------------------------------------
+// --- the variant that hides the I frame -------------------------------------
 
-// semFrameI embrulha uma função e esconde dela os frames I.
+// noIFrame wraps a function and hides the I frames from it.
 //
-// O frame I não mede movimento, mede a CENA inteira de novo: ele volta a cada
-// GOP tenha acontecido alguma coisa ou não, e é 27 a 258 vezes maior que um P
-// de cena parada. Como ele é raro - 1,6% a 5% dos quadros -, uma função
-// regulada em 50 onsets/hora gastaria o orçamento INTEIRO decidindo qual frame
-// I é grande demais, e o movimento, que mora nos P, nunca chegaria a ser
-// olhado.
+// The I frame doesn't measure motion, it measures the whole SCENE again: it
+// comes back every GOP whether something happened or not, and is 27 to 258
+// times larger than a still-scene P. Since it's rare - 1.6% to 5% of frames -,
+// a function tuned to 50 onsets/hour would spend its ENTIRE budget deciding
+// which I frame is too large, and the motion, which lives in the P frames,
+// would never get inferred.
 //
-// O efeito disso, medido, não é sutil: as candidatas se partem em duas, com as
-// sete funções que não veem o frame I acima da régua e as sete que veem abaixo
-// dela - pior que disparar a esmo.
+// The measured effect is not subtle: the candidates split in two, with the
+// seven functions that don't see the I frame above the reference and the
+// seven that do below it - worse than firing at random.
 //
-// Custa zero: o recorder já tem esse bit na mão.
-type semFrameI struct {
-	dentro Score
-	ultimo float64
+// It costs nothing: the recorder already has that bit at hand.
+type noIFrame struct {
+	inner Score
+	last  float64
 }
 
-func soP(dentro Score) Score { return &semFrameI{dentro: dentro} }
+func hideIFrames(inner Score) Score { return &noIFrame{inner: inner} }
 
-func (s *semFrameI) Nome() string     { return s.dentro.Nome() + "-p" }
-func (s *semFrameI) Aquecimento() int { return s.dentro.Aquecimento() }
+func (s *noIFrame) Name() string { return s.inner.Name() + "-p" }
+func (s *noIFrame) Warmup() int  { return s.inner.Warmup() }
 
-func (s *semFrameI) Zera() {
-	s.dentro.Zera()
-	s.ultimo = 0
+func (s *noIFrame) Reset() {
+	s.inner.Reset()
+	s.last = 0
 }
 
-func (s *semFrameI) Empurra(bytes int, keyframe bool, dtMs float64) float64 {
+func (s *noIFrame) Push(bytes int, keyframe bool, dtMs float64) float64 {
 	if keyframe {
-		return s.ultimo
+		return s.last
 	}
-	s.ultimo = s.dentro.Empurra(bytes, keyframe, dtMs)
-	return s.ultimo
+	s.last = s.inner.Push(bytes, keyframe, dtMs)
+	return s.last
 }

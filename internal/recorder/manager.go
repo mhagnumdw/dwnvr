@@ -7,34 +7,35 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mhagnumdw/dwnvr/internal/alerta"
+	"github.com/mhagnumdw/dwnvr/internal/alert"
 	"github.com/mhagnumdw/dwnvr/internal/config"
 	"github.com/mhagnumdw/dwnvr/internal/detect"
 	"github.com/mhagnumdw/dwnvr/internal/go2rtc"
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
 
-// bitrateSampleInterval é de quanto em quanto tempo a taxa observada é
-// reamostrada. Precisa ser bem menor que a duração de um segmento para que o
-// diagnóstico não fique estagnado entre um segmento e outro.
+// bitrateSampleInterval is how often the observed rate is resampled. It
+// has to be much smaller than a segment's duration so diagnostics don't stall
+// between one segment and the next.
 const bitrateSampleInterval = 15 * time.Second
 
-// running é um recorder no ar mais o que é preciso para pará-lo sozinho.
+// running is a live recorder plus what's needed to stop it on its own.
 type running struct {
 	rec    *Recorder
 	cancel context.CancelFunc
 	done   chan struct{}
 }
 
-// Manager mantém um recorder por câmera habilitada e permite cadastrar,
-// alterar e remover câmeras sem reiniciar o processo - cadastrar uma câmera e
-// ter de reiniciar o serviço para ela começar a gravar seria um jeito ruim de
-// perder gravação.
+// Manager keeps one recorder per enabled camera and lets cameras be added,
+// changed and removed without restarting the process - adding a camera and
+// having to restart the service for it to start recording would be a bad way
+// to lose recordings.
 //
-// Set, Remove e Pause decidem e depois agem, e não se enfileiram entre si:
-// dois em paralelo na mesma câmera sobem dois recorders, e um fica gravando
-// fora do mapa. Quem os chama de goroutines diferentes enfileira por fora - a
-// API faz isso com o Server.cadastro.
+// Set, Remove and Pause decide and then act, and don't queue among
+// themselves: two in parallel on the same camera start two recorders, and one
+// keeps recording outside the map. Whoever calls them from different
+// goroutines queues them outside - the API does that with
+// Server.registry.
 type Manager struct {
 	cfg    *config.Config
 	client *go2rtc.Client
@@ -45,18 +46,18 @@ type Manager struct {
 	recs map[string]*running
 	cams map[string]config.Camera
 
-	// regras é o alerta de cada câmera que alerta, montado no Set. Câmera sem
-	// alerta não tem entrada, e a olhada dela não faz conta nenhuma.
-	regras map[string]*alerta.Regra
-	// alertas nasce com a primeira regra e fica até o dwnvr parar, para o
-	// total do /api/health não voltar a zero quando o último alerta é
-	// desligado. Nil é "nenhuma câmera ligou o alerta": nada do alerta existe.
-	alertas *alerta.Central
+	// rules are the alert of each camera that alerts, built in Set. A camera
+	// without an alert has no entry, and its inference does no math at all.
+	rules map[string]*alert.Rule
+	// dispatcher is born with the first rule and stays until dwnvr stops, so
+	// the /api/health total doesn't go back to zero when the last alert is turned
+	// off. Nil means "no camera turned the alert on": nothing of the alert
+	// exists.
+	dispatcher *alert.Dispatcher
 
-	// fila leva os pedaços de vídeo de todas as câmeras ao detector de
-	// objetos. Nil sem `detector.url`: aí ninguém olha, e nenhum recorder
-	// guarda GOP.
-	fila *detect.Fila
+	// queue takes the video clips of every camera to the object detector. Nil
+	// without `detector.url`: then nobody infers, and no recorder keeps a GOP.
+	queue *detect.Queue
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -67,31 +68,31 @@ func NewManager(cfg *config.Config, client *go2rtc.Client, st *store.Store, log 
 	m := &Manager{
 		cfg: cfg, client: client, store: st, log: log,
 		recs: map[string]*running{}, cams: map[string]config.Camera{},
-		regras: map[string]*alerta.Regra{},
+		rules: map[string]*alert.Rule{},
 	}
 	if cfg.Detector.URL != "" {
-		m.fila = detect.NovaFila(detect.Detectores["sidecar"](cfg.Detector.URL), m.olhou, log)
+		m.queue = detect.NewQueue(detect.Detectors["sidecar"](cfg.Detector.URL), m.onInference, log)
 	}
 	return m
 }
 
-// olhou entrega a resposta do detector ao recorder da câmera, com a regra de
-// alerta dela, e passa à Central o alerta que sair. Câmera que saiu do ar
-// enquanto o pedaço dela esperava simplesmente não recebe.
-func (m *Manager) olhou(o detect.Olhada) {
+// onInference hands the object detector's answer to the camera's recorder,
+// with its alert rule, and passes the resulting alert to the Dispatcher. A
+// camera that went away while its clip was waiting simply doesn't get it.
+func (m *Manager) onInference(o detect.Inference) {
 	m.mu.RLock()
-	r := m.recs[o.Pedaco.Camera]
-	regra, alertas := m.regras[o.Pedaco.Camera], m.alertas
+	r := m.recs[o.Clip.Camera]
+	rule, dispatcher := m.rules[o.Clip.Camera], m.dispatcher
 	m.mu.RUnlock()
 	if r == nil {
 		return
 	}
-	if a, ok := r.rec.olhou(o, regra); ok {
-		alertas.Recebe(a)
+	if a, ok := r.rec.onInference(o, rule); ok {
+		dispatcher.Receive(a)
 	}
 }
 
-// Start sobe os recorders das câmeras informadas.
+// Start brings up the recorders of the given cameras.
 func (m *Manager) Start(ctx context.Context, cams []config.Camera) {
 	m.ctx, m.cancel = context.WithCancel(ctx)
 
@@ -103,91 +104,91 @@ func (m *Manager) Start(ctx context.Context, cams []config.Camera) {
 		m.sampleLoop(m.ctx)
 	})
 
-	if m.fila != nil {
-		m.log.Info("detector de objetos configurado", "url", m.cfg.Detector.URL)
+	if m.queue != nil {
+		m.log.Info("object detector configured", "url", m.cfg.Detector.URL)
 		m.wg.Go(func() {
-			m.fila.Roda(m.ctx)
+			m.queue.Run(m.ctx)
 		})
 	}
 }
 
-// Set cadastra ou atualiza uma câmera, subindo, derrubando ou reiniciando o
-// recorder conforme a configuração pedir.
+// Set adds or updates a camera, starting, stopping or restarting the
+// recorder as the configuration asks.
 func (m *Manager) Set(raw config.Camera) {
 	cam := m.cfg.Resolve(raw)
-	// Sem detector de objetos não há olhada, e o alerta não teria o que
-	// avisar: nem a regra nasce.
-	var regra *alerta.Regra
-	if m.fila != nil {
-		regra = alerta.NovaRegra(cam)
+	// Without an object detector there's no inference, and the alert would have
+	// nothing to tell: the rule isn't even built.
+	var rule *alert.Rule
+	if m.queue != nil {
+		rule = alert.NewRule(cam)
 	}
 
 	m.mu.Lock()
 	m.cams[cam.ID] = raw
-	if regra != nil {
-		m.regras[cam.ID] = regra
-		m.ligaAlertasLocked()
+	if rule != nil {
+		m.rules[cam.ID] = rule
+		m.enableAlertsLocked()
 	} else {
-		delete(m.regras, cam.ID)
+		delete(m.rules, cam.ID)
 	}
 	old := m.recs[cam.ID]
 	m.mu.Unlock()
 
-	// Uma câmera desabilitada não deve ficar com recorder no ar.
+	// A disabled camera must not keep a recorder running.
 	if !cam.Enabled {
 		if old != nil {
 			m.stop(cam.ID)
-			m.log.Info("câmera desabilitada, gravação encerrada", "cam", cam.ID)
+			m.log.Info("camera disabled, recording stopped", "cam", cam.ID)
 		}
 		return
 	}
 
-	// Reiniciar só quando algo que o recorder usa de fato mudou: trocar o nome
-	// de exibição não deveria abrir um buraco na gravação.
+	// Restart only when something the recorder actually uses changed:
+	// changing the display name shouldn't open a gap in the recording.
 	if old != nil {
 		if !recordingParamsChanged(old.rec.camera(), cam) {
-			old.rec.trocaCamera(cam)
-			// A detecção muda em pleno voo: o laço de gravação troca o gatilho
-			// no próximo quadro. Reconectar para mudar a sensibilidade abriria
-			// um buraco na gravação por uma coisa que não depende da conexão.
-			old.rec.pedeDetect(cam)
+			old.rec.swapCamera(cam)
+			// Detection changes mid-flight: the recording loop swaps the trigger on
+			// the next frame. Reconnecting to change the sensitivity would open a gap in
+			// the recording for something that doesn't depend on the connection.
+			old.rec.requestDetect(cam)
 			return
 		}
 		m.stop(cam.ID)
-		m.log.Info("configuração de gravação mudou, reiniciando", "cam", cam.ID)
+		m.log.Info("recording settings changed, restarting", "cam", cam.ID)
 	}
 
 	m.start(cam)
 }
 
-// ligaAlertasLocked cria a Central na primeira câmera que liga o alerta, com
-// os meios do dwnvr.yaml, e sobe a goroutine de envio. Antes do Start não há
-// ctx para ela; o Start chama o Set de cada câmera depois de criá-lo. Com o
-// m.mu travado.
-func (m *Manager) ligaAlertasLocked() {
-	if m.alertas != nil {
+// enableAlertsLocked creates the Dispatcher on the first camera that turns
+// the alert on, with the notifiers from dwnvr.yaml, and starts the send
+// goroutine. Before Start there's no ctx for it; Start calls Set for each
+// camera after creating it. With m.mu held.
+func (m *Manager) enableAlertsLocked() {
+	if m.dispatcher != nil {
 		return
 	}
-	m.alertas = alerta.NovaCentral(alerta.Meios(m.cfg, m.log), m.log)
+	m.dispatcher = alert.NewDispatcher(alert.BuildNotifiers(m.cfg, m.log), m.log)
 	if m.ctx != nil {
-		c := m.alertas
+		c := m.dispatcher
 		m.wg.Go(func() {
-			c.Roda(m.ctx)
+			c.Run(m.ctx)
 		})
 	}
 }
 
-// Alertas devolve a Central, ou nil enquanto nenhuma câmera ligou o alerta.
-func (m *Manager) Alertas() *alerta.Central {
+// Alerts returns the Dispatcher, or nil while no camera has turned the alert on.
+func (m *Manager) Alerts() *alert.Dispatcher {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.alertas
+	return m.dispatcher
 }
 
-// recordingParamsChanged diz se a mudança exige reabrir a conexão. Nome, cota e
-// detecção não exigem: a cota é aplicada pela retenção, que lê a configuração a
-// cada passada, e o gatilho de movimento é trocado pelo próprio laço de
-// gravação no quadro seguinte.
+// recordingParamsChanged says whether the change requires reopening the
+// connection. Name, quota and detection don't: the quota is applied by
+// retention, which reads the configuration on every pass, and the motion
+// trigger is swapped by the recording loop itself on the next frame.
 func recordingParamsChanged(a, b config.Camera) bool {
 	return a.Audio != b.Audio || a.SegmentSeconds != b.SegmentSeconds ||
 		a.StallSeconds != b.StallSeconds
@@ -199,8 +200,8 @@ func (m *Manager) start(cam config.Camera) {
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
 	rec := newRecorder(cam, m.client, m.store.Camera(cam.ID), m.log)
-	if m.fila != nil {
-		rec.pedacos = rec.ofereceA(m.fila)
+	if m.queue != nil {
+		rec.clips = rec.offerTo(m.queue)
 	}
 	r := &running{rec: rec, cancel: cancel, done: make(chan struct{})}
 
@@ -214,8 +215,8 @@ func (m *Manager) start(cam config.Camera) {
 	})
 }
 
-// stop encerra o recorder de uma câmera e espera o segmento em aberto ser
-// fechado e indexado.
+// stop ends a camera's recorder and waits for the open segment to be
+// closed and indexed.
 func (m *Manager) stop(id string) {
 	m.mu.Lock()
 	r := m.recs[id]
@@ -229,32 +230,32 @@ func (m *Manager) stop(id string) {
 	<-r.done
 }
 
-// Pause para o recorder da câmera, executa fn e o sobe de volta.
+// Pause stops the camera's recorder, runs fn and brings it back up.
 //
-// É o que permite apagar as gravações de uma câmera que está gravando. Um
-// RemoveAll com o segmento aberto deixaria o writer despejando bytes num inode
-// já desvinculado, e o finish() gravaria no índice uma entrada apontando para
-// arquivo que não existe mais - estrago que só a reconciliação do próximo boot
-// desfaria. O stop() daqui espera o segmento em aberto ser fechado e indexado
-// antes de fn começar.
+// It's what allows deleting the recordings of a camera that's recording. A
+// RemoveAll with the segment open would leave the writer pouring bytes into an
+// already unlinked inode, and finish() would write to the index an entry
+// pointing to a file that no longer exists - damage only the next boot's
+// reconciliation would undo. The stop() here waits for the open segment to be
+// closed and indexed before fn starts.
 //
-// Ao contrário de Remove, a câmera continua cadastrada o tempo todo: quem
-// consultar /api/health no meio da operação vê uma câmera parada, não uma
-// câmera que sumiu. ID sem cadastro - o caso de uma câmera já removida - só
-// executa fn, porque não há recorder algum para parar.
+// Unlike Remove, the camera stays registered the whole time: whoever queries
+// /api/health in the middle of the operation sees a stopped camera, not a
+// camera that vanished. An unregistered ID - the case of a camera already
+// removed - only runs fn, because there's no recorder to stop.
 func (m *Manager) Pause(id string, fn func() error) error {
 	m.mu.RLock()
-	raw, cadastrada := m.cams[id]
+	raw, registered := m.cams[id]
 	m.mu.RUnlock()
 
-	if !cadastrada {
+	if !registered {
 		return fn()
 	}
 
 	m.stop(id)
-	// O recorder volta mesmo se fn falhar: deixar a câmera parada por causa de
-	// um erro em outra coisa transformaria uma operação falha em perda de
-	// gravação até alguém perceber.
+	// The recorder comes back even if fn fails: leaving the camera stopped
+	// because of an error in something else would turn a failed operation into
+	// lost recordings until someone noticed.
 	cam := m.cfg.Resolve(raw)
 	if cam.Enabled {
 		defer m.start(cam)
@@ -262,21 +263,21 @@ func (m *Manager) Pause(id string, fn func() error) error {
 	return fn()
 }
 
-// Remove tira a câmera do gerenciador. As gravações no disco não são tocadas
-// aqui: quem quiser apagá-las junto pede isso explicitamente na API, que chama
-// o Purge depois deste stop. Apagar horas de vídeo como efeito colateral de um
-// clique em "remover" seria destrutivo demais para ser implícito.
+// Remove takes the camera out of the manager. The recordings on disk aren't
+// touched here: whoever wants them deleted too asks for it explicitly in the
+// API, which calls Purge after this stop. Deleting hours of video as a side
+// effect of a click on "remove" would be too destructive to be implicit.
 func (m *Manager) Remove(id string) {
 	m.stop(id)
 	m.mu.Lock()
 	delete(m.cams, id)
-	delete(m.regras, id)
+	delete(m.rules, id)
 	m.mu.Unlock()
-	m.log.Info("câmera removida do gerenciador", "cam", id)
+	m.log.Info("camera removed from the manager", "cam", id)
 }
 
-// Cameras devolve a configuração corrente, e é a fonte usada pela retenção e
-// pela API para que todos enxerguem a mesma lista.
+// Cameras returns the current configuration, and is the source retention
+// and the API use so everyone sees the same list.
 func (m *Manager) Cameras() []config.Camera {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -315,19 +316,20 @@ func (m *Manager) recorders() []*Recorder {
 	return out
 }
 
-// ZerarReconexoes recomeça a contagem de reconexões de todas as câmeras no ar.
-// É o botão da tela de diagnóstico: depois de mexer num enlace, quem administra
-// quer ver se as quedas voltam, sem o histórico antigo misturado.
-func (m *Manager) ZerarReconexoes() {
-	agora := time.Now()
+// ResetReconnects restarts the reconnection count of every live camera.
+// It's the diagnostics screen button: after tinkering with a link, whoever
+// administers it wants to see if the drops come back, without the old history
+// mixed in.
+func (m *Manager) ResetReconnects() {
+	now := time.Now()
 	for _, r := range m.recorders() {
-		r.zerarReconexoes(agora)
+		r.resetReconnects(now)
 	}
 }
 
-// Status devolve a saúde de todas as câmeras cadastradas, inclusive as
-// desabilitadas - sumir da tela de diagnóstico é a pior forma de sinalizar que
-// uma câmera parou.
+// Status returns the health of every registered camera, including disabled
+// ones - vanishing from the diagnostics screen is the worst way to signal that
+// a camera stopped.
 func (m *Manager) Status() []Status {
 	m.mu.RLock()
 	cams := make([]config.Camera, 0, len(m.cams))
@@ -346,23 +348,23 @@ func (m *Manager) Status() []Status {
 			out = append(out, r.Status())
 			continue
 		}
-		// Câmera sem recorder (desabilitada) continua com o que já gravou em
-		// disco: o passado dela precisa aparecer na tela igual ao das outras,
-		// senão desabilitar uma câmera dá a impressão de ter apagado tudo.
+		// A camera without a recorder (disabled) keeps what it already
+		// recorded on disk: its past must show on screen like the others',
+		// otherwise disabling a camera looks like it deleted everything.
 		idx := m.store.Camera(cam.ID)
-		disk, oldest, newest, gravado := idx.Resumo()
+		disk, oldest, newest, recorded := idx.Summary()
 		st := Status{
 			ID: cam.ID, Name: cam.Name, Enabled: cam.Enabled,
-			QuotaMB: cam.QuotaMB, DiskBytes: disk, RecordedMs: gravado,
+			QuotaMB: cam.QuotaMB, DiskBytes: disk, RecordedMs: recorded,
 		}
 		var span int64
 		if oldest > 0 {
 			st.OldestSegmentAt = time.UnixMilli(oldest)
 			span = newest - oldest
 		}
-		// Sem recorder não há taxa instantânea, mas a densidade do que está em
-		// disco não precisa dela: a estimativa da cota aparece igual à das
-		// câmeras ligadas, em vez de virar "-" só por estar desabilitada.
+		// Without a recorder there's no instant rate, but the density of what's
+		// on disk doesn't need it: the quota estimate shows the same as for the
+		// running cameras, instead of turning into "-" just for being disabled.
 		st.RetainDays = retainDays(cam.QuotaMB, disk, span, 0)
 		out = append(out, st)
 	}
@@ -370,26 +372,27 @@ func (m *Manager) Status() []Status {
 	return out
 }
 
-// Detector devolve o retrato da fila do detector de objetos, ou nil sem
-// `detector.url` - aí não há fila, e a tela não tem o que mostrar.
+// Detector returns the snapshot of the object detector queue, or nil
+// without `detector.url` - then there's no queue, and the screen has nothing
+// to show.
 //
-// O teto é contado aqui porque é o Manager quem sabe quais câmeras estão com
-// a detecção ligada agora: cada uma pode ter PedacosPorCamera esperando.
-func (m *Manager) Detector() *detect.EstadoDaFila {
-	if m.fila == nil {
+// The cap is counted here because the Manager is what knows which cameras
+// have detection on right now: each one may have ClipsPerCamera waiting.
+func (m *Manager) Detector() *detect.QueueState {
+	if m.queue == nil {
 		return nil
 	}
-	e := m.fila.Estado()
+	e := m.queue.State()
 	for _, r := range m.recorders() {
 		if d := r.camera().Detect; d != nil && *d {
-			e.Fila.Cap += detect.PedacosPorCamera
+			e.Queue.Cap += detect.ClipsPerCamera
 		}
 	}
 	return &e
 }
 
-// Stop encerra tudo e espera cada segmento em aberto ser fechado e indexado.
-// Sem isso, todo reinício perderia o último minuto de cada câmera.
+// Stop ends everything and waits for each open segment to be closed and
+// indexed. Without it, every restart would lose each camera's last minute.
 func (m *Manager) Stop() {
 	if m.cancel != nil {
 		m.cancel()
