@@ -67,10 +67,13 @@ Cerca de 67 mil linhas em 265 arquivos: a maior etapa do plano.
 
 Cada passo é um PR, em commits pequenos. Antes de o PR ser aceito, a branch
 roda na instalação de teste (`make deploy-wip`), o teste mais perto de uma
-instalação de verdade. O PR entra na `main` por rebase, e não por squash: os
-commits de rename continuam separados, para o `.git-blame-ignore-revs` do
-passo 8. O passo seguinte só começa depois disso, e a release só sai no fim da
-etapa, com o guia inteiro.
+instalação de verdade. O `deploy-wip` só leva a imagem do dwnvr: o passo que
+mexer no `dwnvr-detect` (5) ou no compose (6 e 7) diz também como a imagem do
+detector de objetos e o compose da branch chegam lá, sem perder o `.env` da
+instalação. O PR entra na `main` por squash, e por isso um PR de rename não
+leva mudança de comportamento junto: o commit do squash entra inteiro no
+`.git-blame-ignore-revs` do passo 8. O passo seguinte só começa
+depois disso, e a release só sai no fim da etapa, com o guia inteiro.
 
 1. **O glossário.** O vocabulário do domínio se decide antes de qualquer
    rename, para o mesmo conceito ter o mesmo nome no Go, na interface, na API e
