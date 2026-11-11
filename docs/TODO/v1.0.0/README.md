@@ -5,7 +5,8 @@ as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
 **Agora (11/11/2026):** a Etapa 2 (conversão para en-US) começou, na branch
-`en-us-conversion`, com o glossário decidido. O próximo passo é o `AGENTS.md`.
+`en-us-conversion`, com o glossário decidido e o `AGENTS.md` em en-US. O próximo passo é o Go,
+pacote a pacote.
 
 ## Andamento
 
@@ -25,7 +26,7 @@ próxima, em andamento ou concluída, com a data.
   - [x] Opcional: a fumaça das telas do PR #16 antes da conversão. Saiu junto com o PR #16; a interface entra na conversão só com a verificação estática (`svelte-check`, `tsc`, ESLint), que não pega uma chave de JSON renomeada de um lado só
 - [ ] **Etapa 2 - conversão para en-US**: em andamento desde 11/11/2026 ([conversao-en-us.md](conversao-en-us.md)). Em commits pequenos, cada um rodando na instalação de teste antes do próximo
   - [x] O glossário do domínio ([glossario.md](glossario.md))
-  - [ ] O `AGENTS.md` com a regra nova de escrita
+  - [x] O `AGENTS.md` com a regra nova de escrita
   - [ ] Go, pacote a pacote, sem mudar comportamento
   - [ ] A interface, sem os textos da tela
   - [ ] O `dwnvr-detect`

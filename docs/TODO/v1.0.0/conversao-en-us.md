@@ -118,8 +118,8 @@ só sai no fim da etapa, com o guia inteiro.
   encontro dos dois.
 - **O guia é o passo com risco de perda.** Começa pelo backup, e cada parte é
   testada com os dados reais da instalação de teste.
-- **Os dois READMEs divergem com o tempo.** A regra do passo 2 entra na tabela
-  de Repercussões do `AGENTS.md`: mexeu num, confira o outro.
+- **Os dois READMEs divergem com o tempo.** A regra do passo 2 está na tabela
+  §Ripple effects do `AGENTS.md`: mexeu num, confira o outro.
 
 ## As decisões
 

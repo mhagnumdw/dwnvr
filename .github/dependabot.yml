@@ -54,8 +54,8 @@ updates:
         update-types: [version-update:semver-major]
       # O major do @types/node é o do Node que roda (node:24-alpine e o
       # node-version da CI); acima dele, o tsc aceita API que o Node não tem.
-      # Sobe junto com o Node, pela linha "versão de Go ou de Node" das
-      # Repercussões do AGENTS.md.
+      # Sobe junto com o Node, pela linha "Go or Node version" da
+      # §Ripple effects do AGENTS.md.
       - dependency-name: "@types/node"
         update-types: [version-update:semver-major]
     groups:
@@ -91,8 +91,8 @@ updates:
       - dependency-name: python
         update-types: [version-update:semver-minor, version-update:semver-major]
       # A tag já flutua no patch (1.27-alpine, 24-alpine). Subir de versão é
-      # trocar em todos os lugares da linha "versão de Go ou de Node" das
-      # Repercussões do AGENTS.md, e o Dependabot só mexeria no Dockerfile.
+      # trocar em todos os lugares da linha "Go or Node version" da
+      # §Ripple effects do AGENTS.md, e o Dependabot só mexeria no Dockerfile.
       - dependency-name: golang
         update-types: [version-update:semver-minor, version-update:semver-major]
       - dependency-name: node
