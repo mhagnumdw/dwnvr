@@ -1,23 +1,25 @@
-// Package retention mantém o disco sob controle apagando as gravações mais
-// antigas.
+// Package retention keeps the disk under control by deleting the oldest
+// recordings.
 //
-// São três limites, aplicados nesta ordem:
+// There are three limits, applied in this order:
 //
-//  1. cota em MB por câmera - o principal, é o que o usuário configura
-//  2. idade máxima por câmera - opcional, para quem pensa em dias e não em GB
-//  3. disco livre mínimo, global - a rede de segurança
+//  1. quota in MB per camera - the main one, it's what the user configures
+//  2. maximum age per camera - optional, for whoever thinks in days, not GB
+//  3. minimum free disk, global - the safety net
 //
-// O terceiro existe porque a soma das cotas erra fácil: com 9 câmeras cada uma
-// tem uma taxa diferente, e basta o usuário superestimar para o disco encher.
-// Encher o disco é pior que perder gravação antiga, então esse limite ignora as
-// cotas individuais e evicta o dia mais antigo entre as câmeras cadastradas.
+// The third exists because the sum of the quotas is easy to get wrong: with 9
+// cameras each one has a different bitrate, and it's enough for the user to
+// overestimate for the disk to fill up. Filling the disk is worse than losing
+// old recordings, so this limit ignores the individual quotas and evicts the
+// oldest day among the registered cameras.
 //
-// Gravação de câmera removida (órfã) não entra em nenhum dos três, nem no
-// terceiro, e é de propósito: quem remove a câmera sem marcar "apagar também
-// as gravações" as preservou, e o dwnvr não apaga sozinho o que o usuário
-// guardou - nem quando a alternativa é apagar gravação de câmera no ar. O que
-// ele faz é não esconder: os avisos do disco dizem quanto há em órfãs e onde
-// apagá-las, e a tela de Diagnóstico as mostra à parte.
+// Recordings of a removed camera (orphans) aren't covered by any of the three,
+// not even the third, on purpose: whoever removes the camera without checking
+// "also delete the recordings" kept them, and dwnvr doesn't delete on its own
+// what the user kept - not even when the alternative is deleting recordings
+// of a live camera. What it does is not hide them: the disk warnings say how
+// much is in orphans and where to delete them, and the Diagnostics screen
+// shows them separately.
 package retention
 
 import (
@@ -30,8 +32,8 @@ import (
 	"github.com/mhagnumdw/dwnvr/internal/store"
 )
 
-// Interval é o intervalo entre passadas. Um minuto é bem mais frequente que o
-// necessário para a cota, mas mantém a reação rápida quando o disco aperta.
+// Interval is the time between passes. One minute is much more often than
+// the quota needs, but keeps the reaction fast when the disk gets tight.
 const Interval = time.Minute
 
 type Manager struct {
@@ -39,30 +41,30 @@ type Manager struct {
 	store *store.Store
 	log   *slog.Logger
 
-	// cameras é consultado a cada passada, e não copiado na subida: câmeras
-	// podem ser cadastradas, alteradas e removidas com o dwnvr no ar, e uma
-	// cota nova que só valesse após reiniciar seria uma armadilha.
+	// cameras is queried on every pass, not copied at startup: cameras can be
+	// added, changed and removed with dwnvr running, and a new quota that only
+	// applied after a restart would be a trap.
 	cameras func() []config.Camera
 
-	// agora e livre são o relógio e a leitura do disco livre. Só os testes os
-	// trocam: com eles, dá para envelhecer um dia ou apertar o disco sem
-	// esperar nem encher um disco de verdade.
-	agora func() time.Time
-	livre func(path string) (int64, error)
+	// now and free are the clock and the free-disk reading. Only tests swap
+	// them: with them, a day can be aged or the disk tightened without waiting or
+	// filling a real disk.
+	now  func() time.Time
+	free func(path string) (int64, error)
 
-	// abaixoDesde é quando a passada viu o disco abaixo do mínimo pela
-	// primeira vez; zero enquanto ele está acima. É o "desde" do aviso da tela
-	// de diagnóstico, com a precisão de uma passada.
-	mu          sync.Mutex
-	abaixoDesde time.Time
+	// belowSince is when the pass first saw the disk below the minimum; zero
+	// while it's above. It's the "since" of the Diagnostics warning, accurate to
+	// one pass.
+	mu         sync.Mutex
+	belowSince time.Time
 }
 
 func New(cfg *config.Config, st *store.Store, cameras func() []config.Camera, log *slog.Logger) *Manager {
 	return &Manager{cfg: cfg, store: st, cameras: cameras, log: log,
-		agora: time.Now, livre: FreeBytes}
+		now: time.Now, free: FreeBytes}
 }
 
-// resolved devolve a configuração corrente com os padrões já aplicados.
+// resolved returns the current configuration with the defaults already applied.
 func (m *Manager) resolved() []config.Camera {
 	cams := m.cameras()
 	out := make([]config.Camera, 0, len(cams))
@@ -72,12 +74,12 @@ func (m *Manager) resolved() []config.Camera {
 	return out
 }
 
-// Run aplica a retenção periodicamente até o contexto ser cancelado.
+// Run applies retention periodically until the context is canceled.
 func (m *Manager) Run(ctx context.Context) {
-	// Uma passada logo na subida: se o processo ficou parado com o disco
-	// cheio, não faz sentido esperar o primeiro tique para reagir.
+	// One pass right at startup: if the process was down with the disk full,
+	// there's no point waiting for the first tick to react.
 	if err := m.Enforce(); err != nil {
-		m.log.Error("retenção falhou", "erro", err)
+		m.log.Error("retention failed", "err", err)
 	}
 
 	t := time.NewTicker(Interval)
@@ -88,13 +90,13 @@ func (m *Manager) Run(ctx context.Context) {
 			return
 		case <-t.C:
 			if err := m.Enforce(); err != nil {
-				m.log.Error("retenção falhou", "erro", err)
+				m.log.Error("retention failed", "err", err)
 			}
 		}
 	}
 }
 
-// Enforce roda uma passada completa dos três limites.
+// Enforce runs a full pass of the three limits.
 func (m *Manager) Enforce() error {
 	for _, cam := range m.resolved() {
 		if err := m.enforceQuota(cam); err != nil {
@@ -120,17 +122,18 @@ func (m *Manager) enforceQuota(cam config.Camera) error {
 	if err != nil {
 		return err
 	}
-	// Câmera cheia apaga o excedente de cada minuto, para sempre: é o regime
-	// normal, e em Info seria uma linha por câmera por minuto. Em KB porque o
-	// excedente de um minuto é um ou dois segmentos, e em MB daria zero.
+	// A full camera deletes each minute's excess, forever: it's the normal
+	// regime, and at Info it would be one line per camera per minute. In KB
+	// because one minute's excess is one or two segments, and in MB it would be
+	// zero.
 	attrs := []any{"cam", cam.ID,
-		"usado_mb", total >> 20, "cota_mb", cam.QuotaMB, "liberado_kb", freed >> 10}
+		"used_mb", total >> 20, "quota_mb", cam.QuotaMB, "freed_kb", freed >> 10}
 	if freed < want {
-		m.log.Warn("cota excedida, mas não havia gravação suficiente para apagar",
-			append(attrs, "faltou_kb", (want-freed)>>10)...)
+		m.log.Warn("quota exceeded, but there weren't enough recordings to delete",
+			append(attrs, "short_kb", (want-freed)>>10)...)
 		return nil
 	}
-	m.log.Debug("cota excedida, evictando", attrs...)
+	m.log.Debug("quota exceeded, evicting", attrs...)
 	return nil
 }
 
@@ -139,84 +142,85 @@ func (m *Manager) enforceMaxDays(cam config.Camera) error {
 		return nil
 	}
 	idx := m.store.Camera(cam.ID)
-	cutoff := m.agora().AddDate(0, 0, -cam.MaxDays).Format(store.DayLayout)
+	cutoff := m.now().AddDate(0, 0, -cam.MaxDays).Format(store.DayLayout)
 
 	for _, d := range idx.Days() {
 		if d.Day >= cutoff {
-			break // Days() vem ordenado, então daqui em diante é tudo recente
+			break // Days() comes sorted, so from here on it's all recent
 		}
 		freed, err := idx.DropDay(d.Day)
 		if err != nil {
 			return err
 		}
-		m.log.Info("dia além da idade máxima, removido",
-			"cam", cam.ID, "dia", d.Day, "liberado_mb", freed>>20)
+		m.log.Info("day past the maximum age, removed",
+			"cam", cam.ID, "day", d.Day, "freed_mb", freed>>20)
 	}
 	return nil
 }
 
-// AbaixoDoMinimoDesde diz desde quando o disco está abaixo do mínimo livre, ou
-// zero se ele não está.
-func (m *Manager) AbaixoDoMinimoDesde() time.Time {
+// BelowMinimumSince says since when the disk has been below the minimum free
+// space, or zero if it isn't.
+func (m *Manager) BelowMinimumSince() time.Time {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.abaixoDesde
+	return m.belowSince
 }
 
-// anotaDisco guarda a transição do disco: só a primeira passada abaixo do
-// mínimo marca o instante, e a primeira acima o apaga.
-func (m *Manager) anotaDisco(abaixo bool, agora time.Time) {
+// recordDisk keeps the disk's transition: only the first pass below the
+// minimum marks the instant, and the first above clears it.
+func (m *Manager) recordDisk(below bool, now time.Time) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	switch {
-	case !abaixo:
-		m.abaixoDesde = time.Time{}
-	case m.abaixoDesde.IsZero():
-		m.abaixoDesde = agora
+	case !below:
+		m.belowSince = time.Time{}
+	case m.belowSince.IsZero():
+		m.belowSince = now
 	}
 }
 
-// enforceFreeSpace é a rede de segurança global: evicta o dia mais antigo de
-// qualquer câmera cadastrada até o disco voltar ao mínimo aceitável.
+// enforceFreeSpace is the global safety net: it evicts the oldest day of any
+// registered camera until the disk is back at the acceptable minimum.
 func (m *Manager) enforceFreeSpace() error {
 	minFree := m.cfg.Storage.MinFreeMB << 20
 	if minFree <= 0 {
-		m.anotaDisco(false, m.agora())
+		m.recordDisk(false, m.now())
 		return nil
 	}
 
-	// Lido uma vez, e só com o disco já abaixo do mínimo: com o disco folgado,
-	// que é o normal, a passada não varre o storage atrás de órfãs.
-	orfas := int64(-1)
-	semCamera := func(attrs []any) []any {
-		if orfas < 0 {
-			orfas = m.orfasBytes()
+	// Read once, and only with the disk already below the minimum: with plenty
+	// of disk, which is the normal case, the pass doesn't scan storage for
+	// orphans.
+	orphans := int64(-1)
+	withOrphans := func(attrs []any) []any {
+		if orphans < 0 {
+			orphans = m.orphanBytes()
 		}
-		if orfas == 0 {
+		if orphans == 0 {
 			return attrs
 		}
-		return append(attrs, "orfas_mb", orfas>>20,
-			"apagar_em", "Câmeras > Gravações de câmeras removidas")
+		return append(attrs, "orphans_mb", orphans>>20,
+			"delete_at", "Câmeras > Gravações de câmeras removidas")
 	}
 
 	for {
-		free, err := m.livre(m.store.Root())
+		free, err := m.free(m.store.Root())
 		if err != nil {
 			return err
 		}
-		m.anotaDisco(free < minFree, m.agora())
+		m.recordDisk(free < minFree, m.now())
 		if free >= minFree {
 			return nil
 		}
 
 		cam, day, ok := m.oldestDay()
 		if !ok {
-			attrs := semCamera([]any{"livre_mb", free >> 20, "minimo_mb", m.cfg.Storage.MinFreeMB})
-			msg := "disco abaixo do mínimo livre, mas não há mais nada a evictar"
-			if orfas > 0 {
-				// A frase antiga seria falsa: há gravação ali, só que de câmera
-				// removida, que a retenção não apaga.
-				msg = "disco abaixo do mínimo livre, e só restam gravações de câmeras removidas, que a retenção não apaga"
+			attrs := withOrphans([]any{"free_mb", free >> 20, "min_mb", m.cfg.Storage.MinFreeMB})
+			msg := "disk below the minimum free space, but there's nothing left to evict"
+			if orphans > 0 {
+				// The old sentence would be false: there are recordings there, only
+				// of removed cameras, which retention doesn't delete.
+				msg = "disk below the minimum free space, and only recordings of removed cameras are left, which retention doesn't delete"
 			}
 			m.log.Warn(msg, attrs...)
 			return nil
@@ -226,34 +230,35 @@ func (m *Manager) enforceFreeSpace() error {
 		if err != nil {
 			return err
 		}
-		m.log.Warn("disco abaixo do mínimo livre, evictando o dia mais antigo",
-			semCamera([]any{"livre_mb", free >> 20, "minimo_mb", m.cfg.Storage.MinFreeMB,
-				"cam", cam, "dia", day, "liberado_mb", freed >> 20})...)
+		m.log.Warn("disk below the minimum free space, evicting the oldest day",
+			withOrphans([]any{"free_mb", free >> 20, "min_mb", m.cfg.Storage.MinFreeMB,
+				"cam", cam, "day", day, "freed_mb", freed >> 20})...)
 
 		if freed == 0 {
-			// Nada foi liberado: sem isto o laço giraria para sempre quando o
-			// espaço estivesse sendo consumido por algo fora do dwnvr.
+			// Nothing was freed: without this the loop would spin forever when the
+			// space was being taken by something outside dwnvr.
 			return nil
 		}
 	}
 }
 
-// orfasBytes soma o que há em disco de câmeras removidas. Só serve ao aviso:
-// uma falha na varredura vira zero, e o aviso sai sem o campo.
-func (m *Manager) orfasBytes() int64 {
+// orphanBytes sums what's on disk from removed cameras. It only serves the
+// warning: a scan failure becomes zero, and the warning goes out without the
+// field.
+func (m *Manager) orphanBytes() int64 {
 	registered := map[string]bool{}
 	for _, c := range m.cameras() {
 		registered[c.ID] = true
 	}
 	total, err := m.store.OrphanBytes(registered)
 	if err != nil {
-		m.log.Error("listando gravações órfãs", "erro", err)
+		m.log.Error("listing orphan recordings", "err", err)
 		return 0
 	}
 	return total
 }
 
-// oldestDay encontra o dia mais antigo entre as câmeras cadastradas.
+// oldestDay finds the oldest day among the registered cameras.
 func (m *Manager) oldestDay() (cam, day string, ok bool) {
 	for _, c := range m.resolved() {
 		days := m.store.Camera(c.ID).Days()

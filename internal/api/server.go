@@ -385,7 +385,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		// depois de o disco cruzar o mínimo ela ainda não passou, e o aviso sai
 		// sem ele por até um minuto.
 		if s.ret != nil {
-			if desde := s.ret.AbaixoDoMinimoDesde(); !desde.IsZero() {
+			if desde := s.ret.BelowMinimumSince(); !desde.IsZero() {
 				disk["belowMinSince"] = desde
 			}
 		}
