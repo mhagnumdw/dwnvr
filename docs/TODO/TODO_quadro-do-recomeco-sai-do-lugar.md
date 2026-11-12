@@ -58,7 +58,7 @@ posição (`top`, `left`) da miniatura escolhida.
 
 ## A causa
 
-Duas coisas do `web/src/routes/Deteccoes.svelte` se somam:
+Duas coisas do `web/src/routes/Detections.svelte` se somam:
 
 1. **O reflow da grade.** O `layout` preenche as linhas de cada hora a partir
    da detecção mais nova. Toda detecção que entra acima, na mesma hora,
@@ -77,7 +77,7 @@ Duas coisas do `web/src/routes/Deteccoes.svelte` se somam:
 ## A solução proposta
 
 As duas partes juntas; uma sem a outra deixa um caminho aberto. São cerca de
-15 linhas, só no `Deteccoes.svelte`.
+15 linhas, só no `Detections.svelte`.
 
 ### 1. O instante do recomeço abre uma linha
 

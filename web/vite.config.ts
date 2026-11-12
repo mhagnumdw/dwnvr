@@ -11,13 +11,13 @@ const API = process.env['DWNVR_API'] || 'http://localhost:8080';
 // certo: a tela abre, mostra dados plausíveis e o bug investigado é o de
 // outra instalação. Vai nos hooks dos servidores, e não solta na config,
 // porque o svelte-check também lê este arquivo, e não sobe servidor nenhum.
-const avisaAPI = () => {
+const notifyAPI = () => {
   console.log(`  API do dwnvr: ${API}\n`);
 };
-const mostraAPI: Plugin = {
+const showAPI: Plugin = {
   name: 'dwnvr-mostra-api',
-  configureServer: avisaAPI,
-  configurePreviewServer: avisaAPI,
+  configureServer: notifyAPI,
+  configurePreviewServer: notifyAPI,
 };
 
 // O build sai direto para dentro do pacote Go, que o embute com embed.FS.
@@ -26,7 +26,7 @@ const mostraAPI: Plugin = {
 export default defineConfig({
   // Sem svelte.config: o Svelte 5 entende o TypeScript do <script lang="ts">
   // sem preprocess, e o vitePreprocess que havia não mudava um byte do build.
-  plugins: [svelte({ configFile: false }), mostraAPI],
+  plugins: [svelte({ configFile: false }), showAPI],
   build: {
     outDir: '../internal/api/dist',
     emptyOutDir: true,

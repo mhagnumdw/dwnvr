@@ -8,36 +8,36 @@
 
 // O tempo padrão, para um aviso que só se lê. Com uma ação, quem avisa costuma
 // dar mais tempo, o de achar o botão.
-const DURACAO_MS = 2500;
+const DURATION_MS = 2500;
 
-export interface Aviso {
+export interface Notice {
   // Um número por aviso: a tela que sai fecha o seu, e não o de outra.
   id: number;
   // O trecho em negrito na frente do texto, como o nome da câmera em
   // "Frente oculta".
   forte?: string;
   texto: string;
-  acao?: { rotulo: string; fazer: () => void };
+  action?: { label: string; fazer: () => void };
 }
 
-export const snackbar = $state<{ atual: Aviso | null }>({ atual: null });
+export const snackbar = $state<{ current: Notice | null }>({ current: null });
 
-let proximo = 0;
+let next = 0;
 let timer: number | undefined;
 
-export function avisar(aviso: Omit<Aviso, 'id'>, duracaoMs = DURACAO_MS) {
-  const id = ++proximo;
-  snackbar.atual = { ...aviso, id };
+export function notify(notice: Omit<Notice, 'id'>, durationMs = DURATION_MS) {
+  const id = ++next;
+  snackbar.current = { ...notice, id };
   clearTimeout(timer);
   timer = setTimeout(() => {
-    fecharAviso(id);
-  }, duracaoMs);
+    closeNotice(id);
+  }, durationMs);
   return id;
 }
 
 // Sem `id`, fecha o que estiver à vista.
-export function fecharAviso(id?: number) {
-  if (!snackbar.atual || (id !== undefined && snackbar.atual.id !== id)) return;
+export function closeNotice(id?: number) {
+  if (!snackbar.current || (id !== undefined && snackbar.current.id !== id)) return;
   clearTimeout(timer);
-  snackbar.atual = null;
+  snackbar.current = null;
 }

@@ -524,8 +524,8 @@ e [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO/TODO_recalibrar-modelo
 | `internal/store/store.go` | `eventos/{dia}.ndjson` |
 | `dwnvr-detect/servidor.py` | decodificar e rodar o modelo |
 | `web/src/components/Timeline.svelte` | a faixa de calor e as marcas de objeto |
-| `web/src/components/Caixas.svelte` | as caixas sobre o vídeo |
-| `web/src/routes/Health.svelte` | o funil e a fila no Diagnóstico |
+| `web/src/components/Boxes.svelte` | as caixas sobre o vídeo |
+| `web/src/routes/Diagnostics.svelte` | o funil e a fila no Diagnóstico |
 
 A API das marcas (`GET /api/rec/events`) e o funil no `/api/health` estão em
 [`api.md`](api.md).

@@ -88,7 +88,7 @@ button {
 
 /* A dica do toque longo. Fora de qualquer componente porque nasce no body (ou
    na tela cheia), pelo JS. Clara sobre o tema escuro, como as do Android. */
-.dica-do-toque {
+.touch-hint {
   position: fixed;
   z-index: 200;
   max-width: min(280px, calc(100vw - 16px));
@@ -101,7 +101,7 @@ button {
   pointer-events: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
-.dica-do-toque[hidden] {
+.touch-hint[hidden] {
   display: none;
 }
 

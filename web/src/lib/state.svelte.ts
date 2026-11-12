@@ -4,31 +4,31 @@
 // tela. O que vive aqui é o que várias telas precisam enxergar - sessão, lista
 // de câmeras e saúde - e que seria desperdício buscar de novo a cada navegação.
 
-import { api, mensagemDe } from './api.ts';
+import { api, messageOf } from './api.ts';
 import type {
-  AlertaPorEmail,
-  CameraCadastrada,
+  EmailAlert,
+  RegisteredCamera,
   Camera,
-  DescarteDosAlertas,
-  MeioFalhando,
+  AlertsDropped,
+  FailingNotifier,
   Disco,
-  DivergenciasDoGo2rtc,
+  Go2rtcDrift,
   Detector,
-  Faixas,
-  CameraNaSaude,
-  Orfa,
-  Pessoa,
-  Relogio,
+  BoundsMap,
+  HealthCamera,
+  Orphan,
+  Person,
+  Clock,
   Stream,
   Uptime,
 } from './api.ts';
-import { AVISOS_POLL_MS } from './avisos.ts';
+import { NOTICES_POLL_MS } from './notices.ts';
 
 export const session = $state<{
   authRequired: boolean;
   authenticated: boolean;
   checked: boolean;
-  pessoa: Pessoa | null;
+  pessoa: Person | null;
 }>({
   authRequired: false,
   authenticated: false,
@@ -40,28 +40,28 @@ export const session = $state<{
 
 // ehAdmin decide as abas, o sino e a pílula. Esconder não é segurança - a API
 // recusa o viewer com 403 -, é só não mostrar o que ele não pode usar.
-export function ehAdmin() {
+export function isAdmin() {
   return session.pessoa?.role === 'admin';
 }
 
 // sessaoCaiu leva à tela de login: a sessão venceu, a pessoa foi removida ou
 // ganhou link novo. Quem descobre é um 401 da API, ou a conferência do Ao vivo.
-export function sessaoCaiu() {
+export function sessionDropped() {
   session.authenticated = false;
   session.pessoa = null;
-  zeraOQueFoiCarregado();
+  resetWhatWasLoaded();
 }
 
 export const cameras = $state<{
-  list: CameraCadastrada[];
+  list: RegisteredCamera[];
   streams: Stream[];
-  orphans: Orfa[];
+  orphans: Orphan[];
   padrao: Camera | null;
-  faixas: Faixas | null;
+  faixas: BoundsMap | null;
   detector: boolean | null;
   go2rtcError: string | null;
-  go2rtcConfigFile: DivergenciasDoGo2rtc | null;
-  alertEmail: AlertaPorEmail | null;
+  go2rtcConfigFile: Go2rtcDrift | null;
+  alertEmail: EmailAlert | null;
   loading: boolean;
   error: string | null;
 }>({
@@ -91,7 +91,7 @@ export const cameras = $state<{
   error: null,
 });
 
-export const health = $state<EstadoDaSaude>({
+export const health = $state<HealthState>({
   cameras: [],
   disk: null,
   // { appSeconds, machineSeconds }. Fica nulo contra servidor antigo, que não
@@ -123,11 +123,11 @@ export const health = $state<EstadoDaSaude>({
 
 // O /api/health como a tela o guarda, nulo onde a resposta não trouxe o campo,
 // mais o que a própria tela anota das leituras (updatedAt e failingSince).
-export interface EstadoDaSaude {
-  cameras: CameraNaSaude[];
+export interface HealthState {
+  cameras: HealthCamera[];
   disk: Disco | null;
   uptime: Uptime | null;
-  clock: Relogio | null;
+  clock: Clock | null;
   detector: Detector | null;
   reconnectsWindowHours: number | null;
   go2rtc: { error: string; since: string } | null;
@@ -136,8 +136,8 @@ export interface EstadoDaSaude {
   alerts: {
     total?: number;
     warnings?: string[];
-    dropped?: DescarteDosAlertas;
-    failing?: MeioFalhando[];
+    dropped?: AlertsDropped;
+    failing?: FailingNotifier[];
   } | null;
   updatedAt: number;
   failingSince: number | null;
@@ -151,7 +151,7 @@ export const build = $state({
   date: '',
   // A tag da última release, quando ela é mais nova que a versão em uso; vazio
   // em qualquer outro caso. É o que acende o aviso no header.
-  nova: '',
+  newOne: '',
 });
 
 // Aviso de versão nova. Quem pergunta é o navegador, direto à API do GitHub
@@ -188,13 +188,13 @@ export async function logout() {
   }
   session.authenticated = false;
   session.pessoa = null;
-  zeraOQueFoiCarregado();
+  resetWhatWasLoaded();
 }
 
 // zeraOQueFoiCarregado vale para as duas saídas, a pedida e a da sessão que
 // caiu: sem isto, quem entrar em seguida na mesma aba vê por um instante as
 // câmeras e o diagnóstico da sessão anterior.
-function zeraOQueFoiCarregado() {
+function resetWhatWasLoaded() {
   cameras.list = [];
   cameras.streams = [];
   cameras.orphans = [];
@@ -218,7 +218,7 @@ function zeraOQueFoiCarregado() {
   health.alerts = null;
   health.updatedAt = 0;
   health.failingSince = null;
-  healthPedidoEm = 0;
+  healthRequestedAt = 0;
 }
 
 export async function loadBuild() {
@@ -241,7 +241,7 @@ function semver(v: string | undefined): number[] | null {
 }
 
 // Comparação numérica: como texto, 'v0.1.10' viria antes de 'v0.1.9'.
-function maisNova(a: number[], b: number[]): boolean {
+function newer(a: number[], b: number[]): boolean {
   for (let i = 0; i < 3; i++) {
     const x = a[i] ?? 0;
     const y = b[i] ?? 0;
@@ -271,7 +271,7 @@ function lerCacheRelease(): string | undefined {
   return undefined;
 }
 
-function gravarCacheRelease(tag: string) {
+function writeReleaseCache(tag: string) {
   try {
     localStorage.setItem(RELEASE_CACHE, JSON.stringify({ tag, em: Date.now() }));
   } catch {
@@ -281,9 +281,9 @@ function gravarCacheRelease(tag: string) {
 
 // Depende de loadBuild(): sem saber a versão em uso não há o que comparar.
 // Build de desenvolvimento ou só com hash não consulta nada.
-export async function checarNovaVersao() {
-  const atual = semver(build.version);
-  if (!atual) return;
+export async function checkNewVersion() {
+  const current = semver(build.version);
+  if (!current) return;
   let tag = lerCacheRelease();
   if (tag === undefined) {
     try {
@@ -296,29 +296,29 @@ export async function checarNovaVersao() {
     }
     // Limite de requisições estourado e afins também ficam sem cache.
     if (tag === undefined) return;
-    gravarCacheRelease(tag);
+    writeReleaseCache(tag);
   }
-  const ultima = semver(tag);
-  if (ultima && maisNova(ultima, atual)) build.nova = tag;
+  const lastOne = semver(tag);
+  if (lastOne && newer(lastOne, current)) build.newOne = tag;
 }
 
 // Numera as leituras da lista, como as da saúde: a abertura do app e a da tela
 // Câmeras podem pedir juntas, e uma resposta velha que chegasse depois
 // desfaria a nova - um erro velho acenderia o aviso por cima da lista que
 // acabou de chegar. Vale a resposta mais nova que a última aplicada.
-let camerasPedida = 0;
-let camerasAplicada = 0;
+let requestedCameras = 0;
+let appliedCameras = 0;
 
 // loadCameras guarda o erro em vez de lançá-lo. O erro só sai com uma leitura
 // boa, e não no começo do pedido: assim o aviso não pisca enquanto o botão de
 // atualizar gira.
 export async function loadCameras() {
-  const esta = ++camerasPedida;
+  const ticket = ++requestedCameras;
   cameras.loading = true;
   try {
     const data = await api.cameras();
-    if (esta < camerasAplicada) return;
-    camerasAplicada = esta;
+    if (ticket < appliedCameras) return;
+    appliedCameras = ticket;
     cameras.error = null;
     cameras.list = data.cameras;
     cameras.streams = data.streams ?? [];
@@ -330,22 +330,22 @@ export async function loadCameras() {
     cameras.go2rtcConfigFile = data.go2rtcConfigFile ?? null;
     cameras.alertEmail = data.alertEmail ?? null;
   } catch (e) {
-    if (esta < camerasAplicada) return;
-    camerasAplicada = esta;
-    cameras.error = mensagemDe(e);
+    if (ticket < appliedCameras) return;
+    appliedCameras = ticket;
+    cameras.error = messageOf(e);
     // Sem resposta nenhuma, a aba fica de fora: melhor que a tela em branco
     // esperando para sempre.
     cameras.detector ??= false;
   } finally {
     // Só o pedido mais recente encerra o "carregando": com outro em curso, a
     // tela ainda não sabe o que mostrar.
-    if (esta === camerasPedida) cameras.loading = false;
+    if (ticket === requestedCameras) cameras.loading = false;
   }
 }
 
 // Quando a última leitura da saúde começou, de qualquer tela. É o que o sino
 // do header consulta para não repetir uma leitura recente, ou uma em curso.
-let healthPedidoEm = 0;
+let healthRequestedAt = 0;
 
 // Numera as leituras para uma resposta velha não desfazer uma nova: o poll e
 // uma releitura pedida pela tela podem se cruzar, e a velha que chega depois
@@ -353,8 +353,8 @@ let healthPedidoEm = 0;
 // Vale a resposta mais nova que a última aplicada, e não só a do último
 // pedido: com o servidor lento, cada leitura levando mais que HEALTH_POLL_MS,
 // sempre haveria um pedido mais novo em curso e nenhuma resposta entraria.
-let healthPedida = 0;
-let healthAplicada = 0;
+let healthRequested = 0;
+let healthApplied = 0;
 
 // Quantas leituras da saúde estão em curso. As leituras automáticas (o poll, o
 // sino e a volta à aba) não começam com outra pendente: com o servidor lento,
@@ -362,21 +362,21 @@ let healthAplicada = 0;
 // releitura que a tela pede depois de uma ação sai mesmo assim, porque quer o
 // estado de depois da ação, e a pendente pode ter começado antes. Por isso é
 // contador, e não sim ou não: as duas podem estar em curso juntas.
-let healthLendo = 0;
+let healthReading = 0;
 
 // lerHealthSeLivre é a leitura automática: só sai sem outra em curso.
-function lerHealthSeLivre() {
-  if (healthLendo === 0) void loadHealth();
+function readHealthIfFree() {
+  if (healthReading === 0) void loadHealth();
 }
 
 export async function loadHealth() {
-  healthPedidoEm = Date.now();
-  const esta = ++healthPedida;
-  healthLendo++;
+  healthRequestedAt = Date.now();
+  const ticket = ++healthRequested;
+  healthReading++;
   try {
     const data = await api.health(HEALTH_TIMEOUT_MS);
-    if (esta < healthAplicada) return;
-    healthAplicada = esta;
+    if (ticket < healthApplied) return;
+    healthApplied = ticket;
     health.cameras = data.cameras;
     health.disk = data.disk ?? null;
     health.uptime = data.uptime ?? null;
@@ -392,11 +392,11 @@ export async function loadHealth() {
   } catch {
     // Saúde é informativo: falhar aqui não pode interromper o uso das telas.
     // Só marca desde quando falha, para o rodapé avisar que o dado é velho.
-    if (esta < healthAplicada) return;
-    healthAplicada = esta;
+    if (ticket < healthApplied) return;
+    healthApplied = ticket;
     health.failingSince ??= Date.now();
   } finally {
-    healthLendo--;
+    healthReading--;
   }
 }
 
@@ -421,17 +421,17 @@ export const HEALTH_TIMEOUT_MS = 2 * HEALTH_POLL_MS;
 // quando ela voltar ou estourar o HEALTH_TIMEOUT_MS.
 export function pollHealth(intervalMs = HEALTH_POLL_MS) {
   const ler = () => {
-    if (!document.hidden) lerHealthSeLivre();
+    if (!document.hidden) readHealthIfFree();
   };
-  const aoVoltar = () => {
-    if (!document.hidden && Date.now() - healthPedidoEm >= intervalMs) lerHealthSeLivre();
+  const onReturn = () => {
+    if (!document.hidden && Date.now() - healthRequestedAt >= intervalMs) readHealthIfFree();
   };
   ler();
   const id = setInterval(ler, intervalMs);
-  document.addEventListener('visibilitychange', aoVoltar);
+  document.addEventListener('visibilitychange', onReturn);
   return () => {
     clearInterval(id);
-    document.removeEventListener('visibilitychange', aoVoltar);
+    document.removeEventListener('visibilitychange', onReturn);
   };
 }
 
@@ -443,15 +443,15 @@ export function pollHealth(intervalMs = HEALTH_POLL_MS) {
 // relido; o tique em si não custa nada. Com a aba oculta não lê, e ao voltar
 // lê na hora se o dado estiver velho. Como o pollHealth, não começa uma
 // leitura com outra em curso.
-export function vigiarAvisos() {
-  const talvez = () => {
-    if (!document.hidden && Date.now() - healthPedidoEm >= AVISOS_POLL_MS) lerHealthSeLivre();
+export function watchNotices() {
+  const maybe = () => {
+    if (!document.hidden && Date.now() - healthRequestedAt >= NOTICES_POLL_MS) readHealthIfFree();
   };
-  talvez();
-  const id = setInterval(talvez, HEALTH_POLL_MS);
-  document.addEventListener('visibilitychange', talvez);
+  maybe();
+  const id = setInterval(maybe, HEALTH_POLL_MS);
+  document.addEventListener('visibilitychange', maybe);
   return () => {
     clearInterval(id);
-    document.removeEventListener('visibilitychange', talvez);
+    document.removeEventListener('visibilitychange', maybe);
   };
 }

@@ -1,46 +1,46 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
   import { cameras, loadCameras } from '../lib/state.svelte.ts';
-  import { paramsAtuais, escrever, cena } from '../lib/rota.svelte.ts';
-  import { api, mediaURL, mensagemDe } from '../lib/api.ts';
+  import { currentParams, write, scene } from '../lib/route.svelte.ts';
+  import { api, mediaURL, messageOf } from '../lib/api.ts';
   import type {
-    Eventos,
-    ObjetoMarcado,
-    Segmento,
-    Timeline as LinhaDoTempo,
-    Trecho,
+    Events,
+    MarkedObject,
+    Segment,
+    Timeline as TimelineData,
+    Span,
   } from '../lib/api.ts';
-  import type { DesenhoPorCima } from '../lib/captura.ts';
-  import { Player, PULO_RAPIDO_MS } from '../lib/player.svelte.ts';
-  import { toqueDuplo, SEQUENCIA_MS } from '../lib/toqueDuplo.ts';
-  import type { Lado } from '../lib/toqueDuplo.ts';
+  import type { OverlayDrawing } from '../lib/capture.ts';
+  import { Player, FAST_JUMP_MS } from '../lib/player.svelte.ts';
+  import { doubleTouch, SEQUENCE_MS } from '../lib/doubleTouch.ts';
+  import type { Side } from '../lib/doubleTouch.ts';
   import { fade } from 'svelte/transition';
   import { clearThumbnails } from '../lib/thumbs.ts';
-  import { baixarQuadro } from '../lib/captura.ts';
-  import { dayKey, parseDay, hhmmss, taxa, diaCurto } from '../lib/format.ts';
-  import { FAMILIAS } from '../lib/icones.ts';
-  import { telaCheia, alternarTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
-  import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
-  import { alturaLivre } from '../lib/alturaLivre.ts';
-  import { TROCA_MS, EIXO_PX, limiteDoDeslize } from '../lib/deslize.ts';
-  import { avisar } from '../lib/snackbar.svelte.ts';
+  import { downloadFrame } from '../lib/capture.ts';
+  import { dayKey, parseDay, hhmmss, taxa, shortDay } from '../lib/format.ts';
+  import { FAMILIES } from '../lib/icons.ts';
+  import { fullscreen, toggleFullscreen, leaveFullscreen } from '../lib/fullscreen.svelte.ts';
+  import { vanishingControls } from '../lib/vanishingControls.svelte.ts';
+  import { freeHeight } from '../lib/freeHeight.ts';
+  import { SWITCH_MS, AXIS_PX, swipeLimit } from '../lib/swipe.ts';
+  import { notify } from '../lib/snackbar.svelte.ts';
   import Timeline from '../components/Timeline.svelte';
-  import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
+  import FullscreenButton from '../components/FullscreenButton.svelte';
   import ThumbStrip from '../components/ThumbStrip.svelte';
-  import SemCameras from '../components/SemCameras.svelte';
-  import NavDia from '../components/NavDia.svelte';
-  import Relogio from '../components/Relogio.svelte';
-  import Icone from '../components/Icone.svelte';
-  import type CaixasDoVideo from '../components/Caixas.svelte';
+  import NoCameras from '../components/NoCameras.svelte';
+  import DayNav from '../components/DayNav.svelte';
+  import Clock from '../components/Clock.svelte';
+  import Icon from '../components/Icon.svelte';
+  import type VideoBoxes from '../components/Boxes.svelte';
 
   // O que a tela guarda da timeline do dia: o que ela desenha e o que o player
   // toca, e de que câmera ela é.
-  type DoDia = Pick<LinhaDoTempo, 'cam' | 'ranges' | 'segments' | 'gens'>;
+  type DayData = Pick<TimelineData, 'cam' | 'ranges' | 'segments' | 'gens'>;
 
   // O que a exportação vai pedir, ou por que não dá. O `never` deixa o
   // template ler `?.erro` e `?.inicio` sem saber qual dos dois é.
-  type Exportacao =
-    { erro: string; inicio?: never; to?: never } | { inicio: number; to: number; erro?: never };
+  type ExportPlan =
+    { erro: string; start?: never; to?: never } | { start: number; to: number; erro?: never };
 
   const player = new Player();
 
@@ -51,11 +51,11 @@
   const POLL_MAX_MS = 60_000;
   // Segundos de segmento assumidos quando a câmera não informa - é o default do
   // dwnvr.example.yaml. Servidor atual já resolve o campo antes de responder.
-  const SEG_PADRAO = 30;
+  const DEFAULT_SEG = 30;
   // Durações oferecidas na exportação. 10 min já é um arquivo grande de se
   // baixar pelo celular, e é também o teto do servidor (maxExportSpan em
   // internal/api/recordings.go): passar daqui exige subir os dois juntos.
-  const DURACOES = [1, 2, 3, 5, 10];
+  const DURATIONS = [1, 2, 3, 5, 10];
   // Velocidades oferecidas. Num const, e não solta no template, porque a URL
   // também precisa dela - para recusar um `rate=999` sem inventar uma segunda
   // lista que um dia discordaria desta.
@@ -63,33 +63,33 @@
   // Abaixo disso a tela não encolhe mais o vídeo e passa a rolar: numa janela
   // tão baixa, vídeo, controles e timeline não cabem juntos de jeito nenhum.
   // O celular deitado, com a navegação embaixo, deixa uns 270.
-  const ALTURA_MINIMA = 240;
+  const MIN_HEIGHT = 240;
   // Abaixo disso a página não estreita mais para acompanhar o vídeo: os
   // controles precisam de espaço numa linha só, com os rótulos (720 px), e o
   // vídeo volta a ganhar faixa preta dos lados, como numa janela baixa.
-  const LARGURA_MINIMA = 720;
-  const PROPORCAO = 16 / 9;
+  const MIN_WIDTH = 720;
+  const RATIO = 16 / 9;
 
   // Lidos uma vez, na inicialização: daqui em diante quem manda é o estado da
   // tela, que escreve de volta na URL.
-  const params = paramsAtuais();
+  const params = currentParams();
 
   let video = $state<HTMLVideoElement | null>(null);
   let cam = $state('');
   // Num const antes do $state porque o que vem da URL logo abaixo - instante e
   // zoom - são posições DENTRO deste dia, e precisam do dia de partida, não do
   // dia que estiver na tela daqui a pouco.
-  const diaInicial = diaDaURL() ?? dayKey();
-  let day = $state(diaInicial);
+  const initialDay = urlDay() ?? dayKey();
+  let day = $state(initialDay);
   let daysList = $state<string[]>([]);
-  let timeline = $state<DoDia>({ cam: '', ranges: [], segments: [], gens: [] });
+  let timeline = $state<DayData>({ cam: '', ranges: [], segments: [], gens: [] });
   // As marcas de movimento do dia, crescentes - a faixa de calor. Elas vêm num
   // pedido à parte da timeline de propósito: a barra azul é o que a tela existe
   // para mostrar, e uma falha ao ler as marcas não pode deixá-la sem desenhar.
-  let eventos = $state<number[]>([]);
+  let events = $state<number[]>([]);
   // As marcas de objeto do dia, do mesmo pedido: [{ instanteMs, familia, classe,
   // score }, …].
-  let objetos = $state<ObjetoMarcado[]>([]);
+  let objects = $state<MarkedObject[]>([]);
   let loading = $state(false);
   let error = $state('');
   // As miniaturas são gosto de quem usa o aparelho, como a duração da
@@ -98,31 +98,31 @@
   // As caixas do detector sobre o vídeo, e os rótulos delas. Ligadas por
   // padrão e guardadas na URL: são parte do que um link mostra. Rótulo sem
   // caixa não existe; um botão só passa pelos três estados.
-  let showCaixas = $state(params.get('caixas') !== '0');
-  let showRotulos = $state(params.get('rotulos') !== '0');
-  let camadaCaixas = $state<{ desenhaEm: DesenhoPorCima } | null>(null);
+  let showBoxes = $state(params.get('caixas') !== '0');
+  let showLabels = $state(params.get('rotulos') !== '0');
+  let boxesLayer = $state<{ drawOn: OverlayDrawing } | null>(null);
   // O componente das caixas vem num chunk à parte, baixado só quando o dia tem
   // objeto: quem não usa detecção não paga os bytes dele.
-  let Caixas = $state<typeof CaixasDoVideo | null>(null);
+  let Boxes = $state<typeof VideoBoxes | null>(null);
   $effect(() => {
-    if (objetos.length && !Caixas) {
-      void import('../components/Caixas.svelte').then((m) => {
-        Caixas = m.default;
+    if (objects.length && !Boxes) {
+      void import('../components/Boxes.svelte').then((m) => {
+        Boxes = m.default;
       });
     }
   });
   // Segura a escrita na URL até a câmera ter sido resolvida contra o cadastro.
-  let montado = $state(false);
+  let mounted = $state(false);
   // A duração escolhida sobrevive ao recarregamento, como o layout do Ao Vivo.
   // Valor gravado fora da lista é descartado: ele deixaria o <select> sem
   // opção correspondente, mostrando vazio.
   let exportMin = $state(
-    DURACOES.find((m) => m === Number(localStorage.getItem('dwnvr.rec.exportMin'))) ?? 5,
+    DURATIONS.find((m) => m === Number(localStorage.getItem('dwnvr.rec.exportMin'))) ?? 5,
   );
   // Falha de captura tem estado próprio: `error` só é apagado no load()
   // seguinte, e um aviso de captura ficaria colado na tela até trocar de dia.
-  let capturaErro = $state('');
-  let avisoTimer: number | undefined;
+  let captureError = $state('');
+  let noticeTimer: number | undefined;
 
   // --- tela cheia -------------------------------------------------------------
   //
@@ -130,40 +130,40 @@
   // resto da tela fica para trás. Os controles ficam por cima do vídeo e somem
   // sozinhos, ou, FIXOS, embaixo dele, com o vídeo no espaço que sobra.
 
-  let cheia = $state<HTMLDivElement | null>(null);
-  const emTelaCheia = $derived(!!cheia && telaCheia.el === cheia);
+  let full = $state<HTMLDivElement | null>(null);
+  const inFullscreen = $derived(!!full && fullscreen.el === full);
   // No localStorage, como a duração da exportação: é gosto de quem usa o
   // aparelho, não parte da cena que um link reproduz.
-  let controlesFixos = $state(localStorage.getItem('dwnvr.rec.controlesFixos') === '1');
-  let sobreControles = false;
+  let pinnedControls = $state(localStorage.getItem('dwnvr.rec.controlesFixos') === '1');
+  let overControls = false;
   // Eles só somem com o vídeo tocando: quem pausou quer olhar e mexer. Com o
   // mouse em cima deles, também não.
-  const controles = controlesQueSomem(
-    () => emTelaCheia && player.playing && !controlesFixos && !sobreControles,
+  const controls = vanishingControls(
+    () => inFullscreen && player.playing && !pinnedControls && !overControls,
   );
   // Fora da tela cheia os controles nunca somem, seja qual for o estado acima.
-  const controlesEscondidos = $derived(emTelaCheia && !controles.visiveis);
+  const hiddenControls = $derived(inFullscreen && !controls.visibleOnes);
 
   $effect(() => {
-    localStorage.setItem('dwnvr.rec.controlesFixos', controlesFixos ? '1' : '0');
+    localStorage.setItem('dwnvr.rec.controlesFixos', pinnedControls ? '1' : '0');
   });
 
   // Entrar na tela cheia, dar play, pausar, soltar o alfinete e trocar de
   // câmera recomeçam a contagem. A troca mostra junto o nome da câmera nova.
   $effect(() => {
-    if (!emTelaCheia) return;
+    if (!inFullscreen) return;
     /* eslint-disable @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear */
     player.playing;
-    controlesFixos;
+    pinnedControls;
     cam;
     /* eslint-enable @typescript-eslint/no-unused-expressions */
     untrack(() => {
-      controles.mostrar();
+      controls.show();
     });
   });
 
-  function alternarCheia() {
-    if (cheia) alternarTelaCheia(cheia);
+  function toggleFull() {
+    if (full) toggleFullscreen(full);
   }
 
   // --- os botões só de ícone --------------------------------------------------
@@ -173,32 +173,32 @@
   // seria repetição: quem decide é o próprio rótulo, visível ou não, para não
   // repetir aqui o breakpoint do CSS.
 
-  let rotuloDoBotao = $state<HTMLElement | null>(null);
+  let buttonLabel = $state<HTMLElement | null>(null);
 
-  function avisoDoBotao(texto: string) {
-    if (rotuloDoBotao && getComputedStyle(rotuloDoBotao).display !== 'none') return;
-    avisar({ texto });
+  function buttonNotice(text: string) {
+    if (buttonLabel && getComputedStyle(buttonLabel).display !== 'none') return;
+    notify({ texto: text });
   }
 
-  function alternarMiniaturas() {
+  function toggleThumbnails() {
     showThumbs = !showThumbs;
-    avisoDoBotao(showThumbs ? 'Miniaturas exibidas' : 'Miniaturas ocultas');
+    buttonNotice(showThumbs ? 'Miniaturas exibidas' : 'Miniaturas ocultas');
   }
 
   // Sem caixas -> caixas -> caixas com rótulos -> sem caixas.
-  const ESTADOS_DAS_CAIXAS = ['sem caixas', 'caixas', 'caixas + rótulos'] as const;
-  const estadoDasCaixas = $derived(!showCaixas ? 0 : showRotulos ? 2 : 1);
+  const BOXES_STATES = ['sem caixas', 'caixas', 'caixas + rótulos'] as const;
+  const boxesState = $derived(!showBoxes ? 0 : showLabels ? 2 : 1);
 
-  function trocarCaixas() {
-    const proximo = (estadoDasCaixas + 1) % 3;
-    showCaixas = proximo > 0;
-    showRotulos = proximo === 2;
-    avisoDoBotao(
+  function toggleBoxes() {
+    const next = (boxesState + 1) % 3;
+    showBoxes = next > 0;
+    showLabels = next === 2;
+    buttonNotice(
       [
         'Caixas de detecção ocultas',
         'Caixas de detecção exibidas, sem rótulos',
         'Caixas de detecção exibidas, com rótulos',
-      ][proximo] ?? '',
+      ][next] ?? '',
     );
   }
 
@@ -206,8 +206,8 @@
   // clique fora deles ou com Esc.
   let menu = $state<'baixar' | 'gestos' | null>(null);
 
-  function foraDoMenu(e: MouseEvent) {
-    if (menu && !(e.target instanceof Element && e.target.closest('.ancora'))) menu = null;
+  function outsideMenu(e: MouseEvent) {
+    if (menu && !(e.target instanceof Element && e.target.closest('.anchor'))) menu = null;
   }
 
   // --- a altura ----------------------------------------------------------------
@@ -218,23 +218,23 @@
   // altura dele é a da tela menos a da timeline e a da legenda, que ficam
   // embaixo com a largura toda.
 
-  let pagina = $state<HTMLDivElement | null>(null);
-  let alturaDaPagina = $state(0);
-  let alturaDaLinha = $state(0);
-  let alturaDaLegenda = $state(0);
+  let page = $state<HTMLDivElement | null>(null);
+  let pageHeight = $state(0);
+  let rowHeight = $state(0);
+  let captionHeight = $state(0);
 
   // E a largura acompanha o vídeo: a página inteira fica com a largura que
   // o vídeo, em 16:9, tem na altura que sobra para ele, e centralizada. Em tela
   // larga, como a ultrawide, o vídeo cresce até a altura da janela, sem teto
   // fixo e sem faixa preta dos lados; a barra, os controles e a timeline vêm
   // junto, alinhados a ele.
-  let larguraDaPagina = $state(0);
+  let pageWidth = $state(0);
 
-  function medirPagina() {
+  function measurePage() {
     // Na tela cheia o palco é dela; a página se mede de novo na volta.
-    if (!pagina || emTelaCheia) return;
-    alturaDaPagina = alturaLivre(pagina, ALTURA_MINIMA);
-    medirLargura();
+    if (!page || inFullscreen) return;
+    pageHeight = freeHeight(page, MIN_HEIGHT);
+    measureWidth();
   }
 
   // O que não é vídeo (padding, barra, controles, miniaturas, timeline,
@@ -242,31 +242,31 @@
   // legenda, que quebra linha em janela estreita: a conta converge, porque
   // estreitar só faz quebrar mais. Medido do topo da página ao fim do último
   // filho, e não pela altura dela, que é fixa e deixa a sobra embaixo.
-  function medirLargura() {
-    if (!pagina || !stage || emTelaCheia) return;
-    const ultimo = pagina.lastElementChild;
-    if (!ultimo) return;
-    const estilo = getComputedStyle(pagina);
-    const conteudo =
-      ultimo.getBoundingClientRect().bottom -
-      pagina.getBoundingClientRect().top +
-      parseFloat(estilo.paddingBottom);
+  function measureWidth() {
+    if (!page || !stage || inFullscreen) return;
+    const last = page.lastElementChild;
+    if (!last) return;
+    const style = getComputedStyle(page);
+    const content =
+      last.getBoundingClientRect().bottom -
+      page.getBoundingClientRect().top +
+      parseFloat(style.paddingBottom);
     // A altura do palco com fração, como a do resto: o `offsetHeight`
     // arredonda, e o pixel de diferença faria a largura alternar entre dois
     // valores (achado do Greptile no PR #74).
-    const outros = conteudo - stage.getBoundingClientRect().height;
-    const horizontal = parseFloat(estilo.paddingLeft) + parseFloat(estilo.paddingRight);
-    const largura = Math.floor((alturaDaPagina - outros) * PROPORCAO + horizontal);
-    larguraDaPagina = Math.max(LARGURA_MINIMA, largura);
+    const others = content - stage.getBoundingClientRect().height;
+    const horizontal = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    const width = Math.floor((pageHeight - others) * RATIO + horizontal);
+    pageWidth = Math.max(MIN_WIDTH, width);
   }
 
   $effect(() => {
-    if (!pagina) return;
-    medirPagina();
+    if (!page) return;
+    measurePage();
     // O cabeçalho cresce quando a faixa de versão nova aparece.
-    const ro = new ResizeObserver(medirPagina);
-    const topo = document.querySelector('#app > .topo');
-    if (topo) ro.observe(topo);
+    const ro = new ResizeObserver(measurePage);
+    const topPos = document.querySelector('#app > .top');
+    if (topPos) ro.observe(topPos);
     return () => {
       ro.disconnect();
     };
@@ -276,11 +276,11 @@
   // a altura do que não é vídeo, e com ela a largura. O palco fica de fora:
   // ele muda justamente por causa desta conta.
   $effect(() => {
-    if (!pagina || !stage) return;
+    if (!page || !stage) return;
     const ro = new ResizeObserver(() => {
-      medirLargura();
+      measureWidth();
     });
-    for (const filho of pagina.children) if (!filho.contains(stage)) ro.observe(filho);
+    for (const child of page.children) if (!child.contains(stage)) ro.observe(child);
     const dock = stage.parentElement?.querySelector('.dock');
     if (dock) ro.observe(dock);
     return () => {
@@ -295,29 +295,29 @@
   // os pulos são as setas. A meia-lua do lado do pulo mostra a soma enquanto a
   // sequência está aberta.
 
-  let pulo = $state<{ lado: Lado; soma: number } | null>(null);
-  let puloTimer: number | undefined;
+  let jumpHint = $state<{ side: Side; sum: number } | null>(null);
+  let jumpTimer: number | undefined;
   // O Chrome do Android também gera `dblclick` com o duplo toque: sem saber de
   // onde ele veio, o pulo na lateral entraria junto na tela cheia.
-  let ultimoPonteiro = '';
+  let lastPointer = '';
 
-  function pularRapido(lado: Lado) {
-    player.pular(lado * PULO_RAPIDO_MS);
-    const s = PULO_RAPIDO_MS / 1000;
-    pulo = { lado, soma: pulo?.lado === lado ? pulo.soma + s : s };
-    clearTimeout(puloTimer);
-    puloTimer = setTimeout(() => {
-      pulo = null;
-    }, SEQUENCIA_MS);
+  function fastJump(side: Side) {
+    player.jump(side * FAST_JUMP_MS);
+    const s = FAST_JUMP_MS / 1000;
+    jumpHint = { side, sum: jumpHint?.side === side ? jumpHint.sum + s : s };
+    clearTimeout(jumpTimer);
+    jumpTimer = setTimeout(() => {
+      jumpHint = null;
+    }, SEQUENCE_MS);
   }
 
   // O toque simples esconde os controles da tela cheia, também pausado; fixos,
   // eles ficam, que é para isso que se fixa.
-  const toque = toqueDuplo({
-    pular: pularRapido,
-    meio: alternarCheia,
+  const touch = doubleTouch({
+    jump: fastJump,
+    middle: toggleFull,
     simples: () => {
-      if (emTelaCheia && !controlesFixos) controles.toqueSimples();
+      if (inFullscreen && !pinnedControls) controls.singleTouch();
     },
   });
 
@@ -336,123 +336,123 @@
 
   let stage = $state<HTMLDivElement | null>(null);
   // Quanto o vídeo está deslocado, em px, e se o deslocamento anima.
-  let arrasto = $state(0);
-  let animando = $state(false);
+  let drag = $state(0);
+  let animating = $state(false);
   // A câmera saiu pelo lado e a nova ainda carrega.
-  let trocando = $state(false);
-  let gesto: { id: number; x: number; y: number; eixo: 'x' | 'y' | null } | null = null;
+  let switching = $state(false);
+  let gesture: { id: number; x: number; y: number; axis: 'x' | 'y' | null } | null = null;
   // Dois arrastos seguidos rápidos com o mouse também fazem um duplo clique.
-  let arrastouEm = 0;
+  let draggedAt = 0;
 
   // A próxima (1) ou a anterior (-1), como as setas da barra.
-  function ir(d: Lado) {
-    if (animando || cameras.list.length < 2 || !stage) return;
+  function ir(d: Side) {
+    if (animating || cameras.list.length < 2 || !stage) return;
     menu = null;
     // A seta da faixa tocada com outro dedo arrastando o vídeo: o arrasto
     // para aqui, senão ele mexeria no vídeo no meio da troca.
-    largar();
+    letGo();
     // Uma já saiu e a outra ainda não apareceu: não há o que tirar da tela.
-    if (trocando) {
-      arrasto = 0;
+    if (switching) {
+      drag = 0;
       shiftCam(d);
       return;
     }
-    animando = true;
-    arrasto = -d * stage.clientWidth;
+    animating = true;
+    drag = -d * stage.clientWidth;
     setTimeout(() => {
       // No mesmo tique: o vídeo some no quadro em que volta ao zero.
-      animando = false;
-      arrasto = 0;
-      trocando = true;
+      animating = false;
+      drag = 0;
+      switching = true;
       shiftCam(d);
-    }, TROCA_MS);
+    }, SWITCH_MS);
   }
 
   // A câmera nova carregou (ou falhou, ou não tem gravação no dia): aparece.
   $effect(() => {
-    if (trocando && !loading && timeline.cam === cam) trocando = false;
+    if (switching && !loading && timeline.cam === cam) switching = false;
   });
 
   // O ponteiro cujo gesto foi largado no meio: o soltar dele não é um toque.
   // O `pointerdown` seguinte com o mesmo id o desmarca, porque o mouse repete
   // o id e o soltar fora da janela nunca chega aqui.
-  let largado: number | null = null;
+  let released: number | null = null;
 
-  function largar() {
-    if (gesto) largado = gesto.id;
-    gesto = null;
+  function letGo() {
+    if (gesture) released = gesture.id;
+    gesture = null;
   }
 
   // Larga o gesto em curso e devolve o vídeo ao lugar.
-  function desistir() {
-    largar();
-    if (!arrasto) return;
-    animando = true;
-    arrasto = 0;
-    setTimeout(() => (animando = false), TROCA_MS);
+  function abandon() {
+    letGo();
+    if (!drag) return;
+    animating = true;
+    drag = 0;
+    setTimeout(() => (animating = false), SWITCH_MS);
   }
 
-  function gestoComeca(e: PointerEvent) {
-    ultimoPonteiro = e.pointerType;
-    if (e.pointerId === largado) largado = null;
+  function gestureStart(e: PointerEvent) {
+    lastPointer = e.pointerType;
+    if (e.pointerId === released) released = null;
     // Um segundo dedo no meio do gesto é pinça, e não deslize: sem isto o
     // gesto passaria para ele e o vídeo ficaria parado onde o primeiro o deixou.
-    if (gesto && gesto.id !== e.pointerId) {
-      desistir();
+    if (gesture && gesture.id !== e.pointerId) {
+      abandon();
       return;
     }
-    if (e.button !== 0 || animando || cameras.list.length < 2) return;
+    if (e.button !== 0 || animating || cameras.list.length < 2) return;
     if (e.target instanceof Element && e.target.closest('button, a')) return;
-    gesto = { id: e.pointerId, x: e.clientX, y: e.clientY, eixo: null };
+    gesture = { id: e.pointerId, x: e.clientX, y: e.clientY, axis: null };
   }
 
-  function gestoMove(e: PointerEvent) {
-    if (gesto?.id !== e.pointerId || !stage) return;
+  function gestureMove(e: PointerEvent) {
+    if (gesture?.id !== e.pointerId || !stage) return;
     // O botão foi solto fora da janela antes de o eixo se decidir (só então o
     // palco captura o ponteiro): o vídeo não pode seguir o mouse solto.
     if (e.pointerType === 'mouse' && !(e.buttons & 1)) {
-      desistir();
+      abandon();
       return;
     }
-    const dx = e.clientX - gesto.x;
-    const dy = e.clientY - gesto.y;
-    if (!gesto.eixo && Math.hypot(dx, dy) > EIXO_PX) {
-      gesto.eixo = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-      if (gesto.eixo === 'x') stage.setPointerCapture(e.pointerId);
+    const dx = e.clientX - gesture.x;
+    const dy = e.clientY - gesture.y;
+    if (!gesture.axis && Math.hypot(dx, dy) > AXIS_PX) {
+      gesture.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (gesture.axis === 'x') stage.setPointerCapture(e.pointerId);
     }
-    if (gesto.eixo === 'x') arrasto = dx;
+    if (gesture.axis === 'x') drag = dx;
   }
 
   // Diz se foi um deslize: aí o soltar não é um toque, nem para o pulo de
   // 10 s nem para esconder os controles.
-  function gestoAcaba(e: PointerEvent) {
-    if (gesto?.id !== e.pointerId || !stage) return false;
-    const { eixo, x } = gesto;
-    gesto = null;
-    if (eixo !== 'x') return false;
-    arrastouEm = Date.now();
+  function gestureEnd(e: PointerEvent) {
+    if (gesture?.id !== e.pointerId || !stage) return false;
+    const { axis, x } = gesture;
+    gesture = null;
+    if (axis !== 'x') return false;
+    draggedAt = Date.now();
     const dx = e.clientX - x;
-    if (e.type === 'pointerup' && Math.abs(dx) > limiteDoDeslize(stage.clientWidth)) {
+    if (e.type === 'pointerup' && Math.abs(dx) > swipeLimit(stage.clientWidth)) {
       ir(dx < 0 ? 1 : -1);
       return true;
     }
-    animando = true;
-    arrasto = 0;
-    setTimeout(() => (animando = false), TROCA_MS);
+    animating = true;
+    drag = 0;
+    setTimeout(() => (animating = false), SWITCH_MS);
     return true;
   }
 
   // O nome e a posição da câmera, na tela cheia: lá não há a barra com o
   // seletor para dizer em qual câmera se está depois de deslizar.
-  const posicaoDaCam = $derived(cameras.list.findIndex((c) => c.id === cam));
+  const camPosition = $derived(cameras.list.findIndex((c) => c.id === cam));
 
   // As teclas valem na tela inteira, com ou sem tela cheia. Num campo ou num
   // select, a seta e o espaço são dele; o calendário também usa as setas, e
   // marca a tecla como usada.
-  function tecla(e: KeyboardEvent) {
+  function keyHandler(e: KeyboardEvent) {
     if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
-    const alvo = e.target instanceof HTMLElement ? e.target : null;
-    if (alvo && (alvo.isContentEditable || alvo.closest('input, select, textarea'))) return;
+    const target = e.target instanceof HTMLElement ? e.target : null;
+    if (target && (target.isContentEditable || target.closest('input, select, textarea'))) return;
 
     if (e.key === 'Escape' && menu) {
       menu = null;
@@ -460,12 +460,12 @@
     }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
-      pularRapido(e.key === 'ArrowLeft' ? -1 : 1);
+      fastJump(e.key === 'ArrowLeft' ? -1 : 1);
     } else if (e.key === ' ') {
       // Fora do player, o espaço num botão continua sendo do botão: o das
       // câmeras, o do dia. Dentro dele, o `preventDefault` também impede o
       // clique - sem isso, com o foco no ▶, o vídeo alternaria duas vezes.
-      if (alvo && alvo !== document.body && !cheia?.contains(alvo)) return;
+      if (target && target !== document.body && !full?.contains(target)) return;
       e.preventDefault();
       if (!e.repeat) player.toggle();
     }
@@ -477,7 +477,7 @@
   // timeline inteira é desenhada em hora local, então um epoch seria treze
   // dígitos ilegíveis que ainda assim dependeriam do fuso para casar com o dia.
 
-  function diaDaURL() {
+  function urlDay() {
     const d = params.get('day') ?? '';
     // Três perguntas: o formato, se o dia existe - a ida e volta pega o
     // `2026-13-45`, que passa em qualquer teste de formato mas volta escrevendo
@@ -486,37 +486,37 @@
     return /^\d{4}-\d{2}-\d{2}$/.test(d) && dayKey(parseDay(d)) === d && d <= dayKey() ? d : null;
   }
 
-  function horaMs(hms: string | null | undefined, diaMs: number) {
+  function hourMs(hms: string | null | undefined, dayMs: number) {
     const m = /^(\d{1,2}):(\d{2}):(\d{2})$/.exec(hms ?? '');
     if (!m) return null;
     const [h, min, s] = [Number(m[1]), Number(m[2]), Number(m[3])];
     if (h > 23 || min > 59 || s > 59) return null;
-    return diaMs + (h * 3600 + min * 60 + s) * 1000;
+    return dayMs + (h * 3600 + min * 60 + s) * 1000;
   }
 
-  const inicioDoDia = parseDay(diaInicial).getTime();
+  const dayStartMs = parseDay(initialDay).getTime();
 
   // Instante inicial. Vale só na PRIMEIRA carga - depois de trocar de dia à
   // mão, o instante de um link velho não descreve mais nada -, e por isso o
   // load() o consome zerando.
-  let tPendente = horaMs(params.get('t'), inicioDoDia);
-  let pausarNaPrimeira = params.get('paused') === '1';
-  const rateDaURL = RATES.find((r) => r === Number(params.get('rate'))) ?? null;
+  let tPending = hourMs(params.get('t'), dayStartMs);
+  let pauseOnFirst = params.get('paused') === '1';
+  const urlRate = RATES.find((r) => r === Number(params.get('rate'))) ?? null;
 
   // Janela da timeline: dois horários do mesmo dia. O fim colado na meia-noite
   // sai como `00:00:00`, então "fim <= início" só pode ser a virada do dia. Uma
   // janela mais curta que o zoom máximo passa por aqui e a própria Timeline
   // reancora no dia inteiro - o piso é regra dela, não desta leitura.
-  const zoomDaURL = (() => {
-    const [de, ate] = (params.get('zoom') ?? '').split(',');
-    const a = horaMs(de, inicioDoDia);
-    const b = horaMs(ate, inicioDoDia);
+  const urlZoom = (() => {
+    const [from, to] = (params.get('zoom') ?? '').split(',');
+    const a = hourMs(from, dayStartMs);
+    const b = hourMs(to, dayStartMs);
     if (a === null || b === null) return null;
-    return { de: a, ate: b <= a ? inicioDoDia + 86400_000 : b };
+    return { from: a, to: b <= a ? dayStartMs + 86400_000 : b };
   })();
 
-  let viewFrom = $state(zoomDaURL?.de ?? 0);
-  let viewTo = $state(zoomDaURL?.ate ?? 0);
+  let viewFrom = $state(urlZoom?.from ?? 0);
+  let viewTo = $state(urlZoom?.to ?? 0);
 
   // --------------------------------------------------------------------------
 
@@ -530,7 +530,7 @@
   // em pedaços de 10s vê gravação nova em ~20s, e quem gravou em pedaços de
   // 2 min não paga oito consultas do dia inteiro para cada uma que muda algo.
   const pollMs = $derived.by(() => {
-    const seg = cameras.list.find((c) => c.id === cam)?.segmentSeconds ?? SEG_PADRAO;
+    const seg = cameras.list.find((c) => c.id === cam)?.segmentSeconds ?? DEFAULT_SEG;
     return Math.min(Math.max(seg * 1000, POLL_MIN_MS), POLL_MAX_MS);
   });
 
@@ -542,25 +542,24 @@
   // clipe, e as duas recusas antecipadas. Elas importam porque o download sai
   // por location.href: um 404 ou um 409 apareceria como texto cru numa aba,
   // sem volta para a tela.
-  function planoDe(min: number, from: number): Exportacao | null {
+  function planOf(min: number, from: number): ExportPlan | null {
     if (!from) return null;
 
     // A conta dos `min` minutos parte do início do primeiro segmento, que é o
     // `from` enviado (ver `exportar`), e não do instante: contada do instante,
     // a janela passaria de `min` pelo pedaço do segmento antes dele, e no
     // de 10 min o servidor recusaria com 400 (maxExportSpan).
-    const primeiro = timeline.segments.find(([s, d]) => s + d > from);
-    if (!primeiro || primeiro[0] >= from + min * 60_000)
-      return { erro: 'sem gravação nesse trecho' };
-    const to = primeiro[0] + min * 60_000;
+    const first = timeline.segments.find(([s, d]) => s + d > from);
+    if (!first || first[0] >= from + min * 60_000) return { erro: 'sem gravação nesse trecho' };
+    const to = first[0] + min * 60_000;
 
-    const sel = timeline.segments.filter(([s, d]) => s + d > primeiro[0] && s < to);
+    const sel = timeline.segments.filter(([s, d]) => s + d > first[0] && s < to);
     // Um MP4 só pode ter um init, então o servidor recusa o intervalo que muda
     // de geração (internal/api/recordings.go:327).
-    if (sel.some(([, , gi]) => gi !== primeiro[2]))
+    if (sel.some(([, , gi]) => gi !== first[2]))
       return { erro: 'o trecho atravessa uma troca de codec' };
 
-    return { inicio: primeiro[0], to };
+    return { start: first[0], to };
   }
 
   // Um plano por duração oferecida: o menu mostra de uma vez quais dá para
@@ -569,11 +568,11 @@
   const planos = $derived.by(() => {
     if (menu !== 'baixar') return [];
     const from = Math.round(player.currentMs || 0);
-    return DURACOES.map((min) => ({ min, plano: planoDe(min, from) }));
+    return DURATIONS.map((min) => ({ min, plano: planOf(min, from) }));
   });
   // Por que a menor duração recusada não dá. As maiores recusam pelo mesmo
   // motivo ou por um que só elas têm (a troca de codec mais adiante).
-  const recusa = $derived(planos.find((p) => p.plano?.erro));
+  const fieldError = $derived(planos.find((p) => p.plano?.erro));
 
   // No localStorage, e não na URL: a duração da exportação é parâmetro de uma
   // AÇÃO, não do que se está vendo - não tem o que reproduzir num link.
@@ -593,43 +592,43 @@
   // próprio: o navegador pode recusar o autoplay, e a barra de endereços não
   // pode prometer uma reprodução que não está acontecendo.
   $effect(() => {
-    if (!montado) return;
-    const diaInteiro = !viewTo || (viewFrom <= dayStart && viewTo >= dayEnd);
-    escrever({
+    if (!mounted) return;
+    const wholeDay = !viewTo || (viewFrom <= dayStart && viewTo >= dayEnd);
+    write({
       cam,
       day,
       t: player.currentMs ? hhmmss(player.currentMs) : null,
       rate: player.rate === 1 ? null : player.rate,
       paused: player.playing ? null : '1',
-      zoom: diaInteiro ? null : `${hhmmss(viewFrom)},${hhmmss(viewTo)}`,
+      zoom: wholeDay ? null : `${hhmmss(viewFrom)},${hhmmss(viewTo)}`,
       // As miniaturas saíram da URL para o localStorage: um link antigo não
       // carrega mais o `thumbs=0` adiante.
       thumbs: null,
-      caixas: showCaixas ? null : '0',
-      rotulos: showRotulos ? null : '0',
+      boxes: showBoxes ? null : '0',
+      labels: showLabels ? null : '0',
     });
   });
 
   // O que o compartilhar diz em palavras: a câmera e o instante. Velocidade,
   // zoom e o resto só o link precisa levar.
   $effect(() => {
-    if (!montado || !cam) return;
-    const nome = cameras.list.find((c) => c.id === cam)?.name ?? cam;
+    if (!mounted || !cam) return;
+    const name = cameras.list.find((c) => c.id === cam)?.name ?? cam;
     const ms = player.currentMs;
-    cena.texto = ms
-      ? `${nome}, ${diaCurto(ms)} às ${hhmmss(ms)}`
-      : `${nome}, ${diaCurto(parseDay(day).getTime())}`;
+    scene.texto = ms
+      ? `${name}, ${shortDay(ms)} às ${hhmmss(ms)}`
+      : `${name}, ${shortDay(parseDay(day).getTime())}`;
   });
 
   onMount(async () => {
     if (!cameras.list.length) await loadCameras();
     // Câmera do link só vale se ainda existir: cadastro some, link fica.
-    const daURL = params.get('cam');
+    const fromURL = params.get('cam');
     cam =
-      daURL !== null && cameras.list.some((c) => c.id === daURL)
-        ? daURL
+      fromURL !== null && cameras.list.some((c) => c.id === fromURL)
+        ? fromURL
         : (cameras.list[0]?.id ?? '');
-    montado = true;
+    mounted = true;
   });
 
   // Troca de dia pelo calendário mantendo o horário e o zoom: a posição do
@@ -639,20 +638,20 @@
   //
   // Fora daqui (dia que não existe para a câmera, em carregarDias) fica o
   // comportamento antigo: lá o horário descrevia outro dia e não vale.
-  function mudarDia(novo: string) {
-    if (novo === day) return;
-    const deslocamento = parseDay(novo).getTime() - dayStart;
+  function changeDay(newItem: string) {
+    if (newItem === day) return;
+    const displacement = parseDay(newItem).getTime() - dayStart;
     // O alvo ainda pendente (link com `t=`, ou uma troca anterior cujo load()
     // não chegou) já é um instante do dia que sai; o player ainda está num dia
     // mais antigo que ele.
-    const agora = tPendente ?? player.currentMs;
-    if (agora) tPendente = agora + deslocamento;
+    const now = tPending ?? player.currentMs;
+    if (now) tPending = now + displacement;
     // Janela ainda não ancorada (0) fica como está: a Timeline a ancora.
     if (viewTo) {
-      viewFrom += deslocamento;
-      viewTo += deslocamento;
+      viewFrom += displacement;
+      viewTo += displacement;
     }
-    day = novo;
+    day = newItem;
   }
 
   // Anda pela lista de câmeras dando a volta nas pontas.
@@ -666,9 +665,9 @@
   onDestroy(() => {
     player.destroy();
     clearThumbnails();
-    clearTimeout(avisoTimer);
-    clearTimeout(puloTimer);
-    controles.parar();
+    clearTimeout(noticeTimer);
+    clearTimeout(jumpTimer);
+    controls.stop();
   });
 
   // Ligar o player assim que o <video> existir no DOM.
@@ -678,7 +677,7 @@
     // Antes de qualquer seek, e aqui e não no onMount porque só aqui o <video>
     // existe com certeza: trocar o src zera o playbackRate, e o #reset() do
     // player preserva o valor que encontrar - só precisa encontrá-lo já posto.
-    if (rateDaURL) player.setRate(rateDaURL);
+    if (urlRate) player.setRate(urlRate);
   });
 
   // Recarrega ao trocar de câmera ou de dia. Este é o único ponto de busca de
@@ -687,14 +686,14 @@
   // Trocar só de câmera mantém o instante: é o mesmo momento visto de outro
   // ângulo. O untrack impede que o relógio do player vire dependência e
   // recarregue a tela a cada quadro.
-  let camCarregada = '';
+  let camLoaded = '';
   $effect(() => {
     if (!cam || !day) return;
-    if (camCarregada && camCarregada !== cam) {
-      const agora = untrack(() => player.currentMs);
-      if (agora) tPendente = agora;
+    if (camLoaded && camLoaded !== cam) {
+      const now = untrack(() => player.currentMs);
+      if (now) tPending = now;
     }
-    camCarregada = cam;
+    camLoaded = cam;
     void load(cam, day);
   });
 
@@ -702,10 +701,10 @@
   // na tela: o dia que estreia com a tela aberta entra pelo refresh(), sem
   // custar requisição nenhuma.
   $effect(() => {
-    if (cam) void carregarDias(cam);
+    if (cam) void loadDaysData(cam);
   });
 
-  async function carregarDias(c: string) {
+  async function loadDaysData(c: string) {
     try {
       const res = await api.days(c);
       if (c !== cam) return;
@@ -714,7 +713,7 @@
       // acabou de ser trocada. O instante que veio da URL descrevia aquele
       // outro dia e não sobrevive à troca.
       if (daysList.length && !daysList.includes(day)) {
-        tPendente = null;
+        tPending = null;
         day = daysList.includes(dayKey()) ? dayKey() : (daysList.at(-1) ?? day);
       }
     } catch {
@@ -734,7 +733,7 @@
   // Em modo permissivo a lista fica como está: uma lista de um dia só faria o
   // seletor sair do "tudo liberado" para "só hoje", que é o oposto do que ele
   // deve fazer quando não conhece o histórico.
-  function registrarDia(d: string) {
+  function registerDay(d: string) {
     if (!daysList.length || daysList.includes(d)) return;
     daysList = [...daysList, d].sort();
   }
@@ -765,70 +764,70 @@
   // de câmera rápidas disparam dois pedidos, e nada garante que as respostas
   // voltem na ordem: a atrasada deixaria o player numa câmera e o seletor em
   // outra.
-  let carga = 0;
+  let loadAvg = 0;
   // A carga cuja timeline está na tela. Atrás de `carga`, ela ainda é a da
   // câmera ou do dia anterior.
-  let naTela = 0;
+  let onScreen = 0;
 
   async function load(c: string, d: string) {
-    const minha = ++carga;
+    const mine = ++loadAvg;
     loading = true;
     error = '';
     try {
       const t = await api.timeline(c, d);
-      if (minha !== carga) return;
+      if (mine !== loadAvg) return;
       timeline = t;
-      naTela = minha;
+      onScreen = mine;
       // Dia que o calendário oferecia e voltou vazio: a lista está velha - a
       // retenção apagou esse dia com a tela aberta. Reler conserta a lista e
       // leva para um dia que ainda existe. Só acontece nesse desencontro, e é
       // por isso que o poll não precisa reler nada.
-      if (!t.segments.length && daysList.includes(d)) void carregarDias(c);
+      if (!t.segments.length && daysList.includes(d)) void loadDaysData(c);
       player.setSource(c, t.gens, t.segments);
       clearThumbnails();
       // Num dia passado, o mais útil é o começo; hoje, o mais recente. O
       // instante que veio da URL manda em cima disso, mas só desta vez.
-      const ponta = d === dayKey() ? t.segments.at(-1) : t.segments[0];
-      if (ponta) {
-        const alvo = tPendente ?? ponta[0];
-        tPendente = null;
-        await player.seek(alvo);
+      const edge = d === dayKey() ? t.segments.at(-1) : t.segments[0];
+      if (edge) {
+        const target = tPending ?? edge[0];
+        tPending = null;
+        await player.seek(target);
         // A câmera ou o dia mudou durante o seek: o pause pararia o novo. E a
         // pausa do link continua valendo para ele, que é o primeiro a tocar.
-        if (minha !== carga) return;
+        if (mine !== loadAvg) return;
         // Depois do seek, nunca antes: ele termina em play(). Também só desta
         // vez - dali em diante o botão é que decide.
-        if (pausarNaPrimeira) player.pause();
-        pausarNaPrimeira = false;
+        if (pauseOnFirst) player.pause();
+        pauseOnFirst = false;
       }
     } catch (e) {
-      if (minha !== carga) return;
-      error = mensagemDe(e);
+      if (mine !== loadAvg) return;
+      error = messageOf(e);
       timeline = { cam: c, ranges: [], segments: [], gens: [] };
-      naTela = minha;
+      onScreen = mine;
     } finally {
       // O "carregando…" é do load() mais recente: o atrasado não o apaga.
-      if (minha === carga) loading = false;
+      if (mine === loadAvg) loading = false;
     }
 
     // Depois, e à parte. Câmera com a detecção desligada nem pergunta: quem só
     // grava não paga pedido nenhum pela faixa. O preço é que as marcas de um
     // período em que ela esteve ligada somem da tela junto com o desligar.
-    let ev: Pick<Eventos, 'onsets' | 'objetos'> = { onsets: [], objetos: [] };
-    if (detectLigado(c)) {
+    let ev: Pick<Events, 'onsets' | 'objetos'> = { onsets: [], objetos: [] };
+    if (detectEnabled(c)) {
       try {
         ev = await api.events(c, d);
       } catch {
         // Sem marcas a faixa só não aparece; a timeline já está na tela.
       }
     }
-    if (minha === carga) {
-      eventos = ev.onsets;
-      objetos = ev.objetos;
+    if (mine === loadAvg) {
+      events = ev.onsets;
+      objects = ev.objetos;
     }
   }
 
-  function detectLigado(c: string) {
+  function detectEnabled(c: string) {
     return !!cameras.list.find((x) => x.id === c)?.detect;
   }
 
@@ -840,17 +839,17 @@
   // de propósito: é ela que revela se a primeira faixa da cauda continua a
   // última faixa antiga, sem precisar repetir aqui a tolerância de emenda que
   // o servidor usa. A decisão já vem tomada dentro da resposta.
-  function costurar(atual: DoDia, cauda: DoDia, desdeMs: number): DoDia | null {
-    const novos = cauda.segments.filter(([start]) => start > desdeMs);
-    if (!novos.length) return null;
+  function stitch(current: DayData, tail: DayData, sinceMs: number): DayData | null {
+    const newOnes = tail.segments.filter(([start]) => start > sinceMs);
+    if (!newOnes.length) return null;
 
     // A tabela de gerações da cauda tem índices próprios, começando do zero:
     // usá-los direto apontaria para a geração errada da lista antiga.
-    const gens = [...atual.gens];
-    const segments: Segmento[] = [
-      ...atual.segments,
-      ...novos.flatMap(([start, dur, gi]): Segmento[] => {
-        const g = cauda.gens[gi];
+    const gens = [...current.gens];
+    const segments: Segment[] = [
+      ...current.segments,
+      ...newOnes.flatMap(([start, dur, gi]): Segment[] => {
+        const g = tail.gens[gi];
         if (g === undefined) return []; // segmento sem init: o servidor nunca manda
         let j = gens.indexOf(g);
         if (j < 0) j = gens.push(g) - 1;
@@ -858,14 +857,14 @@
       }),
     ];
 
-    const ranges = atual.ranges.map(([ini, fim]): Trecho => [ini, fim]);
-    for (const [ini, fim] of cauda.ranges) {
-      const ultima = ranges.at(-1);
-      if (ultima && ini <= ultima[1]) ultima[1] = Math.max(ultima[1], fim);
-      else ranges.push([ini, fim]);
+    const ranges = current.ranges.map(([ini, end]): Span => [ini, end]);
+    for (const [ini, end] of tail.ranges) {
+      const lastOne = ranges.at(-1);
+      if (lastOne && ini <= lastOne[1]) lastOne[1] = Math.max(lastOne[1], end);
+      else ranges.push([ini, end]);
     }
 
-    return { ...atual, ranges, segments, gens };
+    return { ...current, ranges, segments, gens };
   }
 
   let refreshing = false;
@@ -875,43 +874,41 @@
     // de crescer e não precisa mais ser relido. E antes de o load() mais
     // recente pôr a timeline dele na tela, a que está lá é a da câmera ou do
     // dia anterior: a cauda seria costurada nela. O load() já traz o dia todo.
-    if (refreshing || naTela !== carga || document.hidden || day !== dayKey()) return;
+    if (refreshing || onScreen !== loadAvg || document.hidden || day !== dayKey()) return;
     refreshing = true;
     const c = cam;
     const d = day;
     const base = timeline;
-    const ultimo = base.segments.at(-1);
+    const last = base.segments.at(-1);
     try {
       // Sem nada em mãos - dia que amanheceu vazio, ou primeira carga que
       // falhou - não há cauda a pedir e vale o dia inteiro.
-      const t = ultimo
-        ? await api.timelineRange(c, ultimo[0] + 1, dayEnd)
-        : await api.timeline(c, d);
+      const t = last ? await api.timelineRange(c, last[0] + 1, dayEnd) : await api.timeline(c, d);
 
       // Câmera, dia ou a própria timeline mudaram durante a busca: quem manda
       // é o load() novo, e costurar por cima misturaria duas câmeras.
       if (c !== cam || d !== day || timeline !== base) return;
 
-      if (!ultimo) {
+      if (!last) {
         if (!t.segments.length) return;
         // Primeira gravação do dia chegando com a tela já aberta: é o mesmo
         // caso do load() inicial, inclusive em ir para o instante mais recente.
-        registrarDia(d);
+        registerDay(d);
         timeline = t;
         player.setSource(c, t.gens, t.segments);
-        const ponta = t.segments.at(-1);
-        if (ponta) void player.seek(ponta[0]);
+        const edge = t.segments.at(-1);
+        if (edge) void player.seek(edge[0]);
         return;
       }
 
       // Nada novo fechou desde a última rodada: a tela fica como está, sem
       // trocar objeto nenhum - a tira de miniaturas e a barra não refazem as
       // contas à toa.
-      const emendada = costurar(base, t, ultimo[0]);
-      if (!emendada) return;
+      const joined = stitch(base, t, last[0]);
+      if (!joined) return;
 
-      timeline = emendada;
-      void player.updateSegments(emendada.gens, emendada.segments);
+      timeline = joined;
+      void player.updateSegments(joined.gens, joined.segments);
     } catch {
       // Atualização de fundo: uma falha passageira não pode apagar da tela a
       // timeline que já estava boa nem interromper a reprodução.
@@ -919,7 +916,7 @@
       refreshing = false;
     }
 
-    await caudaDeEventos(c, d);
+    await eventsTail(c, d);
   }
 
   // A cauda das marcas, pelo mesmo desenho da cauda da timeline: pede só o
@@ -937,25 +934,25 @@
   // (60 s). O pior caso é 2 x câmeras x 60 s, com o detector no limite em
   // todas, e 30 min o cobrem até 15 câmeras. Com o detector são, o atraso é de
   // segundos; a folga custa uns poucos KB de onsets por rodada.
-  const ATRASO_DO_OBJETO_MS = 30 * 60_000;
+  const OBJECT_DELAY_MS = 30 * 60_000;
 
-  async function caudaDeEventos(c: string, d: string) {
-    if (!detectLigado(c)) return;
-    const ultimo = eventos.at(-1) ?? dayStart - 1;
-    const desde = Math.max(dayStart, ultimo - ATRASO_DO_OBJETO_MS);
+  async function eventsTail(c: string, d: string) {
+    if (!detectEnabled(c)) return;
+    const last = events.at(-1) ?? dayStart - 1;
+    const since = Math.max(dayStart, last - OBJECT_DELAY_MS);
     try {
-      const ev = await api.eventsRange(c, desde, dayEnd);
+      const ev = await api.eventsRange(c, since, dayEnd);
       if (c !== cam || d !== day) return;
-      const onsets = ev.onsets.filter((t) => t > ultimo);
-      if (onsets.length) eventos = [...eventos, ...onsets];
+      const onsets = ev.onsets.filter((t) => t > last);
+      if (onsets.length) events = [...events, ...onsets];
       // Uma olhada grava uma linha por objeto, e duas da mesma família no
       // mesmo instante só se distinguem pela caixa. Instante e família não
       // bastam: a rodada que caísse entre as duas gravações perderia a segunda.
-      const chave = (o: ObjetoMarcado) =>
+      const key = (o: MarkedObject) =>
         `${o.instanteMs}|${o.classe}|${o.score}|${o.caixa?.join(',') ?? ''}`;
-      const conhecidos = new Set(objetos.map(chave));
-      const novos = ev.objetos.filter((o) => !conhecidos.has(chave(o)));
-      if (novos.length) objetos = [...objetos, ...novos];
+      const known = new Set(objects.map(key));
+      const newOnes = ev.objetos.filter((o) => !known.has(key(o)));
+      if (newOnes.length) objects = [...objects, ...newOnes];
     } catch {
       // Igual à timeline: falha de fundo não apaga o que já está na tela.
     }
@@ -965,54 +962,54 @@
   // cursor. O anterior termina exatamente nesse instante e o teste do servidor
   // é `>`, então ele continua de fora; e o nome do arquivo, que sai do `from`
   // pedido (internal/api/recordings.go:352), passa a casar com o conteúdo.
-  function exportar(min: number) {
-    const plano = planoDe(min, Math.round(player.currentMs || 0));
+  function exportClip(min: number) {
+    const plano = planOf(min, Math.round(player.currentMs || 0));
     menu = null;
-    if (!plano?.inicio) return;
+    if (!plano?.start) return;
     exportMin = min;
-    avisoDoBotao(`Baixando ${min} min de vídeo a partir de ${hhmmss(plano.inicio)}`);
-    location.href = mediaURL.export(cam, plano.inicio, plano.to);
+    buttonNotice(`Baixando ${min} min de vídeo a partir de ${hhmmss(plano.start)}`);
+    location.href = mediaURL.export(cam, plano.start, plano.to);
   }
 
-  async function capturar() {
+  async function capture() {
     menu = null;
-    avisoDoBotao(`Baixando a imagem das ${hhmmss(player.currentMs)}`);
+    buttonNotice(`Baixando a imagem das ${hhmmss(player.currentMs)}`);
     // O nome segue a mesma convenção da exportação (cam_AAAA-MM-DD_HH-MM-SS),
     // para que imagem e vídeo do mesmo instante fiquem lado a lado na pasta.
     // E o instante é o MOSTRADO, não a hora atual: uma captura de ontem
     // nomeada com hoje não serviria para nada.
     const d = new Date(player.currentMs);
-    const nome = `${cam}_${dayKey(d)}_${hhmmss(d.getTime()).replaceAll(':', '-')}.jpg`;
+    const name = `${cam}_${dayKey(d)}_${hhmmss(d.getTime()).replaceAll(':', '-')}.jpg`;
     try {
       // A imagem sai como a tela está: com as caixas acesas, se estiverem ligadas.
-      const camada = showCaixas ? camadaCaixas : null;
-      await baixarQuadro(video, nome, camada ? camada.desenhaEm : undefined);
+      const layer = showBoxes ? boxesLayer : null;
+      await downloadFrame(video, name, layer ? layer.drawOn : undefined);
     } catch (e) {
-      capturaErro = mensagemDe(e);
-      clearTimeout(avisoTimer);
-      avisoTimer = setTimeout(() => {
-        capturaErro = '';
+      captureError = messageOf(e);
+      clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => {
+        captureError = '';
       }, 5000);
     }
   }
 </script>
 
-<svelte:window onkeydown={tecla} onclick={foraDoMenu} onresize={medirPagina} />
+<svelte:window onkeydown={keyHandler} onclick={outsideMenu} onresize={measurePage} />
 
 <div
   class="page"
-  bind:this={pagina}
-  style:height={alturaDaPagina ? `${alturaDaPagina}px` : null}
-  style:--alt-pagina="{alturaDaPagina}px"
-  style:--larg-pagina={larguraDaPagina ? `${larguraDaPagina}px` : null}
-  style:--alt-linha="{alturaDaLinha}px"
-  style:--alt-legenda="{alturaDaLegenda}px"
+  bind:this={page}
+  style:height={pageHeight ? `${pageHeight}px` : null}
+  style:--alt-pagina="{pageHeight}px"
+  style:--larg-pagina={pageWidth ? `${pageWidth}px` : null}
+  style:--alt-linha="{rowHeight}px"
+  style:--alt-legenda="{captionHeight}px"
 >
   {#if !cameras.list.length && cameras.error}
     <!-- A lista vazia porque a carga falhou não é "nenhuma câmera". -->
     <p class="empty">Não deu para carregar as câmeras: {cameras.error}</p>
   {:else if !cameras.list.length && !cameras.loading}
-    <SemCameras />
+    <NoCameras />
   {:else}
     <div class="bar row">
       <div class="row camnav">
@@ -1024,7 +1021,7 @@
           disabled={cameras.list.length < 2}
           aria-label="câmera anterior"
         >
-          <Icone nome="chevronEsq" tamanho={18} />
+          <Icon name="chevronEsq" size={18} />
         </button>
         <!-- O blur devolve as setas aos pulos, como no select da velocidade. -->
         <select
@@ -1046,11 +1043,11 @@
           disabled={cameras.list.length < 2}
           aria-label="próxima câmera"
         >
-          <Icone nome="chevronDir" tamanho={18} />
+          <Icon name="chevronDir" size={18} />
         </button>
       </div>
 
-      <NavDia value={day} days={daysList} onchange={mudarDia} />
+      <DayNav value={day} days={daysList} onchange={changeDay} />
     </div>
 
     <!-- O que vai para a tela cheia. Lá dentro, o que não entra (miniaturas e
@@ -1058,83 +1055,83 @@
          esconder: as miniaturas não decodificam nada para ninguém ver. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="cheia"
-      class:fs={emTelaCheia}
-      class:fixos={controlesFixos}
-      class:escondidos={controlesEscondidos}
-      bind:this={cheia}
+      class="full"
+      class:fs={inFullscreen}
+      class:pinned={pinnedControls}
+      class:escondidos={hiddenControls}
+      bind:this={full}
       {@attach (node: HTMLElement) => () => {
         // A de verdade o navegador desfaz sozinho quando o elemento sai da
         // página; a simulada ficaria cobrindo a tela seguinte.
-        if (telaCheia.el === node) sairDaTelaCheia();
+        if (fullscreen.el === node) leaveFullscreen();
       }}
       onpointerdowncapture={() => {
-        if (!emTelaCheia) return;
-        toque.cancelar();
-        controles.tocou();
+        if (!inFullscreen) return;
+        touch.cancel();
+        controls.touched();
       }}
       onpointermove={(e) => {
-        if (emTelaCheia && e.pointerType === 'mouse') controles.mostrar();
+        if (inFullscreen && e.pointerType === 'mouse') controls.show();
       }}
     >
       <div
         class="stage"
-        class:animando
-        class:trocando
-        class:desloca={animando || arrasto !== 0}
-        style:--troca="{TROCA_MS}ms"
-        style:--arrasto="{arrasto}px"
+        class:animating
+        class:switching
+        class:shift={animating || drag !== 0}
+        style:--troca="{SWITCH_MS}ms"
+        style:--arrasto="{drag}px"
         bind:this={stage}
-        onpointerdown={gestoComeca}
-        onpointermove={gestoMove}
+        onpointerdown={gestureStart}
+        onpointermove={gestureMove}
         onpointerup={(e) => {
-          if (e.pointerId === largado) {
-            largado = null;
+          if (e.pointerId === released) {
+            released = null;
             return;
           }
-          if (!gestoAcaba(e)) toque(e);
+          if (!gestureEnd(e)) touch(e);
         }}
         onpointercancel={(e) => {
-          if (e.pointerId === largado) largado = null;
-          gestoAcaba(e);
+          if (e.pointerId === released) released = null;
+          gestureEnd(e);
         }}
         ondblclick={() => {
-          if (ultimoPonteiro !== 'touch' && Date.now() - arrastouEm > 2 * TROCA_MS) alternarCheia();
+          if (lastPointer !== 'touch' && Date.now() - draggedAt > 2 * SWITCH_MS) toggleFull();
         }}
       >
         <video bind:this={video} playsinline controls={false}></video>
-        {#if Caixas && showCaixas && objetos.length}
-          <Caixas
-            bind:this={camadaCaixas}
+        {#if Boxes && showBoxes && objects.length}
+          <Boxes
+            bind:this={boxesLayer}
             {video}
-            {objetos}
+            {objects}
             currentMs={player.currentMs}
             playing={player.playing}
             rate={player.rate}
-            rotulos={showRotulos}
+            labels={showLabels}
           />
         {/if}
         <!-- Empilhados numa coluna, e não cada um no seu `position: absolute`:
            antes eram três avisos disputando o mesmo canto, e o aviso de captura
            chega justamente quando o "carregando…" tem chance de estar aceso. -->
-        <div class="avisos">
+        <div class="notices">
           {#if player.buffering || loading}<span class="badge">carregando…</span>{/if}
           {#if !loading && !error && !timeline.segments.length}
             <span class="badge">sem gravação neste dia</span>
           {/if}
           {#if player.error}<span class="badge bad">{player.error}</span>{/if}
           {#if error}<span class="badge bad">{error}</span>{/if}
-          {#if capturaErro}<span class="badge bad">{capturaErro}</span>{/if}
+          {#if captureError}<span class="badge bad">{captureError}</span>{/if}
         </div>
-        {#if pulo}
-          <div class="meia-lua" class:direita={pulo.lado > 0} out:fade={{ duration: 250 }}>
-            <Icone nome={pulo.lado < 0 ? 'pulaEsq' : 'pulaDir'} tamanho={26} />
-            <span>{pulo.soma} segundos</span>
+        {#if jumpHint}
+          <div class="half-moon" class:right={jumpHint.side > 0} out:fade={{ duration: 250 }}>
+            <Icon name={jumpHint.side < 0 ? 'skipLeft' : 'skipRight'} size={26} />
+            <span>{jumpHint.sum} segundos</span>
           </div>
         {/if}
-        {#if !emTelaCheia}
-          <span class="entrar"
-            ><BotaoTelaCheia ativa={false} sobreVideo onclick={alternarCheia} /></span
+        {#if !inFullscreen}
+          <span class="enter"
+            ><FullscreenButton active={false} overVideo onclick={toggleFull} /></span
           >
         {/if}
       </div>
@@ -1143,12 +1140,12 @@
       <div
         class="dock"
         onpointerenter={(e) => {
-          if (e.pointerType === 'mouse') sobreControles = true;
+          if (e.pointerType === 'mouse') overControls = true;
         }}
         onpointerleave={(e) => {
           if (e.pointerType !== 'mouse') return;
-          sobreControles = false;
-          if (emTelaCheia) controles.mostrar();
+          overControls = false;
+          if (inFullscreen) controls.show();
         }}
       >
         <div class="controls row">
@@ -1159,11 +1156,11 @@
             }}
             aria-label={player.playing ? 'pausar' : 'tocar'}
           >
-            <Icone nome={player.playing ? 'pausa' : 'play'} tamanho={18} />
+            <Icon name={player.playing ? 'pause' : 'play'} size={18} />
           </button>
-          <Relogio
+          <Clock
             ms={player.currentMs}
-            onir={(seg) => {
+            ongo={(seg) => {
               void player.seek(dayStart + seg * 1000);
             }}
           />
@@ -1185,7 +1182,7 @@
                do duplo toque que pula 10 s. Ficam nesta linha quando cabem, e
                numa linha própria acima dela quando não (o CSS decide pela
                largura, e não pelo nome: trocar de câmera não mexe na faixa). -->
-          {#if emTelaCheia && posicaoDaCam >= 0}
+          {#if inFullscreen && camPosition >= 0}
             <div class="camnav navfs">
               <button
                 class="ghost"
@@ -1195,11 +1192,11 @@
                 disabled={cameras.list.length < 2}
                 aria-label="câmera anterior"
               >
-                <Icone nome="chevronEsq" tamanho={18} />
+                <Icon name="chevronEsq" size={18} />
               </button>
               <!-- A posição fica fora do nome: o "…" corta só o nome. -->
-              <span class="nome-cam">{cameras.list[posicaoDaCam]?.name}</span>
-              <span class="pos">{posicaoDaCam + 1}/{cameras.list.length}</span>
+              <span class="cam-name">{cameras.list[camPosition]?.name}</span>
+              <span class="pos">{camPosition + 1}/{cameras.list.length}</span>
               <button
                 class="ghost"
                 onclick={() => {
@@ -1208,57 +1205,55 @@
                 disabled={cameras.list.length < 2}
                 aria-label="próxima câmera"
               >
-                <Icone nome="chevronDir" tamanho={18} />
+                <Icon name="chevronDir" size={18} />
               </button>
             </div>
           {/if}
 
           <span class="spacer"></span>
-          {#if emTelaCheia}
+          {#if inFullscreen}
             <!-- Só o ícone: o `title` explica no desktop, e no celular quem toca
              vê na hora o que mudou. -->
             <button
-              class="ghost fixar"
-              class:on={controlesFixos}
-              onclick={() => (controlesFixos = !controlesFixos)}
+              class="ghost pin"
+              class:on={pinnedControls}
+              onclick={() => (pinnedControls = !pinnedControls)}
               aria-label="fixar os controles"
-              aria-pressed={controlesFixos}
-              title={controlesFixos
+              aria-pressed={pinnedControls}
+              title={pinnedControls
                 ? 'soltar os controles: somem sozinhos com o vídeo tocando'
                 : 'fixar os controles embaixo do vídeo'}
             >
-              <Icone nome="fixar" tamanho={22} />
+              <Icon name="pin" size={22} />
             </button>
-            <BotaoTelaCheia ativa onclick={alternarCheia} />
+            <FullscreenButton active onclick={toggleFull} />
           {:else}
             <!-- No celular só o ícone, e o toque se explica na snackbar; no
                  desktop o rótulo aparece ao lado. -->
             <button
               class="ghost ib"
               class:on={showThumbs}
-              onclick={alternarMiniaturas}
+              onclick={toggleThumbnails}
               aria-label={showThumbs ? 'ocultar miniaturas' : 'exibir miniaturas'}
               aria-pressed={showThumbs}
             >
-              <Icone nome="miniaturas" tamanho={20} />
-              <span class="rotulo" bind:this={rotuloDoBotao}>miniaturas</span>
+              <Icon name="thumbnails" size={20} />
+              <span class="label" bind:this={buttonLabel}>miniaturas</span>
             </button>
             <!-- Só com objeto no dia, como as cores da legenda: câmera sem detecção
            não tem caixa nenhuma para mostrar. -->
-            {#if objetos.length}
+            {#if objects.length}
               <button
                 class="ghost ib"
-                class:on={showCaixas}
-                onclick={trocarCaixas}
-                aria-label="caixas de detecção: {ESTADOS_DAS_CAIXAS[
-                  estadoDasCaixas
-                ]}. Toque para trocar"
+                class:on={showBoxes}
+                onclick={toggleBoxes}
+                aria-label="caixas de detecção: {BOXES_STATES[boxesState]}. Toque para trocar"
               >
-                <Icone nome={showRotulos && showCaixas ? 'caixasRotulo' : 'caixas'} tamanho={20} />
-                <span class="rotulo">{ESTADOS_DAS_CAIXAS[estadoDasCaixas]}</span>
+                <Icon name={showLabels && showBoxes ? 'boxesLabel' : 'boxes'} size={20} />
+                <span class="label">{BOXES_STATES[boxesState]}</span>
               </button>
             {/if}
-            <span class="ancora">
+            <span class="anchor">
               <button
                 class="ghost ib"
                 onclick={() => (menu = menu === 'baixar' ? null : 'baixar')}
@@ -1266,30 +1261,30 @@
                 aria-haspopup="menu"
                 aria-expanded={menu === 'baixar'}
               >
-                <Icone nome="baixar" tamanho={20} />
-                <span class="rotulo">baixar</span>
+                <Icon name="download" size={20} />
+                <span class="label">baixar</span>
               </button>
               {#if menu === 'baixar'}
-                <div class="pop acima" role="menu">
+                <div class="pop above" role="menu">
                   <div class="tit">Baixar</div>
                   <button
-                    class="imagem"
+                    class="image"
                     role="menuitem"
-                    onclick={capturar}
+                    onclick={capture}
                     disabled={!player.currentMs}
                   >
-                    <Icone nome="imagem" tamanho={18} /> Imagem deste instante
+                    <Icon name="image" size={18} /> Imagem deste instante
                   </button>
                   <div class="tit">Vídeo a partir deste instante</div>
-                  <div class="duracoes">
+                  <div class="durations">
                     {#each planos as { min, plano } (min)}
                       <button
                         role="menuitem"
-                        class:ultima={min === exportMin}
+                        class:last={min === exportMin}
                         onclick={() => {
-                          exportar(min);
+                          exportClip(min);
                         }}
-                        disabled={!plano?.inicio}
+                        disabled={!plano?.start}
                         title={plano?.erro}
                       >
                         {min} min
@@ -1298,10 +1293,11 @@
                   </div>
                   <!-- O botão desabilitado diz que não dá; sozinho, ele não
                        diria por quê. -->
-                  {#if recusa?.plano?.erro}
-                    <p class="recusa small">
-                      {recusa.min === DURACOES[0] ? '' : `de ${recusa.min} min em diante: `}{recusa
-                        .plano.erro}
+                  {#if fieldError?.plano?.erro}
+                    <p class="field-error small">
+                      {fieldError.min === DURATIONS[0]
+                        ? ''
+                        : `de ${fieldError.min} min em diante: `}{fieldError.plano.erro}
                     </p>
                   {/if}
                 </div>
@@ -1310,19 +1306,19 @@
           {/if}
         </div>
 
-        {#if showThumbs && !emTelaCheia}
+        {#if showThumbs && !inFullscreen}
           <!-- A câmera vem da timeline, e não do seletor: ao trocar de câmera
           o seletor muda na hora e os segmentos só quando a timeline nova
           chega. Nesse meio-tempo a tira pedia cada miniatura com a câmera nova
           e o instante da antiga - um 404 por miniatura, na frente da fila das
           certas. -->
-          <div class="miniaturas">
+          <div class="thumbnails">
             <ThumbStrip
               cam={timeline.cam}
               segments={timeline.segments}
-              {objetos}
+              {objects}
               currentMs={player.currentMs}
-              adiar={player.carregando}
+              defer={player.loading}
               onseek={(ms: number) => {
                 void player.seek(ms);
               }}
@@ -1330,11 +1326,11 @@
           </div>
         {/if}
 
-        <div class="linha" bind:offsetHeight={alturaDaLinha}>
+        <div class="row" bind:offsetHeight={rowHeight}>
           <Timeline
             ranges={timeline.ranges}
-            events={eventos}
-            {objetos}
+            {events}
+            {objects}
             {dayStart}
             {dayEnd}
             currentMs={player.currentMs}
@@ -1352,18 +1348,18 @@
          à vista ocupavam mais linhas que a legenda inteira no celular. O
          balão fica fora da legenda porque, deitado, ela rola para o lado e
          o cortaria. -->
-    <div class="rodape ancora" bind:offsetHeight={alturaDaLegenda}>
+    <div class="footer anchor" bind:offsetHeight={captionHeight}>
       <div class="legend muted small row wrap">
         <span><i class="has"></i> com gravação</span>
         <span><i class="gap"></i> sem gravação</span>
-        {#if eventos.length}
+        {#if events.length}
           <span><i class="heat"></i> movimento</span>
         {/if}
         <!-- As três, e não só as do dia: a legenda explica a cor antes de ela
            aparecer, e não muda de tamanho a cada marca nova. -->
-        {#if objetos.length}
-          {#each Object.values(FAMILIAS) as f (f.nome)}
-            <span><i style:background={f.cor}></i> {f.nome}</span>
+        {#if objects.length}
+          {#each Object.values(FAMILIES) as f (f.nome)}
+            <span><i style:background={f.color}></i> {f.nome}</span>
           {/each}
         {/if}
         <button
@@ -1372,11 +1368,11 @@
           aria-label="gestos da timeline"
           aria-expanded={menu === 'gestos'}
         >
-          <Icone nome="info" tamanho={16} />
+          <Icon name="info" size={16} />
         </button>
       </div>
       {#if menu === 'gestos'}
-        <div class="pop acima gestos" role="dialog" aria-label="gestos da timeline">
+        <div class="pop above gestures" role="dialog" aria-label="gestos da timeline">
           toque para pular · arraste para navegar · duplo toque aproxima, dois dedos afastam · pince
           ou role para dar zoom
         </div>
@@ -1429,22 +1425,22 @@
   /* O que desliza com o dedo: o vídeo e as caixas por cima dele. Os avisos, a
      meia-lua e o botão de tela cheia ficam. O `transform` só existe durante o
      gesto: parado, o vídeo não ganha camada própria à toa. */
-  .stage.desloca > video,
-  .stage.desloca > :global(canvas) {
+  .stage.shift > video,
+  .stage.shift > :global(canvas) {
     transform: translateX(var(--arrasto));
   }
-  .stage.animando > video,
-  .stage.animando > :global(canvas) {
+  .stage.animating > video,
+  .stage.animating > :global(canvas) {
     transition: transform var(--troca) ease-out;
   }
-  .stage.trocando > video,
-  .stage.trocando > :global(canvas) {
+  .stage.switching > video,
+  .stage.switching > :global(canvas) {
     visibility: hidden;
   }
 
   /* O retorno do pulo de 10 s, como a do YouTube: um arco translúcido colado na
      borda do lado do pulo. Passa os toques adiante, para o vídeo. */
-  .meia-lua {
+  .half-moon {
     position: absolute;
     top: -10%;
     bottom: -10%;
@@ -1463,7 +1459,7 @@
     pointer-events: none;
     user-select: none;
   }
-  .meia-lua.direita {
+  .half-moon.right {
     left: auto;
     right: 0;
     border-radius: 50% 0 0 50% / 50% 0 0 50%;
@@ -1478,7 +1474,7 @@
 
   /* Fora da tela cheia o palco cresce até 16:9 pela largura e encolhe para o
      resto caber: quando é a altura que manda, sobra faixa preta dos lados. */
-  .cheia:not(.fs) {
+  .full:not(.fs) {
     /* Do tamanho do conteúdo, e só encolhe: a sobra fica embaixo da legenda,
        e não entre ela e a timeline. */
     flex: 0 1 auto;
@@ -1487,19 +1483,19 @@
     flex-direction: column;
     gap: 10px;
   }
-  .cheia:not(.fs) .stage {
+  .full:not(.fs) .stage {
     flex: 0 1 auto;
     width: 100%;
     aspect-ratio: 16 / 9;
     min-height: 120px;
   }
-  .cheia:not(.fs) .dock {
+  .full:not(.fs) .dock {
     flex: none;
     display: grid;
     gap: 8px;
   }
   /* A tira rola por dentro: sem o piso zero, a largura dela abriria a página. */
-  .miniaturas {
+  .thumbnails {
     min-width: 0;
   }
 
@@ -1533,18 +1529,18 @@
     border-color: var(--accent);
     background: var(--ativo-fundo);
   }
-  .rotulo {
+  .label {
     display: none;
     font-size: 14px;
   }
   @media (min-width: 720px) {
-    .rotulo {
+    .label {
       display: inline;
     }
   }
 
   /* O menu do baixar, no desenho do menu da conta. */
-  .ancora {
+  .anchor {
     position: relative;
   }
   .pop {
@@ -1563,7 +1559,7 @@
     border-radius: var(--radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
-  .pop.acima {
+  .pop.above {
     top: auto;
     bottom: calc(100% + 6px);
   }
@@ -1574,7 +1570,7 @@
   }
   /* Com cara de botão, como as durações logo abaixo: solta no menu, sem
      fundo nem borda, ela se lia como um título. */
-  .imagem {
+  .image {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1584,13 +1580,13 @@
     padding: 4px 10px;
     font-size: 13px;
   }
-  .duracoes {
+  .durations {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     padding: 2px 10px 6px;
   }
-  .duracoes button {
+  .durations button {
     flex: 1;
     min-height: 38px;
     padding: 4px 10px;
@@ -1598,10 +1594,10 @@
     white-space: nowrap;
   }
   /* A última duração baixada: só a borda, porque o toque baixa, não escolhe. */
-  .duracoes button.ultima {
+  .durations button.last {
     border-color: var(--accent);
   }
-  .recusa {
+  .field-error {
     margin: 0;
     padding: 0 10px 6px;
     color: var(--bad);
@@ -1620,11 +1616,11 @@
       /* Aqui o vídeo vai para o lado: a conta da largura não se aplica. */
       max-width: none;
     }
-    .cheia:not(.fs),
-    .cheia:not(.fs) .dock {
+    .full:not(.fs),
+    .full:not(.fs) .dock {
       display: contents;
     }
-    .cheia:not(.fs) .stage {
+    .full:not(.fs) .stage {
       grid-area: stage;
       width: auto;
       height: calc(var(--alt-pagina) - 20px - var(--alt-linha) - 8px - var(--alt-legenda) - 8px);
@@ -1639,16 +1635,16 @@
     .controls {
       grid-area: ctl;
     }
-    .miniaturas {
+    .thumbnails {
       grid-area: mini;
       align-self: start;
     }
-    .linha {
+    .row {
       grid-area: linha;
     }
     /* Uma linha só, que rola para o lado: quebrada em três, ela tirava do
        vídeo mais da metade da altura. */
-    .rodape {
+    .footer {
       grid-area: legenda;
     }
     .legend {
@@ -1659,17 +1655,17 @@
       /* Rolando por dentro, a grade a espremeria até zero. */
       min-height: min-content;
     }
-    .rotulo {
+    .label {
       display: none;
     }
     /* Os controles ficam no alto: o menu do baixar abre para baixo. */
-    .controls .pop.acima {
+    .controls .pop.above {
       top: calc(100% + 6px);
       bottom: auto;
     }
   }
 
-  .entrar {
+  .enter {
     position: absolute;
     right: 8px;
     bottom: 8px;
@@ -1677,25 +1673,25 @@
 
   /* Na tela cheia: sem `position`, porque quem o põe é o navegador (`:fullscreen`)
      ou a regra da simulada no app.css, e ele é o apoio da faixa de controles. */
-  .cheia.fs {
+  .full.fs {
     display: flex;
     flex-direction: column;
     gap: 0;
     background: #000;
   }
-  .cheia.fs .stage {
+  .full.fs .stage {
     flex: 1;
     min-height: 0;
     border-radius: 0;
   }
-  .cheia.fs video {
+  .full.fs video {
     width: 100%;
     height: 100%;
     aspect-ratio: auto;
     max-height: none;
   }
   /* Fixos: a faixa embaixo do vídeo, que fica com o que sobra da altura. */
-  .cheia.fs .dock {
+  .full.fs .dock {
     gap: 8px;
     padding: 8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
       max(8px, env(safe-area-inset-left));
@@ -1704,7 +1700,7 @@
   }
   /* Soltos: por cima do vídeo, sobre um degradê que segura a leitura num vídeo
      claro. */
-  .cheia.fs:not(.fixos) .dock {
+  .full.fs:not(.pinned) .dock {
     position: absolute;
     inset: auto 0 0 0;
     padding-top: 28px;
@@ -1714,29 +1710,29 @@
       opacity 0.25s,
       transform 0.25s;
   }
-  .cheia.escondidos .dock {
+  .full.escondidos .dock {
     opacity: 0;
     transform: translateY(12px);
     pointer-events: none;
   }
-  .cheia.escondidos {
+  .full.escondidos {
     cursor: none;
   }
 
   /* O alfinete, do mesmo tamanho do botão da tela cheia ao lado. */
-  .fixar {
+  .pin {
     display: grid;
     place-items: center;
     width: 44px;
     padding: 0;
   }
-  .fixar.on {
+  .pin.on {
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
   }
 
-  .avisos {
+  .notices {
     position: absolute;
     top: 8px;
     left: 8px;
@@ -1766,7 +1762,7 @@
      linha do ▶ quando a faixa tem 520 px; abaixo disso ela vai para uma
      linha própria, centrada, acima dos controles. O corte é pela largura, e
      não pelo nome, para a faixa não mudar ao trocar de câmera. */
-  .cheia.fs .dock {
+  .full.fs .dock {
     container-type: inline-size;
   }
   .navfs {
@@ -1778,7 +1774,7 @@
   .navfs button {
     flex: none;
   }
-  .nome-cam {
+  .cam-name {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1806,7 +1802,7 @@
       justify-content: center;
     }
   }
-  .rodape {
+  .footer {
     flex: none;
   }
   .legend {
@@ -1830,7 +1826,7 @@
     color: var(--accent);
   }
   /* O balão abre por cima da timeline, alinhado à esquerda da legenda. */
-  .pop.gestos {
+  .pop.gestures {
     left: 0;
     right: auto;
     min-width: 0;

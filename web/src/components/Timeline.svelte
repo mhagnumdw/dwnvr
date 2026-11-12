@@ -1,14 +1,14 @@
 <script lang="ts">
-  import type { ObjetoMarcado, Trecho } from '../lib/api.ts';
-  import { contexto2d } from '../lib/canvas.ts';
+  import type { MarkedObject, Span } from '../lib/api.ts';
+  import { context2d } from '../lib/canvas.ts';
   import { hhmm, hhmmss } from '../lib/format.ts';
-  import { familia, iconeDa, desenhaIcone, NOME_DA_CLASSE } from '../lib/icones.ts';
-  import type { NomeDoIcone } from '../lib/icones.ts';
+  import { family, iconOf, drawIcon, CLASS_NAME } from '../lib/icons.ts';
+  import type { IconName } from '../lib/icons.ts';
 
   interface Props {
-    ranges?: Trecho[];
+    ranges?: Span[];
     events?: number[];
-    objetos?: ObjetoMarcado[];
+    objects?: MarkedObject[];
     dayStart?: number;
     dayEnd?: number;
     currentMs?: number;
@@ -18,10 +18,10 @@
   }
 
   // As marcas de um mesmo instante, que viram UMA marca dividida.
-  interface Grupo {
+  interface Group {
     t: number;
-    marcas: ObjetoMarcado[];
-    prioridade: number;
+    marks: MarkedObject[];
+    priority: number;
   }
 
   let {
@@ -37,7 +37,7 @@
     // e não um intervalo: o detector olha uma vez por chegada, então não sabe
     // quando o objeto saiu. Vazio segue a regra da faixa de calor: nem desenha
     // nem ocupa altura.
-    objetos = [],
+    objects = [],
     dayStart = 0,
     dayEnd = 0,
     currentMs = 0,
@@ -55,7 +55,7 @@
   let hoverMs = $state<number | null>(null);
   // A marca sob o ponteiro, quando ele está a um alvo dela: é o que a dica
   // descreve e o que o fio do ponteiro aponta.
-  let hoverGrupo = $state<Grupo | null>(null);
+  let hoverGroup = $state<Group | null>(null);
 
   const MIN_SPAN = 20_000; // 20s de zoom máximo
 
@@ -63,34 +63,34 @@
   // dizer uma coisa só. Os números da barra e da régua são os que ela sempre
   // teve; a faixa de calor entra por baixo e a de objeto por cima, cada uma só
   // quando há o que mostrar.
-  const TOPO_PX = 6;
+  const TOP_PX = 6;
   // Onde o ícone se apoia, acima da linha de objeto. Fixa, e não do tamanho do
   // ícone: o ícone de classe é maior que o de família, e com a zona crescendo a
   // barra desceria no meio de um zoom.
-  const ZONA_PX = 24;
+  const ZONE_PX = 24;
   const OBJ_PX = 10; // a linha de objeto
-  const BARRA_PX = 36;
+  const BAR_PX = 36;
   const VAO_PX = 3; // respiro entre a barra e cada faixa vizinha
-  const CALOR_PX = 10;
-  const REGUA_PX = 20; // o que sobra embaixo, para os rótulos de hora
+  const HEAT_PX = 10;
+  const RULER_PX = 20; // o que sobra embaixo, para os rótulos de hora
 
   // O desenho da marca de objeto: um tique na linha, e o ícone em cima SEMPRE
   // que couber. Uma câmera marca dezenas de objetos por dia, não centenas, e o
   // ícone cabe em boa parte do dia. O que não cabe fica só no tique - a cor já
   // diz a família.
-  const TIQUE_PX = 3;
-  const ICONE_FAMILIA_PX = 14;
+  const TICK_PX = 3;
+  const FAMILY_ICON_PX = 14;
   // A 20px o ícone de classe separa moto de bicicleta e gato de cachorro; a
   // 14px eles viram o mesmo desenho. Por isso a classe só entra de perto.
-  const ICONE_CLASSE_PX = 20;
-  const CLASSE_ATE_MS = 20 * 60_000;
-  const ICONE_FOLGA_PX = 4; // respiro entre dois ícones vizinhos
+  const CLASS_ICON_PX = 20;
+  const CLASS_UNTIL_MS = 20 * 60_000;
+  const ICON_SLACK_PX = 4; // respiro entre dois ícones vizinhos
   // Distância em que o toque "cai" numa marca e vai ao instante dela, em vez de
   // ao pixel tocado. O dedo é impreciso, o mouse não - o mesmo raciocínio do
   // limiar de arraste lá embaixo.
-  const ALVO_MOUSE_PX = 8;
-  const ALVO_DEDO_PX = 16;
-  const FUNDO = '#1b1f24';
+  const MOUSE_TARGET_PX = 8;
+  const FINGER_TARGET_PX = 16;
+  const BACKGROUND = '#1b1f24';
 
   // A intensidade é ADAPTATIVA: o pico da janela visível vira o topo da
   // escala. A alternativa era escala fixa, comparável entre telas e entre
@@ -102,8 +102,8 @@
   // O piso de alfa existe para que uma coluna com UMA marca ainda apareça; a
   // raiz abre o meio da escala, onde a diferença entre 2 e 4 marcas se perderia
   // se a rampa fosse linear.
-  const CALOR_COR = '#d29922';
-  const CALOR_ALFA_MIN = 0.3;
+  const HEAT_COLOR = '#d29922';
+  const HEAT_ALPHA_MIN = 0.3;
 
   // Reancorar quando o dia muda; comparar os limites evita reancorar a cada
   // repintura e perder o zoom que o usuário acabou de dar. O piso do span faz o
@@ -111,18 +111,21 @@
   // MIN_SPAN, mas um link editado à mão produz - e aí o zoom máximo, que é
   // regra desta timeline, passaria a valer só para quem chegou clicando.
   $effect(() => {
-    const janela = viewTo - viewFrom;
-    if (dayStart && (viewFrom < dayStart || viewTo > dayEnd || viewTo === 0 || janela < MIN_SPAN)) {
+    const visibleWindow = viewTo - viewFrom;
+    if (
+      dayStart &&
+      (viewFrom < dayStart || viewTo > dayEnd || viewTo === 0 || visibleWindow < MIN_SPAN)
+    ) {
       viewFrom = dayStart;
       viewTo = dayEnd;
     }
   });
 
-  const temCalor = $derived(events.length > 0);
-  const temObjetos = $derived(objetos.length > 0);
-  const objTop = TOPO_PX + ZONA_PX;
-  const barTop = $derived(temObjetos ? objTop + OBJ_PX + VAO_PX : TOPO_PX);
-  const alturaCanvas = $derived(barTop + BARRA_PX + (temCalor ? VAO_PX + CALOR_PX : 0) + REGUA_PX);
+  const hasHeat = $derived(events.length > 0);
+  const hasObjects = $derived(objects.length > 0);
+  const objTop = TOP_PX + ZONE_PX;
+  const barTop = $derived(hasObjects ? objTop + OBJ_PX + VAO_PX : TOP_PX);
+  const canvasHeight = $derived(barTop + BAR_PX + (hasHeat ? VAO_PX + HEAT_PX : 0) + RULER_PX);
 
   // As marcas agrupadas por instante, crescentes. Uma olhada pode confirmar
   // mais de uma família no mesmo quadro - pessoa e moto chegam juntas, e numa
@@ -133,23 +136,23 @@
   // A timeline marca chegada por família: duas pessoas no mesmo instante são
   // duas linhas gravadas, mas uma chegada de `pessoa`, com a de maior
   // confiança - a classe dela é a que o ícone e o tooltip mostram.
-  const grupos = $derived.by((): Grupo[] => {
-    const out: { t: number; marcas: ObjetoMarcado[] }[] = [];
-    for (const o of [...objetos].sort((a, b) => a.instanteMs - b.instanteMs)) {
+  const groups = $derived.by((): Group[] => {
+    const out: { t: number; marks: MarkedObject[] }[] = [];
+    for (const o of [...objects].sort((a, b) => a.instanteMs - b.instanteMs)) {
       const ult = out.at(-1);
       if (ult?.t !== o.instanteMs) {
-        out.push({ t: o.instanteMs, marcas: [o] });
+        out.push({ t: o.instanteMs, marks: [o] });
         continue;
       }
-      const i = ult.marcas.findIndex((m) => m.familia === o.familia);
-      const mesma = ult.marcas[i];
-      if (!mesma) ult.marcas.push(o);
-      else if (o.score > mesma.score) ult.marcas[i] = o;
+      const i = ult.marks.findIndex((m) => m.familia === o.familia);
+      const same = ult.marks[i];
+      if (!same) ult.marks.push(o);
+      else if (o.score > same.score) ult.marks[i] = o;
     }
     return out.map((gr) => {
-      const prioridades = gr.marcas.map((m) => familia(m.familia).prioridade);
-      gr.marcas.sort((a, b) => familia(a.familia).prioridade - familia(b.familia).prioridade);
-      return { ...gr, prioridade: Math.min(...prioridades) };
+      const priorities = gr.marks.map((m) => family(m.familia).priority);
+      gr.marks.sort((a, b) => family(a.familia).priority - family(b.familia).priority);
+      return { ...gr, priority: Math.min(...priorities) };
     });
   });
 
@@ -160,10 +163,10 @@
   // Passo das marcas de hora: escolhido para que os rótulos nunca se toquem,
   // seja num celular de 360px ou num monitor largo.
   const step = $derived.by(() => {
-    const maior = 216e5;
-    const opts = [1e3, 5e3, 15e3, 60e3, 3e5, 9e5, 18e5, 36e5, 108e5, maior];
+    const larger = 216e5;
+    const opts = [1e3, 5e3, 15e3, 60e3, 3e5, 9e5, 18e5, 36e5, 108e5, larger];
     const minPx = width < 500 ? 56 : 78;
-    return opts.find((s) => (s / span) * width >= minPx) ?? maior;
+    return opts.find((s) => (s / span) * width >= minPx) ?? larger;
   });
 
   $effect(() => {
@@ -171,13 +174,13 @@
     /* eslint-disable @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear */
     ranges;
     events;
-    grupos;
+    groups;
     viewFrom;
     viewTo;
     currentMs;
     width;
     hoverMs;
-    alturaCanvas;
+    canvasHeight;
     /* eslint-enable @typescript-eslint/no-unused-expressions */
     draw();
   });
@@ -191,9 +194,9 @@
    *
    * A busca binária evita percorrer as milhares de marcas do dia a cada
    * repintura - e há repintura a cada pixel de arraste. */
-  function contaPorColuna() {
+  function countPerColumn() {
     const cols = new Int32Array(Math.max(1, Math.ceil(width)));
-    for (let i = limiteInferior(events, viewFrom); i < events.length; i++) {
+    for (let i = lowerLimit(events, viewFrom); i < events.length; i++) {
       const e = events[i];
       if (e === undefined || e >= viewTo) break;
       const x = Math.floor(toX(e));
@@ -202,7 +205,7 @@
     return cols;
   }
 
-  function limiteInferior(arr: number[], v: number) {
+  function lowerLimit(arr: number[], v: number) {
     let lo = 0;
     let hi = arr.length;
     while (lo < hi) {
@@ -215,12 +218,12 @@
 
   /* O tique de um grupo na linha de objeto. Duas famílias no mesmo instante
    * dividem o tique em faixas, a de mais prioridade no alto. */
-  function tique(g: CanvasRenderingContext2D, gr: Grupo) {
-    const x = toX(gr.t) - TIQUE_PX / 2;
-    const h = OBJ_PX / gr.marcas.length;
-    gr.marcas.forEach((m, i) => {
-      g.fillStyle = familia(m.familia).cor;
-      g.fillRect(x, objTop + i * h, TIQUE_PX, h);
+  function tick(g: CanvasRenderingContext2D, gr: Group) {
+    const x = toX(gr.t) - TICK_PX / 2;
+    const h = OBJ_PX / gr.marks.length;
+    gr.marks.forEach((m, i) => {
+      g.fillStyle = family(m.familia).color;
+      g.fillRect(x, objTop + i * h, TICK_PX, h);
     });
   }
 
@@ -230,90 +233,91 @@
    * todos, então um gato vizinho nunca tira o ícone de uma pessoa. Um grupo de
    * duas famílias pede lugar para os dois ícones lado a lado; sem espaço, tenta
    * ao menos o da família principal. O que não coube continua no tique. */
-  function encaixa(visiveis: Grupo[], lado: number, porClasse: boolean) {
-    const ordem = [...visiveis].sort((a, b) => a.prioridade - b.prioridade || a.t - b.t);
-    const ocupados: [number, number][] = [];
-    const postos: { nome: NomeDoIcone; x: number; cor: string }[] = [];
-    const livre = (x0: number, x1: number) =>
-      ocupados.every(([a, b]) => x1 + ICONE_FOLGA_PX <= a || x0 >= b + ICONE_FOLGA_PX);
-    for (const gr of ordem) {
-      const tentativas = gr.marcas.length > 1 ? [gr.marcas, gr.marcas.slice(0, 1)] : [gr.marcas];
-      for (const marcas of tentativas) {
-        const larg = marcas.length * lado + (marcas.length - 1) * 2;
-        const x0 = toX(gr.t) - larg / 2;
-        if (!livre(x0, x0 + larg)) continue;
-        ocupados.push([x0, x0 + larg]);
-        marcas.forEach((m, i) => {
-          const nome = iconeDa(m, porClasse);
-          if (nome) postos.push({ nome, x: x0 + i * (lado + 2), cor: familia(m.familia).cor });
+  function fit(visibleOnes: Group[], side: number, byClass: boolean) {
+    const order = [...visibleOnes].sort((a, b) => a.priority - b.priority || a.t - b.t);
+    const occupied: [number, number][] = [];
+    const placements: { nome: IconName; x: number; color: string }[] = [];
+    const free = (x0: number, x1: number) =>
+      occupied.every(([a, b]) => x1 + ICON_SLACK_PX <= a || x0 >= b + ICON_SLACK_PX);
+    for (const gr of order) {
+      const attempts = gr.marks.length > 1 ? [gr.marks, gr.marks.slice(0, 1)] : [gr.marks];
+      for (const marks of attempts) {
+        const wid = marks.length * side + (marks.length - 1) * 2;
+        const x0 = toX(gr.t) - wid / 2;
+        if (!free(x0, x0 + wid)) continue;
+        occupied.push([x0, x0 + wid]);
+        marks.forEach((m, i) => {
+          const name = iconOf(m, byClass);
+          if (name)
+            placements.push({ nome: name, x: x0 + i * (side + 2), color: family(m.familia).color });
         });
         break;
       }
     }
-    return postos;
+    return placements;
   }
 
-  function desenhaObjetos(g: CanvasRenderingContext2D) {
-    g.fillStyle = FUNDO;
+  function drawObjects(g: CanvasRenderingContext2D) {
+    g.fillStyle = BACKGROUND;
     g.fillRect(0, objTop, width, OBJ_PX);
 
     // Um pouco além das bordas, para o ícone de uma marca logo fora da janela
     // entrar pela metade em vez de pular para dentro de uma vez.
-    const visiveis = grupos.filter((gr) => {
+    const visibleOnes = groups.filter((gr) => {
       const x = toX(gr.t);
-      return x > -ICONE_CLASSE_PX && x < width + ICONE_CLASSE_PX;
+      return x > -CLASS_ICON_PX && x < width + CLASS_ICON_PX;
     });
 
     // A de menos prioridade primeiro: onde dois tiques caem no mesmo pixel, o
     // de `pessoa` é o último pintado, e fica por cima.
-    for (const gr of [...visiveis].sort((a, b) => b.prioridade - a.prioridade)) tique(g, gr);
+    for (const gr of [...visibleOnes].sort((a, b) => b.priority - a.priority)) tick(g, gr);
 
-    const porClasse = span <= CLASSE_ATE_MS;
-    const lado = porClasse ? ICONE_CLASSE_PX : ICONE_FAMILIA_PX;
-    for (const p of encaixa(visiveis, lado, porClasse)) {
-      desenhaIcone(g, p.nome, p.x, objTop - lado - 2, lado, p.cor);
+    const byClass = span <= CLASS_UNTIL_MS;
+    const side = byClass ? CLASS_ICON_PX : FAMILY_ICON_PX;
+    for (const p of fit(visibleOnes, side, byClass)) {
+      drawIcon(g, p.nome, p.x, objTop - side - 2, side, p.color);
     }
   }
 
   /* A marca a até `alvo` px de x, ou null. No empate, a de mais prioridade. */
-  function grupoPerto(x: number, alvo: number) {
-    let melhor: Grupo | null = null;
+  function nearGroup(x: number, target: number) {
+    let best: Group | null = null;
     let dist = Infinity;
-    for (const gr of grupos) {
+    for (const gr of groups) {
       const d = Math.abs(toX(gr.t) - x);
-      if (d > alvo) continue;
-      if (d < dist || (d === dist && melhor && gr.prioridade < melhor.prioridade)) {
-        melhor = gr;
+      if (d > target) continue;
+      if (d < dist || (d === dist && best && gr.priority < best.priority)) {
+        best = gr;
         dist = d;
       }
     }
-    return melhor;
+    return best;
   }
 
-  function descreve(gr: Grupo) {
-    return gr.marcas.map((m) => NOME_DA_CLASSE[m.classe] ?? m.classe).join(' + ');
+  function describe(gr: Group) {
+    return gr.marks.map((m) => CLASS_NAME[m.classe] ?? m.classe).join(' + ');
   }
 
   function draw() {
     if (!canvas || !width) return;
     const dpr = window.devicePixelRatio || 1;
-    const h = alturaCanvas;
+    const h = canvasHeight;
     canvas.width = width * dpr;
     canvas.height = h * dpr;
 
-    const g = contexto2d(canvas);
+    const g = context2d(canvas);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const barH = BARRA_PX;
-    const calorTop = barTop + barH + VAO_PX;
+    const barH = BAR_PX;
+    const heatTop = barTop + barH + VAO_PX;
     // O fio do cursor e o do ponteiro atravessam a pilha inteira: eles marcam
     // UM instante, e um instante vale igual nas três camadas.
-    const pilhaTop = temObjetos ? objTop : barTop;
-    const pilhaH = (temCalor ? calorTop + CALOR_PX : barTop + barH) - pilhaTop;
+    const stackTop = hasObjects ? objTop : barTop;
+    const stackH = (hasHeat ? heatTop + HEAT_PX : barTop + barH) - stackTop;
 
-    if (temObjetos) desenhaObjetos(g);
+    if (hasObjects) drawObjects(g);
 
-    g.fillStyle = FUNDO;
+    g.fillStyle = BACKGROUND;
     g.fillRect(0, barTop, width, barH);
 
     g.fillStyle = '#2f81f7';
@@ -325,19 +329,19 @@
       if (x1 > 0 && x0 < width) g.fillRect(x0, barTop, Math.max(2, x1 - x0), barH);
     }
 
-    if (temCalor) {
-      const cols = contaPorColuna();
-      let teto = 1;
-      for (const c of cols) if (c > teto) teto = c;
+    if (hasHeat) {
+      const cols = countPerColumn();
+      let ceiling = 1;
+      for (const c of cols) if (c > ceiling) ceiling = c;
 
-      g.fillStyle = FUNDO;
-      g.fillRect(0, calorTop, width, CALOR_PX);
-      g.fillStyle = CALOR_COR;
+      g.fillStyle = BACKGROUND;
+      g.fillRect(0, heatTop, width, HEAT_PX);
+      g.fillStyle = HEAT_COLOR;
       for (let x = 0; x < cols.length; x++) {
         const c = cols[x];
         if (!c) continue;
-        g.globalAlpha = CALOR_ALFA_MIN + (1 - CALOR_ALFA_MIN) * Math.sqrt(Math.min(1, c / teto));
-        g.fillRect(x, calorTop, 1, CALOR_PX);
+        g.globalAlpha = HEAT_ALPHA_MIN + (1 - HEAT_ALPHA_MIN) * Math.sqrt(Math.min(1, c / ceiling));
+        g.fillRect(x, heatTop, 1, HEAT_PX);
       }
       g.globalAlpha = 1;
     }
@@ -355,14 +359,14 @@
     if (hoverMs !== null) {
       const x = toX(hoverMs);
       g.fillStyle = 'rgba(230,237,243,.35)';
-      g.fillRect(x, pilhaTop, 1, pilhaH);
+      g.fillRect(x, stackTop, 1, stackH);
     }
 
     if (currentMs) {
       const x = toX(currentMs);
       if (x >= -2 && x <= width + 2) {
         g.fillStyle = '#f85149';
-        g.fillRect(x - 1.5, pilhaTop - 3, 3, pilhaH + 6);
+        g.fillRect(x - 1.5, stackTop - 3, 3, stackH + 6);
       }
     }
   }
@@ -394,8 +398,8 @@
   // Zoom da roda proporcional ao deltaY: um clique de mouse (~100px) dá o passo
   // de 1.35, e o touchpad, que manda dezenas de deltas pequenos, soma o mesmo
   // zoom na medida do movimento dos dedos em vez de um passo cheio por evento.
-  const WHEEL_ZOOM_POR_PX = Math.log(1.35) / 100;
-  const WHEEL_PX_POR_LINHA = 33; // Firefox pode mandar o delta em linhas
+  const WHEEL_ZOOM_PER_PX = Math.log(1.35) / 100;
+  const WHEEL_PX_PER_LINE = 33; // Firefox pode mandar o delta em linhas
   const WHEEL_DELTA_MAX_PX = 300; // um evento isolado nunca salta mais que ~2.5x nem ~¼ da tela
 
   function localX(ev: MouseEvent) {
@@ -428,8 +432,8 @@
     if (!p) {
       if (ev.pointerType === 'mouse') {
         const x = localX(ev);
-        hoverGrupo = grupoPerto(x, ALVO_MOUSE_PX);
-        hoverMs = hoverGrupo ? hoverGrupo.t : toMs(x);
+        hoverGroup = nearGroup(x, MOUSE_TARGET_PX);
+        hoverMs = hoverGroup ? hoverGroup.t : toMs(x);
       }
       return;
     }
@@ -503,7 +507,7 @@
     if (ev.pointerType !== 'mouse') lastTap = { t: ev.timeStamp, x };
     // Toque que cai numa marca de objeto vai ao instante DELA: acertar o pixel
     // de um tique de 3px com o dedo não pode ser a condição para chegar nele.
-    const gr = grupoPerto(x, ev.pointerType === 'mouse' ? ALVO_MOUSE_PX : ALVO_DEDO_PX);
+    const gr = nearGroup(x, ev.pointerType === 'mouse' ? MOUSE_TARGET_PX : FINGER_TARGET_PX);
     onseek?.(gr ? gr.t : Math.round(toMs(x)));
   }
 
@@ -524,11 +528,11 @@
       return;
     }
     const x = localX(ev);
-    zoomTo(toMs(x), span * Math.exp(dy * WHEEL_ZOOM_POR_PX), x / width);
+    zoomTo(toMs(x), span * Math.exp(dy * WHEEL_ZOOM_PER_PX), x / width);
   }
 
   function wheelPx(ev: WheelEvent, d: number) {
-    if (ev.deltaMode === WheelEvent.DOM_DELTA_LINE) d *= WHEEL_PX_POR_LINHA;
+    if (ev.deltaMode === WheelEvent.DOM_DELTA_LINE) d *= WHEEL_PX_PER_LINE;
     else if (ev.deltaMode === WheelEvent.DOM_DELTA_PAGE) d *= width;
     return Math.max(-WHEEL_DELTA_MAX_PX, Math.min(WHEEL_DELTA_MAX_PX, d));
   }
@@ -569,14 +573,14 @@
 <div class="wrapper" bind:clientWidth={width}>
   <canvas
     bind:this={canvas}
-    style:height="{alturaCanvas}px"
+    style:height="{canvasHeight}px"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
     onpointercancel={onPointerUp}
     onpointerleave={() => {
       hoverMs = null;
-      hoverGrupo = null;
+      hoverGroup = null;
     }}
     onwheel={onWheel}
   ></canvas>
@@ -584,12 +588,12 @@
   {#if hoverMs !== null}
     <!-- A margem da borda cresce com o texto: a dica de uma marca é mais longa
          que a de um horário, e sairia pela lateral. -->
-    {@const margem = hoverGrupo ? 90 : 28}
+    {@const margin = hoverGroup ? 90 : 28}
     <span
       class="tip mono"
-      style:left="{Math.min(Math.max(toX(hoverMs), margem), width - margem)}px"
+      style:left="{Math.min(Math.max(toX(hoverMs), margin), width - margin)}px"
     >
-      {hhmmss(hoverMs)}{#if hoverGrupo}&nbsp;· {descreve(hoverGrupo)}{/if}
+      {hhmmss(hoverMs)}{#if hoverGroup}&nbsp;· {describe(hoverGroup)}{/if}
     </span>
   {/if}
 </div>

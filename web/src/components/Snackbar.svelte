@@ -6,29 +6,29 @@
 -->
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { snackbar, fecharAviso } from '../lib/snackbar.svelte.ts';
+  import { snackbar, closeNotice } from '../lib/snackbar.svelte.ts';
 </script>
 
-{#if snackbar.atual}
-  {@const aviso = snackbar.atual}
-  {#key aviso.id}
+{#if snackbar.current}
+  {@const notice = snackbar.current}
+  {#key notice.id}
     <div
       class="snackbar"
-      class:com-acao={aviso.acao}
+      class:with-action={notice.action}
       role="status"
       in:fly={{ y: 8, duration: 180 }}
       out:fly={{ y: 8, duration: 180 }}
     >
       <span
-        >{#if aviso.forte}<strong>{aviso.forte}</strong>{' '}{/if}{aviso.texto}</span
+        >{#if notice.forte}<strong>{notice.forte}</strong>{' '}{/if}{notice.texto}</span
       >
-      {#if aviso.acao}
+      {#if notice.action}
         <button
           class="ghost"
           onclick={() => {
-            fecharAviso(aviso.id);
-            aviso.acao?.fazer();
-          }}>{aviso.acao.rotulo}</button
+            closeNotice(notice.id);
+            notice.action?.fazer();
+          }}>{notice.action.label}</button
         >
       {/if}
     </div>
@@ -58,7 +58,7 @@
 
   /* Com o botão, quem dá a altura é ele, e a borda direita fica com o respiro
      dele. */
-  .snackbar.com-acao {
+  .snackbar.with-action {
     padding: 0 6px 0 14px;
   }
 

@@ -1,25 +1,25 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
-  import type { ObjetoMarcado, Segmento } from '../lib/api.ts';
-  import { contexto2d } from '../lib/canvas.ts';
+  import type { MarkedObject, Segment } from '../lib/api.ts';
+  import { context2d } from '../lib/canvas.ts';
   import { thumbnail } from '../lib/thumbs.ts';
   import { hhmmss } from '../lib/format.ts';
-  import SeloDeFamilias from './SeloDeFamilias.svelte';
-  import { nomesDasFamilias } from '../lib/icones.ts';
+  import FamilyBadge from './FamilyBadge.svelte';
+  import { familyNames } from '../lib/icons.ts';
 
   interface Props {
     cam: string;
-    segments?: Segmento[];
+    segments?: Segment[];
     // As marcas de objeto do dia: cada miniatura mostra as famílias do trecho
     // dela.
-    objetos?: ObjetoMarcado[];
+    objects?: MarkedObject[];
     currentMs?: number;
-    adiar?: boolean;
+    defer?: boolean;
     onseek?: (ms: number) => void;
   }
 
-  let { cam, segments = [], objetos = [], currentMs = 0, adiar = false, onseek }: Props = $props();
+  let { cam, segments = [], objects = [], currentMs = 0, defer = false, onseek }: Props = $props();
 
   // Quantas miniaturas mostrar. Mais que isso vira desfile de imagens que
   // ninguém consegue distinguir, e cada uma custa um decode.
@@ -28,7 +28,7 @@
   // Quanto além da parte visível a tira já pede, de cada lado, em fração da
   // largura dela: a miniatura fica pronta antes de a rolagem chegar, sem pedir
   // as 40 da janela.
-  const FOLGA = '50%';
+  const SLACK = '50%';
 
   // Uma janela contígua de 40 segmentos em torno do instante atual - e não uma
   // amostragem espaçada do dia. Um dia real tem ~2300 segmentos de ~33s, então
@@ -49,14 +49,14 @@
   // As famílias de cada miniatura, pelo início do segmento. Uma passada pelas
   // marcas do dia, com a miniatura de cada uma achada por busca binária nas
   // 40 da janela: refeita uma vez por segmento, e não por quadro.
-  const familiasPorTile = $derived.by(() => {
-    const porTile: Record<number, string[]> = {};
-    const primeiro = tiles[0];
-    const ultimo = tiles.at(-1);
-    if (!primeiro || !ultimo || !objetos.length) return porTile;
-    const fim = ultimo[0] + ultimo[1];
-    for (const o of objetos) {
-      if (o.instanteMs < primeiro[0] || o.instanteMs >= fim) continue;
+  const familiesPerTile = $derived.by(() => {
+    const perTile: Record<number, string[]> = {};
+    const first = tiles[0];
+    const last = tiles.at(-1);
+    if (!first || !last || !objects.length) return perTile;
+    const end = last[0] + last[1];
+    for (const o of objects) {
+      if (o.instanteMs < first[0] || o.instanteMs >= end) continue;
       let lo = 0;
       let hi = tiles.length - 1;
       while (lo < hi) {
@@ -67,10 +67,10 @@
       const tile = tiles[lo];
       // Num buraco entre dois segmentos, a marca não é de nenhuma miniatura.
       if (!tile || o.instanteMs >= tile[0] + tile[1]) continue;
-      const fams = (porTile[tile[0]] ??= []);
+      const fams = (perTile[tile[0]] ??= []);
       if (!fams.includes(o.familia)) fams.push(o.familia);
     }
-    return porTile;
+    return perTile;
   });
 
   let strip = $state<HTMLDivElement | null>(null);
@@ -112,33 +112,33 @@
   // As pedidas recomeçam a cada carga de câmera ou de dia, junto com o cache
   // que o Recordings limpa nessa hora. O `segments` muda de identidade a cada
   // poll do dia de hoje, por isso a chave é o primeiro instante, e não a lista.
-  const carga = $derived(`${cam}@${segments[0]?.[0] ?? ''}`);
-  const pedidas = $derived({
-    carga,
+  const loadAvg = $derived(`${cam}@${segments[0]?.[0] ?? ''}`);
+  const requestedKeys = $derived({
+    carga: loadAvg,
     instantes: new SvelteSet<number>(),
     // Set comum de propósito: quem dispara a liberação é só o `adiar`.
-    adiadas: new Set<number>(),
+    postponed: new Set<number>(),
   });
 
   // O slice da janela é novo a cada atualização do currentMs, mas ela só
   // desliza uma vez por segmento: é aí que vale observar os tiles de novo.
-  const janela = $derived(tiles.length ? `${cam}@${tiles[0]?.[0]}+${tiles.length}` : '');
+  const visibleWindow = $derived(tiles.length ? `${cam}@${tiles[0]?.[0]}+${tiles.length}` : '');
 
   // O primeiro aviso de um IntersectionObserver traz de uma vez todos os tiles
   // já à vista. Ele roda depois do efeito acima, que já pôs o ativo na vista.
   $effect(() => {
-    if (!strip || !janela) return;
+    if (!strip || !visibleWindow) return;
     const io = new IntersectionObserver(
-      (entradas) => {
+      (entries) => {
         const novas: number[] = [];
-        for (const e of entradas) {
+        for (const e of entries) {
           const t = Number((e.target as HTMLElement).dataset['t']);
           if (e.isIntersecting) novas.push(t);
-          else pedidas.adiadas.delete(t); // saiu da vista antes da vez dela
+          else requestedKeys.postponed.delete(t); // saiu da vista antes da vez dela
         }
-        pedir(novas);
+        request(novas);
       },
-      { root: strip, rootMargin: `0px ${FOLGA}` },
+      { root: strip, rootMargin: `0px ${SLACK}` },
     );
     for (const tile of strip.querySelectorAll('.tile')) io.observe(tile);
     return () => {
@@ -149,19 +149,19 @@
   // Do ativo para fora: a fila do thumbs.ts decodifica na ordem em que os
   // downloads terminam, e a primeira que importa é a do ativo. A distância é
   // até o segmento, e não até o começo dele, para o ativo valer zero.
-  function pedir(novas: number[]) {
-    if (adiar) {
-      for (const t of novas) pedidas.adiadas.add(t);
+  function request(novas: number[]) {
+    if (defer) {
+      for (const t of novas) requestedKeys.postponed.add(t);
       return;
     }
-    const longe = ([s, d]: Segmento) =>
+    const far = ([s, d]: Segment) =>
       currentMs < s ? s - currentMs : Math.max(0, currentMs - s - d);
-    const fila = tiles
-      .filter(([t]) => novas.includes(t) && !pedidas.instantes.has(t))
-      .sort((a, b) => longe(a) - longe(b));
-    for (const [t] of fila) {
+    const queue = tiles
+      .filter(([t]) => novas.includes(t) && !requestedKeys.instantes.has(t))
+      .sort((a, b) => far(a) - far(b));
+    for (const [t] of queue) {
       void thumbnail(cam, t);
-      pedidas.instantes.add(t);
+      requestedKeys.instantes.add(t);
     }
   }
 
@@ -171,11 +171,11 @@
   // primeiro quadro. O que entrou na vista nesse meio-tempo fica guardado e
   // sai junto quando o vídeo já tem o que mostrar.
   $effect(() => {
-    if (adiar || !pedidas.adiadas.size) return;
-    const fila = [...pedidas.adiadas];
-    pedidas.adiadas.clear();
+    if (defer || !requestedKeys.postponed.size) return;
+    const queue = [...requestedKeys.postponed];
+    requestedKeys.postponed.clear();
     untrack(() => {
-      pedir(fila);
+      request(queue);
     });
   });
 
@@ -211,11 +211,9 @@
         onseek?.(t);
       }}
       title={hhmmss(t)}
-      aria-label={[hhmmss(t), nomesDasFamilias(familiasPorTile[t] ?? [])]
-        .filter(Boolean)
-        .join(', ')}
+      aria-label={[hhmmss(t), familyNames(familiesPerTile[t] ?? [])].filter(Boolean).join(', ')}
     >
-      {#if pedidas.instantes.has(t)}
+      {#if requestedKeys.instantes.has(t)}
         {#await thumbnail(cam, t) then bitmap}
           {#if bitmap}
             <canvas
@@ -226,7 +224,7 @@
                 const h = node.clientHeight * (window.devicePixelRatio || 1);
                 node.width = w;
                 node.height = h;
-                contexto2d(node).drawImage(bitmap, 0, 0, w, h);
+                context2d(node).drawImage(bitmap, 0, 0, w, h);
               }}
             ></canvas>
           {:else}
@@ -234,7 +232,7 @@
           {/if}
         {/await}
       {/if}
-      <SeloDeFamilias familias={familiasPorTile[t] ?? []} />
+      <FamilyBadge families={familiesPerTile[t] ?? []} />
       <span class="time mono">{hhmmss(t)}</span>
     </button>
   {/each}

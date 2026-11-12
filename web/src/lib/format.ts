@@ -7,9 +7,10 @@ const pad = (n: number) => String(n).padStart(2, '0');
 // ("20 GB", não "20,00 GB"). Instanciar Intl a cada chamada é caro e estes
 // formatadores aparecem em tela que atualiza de 3 em 3 segundos, então cacheia.
 const nfs = new Map<number, Intl.NumberFormat>();
-function num(v: number, casas: number) {
-  let f = nfs.get(casas);
-  if (!f) nfs.set(casas, (f = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: casas })));
+function num(v: number, decimals: number) {
+  let f = nfs.get(decimals);
+  if (!f)
+    nfs.set(decimals, (f = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: decimals })));
   return f.format(v);
 }
 
@@ -32,7 +33,7 @@ export function hhmm(ms: number) {
 
 // horaDoMinuto escreve um minuto do dia (0 a 1439) como HH:MM: é como os
 // horários do intervalo de Detecções são guardados.
-export function horaDoMinuto(m: number) {
+export function hourOfMinute(m: number) {
   return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 }
 
@@ -46,27 +47,27 @@ export function ddmm(ms: number) {
 
 // diaCurto é o dia para uma mensagem que fica guardada: "14/10", e com o ano
 // só quando não é o deste ano. Nunca "ontem", que amanhã já é mentira.
-export function diaCurto(ms: number, agora = Date.now()) {
+export function shortDay(ms: number, now = Date.now()) {
   const ano = new Date(ms).getFullYear();
-  return ano === new Date(agora).getFullYear() ? ddmm(ms) : `${ddmm(ms)}/${ano}`;
+  return ano === new Date(now).getFullYear() ? ddmm(ms) : `${ddmm(ms)}/${ano}`;
 }
 
 // dataHora é o instante completo, "10/10/2026 14:32", para o que pode ter
 // acontecido há meses.
-export function dataHora(ms: number) {
+export function dateTime(ms: number) {
   const d = new Date(ms);
   return `${ddmm(ms)}/${d.getFullYear()} ${hhmm(ms)}`;
 }
 
 // hojeOntem é o instante recente lido de relance: "hoje 08:12", "ontem 22:47",
 // e o completo de dataHora do anteontem para trás.
-export function hojeOntem(ms: number, agora: number) {
-  const ontem = new Date(agora);
-  ontem.setDate(ontem.getDate() - 1);
-  const dia = new Date(ms).toDateString();
-  if (dia === new Date(agora).toDateString()) return `hoje ${hhmm(ms)}`;
-  if (dia === ontem.toDateString()) return `ontem ${hhmm(ms)}`;
-  return dataHora(ms);
+export function todayYesterday(ms: number, now: number) {
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const day = new Date(ms).toDateString();
+  if (day === new Date(now).toDateString()) return `hoje ${hhmm(ms)}`;
+  if (day === yesterday.toDateString()) return `ontem ${hhmm(ms)}`;
+  return dateTime(ms);
 }
 
 // relogioDeFuso escreve um instante no fuso de OUTRA máquina: recebe o epoch em
@@ -79,11 +80,11 @@ export function hojeOntem(ms: number, agora: number) {
 // conversão que não se quer. E não se quer porque o único uso disto é mostrar o
 // relógio de outra máquina - convertido, ele viraria a hora que quem lê já tem
 // no próprio pulso, que não responde nada.
-export function relogioDeFuso(epochMs: number, offsetSeconds: number) {
+export function timezoneClock(epochMs: number, offsetSeconds: number) {
   const d = new Date(epochMs + offsetSeconds * 1000);
   const data = `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
-  const hora = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-  return `${data} ${hora}`;
+  const hour = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  return `${data} ${hour}`;
 }
 
 export function dayKey(date = new Date()) {
@@ -108,7 +109,7 @@ export function bytes(n: number | undefined) {
 // bytesDeMB existe porque cota e mínimo livre são configurados em MB. Mostrar o
 // número cru deixava "20480 MB" na tela ao lado de um "3,62 GB" - mesma
 // grandeza, duas unidades, que é justamente o que este arquivo evita.
-export function bytesDeMB(mb: number | undefined) {
+export function mbToBytes(mb: number | undefined) {
   return bytes((mb ?? 0) * 1024 ** 2);
 }
 
@@ -119,7 +120,7 @@ export function kbps(v: number | undefined) {
 
 // resolucao mostra o que está sendo gravado de fato, lido do init do stream.
 // Só existe depois da primeira conexão - antes disso não há o que afirmar.
-export function resolucao(w: number | undefined, h: number | undefined) {
+export function resolution(w: number | undefined, h: number | undefined) {
   if (!w || !h) return '-';
   return `${w}×${h}`;
 }
@@ -131,7 +132,7 @@ export function resolucao(w: number | undefined, h: number | undefined) {
 // converter de cabeça - e essas durações são lidas no meio de um diagnóstico,
 // onde ninguém quer fazer conta. A unidade menor some quando é zero, para não
 // deixar "7h 0min" na tela.
-export function duracao(ms: number | undefined) {
+export function duration(ms: number | undefined) {
   if (!ms || ms < 0) return '-';
   const s = Math.round(ms / 1000);
   if (s < 60) return `${s}s`;
@@ -155,18 +156,15 @@ export function duracao(ms: number | undefined) {
 // que está sendo gravado agora ainda não entrou no índice, e cada reconexão
 // perde alguns segundos. Uma hora fica muito acima desse ruído e bem abaixo de
 // qualquer queda que valha a pena enxergar.
-export const BURACO_MINIMO_MS = 3600000;
+export const MIN_GAP_MS = 3600000;
 
 // gravadoSeHouverBuraco devolve o vídeo que existe de fato (o recordedMs do
 // /api/health) quando ele fica abaixo do retido por mais que BURACO_MINIMO_MS,
 // e 0 quando não: câmera sem falha mostra só o retido, como sempre mostrou.
 // O retido entra pronto porque cada tela já o calcula para si.
-export function gravadoSeHouverBuraco(
-  retidoMs: number | undefined,
-  recordedMs: number | undefined,
-) {
-  if (!retidoMs || !recordedMs) return 0;
-  return retidoMs - recordedMs > BURACO_MINIMO_MS ? recordedMs : 0;
+export function recordedWithGap(retainedMs: number | undefined, recordedMs: number | undefined) {
+  if (!retainedMs || !recordedMs) return 0;
+  return retainedMs - recordedMs > MIN_GAP_MS ? recordedMs : 0;
 }
 
 // dias converte a estimativa de retenção em algo compreensível. "20 GB" não
@@ -178,5 +176,5 @@ export function dias(n: number | undefined) {
   // cabeça só para comparar as duas - e comparar as duas é a única razão de o
   // par existir. Então a formatação é a mesma, e as frações de hora que as cotas
   // pequenas produzem o duracao() já resolve melhor do que isto resolvia.
-  return duracao((n ?? 0) * 86400000);
+  return duration((n ?? 0) * 86400000);
 }

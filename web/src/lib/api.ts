@@ -10,9 +10,9 @@
 // rede, então o tipo é a promessa do servidor, e mudar um lado pede mudar o
 // outro.
 
-import { areaNaQuery } from './area.ts';
-import type { AreaDoFiltro, Ponto, Regra } from './area.ts';
-import type { NomeDaFamilia } from './icones.ts';
+import { areaInQuery } from './area.ts';
+import type { FilterArea, Point, Rule } from './area.ts';
+import type { FamilyName } from './icons.ts';
 
 let onUnauthorized = () => {
   // ninguém pediu aviso ainda: o App registra o dele ao montar
@@ -24,15 +24,15 @@ export function setUnauthorizedHandler(fn: () => void) {
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch('api/' + path, opts);
-  await conferir(res);
+  await check(res);
   return (await res.json()) as T;
 }
 
 // midia baixa um pedaço de gravação para o player. Passa pelo mesmo conferir()
 // do request(): o corpo de um erro não pode chegar ao SourceBuffer como vídeo.
-export async function midia(url: string, signal: AbortSignal) {
+export async function media(url: string, signal: AbortSignal) {
   const res = await fetch(url, { signal });
-  await conferir(res);
+  await check(res);
   return res.arrayBuffer();
 }
 
@@ -40,13 +40,13 @@ export async function midia(url: string, signal: AbortSignal) {
 // mensagem é a do JSON da API; quando o corpo é outra coisa - o texto do
 // http.ServeFile, o HTML de um proxy com o dwnvr reiniciando - fica o status,
 // porque o statusText vem vazio no HTTP/2 e uma mensagem vazia some da tela.
-async function conferir(res: Response) {
+async function check(res: Response) {
   if (res.status === 401) {
     onUnauthorized();
     throw new ApiError('sessão expirada', 401);
   }
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Recusas };
+    const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: FieldErrors };
     throw new ApiError(body.error ?? `o servidor respondeu ${res.status}`, res.status, body.fields);
   }
 }
@@ -61,9 +61,9 @@ export class ApiError extends Error {
   readonly status: number;
   // As recusas por campo de um formulário, quando a API as manda (o criar e
   // o trocar e-mail de Usuários). Sem elas, objeto vazio.
-  readonly campos: Recusas;
+  readonly campos: FieldErrors;
 
-  constructor(message: string, status: number, campos: Recusas = {}) {
+  constructor(message: string, status: number, campos: FieldErrors = {}) {
     super(message);
     this.status = status;
     this.campos = campos;
@@ -72,7 +72,7 @@ export class ApiError extends Error {
 
 // MuitasTentativas é o 429 do login: o endereço passou do limite de
 // tentativas, e a próxima só passa daqui a `segundos` (o Retry-After).
-export class MuitasTentativas extends ApiError {
+export class TooManyAttempts extends ApiError {
   readonly segundos: number;
 
   constructor(segundos: number) {
@@ -86,16 +86,16 @@ export class MuitasTentativas extends ApiError {
 // mensagemDe tira o texto de um erro qualquer, para a tela: o `catch` do
 // TypeScript recebe `unknown`, porque em JavaScript dá para lançar qualquer
 // coisa.
-export function mensagemDe(e: unknown): string {
+export function messageOf(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
 export const api = {
-  session: () => json<Sessao>(fetch('api/session')),
+  session: () => json<Session>(fetch('api/session')),
 
   // Como session, não passa pelo request(): é público e precisa funcionar na
   // tela de login, onde ainda não há sessão para expirar.
-  version: () => json<Versao>(fetch('api/version')),
+  version: () => json<Version>(fetch('api/version')),
 
   // Só para saber se o servidor é alcançável: o corpo não importa, e qualquer
   // resposta, até um erro HTTP, conta. Ver `esperarRede` no Ao vivo.
@@ -107,94 +107,94 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });
-    if (res.status === 429) throw new MuitasTentativas(Number(res.headers.get('Retry-After')));
+    if (res.status === 429) throw new TooManyAttempts(Number(res.headers.get('Retry-After')));
     if (!res.ok) throw new ApiError('usuário ou senha inválidos', res.status);
-    return (await res.json()) as ComPessoa;
+    return (await res.json()) as WithPerson;
   },
 
   logout: () => fetch('api/logout', { method: 'POST' }),
 
   // A conferência do Ao vivo: o mesmo /api/session, com prazo. A resposta
   // inteira volta, porque o relógio do servidor vem no header `Date` dela.
-  conferirSessao: (ms: number) =>
+  checkSession: (ms: number) =>
     fetch('api/session', { cache: 'no-store', signal: AbortSignal.timeout(ms) }),
 
   // Usuários, só do admin. Criar e o link novo devolvem o token do link, que
   // só existe nessa resposta.
-  usuarios: () => request<Usuarios>('usuarios'),
-  criarUsuario: (usuario: string, nome: string, email: string) =>
-    request<Convite>('usuarios', {
+  users: () => request<Users>('usuarios'),
+  createUser: (user: string, name: string, email: string) =>
+    request<Invite>('usuarios', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, name: nome, email }),
+      body: JSON.stringify({ username: user, name, email }),
     }),
   // O que o criarUsuario recusaria com estes dados, campo a campo, sem criar
   // ninguém. Vazio é "tudo certo".
-  conferirNovo: (usuario: string, nome: string, email: string) =>
-    request<{ fields: Recusas }>('usuarios/conferir', {
+  checkNew: (user: string, name: string, email: string) =>
+    request<{ fields: FieldErrors }>('usuarios/conferir', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, name: nome, email }),
+      body: JSON.stringify({ username: user, name, email }),
     }),
   // Vazio apaga o e-mail.
-  trocarEmail: (usuario: string, email: string) =>
-    request<{ user: Usuario }>('usuarios/email', {
+  changeEmail: (user: string, email: string) =>
+    request<{ user: User }>('usuarios/email', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, email }),
+      body: JSON.stringify({ username: user, email }),
     }),
   // O que o trocarEmail recusaria com este e-mail, sem trocar nada.
-  conferirEmail: (usuario: string, email: string) =>
-    request<{ fields: Recusas }>('usuarios/email/conferir', {
+  checkEmail: (user: string, email: string) =>
+    request<{ fields: FieldErrors }>('usuarios/email/conferir', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, email }),
+      body: JSON.stringify({ username: user, email }),
     }),
   // O link vai inteiro, como a tela o mostra: o servidor não sabe por qual
   // endereço é acessado, e só confere que é o link em aberto da pessoa.
-  enviarLink: (usuario: string, url: string) =>
+  sendLink: (user: string, url: string) =>
     request<{ sentTo: string }>('usuarios/link/email', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, url }),
+      body: JSON.stringify({ username: user, url }),
     }),
-  novoLink: (usuario: string) =>
-    request<Convite>('usuarios/link', {
+  newLink: (user: string) =>
+    request<Invite>('usuarios/link', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario }),
+      body: JSON.stringify({ username: user }),
     }),
-  removerUsuario: (usuario: string) =>
-    request<unknown>('usuarios?username=' + encodeURIComponent(usuario), { method: 'DELETE' }),
-  tirarAvatarDe: (usuario: string) =>
-    request<unknown>('usuarios/avatar?username=' + encodeURIComponent(usuario), {
+  removeUser: (user: string) =>
+    request<unknown>('usuarios?username=' + encodeURIComponent(user), { method: 'DELETE' }),
+  removeAvatarOf: (user: string) =>
+    request<unknown>('usuarios/avatar?username=' + encodeURIComponent(user), {
       method: 'DELETE',
     }),
 
   // Minha conta: cada um muda o que é seu. Tudo devolve { user } como ficou,
   // para o header se atualizar sem perguntar de novo. A foto vai crua, o JPEG
   // já reduzido pelo navegador (ver lib/avatar.ts).
-  conta: () => request<Conta>('conta'),
-  trocarSenha: (atual: string, nova: string) =>
-    request<ComPessoa>('conta/senha', {
+  account: () => request<Account>('conta'),
+  changePassword: (current: string, newOne: string) =>
+    request<WithPerson>('conta/senha', {
       method: 'POST',
-      body: JSON.stringify({ currentPassword: atual, newPassword: nova }),
+      body: JSON.stringify({ currentPassword: current, newPassword: newOne }),
     }),
-  mudarNome: (nome: string) =>
-    request<ComPessoa>('conta/nome', { method: 'POST', body: JSON.stringify({ name: nome }) }),
-  enviarAvatar: (jpeg: Blob) =>
-    request<ComPessoa>('conta/avatar', {
+  changeName: (name: string) =>
+    request<WithPerson>('conta/nome', { method: 'POST', body: JSON.stringify({ name }) }),
+  uploadAvatar: (jpeg: Blob) =>
+    request<WithPerson>('conta/avatar', {
       method: 'PUT',
       headers: { 'Content-Type': 'image/jpeg' },
       body: jpeg,
     }),
-  tirarAvatar: () => request<ComPessoa>('conta/avatar', { method: 'DELETE' }),
+  removeAvatar: () => request<WithPerson>('conta/avatar', { method: 'DELETE' }),
 
   // O link de convite: públicos, com o token no corpo, e não na URL, para ele
   // não ficar no log de nenhum proxy. Link vencido ou já usado é 410.
-  conferirConvite: (token: string) =>
-    request<LinkDeConvite>('convite/conferir', { method: 'POST', body: JSON.stringify({ token }) }),
-  definirSenha: (token: string, senha: string) =>
-    request<ComPessoa>('convite', {
+  checkInvite: (token: string) =>
+    request<InviteLink>('convite/conferir', { method: 'POST', body: JSON.stringify({ token }) }),
+  setPassword: (token: string, password: string) =>
+    request<WithPerson>('convite', {
       method: 'POST',
-      body: JSON.stringify({ token, password: senha }),
+      body: JSON.stringify({ token, password }),
     }),
 
-  cameras: () => request<RespostaCameras>('cameras'),
+  cameras: () => request<CamerasResponse>('cameras'),
   // Devolve a câmera como ficou, já com o id das áreas novas.
   saveCamera: (cam: Camera, signal: AbortSignal | null = null) =>
     request<{ camera: Camera }>('cameras', { method: 'POST', body: JSON.stringify(cam), signal }),
@@ -212,29 +212,29 @@ export const api = {
   // Descobre se um stream entrega áudio. É um pedido à parte, e não um campo de
   // cameras(), porque num stream ocioso a resposta custa uma conexão de alguns
   // segundos com a câmera - ver internal/api/probe.go.
-  probeStream: (name: string) => request<Sonda>('streams/probe?src=' + encodeURIComponent(name)),
+  probeStream: (name: string) => request<Probe>('streams/probe?src=' + encodeURIComponent(name)),
 
   // Faz o go2rtc reler o go2rtc.yaml. Todas as câmeras param por alguns segundos.
-  reiniciarGo2rtc: () => request<unknown>('go2rtc/restart', { method: 'POST' }),
+  restartGo2rtc: () => request<unknown>('go2rtc/restart', { method: 'POST' }),
 
   // Com prazo: um pedido que nunca volta seguraria o poll da saúde, que não
   // começa uma leitura com outra em curso. Estourado, vira falha como as outras.
-  health: (ms: number) => request<Saude>('health', { signal: AbortSignal.timeout(ms) }),
+  health: (ms: number) => request<Health>('health', { signal: AbortSignal.timeout(ms) }),
 
   // Recomeça a contagem de reconexões de todas as câmeras. Não derruba conexão.
-  zerarReconexoes: () => request<unknown>('reconnects/reset', { method: 'POST' }),
+  resetReconnects: () => request<unknown>('reconnects/reset', { method: 'POST' }),
 
   // A máquina que grava: temperatura, memória, pressão, storage, go2rtc e os
   // últimos avisos do log. À parte do health porque custa um teste de escrita
   // no disco - só a pede quem abriu o card "Este servidor".
-  servidor: () => request<Servidor>('health/servidor'),
+  server: () => request<Server>('health/servidor'),
 
   // Um e-mail de teste pela seção smtp. O erro do servidor de e-mail vem como
   // ele respondeu.
-  testarEmail: (para: string) =>
+  testEmail: (dest: string) =>
     request<{ sentTo: string }>('email/teste', {
       method: 'POST',
-      body: JSON.stringify({ to: para }),
+      body: JSON.stringify({ to: dest }),
     }),
 
   days: (cam: string) => request<Dias>('rec/days?cam=' + encodeURIComponent(cam)),
@@ -252,43 +252,49 @@ export const api = {
   // As marcas de movimento do dia - o que a faixa de calor desenha. Câmera com
   // a detecção desligada responde lista vazia, e a faixa nem aparece.
   events: (cam: string, day: string) =>
-    request<Eventos>(`rec/events?cam=${encodeURIComponent(cam)}&day=${day}`),
+    request<Events>(`rec/events?cam=${encodeURIComponent(cam)}&day=${day}`),
 
   // A cauda das marcas, pelo mesmo motivo do timelineRange: no dia de hoje a
   // tela pergunta de novo em ciclo, e só quer o que ainda não tem.
   eventsRange: (cam: string, from: number, to: number) =>
-    request<Eventos>(`rec/events?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
+    request<Events>(`rec/events?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
 
   // Uma página das detecções de objeto de todas as câmeras, da mais nova para a
   // mais velha. `antes` e `depois` são o cursor (um ou nenhum); `cams` e
   // `familias` nulos querem dizer "todas".
-  deteccoes: ({ antes, depois, limite, ...filtro }: PedidoDeDeteccoes) => {
-    const q = queryDoFiltro(filtro);
-    if (antes != null) q.set('antes', String(antes));
-    if (depois != null) q.set('depois', String(depois));
-    if (limite) q.set('limite', String(limite));
-    return request<PaginaDeDeteccoes>(`deteccoes?${q}`);
+  deteccoes: ({ antes: before, depois: after, limite: limit, ...filter }: DetectionsRequest) => {
+    const q = filterQuery(filter);
+    if (before != null) q.set('antes', String(before));
+    if (after != null) q.set('depois', String(after));
+    if (limit) q.set('limite', String(limit));
+    return request<DetectionsPage>(`deteccoes?${q}`);
   },
 
   // Os dias com pelo menos uma detecção do filtro, em ordem crescente, e
   // quantas cada um tem: é o que o calendário da tela de Detecções deixa
   // escolher, e o número que ele mostra em cada dia.
-  diasDeDeteccao: (filtro: FiltroDeDeteccoes) =>
-    request<DiasDeDeteccao>(`deteccoes/dias?${queryDoFiltro(filtro)}`),
+  detectionDays: (filter: DetectionsFilter) =>
+    request<DetectionDays>(`deteccoes/dias?${filterQuery(filter)}`),
 };
 
 // O filtro que a lista e o calendário de Detecções dividem. As áreas restringem
 // só a câmera delas; as outras de `cams` seguem inteiras.
-function queryDoFiltro({ cams, familias, area, areas, soAlertas }: FiltroDeDeteccoes) {
+function filterQuery({
+  cams,
+  familias: families,
+  area,
+  areas,
+  soAlertas: onlyAlerts,
+}: DetectionsFilter) {
   const q = new URLSearchParams();
   if (cams?.length) q.set('cams', cams.join(','));
-  if (familias?.length) q.set('familias', familias.join(','));
+  if (families?.length) q.set('familias', families.join(','));
   if (area) {
-    q.set('area', areaNaQuery(area));
-    q.set('rule', area.regra);
+    q.set('area', areaInQuery(area));
+    q.set('rule', area.rule);
   }
   if (areas?.length) q.set('areas', areas.join(','));
-  if (soAlertas) q.set('alert', '1');
+  if (onlyAlerts) q.set('alert', '1');
   return q;
 }
 
@@ -302,7 +308,7 @@ export const mediaURL = {
   // sempre.
   avatar: (id: string) => `api/avatar?id=${encodeURIComponent(id)}`,
   // O JPEG que o detector de objetos olhou. `t` é o `instanteMs` da detecção.
-  quadro: (cam: string, t: number) => `api/deteccoes/quadro?cam=${encodeURIComponent(cam)}&t=${t}`,
+  frame: (cam: string, t: number) => `api/deteccoes/quadro?cam=${encodeURIComponent(cam)}&t=${t}`,
   export: (cam: string, from: number, to: number) =>
     `api/rec/export?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`,
   // O live vai para o go2rtc através do proxy do dwnvr, para que a credencial
@@ -310,7 +316,7 @@ export const mediaURL = {
   liveWS: (cam: string) => `${baseWS()}api/live/ws?src=${encodeURIComponent(cam)}`,
   // O aviso de sessão: um websocket mudo que o servidor fecha quando a pessoa
   // é removida ou ganha link novo. Ver `vigiarSessao` no Ao vivo.
-  avisoDeSessaoWS: () => `${baseWS()}api/session/ws`,
+  wsSessionNotice: () => `${baseWS()}api/session/ws`,
 };
 
 function baseWS() {
@@ -326,45 +332,45 @@ function baseWS() {
 
 // --- sessão e pessoas
 
-export type Papel = 'admin' | 'viewer';
+export type Role = 'admin' | 'viewer';
 
 // Quem está logado. Com a autenticação desligada vem como admin e dono, sem
 // usuário nem nome. `avatar` é o id da foto, e só vem com foto.
-export interface Pessoa {
+export interface Person {
   username?: string;
   name?: string;
-  role: Papel;
+  role: Role;
   owner: boolean;
   avatar?: string;
 }
 
-export interface Sessao {
+export interface Session {
   authRequired: boolean;
   authenticated: boolean;
-  user?: Pessoa;
+  user?: Person;
 }
 
 // O login, a senha pelo convite e as mudanças da Minha conta.
-export interface ComPessoa {
+export interface WithPerson {
   ok: true;
-  user: Pessoa;
+  user: Person;
 }
 
-export interface Versao {
+export interface Version {
   version: string;
   commit: string;
   date: string;
   go: string;
 }
 
-export type SituacaoDoUsuario = 'active' | 'invitePending' | 'inviteExpired';
+export type UserStatus = 'active' | 'invitePending' | 'inviteExpired';
 
-export interface Usuario {
+export interface User {
   username: string;
   name: string;
   email?: string;
-  role: Papel;
-  status: SituacaoDoUsuario;
+  role: Role;
+  status: UserStatus;
   avatar?: string;
   inviteExpiresAtMs?: number;
   createdAtMs?: number;
@@ -374,10 +380,10 @@ export interface Usuario {
 }
 
 // Sem autenticação ligada não há cadastro: vem sem `owner` e com a lista vazia.
-export interface Usuarios {
+export interface Users {
   authRequired: boolean;
   owner?: { username: string; name: string; avatar: string; lastAccessMs?: number };
-  users: Usuario[];
+  users: User[];
   inviteValidityMs: number;
   maxNameLength: number;
   maxUsernameLength: number;
@@ -387,19 +393,19 @@ export interface Usuarios {
 }
 
 // Os campos dos formulários de pessoa, com o nome que têm no JSON.
-export type CampoDaPessoa = 'username' | 'name' | 'email';
+export type PersonField = 'username' | 'name' | 'email';
 
 // As recusas de um formulário, campo a campo: só os campos recusados, com a
 // mensagem para pôr embaixo de cada um.
-export type Recusas = Partial<Record<CampoDaPessoa, string>>;
+export type FieldErrors = Partial<Record<PersonField, string>>;
 
 // O token só existe nesta resposta: a tela monta o link com ele.
-export interface Convite {
-  user: Usuario;
+export interface Invite {
+  user: User;
   token: string;
 }
 
-export interface LinkDeConvite {
+export interface InviteLink {
   username: string;
   name: string;
   inviteExpiresAtMs: number;
@@ -407,15 +413,15 @@ export interface LinkDeConvite {
   maxPasswordLength: number;
 }
 
-export interface Conta {
-  user: Pessoa;
+export interface Account {
+  user: Person;
   minPasswordLength: number;
   maxPasswordLength: number;
   maxNameLength: number;
-  avatar: RegraDoAvatar;
+  avatar: AvatarRule;
 }
 
-export interface RegraDoAvatar {
+export interface AvatarRule {
   sidePx: number;
   maxBytes: number;
   quality: number;
@@ -437,25 +443,25 @@ export interface Camera {
   detect?: boolean;
   detectMecanismo?: string;
   detectSensibilidade?: number;
-  areas?: AreaDaCamera[];
+  areas?: CameraArea[];
   // Só o admin recebe: o viewer não edita câmera.
-  alert?: AlertaDaCamera;
+  alert?: CameraAlert;
 }
 
 // Quando uma detecção da câmera vira alerta. Sem `areas`, vale a imagem
 // inteira; sem `schedules`, a qualquer hora; desligado, guarda o resto para
 // religar.
-export interface AlertaDaCamera {
+export interface CameraAlert {
   enabled: boolean;
-  families?: NomeDaFamilia[];
+  families?: FamilyName[];
   areas?: string[];
-  schedules?: HorarioDoAlerta[];
+  schedules?: AlertSchedule[];
 }
 
 // Um horário do alerta: os dias, de 0 (domingo) a 6 (sábado), e o De e o Até
 // em "HH:MM", com as duas pontas incluídas. O `to` é sempre maior que o
 // `from`: a noite são dois horários, um até 23:59 e outro a partir de 00:00.
-export interface HorarioDoAlerta {
+export interface AlertSchedule {
   days: number[];
   from: string;
   to: string;
@@ -464,20 +470,20 @@ export interface HorarioDoAlerta {
 // Onde o alerta vale, como a aba Alerta mostra. Não vai ao servidor, que só
 // guarda as áreas: "só nas áreas marcadas" sem nenhuma marcada é um estado da
 // tela, que ele leria como a imagem inteira.
-export type OndeDoAlerta = 'tudo' | 'areas';
+export type AlertWhere = 'tudo' | 'areas';
 
 // Uma área cadastrada na câmera. A área nova da aba Áreas já vai com `id`,
 // para o alerta poder marcá-la; a do "salvar na câmera" de Detecções vai sem,
 // e o servidor dá um.
-export interface AreaDaCamera {
+export interface CameraArea {
   id?: string;
   name: string;
-  rule?: Regra;
-  points: Ponto[];
+  rule?: Rule;
+  points: Point[];
 }
 
 // A câmera da listagem: para o admin, com a pasta das gravações.
-export interface CameraCadastrada extends Camera {
+export interface RegisteredCamera extends Camera {
   dir?: string;
 }
 
@@ -490,7 +496,7 @@ export interface Stream {
 }
 
 // Gravações de uma câmera que já foi removida.
-export interface Orfa {
+export interface Orphan {
   id: string;
   bytes: number;
   days: number;
@@ -499,18 +505,18 @@ export interface Orfa {
 }
 
 // Sem teto, o `max` não vem.
-export interface Faixa {
+export interface Bounds {
   min: number;
   max?: number;
 }
 
 // Os campos da câmera com faixa: o CameraRanges de internal/config/params.go.
-export type CampoComFaixa =
+export type FieldWithBounds =
   'quotaMB' | 'segmentSeconds' | 'maxDays' | 'stallSeconds' | 'detectSensibilidade';
-export type Faixas = Partial<Record<CampoComFaixa, Faixa>>;
+export type BoundsMap = Partial<Record<FieldWithBounds, Bounds>>;
 
 // O que está no go2rtc.yaml e o go2rtc ainda não carregou. Lista vazia não vem.
-export interface DivergenciasDoGo2rtc {
+export interface Go2rtcDrift {
   novas?: string[];
   alteradas?: string[];
   foraDoArquivo?: string[];
@@ -518,23 +524,23 @@ export interface DivergenciasDoGo2rtc {
 
 // O viewer recebe só `cameras` e `detector`; o resto é do admin, e
 // `streams` some também quando o go2rtc não responde.
-export interface RespostaCameras {
-  cameras: CameraCadastrada[];
+export interface CamerasResponse {
+  cameras: RegisteredCamera[];
   detector: boolean;
   padrao?: Camera;
-  faixas?: Faixas;
-  orphans?: Orfa[];
+  faixas?: BoundsMap;
+  orphans?: Orphan[];
   streams?: Stream[];
   go2rtcError?: string;
-  go2rtcConfigFile?: DivergenciasDoGo2rtc;
-  alertEmail?: AlertaPorEmail;
+  go2rtcConfigFile?: Go2rtcDrift;
+  alertEmail?: EmailAlert;
 }
 
 // O "Para onde vai" da aba Alerta: `to` com o meio de e-mail, e `failingSince`
 // e `error` com ele falhando, até o primeiro envio que der certo. Sem o meio,
 // `missing` diz as seções do dwnvr.yaml que faltam, e `smtpError`, o motivo da
 // seção smtp recusada.
-export interface AlertaPorEmail {
+export interface EmailAlert {
   to?: string[];
   failingSince?: string;
   error?: string;
@@ -543,7 +549,7 @@ export interface AlertaPorEmail {
 }
 
 // `erro` vem quando a sonda falhou: aí `hasAudio` é "não sei", e não "não tem".
-export interface Sonda {
+export interface Probe {
   name: string;
   hasAudio: boolean;
   audioCodecs?: string[];
@@ -555,7 +561,7 @@ export interface Sonda {
 
 // As fatias somam o `onsets` da câmera. `pedacos` não é fatia: é quantos onsets
 // tiveram o vídeo cortado e oferecido à fila.
-export interface Funil {
+export interface Funnel {
   pedacos: number;
   semVideo: number;
   descartados: number;
@@ -567,7 +573,7 @@ export interface Funil {
 }
 
 // Uma câmera do /api/health. Câmera desabilitada vem sem `audio`.
-export interface CameraNaSaude {
+export interface HealthCamera {
   id: string;
   name: string;
   enabled: boolean;
@@ -595,7 +601,7 @@ export interface CameraNaSaude {
   recordedMs?: number;
   detect: boolean;
   onsets: number;
-  funil?: Funil;
+  funil?: Funnel;
   quotaMB: number;
   diskBytes: number;
   retainDays: number;
@@ -616,7 +622,7 @@ export interface Uptime {
   machineSeconds?: number;
 }
 
-export interface Relogio {
+export interface Clock {
   now: string;
   abbr: string;
   offsetSeconds: number;
@@ -645,7 +651,7 @@ export interface Detector {
 // Os alertas que não saíram pelos meios, num episódio que acaba uma hora
 // depois do último descarte: `queueFull` não couberam na fila de envio, e
 // `overLimit` passaram do teto de `limitPerHour`.
-export interface DescarteDosAlertas {
+export interface AlertsDropped {
   queueFull: number;
   overLimit: number;
   limitPerHour: number;
@@ -655,23 +661,23 @@ export interface DescarteDosAlertas {
 
 // O meio do alerta pelo nome que o servidor dá a ele, como se lê na frase:
 // "Alertas por e-mail". Meio que a tela ainda não conhece sai pelo nome mesmo.
-export const MEIOS_DO_ALERTA: Readonly<Record<string, string>> = { email: 'por e-mail' };
-export const meioDoAlerta = (nome: string) => MEIOS_DO_ALERTA[nome] ?? `por ${nome}`;
+export const ALERT_NOTIFIERS: Readonly<Record<string, string>> = { email: 'por e-mail' };
+export const alertNotifier = (name: string) => ALERT_NOTIFIERS[name] ?? `por ${name}`;
 
 // Um meio do alerta falhando desde `since`, com o erro da falha mais recente.
 // Some no primeiro envio que der certo.
-export interface MeioFalhando {
+export interface FailingNotifier {
   name: string;
   since: string;
   error: string;
 }
 
-export interface Saude {
-  cameras: CameraNaSaude[];
+export interface Health {
+  cameras: HealthCamera[];
   disk?: Disco;
   uptime?: Uptime;
   detector?: Detector;
-  clock?: Relogio;
+  clock?: Clock;
   reconnectsWindowHours?: number;
   go2rtc?: { error: string; since: string };
   // Só com a seção smtp recusada no boot: o e-mail fica desligado.
@@ -686,8 +692,8 @@ export interface Saude {
   alerts?: {
     total?: number;
     warnings?: string[];
-    dropped?: DescarteDosAlertas;
-    failing?: MeioFalhando[];
+    dropped?: AlertsDropped;
+    failing?: FailingNotifier[];
   };
 }
 
@@ -696,20 +702,20 @@ export interface Saude {
 // Cada campo some quando a fonte não existe: kernel sem PSI, sistema sem
 // cgroup, fora do Linux.
 
-export interface MediasDePressao {
+export interface PressureAverages {
   avg10: number;
   avg60: number;
   avg300: number;
 }
 
-export interface Pressao {
-  some?: MediasDePressao;
-  full?: MediasDePressao;
+export interface Pressure {
+  some?: PressureAverages;
+  full?: PressureAverages;
 }
 
-export type RecursoDaPressao = 'cpu' | 'memoria' | 'io';
+export type PressureResource = 'cpu' | 'memoria' | 'io';
 
-export interface ProcessoDoServidor {
+export interface ServerProcess {
   cpuMs?: number;
   vivoMs: number;
   memoriaBytes?: number;
@@ -722,7 +728,7 @@ export interface ProcessoDoServidor {
   arquitetura: string;
 }
 
-export interface LinhaDoLog {
+export interface LogLine {
   em: string;
   nivel: string;
   texto: string;
@@ -730,7 +736,7 @@ export interface LinhaDoLog {
 
 // `coletadoEm` e `processo` são opcionais porque servidor anterior a eles não
 // os manda: a tela do `npm run dev` pode estar apontada para um.
-export interface Servidor {
+export interface Server {
   coletadoEm?: { em: string; sigla: string; offsetSeconds: number; zona?: string };
   maquina: {
     placa?: string;
@@ -744,7 +750,7 @@ export interface Servidor {
     mhzMax?: number;
     governor?: string;
   };
-  processo?: ProcessoDoServidor;
+  processo?: ServerProcess;
   memoria?: {
     totalBytes: number;
     disponivelBytes: number;
@@ -753,7 +759,7 @@ export interface Servidor {
     limiteBytes?: number;
     oomKills?: number;
   };
-  pressao?: Partial<Record<RecursoDaPressao, Pressao>>;
+  pressao?: Partial<Record<PressureResource, Pressure>>;
   storage: {
     caminho: string;
     tipo?: string;
@@ -777,11 +783,11 @@ export interface Servidor {
   smtp?: { host?: string; port?: number; security?: string; from?: string; error?: string };
   // Só com meio do alerta e alguma câmera com o alerta ligado. `ultimo` some
   // antes do primeiro envio, e `erro`, com o último envio tendo dado certo.
-  alertas?: MeioDoAlerta[];
-  log?: { total: number; linhas: LinhaDoLog[] };
+  alertas?: AlertNotifier[];
+  log?: { total: number; linhas: LogLine[] };
 }
 
-export interface MeioDoAlerta {
+export interface AlertNotifier {
   nome: string;
   enviados: number;
   falhas: number;
@@ -791,7 +797,7 @@ export interface MeioDoAlerta {
 
 // --- gravações
 
-export interface ResumoDoDia {
+export interface DaySummary {
   day: string;
   count: number;
   bytes: number;
@@ -802,54 +808,54 @@ export interface ResumoDoDia {
 
 export interface Dias {
   cam: string;
-  days: ResumoDoDia[];
+  days: DaySummary[];
 }
 
 // [início, fim] de um trecho contíguo, para desenhar a barra.
-export type Trecho = [inicioMs: number, fimMs: number];
+export type Span = [startMs: number, endMs: number];
 
 // [início, duração, índice em `gens`] de um segmento, para tocar.
-export type Segmento = [inicioMs: number, duracaoMs: number, gen: number];
+export type Segment = [startMs: number, durationMs: number, gen: number];
 
 // Compacta de propósito: um dia com segmentos de 1 minuto são 1.440 entradas.
 export interface Timeline {
   cam: string;
   from: number;
   to: number;
-  ranges: Trecho[];
+  ranges: Span[];
   gens: string[];
-  segments: Segmento[];
+  segments: Segment[];
 }
 
 // X1, Y1, X2, Y2 em fração da imagem, de 0 a 1.
-export type Caixa = [x1: number, y1: number, x2: number, y2: number];
+export type Box = [x1: number, y1: number, x2: number, y2: number];
 
 // Uma marca de objeto. `quadroMs` e `caixa` dizem onde desenhar o objeto sobre
 // o vídeo; marca sem os dois não ganha caixa.
-export interface ObjetoMarcado {
+export interface MarkedObject {
   instanteMs: number;
   familia: string;
   classe: string;
   score: number;
   quadroMs?: number;
-  caixa?: Caixa;
+  caixa?: Box;
 }
 
-export interface Eventos {
+export interface Events {
   cam: string;
   from: number;
   to: number;
   onsets: number[];
-  objetos: ObjetoMarcado[];
+  objetos: MarkedObject[];
 }
 
 // --- detecções
 
-export interface ObjetoNoQuadro {
+export interface ObjectInFrame {
   familia: string;
   classe: string;
   score: number;
-  caixa?: Caixa;
+  caixa?: Box;
   // O objeto passou na regra de alerta da câmera, na hora em que foi olhado, e
   // caiu nas áreas do alerta destes ids. Sem áreas no alerta, `alertAreas` não
   // vem. O id de uma área apagada desde então continua vindo.
@@ -859,26 +865,26 @@ export interface ObjetoNoQuadro {
 
 // Uma olhada do detector numa câmera: o instante do onset e tudo o que ele
 // achou naquele quadro.
-export interface Deteccao {
+export interface Detection {
   cam: string;
   instanteMs: number;
   quadroMs?: number;
   temQuadro: boolean;
-  objetos: ObjetoNoQuadro[];
+  objetos: ObjectInFrame[];
 }
 
-export interface PaginaDeDeteccoes {
-  deteccoes: Deteccao[];
+export interface DetectionsPage {
+  deteccoes: Detection[];
   fim: boolean;
 }
 
 // Nulo ou ausente é "todas".
-export interface FiltroDeDeteccoes {
+export interface DetectionsFilter {
   cams?: readonly string[] | null;
   familias?: readonly string[] | null;
   // Na câmera desta área, só os objetos dentro dela. As outras câmeras não
   // mudam.
-  area?: AreaDoFiltro | null;
+  area?: FilterArea | null;
   // O mesmo, com as áreas cadastradas: `<cam>/<id>`. As de uma câmera somam,
   // a `area` junto: qualquer uma serve.
   areas?: readonly string[] | null;
@@ -888,13 +894,13 @@ export interface FiltroDeDeteccoes {
 }
 
 // `antes` e `depois` são o cursor: um ou nenhum.
-export interface PedidoDeDeteccoes extends FiltroDeDeteccoes {
+export interface DetectionsRequest extends DetectionsFilter {
   antes?: number | null;
   depois?: number | null;
   limite?: number;
 }
 
-export interface DiasDeDeteccao {
+export interface DetectionDays {
   dias: string[];
   // Dia -> quantas detecções do filtro. Só os dias de `dias`.
   deteccoesPorDia: Record<string, number>;

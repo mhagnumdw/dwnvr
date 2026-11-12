@@ -17,10 +17,10 @@
 
   interface Props {
     onclose?: () => void;
-    largura?: number | string;
-    reservaRolagem?: boolean;
-    centralizada?: boolean;
-    alturaQueMuda?: boolean;
+    width?: number | string;
+    scrollReserve?: boolean;
+    centered?: boolean;
+    variableHeight?: boolean;
     children?: Snippet;
   }
 
@@ -51,13 +51,13 @@
   // embaixo do conteúdo.
   let {
     onclose,
-    largura = 460,
-    reservaRolagem = false,
-    centralizada = false,
-    alturaQueMuda = false,
+    width = 460,
+    scrollReserve = false,
+    centered = false,
+    variableHeight = false,
     children,
   }: Props = $props();
-  const larguraCSS = $derived(typeof largura === 'number' ? `${largura}px` : largura);
+  const cssWidth = $derived(typeof width === 'number' ? `${width}px` : width);
 
   const self = {};
   onMount(() => {
@@ -80,14 +80,14 @@
 
 <div
   class="overlay"
-  class:centralizada
-  class:altura-que-muda={alturaQueMuda}
+  class:centered
+  class:variable-height={variableHeight}
   role="presentation"
   onclick={(e) => {
     if (e.target === e.currentTarget) onclose?.();
   }}
 >
-  <div class="card sheet" class:reserva-rolagem={reservaRolagem} style:--largura={larguraCSS}>
+  <div class="card sheet" class:scroll-reserve={scrollReserve} style:--largura={cssWidth}>
     {@render children?.()}
   </div>
 </div>
@@ -124,21 +124,21 @@
     padding-bottom: calc(14px + env(safe-area-inset-bottom));
   }
 
-  .altura-que-muda .sheet {
+  .variable-height .sheet {
     height: var(--altura-max);
   }
 
-  .centralizada {
+  .centered {
     place-items: center;
     padding: 8px;
   }
 
-  .centralizada .sheet {
+  .centered .sheet {
     border-radius: var(--radius);
     padding-bottom: 14px;
   }
 
-  .sheet.reserva-rolagem {
+  .sheet.scroll-reserve {
     scrollbar-gutter: stable both-edges;
   }
 
@@ -151,11 +151,11 @@
       max-width: var(--largura);
       border-radius: var(--radius);
     }
-    .overlay.altura-que-muda {
+    .overlay.variable-height {
       align-items: start;
       padding-top: 6dvh;
     }
-    .altura-que-muda .sheet {
+    .variable-height .sheet {
       height: auto;
     }
   }

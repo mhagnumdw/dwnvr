@@ -16,19 +16,18 @@ const MAX_PARALLEL = 3; // decodificações ao mesmo tempo; o download não espe
 // do ladrilho do card da câmera, mais largo que o quadrinho. Uma ou duas por
 // câmera com área, com folga para a troca de segmento. O despejo daqui não
 // fecha o bitmap (veja `thumbnail`).
-const MAX_AMPLIADAS = 12;
-const ampliadas = new Map<string, Promise<ImageBitmap | null>>();
+const MAX_ENLARGED = 12;
+const enlarged = new Map<string, Promise<ImageBitmap | null>>();
 
 // Largura do quadrinho maior da tira, em px de CSS: o `.tile` do
 // ThumbStrip.svelte. O de tela estreita é menor, mas o celular girado passa a
 // usar este, e guardar no menor deixaria a miniatura borrada.
-const LARGURA_DO_QUADRINHO = 108;
+const FRAMELET_WIDTH = 108;
 
 // A `escala` do `thumbnail` para desenhar a miniatura com `largura` px de CSS
 // sem borrar: o ladrilho da área no card da câmera é mais largo que o
 // quadrinho da tira.
-export const escalaParaLargura = (largura: number) =>
-  Math.max(1, Math.ceil(largura / LARGURA_DO_QUADRINHO));
+export const scaleToWidth = (width: number) => Math.max(1, Math.ceil(width / FRAMELET_WIDTH));
 
 // O cache guarda o bitmap pronto, sem compressão: 4 bytes por pixel. Na
 // resolução da câmera, uma miniatura 640×360 ocupa ~0,9 MB, e uma 1080p,
@@ -36,23 +35,23 @@ export const escalaParaLargura = (largura: number) =>
 // ~0,23 MB num celular de densidade 3, qualquer que seja a câmera. Medido num
 // Chrome 155 em 14/10/2026: reduzir custa de 0,1 a 0,5 ms por miniatura com
 // GPU, contra 4 a 13 ms da decodificação.
-function reduzida(larguraDaFonte: number, densidade: number): ImageBitmapOptions | undefined {
-  const alvo = Math.ceil(LARGURA_DO_QUADRINHO * densidade);
+function shrunk(sourceWidth: number, density: number): ImageBitmapOptions | undefined {
+  const target = Math.ceil(FRAMELET_WIDTH * density);
   // Só a largura: a altura segue a proporção da câmera. Ampliar não ganha
   // nitidez e gasta mais memória que a própria fonte.
-  return larguraDaFonte > alvo ? { resizeWidth: alvo, resizeQuality: 'medium' } : undefined;
+  return sourceWidth > target ? { resizeWidth: target, resizeQuality: 'medium' } : undefined;
 }
 
-interface Tarefa {
+interface Task {
   fn: () => Promise<ImageBitmap>;
   resolve: (b: ImageBitmap) => void;
   reject: (e: unknown) => void;
 }
 
 let running = 0;
-const queue: Tarefa[] = [];
+const queue: Task[] = [];
 
-function schedule(fn: Tarefa['fn']) {
+function schedule(fn: Task['fn']) {
   return new Promise<ImageBitmap>((resolve, reject) => {
     queue.push({ fn, resolve, reject });
     drain();
@@ -61,12 +60,12 @@ function schedule(fn: Tarefa['fn']) {
 
 function drain() {
   while (running < MAX_PARALLEL) {
-    const tarefa = queue.shift();
-    if (!tarefa) return;
+    const task = queue.shift();
+    if (!task) return;
     running++;
-    void tarefa
+    void task
       .fn()
-      .then(tarefa.resolve, tarefa.reject)
+      .then(task.resolve, task.reject)
       .finally(() => {
         running--;
         drain();
@@ -84,35 +83,35 @@ function drain() {
 // da área pequena, que amplia até ZOOM_TETO vezes e borraria na do quadrinho.
 // Essas ficam num cache à parte e curto (MAX_AMPLIADAS): cada uma pesa até
 // escala² vezes a do quadrinho, e o MAX_CACHE da tira não as seguraria.
-export function thumbnail(cam: string, t: number, escala = 1): Promise<ImageBitmap | null> {
+export function thumbnail(cam: string, t: number, scale = 1): Promise<ImageBitmap | null> {
   // A densidade da tela entra na chave porque o bitmap guardado foi reduzido
   // para ela (veja `reduzida`): depois de um zoom do navegador, ou de levar a
   // janela para outro monitor, ele sairia esticado no quadrinho novo. As
   // entradas da densidade antiga saem pelo MAX_CACHE, como qualquer outra. É
   // lida uma vez só: um zoom entre o pedido e a decodificação guardaria, sob
   // esta chave, um bitmap reduzido para outra densidade.
-  const densidade = (window.devicePixelRatio || 1) * escala;
-  const key = `${cam}@${t}@${densidade}`;
-  const onde = escala === 1 ? cache : ampliadas;
-  const guardada = onde.get(key);
-  if (guardada) return guardada;
+  const density = (window.devicePixelRatio || 1) * scale;
+  const key = `${cam}@${t}@${density}`;
+  const where = scale === 1 ? cache : enlarged;
+  const kept = where.get(key);
+  if (kept) return kept;
 
-  const p = baixar(mediaURL.thumb(cam, t))
-    .then((buf) => schedule(() => decode(buf, densidade)))
+  const p = download(mediaURL.thumb(cam, t))
+    .then((buf) => schedule(() => decode(buf, density)))
     .catch(() => null);
-  onde.set(key, p);
+  where.set(key, p);
 
-  if (onde.size > (escala === 1 ? MAX_CACHE : MAX_AMPLIADAS)) {
+  if (where.size > (scale === 1 ? MAX_CACHE : MAX_ENLARGED)) {
     // Map preserva a ordem de inserção, então a chave mais antiga sai primeiro.
-    const oldest = onde.keys().next().value;
+    const oldest = where.keys().next().value;
     if (oldest !== undefined) {
       // Fechar libera a memória já, e a tira, com centenas, precisa disso. A
       // ampliada não: o card com mais câmeras com área do que MAX_AMPLIADAS
       // mostra todas ao mesmo tempo, e fechar a que ainda está na tela a faria
       // pedir de novo, despejando outra, sem fim. Despejada sem fechar, ela sai
       // da memória quando a última miniatura que a desenha a solta.
-      if (onde === cache) void onde.get(oldest)?.then((b) => b?.close());
-      onde.delete(oldest);
+      if (where === cache) void where.get(oldest)?.then((b) => b?.close());
+      where.delete(oldest);
     }
   }
   return p;
@@ -121,11 +120,11 @@ export function thumbnail(cam: string, t: number, escala = 1): Promise<ImageBitm
 // O começo do último segmento gravado da câmera, ou null se ela não tem
 // gravação. É o quadro mais recente que o servidor tem pronto: o keyframe do
 // segmento.
-export async function ultimoSegmento(cam: string): Promise<number | null> {
+export async function lastSegment(cam: string): Promise<number | null> {
   const dias = await api.days(cam);
-  const dia = dias.days.at(-1)?.day;
-  if (!dia) return null;
-  const t = await api.timeline(cam, dia);
+  const day = dias.days.at(-1)?.day;
+  if (!day) return null;
+  const t = await api.timeline(cam, day);
   return t.segments.at(-1)?.[0] ?? null;
 }
 
@@ -134,45 +133,45 @@ export async function ultimoSegmento(cam: string): Promise<number | null> {
 // até 8 por câmera -, e cada pedido custaria o /days e a timeline de novo. O
 // bitmap não fica aqui: o `thumbnail` o guarda, e o devolve outra vez se o
 // cache dele o despejou.
-const ULTIMO_SEGMENTO_VALE_MS = 5 * 60_000;
-const ultimos = new Map<string, { ate: number; t: Promise<number | null> }>();
+const LAST_SEGMENT_VALID_MS = 5 * 60_000;
+const ultimos = new Map<string, { to: number; t: Promise<number | null> }>();
 
-export function ultimoSegmentoGuardado(cam: string): Promise<number | null> {
-  const agora = Date.now();
-  const guardado = ultimos.get(cam);
-  if (guardado && guardado.ate > agora) return guardado.t;
-  const t = ultimoSegmento(cam);
-  const entrada = { ate: agora + ULTIMO_SEGMENTO_VALE_MS, t };
-  ultimos.set(cam, entrada);
+export function storedLastSegment(cam: string): Promise<number | null> {
+  const now = Date.now();
+  const stored = ultimos.get(cam);
+  if (stored && stored.to > now) return stored.t;
+  const t = lastSegment(cam);
+  const entry = { to: now + LAST_SEGMENT_VALID_MS, t };
+  ultimos.set(cam, entry);
   // A falha e o "sem gravação" não ficam guardados: o próximo pedido tenta
   // de novo, e a câmera que acabou de começar a gravar aparece.
-  const esquece = () => {
-    if (ultimos.get(cam) === entrada) ultimos.delete(cam);
+  const forget = () => {
+    if (ultimos.get(cam) === entry) ultimos.delete(cam);
   };
   t.then((v) => {
-    if (v === null) esquece();
-  }, esquece);
+    if (v === null) forget();
+  }, forget);
   return t;
 }
 
 // Esquece o último segmento guardado da câmera: as gravações dela foram
 // apagadas, e ele não existe mais.
-export function esqueceUltimoSegmento(cam: string) {
+export function forgetLastSegment(cam: string) {
   ultimos.delete(cam);
 }
 
 // O keyframe de um segmento na resolução da câmera, para desenhar em cima
 // (o editor de área). Fora do cache e da fila da tira: é um quadro só, pedido
 // por quem o espera. A densidade infinita faz o `reduzida` não reduzir.
-export async function quadroCheio(cam: string, t: number): Promise<ImageBitmap> {
-  return decode(await baixar(mediaURL.thumb(cam, t)), Infinity);
+export async function fullFrame(cam: string, t: number): Promise<ImageBitmap> {
+  return decode(await download(mediaURL.thumb(cam, t)), Infinity);
 }
 
 export function clearThumbnails() {
   for (const p of cache.values()) void p.then((b) => b?.close());
   cache.clear();
-  for (const p of ampliadas.values()) void p.then((b) => b?.close());
-  ampliadas.clear();
+  for (const p of enlarged.values()) void p.then((b) => b?.close());
+  enlarged.clear();
   ultimos.clear();
 }
 
@@ -180,7 +179,7 @@ export function clearThumbnails() {
 // miniaturas que a tira pede juntas - as que entraram na vista - viajam juntas.
 // A prioridade baixa deixa os segmentos do player passarem na frente quando a
 // conexão é HTTP/1.1, com seis por vez.
-async function baixar(url: string) {
+async function download(url: string) {
   const res = await fetch(url, { priority: 'low' });
   // O corpo de um erro é o JSON da API: tentar decodificá-lo como vídeo só
   // gasta um <video> para chegar à mesma miniatura vazia.
@@ -188,16 +187,16 @@ async function baixar(url: string) {
   return new Uint8Array(await res.arrayBuffer());
 }
 
-async function decode(buf: Uint8Array<ArrayBuffer>, densidade: number) {
+async function decode(buf: Uint8Array<ArrayBuffer>, density: number) {
   if (typeof VideoDecoder !== 'undefined') {
     try {
-      return await decodeWithWebCodecs(buf, densidade);
+      return await decodeWithWebCodecs(buf, density);
     } catch {
       // Cai para o <video>: alguns navegadores anunciam WebCodecs mas recusam
       // a configuração destas câmeras.
     }
   }
-  return decodeWithVideoElement(buf, densidade);
+  return decodeWithVideoElement(buf, density);
 }
 
 // --- WebCodecs --------------------------------------------------------------
@@ -211,7 +210,7 @@ function fourcc(buf: Uint8Array, o: number) {
   return String.fromCharCode(...buf.subarray(o, o + 4));
 }
 
-async function decodeWithWebCodecs(buf: Uint8Array, densidade: number): Promise<ImageBitmap> {
+async function decodeWithWebCodecs(buf: Uint8Array, density: number): Promise<ImageBitmap> {
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
   // A caixa de configuração fica aninhada dentro do moov; varrer por assinatura
@@ -254,7 +253,7 @@ async function decodeWithWebCodecs(buf: Uint8Array, densidade: number): Promise<
           return;
         }
         done = true;
-        void createImageBitmap(frame, reduzida(frame.displayWidth, densidade))
+        void createImageBitmap(frame, shrunk(frame.displayWidth, density))
           .then(resolve, reject)
           .finally(() => {
             frame.close();
@@ -280,9 +279,9 @@ async function decodeWithWebCodecs(buf: Uint8Array, densidade: number): Promise<
 // Num Chrome 155 por http (13/10/2026), 9 de 220 miniaturas viravam "-" na
 // tira; tentando de novo, 0 de 276, e a segunda chamada, 50 ms depois, bastou
 // em todas. As esperas seguintes são folga, e a última recusa vale como falha.
-const ESPERAS_DO_QUADRO_MS = [50, 100, 200, 400];
+const FRAME_WAITS_MS = [50, 100, 200, 400];
 
-async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>, densidade: number) {
+async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>, density: number) {
   const url = URL.createObjectURL(new Blob([buf], { type: 'video/mp4' }));
   const v = document.createElement('video');
   v.muted = true;
@@ -310,7 +309,7 @@ async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>, densidade: n
         rej(new Error('tempo esgotado'));
       }, 8000);
     });
-    return await quadroDo(v, densidade);
+    return await frameOf(v, density);
   } finally {
     URL.revokeObjectURL(url);
     v.removeAttribute('src');
@@ -318,14 +317,14 @@ async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>, densidade: n
   }
 }
 
-async function quadroDo(v: HTMLVideoElement, densidade: number) {
-  const opcoes = reduzida(v.videoWidth, densidade);
-  for (const ms of ESPERAS_DO_QUADRO_MS) {
+async function frameOf(v: HTMLVideoElement, density: number) {
+  const options = shrunk(v.videoWidth, density);
+  for (const ms of FRAME_WAITS_MS) {
     try {
-      return await createImageBitmap(v, opcoes);
+      return await createImageBitmap(v, options);
     } catch {
       await new Promise((r) => setTimeout(r, ms));
     }
   }
-  return createImageBitmap(v, opcoes);
+  return createImageBitmap(v, options);
 }

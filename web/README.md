@@ -44,7 +44,7 @@ src/lib/         api e os tipos do JSON dela, estado (runes), rota e
                  digitado,
                  player MSE, miniaturas, captura de quadro, ícones das
                  famílias de objeto (canvas), os ícones da interface (o
-                 mapa nome -> desenho do `<Icone>`), disposição e desenho
+                 mapa nome -> desenho do `<Icon>`), disposição e desenho
                  das caixas,
                  diagnóstico do navegador de quem está olhando e do
                  servidor que grava, avisos do diagnóstico (o card e o
@@ -83,7 +83,7 @@ src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
                  o campo de senha com o olho, o avatar (a foto ou as
                  iniciais), o botão que abre a lista de câmeras (marcadas
                  do total), o botão de entrar e sair da tela cheia, o
-                 `<Icone>` que desenha qualquer ícone da interface pelo nome,
+                 `<Icon>` que desenha qualquer ícone da interface pelo nome,
                  a snackbar, o selo das famílias de objeto no canto de uma
                  miniatura (com o sino, na detecção que alertou), o editor de área (o polígono sobre o quadro,
                  chunk à parte), a miniatura das áreas de uma câmera (com
@@ -143,7 +143,7 @@ endereços e colar em outra aba reproduz a mesma cena. Segue sendo hash, e não
 caminho de verdade, porque o fragmento nunca sai do navegador - assim o
 `internal/api/web.go`, que só serve arquivo, não precisa de rota nova.
 
-Quem cuida disso é o `src/lib/rota.svelte.ts`. Cada tela lê a URL uma vez, ao
+Quem cuida disso é o `src/lib/route.svelte.ts`. Cada tela lê a URL uma vez, ao
 montar, e um `$effect` escreve de volta o que o estado real diz - `paused` sai
 de `player.playing`, e não de um sinalizador paralelo, para o endereço nunca
 prometer uma reprodução que o navegador bloqueou. As escritas usam

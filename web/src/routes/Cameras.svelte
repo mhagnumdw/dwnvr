@@ -8,81 +8,81 @@
     pollHealth,
     REPO_URL,
   } from '../lib/state.svelte.ts';
-  import { api, mensagemDe } from '../lib/api.ts';
+  import { api, messageOf } from '../lib/api.ts';
   import type {
-    AreaDaCamera,
+    CameraArea,
     Camera,
-    HorarioDoAlerta,
-    CameraCadastrada,
-    OndeDoAlerta,
-    Orfa,
+    AlertSchedule,
+    RegisteredCamera,
+    AlertWhere,
+    Orphan,
     Stream,
   } from '../lib/api.ts';
-  import { paramsAtuais, escrever } from '../lib/rota.svelte.ts';
+  import { currentParams, write } from '../lib/route.svelte.ts';
   import {
     hhmm,
     dias,
     kbps,
     bytes,
-    bytesDeMB,
-    resolucao,
+    mbToBytes,
+    resolution,
     ddmm,
-    duracao,
-    gravadoSeHouverBuraco,
-    horaDoMinuto,
+    duration,
+    recordedWithGap,
+    hourOfMinute,
   } from '../lib/format.ts';
-  import { AJUDA_RETIDO, AJUDA_CABEM, AJUDA_SENSIBILIDADE, NIVEIS, nivel } from '../lib/ajudas.ts';
+  import { HELP_RETAINED, HELP_FIT, HELP_SENSITIVITY, LEVELS, level } from '../lib/help.ts';
   import Modal from '../components/Modal.svelte';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
-  import SemCameras from '../components/SemCameras.svelte';
-  import Icone from '../components/Icone.svelte';
-  import RodapeDaSaude from '../components/RodapeDaSaude.svelte';
-  import Abas from '../components/Abas.svelte';
-  import RotuloDaArea from '../components/RotuloDaArea.svelte';
-  import LadrilhoDaArea from '../components/LadrilhoDaArea.svelte';
-  import type EditorDeAreaT from '../components/EditorDeArea.svelte';
-  import type AbaDoAlertaT from '../components/AbaDoAlerta.svelte';
-  import { familia, iconeDaFamilia, iconeURL, porPrioridade } from '../lib/icones.ts';
-  import { REGRA_PADRAO, MAX_AREAS, pontosDoCadastro } from '../lib/area.ts';
+  import NoCameras from '../components/NoCameras.svelte';
+  import Icon from '../components/Icon.svelte';
+  import HealthFooter from '../components/HealthFooter.svelte';
+  import Tabs from '../components/Tabs.svelte';
+  import AreaLabel from '../components/AreaLabel.svelte';
+  import AreaTile from '../components/AreaTile.svelte';
+  import type AreaEditorT from '../components/AreaEditor.svelte';
+  import type AlertTabT from '../components/AlertTab.svelte';
+  import { family, familyIcon, iconURL, byPriority } from '../lib/icons.ts';
+  import { DEFAULT_RULE, MAX_AREAS, registryPoints } from '../lib/area.ts';
   import {
-    MAX_HORARIOS,
-    doServidor,
-    paraOServidor,
-    resumoDasHoras,
-    resumoDosDias,
-    valido,
-  } from '../lib/horarios.ts';
-  import type { Horario } from '../lib/horarios.ts';
-  import type { Ponto, Regra } from '../lib/area.ts';
-  import { esqueceUltimoSegmento, quadroCheio, ultimoSegmento } from '../lib/thumbs.ts';
+    MAX_SCHEDULES,
+    fromServer,
+    toServer,
+    hoursSummary,
+    daysSummary,
+    valid,
+  } from '../lib/schedules.ts';
+  import type { Schedule } from '../lib/schedules.ts';
+  import type { Point, Rule } from '../lib/area.ts';
+  import { forgetLastSegment, fullFrame, lastSegment } from '../lib/thumbs.ts';
 
   // A câmera no formulário, com o que a tela sabe do áudio dela. Os campos com
   // `_` não vão para a API.
-  type Edicao = CameraCadastrada & {
-    _novo: boolean;
+  type Draft = RegisteredCamera & {
+    _new: boolean;
     _hasAudio: boolean;
     _audioCodecs: string[];
-    _sondando: boolean;
-    _sondaErro: string;
+    _probing: boolean;
+    _probeError: string;
   };
 
   // De quem são as gravações a apagar: uma câmera cadastrada ou uma órfã.
-  interface Alvo {
+  interface Target {
     id: string;
     nome: string;
     bytes: number;
-    orfa: boolean;
+    orphan: boolean;
   }
 
-  let editing = $state<Edicao | null>(null); // cópia da câmera em edição, ou null
-  let removendo = $state<CameraCadastrada | null>(null); // câmera aguardando confirmação de remoção
-  let apagando = $state<Alvo | null>(null); // gravações aguardando confirmação de apagamento
-  let apagarGravacoes = $state(false); // checkbox do diálogo de remoção
+  let editing = $state<Draft | null>(null); // cópia da câmera em edição, ou null
+  let removing = $state<RegisteredCamera | null>(null); // câmera aguardando confirmação de remoção
+  let deleting = $state<Target | null>(null); // gravações aguardando confirmação de apagamento
+  let deleteRecordings = $state(false); // checkbox do diálogo de remoção
   let saving = $state(false);
   let error = $state('');
   // A recusa do servidor ao salvar. Fica dentro do formulário, junto do
   // "salvar": o `error` da página aparece atrás do fundo escuro do Modal.
-  let erroForm = $state('');
+  let formError = $state('');
 
   // As abas do formulário. Ele sempre abre na primeira: é onde estão o nome e a
   // cota, o que se procura ao cadastrar. Áreas e Alerta só funcionam com a
@@ -90,90 +90,90 @@
   // dois a câmera não tem detecção, a área não teria o que filtrar e o alerta,
   // o que avisar. Sem eles, as duas abas ficam, e dizem o que falta: escondidas,
   // ninguém saberia que existem. Desligar a marcação não apaga nada.
-  const comDeteccao = $derived(!!editing?.detect && !!cameras.detector);
-  const ABAS = $derived([
-    { id: 'gravacao', rotulo: 'Gravação' },
-    { id: 'deteccao', rotulo: 'Detecção' },
+  const withDetection = $derived(!!editing?.detect && !!cameras.detector);
+  const TABS = $derived([
+    { id: 'gravacao', label: 'Gravação' },
+    { id: 'deteccao', label: 'Detecção' },
     {
       id: 'areas',
-      rotulo: editing?.areas?.length ? `Áreas (${editing.areas.length})` : 'Áreas',
+      label: editing?.areas?.length ? `Áreas (${editing.areas.length})` : 'Áreas',
     },
-    { id: 'alerta', rotulo: 'Alerta' },
+    { id: 'alerta', label: 'Alerta' },
   ]);
-  let aba = $state('gravacao');
+  let tab = $state('gravacao');
   // No cadastro, o rodapé guia aba a aba e o "salvar" só aparece na última:
   // quem cadastra passa por tudo. Na edição se vai direto a uma coisa, e as
   // abas bastam.
-  const indiceDaAba = $derived(ABAS.findIndex((a) => a.id === aba));
-  const guiado = $derived(!!editing?._novo && indiceDaAba < ABAS.length - 1);
+  const tabIndex = $derived(TABS.findIndex((a) => a.id === tab));
+  const guided = $derived(!!editing?._new && tabIndex < TABS.length - 1);
   // Depois da troca, o foco vai para o painel novo: o de antes fica `inert` e
   // o botão clicado pode sumir do rodapé, e sem isto o foco cai no <body> e o
   // Tab recomeça do topo. Avançando, vai ao primeiro campo, e quem digitava no
   // Enter segue digitando. Voltando, vai à aba: no celular, o foco no campo de
   // texto abriria o teclado sem ninguém pedir.
-  async function irPara(passo: number) {
-    aba = ABAS[indiceDaAba + passo]?.id ?? aba;
+  async function goTo(step: number) {
+    tab = TABS[tabIndex + step]?.id ?? tab;
     await tick();
-    const alvo =
-      passo > 0
+    const target =
+      step > 0
         ? document
-            .getElementById(`cam-painel-${aba}`)
+            .getElementById(`cam-painel-${tab}`)
             ?.querySelector<HTMLElement>('input, select, textarea, button')
-        : document.getElementById(`cam-aba-${aba}`);
-    alvo?.focus();
+        : document.getElementById(`cam-aba-${tab}`);
+    target?.focus();
   }
 
-  const novos = $derived(cameras.streams.filter((s) => !s.registered));
-  const faixas = $derived(cameras.faixas);
+  const newOnes = $derived(cameras.streams.filter((s) => !s.registered));
+  const bounds = $derived(cameras.faixas);
 
   // Reinício do go2rtc: ele só lê o go2rtc.yaml quando sobe.
-  let confirmandoReinicio = $state(false);
-  let reiniciando = $state(false);
+  let confirmingRestart = $state(false);
+  let restarting = $state(false);
   // O go2rtc responde ao pedido antes de reiniciar: perguntar logo em seguida
   // ainda pega o processo velho, com a lista velha.
-  const REINICIO_PRIMEIRA_PERGUNTA_MS = 1500;
-  const REINICIO_INTERVALO_MS = 1000;
+  const RESTART_FIRST_ASK_MS = 1500;
+  const RESTART_INTERVAL_MS = 1000;
   // Medido no go2rtc local: volta em menos de 2 s. Passado disto, desiste e
   // deixa a tela mostrar o erro de conexão, que é a verdade.
-  const REINICIO_DESISTE_MS = 20000;
+  const RESTART_GIVE_UP_MS = 20000;
 
-  const cadastradas = $derived(new Set(cameras.list.map((c) => c.id)));
+  const registered = $derived(new Set(cameras.list.map((c) => c.id)));
   // Câmera cadastrada que saiu do arquivo para de gravar depois do reinício: é o
   // único efeito do reinício que alguém pode não querer, e o diálogo o repete.
-  const vaoParar = $derived(
-    (cameras.go2rtcConfigFile?.foraDoArquivo ?? []).filter((id) => cadastradas.has(id)),
+  const willStop = $derived(
+    (cameras.go2rtcConfigFile?.foraDoArquivo ?? []).filter((id) => registered.has(id)),
   );
 
   // Enquanto a sonda não responde, as opções de áudio seguem bloqueadas; se ela
   // FALHAR, elas são liberadas. Não conseguir verificar não é o mesmo que saber
   // que não tem áudio, e bloquear nesse caso impediria de configurar uma câmera
   // boa que só estava fora do ar na hora do cadastro.
-  const audioBloqueado = $derived(!editing?._hasAudio && !editing?._sondaErro);
+  const audioBlocked = $derived(!editing?._hasAudio && !editing?._probeError);
 
   // `#cams?editar=<id>` abre direto o formulário da câmera: é o link da
   // tela Diagnóstico para quem está com a detecção desligada. O parâmetro é
   // consumido ao abrir, senão recarregar a página reabriria o formulário.
   onMount(async () => {
-    const id = paramsAtuais().get('editar');
+    const id = currentParams().get('editar');
     if (!cameras.list.length) await loadCameras();
     if (!id) return;
-    escrever({ editar: null });
+    write({ edit: null });
     const cam = cameras.list.find((c) => c.id === id);
     // Com outro formulário já aberto (a lista pode ter chegado por outro
     // caminho enquanto esta esperava), o pedido de abrir não o substitui.
-    if (cam && !editing) editar(cam);
+    if (cam && !editing) edit(cam);
   });
 
   // O caminho comum para câmera nova é trocar de janela, editar o go2rtc.yaml e
   // voltar: recarregar quando a aba reaparece poupa o clique no botão. Com a aba
   // escondida não há custo nenhum - o evento só dispara na troca.
-  function aoVoltarParaAba() {
+  function onReturnToTab() {
     if (!document.hidden) void loadCameras();
   }
   onMount(() => {
-    document.addEventListener('visibilitychange', aoVoltarParaAba);
+    document.addEventListener('visibilitychange', onReturnToTab);
     return () => {
-      document.removeEventListener('visibilitychange', aoVoltarParaAba);
+      document.removeEventListener('visibilitychange', onReturnToTab);
     };
   });
 
@@ -193,13 +193,13 @@
   // repetir no JS a conta que o Go faz. O denominador é o st.quotaMB, que é
   // sempre a cota salva - cam.quotaMB é o que está no formulário e se move
   // enquanto se digita.
-  function estimaDias(cam: Camera, quotaMB = cam.quotaMB) {
+  function estimateDays(cam: Camera, quotaMB = cam.quotaMB) {
     const st = statusOf(cam.id);
     if (!st?.retainDays || !st.quotaMB || quotaMB === undefined) return undefined;
     return (st.retainDays * quotaMB) / st.quotaMB;
   }
 
-  function novo(streamName: string) {
+  function newItem(streamName: string) {
     const s = cameras.streams.find((x) => x.name === streamName);
     editing = {
       id: streamName,
@@ -217,55 +217,55 @@
       detect: cameras.padrao?.detect ?? false,
       detectMecanismo: cameras.padrao?.detectMecanismo ?? 'kleinberg-p',
       detectSensibilidade: cameras.padrao?.detectSensibilidade ?? 5,
-      _novo: true,
-      ...audioConhecido(s),
+      _new: true,
+      ...audioKnown(s),
     };
-    aba = 'gravacao';
-    erroForm = '';
-    abreOAlerta();
-    void sondarAudio(streamName);
+    tab = 'gravacao';
+    formError = '';
+    openAlert();
+    void probeAudio(streamName);
   }
 
   // `abaInicial`: o bloco de áreas ou de alerta do card abre o formulário
   // direto na aba dele.
-  function editar(cam: CameraCadastrada, abaInicial = 'gravacao') {
+  function edit(cam: RegisteredCamera, initialTab = 'gravacao') {
     const s = cameras.streams.find((x) => x.name === cam.id);
-    editing = { ...cam, _novo: false, ...audioConhecido(s) };
-    aba = abaInicial;
-    erroForm = '';
-    abreOAlerta();
-    void sondarAudio(cam.id);
+    editing = { ...cam, _new: false, ...audioKnown(s) };
+    tab = initialTab;
+    formError = '';
+    openAlert();
+    void probeAudio(cam.id);
   }
 
   // O "onde" e o "quando" do alerta no card, nas palavras da aba Alerta. Área
   // marcada que não existe mais não aparece; os horários vão como a aba os
   // lista ("todo dia · 12:30 às 13:59").
-  function ondeDoAlertaNoCard(cam: CameraCadastrada) {
+  function alertWhereOnCard(cam: RegisteredCamera) {
     const ids = cam.alert?.areas ?? [];
     if (!ids.length) return 'em qualquer lugar da imagem';
-    const nomes = (cam.areas ?? []).filter((a) => a.id && ids.includes(a.id)).map((a) => a.name);
-    return `só em ${nomes.join(', ')}`;
+    const names = (cam.areas ?? []).filter((a) => a.id && ids.includes(a.id)).map((a) => a.name);
+    return `só em ${names.join(', ')}`;
   }
   // O sino na miniatura: a área está entre as do alerta ligado. O alerta na
   // imagem inteira não marca nenhuma, porque não depende de área.
-  const alertaNaArea = (cam: CameraCadastrada, a: AreaDaCamera) =>
+  const alertInArea = (cam: RegisteredCamera, a: CameraArea) =>
     !!cam.alert?.enabled && !!a.id && !!cam.alert.areas?.includes(a.id);
-  function quandoDoAlertaNoCard(hs: HorarioDoAlerta[] | undefined) {
-    const validos = doServidor(hs).filter(valido);
-    if (!validos.length) return 'a qualquer hora';
-    return validos
-      .map((h) => `${resumoDosDias(h.days)} · ${resumoDasHoras(h.from, h.to)}`)
+  function alertWhenOnCard(hs: AlertSchedule[] | undefined) {
+    const validItems = fromServer(hs).filter(valid);
+    if (!validItems.length) return 'a qualquer hora';
+    return validItems
+      .map((h) => `${daysSummary(h.days)} · ${hoursSummary(h.from, h.to)}`)
       .join('; ');
   }
 
   // O que já se sabe do áudio quando o formulário abre. Num stream ocioso isso
   // é sempre "não tem", e é mentira: o go2rtc só lista as trilhas enquanto
   // alguém consome o stream. Por isso sondarAudio() vem logo atrás.
-  const audioConhecido = (s: Stream | undefined) => ({
+  const audioKnown = (s: Stream | undefined) => ({
     _hasAudio: s?.hasAudio ?? false,
     _audioCodecs: s?.audioCodecs ?? [],
-    _sondando: false,
-    _sondaErro: '',
+    _probing: false,
+    _probeError: '',
   });
 
   // Pergunta ao servidor se a câmera entrega áudio. Só vale a pena quando a
@@ -275,21 +275,21 @@
   // descobrir), então o formulário já está na tela quando ela chega - daí a
   // conferência de que ele ainda é o mesmo, que descarta a resposta de um
   // formulário já fechado ou trocado por outro.
-  async function sondarAudio(streamName: string) {
+  async function probeAudio(streamName: string) {
     const form = editing;
     if (!form || form._hasAudio) return;
-    form._sondando = true;
+    form._probing = true;
     try {
       const r = await api.probeStream(streamName);
       if (editing !== form) return;
       form._hasAudio = r.hasAudio;
       form._audioCodecs = r.audioCodecs ?? [];
-      form._sondaErro = r.erro ?? '';
+      form._probeError = r.erro ?? '';
     } catch (e) {
       if (editing !== form) return;
-      form._sondaErro = mensagemDe(e);
+      form._probeError = messageOf(e);
     } finally {
-      if (editing === form) form._sondando = false;
+      if (editing === form) form._probing = false;
     }
   }
 
@@ -297,14 +297,14 @@
   // como mostrar o balão num campo invisível, e o "salvar" parece não fazer
   // nada. O primeiro campo inválido traz a aba dele para a frente e mostra o
   // motivo; os seguintes do mesmo envio ficam para o próximo clique.
-  async function campoInvalido(e: Event) {
-    const campo = e.target as HTMLInputElement;
-    const painel = campo.closest<HTMLElement>('[role="tabpanel"]');
-    const dono = painel?.dataset['aba'];
-    if (!dono || dono === aba) return;
-    aba = dono;
+  async function invalidField(e: Event) {
+    const field = e.target as HTMLInputElement;
+    const panel = field.closest<HTMLElement>('[role="tabpanel"]');
+    const owner = panel?.dataset['aba'];
+    if (!owner || owner === tab) return;
+    tab = owner;
     await tick();
-    campo.reportValidity();
+    field.reportValidity();
   }
 
   // --- a aba Áreas ----------------------------------------------------------
@@ -313,28 +313,28 @@
   // aqui na resolução da câmera. É o do editor e o das miniaturas das áreas,
   // nesta aba e na Alerta. Só é buscado quando uma delas abre - a Alerta, se
   // a câmera tem área -, e sai da memória quando o formulário fecha.
-  let quadro = $state<{
+  let frame = $state<{
     cam: string;
     t: number | null;
     url: string;
-    proporcao: number;
-    buscando: boolean;
+    ratio: number;
+    fetching: boolean;
     erro: string;
   } | null>(null);
   // Cada busca tem o seu número: a resposta de uma busca já trocada por outra,
   // ou de um formulário já fechado, é descartada.
-  let busca = 0;
+  let fetchSeq = 0;
   // A URL do quadro da câmera em edição, vazia enquanto ele não chega: o
   // fundo das miniaturas das áreas.
-  const quadroDaCamera = $derived(editing && quadro?.cam === editing.id ? quadro.url : '');
+  const cameraFrame = $derived(editing && frame?.cam === editing.id ? frame.url : '');
 
-  function soltaQuadro() {
-    busca++;
-    if (quadro?.url) URL.revokeObjectURL(quadro.url);
-    quadro = null;
+  function releaseFrame() {
+    fetchSeq++;
+    if (frame?.url) URL.revokeObjectURL(frame.url);
+    frame = null;
   }
 
-  async function urlDoQuadro(bmp: ImageBitmap) {
+  async function frameUrl(bmp: ImageBitmap) {
     const c = document.createElement('canvas');
     c.width = bmp.width;
     c.height = bmp.height;
@@ -346,141 +346,140 @@
     return URL.createObjectURL(blob);
   }
 
-  async function buscaQuadro(cam: string, novo: boolean) {
-    const minha = ++busca;
-    const antes = quadro?.cam === cam ? quadro : null;
-    if (!antes && quadro?.url) URL.revokeObjectURL(quadro.url);
-    quadro = {
+  async function fetchFrame(cam: string, newItem: boolean) {
+    const mine = ++fetchSeq;
+    const before = frame?.cam === cam ? frame : null;
+    if (!before && frame?.url) URL.revokeObjectURL(frame.url);
+    frame = {
       cam,
-      t: antes?.t ?? null,
-      url: antes?.url ?? '',
-      proporcao: antes?.proporcao ?? 16 / 9,
-      buscando: true,
+      t: before?.t ?? null,
+      url: before?.url ?? '',
+      ratio: before?.ratio ?? 16 / 9,
+      fetching: true,
       erro: '',
     };
-    const q = quadro;
+    const q = frame;
     // A câmera nova ainda não gravou, e o servidor nem a conhece.
-    if (novo) {
-      q.buscando = false;
+    if (newItem) {
+      q.fetching = false;
       q.erro =
         'Esta câmera ainda não gravou nada. Salve, e depois do primeiro minuto de gravação volte aqui, em editar, na aba Áreas, para desenhar sobre a imagem dela.';
       return;
     }
     try {
-      const t = await ultimoSegmento(cam);
+      const t = await lastSegment(cam);
       if (t === null) throw new Error('esta câmera ainda não tem gravação para desenhar em cima');
-      const bmp = await quadroCheio(cam, t);
-      const proporcao = bmp.width / bmp.height;
-      const url = await urlDoQuadro(bmp).finally(() => {
+      const bmp = await fullFrame(cam, t);
+      const ratio = bmp.width / bmp.height;
+      const url = await frameUrl(bmp).finally(() => {
         bmp.close();
       });
-      if (minha !== busca) {
+      if (mine !== fetchSeq) {
         URL.revokeObjectURL(url);
         return;
       }
       if (q.url) URL.revokeObjectURL(q.url);
       q.t = t;
       q.url = url;
-      q.proporcao = proporcao;
+      q.ratio = ratio;
     } catch (e) {
-      if (minha === busca) q.erro = mensagemDe(e);
+      if (mine === fetchSeq) q.erro = messageOf(e);
     } finally {
-      if (minha === busca) q.buscando = false;
+      if (mine === fetchSeq) q.fetching = false;
     }
   }
 
   $effect(() => {
     const cam = editing?.id;
-    const comMiniaturas = aba === 'areas' || (aba === 'alerta' && !!editing?.areas?.length);
-    if (!comMiniaturas || !comDeteccao || !cam) return;
-    const novo = !!editing?._novo;
+    const withThumbnails = tab === 'areas' || (tab === 'alerta' && !!editing?.areas?.length);
+    if (!withThumbnails || !withDetection || !cam) return;
+    const newItem = !!editing?._new;
     // O quadro se lê e a busca começa sem acompanhar: a busca que falhou tenta
     // de novo ao entrar numa das abas, e não a cada mudança do quadro, o que
     // repetiria sem parar um pedido que falha. A própria busca lê e grava o
     // quadro antes do primeiro await.
     untrack(() => {
-      const q = quadro;
-      if (q?.cam !== cam || (q.erro && !q.buscando)) void buscaQuadro(cam, novo);
+      const q = frame;
+      if (q?.cam !== cam || (q.erro && !q.fetching)) void fetchFrame(cam, newItem);
     });
   });
   $effect(() => {
-    if (!editing) soltaQuadro();
+    if (!editing) releaseFrame();
   });
-  onDestroy(soltaQuadro);
+  onDestroy(releaseFrame);
 
-  const legendaDoQuadro = (t: number | null) =>
-    t === null ? '' : `quadro de ${ddmm(t)}, ${hhmm(t)}`;
+  const frameCaption = (t: number | null) => (t === null ? '' : `quadro de ${ddmm(t)}, ${hhmm(t)}`);
 
   // O editor vem num chunk à parte, como em Detecções.
-  let EditorDeArea = $state<typeof EditorDeAreaT | null>(null);
+  let AreaEditor = $state<typeof AreaEditorT | null>(null);
   // A área aberta no editor: o índice dela, ou null para uma nova.
-  let areaAberta = $state<{ indice: number | null } | null>(null);
+  let openedArea = $state<{ index: number | null } | null>(null);
 
-  function abreArea(indice: number | null) {
-    if (!EditorDeArea)
-      void import('../components/EditorDeArea.svelte').then((m) => {
-        EditorDeArea = m.default;
+  function openArea(index: number | null) {
+    if (!AreaEditor)
+      void import('../components/AreaEditor.svelte').then((m) => {
+        AreaEditor = m.default;
       });
-    areaAberta = { indice };
+    openedArea = { index };
   }
 
-  function aplicaArea(pontos: Ponto[], regra: Regra, nome: string) {
-    if (!editing || !areaAberta) return;
+  function applyArea(points: Point[], rule: Rule, name: string) {
+    if (!editing || !openedArea) return;
     const areas = editing.areas ?? [];
-    const i = areaAberta.indice;
-    const nova: AreaDaCamera = {
-      ...(i === null ? { id: novoIdDeArea(areas) } : areas[i]),
-      name: nome,
-      rule: regra,
-      points: pontosDoCadastro(pontos),
+    const i = openedArea.index;
+    const newOne: CameraArea = {
+      ...(i === null ? { id: newAreaId(areas) } : areas[i]),
+      name,
+      rule,
+      points: registryPoints(points),
     };
-    editing.areas = i === null ? [...areas, nova] : areas.map((a, j) => (j === i ? nova : a));
-    areaAberta = null;
+    editing.areas = i === null ? [...areas, newOne] : areas.map((a, j) => (j === i ? newOne : a));
+    openedArea = null;
   }
 
   // O id da área nova nasce aqui, e não no servidor, para o alerta poder
   // marcá-la antes de a câmera ser salva. Mesmo formato do servidor: 6 letras
   // minúsculas e dígitos, sem repetir na câmera.
-  function novoIdDeArea(areas: AreaDaCamera[]) {
-    const alfabeto = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  function newAreaId(areas: CameraArea[]) {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
     for (;;) {
       const b = crypto.getRandomValues(new Uint8Array(6));
-      const id = Array.from(b, (v) => alfabeto[v % alfabeto.length]).join('');
+      const id = Array.from(b, (v) => alphabet[v % alphabet.length]).join('');
       if (!areas.some((a) => a.id === id)) return id;
     }
   }
 
   // A área a apagar, à espera da confirmação: o índice dela.
-  let apagandoArea = $state<number | null>(null);
+  let deletingArea = $state<number | null>(null);
 
-  const usadaNoAlerta = (id: string | undefined) =>
+  const usedInAlert = (id: string | undefined) =>
     !!id &&
     !!editing?.alert?.enabled &&
-    ondeDoAlerta === 'areas' &&
+    alertWhere === 'areas' &&
     !!editing.alert.areas?.includes(id);
 
   // O "apagar" da lista e o "apagar área" do editor. Os dois confirmam antes:
   // área apagada por engano é área para redesenhar. O editor fica por cima de
   // tudo, então ele fecha antes, e a confirmação aparece sobre o formulário.
-  function apagaArea(i: number) {
-    areaAberta = null;
-    apagandoArea = i;
+  function deleteArea(i: number) {
+    openedArea = null;
+    deletingArea = i;
   }
 
   // tiraArea apaga a área e a tira do alerta. O alerta que fica sem as áreas
   // que tinha é desligado, e não passa para a imagem inteira; as famílias e o
   // "só nas áreas marcadas" ficam, para religar escolhendo de novo.
-  function tiraArea(i: number) {
+  function removeArea(i: number) {
     if (!editing) return;
     const id = editing.areas?.[i]?.id;
     editing.areas = (editing.areas ?? []).filter((_, j) => j !== i);
     const al = editing.alert;
     if (id && al?.areas?.includes(id)) {
-      const restam = al.areas.filter((x) => x !== id);
+      const remain = al.areas.filter((x) => x !== id);
       editing.alert = {
         ...al,
-        areas: restam,
-        enabled: al.enabled && (ondeDoAlerta === 'tudo' || restam.length > 0),
+        areas: remain,
+        enabled: al.enabled && (alertWhere === 'tudo' || remain.length > 0),
       };
     }
   }
@@ -488,92 +487,92 @@
   // --- a aba Alerta ---------------------------------------------------------
 
   // Vem num chunk à parte, que só se baixa quando a aba existe.
-  let AbaDoAlerta = $state<typeof AbaDoAlertaT | null>(null);
+  let AlertTab = $state<typeof AlertTabT | null>(null);
   $effect(() => {
-    if (comDeteccao && !AbaDoAlerta)
-      void import('../components/AbaDoAlerta.svelte').then((m) => {
-        AbaDoAlerta = m.default;
+    if (withDetection && !AlertTab)
+      void import('../components/AlertTab.svelte').then((m) => {
+        AlertTab = m.default;
       });
   });
 
   // Onde o alerta vale, como a aba mostra (ver OndeDoAlerta): "só nas áreas
   // marcadas" sem nenhuma marcada, o salvar recusa.
-  let ondeDoAlerta = $state<OndeDoAlerta>('tudo');
-  let erroDoAlerta = $state('');
+  let alertWhere = $state<AlertWhere>('tudo');
+  let alertError = $state('');
   // Os horários como a aba os edita, em minutos. Com a caixa desmarcada, o
   // salvar apaga o `schedules`: vazio é a qualquer hora.
-  let limitaHorarios = $state(false);
-  let horariosDoAlerta = $state<Horario[]>([]);
+  let limitSchedules = $state(false);
+  let alertSchedules = $state<Schedule[]>([]);
 
-  function abreOAlerta() {
-    ondeDoAlerta = editing?.alert?.areas?.length ? 'areas' : 'tudo';
-    horariosDoAlerta = doServidor(editing?.alert?.schedules);
-    limitaHorarios = horariosDoAlerta.length > 0;
-    erroDoAlerta = '';
+  function openAlert() {
+    alertWhere = editing?.alert?.areas?.length ? 'areas' : 'tudo';
+    alertSchedules = fromServer(editing?.alert?.schedules);
+    limitSchedules = alertSchedules.length > 0;
+    alertError = '';
   }
 
   // "America/Fortaleza (UTC−03:00)": o fuso em que os horários valem, que é o
   // do servidor e não o do navegador.
-  const fusoDoServidor = $derived.by(() => {
+  const serverTimezone = $derived.by(() => {
     const c = health.clock;
     if (!c) return '';
     const s = Math.abs(c.offsetSeconds);
-    const utc = `UTC${c.offsetSeconds < 0 ? '−' : '+'}${horaDoMinuto(Math.floor(s / 60))}`;
+    const utc = `UTC${c.offsetSeconds < 0 ? '−' : '+'}${hourOfMinute(Math.floor(s / 60))}`;
     return c.zone ? `${c.zone} (${utc})` : utc;
   });
 
   // O que falta no alerta ligado para ele poder ser salvo. Com a aba escondida
   // não há o que conferir: o alerta fica como estava.
-  function faltaNoAlerta() {
+  function missingInAlert() {
     const al = editing?.alert;
-    if (!comDeteccao || !al?.enabled) return '';
+    if (!withDetection || !al?.enabled) return '';
     if (!al.families?.length) return 'Marque ao menos uma família para o alerta.';
-    if (ondeDoAlerta === 'areas' && !al.areas?.length)
+    if (alertWhere === 'areas' && !al.areas?.length)
       return 'Marque ao menos uma área para o alerta, ou escolha em qualquer lugar da imagem.';
-    if (limitaHorarios) {
-      if (horariosDoAlerta.some((h) => !valido(h)))
+    if (limitSchedules) {
+      if (alertSchedules.some((h) => !valid(h)))
         return 'Há um horário sem dia, sem hora ou com o "Até" que não fica depois do "De": corrija ou remova.';
-      if (!horariosDoAlerta.length)
+      if (!alertSchedules.length)
         return 'Marque ao menos um horário, ou desmarque "Limitar o alerta a alguns horários".';
-      if (horariosDoAlerta.length > MAX_HORARIOS)
-        return `São até ${MAX_HORARIOS} horários por câmera: junte ou remova alguns.`;
+      if (alertSchedules.length > MAX_SCHEDULES)
+        return `São até ${MAX_SCHEDULES} horários por câmera: junte ou remova alguns.`;
     }
     return '';
   }
 
   // Quanto o salvar espera pelo servidor. O formulário fica travado enquanto
   // salva, e sem um prazo um servidor parado o prenderia aberto.
-  const PRAZO_DO_SALVAR_MS = 30_000;
+  const SAVE_TIMEOUT_MS = 30_000;
 
-  async function salvar() {
+  async function save() {
     if (!editing) return;
-    erroForm = '';
-    const falta = faltaNoAlerta();
-    if (falta) {
-      erroDoAlerta = falta;
-      aba = 'alerta';
+    formError = '';
+    const missing = missingInAlert();
+    if (missing) {
+      alertError = missing;
+      tab = 'alerta';
       return;
     }
     saving = true;
     try {
-      const { _novo, _hasAudio, _audioCodecs, _sondando, _sondaErro, ...cam } = editing;
+      const { _new, _hasAudio, _audioCodecs, _probing, _probeError, ...cam } = editing;
       // Na imagem inteira, as áreas marcadas antes não valem mais.
-      if (cam.alert && ondeDoAlerta === 'tudo') cam.alert = { ...cam.alert, areas: [] };
+      if (cam.alert && alertWhere === 'tudo') cam.alert = { ...cam.alert, areas: [] };
       if (cam.alert)
         cam.alert = {
           ...cam.alert,
-          schedules: limitaHorarios ? paraOServidor(horariosDoAlerta) : [],
+          schedules: limitSchedules ? toServer(alertSchedules) : [],
         };
-      await api.saveCamera(cam, AbortSignal.timeout(PRAZO_DO_SALVAR_MS));
+      await api.saveCamera(cam, AbortSignal.timeout(SAVE_TIMEOUT_MS));
       await loadCameras();
       editing = null;
     } catch (e) {
       // O formulário não fecha durante o envio (cancelar, remover e o Escape
       // esperam), então este é o mesmo que foi enviado.
-      erroForm =
+      formError =
         e instanceof DOMException && e.name === 'TimeoutError'
-          ? `O servidor não respondeu em ${PRAZO_DO_SALVAR_MS / 1000} s. Confira a lista antes de tentar de novo: o salvar pode ter chegado.`
-          : mensagemDe(e);
+          ? `O servidor não respondeu em ${SAVE_TIMEOUT_MS / 1000} s. Confira a lista antes de tentar de novo: o salvar pode ter chegado.`
+          : messageOf(e);
     } finally {
       saving = false;
     }
@@ -582,85 +581,90 @@
   // O tamanho vem da medição do diagnóstico, que é a mesma fonte do chip de
   // disco do card: dizer "apagar 3,2 GB" só ajuda se o número for o que a
   // pessoa já estava vendo.
-  function tamanhoDe(cam: Camera) {
+  function sizeOf(cam: Camera) {
     return statusOf(cam.id)?.diskBytes ?? 0;
   }
 
   // Um alvo normalizado para que um único diálogo sirva os dois casos: a câmera
   // cadastrada, que tem nome e status, e a órfã, que só tem o que a varredura do
   // disco descobriu.
-  const alvoDaCamera = (cam: CameraCadastrada): Alvo => ({
+  const cameraTarget = (cam: RegisteredCamera): Target => ({
     id: cam.id,
     nome: cam.name,
-    bytes: tamanhoDe(cam),
-    orfa: false,
+    bytes: sizeOf(cam),
+    orphan: false,
   });
 
-  const alvoDaOrfa = (o: Orfa): Alvo => ({ id: o.id, nome: o.id, bytes: o.bytes, orfa: true });
+  const orphanTarget = (o: Orphan): Target => ({
+    id: o.id,
+    nome: o.id,
+    bytes: o.bytes,
+    orphan: true,
+  });
 
-  function abrirRemocao(cam: CameraCadastrada) {
+  function openRemoval(cam: RegisteredCamera) {
     // Sempre desmarcado ao abrir: preservar as gravações é o padrão, e herdar a
     // marcação de uma remoção anterior apagaria vídeo sem ninguém pedir.
-    apagarGravacoes = false;
-    removendo = cam;
+    deleteRecordings = false;
+    removing = cam;
   }
 
-  async function confirmarRemocao() {
-    const cam = removendo;
+  async function confirmRemoval() {
+    const cam = removing;
     if (!cam) return;
-    const comGravacoes = apagarGravacoes;
-    removendo = null;
+    const withRecordings = deleteRecordings;
+    removing = null;
     error = '';
     try {
-      await api.deleteCamera(cam.id, { recordings: comGravacoes });
+      await api.deleteCamera(cam.id, { recordings: withRecordings });
       await loadCameras();
       await loadHealth();
     } catch (e) {
-      error = mensagemDe(e);
+      error = messageOf(e);
     }
   }
 
-  const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  async function reiniciarGo2rtc() {
-    confirmandoReinicio = false;
-    reiniciando = true;
+  async function restartGo2rtc() {
+    confirmingRestart = false;
+    restarting = true;
     error = '';
     try {
-      await api.reiniciarGo2rtc();
+      await api.restartGo2rtc();
       // Pergunta direto à API, sem passar pelo estado: enquanto o go2rtc está
       // fora, a resposta traz go2rtcError, e jogá-la na tela piscaria o aviso
       // de "não foi possível falar com o go2rtc" no meio de um reinício normal.
-      const desiste = Date.now() + REINICIO_DESISTE_MS;
-      await espera(REINICIO_PRIMEIRA_PERGUNTA_MS);
-      while (Date.now() < desiste) {
+      const giveUp = Date.now() + RESTART_GIVE_UP_MS;
+      await wait(RESTART_FIRST_ASK_MS);
+      while (Date.now() < giveUp) {
         const data = await api.cameras().catch(() => null);
         if (data && !data.go2rtcError) break;
-        await espera(REINICIO_INTERVALO_MS);
+        await wait(RESTART_INTERVAL_MS);
       }
     } catch (e) {
-      error = mensagemDe(e);
+      error = messageOf(e);
     } finally {
       await loadCameras();
       await loadHealth();
-      reiniciando = false;
+      restarting = false;
     }
   }
 
-  async function confirmarApagamento() {
-    const alvo = apagando;
-    if (!alvo) return;
-    apagando = null;
+  async function confirmDeletion() {
+    const target = deleting;
+    if (!target) return;
+    deleting = null;
     error = '';
     try {
-      await api.deleteRecordings(alvo.id);
-      esqueceUltimoSegmento(alvo.id);
+      await api.deleteRecordings(target.id);
+      forgetLastSegment(target.id);
       // As duas: loadCameras refaz a lista de órfãs, loadHealth refaz o chip de
       // disco. Sem a segunda, o card seguiria mostrando os bytes que já foram.
       await loadCameras();
       await loadHealth();
     } catch (e) {
-      error = mensagemDe(e);
+      error = messageOf(e);
     }
   }
 </script>
@@ -696,28 +700,28 @@
           <!-- Os três num grupo próprio para quebrarem juntos: soltos na linha,
                em tela de celular o "remover" descia sozinho para a esquerda,
                longe dos outros dois e do canto onde o polegar espera achá-lo. -->
-          <div class="row acoes">
-            <button class="ghost small" onclick={() => editar(cam)}>editar</button>
+          <div class="row actions">
+            <button class="ghost small" onclick={() => edit(cam)}>editar</button>
             <!-- Rótulo por extenso: só "gravações" se leria como "ver as gravações". -->
-            <button class="ghost small danger" onclick={() => (apagando = alvoDaCamera(cam))}>
+            <button class="ghost small danger" onclick={() => (deleting = cameraTarget(cam))}>
               apagar gravações
             </button>
-            <button class="ghost small danger" onclick={() => abrirRemocao(cam)}>remover</button>
+            <button class="ghost small danger" onclick={() => openRemoval(cam)}>remover</button>
           </div>
         </div>
 
         <div class="row wrap chips">
           {#if !cam.enabled}<span class="chip">desabilitada</span>{/if}
           <span class="chip">{st?.videoCodec ?? '-'}</span>
-          <span class="chip">{resolucao(st?.width, st?.height)}</span>
+          <span class="chip">{resolution(st?.width, st?.height)}</span>
           <span class="chip">áudio: {cam.audio}</span>
           {#if cam.detect}
-            <span class="chip" title={AJUDA_SENSIBILIDADE}>
-              movimento: {nivel(cam.detectSensibilidade)?.rotulo ?? cam.detectSensibilidade}
+            <span class="chip" title={HELP_SENSITIVITY}>
+              movimento: {level(cam.detectSensibilidade)?.label ?? cam.detectSensibilidade}
             </span>
           {/if}
           <span class="chip">{kbps(st?.bitrateKbps)}</span>
-          <span class="chip">{bytes(st?.diskBytes ?? 0)} de {bytesDeMB(cam.quotaMB)}</span>
+          <span class="chip">{bytes(st?.diskBytes ?? 0)} de {mbToBytes(cam.quotaMB)}</span>
           <!-- O par "retido / cabem" é o que torna a cota compreensível: o
                primeiro é o passado que existe, o segundo é o que ela ainda
                comporta. Sozinho, cada um deles engana.
@@ -726,16 +730,16 @@
                entra só aqui e na célula de lá: é por câmera, ao contrário do
                resto do texto, e não caberia no chip sem empurrar os outros. -->
           {#if st?.oldestSegmentAt}
-            {@const desde = new Date(st.oldestSegmentAt)}
-            {@const retido = Date.now() - desde.getTime()}
-            {@const gravado = gravadoSeHouverBuraco(retido, st.recordedMs)}
-            <span class="chip retido" title="{AJUDA_RETIDO} Desde {ddmm(desde.getTime())}">
-              retido: {duracao(retido)}{#if gravado}
-                · gravado {duracao(gravado)}{/if}
+            {@const since = new Date(st.oldestSegmentAt)}
+            {@const retained = Date.now() - since.getTime()}
+            {@const recorded = recordedWithGap(retained, st.recordedMs)}
+            <span class="chip retained" title="{HELP_RETAINED} Desde {ddmm(since.getTime())}">
+              retido: {duration(retained)}{#if recorded}
+                · gravado {duration(recorded)}{/if}
             </span>
           {/if}
           {#if st?.retainDays}
-            <span class="chip retain" title={AJUDA_CABEM}>cabem ≈ {dias(st.retainDays)}</span>
+            <span class="chip retain" title={HELP_FIT}>cabem ≈ {dias(st.retainDays)}</span>
           {/if}
         </div>
 
@@ -760,42 +764,42 @@
              porque são os maiores do card: o que é linha curta fica junto. -->
         {#if cam.detect && cameras.detector}
           {#if cam.areas?.length}
-            <button type="button" class="ghost bloco" onclick={() => editar(cam, 'areas')}>
-              {@render tituloDoBloco('area', 'Áreas')}
-              <span class="areas-do-card">
+            <button type="button" class="ghost block" onclick={() => edit(cam, 'areas')}>
+              {@render blockTitle('area', 'Áreas')}
+              <span class="card-areas">
                 {#each cam.areas as a, i (a.id ?? i)}
-                  <LadrilhoDaArea cam={cam.id} area={a} alerta={alertaNaArea(cam, a)} />
+                  <AreaTile cam={cam.id} area={a} alert={alertInArea(cam, a)} />
                 {/each}
               </span>
             </button>
           {/if}
           {#if cam.alert}
             {@const al = cam.alert}
-            <button type="button" class="ghost bloco" onclick={() => editar(cam, 'alerta')}>
-              {@render tituloDoBloco('sino', 'Alerta')}
+            <button type="button" class="ghost block" onclick={() => edit(cam, 'alerta')}>
+              {@render blockTitle('bell', 'Alerta')}
               {#if al.enabled}
-                <span class="linhas-do-alerta">
-                  <span class="linha">
-                    {#each porPrioridade(al.families ?? []) as f (f)}
-                      {@const ic = iconeDaFamilia(f)}
-                      <span class="familia">
+                <span class="alert-rows">
+                  <span class="row">
+                    {#each byPriority(al.families ?? []) as f (f)}
+                      {@const ic = familyIcon(f)}
+                      <span class="family">
                         {#if ic}<img
-                            src={iconeURL(ic, 14, familia(f).cor)}
+                            src={iconURL(ic, 14, family(f).color)}
                             alt=""
                             width="14"
                             height="14"
                           />{/if}
-                        {familia(f).nome}
+                        {family(f).nome}
                       </span>
                     {/each}
                   </span>
-                  <span class="linha">
-                    <Icone nome="area" tamanho={16} />
-                    {ondeDoAlertaNoCard(cam)}
+                  <span class="row">
+                    <Icon name="area" size={16} />
+                    {alertWhereOnCard(cam)}
                   </span>
-                  <span class="linha">
-                    <Icone nome="relogio" tamanho={16} />
-                    {quandoDoAlertaNoCard(al.schedules)}
+                  <span class="row">
+                    <Icon name="clock" size={16} />
+                    {alertWhenOnCard(al.schedules)}
                   </span>
                 </span>
               {:else}
@@ -812,31 +816,31 @@
     {/each}
 
     {#if !cameras.list.length && !cameras.loading && !cameras.error}
-      <SemCameras link={false} />
+      <NoCameras link={false} />
     {/if}
   </div>
 
   <!-- Sempre visível, mesmo vazio: enquanto este bloco só aparecia quando havia
        stream novo, quem chegava na tela com tudo já cadastrado não encontrava o
        botão de adicionar e concluía que ele não existia. -->
-  <div class="card ajuda">
-    <div class="row titulo">
+  <div class="card help">
+    <div class="row title">
       <h3>Disponíveis no go2rtc</h3>
       <button
-        class="ghost atualizar"
-        class:girando={cameras.loading}
+        class="ghost refresh"
+        class:spinning={cameras.loading}
         onclick={loadCameras}
         disabled={cameras.loading}
         aria-label="atualizar"
         title="perguntar de novo ao go2rtc quais streams ele serve"
       >
-        <Icone nome="atualizar" tamanho={16} traco={2.4} />
+        <Icon name="refresh" size={16} stroke={2.4} />
       </button>
     </div>
 
     {#if cameras.go2rtcConfigFile}
       {@const arq = cameras.go2rtcConfigFile}
-      <div class="card warnbox aviso">
+      <div class="card warnbox notice">
         <p class="small">
           O <code>go2rtc.yaml</code> mudou depois que o go2rtc subiu. Ele só lê o arquivo quando sobe,
           então estas mudanças ainda não valem:
@@ -855,25 +859,25 @@
             <li>
               <code>{id}</code>
               <span class="muted">
-                {cadastradas.has(id)
+                {registered.has(id)
                   ? 'saiu do arquivo - para de gravar depois do reinício'
                   : 'saiu do arquivo - some desta lista depois do reinício'}
               </span>
             </li>
           {/each}
         </ul>
-        <div class="row acao">
-          <button class="warn" onclick={() => (confirmandoReinicio = true)} disabled={reiniciando}>
-            {reiniciando ? 'reiniciando…' : 'reiniciar go2rtc'}
+        <div class="row action">
+          <button class="warn" onclick={() => (confirmingRestart = true)} disabled={restarting}>
+            {restarting ? 'reiniciando…' : 'reiniciar go2rtc'}
           </button>
         </div>
       </div>
     {/if}
 
-    {#if novos.length}
+    {#if newOnes.length}
       <div class="row wrap">
-        {#each novos as s (s.name)}
-          <button title="Clique para adicionar" onclick={() => novo(s.name)}>
+        {#each newOnes as s (s.name)}
+          <button title="Clique para adicionar" onclick={() => newItem(s.name)}>
             + {s.name}
             {#if s.hasAudio}<span class="chip">áudio</span>{/if}
             {#if s.transcoding}<span class="chip warn">ffmpeg</span>{/if}
@@ -881,20 +885,20 @@
         {/each}
       </div>
     {:else if cameras.error}
-      <p class="muted small vazio">Não dá para listar os streams sem resposta do dwnvr.</p>
+      <p class="muted small empty">Não dá para listar os streams sem resposta do dwnvr.</p>
     {:else if cameras.go2rtcError}
-      <p class="muted small vazio">
+      <p class="muted small empty">
         Não dá para listar os streams enquanto o go2rtc não responder.
       </p>
     {:else}
-      <p class="muted small vazio">
+      <p class="muted small empty">
         Nenhum stream novo - o dwnvr já grava todos os que o go2rtc serve.
       </p>
     {/if}
 
     <!-- Depois da lista: quem já entendeu como funciona quer o botão primeiro, e
          quem não entendeu lê a explicação ao lado do que ela explica. -->
-    <p class="muted small explica">
+    <p class="muted small explain">
       Câmera não se cadastra aqui do zero: o dwnvr grava o que o go2rtc entrega e não guarda
       endereço nem senha de câmera. Declare o stream no <code>go2rtc.yaml</code> e reinicie o go2rtc,
       que só lê o arquivo quando sobe. Aí ele aparece nesta lista - um clique escolhe cota, áudio e retenção,
@@ -905,10 +909,10 @@
          câmera que está gravando não é detectável (ver go2rtc.Divergencias).
          O reinício fica ao alcance, discreto. -->
     {#if !cameras.go2rtcConfigFile && !cameras.go2rtcError}
-      <p class="muted small reinicio">
+      <p class="muted small restart">
         Mudou o <code>go2rtc.yaml</code> e não apareceu aqui?
-        <button class="link" onclick={() => (confirmandoReinicio = true)} disabled={reiniciando}>
-          {reiniciando ? 'reiniciando…' : 'reiniciar o go2rtc'}
+        <button class="link" onclick={() => (confirmingRestart = true)} disabled={restarting}>
+          {restarting ? 'reiniciando…' : 'reiniciar o go2rtc'}
         </button>
       </p>
     {/if}
@@ -917,7 +921,7 @@
   <!-- Só aparece quando há algo: uma seção vazia permanente sugeriria que sobrar
        gravação órfã é o estado normal, e não é. -->
   {#if cameras.orphans.length}
-    <div class="card orfas">
+    <div class="card orphans">
       <h3>Gravações de câmeras removidas</h3>
       <p class="muted small">
         Não contam na cota de ninguém, não abrem na tela de Gravações e a retenção não as alcança,
@@ -928,8 +932,8 @@
         <!-- A linha não quebra; quem quebra é o bloco de dados. Assim o botão
              fica sempre no mesmo canto, em vez de descer para a esquerda quando
              os chips não cabem. -->
-        <div class="row orfa">
-          <div class="row wrap dados">
+        <div class="row orphan">
+          <div class="row wrap data">
             <code>{o.id}</code>
             {#if o.days}
               <span class="chip">{bytes(o.bytes)}</span>
@@ -943,7 +947,7 @@
               <span class="chip warn">sem índice</span>
             {/if}
           </div>
-          <button class="ghost small danger" onclick={() => (apagando = alvoDaOrfa(o))}>
+          <button class="ghost small danger" onclick={() => (deleting = orphanTarget(o))}>
             apagar
           </button>
         </div>
@@ -951,28 +955,28 @@
     </div>
   {/if}
 
-  <RodapeDaSaude />
+  <HealthFooter />
 </div>
 
 <!-- O topo dos blocos de áreas e de alerta do card: o ícone, o nome e o
      "editar", que diz o que o clique no bloco faz. -->
-{#snippet tituloDoBloco(icone: 'area' | 'sino', nome: string)}
-  <span class="titulo-do-bloco">
-    <Icone nome={icone} tamanho={14} />
-    {nome}
-    <span class="ir">editar <Icone nome="chevronDir" tamanho={14} /></span>
+{#snippet blockTitle(icon: 'area' | 'bell', name: string)}
+  <span class="block-title">
+    <Icon name={icon} size={14} />
+    {name}
+    <span class="ir">editar <Icon name="chevronDir" size={14} /></span>
   </span>
 {/snippet}
 
 <!-- O que as abas Áreas e Alerta mostram sem detecção na câmera: o que falta
      e como resolver. A marcação desligada se liga na aba ao lado; o detector de
      objetos é do dwnvr.yaml, e a tela só aponta para a doc. -->
-{#snippet semDeteccao(paraUsar: string, semUso: string, guardado: string)}
-  <div class="sem-deteccao">
+{#snippet noDetection(toUse: string, unused: string, stored: string)}
+  <div class="no-detection">
     {#if !cameras.detector}
       <p class="small">
         O detector de objetos não está configurado no <code>dwnvr.yaml</code>. Sem ele não há
-        detecção de objetos, e {semUso}.
+        detecção de objetos, e {unused}.
       </p>
       <a class="small" href="{REPO_URL}#ligar-o-detector-de-objetos" target="_blank" rel="noopener"
         >como ligar o detector de objetos</a
@@ -981,13 +985,13 @@
       <p class="small">
         Esta câmera está sem detecção. Ligue <b>Marcar movimento na timeline</b> na aba Detecção
         para
-        {paraUsar}.
+        {toUse}.
       </p>
-      <button type="button" class="ghost small" onclick={() => (aba = 'deteccao')}>
+      <button type="button" class="ghost small" onclick={() => (tab = 'deteccao')}>
         ir para a aba Detecção
       </button>
     {/if}
-    {#if guardado}<p class="muted small">{guardado}</p>{/if}
+    {#if stored}<p class="muted small">{stored}</p>{/if}
   </div>
 {/snippet}
 
@@ -995,9 +999,9 @@
   <!-- O Escape do editor de área fecha só o editor: o formulário de baixo
        fica. -->
   <Modal
-    alturaQueMuda
+    variableHeight
     onclose={() => {
-      if (!areaAberta && !saving) editing = null;
+      if (!openedArea && !saving) editing = null;
     }}
   >
     <!-- No cadastro, antes da última aba, o envio é o "próximo": o Enter num
@@ -1007,27 +1011,27 @@
       class="fields"
       onsubmit={(e) => {
         e.preventDefault();
-        void (guiado ? irPara(1) : salvar());
+        void (guided ? goTo(1) : save());
       }}
-      oninvalidcapture={campoInvalido}
+      oninvalidcapture={invalidField}
     >
-      <h3>{editing._novo ? 'Cadastrar' : 'Editar'} {editing.id}</h3>
+      <h3>{editing._new ? 'Cadastrar' : 'Editar'} {editing.id}</h3>
 
-      <Abas abas={ABAS} bind:ativa={aba} prefixo="cam" />
+      <Tabs tabs={TABS} bind:active={tab} prefix="cam" />
 
       <!-- Os painéis ficam um em cima do outro na mesma célula do grid, e o
            escondido só some da vista, com altura zero: os campos dele
            continuam no envio, e o formulário tem a altura da aba aberta, sem o
            vão que a maior deixava nas outras. Para as abas não mudarem de
            lugar com isso, o modal tem o alto fixo (o `alturaQueMuda`). -->
-      <div class="paineis">
+      <div class="panels">
         <div
           class="fields"
           role="tabpanel"
           id="cam-painel-gravacao"
           aria-labelledby="cam-aba-gravacao"
           data-aba="gravacao"
-          inert={aba !== 'gravacao'}
+          inert={tab !== 'gravacao'}
         >
           <label>
             Nome
@@ -1043,18 +1047,18 @@
             Áudio
             <select bind:value={editing.audio}>
               <option value="none">nenhum - custo zero</option>
-              <option value="flac" disabled={audioBloqueado}>
+              <option value="flac" disabled={audioBlocked}>
                 FLAC - ~0,6% de CPU, +260 kbps de disco
               </option>
-              <option value="aac" disabled={audioBloqueado}>
+              <option value="aac" disabled={audioBlocked}>
                 AAC - ~10% de CPU, +64 kbps (exige fonte ffmpeg no go2rtc)
               </option>
             </select>
-            {#if editing._sondando}
+            {#if editing._probing}
               <small class="muted">Verificando se esta câmera entrega áudio...</small>
-            {:else if editing._sondaErro}
+            {:else if editing._probeError}
               <small class="muted">
-                Não deu para verificar o áudio desta câmera ({editing._sondaErro}). As opções estão
+                Não deu para verificar o áudio desta câmera ({editing._probeError}). As opções estão
                 liberadas; o Diagnóstico avisa se o áudio não chegar.
               </small>
             {:else if !editing._hasAudio}
@@ -1078,16 +1082,16 @@
             <input
               type="number"
               bind:value={editing.quotaMB}
-              min={faixas?.quotaMB?.min}
+              min={bounds?.quotaMB?.min}
               step="1"
               required
             />
             <!-- O campo é em MB porque é assim que a cota é guardada, mas quem digita
                  20480 quer saber que isso são 20 GB. -->
             <small class="muted">
-              = {bytesDeMB(editing.quotaMB)} ·
-              {#if estimaDias(editing, editing.quotaMB)}
-                ≈ {dias(estimaDias(editing, editing.quotaMB))} no consumo médio medido
+              = {mbToBytes(editing.quotaMB)} ·
+              {#if estimateDays(editing, editing.quotaMB)}
+                ≈ {dias(estimateDays(editing, editing.quotaMB))} no consumo médio medido
               {:else}
                 a estimativa aparece após a primeira medição de taxa
               {/if}
@@ -1099,8 +1103,8 @@
             <input
               type="number"
               bind:value={editing.segmentSeconds}
-              min={faixas?.segmentSeconds?.min}
-              max={faixas?.segmentSeconds?.max}
+              min={bounds?.segmentSeconds?.min}
+              max={bounds?.segmentSeconds?.max}
               step="10"
             />
             <small class="muted">o corte real espera o próximo keyframe</small>
@@ -1113,7 +1117,7 @@
           id="cam-painel-deteccao"
           aria-labelledby="cam-aba-deteccao"
           data-aba="deteccao"
-          inert={aba !== 'deteccao'}
+          inert={tab !== 'deteccao'}
         >
           <label class="check">
             <input type="checkbox" bind:checked={editing.detect} />
@@ -1124,14 +1128,14 @@
             <label>
               Sensibilidade
               <select bind:value={editing.detectSensibilidade}>
-                {#each NIVEIS as n, i (i)}
-                  <option value={i + 1}>{i + 1} - {n.rotulo}</option>
+                {#each LEVELS as n, i (i)}
+                  <option value={i + 1}>{i + 1} - {n.label}</option>
                 {/each}
               </select>
               <!-- O custo é o que o usuário paga de verdade, e ele é POR CÂMERA:
                    com dez câmeras no nível 4 são 500 olhadas por hora, não 50. -->
               <small class="muted">
-                ≈ {nivel(editing.detectSensibilidade)?.porHora} marcas por hora nesta câmera
+                ≈ {level(editing.detectSensibilidade)?.perHour} marcas por hora nesta câmera
               </small>
             </label>
 
@@ -1156,11 +1160,11 @@
           id="cam-painel-areas"
           aria-labelledby="cam-aba-areas"
           data-aba="areas"
-          inert={aba !== 'areas'}
+          inert={tab !== 'areas'}
         >
-          {#if !comDeteccao}
+          {#if !withDetection}
             {@const n = editing.areas?.length ?? 0}
-            {@render semDeteccao(
+            {@render noDetection(
               'usar as áreas',
               'as áreas não têm o que filtrar',
               n === 0
@@ -1171,45 +1175,39 @@
             )}
           {:else}
             {@const areas = editing.areas ?? []}
-            <p class="muted small explica-areas">
+            <p class="muted small explain-areas">
               Pedaços da imagem com nome, como "Portão". Em Detecções, qualquer pessoa filtra por
               eles. Se a câmera for movida, redesenhe.
             </p>
-            {#if quadro?.erro}
-              <p class="small aviso-areas">{quadro.erro}</p>
+            {#if frame?.erro}
+              <p class="small areas-notice">{frame.erro}</p>
             {/if}
             {#if areas.length}
               <div class="areas">
                 {#each areas as a, i (a.id ?? `nova-${i}`)}
                   <div class="area-item">
-                    <RotuloDaArea
-                      cam={editing.id}
-                      area={a}
-                      largura={96}
-                      negrito
-                      fundo={quadroDaCamera}
-                    />
+                    <AreaLabel cam={editing.id} area={a} width={96} bold background={cameraFrame} />
                     <button
                       type="button"
                       class="ghost small"
-                      onclick={() => abreArea(i)}
-                      disabled={!quadro || quadro.buscando}>editar</button
+                      onclick={() => openArea(i)}
+                      disabled={!frame || frame.fetching}>editar</button
                     >
-                    <button type="button" class="ghost small danger" onclick={() => apagaArea(i)}>
+                    <button type="button" class="ghost small danger" onclick={() => deleteArea(i)}>
                       apagar
                     </button>
                   </div>
                 {/each}
               </div>
             {/if}
-            {#if !editing._novo}
+            {#if !editing._new}
               <button
                 type="button"
-                class="ghost nova-area"
-                onclick={() => abreArea(null)}
-                disabled={!quadro?.url || areas.length >= MAX_AREAS}
+                class="ghost new-area"
+                onclick={() => openArea(null)}
+                disabled={!frame?.url || areas.length >= MAX_AREAS}
               >
-                <Icone nome="mais" tamanho={16} traco={2.4} />nova área
+                <Icon name="mais" size={16} stroke={2.4} />nova área
               </button>
               {#if areas.length >= MAX_AREAS}
                 <small class="muted">Até {MAX_AREAS} áreas por câmera.</small>
@@ -1224,39 +1222,39 @@
           id="cam-painel-alerta"
           aria-labelledby="cam-aba-alerta"
           data-aba="alerta"
-          inert={aba !== 'alerta'}
+          inert={tab !== 'alerta'}
         >
-          {#if !comDeteccao}
-            {@render semDeteccao(
+          {#if !withDetection}
+            {@render noDetection(
               'usar o alerta',
               'o alerta não tem o que avisar',
               editing.alert?.enabled
                 ? 'O alerta desta câmera fica guardado, e volta a valer com a detecção.'
                 : '',
             )}
-          {:else if AbaDoAlerta}
-            <AbaDoAlerta
-              bind:alerta={editing.alert}
-              bind:onde={ondeDoAlerta}
-              bind:limitaHorarios
-              bind:horarios={horariosDoAlerta}
-              bind:erro={erroDoAlerta}
+          {:else if AlertTab}
+            <AlertTab
+              bind:alert={editing.alert}
+              bind:where={alertWhere}
+              bind:limitSchedules
+              bind:schedules={alertSchedules}
+              bind:error={alertError}
               areas={editing.areas ?? []}
               cam={editing.id}
-              quadro={quadroDaCamera}
-              fuso={fusoDoServidor}
-              porEmail={cameras.alertEmail}
+              frame={cameraFrame}
+              timezone={serverTimezone}
+              byEmail={cameras.alertEmail}
             />
           {/if}
         </div>
       </div>
 
-      {#if erroForm}<p class="small erro-form" role="alert">{erroForm}</p>{/if}
+      {#if formError}<p class="small form-error" role="alert">{formError}</p>{/if}
       <div class="row">
-        {#if editing._novo}
-          {#if indiceDaAba > 0}
-            <button type="button" class="ghost passo" onclick={() => void irPara(-1)}>
-              <Icone nome="chevronEsq" tamanho={16} traco={2.4} />voltar
+        {#if editing._new}
+          {#if tabIndex > 0}
+            <button type="button" class="ghost step" onclick={() => void goTo(-1)}>
+              <Icon name="chevronEsq" size={16} stroke={2.4} />voltar
             </button>
           {/if}
         {:else}
@@ -1265,7 +1263,7 @@
             class="danger"
             disabled={saving}
             onclick={() => {
-              if (editing) abrirRemocao(editing);
+              if (editing) openRemoval(editing);
               editing = null;
             }}>remover</button
           >
@@ -1274,9 +1272,9 @@
         <button type="button" class="ghost" disabled={saving} onclick={() => (editing = null)}
           >cancelar</button
         >
-        {#if guiado}
-          <button class="primary passo" type="submit">
-            próximo<Icone nome="chevronDir" tamanho={16} traco={2.4} />
+        {#if guided}
+          <button class="primary step" type="submit">
+            próximo<Icon name="chevronDir" size={16} stroke={2.4} />
           </button>
         {:else}
           <button class="primary" type="submit" disabled={saving}>
@@ -1287,54 +1285,54 @@
     </form>
   </Modal>
 
-  {#if areaAberta && EditorDeArea}
+  {#if openedArea && AreaEditor}
     {@const areas = editing.areas ?? []}
-    {@const i = areaAberta.indice}
-    {@const atual = i === null ? null : areas[i]}
-    <EditorDeArea
+    {@const i = openedArea.index}
+    {@const current = i === null ? null : areas[i]}
+    <AreaEditor
       camera={editing.name}
-      titulo={atual ? 'Editar área' : 'Nova área'}
-      rotuloAplicar={atual ? 'salvar' : 'criar área'}
-      fundo={quadro?.url ? { tipo: 'imagem', url: quadro.url } : null}
-      erro={quadro?.erro ?? ''}
-      inicial={atual ? { pontos: atual.points, regra: atual.rule ?? REGRA_PADRAO } : null}
-      nome={atual?.name ?? ''}
-      nomesEmUso={areas.filter((_, j) => j !== i).map((a) => a.name)}
-      outras={areas.filter((_, j) => j !== i).map((a) => ({ name: a.name, points: a.points }))}
-      quadro={quadro
+      title={current ? 'Editar área' : 'Nova área'}
+      applyLabel={current ? 'salvar' : 'criar área'}
+      background={frame?.url ? { tipo: 'imagem', url: frame.url } : null}
+      error={frame?.erro ?? ''}
+      initial={current ? { points: current.points, rule: current.rule ?? DEFAULT_RULE } : null}
+      name={current?.name ?? ''}
+      namesInUse={areas.filter((_, j) => j !== i).map((a) => a.name)}
+      otherAreas={areas.filter((_, j) => j !== i).map((a) => ({ name: a.name, points: a.points }))}
+      frame={frame
         ? {
-            legenda: legendaDoQuadro(quadro.t),
-            atualizando: quadro.buscando,
-            onatualizar: () => {
-              if (editing) void buscaQuadro(editing.id, false);
+            caption: frameCaption(frame.t),
+            refreshing: frame.fetching,
+            onrefresh: () => {
+              if (editing) void fetchFrame(editing.id, false);
             },
           }
         : null}
-      onaplicar={aplicaArea}
-      onapagar={atual && i !== null ? () => apagaArea(i) : null}
-      onfechar={() => (areaAberta = null)}
+      onapply={applyArea}
+      ondelete={current && i !== null ? () => deleteArea(i) : null}
+      onclose={() => (openedArea = null)}
     />
   {/if}
 
-  {#if apagandoArea !== null}
-    {@const i = apagandoArea}
+  {#if deletingArea !== null}
+    {@const i = deletingArea}
     {@const area = editing.areas?.[i]}
-    {@const noAlerta = usadaNoAlerta(area?.id)}
-    {@const ultima = noAlerta && (editing.alert?.areas ?? []).length <= 1}
+    {@const inAlert = usedInAlert(area?.id)}
+    {@const lastOne = inAlert && (editing.alert?.areas ?? []).length <= 1}
     <ConfirmDialog
       title="Apagar a área {area?.name ?? ''}?"
-      confirmLabel={ultima ? 'apagar e desligar o alerta' : 'apagar área'}
+      confirmLabel={lastOne ? 'apagar e desligar o alerta' : 'apagar área'}
       danger
       onconfirm={() => {
-        tiraArea(i);
-        apagandoArea = null;
+        removeArea(i);
+        deletingArea = null;
       }}
-      oncancel={() => (apagandoArea = null)}
+      oncancel={() => (deletingArea = null)}
     >
-      {#if ultima}
+      {#if lastOne}
         Ela é a única área do alerta desta câmera. Apagá-la <strong>desliga o alerta</strong>, que
         não passa a valer na imagem inteira. As famílias ficam guardadas, para religar.
-      {:else if noAlerta}
+      {:else if inAlert}
         O alerta desta câmera usa esta área, e ela sai dele também. As outras áreas do alerta
         continuam.
       {:else}
@@ -1344,62 +1342,62 @@
   {/if}
 {/if}
 
-{#if removendo}
-  {@const tam = tamanhoDe(removendo)}
+{#if removing}
+  {@const tam = sizeOf(removing)}
   <ConfirmDialog
-    title="Remover {removendo.name}?"
-    confirmLabel={apagarGravacoes ? `remover e apagar ${bytes(tam)}` : 'remover'}
+    title="Remover {removing.name}?"
+    confirmLabel={deleteRecordings ? `remover e apagar ${bytes(tam)}` : 'remover'}
     danger
-    onconfirm={confirmarRemocao}
-    oncancel={() => (removendo = null)}
+    onconfirm={confirmRemoval}
+    oncancel={() => (removing = null)}
   >
     A câmera sai do dwnvr e para de gravar agora.
 
     <!-- Desmarcado por padrão: apagar horas de vídeo não pode ser efeito
          colateral de um clique em "remover". O rótulo do botão acompanha a
          marcação para que a consequência esteja escrita no que se clica. -->
-    <label class="check apagar">
-      <input type="checkbox" bind:checked={apagarGravacoes} />
+    <label class="check delete">
+      <input type="checkbox" bind:checked={deleteRecordings} />
       apagar também as gravações ({bytes(tam)})
     </label>
 
-    {#if !apagarGravacoes}
+    {#if !deleteRecordings}
       Sem marcar, os arquivos ficam em disco e passam a aparecer aqui em
       <strong>Gravações de câmeras removidas</strong>, de onde dá para apagá-los depois.
     {/if}
   </ConfirmDialog>
 {/if}
 
-{#if confirmandoReinicio}
-  {@const ativas = cameras.list.filter((c) => c.enabled).length}
+{#if confirmingRestart}
+  {@const activeCount = cameras.list.filter((c) => c.enabled).length}
   <ConfirmDialog
     title="Reiniciar o go2rtc?"
     confirmLabel="reiniciar"
-    onconfirm={reiniciarGo2rtc}
-    oncancel={() => (confirmandoReinicio = false)}
+    onconfirm={restartGo2rtc}
+    oncancel={() => (confirmingRestart = false)}
   >
     Ele volta a ler o <code>go2rtc.yaml</code>.
-    {ativas === 1
+    {activeCount === 1
       ? 'Enquanto isso, a câmera para de gravar por alguns segundos e volta sozinha.'
-      : `Enquanto isso, as ${ativas} câmeras param de gravar por alguns segundos e voltam sozinhas.`}
-    {#each vaoParar as id (id)}
-      <p class="vai-parar">
+      : `Enquanto isso, as ${activeCount} câmeras param de gravar por alguns segundos e voltam sozinhas.`}
+    {#each willStop as id (id)}
+      <p class="will-stop">
         <code>{id}</code> saiu do arquivo: depois do reinício ela para de gravar.
       </p>
     {/each}
   </ConfirmDialog>
 {/if}
 
-{#if apagando}
+{#if deleting}
   <ConfirmDialog
-    title="Apagar as gravações de {apagando.nome}?"
-    confirmLabel={apagando.bytes ? `apagar ${bytes(apagando.bytes)}` : 'apagar'}
+    title="Apagar as gravações de {deleting.nome}?"
+    confirmLabel={deleting.bytes ? `apagar ${bytes(deleting.bytes)}` : 'apagar'}
     danger
-    onconfirm={confirmarApagamento}
-    oncancel={() => (apagando = null)}
+    onconfirm={confirmDeletion}
+    oncancel={() => (deleting = null)}
   >
-    {#if apagando.orfa}
-      Tudo o que sobrou de <code>{apagando.id}</code> sai do disco, e não há como desfazer.
+    {#if deleting.orphan}
+      Tudo o que sobrou de <code>{deleting.id}</code> sai do disco, e não há como desfazer.
     {:else}
       Tudo o que essa câmera gravou sai do disco, e não há como desfazer. A câmera continua
       cadastrada e volta a gravar em seguida - a gravação fica interrompida por alguns segundos.
@@ -1427,7 +1425,7 @@
   .head {
     gap: 8px;
   }
-  .acoes {
+  .actions {
     gap: 8px;
     margin-left: auto;
   }
@@ -1443,7 +1441,7 @@
   /* Os dois falam da mesma cota e por isso compartilham a borda; a cor separa
      o que é fato do que é conta: "retido" já aconteceu e fica no texto normal,
      "cabem" é projeção e vai no tom do acento, como toda estimativa da tela. */
-  .chip.retido,
+  .chip.retained,
   .chip.retain {
     border-color: #1f6feb66;
   }
@@ -1455,7 +1453,7 @@
   }
   /* Os blocos de áreas e de alerta: o botão inteiro leva ao editar, na aba
      de cada um. */
-  .bloco {
+  .block {
     display: grid;
     gap: 8px;
     width: 100%;
@@ -1464,10 +1462,10 @@
     background: var(--panel-2);
     font-weight: normal;
   }
-  .bloco:hover {
+  .block:hover {
     border-color: var(--accent);
   }
-  .titulo-do-bloco {
+  .block-title {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1476,7 +1474,7 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  .titulo-do-bloco .ir {
+  .block-title .ir {
     display: inline-flex;
     align-items: center;
     gap: 2px;
@@ -1486,26 +1484,26 @@
   }
   /* Duas colunas no celular: a miniatura de ~160 px é o piso em que a área
      ainda se lê. */
-  .areas-do-card {
+  .card-areas {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 8px;
   }
-  .linhas-do-alerta {
+  .alert-rows {
     display: grid;
     gap: 4px;
     font-size: 14px;
   }
-  .linhas-do-alerta .linha {
+  .alert-rows .row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
-  .linhas-do-alerta .linha > :global(svg) {
+  .alert-rows .row > :global(svg) {
     color: var(--dim);
   }
-  .familia {
+  .family {
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -1528,7 +1526,7 @@
     border-color: #5c2b2b;
     color: var(--bad);
   }
-  .erro-form {
+  .form-error {
     color: var(--bad);
   }
 
@@ -1540,23 +1538,23 @@
   /* O botão fica colado à direita do título, e não na lista: ele vale também
      quando a lista está vazia, que é justamente quando se desconfia dela. A
      margem negativa devolve a altura que o alvo de 44px acrescenta à linha. */
-  .ajuda .titulo {
+  .help .title {
     justify-content: space-between;
     margin: -10px 0 0;
   }
-  .ajuda h3 {
+  .help h3 {
     margin: 0;
   }
   /* Sem borda em repouso: com ela, o botão pesava mais que o título ao lado. A
      borda de :hover e o foco do teclado continuam valendo. */
-  .atualizar {
+  .refresh {
     display: inline-flex;
     align-items: center;
     padding: 0 12px;
     color: var(--dim);
     border-color: transparent;
   }
-  .atualizar.girando :global(svg) {
+  .refresh.spinning :global(svg) {
     animation: girar 0.8s linear infinite;
   }
   @keyframes girar {
@@ -1566,27 +1564,27 @@
   }
   /* O aviso fica dentro do card, entre o título e a lista: é onde se olha
      depois de editar o arquivo, e é a lista que ele explica. */
-  .aviso {
+  .notice {
     display: grid;
     gap: 10px;
     margin: 0 0 12px;
     padding: 12px;
   }
-  .aviso p {
+  .notice p {
     margin: 0;
   }
-  .aviso ul {
+  .notice ul {
     margin: 0;
     padding-left: 18px;
     color: var(--fg);
   }
-  .aviso li {
+  .notice li {
     margin: 2px 0;
   }
-  .aviso li .muted {
+  .notice li .muted {
     font-size: 12px;
   }
-  .aviso .acao {
+  .notice .action {
     justify-content: flex-end;
   }
   button.warn {
@@ -1594,7 +1592,7 @@
     border-color: #6b5a1f;
     white-space: nowrap;
   }
-  .reinicio {
+  .restart {
     margin: 10px 0 0;
   }
   /* Com cara de link, porque é a saída de exceção; o alvo de toque vem do
@@ -1608,46 +1606,46 @@
     text-decoration: underline;
     font-size: inherit;
   }
-  .vai-parar {
+  .will-stop {
     margin: 8px 0 0;
     color: var(--warn);
   }
-  .ajuda .vazio {
+  .help .empty {
     margin: 0;
   }
-  .ajuda .explica {
+  .help .explain {
     margin: 12px 0 0;
   }
-  .ajuda code {
+  .help code {
     color: var(--fg);
   }
 
-  .orfas {
+  .orphans {
     display: grid;
     gap: 8px;
   }
-  .orfas p {
+  .orphans p {
     margin: -4px 0 2px;
   }
-  .orfa {
+  .orphan {
     gap: 10px;
     align-items: start;
   }
-  .orfa .dados {
+  .orphan .data {
     gap: 6px;
     flex: 1;
     min-width: 0;
   }
-  .orfa code {
+  .orphan code {
     color: var(--fg);
   }
-  .orfa button {
+  .orphan button {
     flex: none;
   }
 
   /* O checkbox dentro do ConfirmDialog: sem a margem ele encosta no parágrafo
      acima e deixa de parecer uma escolha à parte. */
-  label.check.apagar {
+  label.check.delete {
     margin: 10px 0 6px;
     font-size: 14px;
   }
@@ -1658,22 +1656,22 @@
     gap: 14px;
     align-content: start;
   }
-  .paineis {
+  .panels {
     display: grid;
   }
-  .explica-areas,
-  .aviso-areas {
+  .explain-areas,
+  .areas-notice {
     margin: 0;
   }
-  .sem-deteccao {
+  .no-detection {
     display: grid;
     gap: 10px;
     justify-items: start;
   }
-  .sem-deteccao p {
+  .no-detection p {
     margin: 0;
   }
-  .aviso-areas {
+  .areas-notice {
     color: var(--warn);
   }
   .areas {
@@ -1685,21 +1683,21 @@
     align-items: center;
     gap: 10px;
   }
-  button.nova-area {
+  button.new-area {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     justify-self: start;
   }
-  button.passo {
+  button.step {
     display: inline-flex;
     align-items: center;
     gap: 4px;
   }
-  .paineis > * {
+  .panels > * {
     grid-area: 1 / 1;
   }
-  .paineis > [inert] {
+  .panels > [inert] {
     visibility: hidden;
     height: 0;
     overflow: hidden;

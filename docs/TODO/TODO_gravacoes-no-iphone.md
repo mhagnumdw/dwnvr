@@ -21,7 +21,7 @@ não toca nada.
 O ao vivo não tem o problema: o player do go2rtc (`web/src/vendor/video-rtc.js`)
 procura o `ManagedMediaSource` antes do `MediaSource`.
 
-O Diagnóstico ainda engana: `web/src/lib/navegador.ts` conta o
+O Diagnóstico ainda engana: `web/src/lib/browser.ts` conta o
 `ManagedMediaSource` como "MediaSource: sim", e o iPhone aparece capaz de
 tocar o que o player das gravações não consegue.
 

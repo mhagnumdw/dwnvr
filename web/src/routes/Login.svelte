@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { api, mensagemDe, MuitasTentativas } from '../lib/api.ts';
-  import type { Pessoa } from '../lib/api.ts';
+  import { api, messageOf, TooManyAttempts } from '../lib/api.ts';
+  import type { Person } from '../lib/api.ts';
   import { build, REPO_URL } from '../lib/state.svelte.ts';
-  import MarcaGitHub from '../components/MarcaGitHub.svelte';
-  import CampoSenha from '../components/CampoSenha.svelte';
+  import GitHubMark from '../components/GitHubMark.svelte';
+  import PasswordField from '../components/PasswordField.svelte';
 
   interface Props {
-    onSuccess: (pessoa: Pessoa) => void;
+    onSuccess: (person: Person) => void;
   }
 
   let { onSuccess }: Props = $props();
@@ -19,15 +19,15 @@
   // O 429: passado o limite de tentativas, a linha do erro conta até a
   // próxima, e o botão fica desligado até lá. O relógio só anda enquanto a
   // contagem corre.
-  let liberaEm = $state(0);
-  let agora = $state(Date.now());
-  const espera = $derived(Math.max(0, Math.ceil((liberaEm - agora) / 1000)));
+  let unlocksAt = $state(0);
+  let now = $state(Date.now());
+  const wait = $derived(Math.max(0, Math.ceil((unlocksAt - now) / 1000)));
 
   $effect(() => {
-    if (!liberaEm) return;
+    if (!unlocksAt) return;
     const id = setInterval(() => {
-      agora = Date.now();
-      if (agora >= liberaEm) clearInterval(id);
+      now = Date.now();
+      if (now >= unlocksAt) clearInterval(id);
     }, 250);
     return () => clearInterval(id);
   });
@@ -40,14 +40,14 @@
       const r = await api.login(username, password);
       onSuccess(r.user);
     } catch (err) {
-      if (err instanceof MuitasTentativas) {
+      if (err instanceof TooManyAttempts) {
         // A senha fica: o servidor nem a conferiu, e ao fim da contagem basta
         // tocar em Entrar de novo.
-        agora = Date.now();
-        liberaEm = agora + err.segundos * 1000;
+        now = Date.now();
+        unlocksAt = now + err.segundos * 1000;
         return;
       }
-      error = mensagemDe(err);
+      error = messageOf(err);
       password = '';
     } finally {
       busy = false;
@@ -72,16 +72,16 @@
       autocorrect="off"
       required
     />
-    <CampoSenha bind:value={password} />
+    <PasswordField bind:value={password} />
 
-    <button class="primary" type="submit" disabled={busy || espera > 0}>
+    <button class="primary" type="submit" disabled={busy || wait > 0}>
       {busy ? 'entrando…' : 'Entrar'}
     </button>
 
     <!-- Espaço reservado sempre: sem isto o formulário salta quando o erro
          aparece, e o botão foge do dedo no meio do toque. -->
     <p class="error small">
-      {espera > 0 ? `Muitas tentativas. Tente de novo em ${espera} s.` : error}
+      {wait > 0 ? `Muitas tentativas. Tente de novo em ${wait} s.` : error}
     </p>
 
     <!-- Não há e-mail para recuperar a senha: o remédio é o admin gerar um
@@ -93,7 +93,7 @@
        de teste e um de verdade na mesma rede - e de onde ele vem. -->
   <p class="small ver">
     {#if build.version}<span class="mono">{build.version}</span> ·{/if}
-    <a href={REPO_URL} target="_blank" rel="noopener"><MarcaGitHub tamanho={13} />GitHub</a>
+    <a href={REPO_URL} target="_blank" rel="noopener"><GitHubMark size={13} />GitHub</a>
   </p>
 </div>
 

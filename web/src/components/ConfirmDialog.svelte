@@ -33,12 +33,12 @@
     children,
   }: Props = $props();
 
-  let cancelar = $state<HTMLButtonElement | null>(null);
+  let cancel = $state<HTMLButtonElement | null>(null);
 
   // O foco entra no diálogo pelo cancelar: quando a ação é destrutiva, um Enter
   // por reflexo deve desfazer, não executar.
   $effect(() => {
-    cancelar?.focus();
+    cancel?.focus();
   });
 </script>
 
@@ -47,7 +47,7 @@
   {#if children}<div class="body small">{@render children()}</div>{/if}
   <div class="row">
     <span class="spacer"></span>
-    <button type="button" class="ghost" bind:this={cancelar} onclick={oncancel}>
+    <button type="button" class="ghost" bind:this={cancel} onclick={oncancel}>
       {cancelLabel}
     </button>
     <button type="button" class:danger class:primary={!danger} onclick={onconfirm}>
