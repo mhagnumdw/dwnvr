@@ -1,5 +1,5 @@
 // Package users keeps who can log into dwnvr besides the owner:
-// usuarios.json, each person's password and role.
+// users.json, each person's password and role.
 //
 // The owner stays in dwnvr.yaml (server.username and server.password), always
 // an admin, and is the way back if everything goes wrong. Here is only what the
@@ -39,7 +39,7 @@ const (
 
 func (p Role) valid() bool { return p == RoleAdmin || p == RoleViewer }
 
-// FileData is usuarios.json.
+// FileData is users.json.
 type FileData struct {
 	// Owner keeps what dwnvr.yaml doesn't have about the owner. Their password
 	// stays in the yaml.
@@ -50,7 +50,7 @@ type FileData struct {
 type Owner struct {
 	// Display name. Empty means "use the username from dwnvr.yaml".
 	Name string `json:"name,omitempty"`
-	// Avatar is the id of the photo in the avatares/ folder, or empty (see SetAvatar).
+	// Avatar is the id of the photo in the avatars/ folder, or empty (see SetAvatar).
 	Avatar string `json:"avatar,omitempty"`
 }
 
@@ -70,7 +70,7 @@ type User struct {
 	// Link is the open invite link, or nil. One per person: generating another
 	// replaces this one.
 	Link *Link `json:"invite,omitempty"`
-	// Avatar is the id of the photo in the avatares/ folder, or empty (see SetAvatar).
+	// Avatar is the id of the photo in the avatars/ folder, or empty (see SetAvatar).
 	Avatar    string    `json:"avatar,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	// ActiveSince is when the person set the password through the link, or
@@ -79,7 +79,7 @@ type User struct {
 	ActiveSince time.Time `json:"activeSince,omitzero"`
 }
 
-// Link is what usuarios.json keeps of the invite link: the token's SHA-256,
+// Link is what users.json keeps of the invite link: the token's SHA-256,
 // never the token. Whoever reads the file can't build the link.
 type Link struct {
 	TokenSha256 string    `json:"tokenSha256"`
@@ -224,11 +224,11 @@ func ValidatePassword(password string) error {
 	return nil
 }
 
-// Registry is usuarios.json loaded. It's read once, at boot, and each change
+// Registry is users.json loaded. It's read once, at boot, and each change
 // writes the whole file and swaps the in-memory copy.
 type Registry struct {
 	path string
-	// avatarDir is the photos folder, next to usuarios.json.
+	// avatarDir is the photos folder, next to users.json.
 	avatarDir string
 	// owner is server.username from dwnvr.yaml: nobody in the file may have the
 	// same login.
@@ -249,7 +249,7 @@ type Registry struct {
 	now func() time.Time
 }
 
-// Open reads usuarios.json. A file that doesn't exist is an empty registry.
+// Open reads users.json. A file that doesn't exist is an empty registry.
 //
 // An invalid entry doesn't block boot nor vanish from the file: it's left out
 // of Find and becomes a warning, for the log and for the Diagnostics warnings
@@ -258,7 +258,7 @@ type Registry struct {
 // registry comes empty and refuses to write. Only the owner logs in until the
 // file is fixed.
 func Open(path, owner string) (c *Registry, warnings []string, err error) {
-	c = &Registry{path: path, avatarDir: filepath.Join(filepath.Dir(path), "avatares"),
+	c = &Registry{path: path, avatarDir: filepath.Join(filepath.Dir(path), "avatars"),
 		owner: owner, now: time.Now}
 	b, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {

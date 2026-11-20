@@ -13,9 +13,9 @@ os mesmos arquivos ficam em `./config/dwnvr`, `./storage` e `./config/go2rtc`.
 | `/mnt/storage/dwnvr/config/dwnvr/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuração, editada à mão |
 | `/mnt/storage/dwnvr/config/dwnvr/cameras.json` | `/etc/dwnvr/cameras.json` | câmeras, gravado pela tela de cadastro |
 | `/mnt/storage/dwnvr/config/dwnvr/.session-secret` | `/etc/dwnvr/.session-secret` | assina os cookies de sessão (0600) |
-| `/mnt/storage/dwnvr/config/dwnvr/usuarios.json` | `/etc/dwnvr/usuarios.json` | as pessoas além do dono, gravado pela tela Usuários e pela Minha conta (0600) |
-| `/mnt/storage/dwnvr/config/dwnvr/avatares/` | `/etc/dwnvr/avatares/` | a foto de cada pessoa, um JPEG de até 32 KB |
-| `/mnt/storage/dwnvr/config/dwnvr/acessos.json` | `/etc/dwnvr/acessos.json` | o último acesso de cada pessoa, que a tela Usuários mostra (0600) |
+| `/mnt/storage/dwnvr/config/dwnvr/users.json` | `/etc/dwnvr/users.json` | as pessoas além do dono, gravado pela tela Usuários e pela Minha conta (0600) |
+| `/mnt/storage/dwnvr/config/dwnvr/avatars/` | `/etc/dwnvr/avatars/` | a foto de cada pessoa, um JPEG de até 32 KB |
+| `/mnt/storage/dwnvr/config/dwnvr/access.json` | `/etc/dwnvr/access.json` | o último acesso de cada pessoa, que a tela Usuários mostra (0600) |
 | `/mnt/storage/dwnvr/config/go2rtc/go2rtc.yaml` | `/config/go2rtc.yaml`, no container do go2rtc | as câmeras, editado à mão |
 | `/mnt/storage/dwnvr/recordings/` | `/storage/` | gravações, índices, init segments, marcas de movimento e quadros das detecções |
 

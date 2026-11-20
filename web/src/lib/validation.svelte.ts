@@ -9,7 +9,7 @@
 //
 // The ruler is the server's (the `request`), the same as the save's: the screen
 // doesn't repeat it, because it can't (the email goes through Go's net/mail,
-// and the login and email of an ignored usuarios.json entry aren't in the
+// and the login and email of an ignored users.json entry aren't in the
 // listing).
 import type { PersonField, FieldErrors } from './api.ts';
 

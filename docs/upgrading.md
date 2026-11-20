@@ -18,7 +18,8 @@ test ! -e "$backup" && cp -a ~/dwnvr/config "$backup"
 ```
 
 The backup goes to a new, dated folder, so a backup from an earlier update is
-never reused or overwritten.
+never reused or overwritten. If you moved the configuration folder with
+`DWNVR_CONFIG_DIR`, back up that folder instead.
 
 Keep the `storage` folder as it is. The sections below say when something in it
 changes.
@@ -183,11 +184,49 @@ same names, so update both together, as the `docker-compose.yml` already does.
 Only a script that calls `POST /detect` by hand needs the new names, in
 [dwnvr-detect/README.md](../dwnvr-detect/README.md).
 
-### Start again
+## 3. The people files
+
+Who is affected: **everyone who turned authentication on** and invited
+someone on the Users screen, set a name or a photo on My account, or logged
+in. Three names in the configuration folder were renamed:
+
+| Before | Now |
+| --- | --- |
+| `usuarios.json` | `users.json` |
+| `acessos.json` | `access.json` |
+| `avatares/` | `avatars/` |
+
+What is inside them does not change. With the old names, only the owner from
+`dwnvr.yaml` logs in, the photos are gone and the Users screen shows no last
+access.
+
+With the stack still down from section 0, this must print nothing:
+
+```sh
+d=~/dwnvr/config/dwnvr
+ls -d "$d/users.json" "$d/access.json" "$d/avatars" 2>/dev/null
+```
+
+If it prints a name, the new version already ran here before this section,
+and the old files are the ones with your people. Move what it printed out of
+the way, for example with `mv "$d/users.json" "$d/users.json.new"`, and keep
+it until you check the result. Then rename what exists:
+
+```sh
+test ! -e "$d/usuarios.json" || mv "$d/usuarios.json" "$d/users.json"
+test ! -e "$d/acessos.json" || mv "$d/acessos.json" "$d/access.json"
+test ! -e "$d/avatares" || mv "$d/avatares" "$d/avatars"
+```
+
+`mv` keeps the owner and the `0600` permissions. If you moved the
+configuration folder with `DWNVR_CONFIG_DIR`, set `d` to that folder.
+
+## Start again
 
 ```sh
 docker compose up -d
 ```
 
 On the Cameras screen, the method and sensitivity of each camera are the ones
-you had before the update.
+you had before the update. On the Users screen, each person has their photo
+and last access.

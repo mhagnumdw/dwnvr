@@ -36,7 +36,7 @@ também o papel de admin.
 
 - **O dono**: o `server.username` e o `server.password` do `dwnvr.yaml`.
   Sempre admin. A senha dele só se troca no arquivo.
-- **As pessoas do `usuarios.json`**, na pasta de config, cada uma com o papel
+- **As pessoas do `users.json`**, na pasta de config, cada uma com o papel
   gravado: `admin` ou `viewer`.
 
 O viewer vê as câmeras, as gravações e as detecções. O que é da tela
@@ -44,7 +44,7 @@ Câmeras e do diagnóstico do servidor ele recebe como `403`, mesmo sem a aba
 na tela: esconder a aba não é segurança.
 
 Sem credencial no `dwnvr.yaml` a autenticação fica desligada, as pessoas do
-`usuarios.json` são ignoradas, e quem alcança a tela é tratado como admin.
+`users.json` são ignoradas, e quem alcança a tela é tratado como admin.
 
 ```json
 {
@@ -67,7 +67,7 @@ diferença de maiúscula e minúscula no e-mail. O usuário do cadastro não tem
 `user` da resposta, a sessão, o último acesso e o log ficam com o usuário. O
 dono não tem e-mail e entra só pelo usuário, que no `dwnvr.yaml` pode ter `@`:
 o dele vale antes de procurar um e-mail. O e-mail que não acha ninguém, inclusive o
-repetido no `usuarios.json` editado à mão, responde como a senha errada:
+repetido no `users.json` editado à mão, responde como a senha errada:
 `401` com `{"error": "usuário ou senha inválidos"}`.
 
 Toda tentativa custa uma conta de senha de 0,77 s num Orange Pi Zero 3
@@ -98,7 +98,7 @@ assinar outro prazo.
 
 A chave que assina o cookie de cada pessoa sai do `.session-secret` junto com
 o usuário e a senha dela: a do `dwnvr.yaml`, para o dono, ou a guardada no
-`usuarios.json`. Trocar a senha de alguém derruba só as sessões dessa pessoa,
+`users.json`. Trocar a senha de alguém derruba só as sessões dessa pessoa,
 e o mesmo vale para quem é removido ou ganha link novo, que apaga a senha. Para
 o dono, isso pede reiniciar, porque o `dwnvr.yaml` só é lido ao subir. Quem
 troca a própria senha pela Minha conta recebe um cookie novo na mesma resposta
@@ -115,7 +115,7 @@ ir direto para ela (ver [Usuários](#usuários)). O link é
 `<endereço>/#invite?token=<token>`, com 32 bytes aleatórios no token. O
 endereço é o pelo qual o admin está acessando. O token fica no fragmento da
 URL, que não sai do navegador, e vai ao servidor no corpo de um POST: não
-aparece em log do dwnvr nem de proxy nenhum. O `usuarios.json` guarda só o
+aparece em log do dwnvr nem de proxy nenhum. O `users.json` guarda só o
 SHA-256 dele. Mandado por e-mail, o link fica guardado na caixa de saída da
 conta que envia e na de entrada da pessoa: como vale minutos e uma vez só, o
 que sobra lá é link morto.
@@ -470,7 +470,7 @@ Avisos e o sino. Sem problema, o campo não vem.
 "smtp": { "error": "smtp.security \"ssl\" fora do aceito: use starttls, tls ou none" }
 ```
 
-O `usuarios.json` com problema também vira aviso, só com a autenticação ligada.
+O `users.json` com problema também vira aviso, só com a autenticação ligada.
 O `error` é o arquivo ilegível no boot: só o dono entra até ele ser corrigido.
 Os `warnings` são as entradas que não valem: a pessoa ignorada, o e-mail
 ilegível e o e-mail repetido, que não serve para entrar. Corrigir pela tela de
@@ -858,7 +858,7 @@ O `lastAccessMs` é a última requisição da pessoa com sessão válida, e não
 em minuto (`users.LastAccessStep`) e vem em qualquer `status`: quem
 ganhou link novo continua com o acesso de antes. Some de quem não usou o
 dwnvr desde que o campo existe, e de quem é removido ou criado de novo com o
-mesmo usuário. A requisição só anota na memória; o `acessos.json`, na pasta de
+mesmo usuário. A requisição só anota na memória; o `access.json`, na pasta de
 config, é gravado em segundo plano, no máximo a cada 5 minutos
 (`users.AccessFlushDelay`) e ao desligar.
 
@@ -881,16 +881,16 @@ primeira, na ordem da tela, também no `error` de sempre:
 As duas rotas `/conferir` são a mesma régua sem gravar nada: a tela confere
 cada campo quando o admin sai dele. Respondem `200` com `{"fields": {...}}`,
 só com os campos recusados, e `{"fields": {}}` quando está tudo certo. A régua
-conta também a entrada ignorada do `usuarios.json` (o login e o e-mail dela
+conta também a entrada ignorada do `users.json` (o login e o e-mail dela
 não ficam livres), que a listagem não traz: por isso a tela não confere sozinha.
-Com o `usuarios.json` ilegível, o cadastro em memória está vazio, e elas
+Com o `users.json` ilegível, o cadastro em memória está vazio, e elas
 respondem `500` em vez de dizer que está tudo certo.
 
 O `email` é um endereço só, sem nome na frente, e é **único** entre as
 pessoas, sem diferença de maiúscula e minúscula: e-mail inválido ou de outra
 pessoa é `400`. O `POST /api/users/email` devolve `{"user": {...}}` e vale
 mesmo com o e-mail desligado, porque guardar não envia nada. Um e-mail
-escrito errado à mão no `usuarios.json` vira aviso no log e no `/api/health`
+escrito errado à mão no `users.json` vira aviso no log e no `/api/health`
 e não vem na listagem, mas continua no arquivo. O `emailEnabled` diz se a
 seção `smtp` está ligada; sem ela, a tela esconde o "Enviar por e-mail" e avisa,
 onde o e-mail é escrito, que o link não vai por e-mail.
@@ -944,7 +944,7 @@ o quadrado do centro, reduz a até `sidePx` pixels e gera um JPEG na `quality`,
 baixando a qualidade só se passar de `maxBytes`. O servidor para de ler no
 teto (`413`), decodifica a imagem inteira e recusa com `400` o que não for
 JPEG quadrado de até `sidePx` pixels. Guarda os bytes como vieram, sem
-comprimir de novo, em `avatares/<id>.jpg` na pasta de config. O id muda a cada
+comprimir de novo, em `avatars/<id>.jpg` na pasta de config. O id muda a cada
 troca, então o `GET /api/avatar` vai com `Cache-Control: private,
 max-age=31536000, immutable` e `nosniff`: foto nova é URL nova. A foto de
 outra pessoa, para quem não é admin, responde `404`, como a que não existe.

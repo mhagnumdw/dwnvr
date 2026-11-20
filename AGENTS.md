@@ -31,7 +31,7 @@ reactive, responsive UI that works well on mobile and desktop (browser).
   map) lives in a `params.go`, never in a stray constant.
 - **Readable JSON.** Keys spelled out (`instanteMs`, not `t`), even if longer.
   Exception: `index/{dia}.ndjson`, abbreviated because of its volume.
-- **Keys and values in en-US**, in JSON (API, `cameras.json`, `usuarios.json`,
+- **Keys and values in en-US**, in JSON (API, `cameras.json`, `users.json`,
   `eventos/`) and in YAML (`dwnvr.yaml`, compose): `rule`, not `regra`;
   `"touch"`, not `"encosta"`. This covers enum values, not text the user types
   (an area name). The Portuguese keys and values still in place (`instanteMs`,

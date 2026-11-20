@@ -35,7 +35,7 @@ type Server struct {
 	// sessionSecret is the content of .session-secret, from which comes the key
 	// that signs each person's cookies (see sessionKey).
 	sessionSecret []byte
-	// users are the people in usuarios.json. The owner comes from cfg.
+	// users are the people in users.json. The owner comes from cfg.
 	users *users.Registry
 	// accesses is each person's last access, which session records.
 	accesses *users.AccessLog
@@ -496,7 +496,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		resp["smtp"] = map[string]any{"error": s.cfg.SMTP.Problem}
 	}
 
-	// usuarios.json edited by hand with a problem too: the ignored entry does
+	// users.json edited by hand with a problem too: the ignored entry does
 	// not get in, and the repeated email does not work for signing in. Without
 	// authentication the whole registry is ignored, and the warning would say
 	// nothing.

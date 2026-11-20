@@ -134,7 +134,7 @@ func run(log *slog.Logger, cfgPath string) error {
 			"how_to_enable", "set server.username and server.password in "+cfgPath)
 	}
 
-	// An unreadable usuarios.json doesn't stop recording: only the owner logs
+	// An unreadable users.json doesn't stop recording: only the owner logs
 	// in until it is fixed, and the screen doesn't write over it.
 	registry, registryWarnings, err := users.Open(cfg.UsersPath(), cfg.Server.Username)
 	if err != nil {

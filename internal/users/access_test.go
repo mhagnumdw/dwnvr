@@ -9,10 +9,10 @@ import (
 	"time"
 )
 
-// accessLogAt opens the directory's acessos.json, with the clock at *now.
+// accessLogAt opens the directory's access.json, with the clock at *now.
 func accessLogAt(t *testing.T, dir string, now *time.Time) *AccessLog {
 	t.Helper()
-	a, err := OpenAccessLog(filepath.Join(dir, "acessos.json"), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	a, err := OpenAccessLog(filepath.Join(dir, "access.json"), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,12 +61,12 @@ func TestLastAccessSurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	info, err := os.Stat(filepath.Join(dir, "acessos.json"))
+	info, err := os.Stat(filepath.Join(dir, "access.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if info.Mode().Perm() != 0o600 {
-		t.Errorf("acessos.json with mode %v, want 0600", info.Mode().Perm())
+		t.Errorf("access.json with mode %v, want 0600", info.Mode().Perm())
 	}
 
 	from := accessLogAt(t, dir, &now)
@@ -87,15 +87,15 @@ func TestNoAccessWritesNothing(t *testing.T) {
 	if err := a.FlushPending(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "acessos.json")); !os.IsNotExist(err) {
-		t.Errorf("acessos.json created without any access (stat: %v)", err)
+	if _, err := os.Stat(filepath.Join(dir, "access.json")); !os.IsNotExist(err) {
+		t.Errorf("access.json created without any access (stat: %v)", err)
 	}
 }
 
 // Record doesn't write: the timer does, after the delay.
 func TestWriteIsLeftToTheTimer(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "acessos.json")
+	path := filepath.Join(dir, "access.json")
 	now := time.Now()
 	a := accessLogAt(t, dir, &now)
 	a.flushDelay = 20 * time.Millisecond
@@ -110,7 +110,7 @@ func TestWriteIsLeftToTheTimer(t *testing.T) {
 			break
 		}
 		if time.Now().After(timeout) {
-			t.Fatal("the timer didn't write acessos.json")
+			t.Fatal("the timer didn't write access.json")
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -121,7 +121,7 @@ func TestWriteIsLeftToTheTimer(t *testing.T) {
 // shutdown.
 func TestFailedWriteRetries(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "config") // doesn't exist yet
-	path := filepath.Join(dir, "acessos.json")
+	path := filepath.Join(dir, "access.json")
 	now := time.Now()
 	a := accessLogAt(t, dir, &now)
 
@@ -139,7 +139,7 @@ func TestFailedWriteRetries(t *testing.T) {
 			break
 		}
 		if time.Now().After(timeout) {
-			t.Fatal("after the failure, no attempt wrote acessos.json")
+			t.Fatal("after the failure, no attempt wrote access.json")
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -166,7 +166,7 @@ func TestForgetDeletesTheAccess(t *testing.T) {
 // start over empty, and the next write replaces it.
 func TestUnreadableAccessLogStartsEmpty(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "acessos.json")
+	path := filepath.Join(dir, "access.json")
 	if err := os.WriteFile(path, []byte("{não é json"), 0o600); err != nil {
 		t.Fatal(err)
 	}

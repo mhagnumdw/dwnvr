@@ -82,7 +82,7 @@ func (s *Server) inviteOnScreen(c users.Invite) map[string]any {
 }
 
 // noRegistry rejects what writes to the registry when there is no
-// authentication: without it there is no login, and the people in usuarios.json
+// authentication: without it there is no login, and the people in users.json
 // are ignored.
 func (s *Server) noRegistry(w http.ResponseWriter) bool {
 	if s.cfg.Server.AuthEnabled() {

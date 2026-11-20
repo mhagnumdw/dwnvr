@@ -13,7 +13,7 @@ import (
 
 func emptyRegistry(t *testing.T) *Registry {
 	t.Helper()
-	c, _, err := Open(filepath.Join(t.TempDir(), "usuarios.json"), "admin")
+	c, _, err := Open(filepath.Join(t.TempDir(), "users.json"), "admin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestInviteFromCreateToLogin(t *testing.T) {
 	// The file keeps the token's hash, never the token.
 	b, _ := os.ReadFile(c.path)
 	if strings.Contains(string(b), inv.Token) {
-		t.Error("the token ended up in usuarios.json")
+		t.Error("the token ended up in users.json")
 	}
 
 	if u, err := c.CheckInvite(inv.Token); err != nil || u.Username != "maria" {
@@ -245,7 +245,7 @@ func TestCheckNewIsTheSameRuleAsCreate(t *testing.T) {
 // file isn't in the screen's list, but Create rejects it, and so does the
 // check.
 func TestCheckNewCountsTheIgnoredEntry(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "usuarios.json")
+	path := filepath.Join(t.TempDir(), "users.json")
 	file := `{"owner":{},"users":[
 		{"username":"maria","name":"Maria","role":"chefe","email":"maria@exemplo.com","createdAt":"2026-10-24T10:00:00Z"}
 	]}`
@@ -301,11 +301,11 @@ func TestCheckEmail(t *testing.T) {
 	}
 }
 
-// TestCheckWithUnreadableFile: with usuarios.json unreadable the in-memory
+// TestCheckWithUnreadableFile: with users.json unreadable the in-memory
 // registry is empty, and the check returns the error instead of "all
 // good".
 func TestCheckWithUnreadableFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "usuarios.json")
+	path := filepath.Join(t.TempDir(), "users.json")
 	if err := os.WriteFile(path, []byte("{"), 0o600); err != nil {
 		t.Fatal(err)
 	}

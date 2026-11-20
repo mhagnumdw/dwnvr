@@ -171,7 +171,7 @@ export function noticesOf(health: HealthState): Notice[] {
       texto: `E-mail desligado: ${health.smtp.error}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
     });
   }
-  // The usuarios.json edited by hand. Unreadable is red: only the owner gets
+  // The users.json edited by hand. Unreadable is red: only the owner gets
   // in. An entry that isn't valid is yellow, one line per problem.
   if (health.users?.error) {
     out.push({
@@ -182,7 +182,7 @@ export function noticesOf(health: HealthState): Notice[] {
   for (const w of health.users?.warnings ?? []) {
     out.push({
       nivel: 'warn',
-      texto: `Cadastro de usuários: ${w}. Corrija o usuarios.json e reinicie o dwnvr.`,
+      texto: `Cadastro de usuários: ${w}. Corrija o users.json e reinicie o dwnvr.`,
     });
   }
   // The alerts section of dwnvr.yaml: the address that was left out of the

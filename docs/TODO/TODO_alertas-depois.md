@@ -14,7 +14,7 @@ alerta como ele é hoje está em [`deteccao.md`](../deteccao.md#o-alerta) e em
   PR #44 for aceito (decisão do mantenedor, 02/11/2026).
 - **Cada pessoa escolhe as câmeras** (decisão do mantenedor): o e-mail na
   Minha conta e as câmeras de que ela quer alerta, somados à lista global sem
-  repetir endereço. O campo de e-mail no `usuarios.json` já existe (PR #50,
+  repetir endereço. O campo de e-mail no `users.json` já existe (PR #50,
   que o PR #51 usa também para entrar), mas só o admin o preenche, na tela
   Usuários, e ninguém confirma o endereço. Falta a pessoa trocá-lo na Minha
   conta e, se ela mesma digitar, um e-mail de confirmação, para não guardar

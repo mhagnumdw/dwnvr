@@ -263,7 +263,7 @@ func TestLastAccessOnUsersScreen(t *testing.T) {
 	}
 }
 
-// The acessos.json the boot reads may have the access of whoever had the same
+// The access.json the boot reads may have the access of whoever had the same
 // username before, if dwnvr went down before saving the Forget. An access from
 // before the account was created does not show up; the new person's does.
 func TestAccessFromBeforeTheAccountIsHidden(t *testing.T) {
@@ -306,7 +306,7 @@ func TestNoAuthNoLastAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(s.cfg.AccessPath()); !os.IsNotExist(err) {
-		t.Errorf("acessos.json created without authentication (stat: %v)", err)
+		t.Errorf("access.json created without authentication (stat: %v)", err)
 	}
 }
 

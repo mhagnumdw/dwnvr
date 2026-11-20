@@ -438,11 +438,11 @@ func (c *Config) CamerasPath() string { return filepath.Join(c.dir, "cameras.jso
 // UsersPath is where the people added on screen live, besides the owner from
 // dwnvr.yaml. It sits next to cameras.json, not in storage, which is only for
 // recordings.
-func (c *Config) UsersPath() string { return filepath.Join(c.dir, "usuarios.json") }
+func (c *Config) UsersPath() string { return filepath.Join(c.dir, "users.json") }
 
-// AccessPath is where each person's last access lives, next to usuarios.json,
+// AccessPath is where each person's last access lives, next to users.json,
 // but in a separate file (see users.AccessLog).
-func (c *Config) AccessPath() string { return filepath.Join(c.dir, "acessos.json") }
+func (c *Config) AccessPath() string { return filepath.Join(c.dir, "access.json") }
 
 // Resolve returns the camera with the defaults already applied, so the rest of
 // the code never has to ask "is this zero intentional?".

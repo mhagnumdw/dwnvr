@@ -17,11 +17,11 @@ import (
 // valid session, not the last login. The session renews itself (see
 // api.sessionRenew), so the login would say little.
 //
-// A request only touches memory. Disk gets acessos.json, written in the
+// A request only touches memory. Disk gets access.json, written in the
 // background, at most every AccessFlushDelay, and on shutdown. No request waits
 // for the disk.
 //
-// It's in a separate file, not in usuarios.json, for two reasons. The Registry
+// It's in a separate file, not in users.json, for two reasons. The Registry
 // holds its lock while writing, and every authenticated request reads it:
 // writing the access there every few minutes would stall every request on the
 // fsync. And the file with the stored passwords doesn't need to be rewritten
@@ -47,13 +47,13 @@ type AccessLog struct {
 	flushDelay time.Duration
 }
 
-// accessFile is acessos.json.
+// accessFile is access.json.
 type accessFile struct {
 	// LastAccess maps the login to the instant.
 	LastAccess map[string]time.Time `json:"lastAccess"`
 }
 
-// OpenAccessLog reads acessos.json. A file that doesn't exist is all empty.
+// OpenAccessLog reads access.json. A file that doesn't exist is all empty.
 //
 // An unreadable file doesn't block boot: the error comes back, for the log, and
 // the accesses start over empty. The next write replaces it, because what's
@@ -129,7 +129,7 @@ func (a *AccessLog) schedule() {
 	}
 }
 
-// FlushPending writes to acessos.json what memory has that's new, if
+// FlushPending writes to access.json what memory has that's new, if
 // anything. It runs on the timer and on shutdown. If the write fails, pending
 // stays marked and another attempt is scheduled, without waiting for the next
 // access: without an access, what failed would only reach the disk on shutdown,
@@ -153,7 +153,7 @@ func (a *AccessLog) FlushPending() error {
 
 	b, err := json.MarshalIndent(accessFile{LastAccess: snapshot}, "", "  ")
 	if err == nil {
-		// 0600, like usuarios.json: it says when each person used dwnvr.
+		// 0600, like users.json: it says when each person used dwnvr.
 		err = config.WriteAtomic(a.path, append(b, '\n'), 0o600)
 	}
 	if err != nil {

@@ -692,7 +692,7 @@ export interface Health {
   go2rtc?: { error: string; since: string };
   // Only with the smtp section rejected at boot: email stays off.
   smtp?: { error: string };
-  // Only with a problem in usuarios.json: `error` is the file unreadable at
+  // Only with a problem in users.json: `error` is the file unreadable at
   // boot, and `warnings` the entries that are not valid.
   users?: { error?: string; warnings?: string[] };
   // `total` disappears before any camera turns alerts on; `warnings` are the

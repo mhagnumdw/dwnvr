@@ -22,7 +22,7 @@ import (
 )
 
 // withAuth turns authentication on, with the owner "admin", and registers the
-// given people in usuarios.json.
+// given people in users.json.
 func withAuth(t *testing.T, s *Server, people ...users.User) {
 	t.Helper()
 	s.cfg.Server.Username, s.cfg.Server.Password = "admin", "senha"
@@ -152,7 +152,7 @@ func TestSessionDropsOnlyThePerson(t *testing.T) {
 // one. Goes through New, which is the boot path.
 func TestChangingOwnerCredentialDropsTheirSessions(t *testing.T) {
 	secret := []byte("segredo-de-teste-com-32-bytes!!!")
-	filePath := filepath.Join(t.TempDir(), "usuarios.json")
+	filePath := filepath.Join(t.TempDir(), "users.json")
 	start := func(username, password string) *Server {
 		cfg := &config.Config{}
 		cfg.Server.Username, cfg.Server.Password = username, password
@@ -161,7 +161,7 @@ func TestChangingOwnerCredentialDropsTheirSessions(t *testing.T) {
 			t.Fatal(err)
 		}
 		log := slog.New(slog.NewTextHandler(io.Discard, nil))
-		accesses, err := users.OpenAccessLog(filepath.Join(filepath.Dir(filePath), "acessos.json"), log)
+		accesses, err := users.OpenAccessLog(filepath.Join(filepath.Dir(filePath), "access.json"), log)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -307,7 +307,7 @@ func TestCamerasLeanForTheViewer(t *testing.T) {
 	}
 }
 
-// A corrupted value in usuarios.json (edited by hand, from another version)
+// A corrupted value in users.json (edited by hand, from another version)
 // lets no one in, and the log states the problem without copying the stored
 // value.
 func TestLoginWithCorruptedStoredPassword(t *testing.T) {
@@ -460,7 +460,7 @@ func TestLoginByEmail(t *testing.T) {
 	}
 }
 
-// A usuarios.json with a problem becomes a warning in /api/health, for the
+// A users.json with a problem becomes a warning in /api/health, for the
 // Warnings card and the bell; with no problem, the field does not even come.
 func TestRegistryWithProblemBecomesWarning(t *testing.T) {
 	s, _ := testServer(t)

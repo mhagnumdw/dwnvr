@@ -155,8 +155,8 @@ func TestNameAndAvatarThroughTheAccount(t *testing.T) {
 }
 
 // Without authentication there is no one to own the account and no registry:
-// whoever reaches the screen is admin, and nothing that writes to usuarios.json
-// or avatares/ goes through.
+// whoever reaches the screen is admin, and nothing that writes to users.json
+// or avatars/ goes through.
 func TestNoAuthNothingIsSaved(t *testing.T) {
 	s, _ := testServer(t)
 	routes := []string{
@@ -172,6 +172,6 @@ func TestNoAuthNothingIsSaved(t *testing.T) {
 		}
 	}
 	if _, err := os.Stat(s.cfg.UsersPath()); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("usuarios.json was saved without authentication: %v", err)
+		t.Errorf("users.json was saved without authentication: %v", err)
 	}
 }

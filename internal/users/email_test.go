@@ -77,7 +77,7 @@ func TestSetEmail(t *testing.T) {
 // warning and counts as no e-mail, but stays in the file, like the invalid
 // entry.
 func TestBadEmailInFileDoesNotVanish(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "usuarios.json")
+	path := filepath.Join(t.TempDir(), "users.json")
 	file := `{"owner":{},"users":[
 		{"username":"maria","name":"Maria","role":"viewer","email":"Maria <maria@exemplo.com>","createdAt":"2026-10-24T10:00:00Z"},
 		{"username":"joao","name":"João","role":"viewer","email":"joao@exemplo.com","createdAt":"2026-10-24T10:00:00Z"},
@@ -119,7 +119,7 @@ func TestBadEmailInFileDoesNotVanish(t *testing.T) {
 // TestFindByEmail: finds it case-insensitively; an e-mail repeated in the
 // file and an ignored entry find nobody.
 func TestFindByEmail(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "usuarios.json")
+	path := filepath.Join(t.TempDir(), "users.json")
 	file := `{"owner":{},"users":[
 		{"username":"maria","name":"Maria","role":"viewer","email":"Maria@Exemplo.com","createdAt":"2026-10-24T10:00:00Z"},
 		{"username":"joao","name":"João","role":"viewer","email":"joao@exemplo.com","createdAt":"2026-10-24T10:00:00Z"},

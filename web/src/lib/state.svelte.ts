@@ -114,7 +114,7 @@ export const health = $state<HealthState>({
   go2rtc: null,
   // { error } with the smtp section rejected at boot; null with no problem.
   smtp: null,
-  // { error?, warnings? } with a problem in usuarios.json; null with no
+  // { error?, warnings? } with a problem in users.json; null with no
   // problem.
   users: null,
   // { total?, warnings?, dropped?, failing? }: the total after some camera
