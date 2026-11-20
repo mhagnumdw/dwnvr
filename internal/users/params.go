@@ -79,7 +79,7 @@ const (
 	LastAccessStep = time.Minute
 
 	// AccessFlushDelay is how long a new last access waits in memory before
-	// going to acessos.json. It's the most that's lost in a power cut; on a
+	// going to access.json. It's the most that's lost in a power cut; on a
 	// normal shutdown, the pending one is written right away.
 	AccessFlushDelay = 5 * time.Minute
 )

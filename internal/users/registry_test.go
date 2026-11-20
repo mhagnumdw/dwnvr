@@ -9,7 +9,7 @@ import (
 )
 
 func TestMissingFileIsAnEmptyRegistry(t *testing.T) {
-	c, warnings, err := Open(filepath.Join(t.TempDir(), "usuarios.json"), "admin")
+	c, warnings, err := Open(filepath.Join(t.TempDir(), "users.json"), "admin")
 	if err != nil || len(warnings) != 0 || c.Count() != 0 {
 		t.Fatalf("err=%v warnings=%v count=%d", err, warnings, c.Count())
 	}
@@ -19,7 +19,7 @@ func TestMissingFileIsAnEmptyRegistry(t *testing.T) {
 }
 
 func TestUpdateWritesAndRereads(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "usuarios.json")
+	path := filepath.Join(t.TempDir(), "users.json")
 	c, _, _ := Open(path, "admin")
 	err := c.Update(func(a *FileData) error {
 		a.Owner.Name = "Dono"
@@ -50,7 +50,7 @@ func TestUpdateWritesAndRereads(t *testing.T) {
 
 // A failed change changes nothing, neither in the file nor in memory.
 func TestFailedUpdateChangesNothing(t *testing.T) {
-	c, _, _ := Open(filepath.Join(t.TempDir(), "usuarios.json"), "admin")
+	c, _, _ := Open(filepath.Join(t.TempDir(), "users.json"), "admin")
 	err := c.Update(func(a *FileData) error {
 		a.Users = append(a.Users, User{Username: "maria", Role: RoleViewer})
 		return errors.New("recusado")
@@ -66,7 +66,7 @@ func TestFailedUpdateChangesNothing(t *testing.T) {
 // An invalid entry is left out of lookups and becomes a warning, but stays
 // in the file: the next write doesn't delete it.
 func TestInvalidEntryIsLeftOutWithoutVanishing(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "usuarios.json")
+	path := filepath.Join(t.TempDir(), "users.json")
 	content := `{"users": [
 		{"username": "maria", "name": "Maria", "role": "viewer"},
 		{"username": "admin", "name": "Outro dono", "role": "admin"},
@@ -115,7 +115,7 @@ func TestInvalidEntryIsLeftOutWithoutVanishing(t *testing.T) {
 // An unreadable file doesn't block boot, but the registry comes empty and
 // doesn't write over it.
 func TestUnreadableFileIsNotOverwritten(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "usuarios.json")
+	path := filepath.Join(t.TempDir(), "users.json")
 	if err := os.WriteFile(path, []byte(`{"users": [`), 0o600); err != nil {
 		t.Fatal(err)
 	}

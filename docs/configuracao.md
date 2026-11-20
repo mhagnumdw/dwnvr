@@ -24,22 +24,22 @@ separação também garante que um erro na tela de cadastro não consiga corromp
 a sua infraestrutura: o dwnvr nunca escreve no `dwnvr.yaml`.
 
 Os dois vivem no mesmo diretório - `/etc/dwnvr` na imagem Docker -, junto com o
-`.session-secret`, que assina os cookies de sessão, e com o `usuarios.json`, as
+`.session-secret`, que assina os cookies de sessão, e com o `users.json`, as
 pessoas que entram além do dono do `dwnvr.yaml`, que a tela Usuários e a Minha
-conta gravam (ver [Quem entra](api.md#quem-entra)). O `usuarios.json` é `0600`,
+conta gravam (ver [Quem entra](api.md#quem-entra)). O `users.json` é `0600`,
 como o `.session-secret`, porque guarda as senhas, em hash. A foto de cada
-pessoa fica ao lado, em `avatares/`, um JPEG de até 32 KB por pessoa. Se ele ficar ilegível, o
+pessoa fica ao lado, em `avatars/`, um JPEG de até 32 KB por pessoa. Se ele ficar ilegível, o
 dwnvr sobe do mesmo jeito, só o dono entra, e nada é gravado por cima dele até
 ser corrigido.
 
-Quem edita o `usuarios.json` à mão vê o resultado no log e nos Avisos da tela
+Quem edita o `users.json` à mão vê o resultado no log e nos Avisos da tela
 Diagnóstico, ao reiniciar: o arquivo ilegível, a pessoa ignorada (usuário fora
 do formato, repetido, igual ao do dono ou com papel desconhecido), o e-mail
 ilegível e o e-mail repetido. A pessoa entra pelo usuário ou pelo e-mail (ver
 [O login](api.md#o-login)), e o e-mail repetido não serve para entrar: não diz
 quem está entrando.
 
-Também ao lado fica o `acessos.json`, `0600`, com o último acesso de cada
+Também ao lado fica o `access.json`, `0600`, com o último acesso de cada
 pessoa, que a tela Usuários mostra. Ele nasce no primeiro acesso e é gravado
 em segundo plano, no máximo a cada 5 minutos e ao desligar: numa queda de
 energia, perdem-se no máximo esses minutos. Ilegível, o dwnvr sobe do mesmo

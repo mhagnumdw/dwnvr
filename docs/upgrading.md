@@ -18,7 +18,8 @@ test ! -e "$backup" && cp -a ~/dwnvr/config "$backup"
 ```
 
 The backup goes to a new, dated folder, so a backup from an earlier update is
-never reused or overwritten.
+never reused or overwritten. If you moved the configuration folder with
+`DWNVR_CONFIG_DIR`, back up that folder instead.
 
 Keep the `storage` folder as it is. The sections below say when something in it
 changes.
@@ -183,11 +184,48 @@ same names, so update both together, as the `docker-compose.yml` already does.
 Only a script that calls `POST /detect` by hand needs the new names, in
 [dwnvr-detect/README.md](../dwnvr-detect/README.md).
 
-### Start again
+## 3. The people files
+
+Who is affected: **everyone who turned authentication on** and invited
+someone on the Users screen, set a name or a photo on My account, or logged
+in. Three names in the configuration folder were renamed:
+
+| Before | Now |
+| --- | --- |
+| `usuarios.json` | `users.json` |
+| `acessos.json` | `access.json` |
+| `avatares/` | `avatars/` |
+
+What is inside them does not change. With the old names, only the owner from
+`dwnvr.yaml` logs in, the photos are gone and the Users screen shows no last
+access.
+
+With the stack still down from section 0:
+
+```sh
+d=~/dwnvr/config/dwnvr
+for pair in usuarios.json:users.json acessos.json:access.json avatares:avatars; do
+  old="$d/${pair%%:*}" new="$d/${pair##*:}"
+  test -e "$old" || continue
+  test ! -e "$new" || mv "$new" "$new.new"
+  mv "$old" "$new"
+done
+```
+
+Each old name that exists gets the new one. If the new name is already there
+too, the new version ran before this section: the old file has your people,
+so it wins, and the other one is kept with `.new` at the end, for you to check
+and delete. Running the loop again does nothing.
+
+`mv` keeps the owner and the `0600` permissions. If you moved the
+configuration folder with `DWNVR_CONFIG_DIR`, set `d` to that folder.
+
+## Start again
 
 ```sh
 docker compose up -d
 ```
 
 On the Cameras screen, the method and sensitivity of each camera are the ones
-you had before the update.
+you had before the update. On the Users screen, each person has their photo
+and last access.

@@ -33,7 +33,7 @@ const (
 )
 
 // person is who made the request: the owner, from dwnvr.yaml, or someone from
-// usuarios.json.
+// users.json.
 type person struct {
 	Username string     `json:"username,omitempty"`
 	Name     string     `json:"name,omitempty"`
@@ -45,7 +45,7 @@ type person struct {
 	Avatar string `json:"avatar,omitempty"`
 
 	// credential is what ties the cookie to the person's password (see
-	// sessionKey): the owner's password, or the value stored in usuarios.json.
+	// sessionKey): the owner's password, or the value stored in users.json.
 	credential string
 }
 
@@ -263,7 +263,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return // the browser gave up in the queue
 	}
 	if err != nil {
-		s.log.Error("unreadable stored password in usuarios.json", "user", req.Username, "err", err)
+		s.log.Error("unreadable stored password in users.json", "user", req.Username, "err", err)
 	}
 	if exists && p.Owner {
 		ok = subtle.ConstantTimeCompare([]byte(req.Password), []byte(p.credential)) == 1

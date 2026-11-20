@@ -17,7 +17,7 @@ import (
 // the device, and the server only checks and stores the bytes as they came,
 // without compressing them again.
 //
-// Each photo is a file avatares/<id>.jpg, and usuarios.json keeps the id. The
+// Each photo is a file avatars/<id>.jpg, and users.json keeps the id. The
 // id changes on every swap, which lets the browser cache the image forever: a
 // new photo is a new URL.
 
@@ -59,7 +59,7 @@ func (c *Registry) avatarPath(id string) string {
 }
 
 // deleteAvatar deletes the photo file. Failing only leaves a stray file that
-// nobody reaches: the id left usuarios.json.
+// nobody reaches: the id left users.json.
 func (c *Registry) deleteAvatar(id string) {
 	if avatarIDFormat.MatchString(id) {
 		_ = os.Remove(c.avatarPath(id))
@@ -78,7 +78,7 @@ func (c *Registry) SetAvatar(username string, b []byte) (string, error) {
 	}
 	id := hex.EncodeToString(r)
 
-	// The file comes before usuarios.json: an id written without the file would
+	// The file comes before users.json: an id written without the file would
 	// be a broken photo on screen; the file without the id is just one more file.
 	// 0700 and 0600 like the rest of the config folder: they're photos of
 	// people.
