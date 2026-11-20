@@ -57,7 +57,7 @@ Vale dentro e fora da tela cheia.
 - **Toque simples:** o vídeo não reage a ele. Na tela cheia, o
   `onpointerdowncapture` do `.cheia` mostra os controles.
 - **Teclado:** a tela Gravações não ouve nenhuma tecla. O Ao vivo
-  (`Live.svelte`) e a folha de detecção (`DeteccaoFolha.svelte`) usam as setas,
+  (`Live.svelte`) e a folha de detecção (`DetectionSheet.svelte`) usam as setas,
   mas nenhum dos dois fica aberto junto com Gravações.
 - **Seek:** o `player.seek(ms)` (`web/src/lib/player.svelte.ts`) **sempre**
   recria o `MediaSource`. O `#reset` baixa de novo o init e os segmentos, e o
@@ -95,7 +95,7 @@ anterior mandou ir.
 
 ### 2. Celular: um detector de duplo toque próprio
 
-O módulo `web/src/lib/toqueDuplo.ts`, sem estado de Svelte e com a regra
+O módulo `web/src/lib/doubleTouch.ts`, sem estado de Svelte e com a regra
 inteira num lugar só:
 
 - Ouve `pointerup` no `.stage`, só com `pointerType === 'touch'`.

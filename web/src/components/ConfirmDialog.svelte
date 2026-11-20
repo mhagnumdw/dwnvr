@@ -1,13 +1,13 @@
 <!--
-  Confirmação de uma ação, no lugar do confirm() do navegador - que trava a
-  aba inteira, ignora o tema e no celular aparece grudado no topo, longe do
-  polegar. O texto do corpo vem por snippet porque explicar a consequência
-  costuma pedir mais que uma frase seca.
+  Confirmation of an action, in place of the browser's confirm() - which freezes
+  the whole tab, ignores the theme and on the phone shows up stuck to the top,
+  far from the thumb. The body text comes as a snippet because explaining the
+  consequence usually takes more than a dry sentence.
 
-    <ConfirmDialog title="Remover X?" confirmLabel="remover" danger
-                   onconfirm={…} oncancel={…}>
-      As gravações <strong>não</strong> são apagadas.
-    </ConfirmDialog>
+  <ConfirmDialog title="Remover X?" confirmLabel="remover" danger
+  onconfirm={…} oncancel={…}>
+  As gravações <strong>não</strong> são apagadas.
+  </ConfirmDialog>
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
@@ -33,12 +33,12 @@
     children,
   }: Props = $props();
 
-  let cancelar = $state<HTMLButtonElement | null>(null);
+  let cancel = $state<HTMLButtonElement | null>(null);
 
-  // O foco entra no diálogo pelo cancelar: quando a ação é destrutiva, um Enter
-  // por reflexo deve desfazer, não executar.
+  // Focus enters the dialog on cancel: when the action is destructive, a reflex
+  // Enter should undo, not execute.
   $effect(() => {
-    cancelar?.focus();
+    cancel?.focus();
   });
 </script>
 
@@ -47,7 +47,7 @@
   {#if children}<div class="body small">{@render children()}</div>{/if}
   <div class="row">
     <span class="spacer"></span>
-    <button type="button" class="ghost" bind:this={cancelar} onclick={oncancel}>
+    <button type="button" class="ghost" bind:this={cancel} onclick={oncancel}>
       {cancelLabel}
     </button>
     <button type="button" class:danger class:primary={!danger} onclick={onconfirm}>

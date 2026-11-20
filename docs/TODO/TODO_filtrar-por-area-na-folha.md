@@ -7,8 +7,8 @@ folha agora e ver no uso se faz falta.
 ## O que é hoje
 
 Na folha de uma detecção, o botão "filtrar por área" só desenha: abre o editor
-sobre o quadro daquela detecção (`onarea` do `DeteccaoFolha.svelte`, que chama
-o `abreEditor(d.cam, d)` de `Deteccoes.svelte`). As áreas cadastradas na
+sobre o quadro daquela detecção (`onarea` do `DetectionSheet.svelte`, que chama
+o `openEditor(d.cam, d)` de `Detections.svelte`). As áreas cadastradas na
 câmera não aparecem ali.
 
 O ⋮ da miniatura faz mais: com área cadastrada, "Filtrar por área ›" troca o

@@ -1,40 +1,39 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
-  import type { ObjetoMarcado, Segmento } from '../lib/api.ts';
-  import { contexto2d } from '../lib/canvas.ts';
+  import type { MarkedObject, Segment } from '../lib/api.ts';
+  import { context2d } from '../lib/canvas.ts';
   import { thumbnail } from '../lib/thumbs.ts';
   import { hhmmss } from '../lib/format.ts';
-  import SeloDeFamilias from './SeloDeFamilias.svelte';
-  import { nomesDasFamilias } from '../lib/icones.ts';
+  import FamilyBadge from './FamilyBadge.svelte';
+  import { familyNames } from '../lib/icons.ts';
 
   interface Props {
     cam: string;
-    segments?: Segmento[];
-    // As marcas de objeto do dia: cada miniatura mostra as famílias do trecho
-    // dela.
-    objetos?: ObjetoMarcado[];
+    segments?: Segment[];
+    // The day's object marks: each thumbnail shows the families of its clip.
+    objects?: MarkedObject[];
     currentMs?: number;
-    adiar?: boolean;
+    defer?: boolean;
     onseek?: (ms: number) => void;
   }
 
-  let { cam, segments = [], objetos = [], currentMs = 0, adiar = false, onseek }: Props = $props();
+  let { cam, segments = [], objects = [], currentMs = 0, defer = false, onseek }: Props = $props();
 
-  // Quantas miniaturas mostrar. Mais que isso vira desfile de imagens que
-  // ninguém consegue distinguir, e cada uma custa um decode.
+  // How many thumbnails to show. More than that becomes a parade of images
+  // nobody can tell apart, and each one costs a decode.
   const MAX_TILES = 40;
 
-  // Quanto além da parte visível a tira já pede, de cada lado, em fração da
-  // largura dela: a miniatura fica pronta antes de a rolagem chegar, sem pedir
-  // as 40 da janela.
-  const FOLGA = '50%';
+  // How far beyond the visible part the strip already asks, on each side, as a
+  // fraction of its width: the thumbnail is ready before the scroll gets there,
+  // without asking for all 40 in the window.
+  const SLACK = '50%';
 
-  // Uma janela contígua de 40 segmentos em torno do instante atual - e não uma
-  // amostragem espaçada do dia. Um dia real tem ~2300 segmentos de ~33s, então
-  // este é o caminho que roda sempre; a lista inteira só aparece numa câmera
-  // recém-instalada. A janela desliza junto com currentMs, o que deixa o
-  // segmento ativo parado no índice 20 enquanto as miniaturas passam por baixo.
+  // A contiguous window of 40 segments around the current instant - and not a
+  // spaced sample of the day. A real day has ~2300 segments of ~33s, so this is
+  // the path that always runs; the whole list only shows up on a freshly
+  // installed camera. The window slides along with currentMs, which keeps the
+  // active segment still at index 20 while the thumbnails pass underneath.
   const tiles = $derived.by(() => {
     if (!segments.length) return [];
     if (segments.length <= MAX_TILES) return segments;
@@ -46,17 +45,17 @@
     return segments.slice(start, start + MAX_TILES);
   });
 
-  // As famílias de cada miniatura, pelo início do segmento. Uma passada pelas
-  // marcas do dia, com a miniatura de cada uma achada por busca binária nas
-  // 40 da janela: refeita uma vez por segmento, e não por quadro.
-  const familiasPorTile = $derived.by(() => {
-    const porTile: Record<number, string[]> = {};
-    const primeiro = tiles[0];
-    const ultimo = tiles.at(-1);
-    if (!primeiro || !ultimo || !objetos.length) return porTile;
-    const fim = ultimo[0] + ultimo[1];
-    for (const o of objetos) {
-      if (o.instanteMs < primeiro[0] || o.instanteMs >= fim) continue;
+  // The families of each thumbnail, by segment start. One pass over the day's
+  // marks, with each one's thumbnail found by binary search among the window's
+  // 40: redone once per segment, not per frame.
+  const familiesPerTile = $derived.by(() => {
+    const perTile: Record<number, string[]> = {};
+    const first = tiles[0];
+    const last = tiles.at(-1);
+    if (!first || !last || !objects.length) return perTile;
+    const end = last[0] + last[1];
+    for (const o of objects) {
+      if (o.instanteMs < first[0] || o.instanteMs >= end) continue;
       let lo = 0;
       let hi = tiles.length - 1;
       while (lo < hi) {
@@ -65,28 +64,29 @@
         else hi = m - 1;
       }
       const tile = tiles[lo];
-      // Num buraco entre dois segmentos, a marca não é de nenhuma miniatura.
+      // In a gap between two segments, the mark belongs to no thumbnail.
       if (!tile || o.instanteMs >= tile[0] + tile[1]) continue;
-      const fams = (porTile[tile[0]] ??= []);
+      const fams = (perTile[tile[0]] ??= []);
       if (!fams.includes(o.familia)) fams.push(o.familia);
     }
-    return porTile;
+    return perTile;
   });
 
   let strip = $state<HTMLDivElement | null>(null);
 
-  // Só o início do segmento ativo, e não currentMs: currentMs muda várias vezes
-  // por segundo durante a reprodução, e o que interessa aqui muda uma vez a cada
-  // segmento. Sem esse filtro o efeito abaixo rodaria à toa o tempo todo.
+  // Only the active segment's start, not currentMs: currentMs changes several
+  // times per second during playback, and what matters here changes once per
+  // segment. Without this filter the effect below would run needlessly all the
+  // time.
   const activeStart = $derived.by(() => {
     const seg = tiles.find(([t, dur]) => currentMs >= t && currentMs < t + dur);
     return seg ? seg[0] : -1;
   });
 
-  // Depois de um seek pela timeline, a janela é refatiada em torno do novo
-  // instante e o tile ativo cai no índice 20 - a uns 2280px do início, muito
-  // além da parte visível. A tira ficava então sem nenhum destaque à vista, sem
-  // dar nem indício de para que lado rolar.
+  // After a seek on the timeline, the window is re-sliced around the new
+  // instant and the active tile lands at index 20 - about 2280px from the
+  // start, far beyond the visible part. The strip was then left with no
+  // highlight in view, with not even a hint of which way to scroll.
   $effect(() => {
     if (activeStart < 0 || !strip) return;
 
@@ -95,50 +95,54 @@
 
     const t = tile.getBoundingClientRect();
     const s = strip.getBoundingClientRect();
-    // Já visível: não mexer. É o que mantém a tira quieta durante a reprodução,
-    // já que o ativo fica parado no mesmo ponto enquanto a janela desliza.
+    // Already visible: leave it alone. That is what keeps the strip still
+    // during playback, since the active one stays at the same spot while the
+    // window slides.
     if (t.left >= s.left && t.right <= s.right) return;
 
-    // Mexer só no scrollLeft da tira. scrollIntoView() rolaria também a página,
-    // que não tem nada a ver com isto.
+    // Only touch the strip's scrollLeft. scrollIntoView() would scroll the page
+    // too, which has nothing to do with this.
     strip.scrollLeft += t.left - s.left - (s.width - t.width) / 2;
   });
 
-  // A tira só pede a miniatura que entra na vista, mais a FOLGA, e o resto
-  // espera a rolagem chegar perto. Antes ela pedia as 40 da janela na ordem do
-  // DOM, da esquerda para a direita, e as visíveis - em volta do ativo, no
-  // índice 20, ou no fim da tira no dia de hoje - chegavam por último.
+  // The strip only asks for the thumbnail that enters the viewport, plus the
+  // SLACK, and the rest waits for the scroll to get close. Before, it asked for
+  // all 40 in the window in DOM order, left to right, and the visible ones -
+  // around the active one, at index 20, or at the end of the strip on today's
+  // date - arrived last.
   //
-  // As pedidas recomeçam a cada carga de câmera ou de dia, junto com o cache
-  // que o Recordings limpa nessa hora. O `segments` muda de identidade a cada
-  // poll do dia de hoje, por isso a chave é o primeiro instante, e não a lista.
-  const carga = $derived(`${cam}@${segments[0]?.[0] ?? ''}`);
-  const pedidas = $derived({
-    carga,
+  // The requested ones start over on every camera or day load, along with the
+  // cache that Recordings clears at that moment. `segments` changes identity on
+  // every poll of today, which is why the key is the first instant, not the
+  // list.
+  const loadAvg = $derived(`${cam}@${segments[0]?.[0] ?? ''}`);
+  const requestedKeys = $derived({
+    carga: loadAvg,
     instantes: new SvelteSet<number>(),
-    // Set comum de propósito: quem dispara a liberação é só o `adiar`.
-    adiadas: new Set<number>(),
+    // Plain Set on purpose: only `defer` triggers the release.
+    postponed: new Set<number>(),
   });
 
-  // O slice da janela é novo a cada atualização do currentMs, mas ela só
-  // desliza uma vez por segmento: é aí que vale observar os tiles de novo.
-  const janela = $derived(tiles.length ? `${cam}@${tiles[0]?.[0]}+${tiles.length}` : '');
+  // The window's slice is new on every currentMs update, but it only slides
+  // once per segment: that is when it pays to observe the tiles again.
+  const visibleWindow = $derived(tiles.length ? `${cam}@${tiles[0]?.[0]}+${tiles.length}` : '');
 
-  // O primeiro aviso de um IntersectionObserver traz de uma vez todos os tiles
-  // já à vista. Ele roda depois do efeito acima, que já pôs o ativo na vista.
+  // The first notification from an IntersectionObserver brings all the tiles
+  // already in view at once. It runs after the effect above, which has already
+  // put the active one in view.
   $effect(() => {
-    if (!strip || !janela) return;
+    if (!strip || !visibleWindow) return;
     const io = new IntersectionObserver(
-      (entradas) => {
+      (entries) => {
         const novas: number[] = [];
-        for (const e of entradas) {
+        for (const e of entries) {
           const t = Number((e.target as HTMLElement).dataset['t']);
           if (e.isIntersecting) novas.push(t);
-          else pedidas.adiadas.delete(t); // saiu da vista antes da vez dela
+          else requestedKeys.postponed.delete(t); // left the viewport before its turn
         }
-        pedir(novas);
+        request(novas);
       },
-      { root: strip, rootMargin: `0px ${FOLGA}` },
+      { root: strip, rootMargin: `0px ${SLACK}` },
     );
     for (const tile of strip.querySelectorAll('.tile')) io.observe(tile);
     return () => {
@@ -146,55 +150,58 @@
     };
   });
 
-  // Do ativo para fora: a fila do thumbs.ts decodifica na ordem em que os
-  // downloads terminam, e a primeira que importa é a do ativo. A distância é
-  // até o segmento, e não até o começo dele, para o ativo valer zero.
-  function pedir(novas: number[]) {
-    if (adiar) {
-      for (const t of novas) pedidas.adiadas.add(t);
+  // From the active one outward: the thumbs.ts queue decodes in the order the
+  // downloads finish, and the first that matters is the active one's. The
+  // distance is to the segment, not to its start, so the active one is worth
+  // zero.
+  function request(novas: number[]) {
+    if (defer) {
+      for (const t of novas) requestedKeys.postponed.add(t);
       return;
     }
-    const longe = ([s, d]: Segmento) =>
+    const far = ([s, d]: Segment) =>
       currentMs < s ? s - currentMs : Math.max(0, currentMs - s - d);
-    const fila = tiles
-      .filter(([t]) => novas.includes(t) && !pedidas.instantes.has(t))
-      .sort((a, b) => longe(a) - longe(b));
-    for (const [t] of fila) {
+    const queue = tiles
+      .filter(([t]) => novas.includes(t) && !requestedKeys.instantes.has(t))
+      .sort((a, b) => far(a) - far(b));
+    for (const [t] of queue) {
       void thumbnail(cam, t);
-      pedidas.instantes.add(t);
+      requestedKeys.instantes.add(t);
     }
   }
 
-  // Enquanto o player busca o trecho que vai tocar, a tira não pede nada: o
-  // `priority: 'low'` do thumbs.ts só ordena a fila do navegador, e o que já
-  // saiu divide a banda com o segmento - que precisa chegar inteiro antes do
-  // primeiro quadro. O que entrou na vista nesse meio-tempo fica guardado e
-  // sai junto quando o vídeo já tem o que mostrar.
+  // While the player fetches the clip it is about to play, the strip asks for
+  // nothing: thumbs.ts's `priority: 'low'` only orders the browser's queue, and
+  // what has already gone out shares the bandwidth with the segment - which has
+  // to arrive whole before the first frame. What came into view in the meantime
+  // is held back and goes out together once the video has something to show.
   $effect(() => {
-    if (adiar || !pedidas.adiadas.size) return;
-    const fila = [...pedidas.adiadas];
-    pedidas.adiadas.clear();
+    if (defer || !requestedKeys.postponed.size) return;
+    const queue = [...requestedKeys.postponed];
+    requestedKeys.postponed.clear();
     untrack(() => {
-      pedir(fila);
+      request(queue);
     });
   });
 
-  // A roda do mouse é vertical; a tira rola na horizontal. Sem esta tradução o
-  // navegador rola a página e a tira fica inalcançável para quem não tem trackpad.
+  // The mouse wheel is vertical; the strip scrolls horizontally. Without this
+  // translation the browser scrolls the page and the strip is unreachable for
+  // whoever has no trackpad.
   function onWheel(ev: WheelEvent & { currentTarget: HTMLDivElement }) {
     const el = ev.currentTarget;
-    if (el.scrollWidth <= el.clientWidth) return; // nada a rolar
-    if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return; // gesto horizontal: o nativo já resolve
+    if (el.scrollWidth <= el.clientWidth) return; // nothing to scroll
+    if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return; // horizontal gesture: the native one already handles it
 
-    // deltaMode: 0 px (Chrome), 1 linhas (Firefox), 2 páginas.
+    // deltaMode: 0 px (Chrome), 1 lines (Firefox), 2 pages.
     const step = ev.deltaY * (ev.deltaMode === 1 ? 32 : ev.deltaMode === 2 ? el.clientWidth : 1);
 
-    // Quem limita é o navegador: scrollLeft é fracionário e scrollWidth vem
-    // arredondado, então um limite calculado aqui erra a ponta por uma fração de
-    // pixel - e a tira prenderia a rolagem da página para sempre no fim.
+    // The browser enforces the limit: scrollLeft is fractional and scrollWidth
+    // comes rounded, so a limit computed here is off at the end by a fraction
+    // of a pixel - and the strip would trap the page's scroll at the end
+    // forever.
     const before = el.scrollLeft;
     el.scrollLeft = before + step;
-    if (el.scrollLeft === before) return; // já na ponta: devolve a rolagem à página
+    if (el.scrollLeft === before) return; // already at the end: hand the scroll back to the page
 
     ev.preventDefault();
   }
@@ -211,11 +218,9 @@
         onseek?.(t);
       }}
       title={hhmmss(t)}
-      aria-label={[hhmmss(t), nomesDasFamilias(familiasPorTile[t] ?? [])]
-        .filter(Boolean)
-        .join(', ')}
+      aria-label={[hhmmss(t), familyNames(familiesPerTile[t] ?? [])].filter(Boolean).join(', ')}
     >
-      {#if pedidas.instantes.has(t)}
+      {#if requestedKeys.instantes.has(t)}
         {#await thumbnail(cam, t) then bitmap}
           {#if bitmap}
             <canvas
@@ -226,7 +231,7 @@
                 const h = node.clientHeight * (window.devicePixelRatio || 1);
                 node.width = w;
                 node.height = h;
-                contexto2d(node).drawImage(bitmap, 0, 0, w, h);
+                context2d(node).drawImage(bitmap, 0, 0, w, h);
               }}
             ></canvas>
           {:else}
@@ -234,7 +239,7 @@
           {/if}
         {/await}
       {/if}
-      <SeloDeFamilias familias={familiasPorTile[t] ?? []} />
+      <FamilyBadge families={familiesPerTile[t] ?? []} />
       <span class="time mono">{hhmmss(t)}</span>
     </button>
   {/each}
@@ -251,11 +256,11 @@
     overflow-x: auto;
     padding: 4px 2px 8px;
     scroll-snap-type: x proximity;
-    /* Rolagem horizontal fluida no toque, sem prender a rolagem da página. */
+    /* Smooth horizontal scrolling on touch, without trapping the page's scroll. */
     overscroll-behavior-x: contain;
   }
 
-  /* A largura é a LARGURA_DO_QUADRINHO do thumbs.ts: mudou aqui, mude lá. */
+  /* The width is thumbs.ts's FRAMELET_WIDTH: if you change it here, change it there. */
   .tile {
     position: relative;
     flex: 0 0 auto;

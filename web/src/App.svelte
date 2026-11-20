@@ -9,409 +9,424 @@
     checkSession,
     loadCameras,
     loadBuild,
-    checarNovaVersao,
-    vigiarAvisos,
+    checkNewVersion,
+    watchNotices,
     logout,
-    ehAdmin,
-    sessaoCaiu,
+    isAdmin,
+    sessionDropped,
     RELEASES_URL,
   } from './lib/state.svelte.ts';
-  import { rota, ROTA_PADRAO, corrigirRota, linkDaTela, cena } from './lib/rota.svelte.ts';
-  import { appInstalado, copiar } from './lib/navegador.ts';
-  import { telaNova, vigiarVersaoDaTela } from './lib/versao-tela.svelte.ts';
+  import { routeState, DEFAULT_ROUTE, fixRoute, screenLink, scene } from './lib/route.svelte.ts';
+  import { appInstalled, copy } from './lib/browser.ts';
+  import { newScreen, watchScreenVersion } from './lib/screen-version.svelte.ts';
   import { setUnauthorizedHandler } from './lib/api.ts';
-  import type { Pessoa } from './lib/api.ts';
-  import { avisosDe, resumoDosAvisos } from './lib/avisos.ts';
-  import { fecharAviso } from './lib/snackbar.svelte.ts';
-  import { instalarDicaDoToque } from './lib/dicaDoToque.ts';
+  import type { Person } from './lib/api.ts';
+  import { noticesOf, noticesSummary } from './lib/notices.ts';
+  import { closeNotice } from './lib/snackbar.svelte.ts';
+  import { installTouchHint } from './lib/touchHint.ts';
   import Login from './routes/Login.svelte';
   import Live from './routes/Live.svelte';
   import Recordings from './routes/Recordings.svelte';
   import Cameras from './routes/Cameras.svelte';
-  import Health from './routes/Health.svelte';
+  import Diagnostics from './routes/Diagnostics.svelte';
   import Avatar from './components/Avatar.svelte';
-  import Icone from './components/Icone.svelte';
+  import Icon from './components/Icon.svelte';
   import Snackbar from './components/Snackbar.svelte';
-  import type { NomeDoIconeUi } from './lib/iconesUi.ts';
-  import type TelaDoConvite from './routes/Convite.svelte';
+  import type { UiIconName } from './lib/uiIcons.ts';
+  import type InviteScreen from './routes/Invite.svelte';
 
-  interface Rota {
+  interface Route {
     id: string;
     label: string;
-    icon?: NomeDoIconeUi;
-    // A tela que já vem no bundle principal, ou o import do chunk à parte dela.
+    icon?: UiIconName;
+    // The screen that already ships in the main bundle, or the import of its
+    // separate chunk.
     component?: Component;
-    carregar?: () => Promise<{ default: Component }>;
-    soComDetector?: boolean;
-    soAdmin?: boolean;
-    semAba?: boolean;
+    load?: () => Promise<{ default: Component }>;
+    onlyWithObjectDetector?: boolean;
+    adminOnly?: boolean;
+    noTab?: boolean;
   }
 
-  // Lista que nunca é vazia: a primeira é a padrão.
-  const ROUTES: readonly [Rota, ...Rota[]] = [
-    { id: 'live', label: 'Ao vivo', icon: 'aoVivo', component: Live },
-    { id: 'rec', label: 'Gravações', icon: 'relogio', component: Recordings },
-    // Chunk à parte: só quem abre a tela paga os bytes dela. E só existe com o
-    // detector de objetos configurado - sem ele não há detecção para listar.
+  // This list is never empty: the first entry is the default.
+  const ROUTES: readonly [Route, ...Route[]] = [
+    { id: 'live', label: 'Ao vivo', icon: 'live', component: Live },
+    { id: 'rec', label: 'Gravações', icon: 'clock', component: Recordings },
+    // Separate chunk: only whoever opens the screen pays for its bytes. It only
+    // exists with the object detector configured - without it there are no
+    // detections to list.
     {
       id: 'detection',
       label: 'Detecções',
-      icon: 'deteccao',
-      carregar: () => import('./routes/Deteccoes.svelte'),
-      soComDetector: true,
+      icon: 'detection',
+      load: () => import('./routes/Detections.svelte'),
+      onlyWithObjectDetector: true,
     },
-    // As duas do admin. Esconder a aba não é segurança - a API recusa o viewer
-    // com 403 -, é só não mostrar o que ele não pode usar. Usuários vem em
-    // chunk à parte: o viewer nunca baixa a tela.
-    { id: 'cams', label: 'Câmeras', icon: 'lista', component: Cameras, soAdmin: true },
+    // Both are admin-only. Hiding the tab is not security - the API rejects the
+    // viewer with 403 - it just avoids showing what they cannot use. Users
+    // comes in a separate chunk: the viewer never downloads the screen.
+    { id: 'cams', label: 'Câmeras', icon: 'list', component: Cameras, adminOnly: true },
     {
       id: 'usuarios',
       label: 'Usuários',
-      icon: 'usuarios',
-      carregar: () => import('./routes/Usuarios.svelte'),
-      soAdmin: true,
+      icon: 'users',
+      load: () => import('./routes/Users.svelte'),
+      adminOnly: true,
     },
-    // Para o viewer, só "Este navegador" e a versão.
-    { id: 'health', label: 'Diagnóstico', icon: 'coracao', component: Health },
-    // Sem aba: chega-se pelo avatar do header. Só existe com login, porque sem
-    // ele não há de quem ser a conta.
+    // For the viewer, only "Este navegador" and the version.
+    { id: 'health', label: 'Diagnóstico', icon: 'heart', component: Diagnostics },
+    // No tab: you get there through the avatar in the header. It only exists
+    // with login, because without it there is no one the account could belong
+    // to.
     {
       id: 'conta',
       label: 'Minha conta',
-      carregar: () => import('./routes/Conta.svelte'),
-      semAba: true,
+      load: () => import('./routes/Account.svelte'),
+      noTab: true,
     },
   ];
 
-  const podeVer = (r: Rota) =>
-    (!r.soComDetector || cameras.detector) &&
-    (!r.soAdmin || ehAdmin()) &&
+  const canSee = (r: Route) =>
+    (!r.onlyWithObjectDetector || cameras.detector) &&
+    (!r.adminOnly || isAdmin()) &&
     (r.id !== 'conta' || session.authRequired);
-  const abas = $derived(ROUTES.filter((r) => !r.semAba && podeVer(r)));
+  const tabs = $derived(ROUTES.filter((r) => !r.noTab && canSee(r)));
 
-  // O link de convite (`#convite?token=…`) abre a tela de definir a senha, com
-  // ou sem sessão: quem o recebe ainda não tem senha. Chunk à parte, porque só
-  // quem abre um link a usa.
-  const convite = $derived(rota.id === 'convite');
-  let Convite = $state<typeof TelaDoConvite | null>(null);
+  // The invite link (`#convite?token=…`) opens the set-password screen, with or
+  // without a session: whoever receives it does not have a password yet.
+  // Separate chunk, because only people who open an invite link use it.
+  const invite = $derived(routeState.id === 'convite');
+  let Invite = $state<typeof InviteScreen | null>(null);
   $effect(() => {
-    if (convite && !Convite) {
-      void import('./routes/Convite.svelte').then((m) => {
-        Convite = m.default;
+    if (invite && !Invite) {
+      void import('./routes/Invite.svelte').then((m) => {
+        Invite = m.default;
       });
     }
   });
 
-  // A aba que depende do detector só se decide depois do /api/cameras. Até lá
-  // a tela fica em branco: cair na padrão e trocar em seguida montaria e
-  // desmontaria o ao vivo, com as conexões dele, à toa.
-  const pedida = $derived(ROUTES.find((r) => r.id === rota.id));
-  const esperando = $derived(pedida?.soComDetector && cameras.detector === null);
+  // The tab that depends on the object detector is only decided after
+  // /api/cameras. Until then the screen stays blank: falling back to the
+  // default and switching right after would mount and unmount Live, with its
+  // connections, for nothing.
+  const requested = $derived(ROUTES.find((r) => r.id === routeState.id));
+  const waiting = $derived(requested?.onlyWithObjectDetector && cameras.detector === null);
 
-  // Roteamento por hash: são poucas telas, e um roteador de verdade custaria
-  // mais bytes que o resto do aplicativo junto. Quem lê e escreve o hash é o
-  // `lib/rota.svelte.ts`, porque ele carrega também o estado de cada tela.
-  // Hash apontando para tela que não existe ou que a pessoa não pode ver -
-  // erro de digitação, link de uma versão futura, `#detection` num servidor
-  // sem detector, `#usuarios` aberto pelo viewer: a tela padrão assume.
+  // Hash routing: there are few screens, and a real router would cost more
+  // bytes than the rest of the app combined. `lib/route.svelte.ts` reads and
+  // writes the hash, because it also carries the state of each screen.
+  // A hash that points to a screen that does not exist or that the person
+  // cannot see - a typo, a link from a future version, `#detection` on a server
+  // without the object detector, `#usuarios` opened by the viewer: the default
+  // screen takes over.
   const route = $derived(
-    ROUTES.find((r) => r.id === rota.id && podeVer(r)) ??
-      ROUTES.find((r) => r.id === ROTA_PADRAO) ??
+    ROUTES.find((r) => r.id === routeState.id && canSee(r)) ??
+      ROUTES.find((r) => r.id === DEFAULT_ROUTE) ??
       ROUTES[0],
   );
 
-  // A tela no título, para a aba e o histórico dizerem onde se está. No login
-  // e enquanto a tela não se decide fica só a marca: um "Ao vivo" de passagem
-  // antes de "Detecções" seria mentira por um instante.
-  const titulo = $derived(
-    convite || !session.checked || (session.authRequired && !session.authenticated) || esperando
+  // The screen goes in the title, so the browser tab and the history say where
+  // you are. On login, and while the screen is not decided yet, only the brand
+  // shows: a passing "Ao vivo" before "Detecções" would be a lie for a moment.
+  const title = $derived(
+    invite || !session.checked || (session.authRequired && !session.authenticated) || waiting
       ? 'dwnvr'
       : `dwnvr · ${route.label}`,
   );
 
-  // As telas em chunk à parte, já baixadas: id -> componente.
-  let carregadas = $state<Record<string, Component>>({});
-  const Tela = $derived(esperando ? null : (route.component ?? carregadas[route.id]));
+  // The screens in separate chunks that are already downloaded: id ->
+  // component.
+  let loadedComponents = $state<Record<string, Component>>({});
+  const Screen = $derived(waiting ? null : (route.component ?? loadedComponents[route.id]));
 
-  // As que não baixaram. Sem isto a falha deixava a tela em branco, sem dizer
-  // nada. Sair e voltar para a tela tenta de novo.
-  let falharam = $state<Record<string, boolean>>({});
+  // The ones that failed to download. Without this, the failure left the screen
+  // blank and said nothing. Leaving the screen and coming back tries again.
+  let failedList = $state<Record<string, boolean>>({});
 
   $effect(() => {
-    if (esperando) return;
+    if (waiting) return;
     const r = route;
-    if (r.carregar && !carregadas[r.id]) {
-      r.carregar().then(
+    if (r.load && !loadedComponents[r.id]) {
+      r.load().then(
         (m) => {
-          carregadas[r.id] = m.default;
-          falharam[r.id] = false;
+          loadedComponents[r.id] = m.default;
+          failedList[r.id] = false;
         },
         () => {
-          falharam[r.id] = true;
+          failedList[r.id] = true;
         },
       );
     }
   });
 
-  $effect(() => vigiarVersaoDaTela());
+  $effect(() => watchScreenVersion());
 
-  const logado = $derived(session.checked && (!session.authRequired || session.authenticated));
+  const loggedIn = $derived(session.checked && (!session.authRequired || session.authenticated));
 
-  // A barra de endereços diz a tela que está aberta. Quando a padrão assume
-  // (ver route), o estado que ela escreve iria parar debaixo do nome pedido
-  // (`#usuarios?cams=…`). Só depois de a sessão e o detector se decidirem:
-  // antes, até o admin parece um viewer, e perderia o `#usuarios` do recarregar.
+  // The address bar tells which screen is open. When the default takes over
+  // (see route), the state it writes would end up under the requested name
+  // (`#usuarios?cams=…`). Only after the session and the object detector are
+  // decided: before that, even the admin looks like a viewer, and would lose
+  // the `#usuarios` on reload.
   $effect(() => {
-    if (logado && !convite && !esperando && route.id !== rota.id) corrigirRota(route.id);
+    if (loggedIn && !invite && !waiting && route.id !== routeState.id) fixRoute(route.id);
   });
 
-  // O sino do header: os mesmos avisos do card da tela Diagnóstico, contados
-  // pela mesma função. Só vigia com a sessão aberta - sem ela não há header -,
-  // e só para o admin: o viewer não tem sino, e a tela dele não relê a saúde.
+  // The header bell: the same notices as the Diagnostics screen card, counted
+  // by the same function. It only polls with an open session - without one
+  // there is no header - and only for the admin: the viewer has no bell, and
+  // their screen does not reread health.
   $effect(() => {
-    if (!logado || !ehAdmin()) return;
-    return vigiarAvisos();
+    if (!loggedIn || !isAdmin()) return;
+    return watchNotices();
   });
-  const sino = $derived(resumoDosAvisos(avisosDe(health)));
-  const sinoTitulo = $derived(
-    `${sino.total} ${sino.total === 1 ? 'aviso' : 'avisos'} no Diagnóstico`,
+  const bell = $derived(noticesSummary(noticesOf(health)));
+  const bellTitle = $derived(
+    `${bell.total} ${bell.total === 1 ? 'aviso' : 'avisos'} no Diagnóstico`,
   );
 
-  // Clicar na aba em que já se está não pode reiniciar a tela. Antes o href era
-  // igual ao hash e o navegador nem disparava evento; agora o hash carrega o
-  // estado (`#rec?cam=x&t=…`), e o mesmo clique viraria uma navegação para o
-  // `#rec` pelado - jogando fora justamente o que a URL passou a guardar.
-  function navegar(ev: MouseEvent, id: string) {
+  // Clicking the tab you are already on must not restart the screen. The href
+  // used to equal the hash and the browser fired no event; now the hash carries
+  // the state (`#rec?cam=x&t=…`), and the same click would become a navigation
+  // to a bare `#rec` - throwing away exactly what the URL now keeps.
+  function navigate(ev: MouseEvent, id: string) {
     if (id === route.id) ev.preventDefault();
   }
 
-  // Compartilhar a tela, só no app instalado: no navegador a barra de endereços
-  // já leva a cena, e no app ela não existe. O menu do sistema (WhatsApp,
-  // e-mail) onde houver - pede HTTPS -; no resto, copiar o link.
-  const instalado = appInstalado();
-  let copiouTela = $state('');
-  let timerCopiou: number | undefined;
+  // Sharing the screen, only in the installed app: in the browser the address
+  // bar already carries the scene, and the app has none. The system menu
+  // (WhatsApp, email) where available - it requires HTTPS -; elsewhere, copy
+  // the link.
+  const installed = appInstalled();
+  let copiedScreen = $state('');
+  let copiedTimer: number | undefined;
 
-  // A cena em palavras vai no título - o assunto do e-mail - e no texto, que o
-  // WhatsApp manda junto do link. Tela sem cena fica com o título da aba.
-  // Copiar leva só o link: quem cola espera um link.
+  // The scene in words goes in the title - the email subject - and in the text,
+  // which WhatsApp sends along with the link. A screen without a scene gets the
+  // browser tab title. Copying carries only the link: whoever pastes expects a
+  // link.
   //
-  // Com a cena, o link vai dentro do texto, numa linha própria, e não no campo
-  // `url`: o Chrome do Android junta texto e url com um espaço, e o link
-  // grudava no fim da frase. O WhatsApp acha o link no texto e monta a prévia
-  // do mesmo jeito.
-  async function compartilharTela() {
-    const url = linkDaTela();
+  // With a scene, the link goes inside the text, on its own line, and not in
+  // the `url` field: Android Chrome joins text and url with a space, and the
+  // link stuck to the end of the sentence. WhatsApp finds the link in the text
+  // and builds the preview the same way.
+  async function shareScreen() {
+    const url = screenLink();
     if (typeof navigator.share === 'function') {
-      const dados: ShareData = cena.texto
-        ? { title: `dwnvr · ${cena.texto}`, text: `${cena.texto}\n${url}` }
-        : { title: titulo, url };
+      const data: ShareData = scene.texto
+        ? { title: `dwnvr · ${scene.texto}`, text: `${scene.texto}\n${url}` }
+        : { title, url };
       try {
-        await navigator.share(dados);
+        await navigator.share(data);
       } catch {
-        // Cancelar o menu do sistema também cai aqui. Nada a fazer.
+        // Dismissing the system menu also lands here. Nothing to do.
       }
       return;
     }
-    copiouTela = (await copiar(url)) ? 'link copiado' : 'não deu para copiar';
-    clearTimeout(timerCopiou);
-    timerCopiou = setTimeout(() => (copiouTela = ''), 2000);
+    copiedScreen = (await copy(url)) ? 'link copiado' : 'não deu para copiar';
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => (copiedScreen = ''), 2000);
   }
 
-  // A versão em uso, buscada no boot. A pergunta ao GitHub por versão nova
-  // espera por ela e pela sessão: só o admin vê a pílula, e o viewer não gasta
-  // a consulta.
-  let versao: Promise<void> | undefined;
+  // The version in use, fetched at boot. The query to GitHub for a new version
+  // waits for it and for the session: only the admin sees the pill, and the
+  // viewer does not spend the request.
+  let version: Promise<void> | undefined;
 
-  function talvezVersaoNova() {
-    if (ehAdmin()) void versao?.then(checarNovaVersao);
+  function maybeNewVersion() {
+    if (isAdmin()) void version?.then(checkNewVersion);
   }
 
   onMount(async () => {
-    setUnauthorizedHandler(sessaoCaiu);
-    // Fora do await da sessão: a tela de login também mostra a versão, e não
-    // há motivo para uma busca esperar a outra.
-    versao = loadBuild();
+    setUnauthorizedHandler(sessionDropped);
+    // Outside the session await: the login screen also shows the version, and
+    // there is no reason for one fetch to wait for the other.
+    version = loadBuild();
     await checkSession();
     if (session.authenticated) {
       void loadCameras();
-      talvezVersaoNova();
+      maybeNewVersion();
     }
   });
 
-  onMount(instalarDicaDoToque);
+  onMount(installTouchHint);
 
-  // O aviso é da tela que o deu: ele não atravessa para a próxima. O
-  // `rota.hash` só muda em navegação de verdade, a mesma que remonta a tela.
+  // The notice belongs to the screen that raised it: it does not carry over to
+  // the next one. `routeState.hash` only changes on a real navigation, the same
+  // one that remounts the screen.
   $effect(() => {
-    /* eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear */
-    rota.hash;
-    // Sem o untrack, o aviso lido lá dentro viraria dependência, e cada aviso
-    // novo se fecharia ao abrir.
+    /* eslint-disable-next-line @typescript-eslint/no-unused-expressions -- read only, so the $effect tracks it */
+    routeState.hash;
+    // Without untrack, the notice read inside would become a dependency, and
+    // each new notice would close itself as it opened.
     untrack(() => {
-      fecharAviso();
+      closeNotice();
     });
   });
 
-  async function afterLogin(pessoa: Pessoa) {
+  async function afterLogin(person: Person) {
     session.authenticated = true;
-    session.pessoa = pessoa;
-    talvezVersaoNova();
+    session.pessoa = person;
+    maybeNewVersion();
     await loadCameras();
   }
 
-  // Definida a senha pelo link, a pessoa já entra. O link sai do histórico:
-  // voltar não pode reabrir uma tela com o token, que já não vale.
-  function aposConvite(pessoa: Pessoa) {
+  // Once the password is set through the link, the person is already signed in.
+  // The link leaves the history: going back must not reopen a screen with the
+  // token, which is no longer valid.
+  function afterInvite(person: Person) {
     session.checked = true;
-    location.replace(location.pathname + location.search + '#' + ROTA_PADRAO);
-    void afterLogin(pessoa);
+    location.replace(location.pathname + location.search + '#' + DEFAULT_ROUTE);
+    void afterLogin(person);
   }
 
-  // O menu do avatar: Minha conta e Sair, para os dois papéis. O Sair fica a
-  // um toque a mais, o que dificulta sair por engano.
-  let menuConta = $state(false);
+  // The avatar menu: "Minha conta" and "Sair", for both roles. "Sair" takes one
+  // extra tap, which makes it harder to sign out by accident.
+  let accountMenu = $state(false);
 
-  function foraDoMenu(e: MouseEvent) {
-    if (menuConta && !(e.target instanceof Element && e.target.closest('.conta')))
-      menuConta = false;
+  function outsideMenu(e: MouseEvent) {
+    if (accountMenu && !(e.target instanceof Element && e.target.closest('.account')))
+      accountMenu = false;
   }
 
-  let saindo = $state(false);
+  let signingOut = $state(false);
 
-  async function sair() {
-    saindo = true;
+  async function leave() {
+    signingOut = true;
     await logout();
-    saindo = false;
-    menuConta = false;
+    signingOut = false;
+    accountMenu = false;
   }
 
-  const papel = $derived(session.pessoa?.role === 'admin' ? 'administrador' : 'usuário');
+  const role = $derived(session.pessoa?.role === 'admin' ? 'administrador' : 'usuário');
 </script>
 
 <svelte:head>
-  <title>{titulo}</title>
+  <title>{title}</title>
 </svelte:head>
 
 <svelte:window
-  onclick={foraDoMenu}
+  onclick={outsideMenu}
   onkeydown={(e: KeyboardEvent) => {
-    if (e.key === 'Escape') menuConta = false;
+    if (e.key === 'Escape') accountMenu = false;
   }}
 />
 
-{#if convite}
-  {#if Convite}<Convite onSuccess={aposConvite} />{:else}<div class="boot">carregando…</div>{/if}
+{#if invite}
+  {#if Invite}<Invite onSuccess={afterInvite} />{:else}<div class="boot">carregando…</div>{/if}
 {:else if !session.checked}
   <div class="boot">carregando…</div>
 {:else if session.authRequired && !session.authenticated}
   <Login onSuccess={afterLogin} />
 {:else}
-  <!-- A faixa de versão nova desce junto com o header. Quem mede a altura dele
-       para se encostar embaixo (a tela Detecções) mede este bloco. -->
-  <div class="topo">
+  <!-- The new-version strip slides down with the header. Whoever measures the
+       header height to dock at the bottom (the Detections screen) measures this
+       block. -->
+  <div class="top">
     <header>
       <span class="brand">
-        <!-- O mesmo arquivo do favicon, servido de public/: uma marca só, um
-           lugar só para mudar. -->
+        <!-- The same file as the favicon, served from public/: one brand, one
+           place to change it. -->
         <img class="mark" src="/favicon.svg" alt="" width="24" height="24" />
         dwnvr
       </span>
       <nav class="top">
-        {#each abas as r (r.id)}
+        {#each tabs as r (r.id)}
           <a
             href="#{r.id}"
             class:active={r.id === route.id}
             onclick={(e) => {
-              navegar(e, r.id);
+              navigate(e, r.id);
             }}
           >
             {r.label}
           </a>
         {/each}
       </nav>
-      <div class="acoes">
-        {#if instalado}
-          <div class="compartilhar">
+      <div class="actions">
+        {#if installed}
+          <div class="share">
             <button
-              class="icone"
-              onclick={compartilharTela}
+              class="icon"
+              onclick={shareScreen}
               title="Compartilhar esta tela"
               aria-label="Compartilhar esta tela"
             >
-              <Icone nome="compartilhar" tamanho={21} />
+              <Icon name="share" size={21} />
             </button>
-            {#if copiouTela}<span class="copiou" role="status">{copiouTela}</span>{/if}
+            {#if copiedScreen}<span class="copied" role="status">{copiedScreen}</span>{/if}
           </div>
         {/if}
-        <!-- Some sem aviso: um sino apagado sempre à vista ensinaria a não
-           olhar para ele. A cor da bolha é a do pior aviso. -->
-        {#if sino.total}
+        <!-- Disappears without notice: an unlit bell always in view would teach
+           people not to look at it. The bubble color is the worst notice's
+           color. -->
+        {#if bell.total}
           <a
-            class="sino {sino.nivel}"
+            class="bell {bell.nivel}"
             href="#health"
-            title={sinoTitulo}
-            aria-label={sinoTitulo}
+            title={bellTitle}
+            aria-label={bellTitle}
             onclick={(e) => {
-              navegar(e, 'health');
+              navigate(e, 'health');
             }}
           >
-            <Icone nome="sino" tamanho={21} />
-            <span class="bolha">{sino.total}</span>
+            <Icon name="bell" size={21} />
+            <span class="bubble">{bell.total}</span>
           </a>
         {/if}
-        <!-- Leva às releases, e não direto à versão nova: quem pulou algumas
-           precisa ler as notas de todas desde a sua. -->
-        {#if build.nova && ehAdmin()}
+        <!-- Leads to the releases, and not straight to the new version: whoever
+           skipped a few needs to read the notes of all of them since theirs. -->
+        {#if build.newOne && isAdmin()}
           <a
-            class="nova"
+            class="new"
             href={RELEASES_URL}
             target="_blank"
             rel="noopener"
-            title="Versão nova do dwnvr: {build.nova} (você está na {build.version}). Veja o que mudou e como atualizar."
+            title="Versão nova do dwnvr: {build.newOne} (você está na {build.version}). Veja o que mudou e como atualizar."
           >
-            <Icone nome="setaCima" tamanho={14} />
-            {build.nova}
+            <Icon name="arrowUp" size={14} />
+            {build.newOne}
           </a>
         {/if}
-        <!-- Sem autenticação configurada não há de quem ser a conta nem sessão
-           para encerrar, e um botão que não faz nada é pior que botão nenhum.
-           O anel marca o menu aberto, e a Minha conta, que não tem aba. -->
+        <!-- Without authentication configured there is no one the account could
+           belong to and no session to end, and a button that does nothing is
+           worse than no button. The ring marks the open menu, and "Minha
+           conta", which has no tab. -->
         {#if session.authRequired && session.pessoa}
-          <div class="conta">
+          <div class="account">
             <button
               class="avbtn"
-              class:ativo={menuConta || route.id === 'conta'}
-              onclick={() => (menuConta = !menuConta)}
+              class:active={accountMenu || route.id === 'conta'}
+              onclick={() => (accountMenu = !accountMenu)}
               aria-haspopup="menu"
-              aria-expanded={menuConta}
+              aria-expanded={accountMenu}
               aria-label="conta de {session.pessoa.name}"
               title={session.pessoa.name}
             >
-              <Avatar pessoa={session.pessoa} tamanho={32} />
+              <Avatar person={session.pessoa} size={32} />
             </button>
-            {#if menuConta}
-              <div class="menu-conta" role="menu">
-                <div class="quem">
-                  <Avatar pessoa={session.pessoa} tamanho={40} />
+            {#if accountMenu}
+              <div class="account-menu" role="menu">
+                <div class="who">
+                  <Avatar person={session.pessoa} size={40} />
                   <div>
                     <strong>{session.pessoa.name}</strong>
-                    <span class="muted small">@{session.pessoa.username} · {papel}</span>
+                    <span class="muted small">@{session.pessoa.username} · {role}</span>
                   </div>
                 </div>
                 <div class="sep"></div>
                 <a
                   href="#conta"
                   role="menuitem"
-                  class:atual={route.id === 'conta'}
+                  class:current={route.id === 'conta'}
                   onclick={(e) => {
-                    navegar(e, 'conta');
-                    menuConta = false;
+                    navigate(e, 'conta');
+                    accountMenu = false;
                   }}>Minha conta</a
                 >
                 <div class="sep"></div>
-                <button role="menuitem" onclick={sair} disabled={saindo}>
-                  {saindo ? 'saindo…' : 'Sair'}
+                <button role="menuitem" onclick={leave} disabled={signingOut}>
+                  {signingOut ? 'saindo…' : 'Sair'}
                 </button>
               </div>
             {/if}
@@ -419,9 +434,9 @@
         {/if}
       </div>
     </header>
-    <!-- Sem botão de fechar: adiar a recarga só adia o chunk que não baixa. -->
-    {#if telaNova.disponivel}
-      <div class="faixa" role="status">
+    <!-- No close button: postponing the reload only postpones the chunk that will not download. -->
+    {#if newScreen.available}
+      <div class="strip" role="status">
         <span class="txt">
           O dwnvr foi atualizado. <span class="muted">Recarregue para usar a versão nova.</span>
         </span>
@@ -431,24 +446,24 @@
   </div>
 
   <main>
-    <!-- A chave força a remontagem ao trocar de tela: cada uma tem recursos
-         pesados (conexões de live, MediaSource) que precisam ser liberados,
-         e depender de limpeza manual seria fonte garantida de vazamento.
+    <!-- The key forces a remount when switching screens: each one has heavy
+         resources (live connections, MediaSource) that must be released, and
+         relying on manual cleanup would be a sure source of leaks.
 
-         É o hash inteiro, e não só a rota, porque cada tela lê o seu estado da
-         URL uma vez, ao montar. `rota.hash` só muda em navegação de verdade -
-         voltar, avançar, URL colada à mão -, e é aí que remontar é o certo: as
-         escritas da própria tela usam replaceState, que não dispara
-         hashchange, então elas não remontam nada. -->
-    {#key rota.hash}
-      {#if Tela}
-        <Tela />
-      {:else if route.carregar && falharam[route.id]}
-        <div class="falhou">
-          <div class="ico"><Icone nome="atualizar" tamanho={28} /></div>
+         It is the whole hash, not just the route, because each screen reads its
+         state from the URL once, on mount. `routeState.hash` only changes on a
+         real navigation - back, forward, a URL pasted by hand - and that is
+         when remounting is right: the screen's own writes use replaceState,
+         which does not fire hashchange, so they remount nothing. -->
+    {#key routeState.hash}
+      {#if Screen}
+        <Screen />
+      {:else if route.load && failedList[route.id]}
+        <div class="failed">
+          <div class="ico"><Icon name="refresh" size={28} /></div>
           <h3>Não deu para abrir esta tela</h3>
           <p>
-            {#if telaNova.disponivel}
+            {#if newScreen.available}
               O dwnvr foi atualizado desde que esta página foi aberta. Recarregue para continuar;
               você volta para esta mesma tela.
             {:else}
@@ -461,17 +476,17 @@
     {/key}
   </main>
 
-  <nav class="bottom" style:--abas={abas.length}>
-    {#each abas as r (r.id)}
+  <nav class="bottom" style:--abas={tabs.length}>
+    {#each tabs as r (r.id)}
       <a
         href="#{r.id}"
         class:active={r.id === route.id}
         onclick={(e) => {
-          navegar(e, r.id);
+          navigate(e, r.id);
         }}
       >
         <span class="icon">
-          {#if r.icon}<Icone nome={r.icon} tamanho={18} />{/if}
+          {#if r.icon}<Icon name={r.icon} size={18} />{/if}
         </span>
         <span class="label">{r.label}</span>
       </a>
@@ -482,7 +497,7 @@
 {/if}
 
 <style>
-  /* A coluna do #app inteira, que tem a altura da janela (ver app.css). */
+  /* The whole #app column, which has the window height (see app.css). */
   .boot {
     display: grid;
     place-items: center;
@@ -490,10 +505,10 @@
     color: var(--dim);
   }
 
-  /* A barra existe sempre, também no celular sem login, onde ela só tem a
-     marca: é o mesmo canto para o aviso de versão nova em todo caso, e os
-     ~37px que ela come da grade ao vivo quem usa com login já pagava. No
-     celular a navegação mora embaixo. */
+  /* The bar is always there, also on the phone without login, where it only has
+     the brand: it is the same corner for the new-version notice in any case,
+     and people who use login already paid for the ~37px it takes from the live
+     grid. On the phone the navigation lives at the bottom. */
   header {
     display: flex;
     align-items: center;
@@ -503,15 +518,15 @@
     border-bottom: 1px solid var(--line);
   }
 
-  .topo {
+  .top {
     position: sticky;
     top: 0;
     z-index: 20;
   }
 
-  /* O azul da pílula de release, só que opaco: a faixa fica sobre o vídeo
-     quando a página rola. */
-  .faixa {
+  /* The release pill's blue, only opaque: the strip sits over the video when
+     the page scrolls. */
+  .strip {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -521,21 +536,21 @@
     font-size: 14px;
   }
 
-  .faixa .txt {
+  .strip .txt {
     flex: 1;
     min-width: 0;
     line-height: 1.3;
   }
 
-  /* 34px, como a pílula e o avatar: os 44px do botão comum engordariam a
-     faixa. */
-  .faixa button {
+  /* 34px, like the pill and the avatar: the regular button's 44px would fatten
+     the strip. */
+  .strip button {
     min-height: 34px;
     padding: 5px 14px;
     font-size: 14px;
   }
 
-  .falhou {
+  .failed {
     max-width: 420px;
     margin: 48px auto;
     padding: 24px 18px;
@@ -545,16 +560,16 @@
     text-align: center;
   }
 
-  .falhou .ico {
+  .failed .ico {
     color: var(--accent);
   }
 
-  .falhou h3 {
+  .failed h3 {
     margin: 0;
     font-size: 16px;
   }
 
-  .falhou p {
+  .failed p {
     margin: 0;
     color: var(--dim);
     font-size: 14px;
@@ -568,8 +583,8 @@
     letter-spacing: 0.3px;
   }
 
-  /* O SVG já traz o próprio arredondamento, então nada de border-radius
-     aqui - dobrar o raio deformaria os cantos. */
+  /* The SVG already has its own rounding, so no border-radius here - doubling
+     the radius would distort the corners. */
   .mark {
     display: block;
     flex: none;
@@ -579,23 +594,24 @@
     display: none;
   }
 
-  /* Empurradas para a ponta oposta da marca. O avatar, que leva ao Sair,
-     longe do polegar que navega pelo rodapé: sair por engano custa digitar a
-     senha de novo. */
-  .acoes {
+  /* Pushed to the opposite end from the brand. The avatar, which leads to
+     "Sair", stays away from the thumb that navigates along the bottom: signing
+     out by accident costs retyping the password. */
+  .actions {
     margin-left: auto;
     display: flex;
     align-items: center;
     gap: 12px;
   }
 
-  /* Pílula e não ponto: sem hover no celular, um ponto sozinho não diz o que
-     é. O número já diz. O fundo e a borda são o --accent translúcido. */
-  .nova {
+  /* A pill and not a dot: with no hover on the phone, a lone dot does not say
+     what it is. The number already does. The background and the border are the
+     translucent --accent. */
+  .new {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    /* A mesma altura do avatar ao lado. */
+    /* The same height as the avatar next to it. */
     min-height: 34px;
     padding: 5px 12px;
     border-radius: 999px;
@@ -608,14 +624,15 @@
     white-space: nowrap;
   }
 
-  .nova:hover {
+  .new:hover {
     background: rgba(47, 129, 247, 0.2);
   }
 
-  /* Sino e não pílula: é o menor dos alertas, 34px como a pílula e o avatar ao
-     lado, e o desenho já diz "tem notificação" sem texto. O desenho é SVG
-     inline, e não emoji: o emoji muda a cada sistema e não aceita cor. */
-  .sino {
+  /* A bell and not a pill: it is the smallest of the alerts, 34px like the pill
+     and the avatar beside it, and the drawing already says "there is a
+     notification" without text. The drawing is an inline SVG, not an emoji: the
+     emoji changes with each system and does not take color. */
+  .bell {
     position: relative;
     display: inline-grid;
     place-items: center;
@@ -625,24 +642,24 @@
     color: var(--fg);
   }
 
-  /* Só amarelos: o sino recua, e só a bolha chama. */
-  .sino.warn {
+  /* Yellows only: the bell steps back, and only the bubble calls attention. */
+  .bell.warn {
     color: var(--dim);
   }
 
   @media (hover: hover) {
-    .sino:hover {
+    .bell:hover {
       background: var(--panel-2);
     }
   }
 
-  /* O compartilhar tem o tamanho e o traço do sino, mas não chama atenção:
-     fica na cor do texto apagado. */
-  .compartilhar {
+  /* The share button has the bell's size and stroke, but does not draw
+     attention: it takes the muted text color. */
+  .share {
     position: relative;
   }
 
-  .icone {
+  .icon {
     display: grid;
     place-items: center;
     width: 34px;
@@ -656,14 +673,14 @@
   }
 
   @media (hover: hover) {
-    .icone:hover {
+    .icon:hover {
       background: var(--panel-2);
       color: var(--fg);
     }
   }
 
-  /* Abre sob o ícone, como o menu do avatar. */
-  .copiou {
+  /* Opens under the icon, like the avatar menu. */
+  .copied {
     position: absolute;
     z-index: 30;
     top: calc(100% + 6px);
@@ -676,8 +693,8 @@
     white-space: nowrap;
   }
 
-  /* A borda da cor do header separa a bolha do desenho do sino. */
-  .bolha {
+  /* A border in the header color separates the bubble from the bell drawing. */
+  .bubble {
     position: absolute;
     top: -2px;
     left: 18px;
@@ -694,21 +711,21 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .sino.bad .bolha {
+  .bell.bad .bubble {
     background: var(--bad);
     color: #fff;
   }
-  .sino.warn .bolha {
+  .bell.warn .bubble {
     background: var(--warn);
     color: #1b1300;
   }
 
-  /* O menu se prende ao avatar, e não ao header: abre sob ele. */
-  .conta {
+  /* The menu attaches to the avatar, not to the header: it opens under it. */
+  .account {
     position: relative;
   }
 
-  /* 34px, como o sino e a pílula ao lado. */
+  /* 34px, like the bell and the pill beside it. */
   .avbtn {
     display: grid;
     place-items: center;
@@ -720,13 +737,13 @@
     background: none;
   }
 
-  .avbtn.ativo {
+  .avbtn.active {
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
   }
 
-  /* O mesmo desenho do menu do ⋮ das telas Detecções e Usuários. */
-  .menu-conta {
+  /* The same drawing as the ⋮ menu of the Detections and Users screens. */
+  .account-menu {
     position: absolute;
     z-index: 30;
     top: calc(100% + 6px);
@@ -740,19 +757,19 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
 
-  .menu-conta .quem {
+  .account-menu .who {
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 8px 10px;
   }
 
-  .menu-conta .quem div {
+  .account-menu .who div {
     min-width: 0;
   }
 
-  .menu-conta .quem strong,
-  .menu-conta .quem span {
+  .account-menu .who strong,
+  .account-menu .who span {
     display: block;
     line-height: 1.25;
     overflow: hidden;
@@ -760,14 +777,14 @@
     white-space: nowrap;
   }
 
-  .menu-conta .sep {
+  .account-menu .sep {
     height: 1px;
     margin: 4px 0;
     background: var(--line);
   }
 
-  .menu-conta a,
-  .menu-conta button {
+  .account-menu a,
+  .account-menu button {
     display: flex;
     align-items: center;
     width: 100%;
@@ -782,22 +799,22 @@
     text-decoration: none;
   }
 
-  .menu-conta a.atual {
+  .account-menu a.current {
     color: var(--accent);
   }
 
   @media (hover: hover) {
-    .menu-conta a:hover,
-    .menu-conta button:hover:not(:disabled) {
+    .account-menu a:hover,
+    .account-menu button:hover:not(:disabled) {
       background: var(--panel-2);
     }
   }
 
   main {
-    /* Espaço para a navegação inferior não cobrir o conteúdo. */
+    /* Room so the bottom navigation does not cover the content. */
     padding-bottom: var(--nav-h);
-    /* Ocupa o que sobra da coluna do #app, da altura da janela, em vez de
-       pedir a altura cheia dela e empurrar o documento para além dela. */
+    /* Takes what is left of the #app column, from the window height, instead of
+       asking for the full height and pushing the document past it. */
     flex: 1;
   }
 
@@ -832,21 +849,21 @@
     place-items: center;
   }
 
-  /* No desktop a navegação sobe: o polegar deixa de ser a restrição e a
-     altura da tela passa a ser o recurso escasso. */
+  /* On the desktop the navigation moves up: the thumb is no longer the
+     constraint, and screen height becomes the scarce resource. */
   @media (min-width: 720px) {
-    /* A navegação sobe para a barra, que ganha folga. */
+    /* The navigation moves up into the bar, which gets extra room. */
     header {
       gap: 20px;
       padding: 10px 18px;
     }
 
-    .faixa {
+    .strip {
       justify-content: center;
       padding: 6px 18px;
     }
 
-    .faixa .txt {
+    .strip .txt {
       flex: none;
     }
 

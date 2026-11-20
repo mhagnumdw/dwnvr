@@ -213,7 +213,7 @@ func alertMessage(a Alert, to []string, publicURL string) (email.Message, error)
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // recordingLink opens the Recordings screen on the camera and the instant,
-// in the format of the web's linkGravacoes (web/src/lib/rota.svelte.ts). The
+// in the format of the web's recordingsLink (web/src/lib/route.svelte.ts). The
 // day and the time are the server's, and the screen reads them in the
 // browser's time zone: someone opening it from another time zone lands
 // shifted.

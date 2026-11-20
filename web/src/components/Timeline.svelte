@@ -1,14 +1,14 @@
 <script lang="ts">
-  import type { ObjetoMarcado, Trecho } from '../lib/api.ts';
-  import { contexto2d } from '../lib/canvas.ts';
+  import type { MarkedObject, Span } from '../lib/api.ts';
+  import { context2d } from '../lib/canvas.ts';
   import { hhmm, hhmmss } from '../lib/format.ts';
-  import { familia, iconeDa, desenhaIcone, NOME_DA_CLASSE } from '../lib/icones.ts';
-  import type { NomeDoIcone } from '../lib/icones.ts';
+  import { family, iconOf, drawIcon, CLASS_NAME } from '../lib/icons.ts';
+  import type { IconName } from '../lib/icons.ts';
 
   interface Props {
-    ranges?: Trecho[];
+    ranges?: Span[];
     events?: number[];
-    objetos?: ObjetoMarcado[];
+    objects?: MarkedObject[];
     dayStart?: number;
     dayEnd?: number;
     currentMs?: number;
@@ -17,35 +17,35 @@
     viewTo?: number;
   }
 
-  // As marcas de um mesmo instante, que viram UMA marca dividida.
-  interface Grupo {
+  // Marks from the same instant, which become ONE split mark.
+  interface Group {
     t: number;
-    marcas: ObjetoMarcado[];
-    prioridade: number;
+    marks: MarkedObject[];
+    priority: number;
   }
 
   let {
-    ranges = [], // [[inícioMs, fimMs], …] faixas com gravação
-    // Instantes em que o gatilho viu movimento, crescentes. Vazio quer dizer
-    // "não há o que mostrar" - seja porque a câmera está com a detecção
-    // desligada, seja porque o dia foi quieto -, e nesse caso a faixa de calor
-    // não é desenhada NEM ocupa altura: uma tira vazia permanente seria pior
-    // que nada para quem não usa detecção.
+    ranges = [], // [[startMs, endMs], …] ranges with recording
+    // Instants at which the trigger saw motion, ascending. Empty means "there
+    // is nothing to show" - either because the camera has detection off, or
+    // because the day was quiet - and in that case the heat strip is neither
+    // drawn NOR takes up height: a permanently empty strip would be worse than
+    // nothing for whoever doesn't use detection.
     events = [],
-    // As marcas que o detector confirmou: [{ instanteMs, familia, classe }, …],
-    // em qualquer ordem. Uma marca é um INSTANTE - o do onset que a originou -,
-    // e não um intervalo: o detector olha uma vez por chegada, então não sabe
-    // quando o objeto saiu. Vazio segue a regra da faixa de calor: nem desenha
-    // nem ocupa altura.
-    objetos = [],
+    // The marks the detector confirmed: [{ instantMs, family, class }, …], in
+    // any order. A mark is an INSTANT - the onset that originated it - not an
+    // interval: the detector looks once per arrival, so it doesn't know when
+    // the object left. Empty follows the heat strip's rule: neither drawn nor
+    // takes up height.
+    objects = [],
     dayStart = 0,
     dayEnd = 0,
     currentMs = 0,
     onseek,
-    // Janela visível: o único estado que o zoom e o arraste alteram. Sobe para
-    // quem chama porque é ela que vai para a URL - o link precisa reproduzir o
-    // zoom, não só o instante. Zero nos dois quer dizer "ainda não escolhida", e
-    // é o que faz o efeito abaixo ancorar no dia inteiro.
+    // Visible window: the only state that zoom and drag change. It goes up to
+    // the caller because it is what goes into the URL - the link has to
+    // reproduce the zoom, not just the instant. Zero in both means "not chosen
+    // yet", and is what makes the effect below anchor to the whole day.
     viewFrom = $bindable(0),
     viewTo = $bindable(0),
   }: Props = $props();
@@ -53,103 +53,108 @@
   let canvas: HTMLCanvasElement | undefined;
   let width = $state(0);
   let hoverMs = $state<number | null>(null);
-  // A marca sob o ponteiro, quando ele está a um alvo dela: é o que a dica
-  // descreve e o que o fio do ponteiro aponta.
-  let hoverGrupo = $state<Grupo | null>(null);
+  // The mark under the pointer, when it is within a target of it: it is what
+  // the hint describes and what the pointer line points at.
+  let hoverGroup = $state<Group | null>(null);
 
-  const MIN_SPAN = 20_000; // 20s de zoom máximo
+  const MIN_SPAN = 20_000; // 20s max zoom
 
-  // A PILHA, de cima para baixo: objeto, vídeo, movimento - cada altura quer
-  // dizer uma coisa só. Os números da barra e da régua são os que ela sempre
-  // teve; a faixa de calor entra por baixo e a de objeto por cima, cada uma só
-  // quando há o que mostrar.
-  const TOPO_PX = 6;
-  // Onde o ícone se apoia, acima da linha de objeto. Fixa, e não do tamanho do
-  // ícone: o ícone de classe é maior que o de família, e com a zona crescendo a
-  // barra desceria no meio de um zoom.
-  const ZONA_PX = 24;
-  const OBJ_PX = 10; // a linha de objeto
-  const BARRA_PX = 36;
-  const VAO_PX = 3; // respiro entre a barra e cada faixa vizinha
-  const CALOR_PX = 10;
-  const REGUA_PX = 20; // o que sobra embaixo, para os rótulos de hora
+  // The STACK, from top to bottom: object, video, motion - each height means
+  // one thing only. The bar and ruler numbers are the ones it has always had;
+  // the heat strip enters from below and the object one from above, each only
+  // when there is something to show.
+  const TOP_PX = 6;
+  // Where the icon rests, above the object line. Fixed, not the icon's size:
+  // the class icon is larger than the family one, and with the zone growing the
+  // bar would drop in the middle of a zoom.
+  const ZONE_PX = 24;
+  const OBJ_PX = 10; // the object line
+  const BAR_PX = 36;
+  const VAO_PX = 3; // breathing room between the bar and each neighboring strip
+  const HEAT_PX = 10;
+  const RULER_PX = 20; // what is left at the bottom, for the time labels
 
-  // O desenho da marca de objeto: um tique na linha, e o ícone em cima SEMPRE
-  // que couber. Uma câmera marca dezenas de objetos por dia, não centenas, e o
-  // ícone cabe em boa parte do dia. O que não cabe fica só no tique - a cor já
-  // diz a família.
-  const TIQUE_PX = 3;
-  const ICONE_FAMILIA_PX = 14;
-  // A 20px o ícone de classe separa moto de bicicleta e gato de cachorro; a
-  // 14px eles viram o mesmo desenho. Por isso a classe só entra de perto.
-  const ICONE_CLASSE_PX = 20;
-  const CLASSE_ATE_MS = 20 * 60_000;
-  const ICONE_FOLGA_PX = 4; // respiro entre dois ícones vizinhos
-  // Distância em que o toque "cai" numa marca e vai ao instante dela, em vez de
-  // ao pixel tocado. O dedo é impreciso, o mouse não - o mesmo raciocínio do
-  // limiar de arraste lá embaixo.
-  const ALVO_MOUSE_PX = 8;
-  const ALVO_DEDO_PX = 16;
-  const FUNDO = '#1b1f24';
+  // The drawing of the object mark: a tick on the line, and the icon on top
+  // ALWAYS when it fits. A camera marks dozens of objects per day, not
+  // hundreds, and the icon fits during a good part of the day. What doesn't fit
+  // stays as just the tick - the color already tells the family.
+  const TICK_PX = 3;
+  const FAMILY_ICON_PX = 14;
+  // At 20px the class icon tells a motorcycle from a bicycle and a cat from a
+  // dog; at 14px they become the same drawing. That is why the class only comes
+  // in up close.
+  const CLASS_ICON_PX = 20;
+  const CLASS_UNTIL_MS = 20 * 60_000;
+  const ICON_SLACK_PX = 4; // breathing room between two neighboring icons
+  // Distance at which a touch "snaps" to a mark and goes to its instant,
+  // instead of the touched pixel. A finger is imprecise, a mouse isn't - the
+  // same reasoning as the drag threshold further down.
+  const MOUSE_TARGET_PX = 8;
+  const FINGER_TARGET_PX = 16;
+  const BACKGROUND = '#1b1f24';
 
-  // A intensidade é ADAPTATIVA: o pico da janela visível vira o topo da
-  // escala. A alternativa era escala fixa, comparável entre telas e entre
-  // câmeras - perdeu porque numa câmera quieta ela pinta o dia inteiro do mesmo
-  // cinza, que é justamente quando a faixa precisava estar dizendo alguma
-  // coisa. O preço, assumido: a mesma cor quer dizer densidades diferentes em
-  // zooms diferentes.
+  // The intensity is ADAPTIVE: the peak of the visible window becomes the top
+  // of the scale. The alternative was a fixed scale, comparable across screens
+  // and cameras - it lost because on a quiet camera it paints the whole day the
+  // same gray, which is exactly when the strip needed to be saying something.
+  // The price, accepted: the same color means different densities at different
+  // zooms.
   //
-  // O piso de alfa existe para que uma coluna com UMA marca ainda apareça; a
-  // raiz abre o meio da escala, onde a diferença entre 2 e 4 marcas se perderia
-  // se a rampa fosse linear.
-  const CALOR_COR = '#d29922';
-  const CALOR_ALFA_MIN = 0.3;
+  // The alpha floor exists so a column with ONE mark still shows up; the square
+  // root opens up the middle of the scale, where the difference between 2 and 4
+  // marks would be lost if the ramp were linear.
+  const HEAT_COLOR = '#d29922';
+  const HEAT_ALPHA_MIN = 0.3;
 
-  // Reancorar quando o dia muda; comparar os limites evita reancorar a cada
-  // repintura e perder o zoom que o usuário acabou de dar. O piso do span faz o
-  // mesmo papel para uma janela vinda da URL: o `zoomTo` nunca produz menos que
-  // MIN_SPAN, mas um link editado à mão produz - e aí o zoom máximo, que é
-  // regra desta timeline, passaria a valer só para quem chegou clicando.
+  // Re-anchor when the day changes; comparing the bounds avoids re-anchoring on
+  // every repaint and losing the zoom the user just applied. The span floor
+  // plays the same role for a window coming from the URL: `zoomTo` never
+  // produces less than MIN_SPAN, but a hand-edited link does - and then the max
+  // zoom, which is this timeline's rule, would hold only for whoever arrived by
+  // clicking.
   $effect(() => {
-    const janela = viewTo - viewFrom;
-    if (dayStart && (viewFrom < dayStart || viewTo > dayEnd || viewTo === 0 || janela < MIN_SPAN)) {
+    const visibleWindow = viewTo - viewFrom;
+    if (
+      dayStart &&
+      (viewFrom < dayStart || viewTo > dayEnd || viewTo === 0 || visibleWindow < MIN_SPAN)
+    ) {
       viewFrom = dayStart;
       viewTo = dayEnd;
     }
   });
 
-  const temCalor = $derived(events.length > 0);
-  const temObjetos = $derived(objetos.length > 0);
-  const objTop = TOPO_PX + ZONA_PX;
-  const barTop = $derived(temObjetos ? objTop + OBJ_PX + VAO_PX : TOPO_PX);
-  const alturaCanvas = $derived(barTop + BARRA_PX + (temCalor ? VAO_PX + CALOR_PX : 0) + REGUA_PX);
+  const hasHeat = $derived(events.length > 0);
+  const hasObjects = $derived(objects.length > 0);
+  const objTop = TOP_PX + ZONE_PX;
+  const barTop = $derived(hasObjects ? objTop + OBJ_PX + VAO_PX : TOP_PX);
+  const canvasHeight = $derived(barTop + BAR_PX + (hasHeat ? VAO_PX + HEAT_PX : 0) + RULER_PX);
 
-  // As marcas agrupadas por instante, crescentes. Uma olhada pode confirmar
-  // mais de uma família no mesmo quadro - pessoa e moto chegam juntas, e numa
-  // rua isso é comum -, e o grupo é
-  // desenhado como UMA marca dividida, e não como duas que se tampam.
-  // Dentro do grupo, a família de mais prioridade vem primeiro.
+  // The marks grouped by instant, ascending. An inference can confirm more than
+  // one family in the same frame - person and motorcycle arrive together, and
+  // on a street that is common - and the group is drawn as ONE split mark, not
+  // as two that cover each other. Within the group, the highest-priority family
+  // comes first.
   //
-  // A timeline marca chegada por família: duas pessoas no mesmo instante são
-  // duas linhas gravadas, mas uma chegada de `pessoa`, com a de maior
-  // confiança - a classe dela é a que o ícone e o tooltip mostram.
-  const grupos = $derived.by((): Grupo[] => {
-    const out: { t: number; marcas: ObjetoMarcado[] }[] = [];
-    for (const o of [...objetos].sort((a, b) => a.instanteMs - b.instanteMs)) {
+  // The timeline marks arrival per family: two people at the same instant are
+  // two recorded rows, but one `pessoa` arrival, with the highest confidence -
+  // its class is the one the icon and tooltip show.
+  const groups = $derived.by((): Group[] => {
+    const out: { t: number; marks: MarkedObject[] }[] = [];
+    for (const o of [...objects].sort((a, b) => a.instanteMs - b.instanteMs)) {
       const ult = out.at(-1);
       if (ult?.t !== o.instanteMs) {
-        out.push({ t: o.instanteMs, marcas: [o] });
+        out.push({ t: o.instanteMs, marks: [o] });
         continue;
       }
-      const i = ult.marcas.findIndex((m) => m.familia === o.familia);
-      const mesma = ult.marcas[i];
-      if (!mesma) ult.marcas.push(o);
-      else if (o.score > mesma.score) ult.marcas[i] = o;
+      const i = ult.marks.findIndex((m) => m.familia === o.familia);
+      const same = ult.marks[i];
+      if (!same) ult.marks.push(o);
+      else if (o.score > same.score) ult.marks[i] = o;
     }
     return out.map((gr) => {
-      const prioridades = gr.marcas.map((m) => familia(m.familia).prioridade);
-      gr.marcas.sort((a, b) => familia(a.familia).prioridade - familia(b.familia).prioridade);
-      return { ...gr, prioridade: Math.min(...prioridades) };
+      const priorities = gr.marks.map((m) => family(m.familia).priority);
+      gr.marks.sort((a, b) => family(a.familia).priority - family(b.familia).priority);
+      return { ...gr, priority: Math.min(...priorities) };
     });
   });
 
@@ -157,43 +162,46 @@
   const toX = (ms: number) => ((ms - viewFrom) / span) * width;
   const toMs = (x: number) => viewFrom + (x / Math.max(1, width)) * span;
 
-  // Passo das marcas de hora: escolhido para que os rótulos nunca se toquem,
-  // seja num celular de 360px ou num monitor largo.
+  // Step of the hour marks: chosen so the labels never touch, whether on a
+  // 360px phone or a wide monitor.
   const step = $derived.by(() => {
-    const maior = 216e5;
-    const opts = [1e3, 5e3, 15e3, 60e3, 3e5, 9e5, 18e5, 36e5, 108e5, maior];
+    const larger = 216e5;
+    const opts = [1e3, 5e3, 15e3, 60e3, 3e5, 9e5, 18e5, 36e5, 108e5, larger];
     const minPx = width < 500 ? 56 : 78;
-    return opts.find((s) => (s / span) * width >= minPx) ?? maior;
+    return opts.find((s) => (s / span) * width >= minPx) ?? larger;
   });
 
   $effect(() => {
-    // Redesenha sempre que qualquer uma destas mudar.
-    /* eslint-disable @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear */
+    // Redraws whenever any of these changes.
+    /* eslint-disable @typescript-eslint/no-unused-expressions -- only the read, so $effect tracks it */
     ranges;
     events;
-    grupos;
+    groups;
     viewFrom;
     viewTo;
     currentMs;
     width;
     hoverMs;
-    alturaCanvas;
+    canvasHeight;
     /* eslint-enable @typescript-eslint/no-unused-expressions */
     draw();
   });
 
-  /* Quantas marcas caem em cada coluna de pixel da janela visível.
+  /*
+   * How many marks fall in each pixel column of the visible window.
    *
-   * Contar por coluna, e não desenhar marca a marca, é o que faz a faixa
-   * aguentar o dia inteiro: a 1200px o dia dá 72 s por coluna, e um risco por
-   * marca viraria um borrão sólido que não distingue "passou alguém" de
-   * "choveu a tarde toda". A DENSIDADE é a informação; o risco solto não é.
+   * Counting per column, rather than drawing mark by mark, is what lets the
+   * strip handle the whole day: at 1200px a day is 72 s per column, and one
+   * stroke per mark would turn into a solid blur that can't tell "someone
+   * passed by" from "it rained all afternoon". The DENSITY is the information;
+   * the loose stroke isn't.
    *
-   * A busca binária evita percorrer as milhares de marcas do dia a cada
-   * repintura - e há repintura a cada pixel de arraste. */
-  function contaPorColuna() {
+   * The binary search avoids walking the thousands of marks of the day on every
+   * repaint - and there is a repaint on every pixel of dragging.
+   */
+  function countPerColumn() {
     const cols = new Int32Array(Math.max(1, Math.ceil(width)));
-    for (let i = limiteInferior(events, viewFrom); i < events.length; i++) {
+    for (let i = lowerLimit(events, viewFrom); i < events.length; i++) {
       const e = events[i];
       if (e === undefined || e >= viewTo) break;
       const x = Math.floor(toX(e));
@@ -202,7 +210,7 @@
     return cols;
   }
 
-  function limiteInferior(arr: number[], v: number) {
+  function lowerLimit(arr: number[], v: number) {
     let lo = 0;
     let hi = arr.length;
     while (lo < hi) {
@@ -213,131 +221,136 @@
     return lo;
   }
 
-  /* O tique de um grupo na linha de objeto. Duas famílias no mesmo instante
-   * dividem o tique em faixas, a de mais prioridade no alto. */
-  function tique(g: CanvasRenderingContext2D, gr: Grupo) {
-    const x = toX(gr.t) - TIQUE_PX / 2;
-    const h = OBJ_PX / gr.marcas.length;
-    gr.marcas.forEach((m, i) => {
-      g.fillStyle = familia(m.familia).cor;
-      g.fillRect(x, objTop + i * h, TIQUE_PX, h);
+  /*
+   * A group's tick on the object line. Two families at the same instant split
+   * the tick into stripes, the highest-priority one on top.
+   */
+  function tick(g: CanvasRenderingContext2D, gr: Group) {
+    const x = toX(gr.t) - TICK_PX / 2;
+    const h = OBJ_PX / gr.marks.length;
+    gr.marks.forEach((m, i) => {
+      g.fillStyle = family(m.familia).color;
+      g.fillRect(x, objTop + i * h, TICK_PX, h);
     });
   }
 
-  /* Onde cada ícone vai, sem que dois se sobreponham.
+  /*
+   * Where each icon goes, with no two overlapping.
    *
-   * Percorre por PRIORIDADE, e não por tempo: `pessoa` escolhe lugar antes de
-   * todos, então um gato vizinho nunca tira o ícone de uma pessoa. Um grupo de
-   * duas famílias pede lugar para os dois ícones lado a lado; sem espaço, tenta
-   * ao menos o da família principal. O que não coube continua no tique. */
-  function encaixa(visiveis: Grupo[], lado: number, porClasse: boolean) {
-    const ordem = [...visiveis].sort((a, b) => a.prioridade - b.prioridade || a.t - b.t);
-    const ocupados: [number, number][] = [];
-    const postos: { nome: NomeDoIcone; x: number; cor: string }[] = [];
-    const livre = (x0: number, x1: number) =>
-      ocupados.every(([a, b]) => x1 + ICONE_FOLGA_PX <= a || x0 >= b + ICONE_FOLGA_PX);
-    for (const gr of ordem) {
-      const tentativas = gr.marcas.length > 1 ? [gr.marcas, gr.marcas.slice(0, 1)] : [gr.marcas];
-      for (const marcas of tentativas) {
-        const larg = marcas.length * lado + (marcas.length - 1) * 2;
-        const x0 = toX(gr.t) - larg / 2;
-        if (!livre(x0, x0 + larg)) continue;
-        ocupados.push([x0, x0 + larg]);
-        marcas.forEach((m, i) => {
-          const nome = iconeDa(m, porClasse);
-          if (nome) postos.push({ nome, x: x0 + i * (lado + 2), cor: familia(m.familia).cor });
+   * It walks by PRIORITY, not by time: `pessoa` picks its place before all the
+   * others, so a neighboring cat never takes a person's icon. A group of two
+   * families asks for room for both icons side by side; without space, it tries
+   * at least the main family's. What didn't fit stays in the tick.
+   */
+  function fit(visibleOnes: Group[], side: number, byClass: boolean) {
+    const order = [...visibleOnes].sort((a, b) => a.priority - b.priority || a.t - b.t);
+    const occupied: [number, number][] = [];
+    const placements: { nome: IconName; x: number; color: string }[] = [];
+    const free = (x0: number, x1: number) =>
+      occupied.every(([a, b]) => x1 + ICON_SLACK_PX <= a || x0 >= b + ICON_SLACK_PX);
+    for (const gr of order) {
+      const attempts = gr.marks.length > 1 ? [gr.marks, gr.marks.slice(0, 1)] : [gr.marks];
+      for (const marks of attempts) {
+        const wid = marks.length * side + (marks.length - 1) * 2;
+        const x0 = toX(gr.t) - wid / 2;
+        if (!free(x0, x0 + wid)) continue;
+        occupied.push([x0, x0 + wid]);
+        marks.forEach((m, i) => {
+          const name = iconOf(m, byClass);
+          if (name)
+            placements.push({ nome: name, x: x0 + i * (side + 2), color: family(m.familia).color });
         });
         break;
       }
     }
-    return postos;
+    return placements;
   }
 
-  function desenhaObjetos(g: CanvasRenderingContext2D) {
-    g.fillStyle = FUNDO;
+  function drawObjects(g: CanvasRenderingContext2D) {
+    g.fillStyle = BACKGROUND;
     g.fillRect(0, objTop, width, OBJ_PX);
 
-    // Um pouco além das bordas, para o ícone de uma marca logo fora da janela
-    // entrar pela metade em vez de pular para dentro de uma vez.
-    const visiveis = grupos.filter((gr) => {
+    // A little beyond the edges, so the icon of a mark just outside the window
+    // comes in halfway instead of jumping in all at once.
+    const visibleOnes = groups.filter((gr) => {
       const x = toX(gr.t);
-      return x > -ICONE_CLASSE_PX && x < width + ICONE_CLASSE_PX;
+      return x > -CLASS_ICON_PX && x < width + CLASS_ICON_PX;
     });
 
-    // A de menos prioridade primeiro: onde dois tiques caem no mesmo pixel, o
-    // de `pessoa` é o último pintado, e fica por cima.
-    for (const gr of [...visiveis].sort((a, b) => b.prioridade - a.prioridade)) tique(g, gr);
+    // Lowest priority first: where two ticks fall on the same pixel, the
+    // `pessoa` one is painted last, and stays on top.
+    for (const gr of [...visibleOnes].sort((a, b) => b.priority - a.priority)) tick(g, gr);
 
-    const porClasse = span <= CLASSE_ATE_MS;
-    const lado = porClasse ? ICONE_CLASSE_PX : ICONE_FAMILIA_PX;
-    for (const p of encaixa(visiveis, lado, porClasse)) {
-      desenhaIcone(g, p.nome, p.x, objTop - lado - 2, lado, p.cor);
+    const byClass = span <= CLASS_UNTIL_MS;
+    const side = byClass ? CLASS_ICON_PX : FAMILY_ICON_PX;
+    for (const p of fit(visibleOnes, side, byClass)) {
+      drawIcon(g, p.nome, p.x, objTop - side - 2, side, p.color);
     }
   }
 
-  /* A marca a até `alvo` px de x, ou null. No empate, a de mais prioridade. */
-  function grupoPerto(x: number, alvo: number) {
-    let melhor: Grupo | null = null;
+  /* The mark within `alvo` px of x, or null. On a tie, the highest-priority one. */
+  function nearGroup(x: number, target: number) {
+    let best: Group | null = null;
     let dist = Infinity;
-    for (const gr of grupos) {
+    for (const gr of groups) {
       const d = Math.abs(toX(gr.t) - x);
-      if (d > alvo) continue;
-      if (d < dist || (d === dist && melhor && gr.prioridade < melhor.prioridade)) {
-        melhor = gr;
+      if (d > target) continue;
+      if (d < dist || (d === dist && best && gr.priority < best.priority)) {
+        best = gr;
         dist = d;
       }
     }
-    return melhor;
+    return best;
   }
 
-  function descreve(gr: Grupo) {
-    return gr.marcas.map((m) => NOME_DA_CLASSE[m.classe] ?? m.classe).join(' + ');
+  function describe(gr: Group) {
+    return gr.marks.map((m) => CLASS_NAME[m.classe] ?? m.classe).join(' + ');
   }
 
   function draw() {
     if (!canvas || !width) return;
     const dpr = window.devicePixelRatio || 1;
-    const h = alturaCanvas;
+    const h = canvasHeight;
     canvas.width = width * dpr;
     canvas.height = h * dpr;
 
-    const g = contexto2d(canvas);
+    const g = context2d(canvas);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const barH = BARRA_PX;
-    const calorTop = barTop + barH + VAO_PX;
-    // O fio do cursor e o do ponteiro atravessam a pilha inteira: eles marcam
-    // UM instante, e um instante vale igual nas três camadas.
-    const pilhaTop = temObjetos ? objTop : barTop;
-    const pilhaH = (temCalor ? calorTop + CALOR_PX : barTop + barH) - pilhaTop;
+    const barH = BAR_PX;
+    const heatTop = barTop + barH + VAO_PX;
+    // The cursor line and the pointer line cross the whole stack: they mark ONE
+    // instant, and an instant is worth the same in all three layers.
+    const stackTop = hasObjects ? objTop : barTop;
+    const stackH = (hasHeat ? heatTop + HEAT_PX : barTop + barH) - stackTop;
 
-    if (temObjetos) desenhaObjetos(g);
+    if (hasObjects) drawObjects(g);
 
-    g.fillStyle = FUNDO;
+    g.fillStyle = BACKGROUND;
     g.fillRect(0, barTop, width, barH);
 
     g.fillStyle = '#2f81f7';
     for (const [s, e] of ranges) {
       const x0 = Math.max(0, toX(s));
       const x1 = Math.min(width, toX(e));
-      // Mínimo de 2px: uma gravação curta não pode desaparecer da barra só
-      // porque o zoom está afastado.
+      // Minimum of 2px: a short recording can't vanish from the bar just
+      // because the zoom is zoomed out.
       if (x1 > 0 && x0 < width) g.fillRect(x0, barTop, Math.max(2, x1 - x0), barH);
     }
 
-    if (temCalor) {
-      const cols = contaPorColuna();
-      let teto = 1;
-      for (const c of cols) if (c > teto) teto = c;
+    if (hasHeat) {
+      const cols = countPerColumn();
+      let ceiling = 1;
+      for (const c of cols) if (c > ceiling) ceiling = c;
 
-      g.fillStyle = FUNDO;
-      g.fillRect(0, calorTop, width, CALOR_PX);
-      g.fillStyle = CALOR_COR;
+      g.fillStyle = BACKGROUND;
+      g.fillRect(0, heatTop, width, HEAT_PX);
+      g.fillStyle = HEAT_COLOR;
       for (let x = 0; x < cols.length; x++) {
         const c = cols[x];
         if (!c) continue;
-        g.globalAlpha = CALOR_ALFA_MIN + (1 - CALOR_ALFA_MIN) * Math.sqrt(Math.min(1, c / teto));
-        g.fillRect(x, calorTop, 1, CALOR_PX);
+        g.globalAlpha = HEAT_ALPHA_MIN + (1 - HEAT_ALPHA_MIN) * Math.sqrt(Math.min(1, c / ceiling));
+        g.fillRect(x, heatTop, 1, HEAT_PX);
       }
       g.globalAlpha = 1;
     }
@@ -355,25 +368,25 @@
     if (hoverMs !== null) {
       const x = toX(hoverMs);
       g.fillStyle = 'rgba(230,237,243,.35)';
-      g.fillRect(x, pilhaTop, 1, pilhaH);
+      g.fillRect(x, stackTop, 1, stackH);
     }
 
     if (currentMs) {
       const x = toX(currentMs);
       if (x >= -2 && x <= width + 2) {
         g.fillStyle = '#f85149';
-        g.fillRect(x - 1.5, pilhaTop - 3, 3, pilhaH + 6);
+        g.fillRect(x - 1.5, stackTop - 3, 3, stackH + 6);
       }
     }
   }
 
-  // --- interação -----------------------------------------------------------
+  // --- interaction ---------------------------------------------------------
   //
-  // Ponteiros ativos: um arrasta a janela, dois pinçam para dar zoom. Usar
-  // Pointer Events cobre mouse, dedo e caneta com o mesmo código.
-  // Cada ponteiro guarda também o x inicial: o limiar de arraste precisa do
-  // deslocamento acumulado, não do passo do último evento.
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- estado do gesto, não da tela
+  // Active pointers: one drags the window, two pinch to zoom. Using Pointer
+  // Events covers mouse, finger and pen with the same code. Each pointer also
+  // keeps its initial x: the drag threshold needs the accumulated
+  // displacement, not the last event's step.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- gesture state, not screen state
   const pointers = new Map<number, { x: number; x0: number }>();
   let dragged = false;
   let pinchStart: {
@@ -385,18 +398,19 @@
     t: number;
     moved: boolean;
   } | null = null;
-  let lastTap: { t: number; x: number } | null = null; // o último toque limpo, para o duplo toque
-  let swallowUp = false; // o up do 2º dedo não pode virar seek
+  let lastTap: { t: number; x: number } | null = null; // the last clean tap, for the double tap
+  let swallowUp = false; // the 2nd finger's up must not become a seek
 
   const DOUBLE_TAP_MS = 300;
   const DOUBLE_TAP_PX = 32;
-  const ZOOM_STEP = 3; // um gesto deliberado merece um salto maior que o da roda
-  // Zoom da roda proporcional ao deltaY: um clique de mouse (~100px) dá o passo
-  // de 1.35, e o touchpad, que manda dezenas de deltas pequenos, soma o mesmo
-  // zoom na medida do movimento dos dedos em vez de um passo cheio por evento.
-  const WHEEL_ZOOM_POR_PX = Math.log(1.35) / 100;
-  const WHEEL_PX_POR_LINHA = 33; // Firefox pode mandar o delta em linhas
-  const WHEEL_DELTA_MAX_PX = 300; // um evento isolado nunca salta mais que ~2.5x nem ~¼ da tela
+  const ZOOM_STEP = 3; // a deliberate gesture deserves a bigger jump than the wheel
+  // Wheel zoom proportional to deltaY: a mouse click (~100px) gives the 1.35
+  // step, and the touchpad, which sends dozens of small deltas, adds up to the
+  // same zoom in proportion to the finger movement instead of a full step per
+  // event.
+  const WHEEL_ZOOM_PER_PX = Math.log(1.35) / 100;
+  const WHEEL_PX_PER_LINE = 33; // Firefox may send the delta in lines
+  const WHEEL_DELTA_MAX_PX = 300; // an isolated event never jumps more than ~2.5x or ~¼ of the screen
 
   function localX(ev: MouseEvent) {
     return ev.clientX - (canvas?.getBoundingClientRect().left ?? 0);
@@ -415,11 +429,11 @@
         from: viewFrom,
         to: viewTo,
         mid,
-        anchorMs: toMs(mid), // o instante sob os dedos é o que fica parado
+        anchorMs: toMs(mid), // the instant under the fingers is what stays still
         t: ev.timeStamp,
         moved: false,
       };
-      lastTap = null; // dois dedos nunca continuam um duplo toque
+      lastTap = null; // two fingers never continue a double tap
     }
   }
 
@@ -428,8 +442,8 @@
     if (!p) {
       if (ev.pointerType === 'mouse') {
         const x = localX(ev);
-        hoverGrupo = grupoPerto(x, ALVO_MOUSE_PX);
-        hoverMs = hoverGrupo ? hoverGrupo.t : toMs(x);
+        hoverGroup = nearGroup(x, MOUSE_TARGET_PX);
+        hoverMs = hoverGroup ? hoverGroup.t : toMs(x);
       }
       return;
     }
@@ -445,15 +459,16 @@
         pinchStart.moved = true;
       }
       const factor = pinchStart.dist / dist;
-      // Ancorar entre os dedos, como a roda ancora no cursor. Usar o mid vivo
-      // como fração dá o arrastar-enquanto-pinça de brinde.
+      // Anchor between the fingers, as the wheel anchors on the cursor. Using
+      // the live mid as the fraction gives drag-while-pinching for free.
       zoomTo(pinchStart.anchorMs, (pinchStart.to - pinchStart.from) * factor, mid / width);
       dragged = true;
       return;
     }
 
     const dx = x - prev;
-    // Dedo treme: 1px marcaria arraste e cancelaria o seek. Mouse é preciso.
+    // A finger trembles: 1px would count as a drag and cancel the seek. A mouse
+    // is precise.
     const slop = ev.pointerType === 'mouse' ? 2 : 8;
     if (Math.abs(x - p.x0) > slop) dragged = true;
     pan((-dx / Math.max(1, width)) * span);
@@ -464,7 +479,8 @@
     const x = p ? p.x : localX(ev);
     pointers.delete(ev.pointerId);
 
-    // Toque rápido com dois dedos, sem pinçar nem arrastar: afasta um passo.
+    // Quick tap with two fingers, without pinching or dragging: zooms out one
+    // step.
     if (pinchStart) {
       const { mid, moved, t } = pinchStart;
       pinchStart = null;
@@ -480,14 +496,15 @@
       return;
     }
 
-    // Um arraste não deve virar um salto: só o toque limpo navega.
+    // A drag must not become a jump: only a clean tap navigates.
     if (dragged) {
       lastTap = null;
       return;
     }
 
-    // Duplo toque: o 1º já pulou para o ponto, o 2º aproxima ancorado ali -
-    // por isso nenhum gesto precisa esperar para saber se vem um segundo toque.
+    // Double tap: the 1st already jumped to the point, the 2nd zooms in
+    // anchored there - so no gesture needs to wait to find out whether a second
+    // tap is coming.
     if (
       lastTap &&
       ev.timeStamp - lastTap.t < DOUBLE_TAP_MS &&
@@ -498,12 +515,12 @@
       return;
     }
 
-    // No desktop a roda já resolve o zoom, e clicar repetido para ajustar a
-    // posição não pode virar zoom surpresa.
+    // On desktop the wheel already handles zoom, and repeated clicking to
+    // adjust the position must not turn into a surprise zoom.
     if (ev.pointerType !== 'mouse') lastTap = { t: ev.timeStamp, x };
-    // Toque que cai numa marca de objeto vai ao instante DELA: acertar o pixel
-    // de um tique de 3px com o dedo não pode ser a condição para chegar nele.
-    const gr = grupoPerto(x, ev.pointerType === 'mouse' ? ALVO_MOUSE_PX : ALVO_DEDO_PX);
+    // A tap that lands on an object mark goes to ITS instant: hitting the pixel
+    // of a 3px tick with a finger can't be the condition for reaching it.
+    const gr = nearGroup(x, ev.pointerType === 'mouse' ? MOUSE_TARGET_PX : FINGER_TARGET_PX);
     onseek?.(gr ? gr.t : Math.round(toMs(x)));
   }
 
@@ -511,24 +528,25 @@
     ev.preventDefault();
     let dx = wheelPx(ev, ev.deltaX);
     let dy = wheelPx(ev, ev.deltaY);
-    // Shift + roda é o horizontal do mouse comum; nem todo navegador já entrega
-    // isso trocado para deltaX.
+    // Shift + wheel is the ordinary mouse's horizontal; not every browser
+    // already delivers it swapped to deltaX.
     if (ev.shiftKey && dx === 0) [dx, dy] = [dy, 0];
 
-    // O dedo nunca anda reto: aplicar os dois eixos juntos faria a janela dar
-    // zoom enquanto se quer só andar no tempo. Cada evento vale pelo eixo dominante.
+    // A finger never moves straight: applying both axes together would make the
+    // window zoom when you only want to move in time. Each event counts for its
+    // dominant axis.
     if (Math.abs(dx) > Math.abs(dy)) {
-      // Andar é proporcional ao zoom: o deslocamento na tela vira tempo na mesma
-      // escala do arraste, então o conteúdo acompanha o dedo.
+      // Panning is proportional to the zoom: the on-screen displacement becomes
+      // time at the same scale as the drag, so the content follows the finger.
       pan((dx / Math.max(1, width)) * span);
       return;
     }
     const x = localX(ev);
-    zoomTo(toMs(x), span * Math.exp(dy * WHEEL_ZOOM_POR_PX), x / width);
+    zoomTo(toMs(x), span * Math.exp(dy * WHEEL_ZOOM_PER_PX), x / width);
   }
 
   function wheelPx(ev: WheelEvent, d: number) {
-    if (ev.deltaMode === WheelEvent.DOM_DELTA_LINE) d *= WHEEL_PX_POR_LINHA;
+    if (ev.deltaMode === WheelEvent.DOM_DELTA_LINE) d *= WHEEL_PX_PER_LINE;
     else if (ev.deltaMode === WheelEvent.DOM_DELTA_PAGE) d *= width;
     return Math.max(-WHEEL_DELTA_MAX_PX, Math.min(WHEEL_DELTA_MAX_PX, d));
   }
@@ -547,7 +565,8 @@
     clamp();
   }
 
-  // A janela nunca sai do dia: navegar para o vazio confunde mais que ajuda.
+  // The window never leaves the day: navigating into the void confuses more
+  // than it helps.
   function clamp() {
     const s = viewTo - viewFrom;
     if (viewFrom < dayStart) {
@@ -569,27 +588,27 @@
 <div class="wrapper" bind:clientWidth={width}>
   <canvas
     bind:this={canvas}
-    style:height="{alturaCanvas}px"
+    style:height="{canvasHeight}px"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
     onpointercancel={onPointerUp}
     onpointerleave={() => {
       hoverMs = null;
-      hoverGrupo = null;
+      hoverGroup = null;
     }}
     onwheel={onWheel}
   ></canvas>
 
   {#if hoverMs !== null}
-    <!-- A margem da borda cresce com o texto: a dica de uma marca é mais longa
-         que a de um horário, e sairia pela lateral. -->
-    {@const margem = hoverGrupo ? 90 : 28}
+    <!-- The edge margin grows with the text: a mark's hint is longer than a
+         time's, and would spill out the side. -->
+    {@const margin = hoverGroup ? 90 : 28}
     <span
       class="tip mono"
-      style:left="{Math.min(Math.max(toX(hoverMs), margem), width - margem)}px"
+      style:left="{Math.min(Math.max(toX(hoverMs), margin), width - margin)}px"
     >
-      {hhmmss(hoverMs)}{#if hoverGrupo}&nbsp;· {descreve(hoverGrupo)}{/if}
+      {hhmmss(hoverMs)}{#if hoverGroup}&nbsp;· {describe(hoverGroup)}{/if}
     </span>
   {/if}
 </div>
@@ -602,11 +621,12 @@
 
   canvas {
     width: 100%;
-    /* A altura vem do script: ela muda conforme a faixa de calor entra ou não. */
+    /* The height comes from the script: it changes depending on whether the
+       heat strip is present. */
     display: block;
     border-radius: 8px;
     cursor: crosshair;
-    /* Impede o navegador de rolar a página enquanto se arrasta a timeline. */
+    /* Stops the browser from scrolling the page while the timeline is being dragged. */
     touch-action: none;
   }
 

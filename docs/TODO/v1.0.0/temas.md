@@ -26,10 +26,10 @@ sistema" (`prefers-color-scheme`), que é o padrão.
 | --- | --- | --- |
 | Sobre o vídeo | o fundo preto do player, o texto branco e as sombras sobre a imagem (`Live`, `Recordings`, `ThumbStrip`, `DeteccaoFolha`, `EditorDeArea`) | Nada: o vídeo é escuro em qualquer tema, e o que fica sobre ele também |
 | Variação de uma cor do tema | o `--accent` com transparência (`rgba(47, 129, 247, 0.12)` no `App.svelte`), o vermelho escuro da borda do `danger` (`#5c2b2b`), o amarelo escuro da borda de aviso (`#6b5a1f`), os cinzas do Diagnóstico (`#1b1f24`, `#3d444d`) | Vira token, ou `color-mix()` sobre o token |
-| Desenho em canvas | a timeline (`FUNDO`, `CALOR_COR`), as caixas (`lib/caixas.ts`), as áreas (`lib/area.ts`), o avatar | O desenho lê os tokens do CSS e redesenha quando o tema muda |
+| Desenho em canvas | a timeline (`BACKGROUND`, `HEAT_COLOR`), as caixas (`lib/boxes.ts`), as áreas (`lib/area.ts`), o avatar | O desenho lê os tokens do CSS e redesenha quando o tema muda |
 
 As cores das famílias (pessoa verde, veículo roxo, animal rosa, em
-`web/src/lib/icones.ts`) aparecem sobre o vídeo e também nas listas, sobre o
+`web/src/lib/icons.ts`) aparecem sobre o vídeo e também nas listas, sobre o
 fundo da tela: no tema claro, o contraste delas precisa de conferência.
 
 ## As paletas

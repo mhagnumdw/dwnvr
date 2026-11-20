@@ -25,7 +25,7 @@ import (
 // notifier gets the same frame: neither the object detector queue nor the
 // notifier does this work.
 
-// familyColors are the screen's (web/src/lib/icones.ts): the e-mail box has
+// familyColors are the screen's (web/src/lib/icons.ts): the e-mail box has
 // the color of the Detections box.
 var familyColors = map[detect.Family]color.RGBA{
 	detect.Person:  {0x3f, 0xb9, 0x50, 0xff},
@@ -82,7 +82,7 @@ func drawnFrame(a Alert) ([]byte, error) {
 
 // strokeBox draws the rectangle of the box [x1, y1, x2, y2], as a fraction
 // of the frame, BoxPaddingPx away from the object and with the stroke inside,
-// like the screen (caixas.ts). Near the edge the box stops at the frame: the
+// like the screen (boxes.ts). Near the edge the box stops at the frame: the
 // padding only goes away on that side.
 func strokeBox(img *image.RGBA, box [4]float64, col color.RGBA) {
 	w, h := img.Rect.Dx(), img.Rect.Dy()

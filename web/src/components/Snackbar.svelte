@@ -1,34 +1,34 @@
 <!--
-  O desenho da snackbar (lib/snackbar.svelte.ts). Montado uma vez, no App.
+  The snackbar rendering (lib/snackbar.svelte.ts). Mounted once, in App.
 
-  A chave é o id: um aviso que substitui outro entra de novo com a animação,
-  e não só troca o texto no lugar.
+  The key is the id: a notice that replaces another enters again with the
+  animation, and not just swaps the text in place.
 -->
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { snackbar, fecharAviso } from '../lib/snackbar.svelte.ts';
+  import { snackbar, closeNotice } from '../lib/snackbar.svelte.ts';
 </script>
 
-{#if snackbar.atual}
-  {@const aviso = snackbar.atual}
-  {#key aviso.id}
+{#if snackbar.current}
+  {@const notice = snackbar.current}
+  {#key notice.id}
     <div
       class="snackbar"
-      class:com-acao={aviso.acao}
+      class:with-action={notice.action}
       role="status"
       in:fly={{ y: 8, duration: 180 }}
       out:fly={{ y: 8, duration: 180 }}
     >
       <span
-        >{#if aviso.forte}<strong>{aviso.forte}</strong>{' '}{/if}{aviso.texto}</span
+        >{#if notice.forte}<strong>{notice.forte}</strong>{' '}{/if}{notice.texto}</span
       >
-      {#if aviso.acao}
+      {#if notice.action}
         <button
           class="ghost"
           onclick={() => {
-            fecharAviso(aviso.id);
-            aviso.acao?.fazer();
-          }}>{aviso.acao.rotulo}</button
+            closeNotice(notice.id);
+            notice.action?.fazer();
+          }}>{notice.action.label}</button
         >
       {/if}
     </div>
@@ -36,7 +36,7 @@
 {/if}
 
 <style>
-  /* Acima da navegação inferior, centrada. */
+  /* Above the bottom navigation, centered. */
   .snackbar {
     position: fixed;
     z-index: 40;
@@ -56,9 +56,9 @@
     white-space: nowrap;
   }
 
-  /* Com o botão, quem dá a altura é ele, e a borda direita fica com o respiro
-     dele. */
-  .snackbar.com-acao {
+  /* With the button, it sets the height, and the right border keeps its
+     breathing room. */
+  .snackbar.with-action {
     padding: 0 6px 0 14px;
   }
 
@@ -67,7 +67,7 @@
     text-overflow: ellipsis;
   }
 
-  /* No desktop a navegação sobe, e o aviso desce para perto da borda. */
+  /* On the desktop the navigation moves up, and the notice drops closer to the edge. */
   @media (min-width: 720px) {
     .snackbar {
       bottom: 20px;

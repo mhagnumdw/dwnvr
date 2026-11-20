@@ -1,5 +1,5 @@
-/* Tema e primitivas do dwnvr. Mobile-first: as regras base valem para o
-   celular e as media queries acrescentam o que a tela grande permite. */
+/* dwnvr theme and primitives. Mobile-first: the base rules apply to the phone
+   and the media queries add what a large screen allows. */
 
 :root {
   --bg: #0d1117;
@@ -9,14 +9,14 @@
   --fg: #e6edf3;
   --dim: #8b949e;
   --accent: #2f81f7;
-  /* O fundo de um botão marcado: o segmentado do Ao vivo e os chips de câmeras. */
+  /* The background of a toggled-on button: the Live segmented control and the camera chips. */
   --ativo-fundo: #12233d;
   --ok: #3fb950;
   --warn: #d29922;
   --bad: #f85149;
   --radius: 10px;
 
-  /* Altura da navegação inferior, respeitando a área segura do iPhone. */
+  /* Height of the bottom navigation, respecting the iPhone safe area. */
   --nav-h: calc(56px + env(safe-area-inset-bottom));
 }
 
@@ -42,16 +42,16 @@ body {
   overscroll-behavior-y: none;
 }
 
-/* Coluna de altura da janela: sem isto o `main` sozinho pede a altura da
-   janela, o cabeçalho entra acima dele e o documento fica sempre mais alto que
-   a tela - no celular sobravam 47px de rolagem em todas as telas, sem conteúdo
-   nenhum embaixo.
+/* Column with the window's height: without this, `main` alone asks for the
+   window height, the header goes above it, and the document is always taller
+   than the screen - on the phone, every screen had 47px of scroll with no
+   content below.
 
-   A altura é a do `body` (100%, que é a da janela), e não 100dvh: no app
-   instalado do Chrome no Android, depois do puxar para atualizar, o 100dvh
-   passa a valer 56px a mais que a janela - a altura da barra de endereços, que
-   o app nem mostra -, o que foi calculado com ele não volta sozinho, e a página
-   inteira rola. A altura do `body` continua a da janela. */
+   The height is the `body`'s (100%, which is the window's), and not 100dvh: in
+   the installed Chrome app on Android, after pull to refresh, 100dvh becomes
+   56px more than the window - the height of the address bar, which the app
+   doesn't even show -, whatever was computed with it doesn't come back on its
+   own, and the whole page scrolls. The `body` height stays the window's. */
 #app {
   display: flex;
   flex-direction: column;
@@ -71,24 +71,25 @@ select {
 
 button {
   cursor: pointer;
-  /* Alvo de toque confortável: abaixo de 44px erra-se muito no celular. */
+  /* Comfortable touch target: below 44px you miss a lot on a phone. */
   min-height: 44px;
   transition:
     border-color 0.12s,
     background 0.12s;
 }
 
-/* O toque longo num botão é da dica (lib/dicaDoToque.ts): sem a seleção do
-   texto nem o menu do sistema por cima dela. */
+/* The long press on a button belongs to the hint (lib/touchHint.ts): no text
+   selection or system menu on top of it. */
 button {
   -webkit-touch-callout: none;
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* A dica do toque longo. Fora de qualquer componente porque nasce no body (ou
-   na tela cheia), pelo JS. Clara sobre o tema escuro, como as do Android. */
-.dica-do-toque {
+/* The long-press hint. Outside any component because it is born on the body (or
+   on the fullscreen element), from JS. Light over the dark theme, like
+   Android's. */
+.touch-hint {
   position: fixed;
   z-index: 200;
   max-width: min(280px, calc(100vw - 16px));
@@ -101,13 +102,13 @@ button {
   pointer-events: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
-.dica-do-toque[hidden] {
+.touch-hint[hidden] {
   display: none;
 }
 
-/* Só onde existe ponteiro de verdade. No toque o navegador deixa o botão tocado
-   em :hover até o próximo toque em outro lugar, e o botão que acabou de ser
-   desligado continuava de borda azul, como se ainda estivesse ligado. */
+/* Only where there is a real pointer. On touch the browser leaves the tapped
+   button in :hover until the next tap somewhere else, and the button that had
+   just been turned off kept its blue border, as if it were still on. */
 @media (hover: hover) {
   button:hover:not(:disabled) {
     border-color: var(--accent);
@@ -165,10 +166,10 @@ a {
   flex-wrap: wrap;
 }
 
-/* A tela cheia simulada, onde o navegador não faz a de verdade
-   (lib/telaCheia.svelte.ts). O !important imita a regra `:fullscreen` do
-   próprio navegador: o CSS com escopo do componente é mais específico e não
-   pode desfazê-la. O z-index passa da navegação inferior e do cabeçalho. */
+/* The simulated fullscreen, where the browser doesn't do the real one
+   (lib/fullscreen.svelte.ts). The !important mimics the browser's own
+   `:fullscreen` rule: the component's scoped CSS is more specific and could not
+   undo it. The z-index goes above the bottom navigation and the header. */
 [data-tela-cheia-simulada] {
   position: fixed !important;
   inset: 0 !important;
@@ -177,7 +178,7 @@ a {
   height: 100dvh !important;
   margin: 0 !important;
 }
-/* E a página por baixo não rola com o dedo em cima dela. */
+/* And the page underneath doesn't scroll with a finger on top of it. */
 :root:has([data-tela-cheia-simulada]) {
   overflow: hidden;
 }
@@ -224,8 +225,8 @@ a {
   color: var(--dim);
 }
 
-/* Barras de rolagem discretas: numa interface servida por Wi-Fi já são
-   detalhe suficiente. */
+/* Discreet scrollbars: in an interface served over Wi-Fi they are already
+   enough detail. */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

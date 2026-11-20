@@ -2,141 +2,142 @@
   import { onMount, untrack } from 'svelte';
   import '../vendor/video-stream.js';
   import { VideoRTC } from '../vendor/video-rtc.js';
-  import { cameras, loadCameras, session, sessaoCaiu } from '../lib/state.svelte.ts';
-  import { paramsAtuais, escrever, cena } from '../lib/rota.svelte.ts';
-  import { api, mediaURL, mensagemDe } from '../lib/api.ts';
-  import type { Sessao } from '../lib/api.ts';
-  import { baixarQuadro } from '../lib/captura.ts';
+  import { cameras, loadCameras, session, sessionDropped } from '../lib/state.svelte.ts';
+  import { currentParams, write, scene } from '../lib/route.svelte.ts';
+  import { api, mediaURL, messageOf } from '../lib/api.ts';
+  import type { Session } from '../lib/api.ts';
+  import { downloadFrame } from '../lib/capture.ts';
   import { dayKey, hhmmss } from '../lib/format.ts';
-  import SemCameras from '../components/SemCameras.svelte';
-  import BotaoCameras from '../components/BotaoCameras.svelte';
-  import SeletorCameras from '../components/SeletorCameras.svelte';
-  import BotaoTelaCheia from '../components/BotaoTelaCheia.svelte';
-  import { telaCheia, entrarEmTelaCheia, sairDaTelaCheia } from '../lib/telaCheia.svelte.ts';
-  import { controlesQueSomem } from '../lib/controlesQueSomem.svelte.ts';
-  import { toqueDuplo } from '../lib/toqueDuplo.ts';
-  import { alturaLivre } from '../lib/alturaLivre.ts';
-  import { telaNova } from '../lib/versao-tela.svelte.ts';
-  import { TROCA_MS, EIXO_PX, limiteDoDeslize } from '../lib/deslize.ts';
-  import Icone from '../components/Icone.svelte';
+  import NoCameras from '../components/NoCameras.svelte';
+  import CamerasButton from '../components/CamerasButton.svelte';
+  import CameraPicker from '../components/CameraPicker.svelte';
+  import FullscreenButton from '../components/FullscreenButton.svelte';
+  import { fullscreen, enterFullscreen, leaveFullscreen } from '../lib/fullscreen.svelte.ts';
+  import { vanishingControls } from '../lib/vanishingControls.svelte.ts';
+  import { doubleTouch } from '../lib/doubleTouch.ts';
+  import { freeHeight } from '../lib/freeHeight.ts';
+  import { newScreen } from '../lib/screen-version.svelte.ts';
+  import { SWITCH_MS, AXIS_PX, swipeLimit } from '../lib/swipe.ts';
+  import Icon from '../components/Icon.svelte';
 
   const STORAGE_KEY = 'dwnvr.live.selection';
   const LAYOUT_KEY = 'dwnvr.live.layout';
-  const SEMPRE_KEY = 'dwnvr.live.sempreLigadas';
+  const ALWAYS_KEY = 'dwnvr.live.sempreLigadas';
 
-  // Quantas colunas, ou encaixar tudo na tela.
-  type Modo = 'fit' | number;
+  // How many columns, or fit everything on screen.
+  type Mode = 'fit' | number;
 
-  const COLUNAS = [1, 2, 3];
-  // 'fit' é só mais um modo ao lado das colunas: como um exclui o outro por
-  // construção, escolher 2× desliga o encaixar sem nenhum código para isso.
-  const MODOS: Modo[] = ['fit', ...COLUNAS];
+  const COLUMNS = [1, 2, 3];
+  // 'fit' is just one more mode beside the columns: since one excludes the
+  // other by construction, choosing 2× turns off fit with no code for it.
+  const MODES: Mode[] = ['fit', ...COLUMNS];
 
-  // Precisa bater com o `gap` da grade no CSS: é o espaço que a conta do
-  // encaixe desconta antes de dividir o que sobra entre os tiles.
+  // Must match the grid's `gap` in the CSS: it is the space the fit computation
+  // subtracts before dividing what is left among the tiles.
   const GAP = 8;
-  const PROPORCAO = 16 / 9;
-  // Precisa bater com o `gap` da `.page` no CSS: o respiro entre a barra e o
-  // palco, que a altura das colunas desconta.
-  const GAP_DA_PAGINA = 10;
-  // Abaixo disso o tile fica pequeno demais para ver a câmera: a grade passa
-  // a rolar em vez de encolher mais.
-  const ALTURA_MINIMA_COLUNAS = 180;
+  const RATIO = 16 / 9;
+  // Must match the `.page` `gap` in the CSS: the breathing room between the bar
+  // and the stage, which the columns' height subtracts.
+  const PAGE_GAP = 10;
+  // Below this the tile gets too small to see the camera: the grid scrolls
+  // instead of shrinking further.
+  const MIN_COLUMNS_HEIGHT = 180;
 
-  // Até quantas câmeras o texto do compartilhar diz pelo nome.
-  const NOMES_NO_TEXTO = 3;
+  // Up to how many cameras the share text names by name.
+  const NAMES_IN_TEXT = 3;
 
-  // Quanto tempo um tile rolado para fora da tela segue ligado antes do corte.
-  // Longa de propósito: voltar para onde se estava há pouco não pode custar a
-  // espera por um keyframe. Ver `soNaTela`.
-  const CARENCIA_ROLAGEM_MS = 30_000;
+  // How long a tile scrolled off screen stays on before the cut. Long on
+  // purpose: going back to where you were a moment ago must not cost a wait for
+  // a keyframe. See `onlyOnScreen`.
+  const SCROLL_GRACE_MS = 30_000;
 
-  // Intervalo mínimo entre uma tentativa de conexão e a seguinte, crescendo a
-  // cada falha seguida e voltando ao primeiro quando o vídeo toca. O player do
-  // go2rtc usa 15 s fixos. Ver `religarRapido`.
-  const RELIGAR_MS = [500, 1000, 2000, 5000];
-  const RELIGAR_MAX_MS = 5000;
-  // A espera depois de `n` falhas seguidas: a última se repete.
-  const religarEm = (n: number) => RELIGAR_MS[Math.min(n, RELIGAR_MS.length - 1)] ?? RELIGAR_MAX_MS;
+  // Minimum interval between one connection attempt and the next, growing with
+  // each consecutive failure and going back to the first when the video plays.
+  // The go2rtc player uses a fixed 15 s. See `reconnectFast`.
+  const RECONNECT_MS = [500, 1000, 2000, 5000];
+  const RECONNECT_MAX_MS = 5000;
+  // The wait after `n` consecutive failures: the last one repeats.
+  const reconnectAt = (n: number) =>
+    RECONNECT_MS[Math.min(n, RECONNECT_MS.length - 1)] ?? RECONNECT_MAX_MS;
 
-  // Quanto cada sondagem do servidor espera antes de desistir, ao voltar de
-  // uma aba oculta. Ver `esperarRede`.
-  const SONDA_MS = 2000;
+  // How long each server probe waits before giving up, when coming back from a
+  // hidden tab. See `waitNetwork`.
+  const PROBE_MS = 2000;
 
-  // De quanto em quanto tempo a tela confere a sessão com o vídeo à vista, e
-  // quanto cada conferência espera a resposta. Ver `conferirSessao`.
-  const CONFERIR_SESSAO_MS = 60_000;
-  const PRAZO_CONFERENCIA_MS = 10_000;
-  // O tique que decide se está na hora da conferência de rotina.
-  const TIQUE_CONFERENCIA_MS = 5000;
-  // Enquanto a sessão não se confirma: quantos segundos do fim de uma
-  // tentativa até a próxima, os da contagem que o aviso mostra.
-  const ESPERA_TENTATIVA_S = 5;
+  // How often the screen checks the session while the video is in view, and how
+  // long each check waits for the response. See `checkSession`.
+  const CHECK_SESSION_MS = 60_000;
+  const CHECK_TIMEOUT_MS = 10_000;
+  // The tick that decides whether it is time for the routine check.
+  const CHECK_TICK_MS = 5000;
+  // While the session is not confirmed: how many seconds from the end of an
+  // attempt to the next one, the ones in the countdown the notice shows.
+  const RETRY_WAIT_S = 5;
 
-  // Lida uma vez, na inicialização: daqui em diante quem manda é o estado da
-  // tela, que escreve de volta na URL.
-  const params = paramsAtuais();
+  // Read once, at initialization: from here on the screen state is in charge,
+  // and it writes back to the URL.
+  const params = currentParams();
 
   let selected = $state(new Set<string>());
-  let modo = $state<Modo>(lerModo());
+  let mode = $state<Mode>(readMode());
   let showPicker = $state(false);
-  let palco = $state<HTMLDivElement | null>(null);
-  let encaixe = $state({ cols: 1, w: 0 });
-  // Nas colunas, a altura que um tile pode ter sem passar da janela: é ela, e
-  // não uma largura fixa, que limita a grade - ver `larguraDasColunas`.
-  let alturaDasColunas = $state(0);
-  let barra = $state<HTMLDivElement | null>(null);
-  // Segura a escrita na URL até a seleção ter sido lida - ver o efeito no fim
-  // do bloco.
-  let montado = $state(false);
+  let stage = $state<HTMLDivElement | null>(null);
+  let fitting = $state({ cols: 1, w: 0 });
+  // In columns, the height a tile can have without exceeding the window: it,
+  // and not a fixed width, is what limits the grid - see `columnsWidth`.
+  let columnsHeight = $state(0);
+  let bar = $state<HTMLDivElement | null>(null);
+  // Holds the URL write until the selection has been read - see the effect at
+  // the end of the block.
+  let mounted = $state(false);
 
   const visible = $derived(cameras.list.filter((c) => selected.has(c.id)));
-  const tudoMarcado = $derived(cameras.list.length > 0 && selected.size === cameras.list.length);
+  const allChecked = $derived(cameras.list.length > 0 && selected.size === cameras.list.length);
 
-  // A URL vem primeiro, o localStorage depois, e só então o palpite pela
-  // largura da tela. A URL descreve ESTE link; o localStorage, o hábito deste
-  // navegador. Ler dali nunca grava aqui - senão abrir o link de outra pessoa
-  // viraria a preferência de quem abriu.
+  // The URL comes first, then localStorage, and only then the guess by screen
+  // width. The URL describes THIS link; localStorage, this browser's habit.
+  // Reading from there never writes here - otherwise opening someone else's
+  // link would become the opener's preference.
   //
-  // Tudo isso na inicialização, e não no onMount: começar sempre em 2× e
-  // corrigir depois faria a grade piscar no celular, onde o padrão é 1×.
-  function lerModo(): Modo {
-    const daURL = params.get('view');
-    if (daURL === 'fit') return 'fit';
-    if (COLUNAS.includes(Number(daURL))) return Number(daURL);
+  // All of this at initialization, not in onMount: always starting at 2× and
+  // correcting afterward would make the grid flicker on the phone, where the
+  // default is 1×.
+  function readMode(): Mode {
+    const fromURL = params.get('view');
+    if (fromURL === 'fit') return 'fit';
+    if (COLUMNS.includes(Number(fromURL))) return Number(fromURL);
     return lerLayout();
   }
 
-  function lerLayout(): Modo {
-    const salvo = localStorage.getItem(LAYOUT_KEY);
-    if (salvo === 'fit') return 'fit';
-    if (COLUNAS.includes(Number(salvo))) return Number(salvo);
+  function lerLayout(): Mode {
+    const saved = localStorage.getItem(LAYOUT_KEY);
+    if (saved === 'fit') return 'fit';
+    if (COLUMNS.includes(Number(saved))) return Number(saved);
     return matchMedia('(min-width: 640px)').matches ? 2 : 1;
   }
 
   onMount(async () => {
     if (!cameras.list.length) await loadCameras();
 
-    // `cams=` vazio é uma escolha - "nenhuma câmera" -, e a chave ausente é
-    // falta de opinião: aí vale o que este navegador usou por último.
-    const daURL = params.has('cams') ? params.getAll('cams').filter(Boolean) : null;
-    const ids = daURL ?? selecaoSalva();
+    // An empty `cams=` is a choice - "no cameras" -, and a missing key is no
+    // opinion: then what this browser used last applies.
+    const fromURL = params.has('cams') ? params.getAll('cams').filter(Boolean) : null;
+    const ids = fromURL ?? savedSelection();
     if (ids) {
-      // Só mantém câmeras que ainda existem: uma seleção salva - ou um link
-      // antigo - pode citar uma câmera removida do cadastro desde então.
-      const querem = new Set(ids);
-      selected = new Set(cameras.list.filter((c) => querem.has(c.id)).map((c) => c.id));
+      // Only keeps cameras that still exist: a saved selection - or an old link
+      // - can cite a camera removed from the registry since then.
+      const wanting = new Set(ids);
+      selected = new Set(cameras.list.filter((c) => wanting.has(c.id)).map((c) => c.id));
     }
-    if (!selected.size && !daURL) {
-      // Duas por padrão: abrir nove streams 1080p de uma vez trava celular.
+    if (!selected.size && !fromURL) {
+      // Two by default: opening nine 1080p streams at once freezes a phone.
       selected = new Set(cameras.list.slice(0, 2).map((c) => c.id));
     }
-    montado = true;
+    mounted = true;
   });
 
-  // A seleção que este navegador usou por último. Conteúdo estragado vale como
-  // nenhum.
-  function selecaoSalva(): string[] | null {
+  // The selection this browser used last. Corrupted content counts as none.
+  function savedSelection(): string[] | null {
     try {
       const v: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
       return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : null;
@@ -145,36 +146,40 @@
     }
   }
 
-  // A URL passa a dizer o que está na tela, e é isso que faz colar o endereço
-  // em outra aba cair na mesma grade. O `montado` segura a escrita até a
-  // seleção ter sido lida: sem ele o primeiro quadro publicaria `cams=` vazio,
-  // apagando da barra de endereços justamente o que ainda ia ser lido dela.
+  // The URL now says what is on screen, and that is what makes pasting the
+  // address in another tab land on the same grid. `mounted` holds the write
+  // until the selection has been read: without it the first frame would publish
+  // an empty `cams=`, erasing from the address bar exactly what was about to be
+  // read from it.
   $effect(() => {
-    if (!montado) return;
-    escrever({
-      // Na ordem do cadastro, e não na de inserção do Set: desmarcar e marcar
-      // de novo reescreveria a URL sem nada ter mudado na tela.
+    if (!mounted) return;
+    write({
+      // In registry order, not the Set's insertion order: unchecking and
+      // checking again would rewrite the URL with nothing having changed on
+      // screen.
       cams: cameras.list.filter((c) => selected.has(c.id)).map((c) => c.id),
-      // Sempre escrito, mesmo no padrão: o padrão daqui depende da largura da
-      // tela, então omiti-lo faria o mesmo link abrir diferente no celular.
-      view: modo,
+      // Always written, even for the default: the default here depends on the
+      // screen width, so omitting it would make the same link open differently
+      // on a phone.
+      view: mode,
     });
   });
 
-  // O que o compartilhar diz em palavras: as câmeras marcadas, pelo nome até
-  // NOMES_NO_TEXTO; acima disso só a conta, que a lista não caberia num assunto.
+  // What the share says in words: the checked cameras, by name up to
+  // NAMES_IN_TEXT; above that just the count, because the list would not fit in
+  // a subject line.
   $effect(() => {
-    if (!montado) return;
-    const nomes = cameras.list.filter((c) => selected.has(c.id)).map((c) => c.name);
-    if (!nomes.length) cena.texto = '';
-    else if (nomes.length <= NOMES_NO_TEXTO) cena.texto = `Ao vivo: ${nomes.join(', ')}`;
-    else cena.texto = `Ao vivo: ${nomes.length} câmeras`;
+    if (!mounted) return;
+    const names = cameras.list.filter((c) => selected.has(c.id)).map((c) => c.name);
+    if (!names.length) scene.texto = '';
+    else if (names.length <= NAMES_IN_TEXT) scene.texto = `Ao vivo: ${names.join(', ')}`;
+    else scene.texto = `Ao vivo: ${names.length} câmeras`;
   });
 
-  // O componente do go2rtc cria o <video> com controls=true. Numa grade ao
-  // vivo isso mostra uma barra de progresso que não significa nada - não há
-  // linha do tempo para percorrer - e ainda aparece em umas câmeras e não em
-  // outras, conforme o modo negociado.
+  // The go2rtc component creates the <video> with controls=true. In a live grid
+  // that shows a progress bar that means nothing - there is no timeline to go
+  // through - and it even shows up on some cameras and not others, depending on
+  // the negotiated mode.
   function hideNativeControls(node: VideoRTC) {
     const apply = () => {
       if (node.video) {
@@ -183,764 +188,790 @@
       }
       return false;
     };
-    // O <video> nasce no connectedCallback, que pode não ter rodado ainda.
+    // The <video> is born in connectedCallback, which may not have run yet.
     if (!apply()) requestAnimationFrame(apply);
   }
 
-  // --- a tela cheia --------------------------------------------------------------
+  // --- full screen
+  // ---------------------------------------------------------------
 
-  // Vai para a tela cheia o palco inteiro, e não o tile: é ele que fica parado
-  // enquanto as câmeras trocam. Lá dentro a grade vira um carrossel - a câmera
-  // atual ocupa a tela e as vizinhas esperam dos lados, prontas para entrar com
-  // o dedo -, e as outras saem de cena com `display: none`.
+  // The whole stage goes full screen, not the tile: it is what stays still
+  // while the cameras change. In there the grid becomes a carousel - the
+  // current camera fills the screen and the neighbors wait at the sides, ready
+  // to come in with a swipe -, and the others leave the scene with `display:
+  // none`.
   //
-  // São os mesmos tiles da grade, com o mesmo player: entrar e sair não
-  // reconecta nada. Quem sai de cena cai na regra do `soNaTela`, como um tile
-  // rolado para fora: segue ligado por CARENCIA_ROLAGEM_MS (ou sempre, com o
-  // "Pausar fora da tela" desligado) e depois é cortado. Por isso a troca é na hora logo
-  // depois de entrar, e espera um keyframe depois disso.
-  const emTelaCheia = $derived(!!palco && telaCheia.el === palco);
-  // A câmera na tela, pelo id: tirar outra da seleção não a troca de lugar.
-  let atual = $state<string | null>(null);
-  const idxAtual = $derived(visible.findIndex((c) => c.id === atual));
-  // Com duas câmeras a anterior e a próxima são a mesma: ela espera do lado
-  // de onde vai entrar.
-  let lado = $state<1 | -1>(1);
-  // Quanto o carrossel está deslocado, em px, e se o deslocamento anima.
-  let arrasto = $state(0);
-  let animando = $state(false);
+  // They are the same tiles as in the grid, with the same player: entering and
+  // leaving reconnects nothing. Whatever leaves the scene falls under the
+  // `onlyOnScreen` rule, like a tile scrolled off screen: it stays on for
+  // SCROLL_GRACE_MS (or always, with "Pausar fora da tela" off) and is then
+  // cut. That is why the switch is immediate right after entering, and waits
+  // for a keyframe after that.
+  const inFullscreen = $derived(!!stage && fullscreen.el === stage);
+  // The camera on screen, by id: removing another one from the selection does
+  // not move it.
+  let current = $state<string | null>(null);
+  const currentIdx = $derived(visible.findIndex((c) => c.id === current));
+  // With two cameras the previous and the next are the same one: it waits on
+  // the side it will come in from.
+  let side = $state<1 | -1>(1);
+  // How far the carousel is shifted, in px, and whether the shift animates.
+  let drag = $state(0);
+  let animating = $state(false);
 
-  // O nome e a posição ficam; setas, ⋮, PiP e o botão de sair somem. Não
-  // somem com o menu aberto nem com o mouse em cima de um deles.
-  let sobreControles = false;
-  const controles = controlesQueSomem(() => emTelaCheia && !menu && !sobreControles);
+  // The name and the position stay; arrows, ⋮, PiP and the exit button
+  // disappear. They do not disappear with the menu open or with the mouse over
+  // one of them.
+  let overControls = false;
+  const controls = vanishingControls(() => inFullscreen && !menu && !overControls);
 
-  type Papel = 'atual' | 'ant' | 'prox' | 'fora';
+  type Role = 'atual' | 'ant' | 'prox' | 'fora';
 
-  function papel(i: number): Papel {
+  function role(i: number): Role {
     const n = visible.length;
-    if (i === idxAtual) return 'atual';
-    if (n === 2) return lado === 1 ? 'prox' : 'ant';
-    if (i === (idxAtual + 1) % n) return 'prox';
-    if (i === (idxAtual - 1 + n) % n) return 'ant';
+    if (i === currentIdx) return 'atual';
+    if (n === 2) return side === 1 ? 'prox' : 'ant';
+    if (i === (currentIdx + 1) % n) return 'prox';
+    if (i === (currentIdx - 1 + n) % n) return 'ant';
     return 'fora';
   }
 
-  function alternarCheia(cam: string) {
-    if (!palco) return;
-    if (emTelaCheia) {
-      // Dois deslizes seguidos rápidos também fazem um duplo clique.
-      if (Date.now() - arrastouEm > 2 * TROCA_MS) sairDaTelaCheia();
+  function toggleFull(cam: string) {
+    if (!stage) return;
+    if (inFullscreen) {
+      // Two quick swipes in a row also make a double click.
+      if (Date.now() - draggedAt > 2 * SWITCH_MS) leaveFullscreen();
       return;
     }
-    atual = cam;
+    current = cam;
     menu = null;
-    entrarEmTelaCheia(palco);
+    enterFullscreen(stage);
   }
 
-  // A próxima (1) ou a anterior (-1), em roda: da última volta à primeira.
+  // The next (1) or the previous (-1), wrapping around: from the last back to
+  // the first.
   function ir(d: 1 | -1) {
     const n = visible.length;
-    if (animando || n < 2 || !palco) return;
+    if (animating || n < 2 || !stage) return;
     menu = null;
-    lado = d;
-    animando = true;
-    arrasto = -d * palco.clientWidth;
+    side = d;
+    animating = true;
+    drag = -d * stage.clientWidth;
     setTimeout(() => {
-      // Tudo no mesmo tique: a câmera que entrou vira a atual no mesmo quadro
-      // em que o carrossel volta ao zero, sem animar a volta.
-      animando = false;
-      arrasto = 0;
-      atual = visible[(idxAtual + d + n) % n]?.id ?? atual;
-    }, TROCA_MS);
+      // All in the same tick: the camera that came in becomes the current one
+      // in the same frame in which the carousel goes back to zero, without
+      // animating the return.
+      animating = false;
+      drag = 0;
+      current = visible[(currentIdx + d + n) % n]?.id ?? current;
+    }, SWITCH_MS);
   }
 
-  // O deslize. O eixo se decide nos primeiros EIXO_PX: para cima ou para
-  // baixo não é com a tela. Começar num botão ou no menu também não.
-  let gesto: { id: number; x: number; y: number; eixo: 'x' | 'y' | null } | null = null;
-  let arrastouEm = 0;
+  // The swipe. The axis is decided in the first AXIS_PX: up or down is not for
+  // the screen. Starting on a button or on the menu is not either.
+  let gesture: { id: number; x: number; y: number; axis: 'x' | 'y' | null } | null = null;
+  let draggedAt = 0;
 
-  function gestoComeca(e: PointerEvent) {
-    if (!emTelaCheia || animando || visible.length < 2) return;
+  function gestureStart(e: PointerEvent) {
+    if (!inFullscreen || animating || visible.length < 2) return;
     if (e.target instanceof Element && e.target.closest('button, a, .menu')) return;
-    gesto = { id: e.pointerId, x: e.clientX, y: e.clientY, eixo: null };
+    gesture = { id: e.pointerId, x: e.clientX, y: e.clientY, axis: null };
   }
 
-  function gestoMove(e: PointerEvent) {
-    if (emTelaCheia && e.pointerType === 'mouse') {
-      sobreControles = e.target instanceof Element && !!e.target.closest('button, a, .menu');
-      controles.mostrar();
+  function gestureMove(e: PointerEvent) {
+    if (inFullscreen && e.pointerType === 'mouse') {
+      overControls = e.target instanceof Element && !!e.target.closest('button, a, .menu');
+      controls.show();
     }
-    if (gesto?.id !== e.pointerId || !palco) return;
-    const dx = e.clientX - gesto.x;
-    const dy = e.clientY - gesto.y;
-    if (!gesto.eixo && Math.hypot(dx, dy) > EIXO_PX) {
-      gesto.eixo = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-      if (gesto.eixo === 'x') palco.setPointerCapture(e.pointerId);
+    if (gesture?.id !== e.pointerId || !stage) return;
+    const dx = e.clientX - gesture.x;
+    const dy = e.clientY - gesture.y;
+    if (!gesture.axis && Math.hypot(dx, dy) > AXIS_PX) {
+      gesture.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (gesture.axis === 'x') stage.setPointerCapture(e.pointerId);
     }
-    if (gesto.eixo !== 'x') return;
-    if (visible.length === 2) lado = dx < 0 ? 1 : -1;
-    arrasto = dx;
+    if (gesture.axis !== 'x') return;
+    if (visible.length === 2) side = dx < 0 ? 1 : -1;
+    drag = dx;
   }
 
-  function gestoAcaba(e: PointerEvent) {
-    if (gesto?.id !== e.pointerId || !palco) return;
-    const { eixo, x } = gesto;
-    gesto = null;
-    if (eixo !== 'x') return;
-    arrastouEm = Date.now();
+  function gestureEnd(e: PointerEvent) {
+    if (gesture?.id !== e.pointerId || !stage) return;
+    const { axis, x } = gesture;
+    gesture = null;
+    if (axis !== 'x') return;
+    draggedAt = Date.now();
     const dx = e.clientX - x;
-    if (e.type === 'pointerup' && Math.abs(dx) > limiteDoDeslize(palco.clientWidth)) {
+    if (e.type === 'pointerup' && Math.abs(dx) > swipeLimit(stage.clientWidth)) {
       ir(dx < 0 ? 1 : -1);
       return;
     }
-    // Curto demais: a câmera volta para o lugar.
-    animando = true;
-    arrasto = 0;
-    setTimeout(() => (animando = false), TROCA_MS);
+    // Too short: the camera goes back to its place.
+    animating = true;
+    drag = 0;
+    setTimeout(() => (animating = false), SWITCH_MS);
   }
 
-  // O toque simples na imagem esconde os controles, como nas gravações. Só o
-  // toque que não andou: o deslize troca de câmera. O duplo toque é do
-  // `dblclick` do tile, que o Chrome do Android também gera, e o toque que
-  // fecha o menu só fecha o menu.
-  let toqueEm: { id: number; x: number; y: number; menu: boolean } | null = null;
-  const toque = toqueDuplo({
+  // A simple tap on the image hides the controls, as in Recordings. Only a tap
+  // that did not move: the swipe switches camera. The double tap belongs to the
+  // tile's `dblclick`, which Android's Chrome also generates, and the tap that
+  // closes the menu only closes the menu.
+  let touchAt: { id: number; x: number; y: number; menu: boolean } | null = null;
+  const touch = doubleTouch({
     simples: () => {
-      if (emTelaCheia) controles.toqueSimples();
+      if (inFullscreen) controls.singleTouch();
     },
   });
 
-  function toqueComeca(e: PointerEvent) {
-    toqueEm =
+  function touchStart(e: PointerEvent) {
+    touchAt =
       e.pointerType === 'touch'
         ? { id: e.pointerId, x: e.clientX, y: e.clientY, menu: !!menu }
         : null;
   }
 
-  function toqueAcaba(e: PointerEvent) {
-    if (toqueEm?.id !== e.pointerId) return;
-    const { x, y, menu: comMenu } = toqueEm;
-    toqueEm = null;
-    if (comMenu || Math.hypot(e.clientX - x, e.clientY - y) > EIXO_PX) return;
+  function touchEnd(e: PointerEvent) {
+    if (touchAt?.id !== e.pointerId) return;
+    const { x, y, menu: withMenu } = touchAt;
+    touchAt = null;
+    if (withMenu || Math.hypot(e.clientX - x, e.clientY - y) > AXIS_PX) return;
     if (e.target instanceof Element && e.target.closest('button, a, .menu')) return;
-    toque(e);
+    touch(e);
   }
 
   onMount(() => () => {
-    controles.parar();
+    controls.stop();
   });
 
-  // Entrar e trocar de câmera mostram os controles e recomeçam a contagem.
+  // Entering and switching camera show the controls and restart the countdown.
   $effect(() => {
-    if (!emTelaCheia) return;
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
-    atual;
+    if (!inFullscreen) return;
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- read only, so the $effect tracks it
+    current;
     untrack(() => {
-      controles.mostrar();
+      controls.show();
     });
   });
 
-  // A câmera da tela sumiu da seleção por outro caminho, ou o acesso não se
-  // confirmou e a grade se esvaziou: a tela cheia ficaria preta.
+  // The screen's camera disappeared from the selection by another path, or
+  // access was not confirmed and the grid emptied: the full screen would go
+  // black.
   $effect(() => {
-    if (emTelaCheia && (idxAtual < 0 || !acessoConfirmado)) sairDaTelaCheia();
+    if (inFullscreen && (currentIdx < 0 || !accessConfirmed)) leaveFullscreen();
   });
 
-  // --- o menu do ⋮ de cada tile -----------------------------------------------
+  // --- each tile's ⋮ menu
+  // -----------------------------------------------------
 
-  // Um aberto por vez, pela câmera dele. Fica DENTRO do tile, e não fora da
-  // grade como o das Detecções: em tela cheia o navegador só mostra o elemento
-  // que foi para a tela cheia, e um menu fora dele sumiria ali.
+  // One open at a time, by its camera. It lives INSIDE the tile, not outside
+  // the grid like the one in Detections: in full screen the browser only shows
+  // the element that went full screen, and a menu outside it would vanish
+  // there.
   let menu = $state<string | null>(null);
-  // O <video-stream> de cada câmera, para a captura achar o <video> dele. Não
-  // precisa ser reativo: só é lido no clique.
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- só é lido no clique
+  // Each camera's <video-stream>, so the capture can find its <video>. It does
+  // not need to be reactive: it is only read on click.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- only read on click
   const players = new Map<string, VideoRTC>();
-  // Falha de captura ou de PiP por câmera, mostrada no próprio tile por alguns
-  // segundos. Vazio é sem aviso.
-  const avisos = $state<Record<string, string>>({});
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- os timers, que a tela não lê
-  const avisoTimer = new Map<string, number>();
+  // Capture or PiP failure per camera, shown on the tile itself for a few
+  // seconds. Empty means no notice.
+  const notices = $state<Record<string, string>>({});
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- the timers, which the screen does not read
+  const noticeTimer = new Map<string, number>();
 
-  function avisar(cam: string, texto: string) {
-    avisos[cam] = texto;
-    clearTimeout(avisoTimer.get(cam));
-    avisoTimer.set(
+  function notify(cam: string, text: string) {
+    notices[cam] = text;
+    clearTimeout(noticeTimer.get(cam));
+    noticeTimer.set(
       cam,
-      setTimeout(() => (avisos[cam] = ''), 5000),
+      setTimeout(() => (notices[cam] = ''), 5000),
     );
   }
 
-  function foraDoMenu(e: MouseEvent) {
-    if (menu && !(e.target instanceof Element && e.target.closest('.opcoes'))) menu = null;
+  function outsideMenu(e: MouseEvent) {
+    if (menu && !(e.target instanceof Element && e.target.closest('.options'))) menu = null;
   }
 
-  function tecla(e: KeyboardEvent) {
+  function keyHandler(e: KeyboardEvent) {
     if (e.key === 'Escape') menu = null;
-    if (emTelaCheia && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+    if (inFullscreen && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
       e.preventDefault();
       ir(e.key === 'ArrowRight' ? 1 : -1);
     }
   }
 
-  // Entre o ⋮ e o menu, e entre o menu e a borda da tela.
-  const MENU_FOLGA = 6;
-  const MENU_BORDA = 8;
+  // Between the ⋮ and the menu, and between the menu and the screen edge.
+  const MENU_SLACK = 6;
+  const MENU_BORDER = 8;
 
-  // O tile corta o que passa da borda dele, e no celular, com duas colunas, ele
-  // tem uns 180px de altura: o menu virava uma caixinha com rolagem. Por isso o
-  // menu é `position: fixed`, que escapa do corte mesmo dentro do tile, posto
-  // aqui junto do ⋮. Abre para baixo; se não couber e houver mais espaço
-  // acima, para cima; e só rola se não couber em nenhum dos dois.
-  function posicionaMenu(el: HTMLElement) {
-    const marca = el.parentElement?.querySelector('.mais span');
-    if (!marca) return;
-    const r = marca.getBoundingClientRect();
-    const altura = el.offsetHeight;
-    const abaixo = window.innerHeight - r.bottom - MENU_FOLGA - MENU_BORDA;
-    const acima = r.top - MENU_FOLGA - MENU_BORDA;
-    const paraCima = altura > abaixo && acima > abaixo;
-    const cabe = paraCima ? acima : abaixo;
+  // The tile clips whatever goes past its edge, and on a phone, with two
+  // columns, it is about 180px tall: the menu became a little box with
+  // scrolling. That is why the menu is `position: fixed`, which escapes the
+  // clip even inside the tile, placed here next to the ⋮. It opens downward; if
+  // it does not fit and there is more room above, upward; and it only scrolls
+  // if it fits in neither.
+  function positionMenu(el: HTMLElement) {
+    const mark = el.parentElement?.querySelector('.mais span');
+    if (!mark) return;
+    const r = mark.getBoundingClientRect();
+    const height = el.offsetHeight;
+    const below = window.innerHeight - r.bottom - MENU_SLACK - MENU_BORDER;
+    const above = r.top - MENU_SLACK - MENU_BORDER;
+    const upward = height > below && above > below;
+    const fits = upward ? above : below;
     el.style.right = `${document.documentElement.clientWidth - r.right}px`;
-    el.style.top = `${paraCima ? r.top - MENU_FOLGA - Math.min(altura, cabe) : r.bottom + MENU_FOLGA}px`;
-    el.style.maxHeight = `${cabe}px`;
+    el.style.top = `${upward ? r.top - MENU_SLACK - Math.min(height, fits) : r.bottom + MENU_SLACK}px`;
+    el.style.maxHeight = `${fits}px`;
   }
 
-  // Preso à tela e não ao tile, o menu ficaria para trás quando a página rola.
-  function fechaMenu() {
+  // Pinned to the screen and not to the tile, the menu would stay behind when
+  // the page scrolls.
+  function closeMenu() {
     menu = null;
   }
 
-  // O quadro é o que está na tela, e o nome leva a hora do clique: no live os
-  // dois diferem só pela latência do stream. Mesma convenção das Gravações
-  // (cam_AAAA-MM-DD_HH-MM-SS), para imagem de live e de gravação ficarem lado a
-  // lado na pasta.
-  async function capturar(cam: string) {
+  // The frame is what is on screen, and the name carries the click time: in
+  // live the two differ only by the stream latency. Same convention as
+  // Recordings (cam_YYYY-MM-DD_HH-MM-SS), so live and recording images sit side
+  // by side in the folder.
+  async function capture(cam: string) {
     menu = null;
     const d = new Date();
-    const nome = `${cam}_${dayKey(d)}_${hhmmss(d.getTime()).replaceAll(':', '-')}.jpg`;
+    const name = `${cam}_${dayKey(d)}_${hhmmss(d.getTime()).replaceAll(':', '-')}.jpg`;
     try {
-      await baixarQuadro(players.get(cam)?.video, nome);
+      await downloadFrame(players.get(cam)?.video, name);
     } catch (e) {
-      avisar(cam, mensagemDe(e));
+      notify(cam, messageOf(e));
     }
   }
 
-  // O mesmo que desmarcar a câmera na lista: grava a seleção e a URL acompanha.
-  // Na tela cheia, a próxima entra no lugar; se era a única, a tela cheia
-  // fecha.
-  function remover(cam: string) {
+  // The same as unchecking the camera in the list: it saves the selection and
+  // the URL follows. In full screen, the next one takes its place; if it was
+  // the only one, full screen closes.
+  function remove(cam: string) {
     menu = null;
-    if (emTelaCheia && cam === atual) {
+    if (inFullscreen && cam === current) {
       const n = visible.length;
-      if (n < 2) sairDaTelaCheia();
-      else atual = visible[(idxAtual + 1) % n]?.id ?? null;
+      if (n < 2) leaveFullscreen();
+      else current = visible[(currentIdx + 1) % n]?.id ?? null;
     }
     toggle(cam);
   }
 
   // --- picture-in-picture ------------------------------------------------------
 
-  // O Firefox não tem a API (tem só o botão dele, desenhado sobre o vídeo): lá
-  // o botão nem aparece.
+  // Firefox does not have the API (only its own button, drawn over the video):
+  // there the button does not even appear.
   const PIP = document.pictureInPictureEnabled;
-  // A câmera que está na janela flutuante. O navegador deixa uma por vez.
+  // The camera that is in the floating window. The browser allows one at a
+  // time.
   let pipCam = $state<string | null>(null);
 
-  async function alternarPip(cam: string) {
+  async function togglePip(cam: string) {
     const video = players.get(cam)?.video;
     try {
       if (!video) throw new Error('sem vídeo');
       if (document.pictureInPictureElement === video) await document.exitPictureInPicture();
       else await video.requestPictureInPicture();
     } catch {
-      // O motivo comum é o vídeo ainda não ter começado: sem a primeira imagem
-      // o navegador recusa a janela.
-      avisar(cam, 'o vídeo ainda não começou');
+      // The usual reason is the video not having started yet: without the first
+      // image the browser refuses the window.
+      notify(cam, 'o vídeo ainda não começou');
     }
   }
 
-  // O player do go2rtc derruba a conexão 5 s depois de a aba ficar oculta, e
-  // aba oculta é justamente o caso de uso do PiP: minimizar o navegador
-  // congelaria a janelinha. O corte passa pelo `disconnectedCallback` da
-  // instância, então é ali que se segura a câmera que está no PiP - sem mexer
-  // no arquivo copiado. Quando o tile sai da tela de verdade (trocar de rota,
-  // desmarcar a câmera), o navegador chama o do protótipo, e a conexão fecha
-  // como sempre.
+  // The go2rtc player drops the connection 5 s after the tab becomes hidden,
+  // and a hidden tab is exactly the PiP use case: minimizing the browser would
+  // freeze the little window. The cut goes through the instance's
+  // `disconnectedCallback`, so that is where the camera in PiP is held -
+  // without touching the copied file. When the tile leaves the screen for real
+  // (changing route, unchecking the camera), the browser calls the prototype's,
+  // and the connection closes as usual.
   //
-  // As outras câmeras continuam sendo cortadas: com a aba oculta, só a do PiP
-  // segue puxando vídeo.
-  function manterNoPip(node: VideoRTC, cam: string) {
-    const desligar = node.disconnectedCallback.bind(node);
+  // The other cameras keep being cut: with the tab hidden, only the PiP one
+  // keeps pulling video.
+  function keepInPip(node: VideoRTC, cam: string) {
+    const turnOff = node.disconnectedCallback.bind(node);
     node.disconnectedCallback = () => {
       if (node.isConnected && document.pictureInPictureElement === node.video) return;
-      desligar();
+      turnOff();
     };
-    // Os eventos saem do <video>, que nasce depois e não os propaga para cima:
-    // escutar na fase de captura do <video-stream> os pega mesmo assim.
+    // The events come out of the <video>, which is born later and does not
+    // propagate them upward: listening in the capture phase of the
+    // <video-stream> catches them anyway.
     node.addEventListener('enterpictureinpicture', () => (pipCam = cam), true);
     node.addEventListener(
       'leavepictureinpicture',
       () => {
         if (pipCam === cam) pipCam = null;
-        // Fechar o PiP com a aba ainda oculta, ou com o tile rolado para fora
-        // da tela, aplica o corte que foi segurado. A volta é do próprio
-        // player (aba) ou do `soNaTela` (rolagem).
-        if (document.hidden || (!sempreLigadas && foraDaTela.has(node))) desligar();
+        // Closing PiP with the tab still hidden, or with the tile scrolled off
+        // screen, applies the cut that was held. The return comes from the
+        // player itself (tab) or from `onlyOnScreen` (scroll).
+        if (document.hidden || (!alwaysOn && offScreen.has(node))) turnOff();
       },
       true,
     );
   }
 
-  // --- religar rápido -----------------------------------------------------------
+  // --- reconnect fast
+  // -----------------------------------------------------------
 
-  // Medido no celular (Android, Chrome, captura do chrome://net-export): com a
-  // aba oculta o Android corta a rede do Chrome, e uma conexão aberta nesse
-  // meio-tempo perde o SYN. O TCP só o reenvia em 1, 3, 7, 15, 31 e 63 s, e a
-  // capturada abriu aos 64 s. Pior: o Chrome só deixa um WebSocket por vez em
-  // "conectando" para o mesmo servidor, e as 9 câmeras que tentaram ao voltar
-  // ficaram na fila atrás dela, sem nem começar o próprio TCP. O player do
-  // go2rtc religa sozinho com a aba oculta (WebRTC que cai, o `onclose`), e é
-  // daí que vinham os ~17 s de tela preta.
+  // Measured on the phone (Android, Chrome, chrome://net-export capture): with
+  // the tab hidden Android cuts Chrome's network, and a connection opened in
+  // that meantime loses its SYN. TCP only resends it at 1, 3, 7, 15, 31 and 63
+  // s, and the captured one opened at 64 s. Worse: Chrome only lets one
+  // WebSocket at a time be "connecting" to the same server, and the 9 cameras
+  // that tried on return queued behind it, without even starting their own TCP.
+  // The go2rtc player reconnects by itself with the tab hidden (WebRTC that
+  // drops, the `onclose`), and that is where the ~17 s of black screen came
+  // from.
   //
-  // Daí as três peças:
-  // - com a aba oculta, nenhuma câmera abre conexão - só a do PiP, que é vista;
-  // - ao voltar, nenhuma tenta antes de o servidor responder a um `fetch`
-  //   (`esperarRede`): logo na volta a rede ainda está suspensa, e as 9
-  //   tentativas falhavam em menos de 50 ms, caindo nos 15 s do player;
-  // - quando uma conexão cai de verdade, a próxima tentativa sai logo, no
-  //   lugar desses 15 s fixos.
+  // Hence the three pieces:
+  // - with the tab hidden, no camera opens a connection - only the PiP one,
+  //   which is being watched;
+  // - on return, none tries before the server answers a `fetch`
+  //   (`waitNetwork`): right on return the network is still suspended, and the
+  //   9 attempts failed in under 50 ms, falling into the player's 15 s;
+  // - when a connection really drops, the next attempt goes out right away,
+  //   instead of those fixed 15 s.
 
-  // A espera em curso ao voltar de uma aba oculta, ou null quando não há.
-  let rede: Promise<void> | null = null;
+  // The wait in progress on return from a hidden tab, or null when there is
+  // none.
+  let network: Promise<void> | null = null;
 
-  function aoMudarVisibilidade() {
-    visivel = !document.hidden;
-    if (document.hidden || rede) return;
-    rede = esperarRede().finally(() => (rede = null));
+  function onVisibilityChange() {
+    isVisible = !document.hidden;
+    if (document.hidden || network) return;
+    network = waitNetwork().finally(() => (network = null));
   }
 
-  // Na fase de captura da `window`, para valer antes do listener que cada
-  // player põe no `document` e que é quem religa as câmeras.
+  // In the capture phase of `window`, to take effect before the listener each
+  // player puts on `document`, which is what reconnects the cameras.
   onMount(() => {
-    window.addEventListener('visibilitychange', aoMudarVisibilidade, true);
+    window.addEventListener('visibilitychange', onVisibilityChange, true);
     return () => {
-      window.removeEventListener('visibilitychange', aoMudarVisibilidade, true);
+      window.removeEventListener('visibilitychange', onVisibilityChange, true);
     };
   });
 
-  // Qualquer resposta serve, até um erro HTTP: o que importa é o servidor ter
-  // sido alcançado. Desiste se a aba voltar a ficar oculta.
-  async function esperarRede() {
+  // Any response will do, even an HTTP error: what matters is that the server
+  // was reached. It gives up if the tab becomes hidden again.
+  async function waitNetwork() {
     for (let i = 0; !document.hidden; i++) {
       try {
-        await api.ping(SONDA_MS);
+        await api.ping(PROBE_MS);
         return;
       } catch {
-        await new Promise((r) => setTimeout(r, religarEm(i)));
+        await new Promise((r) => setTimeout(r, reconnectAt(i)));
       }
     }
   }
 
-  // O `onconnect` é por onde o player abre toda conexão. Com a aba oculta ele
-  // não faz nada: ao voltar, o próprio player chama o `connectedCallback`, que
-  // passa por aqui de novo. Enquanto a espera da volta corre, ele só agenda:
-  // quando ela acaba, a câmera conecta se ainda deve - aba visível e tile na
-  // tela, a mesma regra do `soNaTela`.
+  // `onconnect` is how the player opens every connection. With the tab hidden
+  // it does nothing: on return, the player itself calls `connectedCallback`,
+  // which goes through here again. While the wait on return is running, it only
+  // schedules: when it ends, the camera connects if it still should - tab
+  // visible and tile on screen, the same rule as `onlyOnScreen`.
   //
-  // O player só lê o `RECONNECT_TIMEOUT` no `onclose`, para agendar a próxima
-  // tentativa: trocar o valor logo antes, na instância, basta - sem mexer no
-  // arquivo copiado. A conta de quanto esperar continua sendo a dele, a partir
-  // do início da tentativa que falhou. A sequência só volta ao começo quando o
-  // vídeo toca, e não quando a conexão abre: um servidor que aceita e derruba
-  // logo em seguida ficaria sendo tentado a cada meio segundo.
-  function religarRapido(node: VideoRTC) {
-    const conectar = node.onconnect.bind(node);
+  // The player only reads `RECONNECT_TIMEOUT` in `onclose`, to schedule the
+  // next attempt: changing the value just before, on the instance, is enough -
+  // without touching the copied file. The computation of how long to wait
+  // remains the player's own, from the start of the attempt that failed. The
+  // sequence only goes back to the beginning when the video plays, and not when
+  // the connection opens: a server that accepts and drops right after would end
+  // up being tried every half second.
+  function reconnectFast(node: VideoRTC) {
+    const connect = node.onconnect.bind(node);
     node.onconnect = () => {
       if (document.hidden && document.pictureInPictureElement !== node.video) return false;
-      if (!rede) return conectar();
-      void rede.then(() => {
-        if (!document.hidden && node.isConnected && (sempreLigadas || !foraDaTela.has(node)))
-          conectar();
+      if (!network) return connect();
+      void network.then(() => {
+        if (!document.hidden && node.isConnected && (alwaysOn || !offScreen.has(node))) connect();
       });
       return false;
     };
-    let falhas = 0;
-    const fechou = node.onclose.bind(node);
+    let failures = 0;
+    const closed = node.onclose.bind(node);
     node.onclose = () => {
-      node.RECONNECT_TIMEOUT = religarEm(falhas);
-      const religando = fechou();
-      if (religando) falhas++;
-      // Caiu e não voltou: pode ser a sessão. O websocket recusado não diz o
-      // motivo ao navegador, então quem responde é o /api/session.
-      if (falhas >= 2) conferirSessao();
-      return religando;
+      node.RECONNECT_TIMEOUT = reconnectAt(failures);
+      const reconnecting = closed();
+      if (reconnecting) failures++;
+      // Dropped and did not come back: it may be the session. A refused
+      // websocket does not tell the browser the reason, so the one that answers
+      // is /api/session.
+      if (failures >= 2) checkSession();
+      return reconnecting;
     };
-    // O `playing` sai do <video>, que não o propaga: só a fase de captura o
-    // pega aqui, como em `manterNoPip`.
-    node.addEventListener('playing', () => (falhas = 0), true);
+    // `playing` comes out of the <video>, which does not propagate it: only the
+    // capture phase catches it here, as in `keepInPip`.
+    node.addEventListener('playing', () => (failures = 0), true);
   }
 
-  // --- a sessão ----------------------------------------------------------------
+  // --- the session
+  // -------------------------------------------------------------
 
-  // Quem é removido, ou ganha link novo, perde a sessão na hora: o servidor
-  // recusa toda requisição dela e fecha os websockets do ao vivo. Isso basta
-  // para o MSE, cujo vídeo vem por dentro do websocket. O WebRTC não: o player
-  // fecha o websocket assim que o vídeo toca, e a mídia segue direto do go2rtc
-  // pela UDP, onde o dwnvr não alcança. Quem fecha o WebRTC é esta tela, e por
-  // três caminhos:
-  // - o aviso de sessão, um websocket mudo que o servidor fecha ao derrubar a
-  //   pessoa: ao vê-lo fechar, a tela confere a sessão na hora;
-  // - a conferência a cada CONFERIR_SESSAO_MS com o vídeo à vista, que é a
-  //   rede de segurança se o aviso se perder;
-  // - a câmera que caiu e não voltou, em `religarRapido`.
-  // Sessão que não vale leva ao login. Sessão que não se confirma - o dwnvr
-  // não respondeu - para o vídeo até confirmar: na dúvida, fecha. Enquanto não
-  // confirma, o aviso conta os segundos até a próxima tentativa e deixa tentar
-  // na hora.
+  // Whoever is removed, or gets a new link, loses the session right away: the
+  // server refuses every request of it and closes the live websockets. That is
+  // enough for MSE, whose video comes inside the websocket. Not for WebRTC: the
+  // player closes the websocket as soon as the video plays, and the media goes
+  // straight from go2rtc over UDP, where dwnvr cannot reach. What closes WebRTC
+  // is this screen, by three paths:
+  // - the session notice, a mute websocket that the server closes when it kicks
+  //   the person out: on seeing it close, the screen checks the session right
+  //   away;
+  // - the check every CHECK_SESSION_MS with the video in view, which is the
+  //   safety net if the notice gets lost;
+  // - the camera that dropped and did not come back, in `reconnectFast`.
+  // A session that is not valid leads to the login. A session that cannot be
+  // confirmed - dwnvr did not answer - stops the video until it is confirmed:
+  // when in doubt, close. While unconfirmed, the notice counts the seconds to
+  // the next attempt and lets you try right away.
 
-  // Com o vídeo à vista: aba visível, ou uma câmera no PiP.
-  let visivel = $state(!document.hidden);
-  const ativo = $derived(visivel || pipCam !== null);
+  // With the video in view: tab visible, or a camera in PiP.
+  let isVisible = $state(!document.hidden);
+  const isActive = $derived(isVisible || pipCam !== null);
 
-  let acessoConfirmado = $state(true);
-  let ultimaConferencia = Date.now();
-  let conferindo: Promise<void> | null = null;
-  // O mesmo `conferindo`, visível para o aviso: a promise não é reativa.
-  let conferindoAgora = $state(false);
-  // Uma tentativa esperando a `rede` antes de conferir. Fica separada: uma
-  // conferência de outra origem pode terminar antes de a espera acabar.
-  let esperandoRede = $state(false);
-  // O aviso diz "Conferindo…" e a contagem para enquanto qualquer uma corre.
-  const ocupado = $derived(conferindoAgora || esperandoRede);
-  // Segundos até a próxima tentativa, enquanto o acesso não se confirma.
-  let faltam = $state(ESPERA_TENTATIVA_S);
-  // O acesso voltou depois de uma falha: só o leitor de tela precisa disso, o
-  // aviso que some já diz o mesmo a quem vê.
-  let acessoVoltou = $state(false);
+  let accessConfirmed = $state(true);
+  let lastCheck = Date.now();
+  let checking: Promise<void> | null = null;
+  // The same `checking`, visible to the notice: the promise is not reactive.
+  let checkingNow = $state(false);
+  // An attempt waiting for the `network` before checking. It is kept separate:
+  // a check from another source can finish before the wait ends.
+  let waitingNetwork = $state(false);
+  // The notice says "Conferindo…" and the countdown stops while any one is
+  // running.
+  const busy = $derived(checkingNow || waitingNetwork);
+  // Seconds to the next attempt, while access is not confirmed.
+  let lacking = $state(RETRY_WAIT_S);
+  // Access came back after a failure: only the screen reader needs this, the
+  // notice that disappears already says the same to anyone who sees it.
+  let accessRestored = $state(false);
 
-  // fecharTudo corta o vídeo de todas as câmeras na hora. Desmontar o tile
-  // também corta, mas só depois dos 5 s de carência do player, e o WebRTC
-  // seguiria recebendo vídeo nesse meio-tempo.
-  function fecharTudo() {
+  // closeAll cuts the video of all cameras right away. Unmounting the tile also
+  // cuts, but only after the player's 5 s grace, and WebRTC would keep
+  // receiving video in the meantime.
+  function closeAll() {
     for (const node of players.values()) node.ondisconnect();
   }
 
-  function conferirSessao() {
+  function checkSession() {
     if (!session.authRequired) return;
-    conferindo ??= (async () => {
-      conferindoAgora = true;
+    checking ??= (async () => {
+      checkingNow = true;
       try {
-        const r = await api.conferirSessao(PRAZO_CONFERENCIA_MS);
-        const s = (await r.json()) as Sessao;
+        const r = await api.checkSession(CHECK_TIMEOUT_MS);
+        const s = (await r.json()) as Session;
         if (!s.authenticated) {
-          fecharTudo();
-          sessaoCaiu();
+          closeAll();
+          sessionDropped();
         } else {
-          if (!acessoConfirmado) acessoVoltou = true;
-          acessoConfirmado = true;
+          if (!accessConfirmed) accessRestored = true;
+          accessConfirmed = true;
         }
       } catch {
-        fecharTudo();
-        acessoConfirmado = false;
-        acessoVoltou = false;
+        closeAll();
+        accessConfirmed = false;
+        accessRestored = false;
       } finally {
-        ultimaConferencia = Date.now();
-        conferindo = null;
-        conferindoAgora = false;
-        // A contagem recomeça do fim da tentativa, venha ela de onde vier:
-        // da contagem, do botão, do aviso de sessão ou de uma câmera.
-        faltam = ESPERA_TENTATIVA_S;
+        lastCheck = Date.now();
+        checking = null;
+        checkingNow = false;
+        // The countdown restarts from the end of the attempt, wherever it comes
+        // from: the countdown, the button, the session notice or a camera.
+        lacking = RETRY_WAIT_S;
       }
     })();
   }
 
-  // Enquanto `rede` espera o servidor responder na volta da aba oculta, não
-  // confere: a rede ainda suspensa daria um "não confirmou" falso, e o vídeo
-  // pararia à toa. A tentativa espera por ela, e o aviso já diz "Conferindo…".
-  // A espera também acaba se a aba voltar a ficar oculta: aí não confere, e a
-  // contagem segue na próxima volta. Uma espera por vez. Também não confere se
-  // a tela já saiu, como no logout: a resposta de uma conferência órfã,
-  // chegando depois de um login novo, derrubaria a sessão nova.
-  let telaNoAr = true;
+  // While `network` waits for the server to answer on return from a hidden tab,
+  // it does not check: the still-suspended network would give a false "not
+  // confirmed", and the video would stop for nothing. The attempt waits for it,
+  // and the notice already says "Conferindo…". The wait also ends if the tab
+  // becomes hidden again: then it does not check, and the countdown continues
+  // on the next return. One wait at a time. It also does not check if the
+  // screen has already left, as on logout: the response of an orphan check,
+  // arriving after a new login, would bring down the new session.
+  let liveScreen = true;
   onMount(() => () => {
-    telaNoAr = false;
+    liveScreen = false;
   });
-  function tentarDeNovo() {
-    if (!rede) return conferirSessao();
-    if (esperandoRede) return;
-    esperandoRede = true;
-    void rede.then(() => {
-      esperandoRede = false;
-      if (telaNoAr && ativo) conferirSessao();
+  function retry() {
+    if (!network) return checkSession();
+    if (waitingNetwork) return;
+    waitingNetwork = true;
+    void network.then(() => {
+      waitingNetwork = false;
+      if (liveScreen && isActive) checkSession();
     });
   }
 
-  // A conferência de rotina, com o acesso confirmado.
+  // The routine check, with access confirmed.
   $effect(() => {
-    if (!session.authRequired || !ativo || !acessoConfirmado) return;
+    if (!session.authRequired || !isActive || !accessConfirmed) return;
     const id = setInterval(() => {
-      if (rede) return;
-      if (Date.now() - ultimaConferencia >= CONFERIR_SESSAO_MS) conferirSessao();
-    }, TIQUE_CONFERENCIA_MS);
+      if (network) return;
+      if (Date.now() - lastCheck >= CHECK_SESSION_MS) checkSession();
+    }, CHECK_TICK_MS);
     return () => {
       clearInterval(id);
     };
   });
 
-  // A contagem até a próxima tentativa, com o acesso não confirmado. Um passo
-  // por segundo: cada mudança de `faltam` refaz o efeito, que agenda o próximo.
-  // Para durante uma tentativa e com o vídeo fora da vista.
+  // The countdown to the next attempt, with access not confirmed. One step per
+  // second: each change of `lacking` reruns the effect, which schedules the
+  // next one. It stops during an attempt and with the video out of view.
   $effect(() => {
-    if (!session.authRequired || !ativo || acessoConfirmado || ocupado) return;
-    const n = faltam;
+    if (!session.authRequired || !isActive || accessConfirmed || busy) return;
+    const n = lacking;
     const id = setTimeout(() => {
-      if (n > 1) faltam = n - 1;
-      else tentarDeNovo();
+      if (n > 1) lacking = n - 1;
+      else retry();
     }, 1000);
     return () => {
       clearTimeout(id);
     };
   });
 
-  // O aviso de sessão fica aberto só com o vídeo à vista. Fechado sem a tela
-  // pedir, confere a sessão e reabre, com a mesma espera crescente das
-  // câmeras.
+  // The session notice stays open only with the video in view. Closed without
+  // the screen asking, it checks the session and reopens, with the same growing
+  // wait as the cameras.
   $effect(() => {
-    if (!session.authRequired || !ativo) return;
+    if (!session.authRequired || !isActive) return;
     let ws: WebSocket | undefined;
     let timer: number | undefined;
-    let falhas = 0;
-    let vivo = true;
-    const abrir = () => {
-      ws = new WebSocket(mediaURL.avisoDeSessaoWS());
-      ws.onopen = () => (falhas = 0);
+    let failures = 0;
+    let isLive = true;
+    const openNow = () => {
+      ws = new WebSocket(mediaURL.wsSessionNotice());
+      ws.onopen = () => (failures = 0);
       ws.onclose = () => {
-        if (!vivo) return;
-        conferirSessao();
-        timer = setTimeout(abrir, religarEm(falhas++));
+        if (!isLive) return;
+        checkSession();
+        timer = setTimeout(openNow, reconnectAt(failures++));
       };
     };
-    abrir();
+    openNow();
     return () => {
-      vivo = false;
+      isLive = false;
       clearTimeout(timer);
       ws?.close();
     };
   });
 
-  // --- só decodifica o que está na tela ----------------------------------------
+  // --- only decode what is on screen
+  // -------------------------------------------
 
-  // Com a grade mais alta que a janela (1× no celular), o tile rolado para fora
-  // seguiria puxando e decodificando vídeo que ninguém vê. O player do go2rtc
-  // tem isso embutido (`visibilityThreshold`), mas o observer dele nasce no
-  // primeiro `connectedCallback`, que já rodou quando o `{@attach}` chega - a
-  // opção passada ali não teria efeito. Por isso o observer é daqui.
+  // With the grid taller than the window (1× on a phone), a tile scrolled off
+  // screen would keep pulling and decoding video nobody sees. The go2rtc player
+  // has this built in (`visibilityThreshold`), but its observer is created in
+  // the first `connectedCallback`, which has already run by the time
+  // `{@attach}` arrives - the option passed there would have no effect. That
+  // is why the observer is here.
   //
-  // O corte espera a `CARENCIA_ROLAGEM_MS` e passa pelo `disconnectedCallback`
-  // da instância, que traz a guarda do PiP e mais a carência própria do player
-  // (`DISCONNECT_TIMEOUT`) - descontada aqui, para o total ser o parâmetro. A
-  // aba oculta não passa por aqui e segue com os 5 s do player. Só o tile que
-  // some por inteiro é cortado: tile cortado pela metade segue ligado.
+  // The cut waits for `SCROLL_GRACE_MS` and goes through the instance's
+  // `disconnectedCallback`, which brings the PiP guard plus the player's own
+  // grace (`DISCONNECT_TIMEOUT`) - discounted here, so the total is the
+  // parameter. A hidden tab does not go through here and keeps the player's
+  // 5 s. Only a tile that disappears entirely is cut: a half-cut tile stays on.
   //
-  // Um Set comum, e não WeakSet, porque o tamanho importa: é ele que decide
-  // se o interruptor "Pausar fora da tela" aparece.
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- quem a tela lê é o `quantasFora`
-  const foraDaTela = new Set<VideoRTC>();
-  const corte = new WeakMap<VideoRTC, number>();
+  // A plain Set, not a WeakSet, because the size matters: it decides whether
+  // the "Pausar fora da tela" switch appears.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- what the screen reads is `quantasFora`
+  const offScreen = new Set<VideoRTC>();
+  const cut = new WeakMap<VideoRTC, number>();
   let quantasFora = $state(0);
 
-  // Opt-in de quem prefere não esperar o keyframe ao rolar, e aceita pagar em
-  // bateria. Do aparelho, como o layout: vai no localStorage, nunca na URL.
-  let sempreLigadas = $state(localStorage.getItem(SEMPRE_KEY) === '1');
+  // Opt-in for whoever prefers not to wait for the keyframe when scrolling, and
+  // accepts paying for it in battery. Per device, like the layout: it goes in
+  // localStorage, never in the URL.
+  let alwaysOn = $state(localStorage.getItem(ALWAYS_KEY) === '1');
 
-  function agendarCorte(node: VideoRTC) {
-    clearTimeout(corte.get(node));
-    const espera = Math.max(0, CARENCIA_ROLAGEM_MS - node.DISCONNECT_TIMEOUT);
-    corte.set(
+  function scheduleCut(node: VideoRTC) {
+    clearTimeout(cut.get(node));
+    const wait = Math.max(0, SCROLL_GRACE_MS - node.DISCONNECT_TIMEOUT);
+    cut.set(
       node,
       setTimeout(() => {
         node.disconnectedCallback();
-      }, espera),
+      }, wait),
     );
   }
 
-  const observador = new IntersectionObserver((entradas) => {
-    for (const { target: node, isIntersecting } of entradas) {
-      if (!(node instanceof VideoRTC)) continue; // só os players são observados
-      clearTimeout(corte.get(node));
+  const observer = new IntersectionObserver((entries) => {
+    for (const { target: node, isIntersecting } of entries) {
+      if (!(node instanceof VideoRTC)) continue; // only the players are observed
+      clearTimeout(cut.get(node));
       if (isIntersecting) {
-        foraDaTela.delete(node);
+        offScreen.delete(node);
         node.connectedCallback();
       } else {
-        foraDaTela.add(node);
-        if (!sempreLigadas) agendarCorte(node);
+        offScreen.add(node);
+        if (!alwaysOn) scheduleCut(node);
       }
     }
-    quantasFora = foraDaTela.size;
+    quantasFora = offScreen.size;
   });
 
-  // Ao voltar de uma aba oculta, o player religa chamando o
-  // `connectedCallback` da instância - de todos os tiles, inclusive os fora da
-  // tela, que o observer não revisita porque nada mudou para ele. A guarda é
-  // aqui.
-  function soNaTela(node: VideoRTC) {
-    const ligar = node.connectedCallback.bind(node);
+  // On return from a hidden tab, the player reconnects by calling the
+  // instance's `connectedCallback` - of all tiles, including those off screen,
+  // which the observer does not revisit because nothing changed for it. The
+  // guard is here.
+  function onlyOnScreen(node: VideoRTC) {
+    const turnOn = node.connectedCallback.bind(node);
     node.connectedCallback = () => {
-      if (sempreLigadas || !foraDaTela.has(node)) ligar();
+      if (alwaysOn || !offScreen.has(node)) turnOn();
     };
-    observador.observe(node);
+    observer.observe(node);
     return () => {
-      clearTimeout(corte.get(node));
-      observador.unobserve(node);
-      foraDaTela.delete(node);
-      quantasFora = foraDaTela.size;
+      clearTimeout(cut.get(node));
+      observer.unobserve(node);
+      offScreen.delete(node);
+      quantasFora = offScreen.size;
     };
   }
 
-  // Ligar religa na hora quem já foi cortado; desligar dá aos que estão fora
-  // a mesma carência de quem acabou de sair da tela.
-  function alternarSempre() {
-    sempreLigadas = !sempreLigadas;
-    localStorage.setItem(SEMPRE_KEY, sempreLigadas ? '1' : '0');
-    for (const node of foraDaTela) {
-      if (sempreLigadas) {
-        clearTimeout(corte.get(node));
+  // Turning it on reconnects right away whoever was already cut; turning it off
+  // gives those off screen the same grace as whoever just left the screen.
+  function toggleAlways() {
+    alwaysOn = !alwaysOn;
+    localStorage.setItem(ALWAYS_KEY, alwaysOn ? '1' : '0');
+    for (const node of offScreen) {
+      if (alwaysOn) {
+        clearTimeout(cut.get(node));
         node.connectedCallback();
       } else {
-        agendarCorte(node);
+        scheduleCut(node);
       }
     }
   }
 
-  // Estes dois são os ÚNICOS que gravam no localStorage, e é de propósito: o
-  // que vai para lá é o que o usuário escolheu clicando, nunca o que veio de um
-  // link. É o que impede o `#live?view=3` de alguém de virar o seu padrão.
+  // These two are the ONLY ones that write to localStorage, and that is on
+  // purpose: what goes there is what the user chose by clicking, never what
+  // came from a link. That is what keeps someone's `#live?view=3` from becoming
+  // your default.
   //
-  // Reatribui em vez de mutar: runes não observam mudança dentro de um Set.
+  // Reassigns instead of mutating: runes do not observe changes inside a Set.
   function setSelection(next: Set<string>) {
     selected = next;
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
   }
 
   function toggle(id: string) {
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- vira o `selected` inteiro, sem mutar o antigo
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- becomes the whole `selected`, without mutating the old one
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelection(next);
   }
 
-  function todas() {
-    setSelection(tudoMarcado ? new Set<string>() : new Set(cameras.list.map((c) => c.id)));
+  function all() {
+    setSelection(allChecked ? new Set<string>() : new Set(cameras.list.map((c) => c.id)));
   }
 
-  function setModo(m: Modo) {
-    modo = m;
+  function setMode(m: Mode) {
+    mode = m;
     localStorage.setItem(LAYOUT_KEY, String(m));
   }
 
-  // Maior tile 16:9 que cabe: para cada número de colunas, a largura do tile é
-  // limitada ou pela largura disponível, ou pela altura das linhas que sobram.
-  // Como a altura entra na conta, a grade escolhida nunca transborda.
-  function melhorEncaixe(n: number, W: number, H: number) {
-    let melhor = { cols: 1, w: 0 };
+  // Largest 16:9 tile that fits: for each number of columns, the tile width is
+  // limited either by the available width or by the height of the remaining
+  // rows. Since the height is part of the computation, the chosen grid never
+  // overflows.
+  function bestFit(n: number, W: number, H: number) {
+    let best = { cols: 1, w: 0 };
     for (let cols = 1; cols <= n; cols++) {
-      const linhas = Math.ceil(n / cols);
-      const w = Math.min(
-        (W - GAP * (cols - 1)) / cols,
-        ((H - GAP * (linhas - 1)) / linhas) * PROPORCAO,
-      );
-      if (w > melhor.w) melhor = { cols, w };
+      const rows = Math.ceil(n / cols);
+      const w = Math.min((W - GAP * (cols - 1)) / cols, ((H - GAP * (rows - 1)) / rows) * RATIO);
+      if (w > best.w) best = { cols, w };
     }
-    return melhor;
+    return best;
   }
 
-  function medir() {
-    // Na tela cheia quem dá a medida do palco é ela; a grade se mede de novo
-    // na volta.
-    if (!palco || emTelaCheia) return;
-    if (modo !== 'fit' || !visible.length) {
-      palco.style.height = '';
-      // Medida de logo abaixo da barra, não do palco: a lista de câmeras e o
-      // aviso de acesso empurram o palco para baixo, e abri-los não pode
-      // encolher as câmeras. A rolagem entra de volta porque a medida é do
-      // topo da página, não do ponto onde o usuário está. O piso evita tile
-      // minúsculo em janela muito baixa, como o celular deitado.
-      if (barra) {
-        const livre = alturaLivre(barra, 0) - window.scrollY - barra.offsetHeight - GAP_DA_PAGINA;
-        alturaDasColunas = Math.max(ALTURA_MINIMA_COLUNAS, livre);
+  function gauge() {
+    // In full screen it is the full screen that gives the stage's measure; the
+    // grid is measured again on return.
+    if (!stage || inFullscreen) return;
+    if (mode !== 'fit' || !visible.length) {
+      stage.style.height = '';
+      // Measured from just below the bar, not from the stage: the camera list
+      // and the access notice push the stage down, and opening them must not
+      // shrink the cameras. The scroll is added back because the measure is
+      // from the top of the page, not from where the user is. The floor avoids
+      // a tiny tile in a very short window, like a phone on its side.
+      if (bar) {
+        const free = freeHeight(bar, 0) - window.scrollY - bar.offsetHeight - PAGE_GAP;
+        columnsHeight = Math.max(MIN_COLUMNS_HEIGHT, free);
       }
       return;
     }
 
-    // O palco vai do seu topo até o fim da janela.
-    const H = alturaLivre(palco);
+    // The stage goes from its top to the end of the window.
+    const H = freeHeight(stage);
 
-    palco.style.height = `${H}px`;
-    encaixe = melhorEncaixe(visible.length, palco.clientWidth, H);
+    stage.style.height = `${H}px`;
+    fitting = bestFit(visible.length, stage.clientWidth, H);
   }
 
-  // Nas colunas a largura vai até onde o tile, em 16:9, ainda cabe na altura
-  // da janela: em tela larga, como a ultrawide, a grade usa a largura toda, e
-  // no 1× o tile não fica mais alto que a tela. Na tela cheia quem manda é ela.
-  const larguraDasColunas = $derived(
-    modo === 'fit' || emTelaCheia || alturaDasColunas <= 0
+  // In columns the width goes as far as the tile, at 16:9, still fits the
+  // window height: on a wide screen, like an ultrawide, the grid uses the full
+  // width, and at 1× the tile is not taller than the screen. In full screen it
+  // is the full screen that rules.
+  const columnsWidth = $derived(
+    mode === 'fit' || inFullscreen || columnsHeight <= 0
       ? null
-      : `${Math.floor(modo * alturaDasColunas * PROPORCAO + GAP * (modo - 1))}px`,
+      : `${Math.floor(mode * columnsHeight * RATIO + GAP * (mode - 1))}px`,
   );
 
   $effect(() => {
-    // Leituras explícitas porque `medir` sai cedo antes de tocar nelas: são o
-    // que muda a altura disponível ou a quantidade de tiles.
-    /* eslint-disable @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear */
-    modo;
+    // Explicit reads because `gauge` returns early before touching them: they
+    // are what changes the available height or the number of tiles.
+    /* eslint-disable @typescript-eslint/no-unused-expressions -- read only, so the $effect tracks it */
+    mode;
     visible.length;
     showPicker;
-    emTelaCheia;
-    // O interruptor entra na barra e pode quebrar uma linha nova.
+    inFullscreen;
+    // The switch goes into the bar and can wrap onto a new row.
     quantasFora;
-    // A faixa de versão nova desce o palco, e nenhum resize avisa.
-    telaNova.disponivel;
+    // The new-version strip pushes the stage down, and no resize announces it.
+    newScreen.available;
     /* eslint-enable @typescript-eslint/no-unused-expressions */
-    medir();
+    gauge();
   });
 </script>
 
 <svelte:window
-  onresize={medir}
-  onorientationchange={medir}
-  onscroll={fechaMenu}
-  onpointerdown={foraDoMenu}
-  onkeydown={tecla}
+  onresize={gauge}
+  onorientationchange={gauge}
+  onscroll={closeMenu}
+  onpointerdown={outsideMenu}
+  onkeydown={keyHandler}
 />
 
 <div class="page">
-  <div class="barra" bind:this={barra}>
-    <BotaoCameras
-      marcadas={selected.size}
+  <div class="bar" bind:this={bar}>
+    <CamerasButton
+      checkedList={selected.size}
       total={cameras.list.length}
-      todas={tudoMarcado}
-      aberto={showPicker}
+      all={allChecked}
+      isOpen={showPicker}
       onclick={() => (showPicker = !showPicker)}
       --pad-x="10px"
     />
 
-    <div class="controles">
-      <div class="row modos" role="group" aria-label="layout">
-        {#each MODOS as m (m)}
+    <div class="controls">
+      <div class="row modes" role="group" aria-label="layout">
+        {#each MODES as m (m)}
           <button
             class="ghost"
-            class:on={modo === m}
-            aria-pressed={modo === m}
+            class:on={mode === m}
+            aria-pressed={mode === m}
             title={m === 'fit' ? 'encaixar todas na tela' : `${m} coluna${m > 1 ? 's' : ''}`}
             aria-label={m === 'fit' ? 'encaixar todas na tela' : undefined}
-            onclick={() => setModo(m)}
+            onclick={() => setMode(m)}
           >
             {#if m === 'fit'}
-              <Icone nome="encaixar" tamanho={17} />
-              <span class="texto-botao">Encaixar</span>
+              <Icon name="fitToScreen" size={17} />
+              <span class="button-text">Encaixar</span>
             {:else}
               {m}×
             {/if}
@@ -948,23 +979,23 @@
         {/each}
       </div>
 
-      <!-- Só aparece quando há o que pausar: com tudo à vista - o encaixar,
-           ou poucas câmeras - não há tile fora da tela para cortar. -->
+      <!-- Only appears when there is something to pause: with everything in
+           view - fit, or few cameras - there is no off-screen tile to cut. -->
       {#if quantasFora > 0}
         <span class="sep"></span>
         <button
-          class="ghost pausar"
-          class:on={!sempreLigadas}
-          aria-pressed={!sempreLigadas}
+          class="ghost pause"
+          class:on={!alwaysOn}
+          aria-pressed={!alwaysOn}
           aria-label="pausar câmeras fora da tela"
-          title={sempreLigadas
+          title={alwaysOn
             ? 'câmeras fora da tela seguem ligadas (gasta mais bateria)'
-            : `câmeras fora da tela pausam após ${CARENCIA_ROLAGEM_MS / 1000} s`}
-          onclick={alternarSempre}
+            : `câmeras fora da tela pausam após ${SCROLL_GRACE_MS / 1000} s`}
+          onclick={toggleAlways}
         >
-          <Icone nome={sempreLigadas ? 'foraDaTelaToca' : 'foraDaTelaPausa'} tamanho={20} />
-          <span class="trilho"></span>
-          <span class="texto-botao">Pausar fora da tela</span>
+          <Icon name={alwaysOn ? 'offScreenPlay' : 'offScreenPause'} size={20} />
+          <span class="track"></span>
+          <span class="button-text">Pausar fora da tela</span>
         </button>
       {/if}
     </div>
@@ -972,143 +1003,144 @@
 
   {#if showPicker}
     <div class="card">
-      <SeletorCameras
+      <CameraPicker
         cameras={cameras.list}
-        marcada={(id: string) => selected.has(id)}
-        todas={tudoMarcado}
+        checked={(id: string) => selected.has(id)}
+        all={allChecked}
         ontoggle={toggle}
-        ontodas={todas}
-        erro={cameras.error}
+        onall={all}
+        error={cameras.error}
       />
     </div>
   {/if}
 
-  <!-- Para o leitor de tela, só as mudanças de estado: o número da contagem
-       fica fora, senão ele seria anunciado a cada segundo. Sempre montada e
-       vazia até a primeira falha: o leitor anuncia mudança dentro de uma
-       região que já existe, e não o texto de uma que acabou de nascer. -->
-  <span class="so-leitor" role="status">
-    {acessoConfirmado
-      ? acessoVoltou
+  <!-- For the screen reader, only the state changes: the countdown number stays
+       out, otherwise it would be announced every second. Always mounted and
+       empty until the first failure: the reader announces a change inside a
+       region that already exists, not the text of one that was just born. -->
+  <span class="read-only" role="status">
+    {accessConfirmed
+      ? accessRestored
         ? 'Acesso ao dwnvr confirmado.'
         : ''
-      : ocupado
+      : busy
         ? 'Conferindo o acesso ao dwnvr.'
-        : `Não deu para confirmar o acesso ao dwnvr. Nova tentativa em ${ESPERA_TENTATIVA_S} segundos.`}
+        : `Não deu para confirmar o acesso ao dwnvr. Nova tentativa em ${RETRY_WAIT_S} segundos.`}
   </span>
 
-  {#if !acessoConfirmado}
-    <div class="card small semacesso">
+  {#if !accessConfirmed}
+    <div class="card small no-access">
       <p>Não deu para confirmar o seu acesso com o dwnvr, e o vídeo fica parado até confirmar.</p>
-      <div class="tentativa">
-        <span>{ocupado ? 'Conferindo…' : `Nova tentativa em ${faltam} s`}</span>
-        <button type="button" disabled={ocupado} onclick={tentarDeNovo}> Tentar agora </button>
+      <div class="attempt">
+        <span>{busy ? 'Conferindo…' : `Nova tentativa em ${lacking} s`}</span>
+        <button type="button" disabled={busy} onclick={retry}> Tentar agora </button>
       </div>
     </div>
   {/if}
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
-    class="palco"
-    class:fit={modo === 'fit'}
-    class:fs={emTelaCheia}
-    class:escondidos={emTelaCheia && !controles.visiveis}
-    style:--troca="{TROCA_MS}ms"
-    bind:this={palco}
+    class="stage"
+    class:fit={mode === 'fit'}
+    class:fs={inFullscreen}
+    class:escondidos={inFullscreen && !controls.visibleOnes}
+    style:--troca="{SWITCH_MS}ms"
+    bind:this={stage}
     {@attach (node: HTMLElement) => () => {
       // A de verdade o navegador desfaz sozinho quando o elemento sai da
       // página; a simulada ficaria cobrindo a tela seguinte, como ao abrir as
       // gravações pelo ⋮.
-      if (telaCheia.el === node) sairDaTelaCheia();
+      if (fullscreen.el === node) leaveFullscreen();
     }}
     onpointerdowncapture={(e) => {
-      if (!emTelaCheia) return;
-      toque.cancelar();
-      toqueComeca(e);
-      controles.tocou();
+      if (!inFullscreen) return;
+      touch.cancel();
+      touchStart(e);
+      controls.touched();
     }}
-    onpointerdown={gestoComeca}
-    onpointermove={gestoMove}
+    onpointerdown={gestureStart}
+    onpointermove={gestureMove}
     onpointerup={(e) => {
-      toqueAcaba(e);
-      gestoAcaba(e);
+      touchEnd(e);
+      gestureEnd(e);
     }}
-    onpointercancel={gestoAcaba}
+    onpointercancel={gestureEnd}
   >
     <div
       class="grid"
-      class:fit={modo === 'fit'}
-      class:animando
-      style:--cols={modo === 'fit' ? encaixe.cols : modo}
-      style:--tile-w="{Math.floor(encaixe.w)}px"
-      style:max-width={larguraDasColunas}
-      style:transform={emTelaCheia && arrasto ? `translateX(${arrasto}px)` : null}
+      class:fit={mode === 'fit'}
+      class:animating
+      style:--cols={mode === 'fit' ? fitting.cols : mode}
+      style:--tile-w="{Math.floor(fitting.w)}px"
+      style:max-width={columnsWidth}
+      style:transform={inFullscreen && drag ? `translateX(${drag}px)` : null}
     >
-      {#each acessoConfirmado ? visible : [] as c, i (c.id)}
-        {@const p = emTelaCheia ? papel(i) : null}
+      {#each accessConfirmed ? visible : [] as c, i (c.id)}
+        {@const p = inFullscreen ? role(i) : null}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="tile"
           class:ant={p === 'ant'}
-          class:prox={p === 'prox'}
+          class:next={p === 'prox'}
           class:fora={p === 'fora'}
-          ondblclick={() => alternarCheia(c.id)}
-          title={emTelaCheia ? undefined : 'duplo clique: tela cheia'}
+          ondblclick={() => toggleFull(c.id)}
+          title={inFullscreen ? undefined : 'duplo clique: tela cheia'}
         >
-          <!-- O componente do go2rtc negocia WebRTC/MSE sozinho. A mídia vai
-               direto do navegador ao go2rtc; o dwnvr só faz proxy da
-               sinalização, para que a credencial não chegue ao navegador. -->
+          <!-- The go2rtc component negotiates WebRTC/MSE by itself. The media
+               goes straight from the browser to go2rtc; dwnvr only proxies the
+               signaling, so the credential does not reach the browser. -->
           <video-stream
             {@attach (node: VideoRTC) => {
               node.mode = 'webrtc,mse';
               // Antes do `src`, que já abre a primeira conexão.
-              religarRapido(node);
+              reconnectFast(node);
               node.src = mediaURL.liveWS(c.id);
               hideNativeControls(node);
-              if (PIP) manterNoPip(node, c.id);
-              const largar = soNaTela(node);
+              if (PIP) keepInPip(node, c.id);
+              const letGo = onlyOnScreen(node);
               players.set(c.id, node);
               // Ao desmontar, o custom element fecha a conexão sozinho no
               // disconnectedCallback - nada a limpar aqui além da referência
               // e do observer. Quando a sessão cai, quem fecha na hora é o
               // `fecharTudo`.
               return () => {
-                largar();
+                letGo();
                 players.delete(c.id);
               };
             }}
           ></video-stream>
-          <!-- O duplo clique do tile é a tela cheia: dois toques rápidos no
-               botão do PiP não podem virar isso. -->
+          <!-- The tile's double click is full screen: two quick taps on the PiP
+               button must not become that. -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="rotulo" ondblclick={(e) => e.stopPropagation()}>
+          <div class="label" ondblclick={(e) => e.stopPropagation()}>
             <span class="name"
-              >{c.name}{#if emTelaCheia}<span class="pos">{i + 1}/{visible.length}</span>{/if}</span
+              >{c.name}{#if inFullscreen}<span class="pos">{i + 1}/{visible.length}</span
+                >{/if}</span
             >
             {#if PIP}
               <button
                 class="pip"
                 class:on={pipCam === c.id}
-                onclick={() => alternarPip(c.id)}
+                onclick={() => togglePip(c.id)}
                 aria-label="{pipCam === c.id ? 'fechar' : 'abrir'} {c.name} em janela flutuante"
                 aria-pressed={pipCam === c.id}
                 title={pipCam === c.id ? 'fechar a janela flutuante' : 'abrir em janela flutuante'}
               >
-                <Icone nome="pip" tamanho={16} />
+                <Icon name="pip" size={16} />
               </button>
             {/if}
           </div>
 
-          {#if avisos[c.id]}<span class="badge">{avisos[c.id]}</span>{/if}
+          {#if notices[c.id]}<span class="badge">{notices[c.id]}</span>{/if}
 
-          <!-- Na tela cheia este canto é do botão de sair, que é do palco. Dois
-               cliques rápidos nele não podem chegar ao duplo clique do tile:
-               seriam três trocas em vez de duas. -->
-          {#if !emTelaCheia}
+          <!-- In full screen this corner belongs to the exit button, which
+               belongs to the stage. Two quick clicks on it must not reach the
+               tile's double click: they would be three switches instead of two. -->
+          {#if !inFullscreen}
             <button
-              class="cheia"
+              class="full"
               onclick={() => {
-                alternarCheia(c.id);
+                toggleFull(c.id);
               }}
               ondblclick={(e) => {
                 e.stopPropagation();
@@ -1116,37 +1148,37 @@
               aria-label="{c.name} em tela cheia"
               title="tela cheia (ou duplo clique no vídeo)"
             >
-              <Icone nome="telaCheia" tamanho={16} />
+              <Icon name="fullscreen" size={16} />
             </button>
           {/if}
 
-          <!-- O duplo clique do tile é a tela cheia: dois toques rápidos no ⋮
-               ou no menu não podem virar isso. -->
+          <!-- The tile's double click is full screen: two quick taps on the ⋮
+               or on the menu must not become that. -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="opcoes" ondblclick={(e) => e.stopPropagation()}>
+          <div class="options" ondblclick={(e) => e.stopPropagation()}>
             <button
               class="mais"
               onclick={() => (menu = menu === c.id ? null : c.id)}
               aria-label="opções da câmera {c.name}"
               aria-haspopup="menu"
               aria-expanded={menu === c.id}
-              ><span aria-hidden="true"><Icone nome="menu" tamanho="100%" /></span></button
+              ><span aria-hidden="true"><Icon name="menu" size="100%" /></span></button
             >
 
             {#if menu === c.id}
-              <!-- Links de verdade, e não botões que trocam o hash: assim o
-                   clique do meio e o "abrir em nova aba" também funcionam. -->
-              <div class="menu" role="menu" {@attach posicionaMenu}>
+              <!-- Real links, not buttons that change the hash: that way the
+                   middle click and "open in new tab" also work. -->
+              <div class="menu" role="menu" {@attach positionMenu}>
                 <a role="menuitem" href="#rec?cam={encodeURIComponent(c.id)}">Ver gravações</a>
                 {#if cameras.detector}
                   <a role="menuitem" href="#detection?cams={encodeURIComponent(c.id)}">
                     Ver detecções
                   </a>
                 {/if}
-                <button class="ghost" role="menuitem" onclick={() => capturar(c.id)}>
+                <button class="ghost" role="menuitem" onclick={() => capture(c.id)}>
                   Baixar imagem agora
                 </button>
-                <button class="ghost" role="menuitem" onclick={() => remover(c.id)}>
+                <button class="ghost" role="menuitem" onclick={() => remove(c.id)}>
                   Remover da visualização
                 </button>
               </div>
@@ -1156,32 +1188,33 @@
       {/each}
     </div>
 
-    <!-- Fora do carrossel: ficam paradas enquanto as câmeras deslizam. O nome,
-         o PiP e o ⋮ são os do próprio tile, e vão junto com a imagem. -->
-    {#if emTelaCheia}
+    <!-- Outside the carousel: they stay still while the cameras slide. The
+         name, the PiP and the ⋮ are the tile's own, and go along with the
+         image. -->
+    {#if inFullscreen}
       {#if visible.length > 1}
         <button
-          class="ghost seta esq"
+          class="ghost arrow esq"
           onclick={() => {
             ir(-1);
           }}
           aria-label="câmera anterior"
           title="câmera anterior (←)"
         >
-          <Icone nome="chevronEsq" tamanho={22} />
+          <Icon name="chevronEsq" size={22} />
         </button>
         <button
-          class="ghost seta dir"
+          class="ghost arrow dir"
           onclick={() => {
             ir(1);
           }}
           aria-label="próxima câmera"
           title="próxima câmera (→)"
         >
-          <Icone nome="chevronDir" tamanho={22} />
+          <Icon name="chevronDir" size={22} />
         </button>
       {/if}
-      <span class="sair"><BotaoTelaCheia ativa sobreVideo onclick={sairDaTelaCheia} /></span>
+      <span class="leave"><FullscreenButton active overVideo onclick={leaveFullscreen} /></span>
     {/if}
   </div>
 
@@ -1189,37 +1222,38 @@
     {#if cameras.list.length}
       <p class="empty">Selecione as câmeras para visualizar.</p>
     {:else if cameras.error}
-      <!-- A lista vazia porque a carga falhou não é "nenhuma câmera". -->
+      <!-- An empty list because the load failed is not "no cameras". -->
       <p class="empty">Não deu para carregar as câmeras: {cameras.error}</p>
     {:else if !cameras.loading}
-      <!-- Sem a guarda do `loading`, o "nenhuma câmera" piscava a cada abertura
-           da tela, no intervalo em que a lista ainda estava sendo buscada. -->
-      <SemCameras />
+      <!-- Without the `loading` guard, "nenhuma câmera" flashed on every
+           opening of the screen, in the interval while the list was still being
+           fetched. -->
+      <NoCameras />
     {/if}
   {/if}
 </div>
 
 <style>
-  .semacesso {
+  .no-access {
     color: var(--warn);
     display: grid;
     gap: 10px;
   }
-  .semacesso p {
+  .no-access p {
     margin: 0;
   }
-  .tentativa {
+  .attempt {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
   }
-  /* O número muda a cada segundo: com largura fixa, o texto não treme. */
-  .tentativa span {
+  /* The number changes every second: with a fixed width, the text does not jitter. */
+  .attempt span {
     font-variant-numeric: tabular-nums;
   }
-  /* Fora da tela, mas lido pelo leitor de tela. */
-  .so-leitor {
+  /* Off screen, but read by the screen reader. */
+  .read-only {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1234,26 +1268,26 @@
     padding: 10px;
   }
 
-  /* Sem teto de largura na página: com ele só no modo encaixar, a barra
-     pulava de lugar ao trocar de modo em janela larga. Quem limita o tile é a
-     altura da janela - no encaixar pela conta do `melhorEncaixe`, nas colunas
-     pelo `max-width` da grade. */
+  /* No width cap on the page: with it only in fit mode, the bar jumped around
+     when switching modes in a wide window. What limits the tile is the window
+     height - in fit by the computation of `bestFit`, in columns by the grid's
+     `max-width`. */
 
-  .barra {
+  .bar {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
     gap: 10px;
   }
-  .controles {
+  .controls {
     display: contents;
   }
 
-  /* O segmentado: encaixar e as colunas coladas num bloco só. */
-  .modos {
+  /* The segmented control: fit and the columns glued into a single block. */
+  .modes {
     gap: 0;
   }
-  .modos button {
+  .modes button {
     padding: 8px 12px;
     min-width: 44px;
     display: inline-flex;
@@ -1264,14 +1298,14 @@
     margin-left: -1px;
     color: var(--dim);
   }
-  .modos button:first-child {
+  .modes button:first-child {
     margin-left: 0;
     border-radius: 8px 0 0 8px;
   }
-  .modos button:last-child {
+  .modes button:last-child {
     border-radius: 0 8px 8px 0;
   }
-  .modos button.on {
+  .modes button.on {
     color: var(--fg);
     border-color: var(--accent);
     background: var(--ativo-fundo);
@@ -1287,17 +1321,17 @@
     margin: 4px 2px;
   }
 
-  /* O interruptor: ligado é "pausa lá fora", o padrão. */
-  .pausar {
+  /* The switch: on is "pause out there", the default. */
+  .pause {
     display: inline-flex;
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
   }
-  .pausar.on {
+  .pause.on {
     border-color: var(--accent);
   }
-  .trilho {
+  .track {
     width: 30px;
     height: 17px;
     border-radius: 9px;
@@ -1305,7 +1339,7 @@
     position: relative;
     flex: none;
   }
-  .trilho::after {
+  .track::after {
     content: '';
     position: absolute;
     top: 2px;
@@ -1316,20 +1350,20 @@
     background: var(--fg);
     transition: left 0.12s;
   }
-  .pausar.on .trilho {
+  .pause.on .track {
     background: var(--accent);
   }
-  .pausar.on .trilho::after {
+  .pause.on .track::after {
     left: 15px;
   }
 
-  /* Os textos dos botões só aparecem onde cabem. */
-  .texto-botao {
+  /* The button texts only show where they fit. */
+  .button-text {
     display: none;
   }
 
   @media (min-width: 720px) {
-    .controles {
+    .controls {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -1338,14 +1372,14 @@
     .sep {
       display: block;
     }
-    .texto-botao {
+    .button-text {
       display: inline;
     }
   }
 
-  /* Recorta a grade no modo encaixar: a altura em pixels vem do `medir`, e sem
-     isto um arredondamento para cima devolveria a rolagem que o modo evita. */
-  .palco.fit {
+  /* Clips the grid in fit mode: the height in pixels comes from `gauge`, and
+     without this a round-up would bring back the scroll that the mode avoids. */
+  .stage.fit {
     overflow: hidden;
   }
 
@@ -1357,8 +1391,8 @@
     margin: 0 auto;
   }
 
-  /* No encaixar a largura do tile é calculada, não distribuída entre as
-     colunas: é ela que impede a grade de passar da altura da janela. */
+  /* In fit the tile width is computed, not distributed among the columns: it is
+     what keeps the grid from exceeding the window height. */
   .grid.fit {
     grid-template-columns: repeat(var(--cols), var(--tile-w));
     justify-content: center;
@@ -1382,15 +1416,15 @@
     object-fit: contain;
   }
 
-  /* Nome e botão do PiP juntos no canto de baixo à esquerda. */
-  .rotulo {
+  /* Name and PiP button together in the bottom left corner. */
+  .label {
     position: absolute;
     left: 8px;
     bottom: 8px;
     display: flex;
     align-items: center;
     gap: 4px;
-    /* Até o botão de tela cheia, à direita. */
+    /* Up to the full screen button, on the right. */
     max-width: calc(100% - 50px);
   }
 
@@ -1405,10 +1439,10 @@
     pointer-events: none;
   }
 
-  /* Mesma altura e mesmo fundo do ⋮, para os controles do tile serem da mesma
-     família. */
+  /* Same height and same background as the ⋮, so the tile's controls are of the
+     same family. */
   .pip,
-  .cheia {
+  .full {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1424,7 +1458,7 @@
   }
 
   .pip:focus-visible,
-  .cheia:focus-visible {
+  .full:focus-visible {
     outline: 2px solid var(--accent);
   }
   .pip.on {
@@ -1432,42 +1466,42 @@
     outline: 2px solid var(--accent);
   }
 
-  /* Como o ⋮: com mouse aparecem só sobre o tile, e o PiP fica enquanto a
-     câmera está nele; no toque ficam sempre à vista. */
+  /* Like the ⋮: with a mouse they show only over the tile, and PiP stays while
+     the camera is in it; on touch they are always in view. */
   @media (hover: hover) {
     .pip,
-    .cheia {
+    .full {
       opacity: 0;
     }
     .tile:hover .pip,
-    .tile:hover .cheia,
+    .tile:hover .full,
     .pip:focus-visible,
-    .cheia:focus-visible,
+    .full:focus-visible,
     .pip.on {
       opacity: 1;
     }
     .tile:hover .pip,
-    .tile:hover .cheia {
+    .tile:hover .full {
       background: rgba(13, 17, 23, 0.95);
     }
   }
 
-  /* Embaixo à direita, na linha do nome e do PiP. */
-  .cheia {
+  /* Bottom right, on the row of the name and PiP. */
+  .full {
     position: absolute;
     right: 8px;
     bottom: 8px;
   }
 
-  /* O player do go2rtc escreve o modo (loading, RTC, MSE) no canto de cima à
-     direita, que é o lugar do ⋮: o texto anda para a esquerda dele, sem tocar
-     no arquivo copiado. */
+  /* The go2rtc player writes the mode (loading, RTC, MSE) in the top right
+     corner, which is the ⋮'s place: the text moves to the left of it, without
+     touching the copied file. */
   .tile :global(video-stream .info) {
     padding-right: 44px;
   }
 
-  /* Embaixo à direita, acima do botão de tela cheia: em cima à esquerda o
-     player do go2rtc escreve os erros dele, e embaixo à esquerda está o nome. */
+  /* Bottom right, above the full screen button: top left is where the go2rtc
+     player writes its errors, and bottom left is the name. */
   .badge {
     position: absolute;
     right: 8px;
@@ -1482,11 +1516,11 @@
     pointer-events: none;
   }
 
-  /* --- o ⋮: mesma medida e mesmo desenho do das miniaturas das Detecções --- */
+  /* --- the ⋮: same size and same design as the Detections thumbnails' --- */
 
-  /* Sem caixa própria: o ⋮ se posiciona contra o tile. O div existe só para
-     segurar o duplo clique. */
-  .opcoes {
+  /* No box of its own: the ⋮ is positioned against the tile. The div exists
+     only to hold the double click. */
+  .options {
     display: contents;
   }
 
@@ -1523,8 +1557,8 @@
     outline: 2px solid var(--accent);
   }
 
-  /* Com mouse o ⋮ aparece só sobre o tile, e fica enquanto o menu dele está
-     aberto. No toque não há hover: ele fica sempre à vista. */
+  /* With a mouse the ⋮ shows only over the tile, and stays while its menu is
+     open. On touch there is no hover: it is always in view. */
   @media (hover: hover) {
     .mais {
       opacity: 0;
@@ -1539,8 +1573,8 @@
     }
   }
 
-  /* `top`, `right` e `max-height` vêm do `posicionaMenu`. Acima do cabeçalho e
-     da navegação inferior, que são 20. */
+  /* `top`, `right` and `max-height` come from `positionMenu`. Above the header
+     and the bottom navigation, which are 20. */
   .menu {
     position: fixed;
     z-index: 30;
@@ -1575,12 +1609,13 @@
     }
   }
 
-  /* --- a tela cheia --------------------------------------------------------- */
+  /* --- full screen ---------------------------------------------------------- */
 
-  /* Sem `position`: quem o põe é o navegador (`:fullscreen`) ou a regra da
-     simulada no app.css, e ele é o apoio das setas e do botão de sair. O
-     deslize é todo da tela: sem `touch-action` o navegador o tomaria. */
-  .palco.fs {
+  /* No `position`: the browser sets it (`:fullscreen`) or the simulated one's
+     rule in app.css, and it is the support for the arrows and the exit button.
+     The swipe belongs entirely to the screen: without `touch-action` the
+     browser would take it. */
+  .stage.fs {
     overflow: hidden;
     background: #000;
     touch-action: none;
@@ -1588,20 +1623,20 @@
     -webkit-user-select: none;
   }
 
-  .palco.fs .grid {
+  .stage.fs .grid {
     display: block;
     position: absolute;
     inset: 0;
     height: auto;
   }
-  .grid.animando {
+  .grid.animating {
     transition: transform var(--troca) ease-out;
   }
 
-  /* `left`, e não `transform`, para pôr as vizinhas dos lados: tile com
-     transform vira a referência do `position: fixed`, e o menu do ⋮ abriria
-     fora do lugar. */
-  .palco.fs .tile {
+  /* `left`, not `transform`, to place the neighbors at the sides: a tile with a
+     transform becomes the reference of `position: fixed`, and the ⋮ menu would
+     open out of place. */
+  .stage.fs .tile {
     position: absolute;
     top: 0;
     left: 0;
@@ -1610,22 +1645,22 @@
     aspect-ratio: auto;
     border-radius: 0;
   }
-  .palco.fs .tile.ant {
+  .stage.fs .tile.ant {
     left: -100%;
   }
-  .palco.fs .tile.prox {
+  .stage.fs .tile.next {
     left: 100%;
   }
-  .palco.fs .tile.fora {
+  .stage.fs .tile.fora {
     display: none;
   }
 
-  /* Os controles do tile, maiores: aqui é a tela inteira, e no celular o dedo. */
-  .palco.fs .rotulo {
+  /* The tile's controls, bigger: here it is the whole screen, and on a phone, the finger. */
+  .stage.fs .label {
     left: max(10px, env(safe-area-inset-left));
     bottom: max(10px, env(safe-area-inset-bottom));
   }
-  .palco.fs .name {
+  .stage.fs .name {
     padding: 4px 10px;
     font-size: 14px;
   }
@@ -1634,32 +1669,32 @@
     color: var(--dim);
     font-variant-numeric: tabular-nums;
   }
-  .palco.fs .pip {
+  .stage.fs .pip {
     width: 34px;
     height: 28px;
   }
-  .palco.fs .pip :global(svg) {
+  .stage.fs .pip :global(svg) {
     width: 18px;
     height: 18px;
   }
-  .palco.fs .mais {
+  .stage.fs .mais {
     width: 52px;
     height: 48px;
     padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 0 0;
   }
-  .palco.fs .mais span {
+  .stage.fs .mais span {
     width: 36px;
     height: 32px;
     padding: 6px;
   }
-  /* Embaixo à direita está o botão de sair. */
-  .palco.fs .badge {
+  /* Bottom right is the exit button. */
+  .stage.fs .badge {
     right: max(10px, env(safe-area-inset-right));
     bottom: calc(max(10px, env(safe-area-inset-bottom)) + 54px);
   }
 
-  /* Mesmo fundo do botão de sair (`sobreVideo`): a imagem pode ser clara. */
-  .seta {
+  /* Same background as the exit button (`overVideo`): the image can be bright. */
+  .arrow {
     position: absolute;
     top: 50%;
     z-index: 1;
@@ -1672,36 +1707,36 @@
     background: rgba(0, 0, 0, 0.55);
     border-color: rgba(255, 255, 255, 0.18);
   }
-  .seta.esq {
+  .arrow.esq {
     left: max(8px, env(safe-area-inset-left));
   }
-  .seta.dir {
+  .arrow.dir {
     right: max(8px, env(safe-area-inset-right));
   }
 
-  .sair {
+  .leave {
     position: absolute;
     z-index: 1;
     right: max(10px, env(safe-area-inset-right));
     bottom: max(10px, env(safe-area-inset-bottom));
   }
 
-  /* O nome e a posição ficam; o resto some. No fim do bloco para ganhar do
-     `.tile:hover`, que tem o mesmo peso. */
-  .palco.fs .seta,
-  .palco.fs .sair,
-  .palco.fs .mais,
-  .palco.fs .pip {
+  /* The name and the position stay; the rest disappears. At the end of the
+     block to win over `.tile:hover`, which has the same weight. */
+  .stage.fs .arrow,
+  .stage.fs .leave,
+  .stage.fs .mais,
+  .stage.fs .pip {
     transition: opacity 0.25s;
   }
-  .palco.escondidos .seta,
-  .palco.escondidos .sair,
-  .palco.escondidos .mais,
-  .palco.escondidos .pip {
+  .stage.escondidos .arrow,
+  .stage.escondidos .leave,
+  .stage.escondidos .mais,
+  .stage.escondidos .pip {
     opacity: 0;
     pointer-events: none;
   }
-  .palco.escondidos {
+  .stage.escondidos {
     cursor: none;
   }
 </style>

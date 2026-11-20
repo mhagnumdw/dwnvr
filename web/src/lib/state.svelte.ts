@@ -1,133 +1,141 @@
-// Estado global, com runes do Svelte 5.
+// Global state, with Svelte 5 runes.
 //
-// É pouca coisa de propósito: quase tudo nesta aplicação é estado local de
-// tela. O que vive aqui é o que várias telas precisam enxergar - sessão, lista
-// de câmeras e saúde - e que seria desperdício buscar de novo a cada navegação.
+// It is small on purpose: almost everything in this application is local screen
+// state. What lives here is what several screens need to see - session, camera
+// list and health - and that would be wasteful to fetch again on every
+// navigation.
 
-import { api, mensagemDe } from './api.ts';
+import { api, messageOf } from './api.ts';
 import type {
-  AlertaPorEmail,
-  CameraCadastrada,
+  EmailAlert,
+  RegisteredCamera,
   Camera,
-  DescarteDosAlertas,
-  MeioFalhando,
+  AlertsDropped,
+  FailingNotifier,
   Disco,
-  DivergenciasDoGo2rtc,
+  Go2rtcDrift,
   Detector,
-  Faixas,
-  CameraNaSaude,
-  Orfa,
-  Pessoa,
-  Relogio,
+  BoundsMap,
+  HealthCamera,
+  Orphan,
+  Person,
+  Clock,
   Stream,
   Uptime,
 } from './api.ts';
-import { AVISOS_POLL_MS } from './avisos.ts';
+import { NOTICES_POLL_MS } from './notices.ts';
 
 export const session = $state<{
   authRequired: boolean;
   authenticated: boolean;
   checked: boolean;
-  pessoa: Pessoa | null;
+  pessoa: Person | null;
 }>({
   authRequired: false,
   authenticated: false,
   checked: false,
-  // Quem está logado: { username, name, role, owner }. Com a autenticação
-  // desligada vem como admin e dono, sem usuário. Nulo sem sessão.
+  // Who is logged in: { username, name, role, owner }. With authentication off
+  // it comes as admin and owner, with no user. Null without a session.
   pessoa: null,
 });
 
-// ehAdmin decide as abas, o sino e a pílula. Esconder não é segurança - a API
-// recusa o viewer com 403 -, é só não mostrar o que ele não pode usar.
-export function ehAdmin() {
+// isAdmin decides the tabs, the bell and the pill. Hiding is not security - the
+// API rejects the viewer with 403 -, it is just not showing what they cannot
+// use.
+export function isAdmin() {
   return session.pessoa?.role === 'admin';
 }
 
-// sessaoCaiu leva à tela de login: a sessão venceu, a pessoa foi removida ou
-// ganhou link novo. Quem descobre é um 401 da API, ou a conferência do Ao vivo.
-export function sessaoCaiu() {
+// sessionDropped leads to the login screen: the session expired, the person was
+// removed or got a new link. What finds out is a 401 from the API, or Live's
+// check.
+export function sessionDropped() {
   session.authenticated = false;
   session.pessoa = null;
-  zeraOQueFoiCarregado();
+  resetWhatWasLoaded();
 }
 
 export const cameras = $state<{
-  list: CameraCadastrada[];
+  list: RegisteredCamera[];
   streams: Stream[];
-  orphans: Orfa[];
+  orphans: Orphan[];
   padrao: Camera | null;
-  faixas: Faixas | null;
+  faixas: BoundsMap | null;
   detector: boolean | null;
   go2rtcError: string | null;
-  go2rtcConfigFile: DivergenciasDoGo2rtc | null;
-  alertEmail: AlertaPorEmail | null;
+  go2rtcConfigFile: Go2rtcDrift | null;
+  alertEmail: EmailAlert | null;
   loading: boolean;
   error: string | null;
 }>({
   list: [],
   streams: [],
-  // Gravações que sobraram de câmeras já removidas. Vêm junto com a listagem
-  // porque nenhum outro endpoint enxerga câmera sem cadastro.
+  // Recordings left over from cameras already removed. They come along with the
+  // listing because no other endpoint sees a camera with no registry entry.
   orphans: [],
-  // Câmera vazia com os defaults do servidor, de onde nasce o cadastro novo.
+  // Empty camera with the server's defaults, from which a new registration is
+  // born.
   padrao: null,
-  // { campo: { min, max } } dos campos numéricos: a mesma régua com que a API
-  // recusa, para o min/max dos inputs não repetir número à mão. Sem teto, o
-  // max não vem.
+  // { field: { min, max } } of the numeric fields: the same range the API
+  // rejects with, so the inputs' min/max do not repeat numbers by hand. Without
+  // a ceiling, max is not sent.
   faixas: null,
-  // Se o detector de objetos está configurado. Sem ele não há aba Detecções.
-  // Nulo até a primeira resposta: "ainda não sei" é diferente de "não tem".
+  // Whether the object detector is configured. Without it there is no
+  // Detections tab. Null until the first response: "I don't know yet" is
+  // different from "there is none".
   detector: null,
   go2rtcError: null,
-  // O que está no go2rtc.yaml e o go2rtc ainda não carregou: { novas,
-  // alteradas, foraDoArquivo }. Nulo quando os dois batem, ou quando o go2rtc
-  // não deixa ler o arquivo.
+  // What is in go2rtc.yaml and go2rtc has not loaded yet: { novas, alteradas,
+  // foraDoArquivo }. Null when the two match, or when go2rtc does not let the
+  // file be read.
   go2rtcConfigFile: null,
-  // Para onde vai o alerta, que a aba Alerta mostra. Nulo contra servidor
-  // anterior a ele.
+  // Where the alert goes, which the Alert tab shows. Null against a server
+  // older than it.
   alertEmail: null,
   loading: true,
   error: null,
 });
 
-export const health = $state<EstadoDaSaude>({
+export const health = $state<HealthState>({
   cameras: [],
   disk: null,
-  // { appSeconds, machineSeconds }. Fica nulo contra servidor antigo, que não
-  // responde o campo - a faixa de estado simplesmente não aparece.
+  // { appSeconds, machineSeconds }. Stays null against an old server, which
+  // does not answer the field - the status strip simply does not show up.
   uptime: null,
   clock: null,
-  // { fila: { agora, cap, pico }, tempos: { analiseMs, esperaMs } }. Nulo sem
-  // detector de objetos configurado.
+  // { fila: { agora, cap, pico }, tempos: { analiseMs, esperaMs } }. Null
+  // without a configured object detector.
   detector: null,
-  // Horas da janela de reconexões recentes; o número mora no servidor
-  // (recorder.JanelaDeReconexoes). Nulo contra servidor antigo.
+  // Hours of the recent reconnects window; the number lives on the server
+  // (recorder.ReconnectWindow). Null against an old server.
   reconnectsWindowHours: null,
-  // { error, since } enquanto o go2rtc não responde ao dwnvr; nulo quando ele
-  // responde, e também contra servidor antigo.
+  // { error, since } while go2rtc does not answer dwnvr; null when it answers,
+  // and also against an old server.
   go2rtc: null,
-  // { error } com a seção smtp recusada no boot; nulo sem problema.
+  // { error } with the smtp section rejected at boot; null with no problem.
   smtp: null,
-  // { error?, warnings? } com problema no usuarios.json; nulo sem problema.
+  // { error?, warnings? } with a problem in usuarios.json; null with no
+  // problem.
   users: null,
-  // { total?, warnings?, dropped?, failing? }: o total depois que alguma câmera
-  // liga o alerta, os warnings com problema na seção alerts do dwnvr.yaml, os
-  // alertas que não saíram pelos meios e os meios falhando; nulo sem nenhum.
+  // { total?, warnings?, dropped?, failing? }: the total after some camera
+  // turns alerts on, the warnings with problems in the alerts section of
+  // dwnvr.yaml, the alerts that did not go out through the notifiers and the
+  // notifiers failing; null with none.
   alerts: null,
   updatedAt: 0,
-  // Quando a leitura começou a falhar, para a tela dizer que o que mostra é
-  // velho; volta a nulo na primeira leitura boa.
+  // When the read started failing, so the screen can say that what it shows is
+  // stale; goes back to null on the first good read.
   failingSince: null,
 });
 
-// O /api/health como a tela o guarda, nulo onde a resposta não trouxe o campo,
-// mais o que a própria tela anota das leituras (updatedAt e failingSince).
-export interface EstadoDaSaude {
-  cameras: CameraNaSaude[];
+// The /api/health as the screen stores it, null where the response did not
+// bring the field, plus what the screen itself notes about the reads (updatedAt
+// and failingSince).
+export interface HealthState {
+  cameras: HealthCamera[];
   disk: Disco | null;
   uptime: Uptime | null;
-  clock: Relogio | null;
+  clock: Clock | null;
   detector: Detector | null;
   reconnectsWindowHours: number | null;
   go2rtc: { error: string; since: string } | null;
@@ -136,34 +144,34 @@ export interface EstadoDaSaude {
   alerts: {
     total?: number;
     warnings?: string[];
-    dropped?: DescarteDosAlertas;
-    failing?: MeioFalhando[];
+    dropped?: AlertsDropped;
+    failing?: FailingNotifier[];
   } | null;
   updatedAt: number;
   failingSince: number | null;
 }
 
-// Qual código o servidor está rodando. Não muda enquanto a página está aberta,
-// então é buscado uma vez só, no boot.
+// Which code the server is running. It does not change while the page is open,
+// so it is fetched only once, at boot.
 export const build = $state({
   version: '',
   commit: '',
   date: '',
-  // A tag da última release, quando ela é mais nova que a versão em uso; vazio
-  // em qualquer outro caso. É o que acende o aviso no header.
-  nova: '',
+  // The tag of the latest release, when it is newer than the version in use;
+  // empty in any other case. It is what lights up the notice in the header.
+  newOne: '',
 });
 
-// Aviso de versão nova. Quem pergunta é o navegador, direto à API do GitHub
-// (CORS aberto, 60 requisições por hora por IP): o servidor não abre conexão
-// para fora, não ganha goroutine nem config, e numa rede sem internet a
-// consulta só falha em silêncio.
+// New version notice. The one asking is the browser, straight to the GitHub API
+// (open CORS, 60 requests per hour per IP): the server does not open outbound
+// connections, gains no goroutine or config, and on a network without internet
+// the query just fails silently.
 const RELEASE_API = 'https://api.github.com/repos/mhagnumdw/dwnvr/releases/latest';
 export const REPO_URL = 'https://github.com/mhagnumdw/dwnvr';
 export const RELEASES_URL = `${REPO_URL}/releases`;
 export const ISSUES_URL = `${REPO_URL}/issues`;
-// A resposta fica guardada por este tempo, inclusive o "ainda não há release":
-// sem isso, cada aba aberta gastaria uma requisição.
+// The response is kept for this long, including the "no release yet": without
+// that, every open tab would spend one request.
 const RELEASE_CACHE = 'dwnvr.release';
 const RELEASE_CACHE_MS = 12 * 60 * 60 * 1000;
 
@@ -183,18 +191,19 @@ export async function logout() {
   try {
     await api.logout();
   } catch {
-    // Sair é, antes de tudo, local: se a requisição falhar, derrubar a sessão
-    // aqui ainda é o que o usuário pediu - e o cookie assinado expira sozinho.
+    // Logging out is, first of all, local: if the request fails, dropping the
+    // session here is still what the user asked for - and the signed cookie
+    // expires by itself.
   }
   session.authenticated = false;
   session.pessoa = null;
-  zeraOQueFoiCarregado();
+  resetWhatWasLoaded();
 }
 
-// zeraOQueFoiCarregado vale para as duas saídas, a pedida e a da sessão que
-// caiu: sem isto, quem entrar em seguida na mesma aba vê por um instante as
-// câmeras e o diagnóstico da sessão anterior.
-function zeraOQueFoiCarregado() {
+// resetWhatWasLoaded applies to both exits, the requested one and the dropped
+// session's: without it, whoever logs in next in the same tab sees, for a
+// moment, the cameras and diagnostics of the previous session.
+function resetWhatWasLoaded() {
   cameras.list = [];
   cameras.streams = [];
   cameras.orphans = [];
@@ -209,8 +218,8 @@ function zeraOQueFoiCarregado() {
   health.uptime = null;
   health.clock = null;
   health.detector = null;
-  // O sino do header lê os avisos daqui, e o viewer não relê a saúde: sem
-  // zerar, ele veria os avisos do admin que saiu.
+  // The header bell reads the notices from here, and the viewer does not reread
+  // health: without clearing, they would see the notices of the admin who left.
   health.reconnectsWindowHours = null;
   health.go2rtc = null;
   health.smtp = null;
@@ -218,7 +227,7 @@ function zeraOQueFoiCarregado() {
   health.alerts = null;
   health.updatedAt = 0;
   health.failingSince = null;
-  healthPedidoEm = 0;
+  healthRequestedAt = 0;
 }
 
 export async function loadBuild() {
@@ -228,20 +237,20 @@ export async function loadBuild() {
     build.commit = b.commit;
     build.date = b.date;
   } catch {
-    // Versão é informativa: um servidor antigo, sem o endpoint, continua
-    // usável - a interface apenas não mostra nada.
+    // Version is informational: an old server, without the endpoint, remains
+    // usable - the interface just shows nothing.
   }
 }
 
-// [maior, menor, patch] de 'v0.1.0', e também de 'v0.1.0-3-gabc1234', que é
-// um build da main depois da v0.1.0. Nulo para 'dev' ou um hash solto.
+// [major, minor, patch] of 'v0.1.0', and also of 'v0.1.0-3-gabc1234', which is
+// a main build after v0.1.0. Null for 'dev' or a bare hash.
 function semver(v: string | undefined): number[] | null {
   const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(v ?? '');
   return m ? m.slice(1).map(Number) : null;
 }
 
-// Comparação numérica: como texto, 'v0.1.10' viria antes de 'v0.1.9'.
-function maisNova(a: number[], b: number[]): boolean {
+// Numeric comparison: as text, 'v0.1.10' would come before 'v0.1.9'.
+function newer(a: number[], b: number[]): boolean {
   for (let i = 0; i < 3; i++) {
     const x = a[i] ?? 0;
     const y = b[i] ?? 0;
@@ -250,7 +259,7 @@ function maisNova(a: number[], b: number[]): boolean {
   return false;
 }
 
-// A tag guardada, ou undefined se não há nada válido dentro do prazo.
+// The stored tag, or undefined if there is nothing valid within the deadline.
 function lerCacheRelease(): string | undefined {
   try {
     const c = JSON.parse(localStorage.getItem(RELEASE_CACHE) ?? 'null') as {
@@ -266,59 +275,59 @@ function lerCacheRelease(): string | undefined {
       return c.tag;
     }
   } catch {
-    // localStorage bloqueado ou conteúdo estragado: vale como vazio.
+    // localStorage blocked or content corrupted: counts as empty.
   }
   return undefined;
 }
 
-function gravarCacheRelease(tag: string) {
+function writeReleaseCache(tag: string) {
   try {
     localStorage.setItem(RELEASE_CACHE, JSON.stringify({ tag, em: Date.now() }));
   } catch {
-    // Sem onde guardar, a próxima abertura pergunta de novo. Só isso.
+    // With nowhere to store it, the next open asks again. That is all.
   }
 }
 
-// Depende de loadBuild(): sem saber a versão em uso não há o que comparar.
-// Build de desenvolvimento ou só com hash não consulta nada.
-export async function checarNovaVersao() {
-  const atual = semver(build.version);
-  if (!atual) return;
+// Depends on loadBuild(): without knowing the version in use there is nothing
+// to compare. A development build or one with only a hash queries nothing.
+export async function checkNewVersion() {
+  const current = semver(build.version);
+  if (!current) return;
   let tag = lerCacheRelease();
   if (tag === undefined) {
     try {
       const r = await fetch(RELEASE_API);
-      // 404 é "ainda não há release": resposta válida, que vai para o cache.
+      // 404 is "no release yet": a valid response, which goes into the cache.
       if (r.ok) tag = ((await r.json()) as { tag_name?: string }).tag_name ?? '';
       else if (r.status === 404) tag = '';
     } catch {
-      // Sem internet, ou o GitHub fora: fica para a próxima abertura.
+      // No internet, or GitHub is down: left for the next open.
     }
-    // Limite de requisições estourado e afins também ficam sem cache.
+    // Rate limit exceeded and the like also stay out of the cache.
     if (tag === undefined) return;
-    gravarCacheRelease(tag);
+    writeReleaseCache(tag);
   }
-  const ultima = semver(tag);
-  if (ultima && maisNova(ultima, atual)) build.nova = tag;
+  const lastOne = semver(tag);
+  if (lastOne && newer(lastOne, current)) build.newOne = tag;
 }
 
-// Numera as leituras da lista, como as da saúde: a abertura do app e a da tela
-// Câmeras podem pedir juntas, e uma resposta velha que chegasse depois
-// desfaria a nova - um erro velho acenderia o aviso por cima da lista que
-// acabou de chegar. Vale a resposta mais nova que a última aplicada.
-let camerasPedida = 0;
-let camerasAplicada = 0;
+// Numbers the reads of the list, like those of health: the app's opening and
+// the Cameras screen's may ask together, and an old response arriving later
+// would undo the new one - an old error would light up the notice on top of the
+// list that just arrived. The newest response over the last one applied wins.
+let requestedCameras = 0;
+let appliedCameras = 0;
 
-// loadCameras guarda o erro em vez de lançá-lo. O erro só sai com uma leitura
-// boa, e não no começo do pedido: assim o aviso não pisca enquanto o botão de
-// atualizar gira.
+// loadCameras stores the error instead of throwing it. The error only goes out
+// with a good read, and not at the start of the request: this way the notice
+// does not blink while the refresh button spins.
 export async function loadCameras() {
-  const esta = ++camerasPedida;
+  const ticket = ++requestedCameras;
   cameras.loading = true;
   try {
     const data = await api.cameras();
-    if (esta < camerasAplicada) return;
-    camerasAplicada = esta;
+    if (ticket < appliedCameras) return;
+    appliedCameras = ticket;
     cameras.error = null;
     cameras.list = data.cameras;
     cameras.streams = data.streams ?? [];
@@ -330,53 +339,56 @@ export async function loadCameras() {
     cameras.go2rtcConfigFile = data.go2rtcConfigFile ?? null;
     cameras.alertEmail = data.alertEmail ?? null;
   } catch (e) {
-    if (esta < camerasAplicada) return;
-    camerasAplicada = esta;
-    cameras.error = mensagemDe(e);
-    // Sem resposta nenhuma, a aba fica de fora: melhor que a tela em branco
-    // esperando para sempre.
+    if (ticket < appliedCameras) return;
+    appliedCameras = ticket;
+    cameras.error = messageOf(e);
+    // With no response at all, the tab is left out: better than a blank screen
+    // waiting forever.
     cameras.detector ??= false;
   } finally {
-    // Só o pedido mais recente encerra o "carregando": com outro em curso, a
-    // tela ainda não sabe o que mostrar.
-    if (esta === camerasPedida) cameras.loading = false;
+    // Only the most recent request ends "carregando…": with another in
+    // progress, the screen does not yet know what to show.
+    if (ticket === requestedCameras) cameras.loading = false;
   }
 }
 
-// Quando a última leitura da saúde começou, de qualquer tela. É o que o sino
-// do header consulta para não repetir uma leitura recente, ou uma em curso.
-let healthPedidoEm = 0;
+// When the last health read started, from any screen. It is what the header
+// bell checks so it does not repeat a recent read, or one in progress.
+let healthRequestedAt = 0;
 
-// Numera as leituras para uma resposta velha não desfazer uma nova: o poll e
-// uma releitura pedida pela tela podem se cruzar, e a velha que chega depois
-// apagaria o dado novo - ou acenderia o "sem resposta" com o servidor de pé.
-// Vale a resposta mais nova que a última aplicada, e não só a do último
-// pedido: com o servidor lento, cada leitura levando mais que HEALTH_POLL_MS,
-// sempre haveria um pedido mais novo em curso e nenhuma resposta entraria.
-let healthPedida = 0;
-let healthAplicada = 0;
+// Numbers the reads so an old response does not undo a new one: the poll and a
+// reread requested by the screen may cross, and the old one arriving later
+// would erase the new data - or light up "sem resposta" with the server up. The
+// newest response over the last one applied wins, and not just the last
+// request's: with a slow server, each read taking longer than HEALTH_POLL_MS,
+// there would always be a newer request in progress and no response would ever
+// get in.
+let healthRequested = 0;
+let healthApplied = 0;
 
-// Quantas leituras da saúde estão em curso. As leituras automáticas (o poll, o
-// sino e a volta à aba) não começam com outra pendente: com o servidor lento,
-// cada tique somaria mais um pedido igual ao que ele ainda não respondeu. A
-// releitura que a tela pede depois de uma ação sai mesmo assim, porque quer o
-// estado de depois da ação, e a pendente pode ter começado antes. Por isso é
-// contador, e não sim ou não: as duas podem estar em curso juntas.
-let healthLendo = 0;
+// How many health reads are in progress. The automatic reads (the poll, the
+// bell and the return to the tab) do not start with another pending: with a
+// slow server, each tick would add one more request identical to the one it has
+// not answered yet. The reread the screen asks for after an action goes out
+// anyway, because it wants the post-action state, and the pending one may have
+// started before. That is why it is a counter, and not a yes or no: both may be
+// in progress together.
+let healthReading = 0;
 
-// lerHealthSeLivre é a leitura automática: só sai sem outra em curso.
-function lerHealthSeLivre() {
-  if (healthLendo === 0) void loadHealth();
+// readHealthIfFree is the automatic read: it only goes out with no other in
+// progress.
+function readHealthIfFree() {
+  if (healthReading === 0) void loadHealth();
 }
 
 export async function loadHealth() {
-  healthPedidoEm = Date.now();
-  const esta = ++healthPedida;
-  healthLendo++;
+  healthRequestedAt = Date.now();
+  const ticket = ++healthRequested;
+  healthReading++;
   try {
     const data = await api.health(HEALTH_TIMEOUT_MS);
-    if (esta < healthAplicada) return;
-    healthAplicada = esta;
+    if (ticket < healthApplied) return;
+    healthApplied = ticket;
     health.cameras = data.cameras;
     health.disk = data.disk ?? null;
     health.uptime = data.uptime ?? null;
@@ -390,68 +402,70 @@ export async function loadHealth() {
     health.updatedAt = Date.now();
     health.failingSince = null;
   } catch {
-    // Saúde é informativo: falhar aqui não pode interromper o uso das telas.
-    // Só marca desde quando falha, para o rodapé avisar que o dado é velho.
-    if (esta < healthAplicada) return;
-    healthAplicada = esta;
+    // Health is informational: failing here must not interrupt the use of the
+    // screens. It only records since when it fails, so the footer can warn that
+    // the data is stale.
+    if (ticket < healthApplied) return;
+    healthApplied = ticket;
     health.failingSince ??= Date.now();
   } finally {
-    healthLendo--;
+    healthReading--;
   }
 }
 
-// HEALTH_POLL_MS é o único lugar que decide de quanto em quanto tempo a saúde
-// é relida. Todas as telas que mostram status usam o mesmo ritmo, e o texto que
-// anuncia isso ao usuário é derivado daqui - mudar o número aqui basta.
+// HEALTH_POLL_MS is the only place that decides how often health is reread. All
+// the screens that show status use the same rhythm, and the text that announces
+// this to the user is derived from here - changing the number here is enough.
 export const HEALTH_POLL_MS = 5000;
 
-// HEALTH_TIMEOUT_MS é o prazo de uma leitura da saúde: passou dele, conta como
-// falha e acende o "sem resposta" do rodapé. Dois intervalos do poll: na placa
-// ocupada (câmeras gravando e o detector de objetos rodando) a leitura levou
-// menos de 250 ms, então só um servidor travado chega aqui.
+// HEALTH_TIMEOUT_MS is the deadline of a health read: past it, it counts as a
+// failure and lights up the footer's "sem resposta". Two poll intervals: on the
+// busy board (cameras recording and the object detector running) the read took
+// less than 250 ms, so only a hung server gets here.
 export const HEALTH_TIMEOUT_MS = 2 * HEALTH_POLL_MS;
 
-// pollHealth mantém o diagnóstico vivo enquanto a tela estiver aberta, e para
-// quando ela sai - não faz sentido consultar o servidor de fundo para sempre.
-// Pelo mesmo motivo, com a aba oculta não lê: uma aba esquecida aberta em
-// Câmeras ou Diagnóstico perguntaria a cada intervalMs, dia e noite, e ainda
-// manteria o admin com "acesso agora" na tela Usuários. Ao voltar, lê na hora
-// se o dado estiver velho; se o sino acabou de pedir a leitura no mesmo
-// evento, não repete. Com uma leitura em curso, o tique pula: a próxima sai
-// quando ela voltar ou estourar o HEALTH_TIMEOUT_MS.
+// pollHealth keeps the diagnostics alive while the screen is open, and stops
+// when it leaves - there is no point querying the server in the background
+// forever. For the same reason, it does not read with the tab hidden: a tab
+// forgotten open on Cameras or Diagnostics would ask every intervalMs, day and
+// night, and would also keep the admin showing "acesso agora" on the Users
+// screen. On return, it reads right away if the data is stale; if the bell just
+// asked for the read in the same event, it does not repeat. With a read in
+// progress, the tick is skipped: the next one goes out when it returns or hits
+// HEALTH_TIMEOUT_MS.
 export function pollHealth(intervalMs = HEALTH_POLL_MS) {
   const ler = () => {
-    if (!document.hidden) lerHealthSeLivre();
+    if (!document.hidden) readHealthIfFree();
   };
-  const aoVoltar = () => {
-    if (!document.hidden && Date.now() - healthPedidoEm >= intervalMs) lerHealthSeLivre();
+  const onReturn = () => {
+    if (!document.hidden && Date.now() - healthRequestedAt >= intervalMs) readHealthIfFree();
   };
   ler();
   const id = setInterval(ler, intervalMs);
-  document.addEventListener('visibilitychange', aoVoltar);
+  document.addEventListener('visibilitychange', onReturn);
   return () => {
     clearInterval(id);
-    document.removeEventListener('visibilitychange', aoVoltar);
+    document.removeEventListener('visibilitychange', onReturn);
   };
 }
 
-// vigiarAvisos mantém o sino do header em dia nas telas que não releem a saúde
-// por conta própria. Só lê quando a última leitura, de quem quer que seja, tem
-// mais de AVISOS_POLL_MS: em Diagnóstico e Câmeras, que releem a cada
-// HEALTH_POLL_MS, não sai requisição nenhuma daqui. O tique é curto para que,
-// saindo de uma dessas telas, o dado não fique quase o dobro do prazo sem ser
-// relido; o tique em si não custa nada. Com a aba oculta não lê, e ao voltar
-// lê na hora se o dado estiver velho. Como o pollHealth, não começa uma
-// leitura com outra em curso.
-export function vigiarAvisos() {
-  const talvez = () => {
-    if (!document.hidden && Date.now() - healthPedidoEm >= AVISOS_POLL_MS) lerHealthSeLivre();
+// watchNotices keeps the header bell up to date on the screens that do not
+// reread health on their own. It only reads when the last read, by whoever it
+// was, is older than NOTICES_POLL_MS: on Diagnostics and Cameras, which reread
+// every HEALTH_POLL_MS, no request goes out from here. The tick is short so
+// that, when leaving one of those screens, the data does not go almost twice
+// the deadline without being reread; the tick itself costs nothing. With the
+// tab hidden it does not read, and on return it reads right away if the data is
+// stale. Like pollHealth, it does not start a read with another in progress.
+export function watchNotices() {
+  const maybe = () => {
+    if (!document.hidden && Date.now() - healthRequestedAt >= NOTICES_POLL_MS) readHealthIfFree();
   };
-  talvez();
-  const id = setInterval(talvez, HEALTH_POLL_MS);
-  document.addEventListener('visibilitychange', talvez);
+  maybe();
+  const id = setInterval(maybe, HEALTH_POLL_MS);
+  document.addEventListener('visibilitychange', maybe);
   return () => {
     clearInterval(id);
-    document.removeEventListener('visibilitychange', talvez);
+    document.removeEventListener('visibilitychange', maybe);
   };
 }

@@ -1,21 +1,23 @@
-// Formatadores compartilhados. Ficam num lugar só para que a mesma grandeza
-// não apareça escrita de dois jeitos em telas diferentes.
+// Shared formatters. They live in one place so that the same quantity does not
+// show up written two ways on different screens.
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-// num escreve número no padrão daqui: vírgula decimal e sem zero à direita
-// ("20 GB", não "20,00 GB"). Instanciar Intl a cada chamada é caro e estes
-// formatadores aparecem em tela que atualiza de 3 em 3 segundos, então cacheia.
+// num writes a number in the local style: decimal comma and no trailing zero
+// ("20 GB", not "20,00 GB"). Instantiating Intl on every call is expensive and
+// these formatters show up on a screen that updates every 3 seconds, so it
+// caches.
 const nfs = new Map<number, Intl.NumberFormat>();
-function num(v: number, casas: number) {
-  let f = nfs.get(casas);
-  if (!f) nfs.set(casas, (f = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: casas })));
+function num(v: number, decimals: number) {
+  let f = nfs.get(decimals);
+  if (!f)
+    nfs.set(decimals, (f = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: decimals })));
   return f.format(v);
 }
 
-// taxa escreve a velocidade de reprodução do player ("0,25×", "1×", "16×").
-// Mora aqui pelo mesmo motivo dos outros: a vírgula decimal do resto da
-// interface - o `{r}×` cru punha "0.5×" numa tela inteira em português.
+// taxa writes the player's playback speed ("0,25×", "1×", "16×"). It lives here
+// for the same reason as the others: the decimal comma of the rest of the
+// interface - the raw `{r}×` put "0.5×" on a whole Portuguese screen.
 export function taxa(r: number) {
   return `${num(r, 2)}×`;
 }
@@ -30,67 +32,70 @@ export function hhmm(ms: number) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// horaDoMinuto escreve um minuto do dia (0 a 1439) como HH:MM: é como os
-// horários do intervalo de Detecções são guardados.
-export function horaDoMinuto(m: number) {
+// hourOfMinute writes a minute of the day (0 to 1439) as HH:MM: it is how the
+// times of the Detections interval are stored.
+export function hourOfMinute(m: number) {
   return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 }
 
-// ddmm é a data curta dos intervalos ("14/07 a 11/08"). O ano fica de fora
-// porque os intervalos que aparecem na interface são de dias ou semanas, e
-// repeti-lo em toda ponta só ocuparia espaço.
+// ddmm is the short date of the intervals ("14/07 a 11/08"). The year is left
+// out because the intervals shown in the interface span days or weeks, and
+// repeating it at every end would only take up space.
 export function ddmm(ms: number) {
   const d = new Date(ms);
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
 }
 
-// diaCurto é o dia para uma mensagem que fica guardada: "14/10", e com o ano
-// só quando não é o deste ano. Nunca "ontem", que amanhã já é mentira.
-export function diaCurto(ms: number, agora = Date.now()) {
+// shortDay is the day for a message that gets stored: "14/10", and with the
+// year only when it is not this year. Never "yesterday", which tomorrow is
+// already a lie.
+export function shortDay(ms: number, now = Date.now()) {
   const ano = new Date(ms).getFullYear();
-  return ano === new Date(agora).getFullYear() ? ddmm(ms) : `${ddmm(ms)}/${ano}`;
+  return ano === new Date(now).getFullYear() ? ddmm(ms) : `${ddmm(ms)}/${ano}`;
 }
 
-// dataHora é o instante completo, "10/10/2026 14:32", para o que pode ter
-// acontecido há meses.
-export function dataHora(ms: number) {
+// dateTime is the full instant, "10/10/2026 14:32", for what may have happened
+// months ago.
+export function dateTime(ms: number) {
   const d = new Date(ms);
   return `${ddmm(ms)}/${d.getFullYear()} ${hhmm(ms)}`;
 }
 
-// hojeOntem é o instante recente lido de relance: "hoje 08:12", "ontem 22:47",
-// e o completo de dataHora do anteontem para trás.
-export function hojeOntem(ms: number, agora: number) {
-  const ontem = new Date(agora);
-  ontem.setDate(ontem.getDate() - 1);
-  const dia = new Date(ms).toDateString();
-  if (dia === new Date(agora).toDateString()) return `hoje ${hhmm(ms)}`;
-  if (dia === ontem.toDateString()) return `ontem ${hhmm(ms)}`;
-  return dataHora(ms);
+// todayYesterday is the recent instant read at a glance: "hoje 08:12", "ontem
+// 22:47", and the full dateTime from the day before yesterday backwards.
+export function todayYesterday(ms: number, now: number) {
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const day = new Date(ms).toDateString();
+  if (day === new Date(now).toDateString()) return `hoje ${hhmm(ms)}`;
+  if (day === yesterday.toDateString()) return `ontem ${hhmm(ms)}`;
+  return dateTime(ms);
 }
 
-// relogioDeFuso escreve um instante no fuso de OUTRA máquina: recebe o epoch em
-// milissegundos e o deslocamento daquele fuso em segundos, e devolve
+// timezoneClock writes an instant in the timezone of ANOTHER machine: it takes
+// the epoch in milliseconds and that timezone's offset in seconds, and returns
 // "18/08/2026 18:14:57".
 //
-// O offset entra somado ao epoch e a leitura sai pelos getters UTC. Parece
-// truque e é: o Date só sabe ler pelo fuso do navegador, então adiantar o
-// instante pelo offset alheio e depois ler em UTC cancela exatamente a
-// conversão que não se quer. E não se quer porque o único uso disto é mostrar o
-// relógio de outra máquina - convertido, ele viraria a hora que quem lê já tem
-// no próprio pulso, que não responde nada.
-export function relogioDeFuso(epochMs: number, offsetSeconds: number) {
+// The offset is added to the epoch and the reading comes out through the UTC
+// getters. It looks like a trick and it is: Date only knows how to read in the
+// browser's timezone, so shifting the instant by the other offset and then
+// reading in UTC cancels exactly the conversion we do not want. And we do not
+// want it because the only use of this is to show another machine's clock -
+// converted, it would become the time the reader already has on their own
+// wrist, which answers nothing.
+export function timezoneClock(epochMs: number, offsetSeconds: number) {
   const d = new Date(epochMs + offsetSeconds * 1000);
   const data = `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
-  const hora = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-  return `${data} ${hora}`;
+  const hour = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  return `${data} ${hour}`;
 }
 
 export function dayKey(date = new Date()) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-// Texto fora do formato dá uma data inválida, que o chamador confere com isNaN.
+// Text outside the format gives an invalid date, which the caller checks with
+// isNaN.
 export function parseDay(key: string) {
   const [y = NaN, m = NaN, d = NaN] = key.split('-').map(Number);
   return new Date(y, m - 1, d);
@@ -101,14 +106,14 @@ export function bytes(n: number | undefined) {
   const u = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
   const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), u.length - 1);
   const v = n / 1024 ** i;
-  // Passando de 100 na unidade a casa decimal só polui: "761 MB" basta.
+  // Above 100 in the unit the decimal place is just noise: "761 MB" is enough.
   return `${num(v, i === 0 || v >= 100 ? 0 : 2)} ${u[i] ?? 'B'}`;
 }
 
-// bytesDeMB existe porque cota e mínimo livre são configurados em MB. Mostrar o
-// número cru deixava "20480 MB" na tela ao lado de um "3,62 GB" - mesma
-// grandeza, duas unidades, que é justamente o que este arquivo evita.
-export function bytesDeMB(mb: number | undefined) {
+// mbToBytes exists because quota and minimum free are configured in MB. Showing
+// the raw number left "20480 MB" on screen next to a "3,62 GB" - same quantity,
+// two units, which is exactly what this file avoids.
+export function mbToBytes(mb: number | undefined) {
   return bytes((mb ?? 0) * 1024 ** 2);
 }
 
@@ -117,27 +122,28 @@ export function kbps(v: number | undefined) {
   return v >= 1000 ? `${num(v / 1000, 2)} Mbps` : `${num(Math.round(v), 0)} kbps`;
 }
 
-// resolucao mostra o que está sendo gravado de fato, lido do init do stream.
-// Só existe depois da primeira conexão - antes disso não há o que afirmar.
-export function resolucao(w: number | undefined, h: number | undefined) {
+// resolution shows what is actually being recorded, read from the stream's
+// init. It only exists after the first connection - before that there is
+// nothing to state.
+export function resolution(w: number | undefined, h: number | undefined) {
   if (!w || !h) return '-';
   return `${w}×${h}`;
 }
 
-// duracao formata um intervalo pensando em quem lê: sempre duas casas de
-// grandeza, a maior e a seguinte.
+// duration formats an interval with the reader in mind: always two orders of
+// magnitude, the largest and the next one.
 //
-// "7h 17min" e não "7,3h" porque a fração decimal de hora obriga quem lê a
-// converter de cabeça - e essas durações são lidas no meio de um diagnóstico,
-// onde ninguém quer fazer conta. A unidade menor some quando é zero, para não
-// deixar "7h 0min" na tela.
-export function duracao(ms: number | undefined) {
+// "7h 17min" and not "7,3h" because a decimal fraction of an hour makes the
+// reader convert in their head - and these durations are read in the middle of
+// a diagnosis, where nobody wants to do math. The smaller unit disappears when
+// it is zero, so as not to leave "7h 0min" on screen.
+export function duration(ms: number | undefined) {
   if (!ms || ms < 0) return '-';
   const s = Math.round(ms / 1000);
   if (s < 60) return `${s}s`;
 
-  // O arredondamento acontece uma vez só, no minuto, e o resto é montado a
-  // partir dele: arredondar hora e minuto em separado é o que produz "7h 60min".
+  // Rounding happens once, at the minute, and the rest is built from it:
+  // rounding hour and minute separately is what produces "7h 60min".
   const totalMin = Math.round(s / 60);
   if (totalMin < 60) return `${totalMin}min`;
 
@@ -150,33 +156,33 @@ export function duracao(ms: number | undefined) {
   return `${d} ${d === 1 ? 'dia' : 'dias'}${h ? ` ${h}h` : ''}`;
 }
 
-// BURACO_MINIMO_MS é a falta a partir da qual o "gravado" aparece ao lado do
-// "retido". Abaixo disso a diferença existe sempre e não é buraco: o segmento
-// que está sendo gravado agora ainda não entrou no índice, e cada reconexão
-// perde alguns segundos. Uma hora fica muito acima desse ruído e bem abaixo de
-// qualquer queda que valha a pena enxergar.
-export const BURACO_MINIMO_MS = 3600000;
+// MIN_GAP_MS is the shortfall from which "gravado" appears next to "retido".
+// Below it the difference always exists and is not a gap: the segment being
+// recorded right now has not entered the index yet, and each reconnect loses a
+// few seconds. One hour is far above that noise and well below any outage worth
+// seeing.
+export const MIN_GAP_MS = 3600000;
 
-// gravadoSeHouverBuraco devolve o vídeo que existe de fato (o recordedMs do
-// /api/health) quando ele fica abaixo do retido por mais que BURACO_MINIMO_MS,
-// e 0 quando não: câmera sem falha mostra só o retido, como sempre mostrou.
-// O retido entra pronto porque cada tela já o calcula para si.
-export function gravadoSeHouverBuraco(
-  retidoMs: number | undefined,
-  recordedMs: number | undefined,
-) {
-  if (!retidoMs || !recordedMs) return 0;
-  return retidoMs - recordedMs > BURACO_MINIMO_MS ? recordedMs : 0;
+// recordedWithGap returns the video that actually exists (recordedMs from
+// /api/health) when it is below the retained by more than MIN_GAP_MS, and 0
+// when not: a camera without a failure shows only the retained, as it always
+// did.
+// The retained comes in ready because each screen already computes it for
+// itself.
+export function recordedWithGap(retainedMs: number | undefined, recordedMs: number | undefined) {
+  if (!retainedMs || !recordedMs) return 0;
+  return retainedMs - recordedMs > MIN_GAP_MS ? recordedMs : 0;
 }
 
-// dias converte a estimativa de retenção em algo compreensível. "20 GB" não
-// diz nada a ninguém; "≈ 8 dias 5h" diz tudo.
+// dias turns the retention estimate into something understandable. "20 GB"
+// tells nobody anything; "≈ 8 dias 5h" tells everything.
 export function dias(n: number | undefined) {
-  // A estimativa chega do servidor em dias fracionários, mas ela é lida coladinha
-  // no "retido", que sai do duracao() em dias e horas. Escrever uma em fração
-  // ("8,2 dias") e a outra em horas ("8 dias 5h") obriga quem lê a converter de
-  // cabeça só para comparar as duas - e comparar as duas é a única razão de o
-  // par existir. Então a formatação é a mesma, e as frações de hora que as cotas
-  // pequenas produzem o duracao() já resolve melhor do que isto resolvia.
-  return duracao((n ?? 0) * 86400000);
+  // The estimate arrives from the server in fractional days, but it is read
+  // right next to "retido", which comes out of duration() in days and hours.
+  // Writing one as a fraction ("8,2 dias") and the other in hours ("8 dias 5h")
+  // makes the reader convert in their head just to compare the two - and
+  // comparing the two is the only reason the pair exists. So the formatting is
+  // the same, and duration() already handles the hour fractions that small
+  // quotas produce better than this did.
+  return duration((n ?? 0) * 86400000);
 }

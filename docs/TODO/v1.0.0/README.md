@@ -4,9 +4,12 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (11/11/2026):** a Etapa 2 (conversão para en-US) começou, na branch
-`en-us-conversion`, com o glossário decidido e o `AGENTS.md` em en-US. O próximo passo é o Go,
-pacote a pacote.
+**Agora (20/11/2026):** a Etapa 2 (conversão para en-US) está no passo 4, a
+interface, na branch `en-us-web`. O Go já está em en-US na `main` (PR #86). Na
+branch, os nomes (`c895067`), os comentários do `web/` e os nomes que sobraram
+(`14fc985`) estão em en-US; o bundle dos comentários sai idêntico. A instalação
+de teste já roda a branch (`make deploy-wip`, volta pelas telas feita em
+20/11/2026) e o PR está aberto, esperando a revisão.
 
 ## Andamento
 
@@ -27,8 +30,11 @@ próxima, em andamento ou concluída, com a data.
 - [ ] **Etapa 2 - conversão para en-US**: em andamento desde 11/11/2026 ([conversao-en-us.md](conversao-en-us.md)). Um PR por passo, em commits pequenos, que roda na instalação de teste antes de ser aceito
   - [x] O glossário do domínio ([glossario.md](glossario.md))
   - [x] O `AGENTS.md` com a regra nova de escrita
-  - [ ] Go, pacote a pacote, sem mudar comportamento
+  - [x] Go, pacote a pacote, sem mudar comportamento: PR #86, em 11/11/2026
   - [ ] A interface, sem os textos da tela
+    - [x] Os nomes: identificadores, arquivos, props, ícones e classes CSS (`c895067`)
+    - [x] Os comentários (`edb25d8`, `1a5888d`, `32d2a46`, `6ace4a3`) e os nomes que sobraram (`14fc985`)
+    - [x] A instalação de teste (`make deploy-wip`) e o PR aberto; falta a revisão e o squash
   - [ ] O `dwnvr-detect`
   - [ ] Os contratos (API, o que o dwnvr grava, `dwnvr.yaml`, env), em partes, cada uma com a sua seção do guia de atualização aplicada na instalação de teste
   - [ ] Os `docs/TODO/` abertos revistos com o mantenedor

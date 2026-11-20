@@ -1,46 +1,46 @@
-// Player MSE do dwnvr.
+// dwnvr's MSE player.
 //
-// Os segmentos gravados são fMP4 autônomos que começam sempre em t=0, então
-// costurá-los numa linha do tempo contínua é só posicionar cada um com
-// `timestampOffset`. Nada é remuxado nem decodificado fora do navegador - o
-// servidor só entrega bytes.
+// The recorded segments are standalone fMP4s that always start at t=0, so
+// stitching them into a continuous timeline is just positioning each one with
+// `timestampOffset`. Nothing is remuxed or decoded outside the browser - the
+// server only delivers bytes.
 //
-// A referência de tempo é o relógio de parede: `base` é o instante real que
-// corresponde a currentTime=0. Assim "pular para 14:32" vira uma conta.
+// The time reference is the wall clock: `base` is the real instant that
+// corresponds to currentTime=0. That way "jump to 14:32" becomes arithmetic.
 
-import { mediaURL, mensagemDe, midia } from './api.ts';
-import type { Segmento } from './api.ts';
+import { mediaURL, messageOf, media } from './api.ts';
+import type { Segment } from './api.ts';
 
-// Quanto manter bufferizado à frente e atrás. À frente cobre a latência do
-// Wi-Fi; atrás permite recuar alguns segundos sem rebuscar tudo. O de frente é
-// a base em 1×: acima disso quem manda é #lookahead().
+// How much to keep buffered ahead and behind. Ahead covers Wi-Fi latency;
+// behind allows going back a few seconds without refetching everything. The one
+// ahead is the base at 1×: above that, #lookahead() rules.
 const AHEAD_S = 25;
 const BEHIND_S = 15;
 
-// Quanto uma espera precisa durar para virar "carregando…" na tela. Em 16× num
-// celular a reprodução alterna waiting/playing várias vezes por segundo - cada
-// micro-espera por bytes ou por decodificação - e o aviso piscava sem parar,
-// mais incômodo que a espera que ele anuncia. O desktop nunca chegou a piscar
-// porque nunca chega a esperar. Sumir continua sendo imediato: segurar o aviso
-// depois que o vídeo voltou seria mentira.
-const AVISO_MS = 400;
+// How long a wait must last to become "carregando…" on screen. At 16× on a
+// phone, playback alternates waiting/playing several times a second - each
+// micro-wait for bytes or for decoding - and the notice blinked nonstop, more
+// annoying than the wait it announces. The desktop never blinked because it
+// never gets to wait. Disappearing is still immediate: holding the notice after
+// the video came back would be a lie.
+const NOTICE_MS = 400;
 
-// Como passar por cima de um trecho corrompido. Um pacote perdido na rede
-// estraga os quadros até o próximo keyframe, e o player não sabe onde ele está
-// - então avança de passo em passo até achar um ponto que decodifique. O passo
-// é fixo e curto de propósito: dobrá-lo chegava lá em menos tentativas, mas
-// passava do ponto bom (medido em 11/09/2026: pousava em 15:27:12 quando
-// 15:27:10 já tocava). Passado o teto, desiste do segmento e vai para o começo
-// do seguinte, que sempre abre num keyframe.
-const PULO_PASSO_MS = 1000;
-const PULO_MAX_MS = 10000;
+// How to get past a corrupted stretch. A packet lost on the network ruins the
+// frames until the next keyframe, and the player does not know where it is - so
+// it advances step by step until it finds a point that decodes. The step is
+// fixed and short on purpose: doubling it got there in fewer tries, but
+// overshot the good point (measured on 11/09/2026: it landed on 15:27:12 when
+// 15:27:10 already played). Past the ceiling, it gives up on the segment and
+// goes to the start of the next one, which always opens on a keyframe.
+const JUMP_STEP_MS = 1000;
+const JUMP_MAX_MS = 10000;
 
-// O pulo do duplo toque nas laterais do vídeo e das setas do teclado, como no
-// YouTube. Cada toque ou tecla a mais soma outro.
-export const PULO_RAPIDO_MS = 10000;
-// Até onde um pulo para a frente vai antes do fim do que existe. Pousar
-// exatamente no fim faria o seek() voltar ao começo do último segmento.
-const PULO_RAPIDO_FOLGA_MS = 1000;
+// The jump of the double tap on the sides of the video and of the keyboard
+// arrows, as on YouTube. Each extra tap or key adds another.
+export const FAST_JUMP_MS = 10000;
+// How far a forward jump goes before the end of what exists. Landing exactly on
+// the end would make seek() go back to the start of the last segment.
+const FAST_JUMP_SLACK_MS = 1000;
 
 export class Player {
   video: HTMLVideoElement | null = null;
@@ -49,45 +49,46 @@ export class Player {
   currentMs = $state(0);
   playing = $state(false);
   buffering = $state(false);
-  // Do começo de um seek até a janela à frente estar no buffer, sem o atraso
-  // do `buffering`: é por ele que a tira de miniaturas sabe quando sair da
-  // frente.
-  carregando = $state(false);
+  // From the start of a seek until the window ahead is in the buffer, without
+  // the `buffering` delay: it is how the thumbnail strip knows when to get out
+  // of the way.
+  loading = $state(false);
   error = $state('');
   rate = $state(1);
 
   #cam = '';
   #gens: string[] = [];
-  #segments: Segmento[] = [];
+  #segments: Segment[] = [];
   #ms: MediaSource | null = null;
   #sb: SourceBuffer | null = null;
   #next = 0;
   #initAppended: string | null = null;
-  #pumping: Promise<void> | null = null; // promessa do pump em voo, ou null quando não há nenhum
-  #generation = 0; // invalida trabalho em voo depois de um seek
-  // Cancela os downloads da geração que acabou de ser invalidada. Sem isto, o
-  // pump velho segurava o novo até o segmento que ninguém mais quer terminar
-  // de chegar - e ainda dividia a banda com ele.
-  #cancela = new AbortController();
-  #seeking = false; // seek em voo: `base` e `currentTime` estão dessincronizados
-  #avisoTimer: number | undefined; // conta os ms de espera antes de acender o "carregando…"
+  #pumping: Promise<void> | null = null; // promise of the in-flight pump, or null when there is none
+  #generation = 0; // invalidates in-flight work after a seek
+  // Cancels the downloads of the generation that was just invalidated. Without
+  // this, the old pump held up the new one until the segment nobody wants
+  // anymore finished arriving - and also shared bandwidth with it.
+  #abort = new AbortController();
+  #seeking = false; // seek in flight: `base` and `currentTime` are out of sync
+  #noticeTimer: number | undefined; // counts the ms of waiting before lighting up "carregando…"
 
-  #mime: string | null = null; // com que codecs o SourceBuffer atual foi criado
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- cache interno, fora da tela
-  #mimes = new Map<string, string>(); // geração -> mime, para não rebuscar o mesmo init
-  #boundary: number | null = null; // início do segmento onde as trilhas mudam e é preciso recomeçar
-  #pulo: { inicio: number; alvo: number } | null = null; // último pulo sobre dado corrompido, em ms
-  // Se quem pulou estava com o vídeo pausado, enquanto o seek desse pulo está
-  // em voo. O `paused` do <video> não serve aí: o #reset troca o src, e o
-  // vídeo fica pausado até o seek terminar, tocando ou não antes.
-  #pularPausado: boolean | null = null;
+  #mime: string | null = null; // which codecs the current SourceBuffer was created with
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- internal cache, not on screen
+  #mimes = new Map<string, string>(); // generation -> mime, to avoid refetching the same init
+  #boundary: number | null = null; // start of the segment where the tracks change and it has to restart
+  #pulo: { start: number; target: number } | null = null; // last jump over corrupted data, in ms
+  // Whether whoever jumped had the video paused, while that jump's seek is in
+  // flight. The <video>'s `paused` does not work here: #reset swaps the src,
+  // and the video stays paused until the seek ends, whether or not it was
+  // playing before.
+  #skipPaused: boolean | null = null;
 
   attach(video: HTMLVideoElement) {
     this.video = video;
     video.addEventListener('timeupdate', this.#onTime);
-    // 'seeked' importa tanto quanto 'timeupdate': ao pular com o vídeo
-    // pausado, nenhum timeupdate acontece e o relógio ficaria parado em
-    // --:--:-- mesmo com o frame já na tela.
+    // 'seeked' matters as much as 'timeupdate': when jumping with the video
+    // paused, no timeupdate happens and the clock would stay stuck on --:--:--
+    // even with the frame already on screen.
     video.addEventListener('seeked', this.#onTime);
     video.addEventListener('loadeddata', this.#onTime);
     video.addEventListener('waiting', this.#onWaiting);
@@ -108,22 +109,23 @@ export class Player {
     v.removeEventListener('pause', this.#onPause);
     v.removeEventListener('ratechange', this.#onRate);
     v.removeEventListener('error', this.#onError);
-    // Sair da tela larga o segmento que estava chegando: ninguém mais o vê.
-    this.#novaGeracao();
-    // Um aviso agendado que dispara depois disto acenderia o "carregando…" de
-    // um player que não existe mais - e ninguém o apagaria.
+    // Leaving the screen drops the segment that was arriving: nobody sees it
+    // anymore.
+    this.#newGeneration();
+    // A scheduled notice that fires after this would light up "carregando…" for
+    // a player that no longer exists - and nobody would clear it.
     this.#aviso(false);
-    // O mesmo vale para o `playing`: os ouvintes já saíram, então a parada
-    // logo abaixo não dispara mais 'pause' e a flag ficaria presa em true -
-    // e quem desenha um botão a partir dela mostraria ⏸ de um vídeo morto.
+    // The same goes for `playing`: the listeners are gone, so the stop just
+    // below no longer fires 'pause' and the flag would stay stuck at true - and
+    // whoever draws a button from it would show ⏸ for a dead video.
     this.playing = false;
-    // Soltar o MediaSource e revogar a URL importa: sem isso o buffer de vídeo
-    // decodificado fica preso até o coletor de lixo passar, o que num celular
-    // significa dezenas de MB.
+    // Releasing the MediaSource and revoking the URL matters: without it the
+    // decoded video buffer stays pinned until the garbage collector comes by,
+    // which on a phone means tens of MB.
     try {
       if (this.#ms?.readyState === 'open') this.#ms.endOfStream();
     } catch {
-      // o MediaSource já estava fechando: nada a encerrar
+      // the MediaSource was already closing: nothing to end
     }
     if (v.src.startsWith('blob:')) URL.revokeObjectURL(v.src);
     v.removeAttribute('src');
@@ -133,38 +135,40 @@ export class Player {
     this.#sb = null;
   }
 
-  setSource(cam: string, gens: string[], segments: Segmento[]) {
+  setSource(cam: string, gens: string[], segments: Segment[]) {
     this.#cam = cam;
     this.#gens = gens;
     this.#segments = segments;
     this.#mimes.clear();
     this.#boundary = null;
     this.#pulo = null;
-    this.#novaGeracao();
-    // A geração nova acima impede o `finally` de um seek em voo de rodar, então
-    // o portão precisa ser aberto aqui: um dia novo sem gravação nenhuma não
-    // chama seek(), e o relógio ficaria mudo para sempre.
+    this.#newGeneration();
+    // The new generation above prevents the `finally` of an in-flight seek from
+    // running, so the gate has to be opened here: a new day with no recording
+    // at all does not call seek(), and the clock would stay mute forever.
     this.#seeking = false;
-    this.carregando = false;
+    this.loading = false;
     this.base = 0;
     this.currentMs = 0;
   }
 
-  // Atualiza a lista de segmentos sem interromper o que está tocando.
+  // Updates the segment list without interrupting what is playing.
   //
-  // O dia de hoje cresce enquanto a tela está aberta. Refazer setSource() +
-  // seek() a cada atualização recriaria o MediaSource e devolveria o vídeo ao
-  // ponto de partida; aqui só a lista muda, e o pump segue de onde parou - o
-  // que também faz a reprodução destravar sozinha ao alcançar a ponta viva.
-  async updateSegments(gens: string[], segments: Segmento[]) {
-    // Trocar os arrays no meio de um pump o faria avançar o índice sobre a
-    // lista nova. Esperar sai mais barato que invalidar a geração, que abortaria
-    // junto um seek em voo; um pump dura o download de poucos segmentos.
+  // Today grows while the screen is open. Redoing setSource() + seek() on every
+  // update would recreate the MediaSource and send the video back to the
+  // starting point; here only the list changes, and the pump continues from
+  // where it stopped - which also makes playback unstick by itself on reaching
+  // the live edge.
+  async updateSegments(gens: string[], segments: Segment[]) {
+    // Swapping the arrays in the middle of a pump would make it advance the
+    // index over the new list. Waiting is cheaper than invalidating the
+    // generation, which would also abort an in-flight seek; a pump lasts the
+    // download of a few segments.
     await this.#pumping;
 
-    // Por onde o pump retomaria, em relógio de parede. A retenção pode apagar o
-    // começo do dia e deslocar todos os índices, então a posição na lista velha
-    // não serve de referência.
+    // Where the pump would resume, in wall-clock time. Retention may delete the
+    // start of the day and shift all the indexes, so the position in the old
+    // list is not a valid reference.
     const pending = this.#segments[this.#next];
     const last = this.#segments.at(-1);
     const resumeMs = pending ? pending[0] : last ? last[0] + 1 : 0;
@@ -177,9 +181,9 @@ export class Player {
     await this.#pump();
   }
 
-  #novaGeracao() {
-    this.#cancela.abort();
-    this.#cancela = new AbortController();
+  #newGeneration() {
+    this.#abort.abort();
+    this.#abort = new AbortController();
     return ++this.#generation;
   }
 
@@ -196,27 +200,28 @@ export class Player {
     return s ? s[0] + s[1] : 0;
   }
 
-  // Único caminho para o `buffering`: acender é adiado, apagar é imediato.
+  // Only path to `buffering`: lighting up is deferred, clearing is immediate.
   #aviso(on: boolean) {
-    clearTimeout(this.#avisoTimer);
-    this.#avisoTimer = undefined;
+    clearTimeout(this.#noticeTimer);
+    this.#noticeTimer = undefined;
     if (!on) {
       this.buffering = false;
       return;
     }
-    this.#avisoTimer = setTimeout(() => {
+    this.#noticeTimer = setTimeout(() => {
       this.buffering = true;
-    }, AVISO_MS);
+    }, NOTICE_MS);
   }
 
   #onTime = () => {
     if (!this.video) return;
-    // Durante um seek, `base` já é a do segmento alvo enquanto `currentTime`
-    // ainda é do que estava tocando - ou 0, logo depois da troca de src.
-    // Publicar isso jogaria o marcador da timeline para o início do segmento
-    // enquanto a rede entrega os bytes, e só então ele pousaria onde se
-    // clicou. Quem fecha o portão é o próprio seek, que já pôs `currentMs` no
-    // alvo. O pump continua rodando: é ele que enche o buffer.
+    // During a seek, `base` is already the target segment's while `currentTime`
+    // is still the one that was playing - or 0, right after the src swap.
+    // Publishing that would throw the timeline marker to the start of the
+    // segment while the network delivers the bytes, and only then would it land
+    // where you clicked. What closes the gate is the seek itself, which already
+    // put `currentMs` on the target. The pump keeps running: it is what fills
+    // the buffer.
     if (!this.#seeking) this.currentMs = this.base + this.video.currentTime * 1000;
     void this.#pump();
   };
@@ -227,14 +232,14 @@ export class Player {
     this.#skipGap();
   };
 
-  // Chegou ao fim do que dava para bufferizar antes de uma troca de trilhas: a
-  // reprodução continua recomeçando o MediaSource a partir dali. Custa um
-  // rebuffer curto, num ponto que só existe quando alguém liga ou desliga o
-  // áudio de uma câmera - em troca, a gravação inteira fica navegável.
+  // Reached the end of what could be buffered before a track change: playback
+  // keeps going by restarting the MediaSource from there. It costs a short
+  // rebuffer, at a point that only exists when someone turns a camera's audio
+  // on or off - in exchange, the whole recording stays navigable.
   #crossBoundary() {
     if (this.#boundary === null) return false;
-    // Só cruza quando não há mesmo mais nada à frente: um `waiting` no meio do
-    // buffer é rede ruim, não fronteira.
+    // Only crosses when there is really nothing more ahead: a `waiting` in the
+    // middle of the buffer is a bad network, not a boundary.
     const b = this.#sb?.buffered;
     if (b?.length && this.video && b.end(b.length - 1) - this.video.currentTime > 0.5) return false;
 
@@ -257,40 +262,41 @@ export class Player {
     this.rate = this.video?.playbackRate ?? 1;
   };
 
-  // Dado corrompido na gravação - pacote perdido no UDP entre a câmera e o
-  // go2rtc - derruba o decodificador do navegador de vez: o <video> entra em
-  // erro e nenhum append passa mais. O ffmpeg disfarça o mesmo estrago e segue;
-  // o Chrome desiste. Sem isto a reprodução parava ali até alguém clicar mais à
-  // frente na timeline.
+  // Corrupted data in the recording - a packet lost over UDP between the camera
+  // and go2rtc - takes down the browser's decoder for good: the <video> goes
+  // into error and no append gets through anymore. ffmpeg hides the same damage
+  // and carries on; Chrome gives up. Without this, playback stopped there until
+  // someone clicked further ahead on the timeline.
   //
-  // Só o erro de decodificação: os outros não se resolvem pulando - um init que
-  // o navegador recusa seria recusado de novo, e o laço não teria fim.
+  // Only the decode error: the others are not solved by jumping - an init the
+  // browser rejects would be rejected again, and the loop would never end.
   #onError = () => {
     if (this.video?.error?.code !== MediaError.MEDIA_ERR_DECODE) return;
     if (!this.hasSegments) return;
 
-    // Caiu de novo logo depois do último pulo: é o mesmo trecho estragado, e
-    // o teto conta desde onde ele começou. Longe dali é um trecho novo.
-    const onde = this.currentMs;
-    const ultimo = this.#pulo;
-    const inicio = ultimo && onde < ultimo.alvo + PULO_PASSO_MS ? ultimo.inicio : onde;
+    // Failed again right after the last jump: it is the same damaged stretch,
+    // and the ceiling counts from where it started. Far from there it is a new
+    // stretch.
+    const where = this.currentMs;
+    const last = this.#pulo;
+    const start = last && where < last.target + JUMP_STEP_MS ? last.start : where;
 
-    let alvo = onde + PULO_PASSO_MS;
-    if (alvo - inicio > PULO_MAX_MS) {
-      const seguinte = this.#segments[this.#indexAt(onde) + 1];
-      if (!seguinte) return;
-      alvo = seguinte[0];
+    let target = where + JUMP_STEP_MS;
+    if (target - start > JUMP_MAX_MS) {
+      const following = this.#segments[this.#indexAt(where) + 1];
+      if (!following) return;
+      target = following[0];
     }
-    // Depois do fim do que existe não há ponto bom para onde ir. Pedir isso ao
-    // seek() o faria voltar ao começo do último segmento, direto para o mesmo
-    // trecho estragado.
-    if (alvo >= this.lastMs) return;
+    // Past the end of what exists there is no good point to go to. Asking
+    // seek() for that would send it back to the start of the last segment,
+    // straight into the same damaged stretch.
+    if (target >= this.lastMs) return;
 
-    this.#pulo = { inicio, alvo };
-    void this.seek(alvo);
+    this.#pulo = { start, target };
+    void this.seek(target);
   };
 
-  /** Índice do último segmento que começa em ms ou antes. */
+  /** Index of the last segment that starts at ms or before. */
   #indexAt(ms: number) {
     let lo = 0;
     let hi = this.#segments.length - 1;
@@ -311,56 +317,58 @@ export class Player {
   async seek(ms: number) {
     const video = this.video;
     let i = Math.max(this.#indexAt(ms), 0);
-    const achado = this.#segments[i];
-    if (!achado || !video) return;
+    const found = this.#segments[i];
+    if (!found || !video) return;
 
-    // Se o alvo caiu num buraco, começa do próximo segmento que existe.
-    const [start, dur] = achado;
+    // If the target fell in a gap, start from the next segment that exists.
+    const [start, dur] = found;
     if (ms > start + dur && i + 1 < this.#segments.length) i++;
-    const [alvoMs, alvoDur, alvoGen] = this.#segments[i] ?? achado;
+    const [targetMs, targetDur, targetGen] = this.#segments[i] ?? found;
 
-    const gen = this.#novaGeracao();
+    const gen = this.#newGeneration();
     this.#seeking = true;
-    this.#pularPausado = null;
-    this.carregando = true;
+    this.#skipPaused = null;
+    this.loading = true;
     this.error = '';
     this.#aviso(true);
-    // Um seek novo manda em qualquer fronteira que estivesse agendada.
+    // A new seek overrides any boundary that was scheduled.
     this.#boundary = null;
 
-    // Onde a reprodução vai mesmo pousar: dentro do segmento, ou no começo
-    // dele quando o clique caiu antes do que existe ou depois do que acabou.
-    const inside = (ms - alvoMs) / 1000;
-    const dentro = inside > 0 && inside < alvoDur / 1000;
-    // O marcador vai para lá já neste quadro. Trocar o src zera o
-    // `currentTime` e o buffer só chega depois de algumas requisições: sem
-    // isto o cursor passaria esse tempo todo parado no início do segmento.
-    this.currentMs = dentro ? ms : alvoMs;
+    // Where playback will actually land: inside the segment, or at its start
+    // when the click fell before what exists or after what ended.
+    const inside = (ms - targetMs) / 1000;
+    const isInside = inside > 0 && inside < targetDur / 1000;
+    // The marker goes there already in this frame. Swapping the src zeroes
+    // `currentTime` and the buffer only arrives after a few requests: without
+    // this the cursor would sit at the start of the segment the whole time.
+    this.currentMs = isInside ? ms : targetMs;
 
     try {
-      // A geração é a DO SEGMENTO ALVO, não a primeira do dia: ligar o áudio no
-      // meio do dia abre uma geração nova, e criar o SourceBuffer com os codecs
-      // da antiga fazia todo appendBuffer falhar.
-      await this.#reset(video, alvoMs, this.#genDe(alvoGen), gen);
-      if (gen !== this.#generation) return; // outro seek chegou primeiro
+      // The generation is the TARGET SEGMENT'S, not the first of the day:
+      // turning audio on in the middle of the day opens a new generation, and
+      // creating the SourceBuffer with the old one's codecs made every
+      // appendBuffer fail.
+      await this.#reset(video, targetMs, this.#genDe(targetGen), gen);
+      if (gen !== this.#generation) return; // another seek got there first
       this.#next = i;
       await this.#repump();
       if (gen !== this.#generation) return;
 
-      if (dentro) video.currentTime = inside;
-      // Reflete a posição imediatamente: o autoplay pode ser bloqueado pelo
-      // navegador, e nesse caso nenhum evento de reprodução viria atualizar o
-      // relógio nem o marcador da timeline.
+      if (isInside) video.currentTime = inside;
+      // Reflects the position immediately: autoplay may be blocked by the
+      // browser, and in that case no playback event would come to update the
+      // clock or the timeline marker.
       this.currentMs = this.base + video.currentTime * 1000;
       await video.play().catch(() => {
-        // autoplay bloqueado: o relógio já foi posto acima, e o ▶ continua lá
+        // autoplay blocked: the clock was already set above, and the ▶ stays
       });
     } catch (e) {
-      // O erro de um seek atropelado é da câmera ou do trecho de antes.
-      if (gen === this.#generation) this.error = mensagemDe(e);
+      // The error of a run-over seek belongs to the camera or stretch from
+      // before.
+      if (gen === this.#generation) this.error = messageOf(e);
     } finally {
-      // Um seek atropelado não devolve o portão nem apaga o "carregando…":
-      // esse estado agora é do seek novo, que ainda está buscando bytes.
+      // A run-over seek does not give back the gate or clear "carregando…":
+      // that state now belongs to the new seek, which is still fetching bytes.
       if (gen === this.#generation) {
         this.#seeking = false;
         this.#aviso(false);
@@ -370,103 +378,107 @@ export class Player {
     if (gen === this.#generation) void this.#encherEntaoLiberar(gen);
   }
 
-  // Anda `deltaMs` a partir de onde o vídeo está, para trás ou para a frente.
+  // Moves `deltaMs` from where the video is, backward or forward.
   //
-  // O seek() recria o MediaSource e rebusca tudo, o que num pulo de 10 s
-  // acenderia o "carregando…" a cada toque. Só que o alvo quase sempre já está
-  // no buffer - BEHIND_S atrás, a janela do #lookahead() à frente -, e aí basta
-  // mudar o `currentTime`. O seek() fica para quando não está: logo depois de
-  // outro seek, longe demais, num buraco da gravação ou além de uma fronteira
-  // de trilhas, que nunca chega ao buffer.
+  // seek() recreates the MediaSource and refetches everything, which on a 10 s
+  // jump would light up "carregando…" on every tap. But the target is almost
+  // always already in the buffer - BEHIND_S behind, the #lookahead() window
+  // ahead -, and then it is enough to change `currentTime`. seek() is left for
+  // when it is not: right after another seek, too far, in a recording gap or
+  // beyond a track boundary, which never reaches the buffer.
   //
-  // Pulos seguidos somam: durante um seek, `currentMs` já é o alvo dele (o
-  // portão do #seeking o segura lá), e fora de um seek `currentTime` muda na
-  // hora. Nos dois casos o próximo pulo parte de onde o anterior mandou ir.
+  // Consecutive jumps add up: during a seek, `currentMs` is already its target
+  // (the #seeking gate holds it there), and outside a seek `currentTime`
+  // changes immediately. In both cases the next jump starts from where the
+  // previous one sent it.
   //
-  // Pausado continua pausado, como no YouTube - e o seek() termina em play().
-  pular(deltaMs: number) {
+  // Paused stays paused, as on YouTube - and seek() ends in play().
+  jump(deltaMs: number) {
     const video = this.video;
     if (!video || !this.base || !this.hasSegments) return;
 
-    const de = this.#seeking ? this.currentMs : this.base + video.currentTime * 1000;
-    let alvo = Math.max(de + deltaMs, this.firstMs);
-    if (deltaMs > 0) alvo = Math.min(alvo, Math.max(de, this.lastMs - PULO_RAPIDO_FOLGA_MS));
+    const from = this.#seeking ? this.currentMs : this.base + video.currentTime * 1000;
+    let target = Math.max(from + deltaMs, this.firstMs);
+    if (deltaMs > 0) target = Math.min(target, Math.max(from, this.lastMs - FAST_JUMP_SLACK_MS));
 
-    const t = (alvo - this.base) / 1000;
+    const t = (target - this.base) / 1000;
     const b = this.#sb?.buffered;
-    let noBuffer = false;
+    let inBuffer = false;
     if (b && !this.#seeking) {
       for (let i = 0; i < b.length; i++) {
-        if (t >= b.start(i) && t < b.end(i)) noBuffer = true;
+        if (t >= b.start(i) && t < b.end(i)) inBuffer = true;
       }
     }
-    if (noBuffer) {
+    if (inBuffer) {
       video.currentTime = t;
-      // O `seeked` também atualiza, mas só depois que o quadro chega: assim o
-      // relógio e o marcador já vão para lá agora.
-      this.currentMs = alvo;
+      // `seeked` also updates, but only after the frame arrives: this way the
+      // clock and the marker already go there now.
+      this.currentMs = target;
       return;
     }
 
-    // Durante um seek, a vontade é a do pulo que o começou; o de outra origem -
-    // um clique na timeline - termina em play().
-    const pausado = this.#seeking ? (this.#pularPausado ?? false) : video.paused;
-    const seek = this.seek(alvo);
-    // Depois do seek(), que a apaga ao começar.
-    this.#pularPausado = pausado;
-    // seek() troca a geração antes do primeiro await. Outro seek que chegue
-    // depois - um clique na timeline - manda no play e não é pausado aqui.
+    // During a seek, the intent is that of the jump that started it; one from
+    // another origin - a click on the timeline - ends in play().
+    const paused = this.#seeking ? (this.#skipPaused ?? false) : video.paused;
+    const seek = this.seek(target);
+    // After seek(), which clears it when it starts.
+    this.#skipPaused = paused;
+    // seek() swaps the generation before the first await. Another seek that
+    // arrives later - a click on the timeline - rules over play and is not
+    // paused here.
     const gen = this.#generation;
     void seek.then(() => {
       if (gen !== this.#generation) return;
-      this.#pularPausado = null;
-      if (pausado) video.pause();
+      this.#skipPaused = null;
+      if (paused) video.pause();
     });
   }
 
-  // O pump do seek mede a janela à frente a partir do 0 do MediaSource novo, e
-  // o vídeo só pula para dentro do segmento depois: um clique perto do fim
-  // dele deixa poucos segundos no buffer. A tira só sai da frente quando a
-  // janela estiver cheia a partir de onde o vídeo está. Fica fora do await do
-  // seek, porque quem o espera - a pausa do `paused=1`, a folha da detecção -
-  // quer o primeiro quadro, e não a janela cheia.
+  // The seek's pump measures the window ahead from the 0 of the new
+  // MediaSource, and the video only jumps into the segment afterwards: a click
+  // near its end leaves a few seconds in the buffer. The strip only gets out of
+  // the way when the window is full from where the video is. It stays outside
+  // the seek's await, because whoever waits on it - the pause of `paused=1`,
+  // the detection sheet - wants the first frame, not the full window.
   async #encherEntaoLiberar(gen: number) {
     if (!this.error) await this.#repump();
-    if (gen === this.#generation) this.carregando = false;
+    if (gen === this.#generation) this.loading = false;
   }
 
-  // A geração de init de um segmento, pelo índice que a timeline manda.
-  #genDe(indice: number) {
-    const g = this.#gens[indice];
+  // The init generation of a segment, by the index the timeline sends.
+  #genDe(index: number) {
+    const g = this.#gens[index];
     if (g === undefined) throw new Error('segmento sem init na timeline');
     return g;
   }
 
-  // `seek` é o número do seek que pediu a troca.
+  // `seek` is the number of the seek that asked for the swap.
   async #reset(video: HTMLVideoElement, baseMs: number, gen: string, seek: number) {
     this.base = baseMs;
     this.#next = 0;
     this.#initAppended = null;
-    // O buffer velho para de receber já, e não só quando o src trocar: o vídeo
-    // antigo continua tocando enquanto o init vem, e um pump que o timeupdate
-    // dele disparasse agora leria a lista NOVA a partir do índice 0 - baixando
-    // o primeiro segmento do dia para o buffer errado, ou marcando a fronteira
-    // de trilhas no começo do dia.
+    // The old buffer stops receiving right now, and not only when the src
+    // swaps: the old video keeps playing while the init arrives, and a pump
+    // fired by its timeupdate would now read the NEW list from index 0 -
+    // downloading the first segment of the day into the wrong buffer, or
+    // marking the track boundary at the start of the day.
     this.#sb = null;
 
-    const mime = await this.#mimeFor(gen, this.#cancela.signal);
-    // Outro seek começou enquanto o init vinha - numa troca de câmera rápida,
-    // o da câmera nova, com um init que pode ter chegado antes. O <video> agora
-    // é dele: trocar o src aqui derrubaria o que ele já montou, e o player
-    // ficaria parado num MediaSource vazio.
+    const mime = await this.#mimeFor(gen, this.#abort.signal);
+    // Another seek started while the init was coming - in a quick camera
+    // switch, the new camera's, with an init that may have arrived first. The
+    // <video> is now its own: swapping the src here would tear down what it
+    // already built, and the player would be left stuck on an empty
+    // MediaSource.
     if (seek !== this.#generation) return;
     if (!MediaSource.isTypeSupported(mime)) {
       throw new Error(`este navegador não reproduz ${mime}`);
     }
 
-    // Trocar o src zera o playbackRate. Antes isso só acontecia num seek, onde
-    // ninguém repara; agora a travessia de uma fronteira de trilhas recomeça o
-    // MediaSource sozinha, e perder o 8× no meio de uma revisão seria um susto.
+    // Swapping the src zeroes playbackRate. Before, that only happened on a
+    // seek, where nobody notices; now crossing a track boundary restarts the
+    // MediaSource on its own, and losing the 8× in the middle of a review would
+    // be a shock.
     const rate = video.playbackRate;
 
     if (video.src.startsWith('blob:')) URL.revokeObjectURL(video.src);
@@ -482,8 +494,9 @@ export class Player {
         { once: true },
       );
     });
-    // Mesma conta de antes, agora para a espera do sourceopen: o SourceBuffer
-    // de um MediaSource que já saiu do <video> tomaria o lugar do seek novo.
+    // Same check as before, now for the sourceopen wait: the SourceBuffer of a
+    // MediaSource that already left the <video> would take the place of the new
+    // seek's.
     if (seek !== this.#generation || this.#ms !== ms) return;
     video.playbackRate = rate;
 
@@ -493,13 +506,14 @@ export class Player {
     this.#mime = mime;
   }
 
-  // Os codecs saem do init de verdade, não de um palpite pelo nome da câmera:
-  // a mesma instalação mistura H265 com áudio, H265 sem áudio e H264.
+  // The codecs come from the real init, not from a guess based on the camera
+  // name: the same installation mixes H265 with audio, H265 without audio and
+  // H264.
   async #mimeFor(gen: string, signal: AbortSignal) {
     const cached = this.#mimes.get(gen);
     if (cached) return cached;
 
-    const buf = new Uint8Array(await midia(mediaURL.init(this.#cam, gen), signal));
+    const buf = new Uint8Array(await media(mediaURL.init(this.#cam, gen), signal));
     const at = (o: number) => String.fromCharCode(...buf.subarray(o, o + 4));
     const map: Readonly<Record<string, string>> = {
       hev1: 'hev1.1.6.L153.B0',
@@ -509,7 +523,7 @@ export class Player {
       Opus: 'opus',
       mp4a: 'mp4a.40.2',
     };
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Set local, só para juntar
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local Set, only for collecting
     const codecs = new Set<string>();
     for (let i = 0; i + 8 <= buf.length; i++) {
       const c = map[at(i + 4)];
@@ -520,13 +534,14 @@ export class Player {
     return mime;
   }
 
-  // Quanto pedir à frente agora. A janela é medida em segundos de gravação e
-  // gasta em segundos de relógio: em 16× os 25s à frente duram 1,5s de
-  // reprodução, e o vídeo passaria o tempo todo esperando bytes. Escalar pela
-  // taxa devolve o mesmo fôlego. O teto existe porque a janela também é
-  // memória - 16× dela seriam minutos de vídeo decodificado, que num celular é
-  // o que derruba a aba. Fica num método, e não numa variável do pump, para que
-  // trocar a velocidade no meio de um pump valha já na volta seguinte.
+  // How much to request ahead now. The window is measured in seconds of
+  // recording and spent in seconds of wall clock: at 16× the 25s ahead last
+  // 1.5s of playback, and the video would spend all its time waiting for bytes.
+  // Scaling by the rate gives back the same breathing room. The ceiling exists
+  // because the window is also memory - 16× of it would be minutes of decoded
+  // video, which on a phone is what kills the tab. It is a method, and not a
+  // variable of the pump, so that changing the speed in the middle of a pump
+  // applies on the very next round.
   #lookahead() {
     return AHEAD_S * Math.min(Math.max(this.video?.playbackRate ?? 1, 1), 4);
   }
@@ -536,14 +551,15 @@ export class Player {
     return b?.length ? b.end(b.length - 1) : (this.video?.currentTime ?? 0);
   }
 
-  // Mantém uma janela deslizante à frente da reprodução. Anexar um dia inteiro
-  // seriam gigabytes; é a janela que torna a timeline navegável num hardware
-  // modesto.
+  // Keeps a sliding window ahead of playback. Appending a whole day would be
+  // gigabytes; the window is what makes the timeline navigable on modest
+  // hardware.
   //
-  // Um pump de cada vez: quem chega no meio de outro recebe a promessa do que
-  // já está rodando, em vez de sair sondando uma flag para saber quando acabou.
-  // Dispensar a chamada é de propósito - o pump em voo enche a mesma janela, e
-  // enfileirar um por timeupdate faria a fila crescer sem fim numa rede lenta.
+  // One pump at a time: whoever arrives in the middle of another gets the
+  // promise of the one already running, instead of polling a flag to know when
+  // it ended. Dropping the call is on purpose - the in-flight pump fills the
+  // same window, and queueing one per timeupdate would make the queue grow
+  // without end on a slow network.
   #pump(): Promise<void> {
     if (this.#pumping) return this.#pumping;
     if (!this.#sb || this.#ms?.readyState !== 'open') return Promise.resolve();
@@ -555,10 +571,11 @@ export class Player {
     return p;
   }
 
-  // Espera o pump em voo largar o osso e roda outro. É o que seek() precisa:
-  // ele acabou de mudar o ponto de retomada, e o pump que começou antes disso
-  // não serve - só receber a promessa dele deixaria o vídeo sem nada anexado.
-  // A espera é curta: a geração nova cancelou o download do pump velho.
+  // Waits for the in-flight pump to let go and runs another. It is what seek()
+  // needs: it just changed the resume point, and the pump that started before
+  // that is no good - just receiving its promise would leave the video with
+  // nothing attached. The wait is short: the new generation canceled the old
+  // pump's download.
   async #repump() {
     await this.#pumping;
     return this.#pump();
@@ -566,7 +583,7 @@ export class Player {
 
   async #pumpOnce() {
     const gen = this.#generation;
-    const signal = this.#cancela.signal;
+    const signal = this.#abort.signal;
 
     try {
       while (
@@ -580,19 +597,22 @@ export class Player {
         const [start, , gi] = seg;
         const g = this.#genDe(gi);
 
-        // O init só precisa ser reanexado quando a geração muda.
+        // The init only needs to be reattached when the generation changes.
         if (this.#initAppended !== g) {
-          // Mas a geração nova pode mudar as TRILHAS, não só o SPS: ligar o
-          // áudio de uma câmera no meio do dia acrescenta uma trilha de áudio.
-          // Um SourceBuffer não aceita isso nem com changeType - o Chrome
-          // recusa o append inteiro com "Got unexpected audio track". A única
-          // saída é recomeçar o MediaSource, e é o que #boundary agenda.
+          // But the new generation may change the TRACKS, not just the SPS:
+          // turning a camera's audio on in the middle of the day adds an audio
+          // track. A SourceBuffer does not accept that even with changeType -
+          // Chrome rejects the whole append with "Got unexpected audio track".
+          // The only way out is to restart the MediaSource, and that is what
+          // #boundary schedules.
           //
-          // Quando só o SPS mudou (resolução, por exemplo) o mime continua o
-          // mesmo e reanexar o init basta: é o caso comum e segue sem emenda.
+          // When only the SPS changed (resolution, for example) the mime stays
+          // the same and reattaching the init is enough: it is the common case
+          // and goes on with no seam.
           const mime = await this.#mimeFor(g, signal);
-          // O mime de uma geração invalidada não diz nada sobre o buffer de
-          // agora: compará-lo marcaria a fronteira no player de outro seek.
+          // The mime of an invalidated generation says nothing about the
+          // current buffer: comparing it would mark the boundary on another
+          // seek's player.
           if (gen !== this.#generation) break;
           if (mime !== this.#mime) {
             this.#boundary = start;
@@ -603,25 +623,26 @@ export class Player {
           this.#initAppended = g;
         }
         await this.#append(mediaURL.segment(this.#cam, start), (start - this.base) / 1000, signal);
-        // Um seek durante o download já apontou `#next` para o segmento dele;
-        // avançar aqui faria o pump novo pular justamente esse.
+        // A seek during the download already pointed `#next` at its own
+        // segment; advancing here would make the new pump skip exactly that
+        // one.
         if (gen !== this.#generation) break;
         this.#next++;
       }
       if (gen === this.#generation) await this.#evict();
     } catch (e) {
-      if (gen === this.#generation) this.error = mensagemDe(e);
+      if (gen === this.#generation) this.error = messageOf(e);
     }
   }
 
   async #append(url: string, offset: number | null, signal: AbortSignal) {
-    // O SourceBuffer é o de quando o download começou. Um seek no meio dele -
-    // o do usuário ou o de #onError - troca o MediaSource, e os bytes que
-    // chegassem depois iriam parar no buffer novo, antes do init dele e com o
-    // timestampOffset do antigo.
+    // The SourceBuffer is the one from when the download started. A seek in the
+    // middle of it - the user's or #onError's - swaps the MediaSource, and
+    // bytes arriving afterwards would land in the new buffer, before its init
+    // and with the old timestampOffset.
     const ms = this.#ms;
     const sb = this.#sb;
-    const buf = await midia(url, signal);
+    const buf = await media(url, signal);
     if (!sb || this.#sb !== sb || ms?.readyState !== 'open') return;
     if (offset !== null) sb.timestampOffset = offset;
     await new Promise<void>((res, rej) => {
@@ -664,8 +685,8 @@ export class Player {
     });
   }
 
-  // Buracos na gravação travam o vídeo no fim da faixa bufferizada; sem um
-  // empurrão ele fica preso ali para sempre.
+  // Gaps in the recording stall the video at the end of the buffered range;
+  // without a nudge it stays stuck there forever.
   #skipGap() {
     const b = this.#sb?.buffered;
     if (!b || !this.video) return;
@@ -683,16 +704,17 @@ export class Player {
       if (!this.base && this.hasSegments) void this.seek(this.firstMs);
       else
         this.video.play().catch(() => {
-          // o navegador recusou tocar: o botão segue mostrando ▶
+          // the browser refused to play: the button keeps showing ▶
         });
     } else {
       this.video.pause();
     }
   }
 
-  // Pausar sem alternar. O toggle() serve ao botão, que sempre sabe em que
-  // estado está; quem vem da URL com `paused=1` precisa mandar parar, e mandar
-  // DEPOIS que o primeiro seek pousou - porque seek() termina em play().
+  // Pause without toggling. toggle() serves the button, which always knows what
+  // state it is in; whoever comes from the URL with `paused=1` needs to order a
+  // stop, and order it AFTER the first seek landed - because seek() ends in
+  // play().
   pause() {
     this.video?.pause();
   }

@@ -89,7 +89,10 @@ depois disso, e a release só sai no fim da etapa, com o guia inteiro.
    teste confirma isso a cada pacote.
 4. **A interface**, uma tela ou um punhado de componentes por vez: rotas,
    componentes, `lib/`, identificadores e comentários. Os textos da tela ficam.
-   O `svelte-check` é a rede.
+   O `svelte-check` é a rede. As rotas do hash (`#convite`, `#rec`...), as
+   chaves da URL (`cam`, `day`, `t`) e as do `localStorage` ficam para o passo
+   6, com os contratos: o Go monta `#convite` e `#rec` nos e-mails, e um link
+   salvo depende delas (decidido pelo mantenedor em 11/11/2026).
 5. **O `dwnvr-detect`**: o `servidor.py`, a pasta `modelo/`, os comentários.
 6. **Os contratos e o guia, em partes**, porque é o que quebra: as tags de JSON
    e de YAML, as rotas, os valores das enumerações, os nomes de arquivo e de

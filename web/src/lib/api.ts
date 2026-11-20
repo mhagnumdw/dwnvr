@@ -1,21 +1,21 @@
-// Cliente da API do dwnvr.
+// dwnvr API client.
 //
-// Tudo passa por aqui para que um 401 tenha um único lugar de tratamento: a
-// sessão expira em algum momento, e sem isso cada tela precisaria lembrar de
-// lidar com isso por conta própria.
+// Everything goes through here so that a 401 has a single place to be handled:
+// the session expires at some point, and without this every screen would have
+// to remember to deal with that on its own.
 //
-// Os tipos no fim do arquivo são o contrato: o JSON de cada resposta, como as
-// structs Go de internal/api o escrevem e o docs/api.md descreve. Campo com
-// `omitempty` no Go é opcional aqui; o TypeScript não confere o que chega pela
-// rede, então o tipo é a promessa do servidor, e mudar um lado pede mudar o
-// outro.
+// The types at the end of the file are the contract: the JSON of each response,
+// as the Go structs in internal/api write it and docs/api.md describes it. A
+// field with `omitempty` in Go is optional here; TypeScript does not check what
+// arrives over the network, so the type is the server's promise, and changing
+// one side means changing the other.
 
-import { areaNaQuery } from './area.ts';
-import type { AreaDoFiltro, Ponto, Regra } from './area.ts';
-import type { NomeDaFamilia } from './icones.ts';
+import { areaInQuery } from './area.ts';
+import type { FilterArea, Point, Rule } from './area.ts';
+import type { FamilyName } from './icons.ts';
 
 let onUnauthorized = () => {
-  // ninguém pediu aviso ainda: o App registra o dele ao montar
+  // nobody has asked for the notice yet: App registers its own on mount
 };
 
 export function setUnauthorizedHandler(fn: () => void) {
@@ -24,81 +24,82 @@ export function setUnauthorizedHandler(fn: () => void) {
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch('api/' + path, opts);
-  await conferir(res);
+  await check(res);
   return (await res.json()) as T;
 }
 
-// midia baixa um pedaço de gravação para o player. Passa pelo mesmo conferir()
-// do request(): o corpo de um erro não pode chegar ao SourceBuffer como vídeo.
-export async function midia(url: string, signal: AbortSignal) {
+// media downloads a chunk of a recording for the player. It goes through the
+// same check() as request(): the body of an error must not reach the
+// SourceBuffer as video.
+export async function media(url: string, signal: AbortSignal) {
   const res = await fetch(url, { signal });
-  await conferir(res);
+  await check(res);
   return res.arrayBuffer();
 }
 
-// conferir lança o erro de uma resposta antes que alguém leia o corpo. A
-// mensagem é a do JSON da API; quando o corpo é outra coisa - o texto do
-// http.ServeFile, o HTML de um proxy com o dwnvr reiniciando - fica o status,
-// porque o statusText vem vazio no HTTP/2 e uma mensagem vazia some da tela.
-async function conferir(res: Response) {
+// check throws the error of a response before anyone reads the body. The
+// message is the one from the API's JSON; when the body is something else - the
+// text from http.ServeFile, the HTML of a proxy while dwnvr restarts - the
+// status is used, because statusText is empty on HTTP/2 and an empty message
+// vanishes from the screen.
+async function check(res: Response) {
   if (res.status === 401) {
     onUnauthorized();
     throw new ApiError('sessão expirada', 401);
   }
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Recusas };
+    const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: FieldErrors };
     throw new ApiError(body.error ?? `o servidor respondeu ${res.status}`, res.status, body.fields);
   }
 }
 
-// json lê a resposta de um fetch feito à parte, sem o request(): o público e o
-// que tem prazo.
+// json reads the response of a fetch made on the side, without request(): the
+// public one and the one with a deadline.
 async function json<T>(res: Promise<Response>): Promise<T> {
   return (await (await res).json()) as T;
 }
 
 export class ApiError extends Error {
   readonly status: number;
-  // As recusas por campo de um formulário, quando a API as manda (o criar e
-  // o trocar e-mail de Usuários). Sem elas, objeto vazio.
-  readonly campos: Recusas;
+  // The per-field rejections of a form, when the API sends them (create and
+  // change email in the Users screen). Without them, an empty object.
+  readonly campos: FieldErrors;
 
-  constructor(message: string, status: number, campos: Recusas = {}) {
+  constructor(message: string, status: number, campos: FieldErrors = {}) {
     super(message);
     this.status = status;
     this.campos = campos;
   }
 }
 
-// MuitasTentativas é o 429 do login: o endereço passou do limite de
-// tentativas, e a próxima só passa daqui a `segundos` (o Retry-After).
-export class MuitasTentativas extends ApiError {
+// TooManyAttempts is the login 429: the address went over the attempts limit,
+// and the next one only gets through in `segundos` (the Retry-After).
+export class TooManyAttempts extends ApiError {
   readonly segundos: number;
 
   constructor(segundos: number) {
     super('muitas tentativas', 429);
-    // Sem o header, ou com lixo nele, espera o mínimo: o servidor recusa de
-    // novo se ainda for cedo, e manda o número certo.
+    // Without the header, or with garbage in it, wait the minimum: the server
+    // rejects again if it is still too early, and sends the right number.
     this.segundos = Number.isFinite(segundos) && segundos > 0 ? Math.ceil(segundos) : 1;
   }
 }
 
-// mensagemDe tira o texto de um erro qualquer, para a tela: o `catch` do
-// TypeScript recebe `unknown`, porque em JavaScript dá para lançar qualquer
-// coisa.
-export function mensagemDe(e: unknown): string {
+// messageOf extracts the text of any error, for the screen: TypeScript's
+// `catch` receives `unknown`, because in JavaScript you can throw anything.
+export function messageOf(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
 export const api = {
-  session: () => json<Sessao>(fetch('api/session')),
+  session: () => json<Session>(fetch('api/session')),
 
-  // Como session, não passa pelo request(): é público e precisa funcionar na
-  // tela de login, onde ainda não há sessão para expirar.
-  version: () => json<Versao>(fetch('api/version')),
+  // Like session, it does not go through request(): it is public and has to
+  // work on the login screen, where there is no session yet to expire.
+  version: () => json<Version>(fetch('api/version')),
 
-  // Só para saber se o servidor é alcançável: o corpo não importa, e qualquer
-  // resposta, até um erro HTTP, conta. Ver `esperarRede` no Ao vivo.
+  // Only to find out whether the server is reachable: the body does not matter,
+  // and any response, even an HTTP error, counts. See `waitNetwork` in Live.
   ping: (ms: number) =>
     fetch('api/version', { cache: 'no-store', signal: AbortSignal.timeout(ms) }),
 
@@ -107,134 +108,140 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });
-    if (res.status === 429) throw new MuitasTentativas(Number(res.headers.get('Retry-After')));
+    if (res.status === 429) throw new TooManyAttempts(Number(res.headers.get('Retry-After')));
     if (!res.ok) throw new ApiError('usuário ou senha inválidos', res.status);
-    return (await res.json()) as ComPessoa;
+    return (await res.json()) as WithPerson;
   },
 
   logout: () => fetch('api/logout', { method: 'POST' }),
 
-  // A conferência do Ao vivo: o mesmo /api/session, com prazo. A resposta
-  // inteira volta, porque o relógio do servidor vem no header `Date` dela.
-  conferirSessao: (ms: number) =>
+  // Live's check: the same /api/session, with a deadline. The whole response
+  // comes back, because the server's clock is in its `Date` header.
+  checkSession: (ms: number) =>
     fetch('api/session', { cache: 'no-store', signal: AbortSignal.timeout(ms) }),
 
-  // Usuários, só do admin. Criar e o link novo devolvem o token do link, que
-  // só existe nessa resposta.
-  usuarios: () => request<Usuarios>('usuarios'),
-  criarUsuario: (usuario: string, nome: string, email: string) =>
-    request<Convite>('usuarios', {
+  // Users, admin only. Create and the new link return the link's token, which
+  // only exists in that response.
+  users: () => request<Users>('usuarios'),
+  createUser: (user: string, name: string, email: string) =>
+    request<Invite>('usuarios', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, name: nome, email }),
+      body: JSON.stringify({ username: user, name, email }),
     }),
-  // O que o criarUsuario recusaria com estes dados, campo a campo, sem criar
-  // ninguém. Vazio é "tudo certo".
-  conferirNovo: (usuario: string, nome: string, email: string) =>
-    request<{ fields: Recusas }>('usuarios/conferir', {
+  // What createUser would reject with this data, field by field, without
+  // creating anyone. Empty means "all good".
+  checkNew: (user: string, name: string, email: string) =>
+    request<{ fields: FieldErrors }>('usuarios/conferir', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, name: nome, email }),
+      body: JSON.stringify({ username: user, name, email }),
     }),
   // Vazio apaga o e-mail.
-  trocarEmail: (usuario: string, email: string) =>
-    request<{ user: Usuario }>('usuarios/email', {
+  changeEmail: (user: string, email: string) =>
+    request<{ user: User }>('usuarios/email', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, email }),
+      body: JSON.stringify({ username: user, email }),
     }),
-  // O que o trocarEmail recusaria com este e-mail, sem trocar nada.
-  conferirEmail: (usuario: string, email: string) =>
-    request<{ fields: Recusas }>('usuarios/email/conferir', {
+  // What changeEmail would reject with this email, without changing anything.
+  checkEmail: (user: string, email: string) =>
+    request<{ fields: FieldErrors }>('usuarios/email/conferir', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, email }),
+      body: JSON.stringify({ username: user, email }),
     }),
-  // O link vai inteiro, como a tela o mostra: o servidor não sabe por qual
-  // endereço é acessado, e só confere que é o link em aberto da pessoa.
-  enviarLink: (usuario: string, url: string) =>
+  // The link goes whole, as the screen shows it: the server does not know which
+  // address it is accessed by, and only checks that it is the person's open
+  // link.
+  sendLink: (user: string, url: string) =>
     request<{ sentTo: string }>('usuarios/link/email', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario, url }),
+      body: JSON.stringify({ username: user, url }),
     }),
-  novoLink: (usuario: string) =>
-    request<Convite>('usuarios/link', {
+  newLink: (user: string) =>
+    request<Invite>('usuarios/link', {
       method: 'POST',
-      body: JSON.stringify({ username: usuario }),
+      body: JSON.stringify({ username: user }),
     }),
-  removerUsuario: (usuario: string) =>
-    request<unknown>('usuarios?username=' + encodeURIComponent(usuario), { method: 'DELETE' }),
-  tirarAvatarDe: (usuario: string) =>
-    request<unknown>('usuarios/avatar?username=' + encodeURIComponent(usuario), {
+  removeUser: (user: string) =>
+    request<unknown>('usuarios?username=' + encodeURIComponent(user), { method: 'DELETE' }),
+  removeAvatarOf: (user: string) =>
+    request<unknown>('usuarios/avatar?username=' + encodeURIComponent(user), {
       method: 'DELETE',
     }),
 
-  // Minha conta: cada um muda o que é seu. Tudo devolve { user } como ficou,
-  // para o header se atualizar sem perguntar de novo. A foto vai crua, o JPEG
-  // já reduzido pelo navegador (ver lib/avatar.ts).
-  conta: () => request<Conta>('conta'),
-  trocarSenha: (atual: string, nova: string) =>
-    request<ComPessoa>('conta/senha', {
+  // My account: each person changes what is theirs. Everything returns { user }
+  // as it ended up, so the header updates without asking again. The photo goes
+  // raw, the JPEG already shrunk by the browser (see lib/avatar.ts).
+  account: () => request<Account>('conta'),
+  changePassword: (current: string, newOne: string) =>
+    request<WithPerson>('conta/senha', {
       method: 'POST',
-      body: JSON.stringify({ currentPassword: atual, newPassword: nova }),
+      body: JSON.stringify({ currentPassword: current, newPassword: newOne }),
     }),
-  mudarNome: (nome: string) =>
-    request<ComPessoa>('conta/nome', { method: 'POST', body: JSON.stringify({ name: nome }) }),
-  enviarAvatar: (jpeg: Blob) =>
-    request<ComPessoa>('conta/avatar', {
+  changeName: (name: string) =>
+    request<WithPerson>('conta/nome', { method: 'POST', body: JSON.stringify({ name }) }),
+  uploadAvatar: (jpeg: Blob) =>
+    request<WithPerson>('conta/avatar', {
       method: 'PUT',
       headers: { 'Content-Type': 'image/jpeg' },
       body: jpeg,
     }),
-  tirarAvatar: () => request<ComPessoa>('conta/avatar', { method: 'DELETE' }),
+  removeAvatar: () => request<WithPerson>('conta/avatar', { method: 'DELETE' }),
 
-  // O link de convite: públicos, com o token no corpo, e não na URL, para ele
-  // não ficar no log de nenhum proxy. Link vencido ou já usado é 410.
-  conferirConvite: (token: string) =>
-    request<LinkDeConvite>('convite/conferir', { method: 'POST', body: JSON.stringify({ token }) }),
-  definirSenha: (token: string, senha: string) =>
-    request<ComPessoa>('convite', {
+  // The invite link: public, with the token in the body and not in the URL, so
+  // it does not end up in any proxy's log. An expired or already used link is
+  // 410.
+  checkInvite: (token: string) =>
+    request<InviteLink>('convite/conferir', { method: 'POST', body: JSON.stringify({ token }) }),
+  setPassword: (token: string, password: string) =>
+    request<WithPerson>('convite', {
       method: 'POST',
-      body: JSON.stringify({ token, password: senha }),
+      body: JSON.stringify({ token, password }),
     }),
 
-  cameras: () => request<RespostaCameras>('cameras'),
-  // Devolve a câmera como ficou, já com o id das áreas novas.
+  cameras: () => request<CamerasResponse>('cameras'),
+  // Returns the camera as it ended up, with the ids of the new areas.
   saveCamera: (cam: Camera, signal: AbortSignal | null = null) =>
     request<{ camera: Camera }>('cameras', { method: 'POST', body: JSON.stringify(cam), signal }),
-  // As gravações só vão junto se forem pedidas: o padrão é preservá-las.
+  // The recordings only go along if requested: the default is to preserve them.
   deleteCamera: (id: string, { recordings = false } = {}) =>
     request<unknown>(`cameras?id=${encodeURIComponent(id)}${recordings ? '&recordings=1' : ''}`, {
       method: 'DELETE',
     }),
 
-  // Serve tanto câmera cadastrada quanto câmera já removida - no segundo caso é
-  // o único jeito de alcançar o material, que some do resto da API.
+  // Serves both a registered camera and one already removed - in the second
+  // case it is the only way to reach the material, which vanishes from the rest
+  // of the API.
   deleteRecordings: (cam: string) =>
     request<unknown>('rec?cam=' + encodeURIComponent(cam), { method: 'DELETE' }),
 
-  // Descobre se um stream entrega áudio. É um pedido à parte, e não um campo de
-  // cameras(), porque num stream ocioso a resposta custa uma conexão de alguns
-  // segundos com a câmera - ver internal/api/probe.go.
-  probeStream: (name: string) => request<Sonda>('streams/probe?src=' + encodeURIComponent(name)),
+  // Finds out whether a stream delivers audio. It is a separate request, and
+  // not a field of cameras(), because on an idle stream the response costs a
+  // connection of a few seconds to the camera - see internal/api/probe.go.
+  probeStream: (name: string) => request<Probe>('streams/probe?src=' + encodeURIComponent(name)),
 
-  // Faz o go2rtc reler o go2rtc.yaml. Todas as câmeras param por alguns segundos.
-  reiniciarGo2rtc: () => request<unknown>('go2rtc/restart', { method: 'POST' }),
+  // Makes go2rtc reread go2rtc.yaml. All cameras stop for a few seconds.
+  restartGo2rtc: () => request<unknown>('go2rtc/restart', { method: 'POST' }),
 
-  // Com prazo: um pedido que nunca volta seguraria o poll da saúde, que não
-  // começa uma leitura com outra em curso. Estourado, vira falha como as outras.
-  health: (ms: number) => request<Saude>('health', { signal: AbortSignal.timeout(ms) }),
+  // With a deadline: a request that never returns would hold up the health
+  // poll, which does not start one read while another is in progress. When it
+  // times out, it becomes a failure like the others.
+  health: (ms: number) => request<Health>('health', { signal: AbortSignal.timeout(ms) }),
 
-  // Recomeça a contagem de reconexões de todas as câmeras. Não derruba conexão.
-  zerarReconexoes: () => request<unknown>('reconnects/reset', { method: 'POST' }),
+  // Restarts the reconnect count of all cameras. It does not drop any
+  // connection.
+  resetReconnects: () => request<unknown>('reconnects/reset', { method: 'POST' }),
 
-  // A máquina que grava: temperatura, memória, pressão, storage, go2rtc e os
-  // últimos avisos do log. À parte do health porque custa um teste de escrita
-  // no disco - só a pede quem abriu o card "Este servidor".
-  servidor: () => request<Servidor>('health/servidor'),
+  // The machine that records: temperature, memory, pressure, storage, go2rtc
+  // and the latest log warnings. Separate from health because it costs a write
+  // test on the disk - only requested by whoever opened the "Este servidor"
+  // card.
+  server: () => request<Server>('health/servidor'),
 
-  // Um e-mail de teste pela seção smtp. O erro do servidor de e-mail vem como
-  // ele respondeu.
-  testarEmail: (para: string) =>
+  // A test email through the smtp section. The email server's error comes back
+  // as it answered.
+  testEmail: (dest: string) =>
     request<{ sentTo: string }>('email/teste', {
       method: 'POST',
-      body: JSON.stringify({ to: para }),
+      body: JSON.stringify({ to: dest }),
     }),
 
   days: (cam: string) => request<Dias>('rec/days?cam=' + encodeURIComponent(cam)),
@@ -242,75 +249,83 @@ export const api = {
   timeline: (cam: string, day: string) =>
     request<Timeline>(`rec/timeline?cam=${encodeURIComponent(cam)}&day=${day}`),
 
-  // A mesma timeline, mas de um pedaço do dia. O dia de hoje é relido em ciclo
-  // enquanto a tela está aberta, e um dia cheio de segmentos de 30s são ~70 KB
-  // sem compressão - buscar só a cauda troca isso por algumas centenas de bytes
-  // por rodada.
+  // The same timeline, but for a piece of the day. Today is reread in a cycle
+  // while the screen is open, and a day full of 30s segments is ~70 KB
+  // uncompressed - fetching only the tail swaps that for a few hundred bytes
+  // per round.
   timelineRange: (cam: string, from: number, to: number) =>
     request<Timeline>(`rec/timeline?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
 
-  // As marcas de movimento do dia - o que a faixa de calor desenha. Câmera com
-  // a detecção desligada responde lista vazia, e a faixa nem aparece.
+  // The day's motion marks - what the heat strip draws. A camera with detection
+  // off answers an empty list, and the strip does not even show.
   events: (cam: string, day: string) =>
-    request<Eventos>(`rec/events?cam=${encodeURIComponent(cam)}&day=${day}`),
+    request<Events>(`rec/events?cam=${encodeURIComponent(cam)}&day=${day}`),
 
-  // A cauda das marcas, pelo mesmo motivo do timelineRange: no dia de hoje a
-  // tela pergunta de novo em ciclo, e só quer o que ainda não tem.
+  // The tail of the marks, for the same reason as timelineRange: on today the
+  // screen asks again in a cycle, and only wants what it does not have yet.
   eventsRange: (cam: string, from: number, to: number) =>
-    request<Eventos>(`rec/events?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
+    request<Events>(`rec/events?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
 
-  // Uma página das detecções de objeto de todas as câmeras, da mais nova para a
-  // mais velha. `antes` e `depois` são o cursor (um ou nenhum); `cams` e
-  // `familias` nulos querem dizer "todas".
-  deteccoes: ({ antes, depois, limite, ...filtro }: PedidoDeDeteccoes) => {
-    const q = queryDoFiltro(filtro);
-    if (antes != null) q.set('antes', String(antes));
-    if (depois != null) q.set('depois', String(depois));
-    if (limite) q.set('limite', String(limite));
-    return request<PaginaDeDeteccoes>(`deteccoes?${q}`);
+  // A page of the object detections of all cameras, from newest to oldest.
+  // `antes` and `depois` are the cursor (one or none); null `cams` and
+  // `familias` mean "all".
+  deteccoes: ({ antes: before, depois: after, limite: limit, ...filter }: DetectionsRequest) => {
+    const q = filterQuery(filter);
+    if (before != null) q.set('antes', String(before));
+    if (after != null) q.set('depois', String(after));
+    if (limit) q.set('limite', String(limit));
+    return request<DetectionsPage>(`deteccoes?${q}`);
   },
 
-  // Os dias com pelo menos uma detecção do filtro, em ordem crescente, e
-  // quantas cada um tem: é o que o calendário da tela de Detecções deixa
-  // escolher, e o número que ele mostra em cada dia.
-  diasDeDeteccao: (filtro: FiltroDeDeteccoes) =>
-    request<DiasDeDeteccao>(`deteccoes/dias?${queryDoFiltro(filtro)}`),
+  // The days with at least one detection of the filter, in ascending order, and
+  // how many each one has: it is what the Detections screen calendar lets you
+  // pick, and the number it shows on each day.
+  detectionDays: (filter: DetectionsFilter) =>
+    request<DetectionDays>(`deteccoes/dias?${filterQuery(filter)}`),
 };
 
-// O filtro que a lista e o calendário de Detecções dividem. As áreas restringem
-// só a câmera delas; as outras de `cams` seguem inteiras.
-function queryDoFiltro({ cams, familias, area, areas, soAlertas }: FiltroDeDeteccoes) {
+// The filter that the Detections list and calendar share. Areas restrict only
+// their own camera; the others in `cams` stay whole.
+function filterQuery({
+  cams,
+  familias: families,
+  area,
+  areas,
+  soAlertas: onlyAlerts,
+}: DetectionsFilter) {
   const q = new URLSearchParams();
   if (cams?.length) q.set('cams', cams.join(','));
-  if (familias?.length) q.set('familias', familias.join(','));
+  if (families?.length) q.set('familias', families.join(','));
   if (area) {
-    q.set('area', areaNaQuery(area));
-    q.set('rule', area.regra);
+    q.set('area', areaInQuery(area));
+    q.set('rule', area.rule);
   }
   if (areas?.length) q.set('areas', areas.join(','));
-  if (soAlertas) q.set('alert', '1');
+  if (onlyAlerts) q.set('alert', '1');
   return q;
 }
 
-// URLs de mídia são montadas, não buscadas: vão direto num <video>, num <img>
-// ou no SourceBuffer.
+// Media URLs are built, not fetched: they go straight into a <video>, an <img>
+// or the SourceBuffer.
 export const mediaURL = {
   init: (cam: string, gen: string) => `api/rec/init?cam=${encodeURIComponent(cam)}&g=${gen}`,
   segment: (cam: string, t: number) => `api/rec/seg?cam=${encodeURIComponent(cam)}&t=${t}`,
   thumb: (cam: string, t: number) => `api/rec/thumb?cam=${encodeURIComponent(cam)}&t=${t}`,
-  // A foto de alguém, pelo id, que muda a cada troca: o navegador a guarda para
-  // sempre.
+  // Someone's photo, by id, which changes at every swap: the browser keeps it
+  // forever.
   avatar: (id: string) => `api/avatar?id=${encodeURIComponent(id)}`,
-  // O JPEG que o detector de objetos olhou. `t` é o `instanteMs` da detecção.
-  quadro: (cam: string, t: number) => `api/deteccoes/quadro?cam=${encodeURIComponent(cam)}&t=${t}`,
+  // The JPEG the object detector looked at. `t` is the detection's
+  // `instanteMs`.
+  frame: (cam: string, t: number) => `api/deteccoes/quadro?cam=${encodeURIComponent(cam)}&t=${t}`,
   export: (cam: string, from: number, to: number) =>
     `api/rec/export?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`,
-  // O live vai para o go2rtc através do proxy do dwnvr, para que a credencial
-  // dele nunca chegue ao navegador.
+  // Live goes to go2rtc through dwnvr's proxy, so that its credential never
+  // reaches the browser.
   liveWS: (cam: string) => `${baseWS()}api/live/ws?src=${encodeURIComponent(cam)}`,
-  // O aviso de sessão: um websocket mudo que o servidor fecha quando a pessoa
-  // é removida ou ganha link novo. Ver `vigiarSessao` no Ao vivo.
-  avisoDeSessaoWS: () => `${baseWS()}api/session/ws`,
+  // The session notice: a mute websocket that the server closes when the person
+  // is removed or gets a new link. See the session notice in Live
+  // (`wsSessionNotice`).
+  wsSessionNotice: () => `${baseWS()}api/session/ws`,
 };
 
 function baseWS() {
@@ -319,87 +334,90 @@ function baseWS() {
   return `${proto}//${location.host}${base}`;
 }
 
-// --- o contrato -------------------------------------------------------------
+// --- the contract
+// -------------------------------------------------------------
 //
-// Instante em milissegundos é `number`; instante em texto (RFC 3339, com o
-// fuso do servidor) é `string`, e só existe onde a tela quer a hora de lá.
+// An instant in milliseconds is `number`; an instant as text (RFC 3339, in the
+// server's timezone) is `string`, and only exists where the screen wants the
+// time over there.
 
-// --- sessão e pessoas
+// --- session and people
 
-export type Papel = 'admin' | 'viewer';
+export type Role = 'admin' | 'viewer';
 
-// Quem está logado. Com a autenticação desligada vem como admin e dono, sem
-// usuário nem nome. `avatar` é o id da foto, e só vem com foto.
-export interface Pessoa {
+// Who is logged in. With authentication off it comes as admin and owner, with
+// no user or name. `avatar` is the photo's id, and only comes with a photo.
+export interface Person {
   username?: string;
   name?: string;
-  role: Papel;
+  role: Role;
   owner: boolean;
   avatar?: string;
 }
 
-export interface Sessao {
+export interface Session {
   authRequired: boolean;
   authenticated: boolean;
-  user?: Pessoa;
+  user?: Person;
 }
 
-// O login, a senha pelo convite e as mudanças da Minha conta.
-export interface ComPessoa {
+// The login, the password via invite and the My account changes.
+export interface WithPerson {
   ok: true;
-  user: Pessoa;
+  user: Person;
 }
 
-export interface Versao {
+export interface Version {
   version: string;
   commit: string;
   date: string;
   go: string;
 }
 
-export type SituacaoDoUsuario = 'active' | 'invitePending' | 'inviteExpired';
+export type UserStatus = 'active' | 'invitePending' | 'inviteExpired';
 
-export interface Usuario {
+export interface User {
   username: string;
   name: string;
   email?: string;
-  role: Papel;
-  status: SituacaoDoUsuario;
+  role: Role;
+  status: UserStatus;
   avatar?: string;
   inviteExpiresAtMs?: number;
   createdAtMs?: number;
   activeSinceMs?: number;
-  // Só de quem já usou o dwnvr depois de o campo existir.
+  // Only for those who have used dwnvr since the field existed.
   lastAccessMs?: number;
 }
 
-// Sem autenticação ligada não há cadastro: vem sem `owner` e com a lista vazia.
-export interface Usuarios {
+// Without authentication on there is no registry: it comes without `owner` and
+// with an empty list.
+export interface Users {
   authRequired: boolean;
   owner?: { username: string; name: string; avatar: string; lastAccessMs?: number };
-  users: Usuario[];
+  users: User[];
   inviteValidityMs: number;
   maxNameLength: number;
   maxUsernameLength: number;
   maxEmailLength: number;
-  // Se a seção smtp está ligada. Servidor anterior a ela não manda.
+  // Whether the smtp section is on. A server older than it does not send it.
   emailEnabled?: boolean;
 }
 
-// Os campos dos formulários de pessoa, com o nome que têm no JSON.
-export type CampoDaPessoa = 'username' | 'name' | 'email';
+// The fields of the person forms, with the name they have in the JSON.
+export type PersonField = 'username' | 'name' | 'email';
 
-// As recusas de um formulário, campo a campo: só os campos recusados, com a
-// mensagem para pôr embaixo de cada um.
-export type Recusas = Partial<Record<CampoDaPessoa, string>>;
+// The rejections of a form, field by field: only the rejected fields, with the
+// message to put under each one.
+export type FieldErrors = Partial<Record<PersonField, string>>;
 
-// O token só existe nesta resposta: a tela monta o link com ele.
-export interface Convite {
-  user: Usuario;
+// The token only exists in this response: the screen builds the link with it.
+export interface Invite {
+  user: User;
   token: string;
 }
 
-export interface LinkDeConvite {
+export interface InviteLink {
   username: string;
   name: string;
   inviteExpiresAtMs: number;
@@ -407,24 +425,24 @@ export interface LinkDeConvite {
   maxPasswordLength: number;
 }
 
-export interface Conta {
-  user: Pessoa;
+export interface Account {
+  user: Person;
   minPasswordLength: number;
   maxPasswordLength: number;
   maxNameLength: number;
-  avatar: RegraDoAvatar;
+  avatar: AvatarRule;
 }
 
-export interface RegraDoAvatar {
+export interface AvatarRule {
   sidePx: number;
   maxBytes: number;
   quality: number;
 }
 
-// --- câmeras
+// --- cameras
 
-// Uma câmera como o cameras.json a guarda. Os campos opcionais vêm resolvidos
-// pelos defaults do dwnvr.yaml; ausente é "usar o default".
+// A camera as cameras.json stores it. The optional fields come resolved by the
+// defaults of dwnvr.yaml; absent means "use the default".
 export interface Camera {
   id: string;
   name: string;
@@ -437,47 +455,47 @@ export interface Camera {
   detect?: boolean;
   detectMecanismo?: string;
   detectSensibilidade?: number;
-  areas?: AreaDaCamera[];
-  // Só o admin recebe: o viewer não edita câmera.
-  alert?: AlertaDaCamera;
+  areas?: CameraArea[];
+  // Only the admin receives it: the viewer does not edit cameras.
+  alert?: CameraAlert;
 }
 
-// Quando uma detecção da câmera vira alerta. Sem `areas`, vale a imagem
-// inteira; sem `schedules`, a qualquer hora; desligado, guarda o resto para
-// religar.
-export interface AlertaDaCamera {
+// When a camera detection becomes an alert. Without `areas`, the whole image
+// counts; without `schedules`, any time; when off, it keeps the rest so it can
+// be turned on again.
+export interface CameraAlert {
   enabled: boolean;
-  families?: NomeDaFamilia[];
+  families?: FamilyName[];
   areas?: string[];
-  schedules?: HorarioDoAlerta[];
+  schedules?: AlertSchedule[];
 }
 
-// Um horário do alerta: os dias, de 0 (domingo) a 6 (sábado), e o De e o Até
-// em "HH:MM", com as duas pontas incluídas. O `to` é sempre maior que o
-// `from`: a noite são dois horários, um até 23:59 e outro a partir de 00:00.
-export interface HorarioDoAlerta {
+// An alert schedule: the days, from 0 (Sunday) to 6 (Saturday), and the "De"
+// and "Até" in "HH:MM", with both ends included. `to` is always greater than
+// `from`: a night is two schedules, one until 23:59 and another from 00:00.
+export interface AlertSchedule {
   days: number[];
   from: string;
   to: string;
 }
 
-// Onde o alerta vale, como a aba Alerta mostra. Não vai ao servidor, que só
-// guarda as áreas: "só nas áreas marcadas" sem nenhuma marcada é um estado da
-// tela, que ele leria como a imagem inteira.
-export type OndeDoAlerta = 'tudo' | 'areas';
+// Where the alert applies, as the Alert tab shows it. It does not go to the
+// server, which only stores the areas: "only in the checked areas" with none
+// checked is a screen state, which the server would read as the whole image.
+export type AlertWhere = 'tudo' | 'areas';
 
-// Uma área cadastrada na câmera. A área nova da aba Áreas já vai com `id`,
-// para o alerta poder marcá-la; a do "salvar na câmera" de Detecções vai sem,
-// e o servidor dá um.
-export interface AreaDaCamera {
+// An area registered on the camera. A new area from the Areas tab already goes
+// with an `id`, so the alert can mark it; the one from the Detections "salvar
+// na câmera" goes without, and the server assigns one.
+export interface CameraArea {
   id?: string;
   name: string;
-  rule?: Regra;
-  points: Ponto[];
+  rule?: Rule;
+  points: Point[];
 }
 
-// A câmera da listagem: para o admin, com a pasta das gravações.
-export interface CameraCadastrada extends Camera {
+// The camera in the listing: for the admin, with the recordings folder.
+export interface RegisteredCamera extends Camera {
   dir?: string;
 }
 
@@ -489,8 +507,8 @@ export interface Stream {
   transcoding: boolean;
 }
 
-// Gravações de uma câmera que já foi removida.
-export interface Orfa {
+// Recordings of a camera that has already been removed.
+export interface Orphan {
   id: string;
   bytes: number;
   days: number;
@@ -498,43 +516,45 @@ export interface Orfa {
   lastMs: number;
 }
 
-// Sem teto, o `max` não vem.
-export interface Faixa {
+// Without a ceiling, `max` is not sent.
+export interface Bounds {
   min: number;
   max?: number;
 }
 
-// Os campos da câmera com faixa: o CameraRanges de internal/config/params.go.
-export type CampoComFaixa =
+// The camera fields with a range: the CameraRanges of
+// internal/config/params.go.
+export type FieldWithBounds =
   'quotaMB' | 'segmentSeconds' | 'maxDays' | 'stallSeconds' | 'detectSensibilidade';
-export type Faixas = Partial<Record<CampoComFaixa, Faixa>>;
+export type BoundsMap = Partial<Record<FieldWithBounds, Bounds>>;
 
-// O que está no go2rtc.yaml e o go2rtc ainda não carregou. Lista vazia não vem.
-export interface DivergenciasDoGo2rtc {
+// What is in go2rtc.yaml and go2rtc has not loaded yet. An empty list is not
+// sent.
+export interface Go2rtcDrift {
   novas?: string[];
   alteradas?: string[];
   foraDoArquivo?: string[];
 }
 
-// O viewer recebe só `cameras` e `detector`; o resto é do admin, e
-// `streams` some também quando o go2rtc não responde.
-export interface RespostaCameras {
-  cameras: CameraCadastrada[];
+// The viewer receives only `cameras` and `detector`; the rest is the admin's,
+// and `streams` also disappears when go2rtc does not answer.
+export interface CamerasResponse {
+  cameras: RegisteredCamera[];
   detector: boolean;
   padrao?: Camera;
-  faixas?: Faixas;
-  orphans?: Orfa[];
+  faixas?: BoundsMap;
+  orphans?: Orphan[];
   streams?: Stream[];
   go2rtcError?: string;
-  go2rtcConfigFile?: DivergenciasDoGo2rtc;
-  alertEmail?: AlertaPorEmail;
+  go2rtcConfigFile?: Go2rtcDrift;
+  alertEmail?: EmailAlert;
 }
 
-// O "Para onde vai" da aba Alerta: `to` com o meio de e-mail, e `failingSince`
-// e `error` com ele falhando, até o primeiro envio que der certo. Sem o meio,
-// `missing` diz as seções do dwnvr.yaml que faltam, e `smtpError`, o motivo da
-// seção smtp recusada.
-export interface AlertaPorEmail {
+// The "Para onde vai" of the Alert tab: `to` with the email notifier, and
+// `failingSince` and `error` while it is failing, until the first send that
+// works. Without the notifier, `missing` lists the dwnvr.yaml sections that are
+// missing, and `smtpError` the reason the smtp section was rejected.
+export interface EmailAlert {
   to?: string[];
   failingSince?: string;
   error?: string;
@@ -542,8 +562,9 @@ export interface AlertaPorEmail {
   smtpError?: string;
 }
 
-// `erro` vem quando a sonda falhou: aí `hasAudio` é "não sei", e não "não tem".
-export interface Sonda {
+// `erro` comes when the probe failed: then `hasAudio` is "don't know", not
+// "doesn't have".
+export interface Probe {
   name: string;
   hasAudio: boolean;
   audioCodecs?: string[];
@@ -551,11 +572,11 @@ export interface Sonda {
   erro?: string;
 }
 
-// --- saúde
+// --- health
 
-// As fatias somam o `onsets` da câmera. `pedacos` não é fatia: é quantos onsets
-// tiveram o vídeo cortado e oferecido à fila.
-export interface Funil {
+// The slices add up to the camera's `onsets`. `pedacos` is not a slice: it is
+// how many onsets had the video cut and offered to the queue.
+export interface Funnel {
   pedacos: number;
   semVideo: number;
   descartados: number;
@@ -566,8 +587,8 @@ export interface Funil {
   naFila: number;
 }
 
-// Uma câmera do /api/health. Câmera desabilitada vem sem `audio`.
-export interface CameraNaSaude {
+// A camera from /api/health. A disabled camera comes without `audio`.
+export interface HealthCamera {
   id: string;
   name: string;
   enabled: boolean;
@@ -595,7 +616,7 @@ export interface CameraNaSaude {
   recordedMs?: number;
   detect: boolean;
   onsets: number;
-  funil?: Funil;
+  funil?: Funnel;
   quotaMB: number;
   diskBytes: number;
   retainDays: number;
@@ -616,15 +637,15 @@ export interface Uptime {
   machineSeconds?: number;
 }
 
-export interface Relogio {
+export interface Clock {
   now: string;
   abbr: string;
   offsetSeconds: number;
   zone?: string;
 }
 
-// A fila do detector de objetos, uma só para todas as câmeras. `cameras` traz
-// só as câmeras com algo esperando ou sendo olhado.
+// The object detector queue, a single one for all cameras. `cameras` carries
+// only the cameras with something waiting or being inferred.
 export interface Detector {
   fila: {
     agora: number;
@@ -637,15 +658,15 @@ export interface Detector {
   foraDoAr?: { desde: string; erro: string };
 }
 
-// `disk` some quando o storage não responde; `detector`, sem detector de
-// objetos configurado; `go2rtc`, enquanto ele responde; `alerts`, antes de
-// alguma câmera ligar o alerta, se a seção alerts não tem problema. `uptime`,
-// `clock` e `reconnectsWindowHours` faltam em servidor anterior a eles, para
-// onde a tela do `npm run dev` pode estar apontada.
-// Os alertas que não saíram pelos meios, num episódio que acaba uma hora
-// depois do último descarte: `queueFull` não couberam na fila de envio, e
-// `overLimit` passaram do teto de `limitPerHour`.
-export interface DescarteDosAlertas {
+// `disk` disappears when storage does not answer; `detector`, without a
+// configured object detector; `go2rtc`, while it answers; `alerts`, before any
+// camera turns alerts on, if the alerts section has no problem. `uptime`,
+// `clock` and `reconnectsWindowHours` are missing on a server older than them,
+// which the `npm run dev` screen may be pointed at.
+// The alerts that did not go out through the notifiers, in an episode that ends
+// one hour after the last drop: `queueFull` did not fit in the send queue, and
+// `overLimit` went over the `limitPerHour` ceiling.
+export interface AlertsDropped {
   queueFull: number;
   overLimit: number;
   limitPerHour: number;
@@ -653,63 +674,64 @@ export interface DescarteDosAlertas {
   lastAt: string;
 }
 
-// O meio do alerta pelo nome que o servidor dá a ele, como se lê na frase:
-// "Alertas por e-mail". Meio que a tela ainda não conhece sai pelo nome mesmo.
-export const MEIOS_DO_ALERTA: Readonly<Record<string, string>> = { email: 'por e-mail' };
-export const meioDoAlerta = (nome: string) => MEIOS_DO_ALERTA[nome] ?? `por ${nome}`;
+// The alert notifier by the name the server gives it, as it reads in the
+// sentence: "Alertas por e-mail". A notifier the screen does not know yet goes
+// out by its own name.
+export const ALERT_NOTIFIERS: Readonly<Record<string, string>> = { email: 'por e-mail' };
+export const alertNotifier = (name: string) => ALERT_NOTIFIERS[name] ?? `por ${name}`;
 
-// Um meio do alerta falhando desde `since`, com o erro da falha mais recente.
-// Some no primeiro envio que der certo.
-export interface MeioFalhando {
+// An alert notifier failing since `since`, with the error of the most recent
+// failure. It disappears on the first send that works.
+export interface FailingNotifier {
   name: string;
   since: string;
   error: string;
 }
 
-export interface Saude {
-  cameras: CameraNaSaude[];
+export interface Health {
+  cameras: HealthCamera[];
   disk?: Disco;
   uptime?: Uptime;
   detector?: Detector;
-  clock?: Relogio;
+  clock?: Clock;
   reconnectsWindowHours?: number;
   go2rtc?: { error: string; since: string };
-  // Só com a seção smtp recusada no boot: o e-mail fica desligado.
+  // Only with the smtp section rejected at boot: email stays off.
   smtp?: { error: string };
-  // Só com problema no usuarios.json: `error` é o arquivo ilegível no boot, e
-  // `warnings`, as entradas que não valem.
+  // Only with a problem in usuarios.json: `error` is the file unreadable at
+  // boot, and `warnings` the entries that are not valid.
   users?: { error?: string; warnings?: string[] };
-  // `total` some antes de alguma câmera ligar o alerta; `warnings` são os
-  // problemas da seção alerts do dwnvr.yaml, que valem sem câmera nenhuma; e
-  // `dropped` só vem durante um episódio de descarte, e `failing`, com algum
-  // meio falhando.
+  // `total` disappears before any camera turns alerts on; `warnings` are the
+  // problems in the alerts section of dwnvr.yaml, which apply even with no
+  // camera; `dropped` only comes during a drop episode, and `failing` with some
+  // notifier failing.
   alerts?: {
     total?: number;
     warnings?: string[];
-    dropped?: DescarteDosAlertas;
-    failing?: MeioFalhando[];
+    dropped?: AlertsDropped;
+    failing?: FailingNotifier[];
   };
 }
 
-// --- o servidor (card "Este servidor" do Diagnóstico)
+// --- the server (the "Este servidor" card of Diagnostics)
 //
-// Cada campo some quando a fonte não existe: kernel sem PSI, sistema sem
-// cgroup, fora do Linux.
+// Each field disappears when the source does not exist: kernel without PSI,
+// system without cgroup, outside Linux.
 
-export interface MediasDePressao {
+export interface PressureAverages {
   avg10: number;
   avg60: number;
   avg300: number;
 }
 
-export interface Pressao {
-  some?: MediasDePressao;
-  full?: MediasDePressao;
+export interface Pressure {
+  some?: PressureAverages;
+  full?: PressureAverages;
 }
 
-export type RecursoDaPressao = 'cpu' | 'memoria' | 'io';
+export type PressureResource = 'cpu' | 'memoria' | 'io';
 
-export interface ProcessoDoServidor {
+export interface ServerProcess {
   cpuMs?: number;
   vivoMs: number;
   memoriaBytes?: number;
@@ -722,15 +744,15 @@ export interface ProcessoDoServidor {
   arquitetura: string;
 }
 
-export interface LinhaDoLog {
+export interface LogLine {
   em: string;
   nivel: string;
   texto: string;
 }
 
-// `coletadoEm` e `processo` são opcionais porque servidor anterior a eles não
-// os manda: a tela do `npm run dev` pode estar apontada para um.
-export interface Servidor {
+// `coletadoEm` and `processo` are optional because a server older than them
+// does not send them: the `npm run dev` screen may be pointed at one.
+export interface Server {
   coletadoEm?: { em: string; sigla: string; offsetSeconds: number; zona?: string };
   maquina: {
     placa?: string;
@@ -744,7 +766,7 @@ export interface Servidor {
     mhzMax?: number;
     governor?: string;
   };
-  processo?: ProcessoDoServidor;
+  processo?: ServerProcess;
   memoria?: {
     totalBytes: number;
     disponivelBytes: number;
@@ -753,7 +775,7 @@ export interface Servidor {
     limiteBytes?: number;
     oomKills?: number;
   };
-  pressao?: Partial<Record<RecursoDaPressao, Pressao>>;
+  pressao?: Partial<Record<PressureResource, Pressure>>;
   storage: {
     caminho: string;
     tipo?: string;
@@ -772,16 +794,16 @@ export interface Servidor {
     erro?: string;
     url: string;
   };
-  // Só com a seção smtp no dwnvr.yaml; sem o login e sem a senha. `error` é o
-  // motivo de o e-mail estar desligado.
+  // Only with the smtp section in dwnvr.yaml; without the login and the
+  // password. `error` is the reason email is off.
   smtp?: { host?: string; port?: number; security?: string; from?: string; error?: string };
-  // Só com meio do alerta e alguma câmera com o alerta ligado. `ultimo` some
-  // antes do primeiro envio, e `erro`, com o último envio tendo dado certo.
-  alertas?: MeioDoAlerta[];
-  log?: { total: number; linhas: LinhaDoLog[] };
+  // Only with an alert notifier and some camera with alerts on. `ultimo`
+  // disappears before the first send, and `erro` when the last send worked.
+  alertas?: AlertNotifier[];
+  log?: { total: number; linhas: LogLine[] };
 }
 
-export interface MeioDoAlerta {
+export interface AlertNotifier {
   nome: string;
   enviados: number;
   falhas: number;
@@ -789,9 +811,9 @@ export interface MeioDoAlerta {
   erro?: string;
 }
 
-// --- gravações
+// --- recordings
 
-export interface ResumoDoDia {
+export interface DaySummary {
   day: string;
   count: number;
   bytes: number;
@@ -802,100 +824,101 @@ export interface ResumoDoDia {
 
 export interface Dias {
   cam: string;
-  days: ResumoDoDia[];
+  days: DaySummary[];
 }
 
-// [início, fim] de um trecho contíguo, para desenhar a barra.
-export type Trecho = [inicioMs: number, fimMs: number];
+// [start, end] of a contiguous stretch, to draw the bar.
+export type Span = [startMs: number, endMs: number];
 
-// [início, duração, índice em `gens`] de um segmento, para tocar.
-export type Segmento = [inicioMs: number, duracaoMs: number, gen: number];
+// [start, duration, index into `gens`] of a segment, to play.
+export type Segment = [startMs: number, durationMs: number, gen: number];
 
-// Compacta de propósito: um dia com segmentos de 1 minuto são 1.440 entradas.
+// Compact on purpose: a day with 1-minute segments is 1,440 entries.
 export interface Timeline {
   cam: string;
   from: number;
   to: number;
-  ranges: Trecho[];
+  ranges: Span[];
   gens: string[];
-  segments: Segmento[];
+  segments: Segment[];
 }
 
-// X1, Y1, X2, Y2 em fração da imagem, de 0 a 1.
-export type Caixa = [x1: number, y1: number, x2: number, y2: number];
+// X1, Y1, X2, Y2 as a fraction of the image, from 0 to 1.
+export type Box = [x1: number, y1: number, x2: number, y2: number];
 
-// Uma marca de objeto. `quadroMs` e `caixa` dizem onde desenhar o objeto sobre
-// o vídeo; marca sem os dois não ganha caixa.
-export interface ObjetoMarcado {
+// An object mark. `quadroMs` and `caixa` say where to draw the object over the
+// video; a mark without both gets no box.
+export interface MarkedObject {
   instanteMs: number;
   familia: string;
   classe: string;
   score: number;
   quadroMs?: number;
-  caixa?: Caixa;
+  caixa?: Box;
 }
 
-export interface Eventos {
+export interface Events {
   cam: string;
   from: number;
   to: number;
   onsets: number[];
-  objetos: ObjetoMarcado[];
+  objetos: MarkedObject[];
 }
 
-// --- detecções
+// --- detections
 
-export interface ObjetoNoQuadro {
+export interface ObjectInFrame {
   familia: string;
   classe: string;
   score: number;
-  caixa?: Caixa;
-  // O objeto passou na regra de alerta da câmera, na hora em que foi olhado, e
-  // caiu nas áreas do alerta destes ids. Sem áreas no alerta, `alertAreas` não
-  // vem. O id de uma área apagada desde então continua vindo.
+  caixa?: Box;
+  // The object passed the camera's alert rule, at the time it was inferred, and
+  // fell into the alert areas with these ids. Without areas in the alert,
+  // `alertAreas` is not sent. The id of an area deleted since then keeps
+  // coming.
   alert?: boolean;
   alertAreas?: string[];
 }
 
-// Uma olhada do detector numa câmera: o instante do onset e tudo o que ele
-// achou naquele quadro.
-export interface Deteccao {
+// An inference of the detector on a camera: the onset instant and everything it
+// found in that frame.
+export interface Detection {
   cam: string;
   instanteMs: number;
   quadroMs?: number;
   temQuadro: boolean;
-  objetos: ObjetoNoQuadro[];
+  objetos: ObjectInFrame[];
 }
 
-export interface PaginaDeDeteccoes {
-  deteccoes: Deteccao[];
+export interface DetectionsPage {
+  deteccoes: Detection[];
   fim: boolean;
 }
 
-// Nulo ou ausente é "todas".
-export interface FiltroDeDeteccoes {
+// Null or absent means "all".
+export interface DetectionsFilter {
   cams?: readonly string[] | null;
   familias?: readonly string[] | null;
-  // Na câmera desta área, só os objetos dentro dela. As outras câmeras não
-  // mudam.
-  area?: AreaDoFiltro | null;
-  // O mesmo, com as áreas cadastradas: `<cam>/<id>`. As de uma câmera somam,
-  // a `area` junto: qualquer uma serve.
+  // On this area's camera, only the objects inside it. The other cameras do not
+  // change.
+  area?: FilterArea | null;
+  // The same, with the registered areas: `<cam>/<id>`. Those of one camera add
+  // up, the `area` too: any one will do.
   areas?: readonly string[] | null;
-  // Só as detecções em que algum objeto que fica alertou; elas vêm inteiras,
-  // com o objeto que não alertou.
+  // Only the detections where some object that stays raised an alert; they come
+  // whole, including the object that did not alert.
   soAlertas?: boolean;
 }
 
-// `antes` e `depois` são o cursor: um ou nenhum.
-export interface PedidoDeDeteccoes extends FiltroDeDeteccoes {
+// `antes` and `depois` are the cursor: one or none.
+export interface DetectionsRequest extends DetectionsFilter {
   antes?: number | null;
   depois?: number | null;
   limite?: number;
 }
 
-export interface DiasDeDeteccao {
+export interface DetectionDays {
   dias: string[];
-  // Dia -> quantas detecções do filtro. Só os dias de `dias`.
+  // Day -> how many detections of the filter. Only the days in `dias`.
   deteccoesPorDia: Record<string, number>;
 }

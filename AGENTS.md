@@ -137,12 +137,12 @@ reactive, responsive UI that works well on mobile and desktop (browser).
 
 ## UI
 
-- A UI icon is `<Icone nome="…" tamanho={…} />`, and its drawing lives in
-  `web/src/lib/iconesUi.ts`. A new icon goes there, in a 24×24 viewBox. No
+- A UI icon is `<Icon name="…" size={…} />`, and its drawing lives in
+  `web/src/lib/uiIcons.ts`. A new icon goes there, in a 24×24 viewBox. No
   inline `<svg>` in a screen and no character (⋮ ✕ ▶) in place of an icon: the
   character changes shape on every system.
 - The only icons outside the map are the detection icons drawn on canvas
-  (`lib/icones.ts`) and the GitHub mark (`MarcaGitHub.svelte`).
+  (`lib/icons.ts`) and the GitHub mark (`GitHubMark.svelte`).
 
 ## Lint
 
