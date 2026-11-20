@@ -81,7 +81,7 @@ seção de padrões enganaria quem usa.
   disser nada. O sidecar continua sem estado.
 - **Trocar o número exige reiniciar o sidecar.** O onnxruntime fixa as threads
   quando a sessão é criada (`intra_op_num_threads`, em
-  `dwnvr-detect/servidor.py`), e a memória de um modelo descartado não volta ao
+  `dwnvr-detect/server.py`), e a memória de um modelo descartado não volta ao
   sistema dentro do mesmo processo, num container com teto de 400 MB. O seguro é
   o sidecar se reiniciar com o número novo: fica alguns segundos sem olhar, e a
   gravação não é afetada. A olhada que falhar nesse meio cai na pausa de 30 s da

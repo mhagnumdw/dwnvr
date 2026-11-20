@@ -5,7 +5,7 @@
 arquivo pronto e nunca roda nada daqui.
 
 - `rfdetr-n_512x288_int8.onnx` - o modelo publicado (~30 MB)
-- `exporta.py` - gera o `.onnx` de novo, a partir dos pesos públicos
+- `export.py` - gera o `.onnx` de novo, a partir dos pesos públicos
 - `requirements.txt` - as versões que refazem o publicado
 - `LICENSE-RF-DETR` - a licença dos pesos
 
@@ -14,7 +14,7 @@ arquivo pronto e nunca roda nada daqui.
 1. **Os pesos** são os do RF-DETR Nano treinado no COCO, da Roboflow, sob
    Apache-2.0 (ver `LICENSE-RF-DETR`). É deles o que o modelo sabe reconhecer;
    o dwnvr não treina nada.
-2. **O `exporta.py` exporta** os pesos para ONNX com a entrada fixa em
+2. **O `export.py` exporta** os pesos para ONNX com a entrada fixa em
    512x288.
 3. **E quantiza para int8**, calibrando nas imagens de uma pasta.
 
@@ -47,13 +47,13 @@ Numa máquina qualquer, sem GPU. O `rfdetr` baixa os pesos na primeira vez, e
 o processo chega a ~3 GB de RAM:
 
 ```sh
-cd dwnvr-detect/modelo
+cd dwnvr-detect/model
 python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/python exporta.py --imagens ~/calibracao
+.venv/bin/python export.py --images ~/calibration
 ```
 
-A pasta `--imagens` tem `.jpg` ou `.png`, de qualquer resolução. O script
+A pasta `--images` tem `.jpg` ou `.png`, de qualquer resolução. O script
 grava o fp32 e o int8 nesta pasta, por cima do publicado. O fp32 fica fora do
 git e do build da imagem.
 
@@ -72,7 +72,7 @@ achados trocados no piso 0,20. Contra o fp32, os dois int8 empatam (ver
 [`TODO_recalibrar-modelo-com-imagens-publicas.md`](../../docs/TODO/TODO_recalibrar-modelo-com-imagens-publicas.md)).
 
 O preparo das imagens, que estica até 512x288 e normaliza pelo ImageNet, não é
-uma cópia: o `exporta.py` importa o `prepara` do `servidor.py`. Assim a
+uma cópia: o `export.py` importa o `prepare` do `server.py`. Assim a
 calibração usa por construção o mesmo preparo que roda em produção.
 
 ## Usar o fp32 no lugar do int8
@@ -83,9 +83,9 @@ int8 parecer errar numa câmera. Ele entra sem rebuild da imagem, por volume e
 
 ```yaml
     volumes:
-      - ./rfdetr-n_512x288_fp32.onnx:/modelos/fp32.onnx:ro
+      - ./rfdetr-n_512x288_fp32.onnx:/models/fp32.onnx:ro
     environment:
-      - DETECT_MODELO=/modelos/fp32.onnx
+      - DETECT_MODELO=/models/fp32.onnx
 ```
 
 Qualquer `.onnx` com a mesma saída do RF-DETR funciona: o servidor lê o

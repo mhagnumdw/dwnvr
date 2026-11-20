@@ -10,16 +10,16 @@ dwnvr é Go puro numa imagem de 8 MB.
 
 ## O que tem dentro
 
-- `servidor.py` - o servidor HTTP: decodifica o pedaço com o PyAV e roda o
+- `server.py` - o servidor HTTP: decodifica o pedaço com o PyAV e roda o
   modelo no onnxruntime. Um pedido por vez; quem enfileira é o dwnvr.
 - `requirements.in` - as dependências diretas: `onnxruntime`, `numpy` e `av`.
 - `requirements.txt` - gerado a partir do `.in`: as diretas e as indiretas, com
   versão exata e o hash de cada wheel, para amd64 e arm64.
-- `modelo/` - o `.onnx` que vai na imagem, e como gerá-lo de novo (ver
-  [`modelo/README.md`](modelo/README.md)).
+- `model/` - o `.onnx` que vai na imagem, e como gerá-lo de novo (ver
+  [`model/README.md`](model/README.md)).
 - `sitecustomize.py` - a trava que impede o Python do container de compilar
   módulo do fonte em runtime (ver [O bytecode](#o-bytecode)).
-- `confere_pyc.py` - a conferência do `.pyc` da imagem, que roda no build.
+- `check_pyc.py` - a conferência do `.pyc` da imagem, que roda no build.
 - `Dockerfile` - faz o build de amd64 e arm64 em qualquer máquina, sem emulação.
 
 ## As dependências
@@ -55,13 +55,13 @@ Zero 3, contra 1,9 s com ele, por 22 MB a mais na imagem.
 
 O stdlib compilado é o da própria imagem final, copiado para o stage sem
 executar nada dele, e cada `.pyc` guarda o hash do seu `.py`, e não a data. O
-servidor sobe como módulo (`python3 -m servidor`), porque o script que recebe
+servidor sobe como módulo (`python3 -m server`), porque o script que recebe
 pelo caminho o Python sempre compila do fonte.
 
 O `.pyc` que falta ou não bate, o Python ignora calado e compila o fonte: a
 imagem ficaria lenta sem ninguém ver. Duas travas impedem isso:
 
-- **No build**, o `confere_pyc.py` olha os arquivos da imagem final já montada:
+- **No build**, o `check_pyc.py` olha os arquivos da imagem final já montada:
   todo `.py` que o servidor pode importar tem de ter o seu `.pyc`, checked-hash
   da mesma versão do Python e com o hash do `.py` que a imagem traz. Se não
   tiver, o build falha e a imagem não sai.
@@ -80,7 +80,7 @@ segurança comuns, de dia e de noite. Em câmera de outra natureza (noite
 colorida, olho de peixe, térmica) ou fora de 16:9, cujo quadro chega esticado,
 ninguém mediu ainda (ver
 [`TODO_modelo-em-cameras-de-terceiros.md`](../docs/TODO/TODO_modelo-em-cameras-de-terceiros.md)).
-Detalhes em [`modelo/README.md`](modelo/README.md).
+Detalhes em [`model/README.md`](model/README.md).
 
 ## O custo
 
@@ -145,7 +145,7 @@ Configuração, por variável de ambiente:
 
 | Variável | O que é | Padrão |
 | --- | --- | --- |
-| `DETECT_MODELO` | o `.onnx` | `/app/modelo.onnx` |
+| `DETECT_MODELO` | o `.onnx` | `/app/model.onnx` |
 | `DETECT_THREADS` | threads do modelo e do vídeo | `auto` |
 | `DETECT_PORTA` | porta HTTP | `8480` |
 
@@ -155,7 +155,7 @@ dwnvr não põe). A outra metade fica para a gravação. O número escolhido, e 
 onde ele saiu, vai na primeira linha do log:
 
 ```text
-dwnvr-detect: modelo.onnx, entrada 512x288, 2 thread(s) (auto: metade de 4 núcleos), porta 8480
+dwnvr-detect: model.onnx, input 512x288, 2 thread(s) (auto: half of 4 cores), port 8480
 ```
 
 Um número a partir de 1 passa por cima do `auto`, e vale como veio. Não o
@@ -173,4 +173,4 @@ A porta não é a 8555 porque essa é a do WebRTC do go2rtc.
 
 O modelo é derivado dos pesos do RF-DETR, Copyright 2025 Roboflow, Inc., sob a
 Apache License 2.0. A cópia da licença está em
-[`modelo/LICENSE-RF-DETR`](modelo/LICENSE-RF-DETR).
+[`model/LICENSE-RF-DETR`](model/LICENSE-RF-DETR).

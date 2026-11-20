@@ -81,7 +81,7 @@ repos:
       - id: check-added-large-files
         priority: conferir
         args: [--enforce-all]
-        exclude: ^dwnvr-detect/modelo/rfdetr-n_512x288_int8\.onnx$
+        exclude: ^dwnvr-detect/model/rfdetr-n_512x288_int8\.onnx$
       - id: detect-private-key
         priority: conferir
 
