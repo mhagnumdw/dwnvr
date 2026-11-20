@@ -1,12 +1,14 @@
 <!--
-  A fileira de abas de um formulário: só os botões. Os painéis ficam com quem
-  usa, que os amarra pelo id (`{prefixo}-painel-{id}`, com role="tabpanel"):
+  The row of tabs of a form: only the buttons. The panels stay with whoever uses
+  it, who ties them by id (`{prefix}-painel-{id}`, with role="tabpanel"):
 
-    <Abas abas={[{ id: 'gravacao', rotulo: 'Gravação' }, ...]} bind:ativa prefixo="cam" />
-    <div role="tabpanel" id="cam-painel-gravacao" aria-labelledby="cam-aba-gravacao">…</div>
+  <Tabs tabs={[{ id: 'gravacao', label: 'Gravação' }, ...]} bind:active
+  prefix="cam" />
+  <div role="tabpanel" id="cam-painel-gravacao"
+  aria-labelledby="cam-aba-gravacao">…</div>
 
-  As setas trocam de aba, como o padrão de abas do WAI-ARIA pede, e só a aba
-  ativa entra no Tab: dele em diante, o Tab segue para o painel.
+  The arrows switch tabs, as the WAI-ARIA tabs pattern asks, and only the active
+  tab enters the Tab order: from it on, Tab moves on to the panel.
 -->
 <script lang="ts">
   import { tick } from 'svelte';
@@ -61,8 +63,8 @@
 </div>
 
 <style>
-  /* A linha de baixo vai de borda a borda do card: a margem negativa desfaz o
-     padding dele, que é o mesmo do .card (14px). */
+  /* The bottom line runs from card edge to card edge: the negative margin
+     undoes its padding, which is the same as the .card's (14px). */
   .tabs {
     display: flex;
     gap: 2px;

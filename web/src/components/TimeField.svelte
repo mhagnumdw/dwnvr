@@ -1,8 +1,8 @@
 <script lang="ts">
-  // Um campo de horário HH:MM, com a máscara do relógio (lib/mascaraHora.ts):
-  // "22" já é 22:00 e "17:3" é 17:30, com o resto em cinza mostrando isso.
-  // O valor é o minuto do dia, ou nulo com o campo vazio: `valor` é o de
-  // partida, e `onmuda` recebe cada mudança.
+  // An HH:MM time field, with the clock's mask (lib/hourMask.ts): "22" is
+  // already 22:00 and "17:3" is 17:30, with the rest in gray showing that. The
+  // value is the minute of the day, or null with the field empty: `value` is
+  // the starting one, and `onchange` receives each change.
   import { untrack } from 'svelte';
   import { hourOfMinute } from '../lib/format.ts';
   import { ghost as rest, mask, shake, secondsOfDay } from '../lib/hourMask.ts';
@@ -11,10 +11,10 @@
     value: number | null;
     onchange: (minute: number | null) => void;
     label: string;
-    // Dentro de um formulário o Enter já o envia, e quem usa pode não ter
-    // mais nada a fazer.
+    // Inside a form, Enter already submits it, and whoever uses it may have
+    // nothing else to do.
     onenter?: () => void;
-    // O foco ao abrir, para o primeiro campo do popover.
+    // Focus on open, for the first field of the popover.
     focusNow?: boolean;
   }
 
@@ -23,8 +23,8 @@
   const format = (m: number | null) => (m === null ? '' : hourOfMinute(m));
 
   let input: HTMLInputElement | undefined;
-  // Só o valor de quando o campo nasce: daí em diante quem escreve é a pessoa,
-  // e o popover que o usa monta campos novos a cada abertura.
+  // Only the value from when the field is born: from then on the person writes,
+  // and the popover that uses it mounts new fields on each opening.
   let current = untrack(() => value);
   const initial = format(current);
   let text = $state(initial);
@@ -45,7 +45,8 @@
     );
     text = m.g.join(':');
     typed = m.g;
-    // Direto no DOM, como no relógio: o dígito recusado não muda o texto.
+    // Straight on the DOM, as in the clock: a rejected digit does not change
+    // the text.
     e.currentTarget.value = text;
     if (m.rejected) shake(input);
     const s = secondsOfDay(m.g);
@@ -53,7 +54,7 @@
     onchange(current);
   }
 
-  // Ao sair, o campo mostra o horário inteiro: "17:3" vira "17:30".
+  // On blur, the field shows the whole time: "17:3" becomes "17:30".
   function leave() {
     isFocused = false;
     text = format(current);
@@ -97,8 +98,8 @@
     color: var(--dim);
   }
 
-  /* O fundo é da caixa, e o input transparente por cima do espelho: o texto
-     digitado e o resto em cinza ficam na mesma linha de base. */
+  /* The background belongs to the box, and the input is transparent over the
+     mirror: the typed text and the gray rest sit on the same baseline. */
   .box {
     position: relative;
     display: block;
@@ -114,7 +115,7 @@
     width: 100%;
     height: 100%;
     margin: 0;
-    /* 16px também evita o zoom automático do Safari ao focar o campo. */
+    /* 16px also avoids Safari's automatic zoom when the field gets focus. */
     font-size: 16px;
     line-height: 24px;
     padding: 9px 12px;

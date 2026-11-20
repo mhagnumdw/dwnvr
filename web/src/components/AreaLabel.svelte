@@ -1,8 +1,9 @@
 <!--
-  O rótulo de uma área: a miniatura dela, o nome e a regra por extenso. É o
-  conteúdo da linha da área na aba Áreas do cadastro e no ⋮ do card de
-  Detecções; a linha em volta é de quem usa, porque cada uma faz uma coisa (lá
-  editar e apagar, aqui marcar o filtro).
+  The label of an area: its thumbnail, the name and the rule in full words. It
+  is the content of the area row in the Areas tab of the camera form and in the
+  ⋮ of the Detections card; the surrounding row belongs to whoever uses it,
+  because each does something different (there edit and delete, here check the
+  filter).
 -->
 <script lang="ts">
   import type { CameraArea } from '../lib/api.ts';
@@ -14,7 +15,8 @@
     cam: string;
     area: CameraArea;
     width?: number;
-    // O nome em negrito: na aba Áreas, onde a área é o assunto da linha.
+    // The name in bold: in the Areas tab, where the area is the subject of the
+    // row.
     bold?: boolean;
     background?: string | undefined;
   }

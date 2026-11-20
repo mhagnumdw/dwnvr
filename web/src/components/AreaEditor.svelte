@@ -1,16 +1,18 @@
 <!--
-  O editor de área: um polígono livre desenhado sobre o quadro de uma câmera.
-  Cada toque põe um vértice, e tocar no primeiro fecha a área; arrastar um
-  vértice ajusta.
+  The area editor: a free-form polygon drawn over a camera frame. Each tap adds
+  a vertex, tapping the first one closes the area, and dragging a vertex adjusts
+  it.
 
-  No celular ocupa a tela inteira: em pé, o quadro em cima e os controles
-  embaixo; deitado, os controles numa coluna à direita. No desktop é um modal.
+  On a phone it takes the whole screen: in portrait, the frame on top and the
+  controls below; in landscape, the controls in a column on the right. On
+  desktop it is a modal.
 
-  Vem num chunk à parte (`import()`): quem não desenha área não o baixa. O
-  cadastro da câmera (aba Áreas) o abre com o nome da área, as outras áreas da
-  câmera em cinza, o "apagar área" e o "atualizar o quadro". Detecções o abre
-  com as áreas da câmera em cinza e, para o admin, o "salvar na câmera", que
-  pede o nome e grava a área no cadastro.
+  It ships in a separate chunk (`import()`), so whoever doesn't draw an area
+  doesn't download it. The camera form (Areas tab) opens it with the area name,
+  the camera's other areas in gray, "apagar área" and "atualizar o quadro".
+  Detections opens it with the camera's areas in gray and, for the admin,
+  "salvar na câmera", which asks for the name and saves the area to the camera
+  config.
 -->
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
@@ -21,26 +23,29 @@
 
   interface Props {
     camera: string;
-    // O quadro de fundo: o JPEG de uma detecção, ou o MP4 de um quadro só do
-    // keyframe de um segmento. Nulo enquanto a tela ainda procura qual.
+    // The background frame: the JPEG of a detection, or the single-frame MP4 of
+    // a segment's keyframe. Null while the screen is still looking for which
+    // one.
     background: { tipo: 'imagem' | 'video'; url: string } | null;
-    // As caixas da detecção de fundo, só para orientar o desenho.
+    // The boxes of the background detection, only to guide the drawing.
     boxes?: { caixa: Box; color: string }[];
     initial?: { points: Point[]; rule: Rule } | null;
     error?: string;
-    // Com string, o nome vira campo, obrigatório e diferente dos `nomesEmUso`.
+    // With a string, the name becomes a field, required and different from
+    // `namesInUse`.
     name?: string | null;
     namesInUse?: string[];
-    // As outras áreas da câmera, em cinza: para não desenhar uma por cima da
-    // outra sem querer.
+    // The camera's other areas, in gray, so you don't draw one on top of
+    // another by accident.
     otherAreas?: { name: string; points: Point[] }[];
-    // De quando é o quadro de fundo, e como pedir um mais novo.
+    // When the background frame is from, and how to ask for a newer one.
     frame?: { caption: string; refreshing: boolean; onrefresh: () => void } | null;
     title?: string;
     applyLabel?: string;
     onapply: (points: Point[], rule: Rule, name: string) => void;
-    // O "salvar na câmera": pede o nome e grava. Rejeita com a mensagem que o
-    // editor mostra. `cheia` é a câmera que já tem MAX_AREAS áreas.
+    // The "salvar na câmera" action: asks for the name and saves. Rejects with
+    // the message the editor shows. `full` means the camera already has
+    // MAX_AREAS areas.
     save?: {
       full: boolean;
       onsave: (points: Point[], rule: Rule, name: string) => Promise<void>;
@@ -67,19 +72,19 @@
     onclose,
   }: Props = $props();
 
-  // O alvo do dedo em volta de um vértice, em px da tela: 22 é a metade do
-  // alvo de toque de 44 do app.css.
+  // The finger target around a vertex, in screen px: 22 is half of the 44 touch
+  // target in app.css.
   const TOUCH_RADIUS_PX = 22;
-  // A mesma quebra do resto da interface.
+  // The same breakpoint as the rest of the UI.
   const DESKTOP_PX = 720;
 
-  // O editor nasce com o valor inicial e não o segue.
+  // The editor starts from the initial value and doesn't follow it afterward.
   const ini = untrack(() => initial);
   let points = $state<Point[]>(ini ? ini.points.map((p): Point => [p[0], p[1]]) : []);
   let isClosed = $state(!!ini && ini.points.length >= MIN_POINTS);
   let rule = $state<Rule>(ini?.rule ?? 'foot');
-  // O nome é campo desde o começo no cadastro, e só depois do "salvar na
-  // câmera" em Detecções.
+  // The name is a field from the start in the camera form, and only after
+  // "salvar na câmera" in Detections.
   const nameFromStart = untrack(() => name !== null);
   let askingName = $state(false);
   const withName = $derived(nameFromStart || askingName);
@@ -96,7 +101,8 @@
     mode = w >= DESKTOP_PX && h >= 520 ? 'desktop' : w > h ? 'landscape' : 'portrait';
   }
 
-  // O palco tem a proporção do quadro, e cabe inteiro no espaço que sobra.
+  // The stage has the frame's aspect ratio and fits entirely in the remaining
+  // space.
   let ratio = $state(16 / 9);
   let space = $state({ w: 0, h: 0 });
   const stage = $derived.by(() => {
@@ -107,7 +113,7 @@
   });
 
   const drawn = $derived(isClosed && points.length >= MIN_POINTS);
-  // A mesma régua do servidor (config.confereAreas): sem distinguir maiúscula.
+  // The same rule as the server (config.checkAreas): case-insensitive.
   const nameError = $derived.by(() => {
     if (!withName) return '';
     const n = currentName.trim().toLowerCase();
@@ -127,7 +133,7 @@
     return [lim((e.clientX - r.left) / r.width), lim((e.clientY - r.top) / r.height)];
   }
 
-  // O vértice mais perto do toque, dentro do raio, em px da tela.
+  // The vertex closest to the touch, within the radius, in screen px.
   function near(p: Point) {
     let best = -1;
     let dist = TOUCH_RADIUS_PX;
@@ -160,8 +166,8 @@
 
   function press(e: PointerEvent) {
     e.preventDefault();
-    // O preventDefault segura o foco onde estava: sem soltá-lo, o campo do nome
-    // seguiria focado, e no celular cada toque reabriria o teclado.
+    // preventDefault keeps focus where it was: without it, the name field would
+    // stay focused, and on a phone every tap would reopen the keyboard.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     svg?.setPointerCapture(e.pointerId);
     const p = point(e);
@@ -234,19 +240,19 @@
         : 'Toque no ponto verde para fechar.',
   );
 
-  // Onde vai o nome de uma área em cinza: a média dos vértices, que cai dentro
-  // de qualquer área que não seja muito torta.
+  // Where the name of a gray area goes: the mean of the vertices, which falls
+  // inside any area that isn't very twisted.
   const center = (pts: Point[]): Point => [
     pts.reduce((s, p) => s + p[0], 0) / pts.length,
     pts.reduce((s, p) => s + p[1], 0) / pts.length,
   ];
 
-  // O pé de cada caixa, com a regra `pisa`: o meio da borda de baixo.
+  // The foot of each box, for the `pisa` rule: the middle of the bottom edge.
   const pe = (c: Box): Point => [(c[0] + c[2]) / 2, Math.min(1, c[3])];
 
   onMount(() => {
     measure();
-    // A tela de trás não rola por baixo do editor.
+    // The screen behind doesn't scroll under the editor.
     const before = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
@@ -361,8 +367,8 @@
     </div>
 
     <div class="controls">
-      <!-- Deitado, o topo some e o título vem para cá: o cancelar vem junto,
-           ou o editor fica sem saída no celular. -->
+      <!-- In landscape the top disappears and the title moves here: cancel
+           comes along, or the editor has no way out on a phone. -->
       <div class="title">
         <button class="ghost" onclick={onclose} aria-label="cancelar">
           <Icon name="close" size={16} />
@@ -616,8 +622,8 @@
   .status {
     font-size: 14px;
   }
-  /* As duas dicas têm tamanhos diferentes: a altura de duas linhas fica
-     reservada, e trocar a regra não mexe no quadro nem nos botões. */
+  /* The two hints have different sizes: the height of two lines is reserved, so
+     changing the rule moves neither the frame nor the buttons. */
   .hint.rule {
     min-height: calc(2 * 1.4em);
   }
@@ -656,8 +662,8 @@
     font-size: 15px;
   }
 
-  /* Deitado: o quadro na altura toda, e os controles numa coluna à direita,
-     com o título que saiu do topo. */
+  /* Landscape: the frame at full height, and the controls in a column on the
+     right, with the title that left the top. */
   .landscape .window {
     flex-direction: row;
   }
@@ -673,9 +679,9 @@
     border-top: 0;
     border-left: 1px solid var(--line);
   }
-  /* Na coluna de altura fixa, o que não cabe tem de rolar, e não encolher: o
-     flex encolhia primeiro, e o seletor da regra sumia (ele corta o que passa
-     da borda) e a dica dela, de três linhas, vazava sobre a situação. */
+  /* In the fixed-height column, what doesn't fit has to scroll, not shrink:
+     flex shrank first, and the rule selector vanished (it clips what overflows
+     its border) and its three-line hint spilled over the situation. */
   .landscape .controls > * {
     flex-shrink: 0;
   }
@@ -698,7 +704,7 @@
     display: none;
   }
 
-  /* Desktop: um modal sobre a tela. */
+  /* Desktop: a modal over the screen. */
   .desktop {
     align-items: center;
     justify-content: center;
@@ -724,8 +730,8 @@
   .desktop .status {
     min-width: 180px;
   }
-  /* A dica da regra numa linha só dela: dividindo a linha com o nome, o
-     tamanho dela mudava a largura do campo e empurrava os botões. */
+  /* The rule hint on a line of its own: sharing the line with the name, its
+     size changed the field's width and pushed the buttons. */
   .desktop .hint:last-child,
   .desktop .hint.rule,
   .desktop .frame {
@@ -737,7 +743,7 @@
   .desktop .name {
     flex: 1 1 220px;
   }
-  /* Na base, junto ao campo do nome, e não no meio do rótulo + campo. */
+  /* At the bottom, next to the name field, and not in the middle of the label + field. */
   .desktop .rules {
     align-self: flex-end;
   }

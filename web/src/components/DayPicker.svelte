@@ -1,16 +1,17 @@
 <!--
-  Seletor de dia: das gravações, ou das detecções. `oQue` é o material que os
-  dias marcados têm, e só muda o que o leitor de tela anuncia. Com `contagens`,
-  o dia mostra quanto material tem, no lugar da bolinha que só diz que tem.
+  Day picker: for recordings, or detections. `oQue` is the material the marked
+  days have, and only changes what the screen reader announces. With `counts`,
+  the day shows how much material it has, in place of the dot that only says it
+  has some.
 
-  Existe porque o `<input type="date">` nativo não sabe marcar quais dias têm
-  material - e é essa marcação, não a escolha da data, que resolve a navegação
-  às cegas pelo histórico.
+  It exists because the native `<input type="date">` can't mark which days have
+  material - and it is that marking, not the date choice, that fixes blind
+  navigation through the history.
 
-  Com a lista de dias vazia - câmera que ainda não gravou nada, ou a consulta
-  que falhou - ele NÃO trava: libera qualquer dia até hoje, exatamente como o
-  campo nativo fazia. Um calendário inteiro desabilitado seria pior que
-  calendário nenhum.
+  With an empty day list - a camera that hasn't recorded anything yet, or a
+  failed query - it does NOT lock up: it allows any day up to today, exactly as
+  the native field did. A fully disabled calendar would be worse than no
+  calendar.
 -->
 <script lang="ts">
   import { tick } from 'svelte';
@@ -20,18 +21,19 @@
   interface Props {
     value?: string;
     days?: string[];
-    // Undefined explícito: o NavDia repassa o dele, que pode não ter vindo.
+    // Explicit undefined: DayNav passes on its own, which may not have come.
     oQue?: string | undefined;
-    // Dia -> quanto material ele tem. O dia de `days` que faltar aqui fica
-    // com a bolinha.
+    // Day -> how much material it has. A day in `days` that is missing here
+    // keeps the dot.
     counts?: Record<string, number> | undefined;
     onchange?: (day: string) => void;
-    // Avisa a abertura: quem passa `contagens` aproveita para atualizá-las,
-    // porque a tela fica aberta e o dia corrente não para de crescer.
+    // Announces the opening: whoever passes `counts` takes the chance to
+    // refresh them, because the screen stays open and the current day keeps
+    // growing.
     onopen?: (() => void) | undefined;
   }
 
-  // Uma célula do mês; nulo é o vão antes do dia 1.
+  // A month cell; null is the gap before day 1.
   interface Cell {
     number: number;
     key: string;
@@ -57,24 +59,24 @@
   let gridEl = $state<HTMLDivElement | null>(null);
   let popoverEl = $state<HTMLDivElement | null>(null);
 
-  // Quanto o popover precisou sair do centro para não passar da borda da tela.
-  // Medido, e não resolvido por media query: o seletor fica numa barra que
-  // quebra em linha, então onde ele cai depende da largura E do nome da câmera.
+  // How far the popover had to move off center so it doesn't go past the screen
+  // edge. Measured, not solved with a media query: the picker sits in a bar
+  // that wraps, so where it lands depends on the width AND on the camera name.
   let offset = $state(0);
 
-  // Relido a cada abertura, e não uma vez na montagem: esta tela fica aberta
-  // 24/7 e atravessa a meia-noite. Um `hoje` congelado deixaria o contorno do
-  // dia corrente e o teto de navegação apontando para ontem.
+  // Reread on every open, not once at mount: this screen stays open 24/7 and
+  // crosses midnight. A frozen `today` would leave the current day's outline
+  // and the navigation ceiling pointing at yesterday.
   let today = $state(dayKey());
 
-  // O dia sob o cursor do teclado. Ele anda pela grade inclusive por cima de
-  // dias sem gravação - atravessar um buraco de uma semana com a seta tem que
-  // ser possível -, e quem o acompanha é o foco REAL do DOM, não uma classe:
-  // é assim que o leitor de tela anuncia cada data ao navegar.
+  // The day under the keyboard cursor. It moves through the grid even over days
+  // with no recording - crossing a week-long gap with the arrow key has to be
+  // possible - and what follows it is the REAL DOM focus, not a class: that is
+  // how the screen reader announces each date while navigating.
   let focusedDay = $state<string | null>(null);
 
-  // Mês visível. Nasce nulo porque só a abertura sabe qual é - depende do dia
-  // selecionado naquele instante.
+  // Visible month. Starts null because only the opening knows which it is - it
+  // depends on the selected day at that moment.
   let viewYear = $state<number | null>(null);
   let viewMonth = $state<number | null>(null);
 
@@ -97,12 +99,12 @@
   const pad = (n: number) => String(n).padStart(2, '0');
 
   const daysSet = $derived(new Set(days));
-  // Sem lista, tudo até hoje vale - ver o cabeçalho.
+  // Without a list, everything up to today is valid - see the header.
   const permissive = $derived(days.length === 0);
   const hasRecording = $derived((key: string) => (permissive ? key <= today : daysSet.has(key)));
 
-  // As duas pontas do que o teclado pode alcançar. O teto é hoje porque não
-  // existe amanhã para reproduzir; o piso só existe quando há lista.
+  // The two ends of what the keyboard can reach. The ceiling is today because
+  // there is no tomorrow to play; the floor only exists when there is a list.
   const floor = $derived(permissive ? null : days[0]);
 
   function clamp(key: string) {
@@ -120,8 +122,9 @@
     viewMonth = d.getMonth();
   }
 
-  // O foco vai para a célula, não para o popover: é o que faz Enter e Espaço
-  // caírem no `onclick` nativo do botão, sem handler de tecla nenhum no meio.
+  // Focus goes to the cell, not to the popover: that is what makes Enter and
+  // Space land on the button's native `onclick`, with no key handler in
+  // between.
   function focusCell() {
     void tick().then(() => {
       gridEl?.querySelector<HTMLElement>(`[data-dia="${focusedDay ?? ''}"]`)?.focus();
@@ -166,14 +169,15 @@
     close(true);
   }
 
-  // --- navegação --------------------------------------------------------------
+  // --- navigation
+  // --------------------------------------------------------------
 
   function changeMonth(delta: number, focusNow = false) {
     const d = parseDay(focusedDay ?? today);
     const ano = d.getFullYear();
     const mes = d.getMonth() + delta;
-    // Dia 31 caindo num mês de 30: deixado ao `Date`, ele viraria para o mês
-    // seguinte - justamente o pulo que este botão não deve dar.
+    // Day 31 landing in a 30-day month: left to `Date`, it would roll over to
+    // the next month - exactly the jump this button must not make.
     const last = new Date(ano, mes + 1, 0).getDate();
     const target = new Date(ano, mes, Math.min(d.getDate(), last));
     goTo(clamp(dayKey(target)));
@@ -187,10 +191,10 @@
     focusCell();
   }
 
-  // Home e End vão para a ponta do HISTÓRICO, não para a ponta da semana como
-  // manda o padrão de calendário genérico: aqui a pergunta que se faz o tempo
-  // todo é "onde começa o que ainda existe em disco", e o começo da semana não
-  // responde nada.
+  // Home and End go to the end of the HISTORY, not the end of the week as the
+  // generic calendar pattern dictates: here the question asked all the time is
+  // "where does what still exists on disk begin", and the start of the week
+  // answers nothing.
   function goToEdge(end: boolean) {
     const monthStart =
       viewYear === null || viewMonth === null ? today : `${viewYear}-${pad(viewMonth + 1)}-01`;
@@ -199,9 +203,10 @@
     focusCell();
   }
 
-  // Só as teclas de movimento, e na própria célula: Enter e Espaço ficam com o
-  // botão, que já os trata sozinho. É o que dispensa qualquer handler global -
-  // um deles sequestrava o Enter de todo botão do popover.
+  // Only the movement keys, and on the cell itself: Enter and Space stay with
+  // the button, which already handles them on its own. That is what removes the
+  // need for any global handler - one of them hijacked Enter on every button in
+  // the popover.
   const STEPS: Readonly<Record<string, number>> = {
     ArrowLeft: -1,
     ArrowRight: 1,
@@ -227,7 +232,7 @@
     }
   }
 
-  // --- o que a grade mostra ---------------------------------------------------
+  // --- what the grid shows ---------------------------------------------------
 
   const grid = $derived.by(() => {
     if (viewYear === null || viewMonth === null) return [];
@@ -247,9 +252,10 @@
         count,
         selected: key === value,
         today: key === today,
-        // O estado inteiro no próprio rótulo, e não num `aria-pressed` por
-        // célula: trinta botões anunciando "não pressionado" é ruído. Em modo
-        // permissivo "com gravação" seria mentira - ali ninguém sabe.
+        // The whole state in the label itself, not in a per-cell
+        // `aria-pressed`: thirty buttons announcing "not pressed" is noise. In
+        // permissive mode, "with recording" would be a lie - nobody knows
+        // there.
         label:
           `${d} de ${MONTHS[viewMonth] ?? ''} de ${viewYear}` +
           (permissive ? '' : `, ${recorded ? 'com' : 'sem'} ${oQue}`) +
@@ -260,8 +266,9 @@
     return list;
   });
 
-  // A data inteira para o leitor de tela; no botão, a curta, com o ano só
-  // quando não é o deste ano: no celular a barra divide a linha com a câmera.
+  // The full date for the screen reader; on the button, the short one, with the
+  // year only when it isn't this year: on a phone the bar shares the line with
+  // the camera.
   const wholeDate = $derived.by(() => {
     if (!value) return '--/--/----';
     const [y = '', m = '', d = ''] = value.split('-');
@@ -289,7 +296,8 @@
   // --- fechar por fora --------------------------------------------------------
 
   function onWindowClick(e: MouseEvent) {
-    // Sem devolver o foco: quem clicou fora já escolheu para onde ir.
+    // Without returning focus: whoever clicked outside has already chosen where
+    // to go.
     if (isOpen && rootEl && e.target instanceof Node && !rootEl.contains(e.target)) close(false);
   }
 
@@ -300,9 +308,9 @@
     }
   }
 
-  // Tabular para fora fecha, como qualquer popover não modal. `relatedTarget`
-  // nulo é foco saindo da janela inteira (ou o próprio popover desmontando),
-  // e aí fechar seria atrapalhar quem só trocou de aba.
+  // Tabbing out closes, like any non-modal popover. A null `relatedTarget` is
+  // focus leaving the whole window (or the popover itself unmounting), and
+  // closing then would get in the way of someone who just switched tabs.
   function onFocusOut(e: FocusEvent) {
     if (isOpen && e.relatedTarget instanceof Node && rootEl && !rootEl.contains(e.relatedTarget)) {
       close(false);
@@ -519,8 +527,8 @@
     pointer-events: none;
   }
 
-  /* Dia sem gravação continua focável de propósito - é o que permite à seta
-     atravessar um buraco no histórico -, mas não é alvo de clique. */
+  /* A day with no recording stays focusable on purpose - that is what lets the
+     arrow key cross a gap in the history - but it isn't a click target. */
   .cell.day {
     color: var(--dim);
     opacity: 0.35;
@@ -543,7 +551,7 @@
     border-color: var(--dim);
   }
 
-  /* Declarado depois do :hover para vencer por ordem, sem !important. */
+  /* Declared after :hover to win by order, without !important. */
   .cell.day.selected,
   .cell.day.selected:hover {
     background: var(--accent);
@@ -560,8 +568,8 @@
     color: #fff;
   }
 
-  /* Contorno por fora da célula: por dentro ele sumiria no fundo do dia
-     selecionado, que é justamente onde o foco costuma começar. */
+  /* Outline outside the cell: inside, it would vanish into the selected day's
+     background, which is exactly where focus tends to start. */
   .cell.day:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
@@ -576,8 +584,8 @@
     bottom: 3px;
   }
 
-  /* No lugar da bolinha. O número do dia sobe para abrir espaço: 1537, o
-     maior dia visto numa instalação real, cabe na célula de 280 / 7 px. */
+  /* In place of the dot. The day number moves up to make room: 1537, the
+     largest day seen in a real installation, fits in the 280 / 7 px cell. */
   .cell.counted .num {
     line-height: 1;
     margin-top: -6px;

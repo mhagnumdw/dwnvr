@@ -1,17 +1,19 @@
 <!--
-  O ladrilho de uma área que se marca e desmarca: a miniatura grande, e o nome
-  e o ícone da regra embaixo. É o das áreas do alerta, no cadastro da câmera,
-  e o do popover "área" de Detecções, onde a miniatura grande deixa ver até a
-  área pequena.
+  The tile of an area that is checked and unchecked: the large thumbnail, and
+  the name and the rule icon below. It is the one for the alert areas, in the
+  camera form, and for the "área" popover in Detections, where the large
+  thumbnail lets you see even the small area.
 
-  O quadro vem de quem monta (`fundo`) quando já o tem, como o cadastro; sem
-  ele, a miniatura pede a da tira na largura em que é desenhada, para não
-  borrar. A regra vai só no ícone; o nome dela fica no aria-label, que o
-  toque longo mostra no celular (lib/dicaDoToque.ts).
+  The frame comes from whoever mounts it (`background`) when it already has one,
+  like the form; without it, the thumbnail requests the strip's one at the width
+  it is drawn, so it does not blur. The rule goes only in the icon; its name
+  stays in the aria-label, which the long press shows on the phone
+  (lib/touchHint.ts).
 
-  Sem `onclick` ele só mostra: é o das áreas no card da câmera, dentro do
-  bloco que já é o botão, e por isso não é botão, não marca nem esmaece. Lá, a
-  área que está no alerta ganha o sino no canto da miniatura (`alerta`).
+  Without `onclick` it only displays: it is the one for the areas on the camera
+  card, inside the block that is already the button, and so it is not a button,
+  does not check and does not dim. There, an area that is in the alert gets the
+  bell in the thumbnail corner (`alert`).
 -->
 <script lang="ts">
   import type { CameraArea } from '../lib/api.ts';
@@ -77,7 +79,7 @@
     border-color: var(--accent);
     background: var(--ativo-fundo);
   }
-  /* A que só mostra: a moldura do botão, sem ser um, e nada esmaecido. */
+  /* The display-only one: the button's frame, without being one, and nothing dimmed. */
   .show-only {
     border: 1px solid var(--line);
     border-radius: var(--radius);

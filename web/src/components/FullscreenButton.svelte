@@ -1,12 +1,12 @@
 <script lang="ts">
-  // O botão de entrar e sair da tela cheia: os quatro cantos apontando para
-  // fora, e para dentro quando ela já está ligada. Quem decide o QUE vai para a
-  // tela cheia é quem usa, pelo `onclick`.
+  // The button to enter and exit fullscreen: the four corners pointing outward,
+  // and inward when it is already on. WHAT goes fullscreen is decided by
+  // whoever uses it, through `onclick`.
   import Icon from './Icon.svelte';
 
   interface Props {
     active: boolean;
-    // Sobre a imagem precisa de fundo próprio: o vídeo pode ser claro.
+    // Over the image it needs its own background: the video can be bright.
     overVideo?: boolean;
     onclick: () => void;
   }
@@ -14,8 +14,8 @@
   let { active, overVideo = false, onclick }: Props = $props();
 </script>
 
-<!-- Dois cliques rápidos no botão não podem chegar ao duplo clique do vídeo,
-     que também alterna a tela cheia: seriam três trocas em vez de duas. -->
+<!-- Two quick clicks on the button must not reach the video's double click,
+     which also toggles fullscreen: that would be three toggles instead of two. -->
 <button
   class="ghost"
   class:overVideo

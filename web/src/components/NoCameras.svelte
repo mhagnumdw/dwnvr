@@ -1,12 +1,14 @@
 <!--
-  A mesma frase aparece no ao vivo, nas gravações e no cadastro. Aqui ela existe
-  uma vez só - e junto com ela o caminho para resolver o problema, que era o que
-  faltava: a mensagem antiga dizia o que não havia e escondia onde se cadastra.
+  The same sentence shows up in Live, in Recordings and in the camera form. Here
+  it exists only once - and with it the way to fix the problem, which was what
+  was missing: the old message said what there was not and hid where to register
+  it.
 
-    <SemCameras />              ao vivo, gravações
-    <SemCameras link={false} /> no próprio cadastro, onde o link seria circular
+  <NoCameras /> live, recordings
+  <NoCameras link={false} /> in the form itself, where the link would be
+  circular
 
-  O viewer não vê o link: o cadastro é do admin.
+  The viewer does not see the link: the camera form is the admin's.
 -->
 <script lang="ts">
   import { isAdmin } from '../lib/state.svelte.ts';

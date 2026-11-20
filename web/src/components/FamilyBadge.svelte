@@ -1,20 +1,20 @@
 <!--
-  Os ícones das famílias de objeto num canto de uma miniatura: um por família
-  presente, na ordem de prioridade. É o mesmo selo na grade de Detecções e na
-  tira de miniaturas das Gravações. Quem usa dá `position: relative` à
-  miniatura e põe as famílias no nome do botão (`nomesDasFamilias`): os ícones
-  são imagem sem texto, e o nome é o que o leitor de tela lê. Em Detecções, a
-  detecção que alertou ganha o sino antes das famílias; no card da câmera, a
-  área do alerta ganha só o sino, sem família.
+  The object family icons in a thumbnail corner: one per family present, in
+  priority order. It is the same badge in the Detections grid and in the
+  Recordings thumbnail strip. Whoever uses it gives the thumbnail `position:
+  relative` and puts the families in the button name (`familyNames`): the icons
+  are images without text, and the name is what the screen reader reads. In
+  Detections, the detection that alerted gets the bell before the families; on
+  the camera card, the alert area gets only the bell, with no family.
 -->
 <script lang="ts">
   import Icon from './Icon.svelte';
   import { family, familyIcon, iconURL, byPriority } from '../lib/icons.ts';
 
   interface Props {
-    // As famílias, sem repetição; a ordem quem dá é o selo.
+    // The families, without repetition; the badge sets the order.
     families: readonly string[];
-    // Algum objeto da detecção alertou.
+    // Some object in the detection alerted.
     alert?: boolean;
   }
 

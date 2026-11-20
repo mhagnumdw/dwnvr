@@ -1,13 +1,14 @@
 <script lang="ts">
-  // Um card de consulta do Diagnóstico: vem fechado, abre num toque e mostra
-  // grupos de rótulo e valor, com um "copiar" que junta tudo em texto para mandar
-  // numa conversa. É o formato de "Este navegador" e de "Este servidor"; quem usa
-  // decide o que coletar, e só coleta com `aberto`.
+  // A Diagnostics lookup card: it starts closed, opens with a tap and shows
+  // groups of label and value, with a "copiar" that joins everything into text
+  // to send in a chat. It is the format of "Este navegador" and "Este
+  // servidor"; whoever uses it decides what to collect, and only collects with
+  // `isOpen`.
   //
-  // `texto` devolve o que o "copiar" leva. `children` entra depois dos grupos,
-  // para o que não cabe em rótulo e valor - as linhas do log, por exemplo.
-  // `subtitulo`, opcional, vai embaixo do título com o card aberto - o "Coletado
-  // em" do servidor, por exemplo.
+  // `text` returns what "copiar" carries. `children` comes after the groups,
+  // for what does not fit label and value - the log lines, for example.
+  // `subtitle`, optional, goes under the title when the card is open - the
+  // server's "Coletado em", for example.
   import type { Snippet } from 'svelte';
   import { copy } from '../lib/browser.ts';
   import Icon from './Icon.svelte';
@@ -35,9 +36,9 @@
 
 <div class="card diag">
   <div class="row">
-    <!-- O cabeçalho inteiro é o botão, e não só a seta: no celular é o alvo
-         que o dedo acha. O "copiar" fica fora dele, senão tocar para copiar
-         também fecharia o card. -->
+    <!-- The whole header is the button, not just the arrow: on the phone it is
+         the target a finger finds. The "copiar" stays outside it, otherwise
+         tapping to copy would also close the card. -->
     <button class="open row" onclick={() => (isOpen = !isOpen)} aria-expanded={isOpen}>
       <span class="arrow-card"><Icon name={isOpen ? 'chevronDown' : 'chevronDir'} size={14} /></span
       >
@@ -48,8 +49,8 @@
       <button class="copy" onclick={onCopy}>copiar</button>
     {/if}
   </div>
-  <!-- Fora do botão: dentro dele, a segunda linha mudaria a altura do
-       cabeçalho e o título pularia ao abrir. -->
+  <!-- Outside the button: inside it, the second line would change the header
+       height and the title would jump on open. -->
   {#if isOpen && subtitle}<p class="subtitle muted small mono">{subtitle}</p>{/if}
   {#if isOpen && groups.length}
     <div class="groups">
@@ -57,9 +58,9 @@
         <section>
           <p class="title muted">{g.title}</p>
           <dl>
-            <!-- Pela posição, e não pelo rótulo: parte do rótulo vem do
-                 servidor (o nome do sensor), e dois iguais fariam o Svelte
-                 parar de desenhar o card inteiro. -->
+            <!-- By position, not by label: part of the label comes from the
+                 server (the sensor name), and two equal ones would make Svelte
+                 stop drawing the whole card. -->
             {#each g.items as i, n (n)}
               <div class="item small">
                 <dt class="muted">{i.label}</dt>
@@ -80,8 +81,8 @@
     gap: 10px;
   }
 
-  /* Uma coluna no celular, duas quando cabe. Os grupos não se partem entre
-     colunas: "Vídeo" pela metade separaria o H.265 do MediaSource. */
+  /* One column on the phone, two when it fits. Groups do not split across
+     columns: a half "Vídeo" would separate H.265 from MediaSource. */
   .groups {
     display: grid;
     gap: 14px;
@@ -98,9 +99,9 @@
     letter-spacing: 0.04em;
     font-size: 11px;
   }
-  /* Botão sem cara de botão: lê como o título dos outros cards. Os 44px de
-     toque ficam; a margem negativa devolve a altura para o card fechado não
-     ficar mais alto que os vizinhos. */
+  /* A button that does not look like one: it reads like the title of the other
+     cards. The 44px touch target stays; the negative margin gives the height
+     back so the closed card is not taller than its neighbors. */
   .open {
     flex: 1;
     gap: 8px;
@@ -115,13 +116,13 @@
   .open:hover:not(:disabled) {
     border-color: transparent;
   }
-  /* A mesma margem do cabeçalho: sem ela, o "copiar" que aparece ao abrir
-     deixaria a linha 16px mais alta, e o título desceria. */
+  /* The same margin as the header: without it, the "copiar" that appears on
+     open would make the row 16px taller, and the title would drop. */
   .copy {
     margin: -8px 0;
   }
-  /* Alinhado com o título, depois da seta (12px) e do vão (8px), e puxado
-     para perto dele. */
+  /* Aligned with the title, after the arrow (12px) and the gap (8px), and
+     pulled close to it. */
   .subtitle {
     margin: -6px 0 0;
     padding-left: 20px;

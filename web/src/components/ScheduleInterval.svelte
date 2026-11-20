@@ -1,10 +1,11 @@
 <script lang="ts">
-  // O intervalo de horário da tela Detecções: desligado é um botão com o
-  // relógio, que abre os campos "De" e "Até"; ligado vira um chip com as duas
-  // horas e o ✕ que o desliga. Tocar nas horas do chip reabre os campos.
+  // The time interval of the Detections screen: off, it is a button with the
+  // clock, which opens the "De" and "Até" fields; on, it becomes a chip with
+  // the two times and the ✕ that turns it off. Tapping the times on the chip
+  // reopens the fields.
   //
-  // Os horários são minutos do dia. O "até" menor que o "de" termina no dia
-  // seguinte: 22:00 até 06:00 é a noite. Quem decide o dia é a tela.
+  // The times are minutes of the day. An "até" smaller than "de" ends on the
+  // next day: 22:00 to 06:00 is the night. The screen decides the day.
   import TimeField from './TimeField.svelte';
   import Icon from './Icon.svelte';
   import { hourOfMinute as hour } from '../lib/format.ts';
@@ -124,7 +125,7 @@
     flex: none;
   }
 
-  /* A forma dos botões vizinhos da barra. */
+  /* The shape of the neighboring buttons in the bar. */
   .open {
     display: inline-flex;
     align-items: center;
@@ -133,7 +134,7 @@
     color: var(--dim);
   }
 
-  /* Ligado: o "ligado" dos botões da barra (borda e fundo do accent). */
+  /* On: the bar buttons' "on" (accent border and background). */
   .interval-chip {
     display: inline-flex;
     align-items: stretch;
@@ -202,15 +203,17 @@
     gap: 8px;
   }
 
-  /* No celular o botão fica perto da borda direita e o popover vazaria da
-     tela: sem posição própria, ele se prende ao primeiro ancestral
-     posicionado - a barra da tela, que é sticky - e abre logo abaixo dela. */
+  /* On the phone the button sits near the right edge and the popover would
+     spill off the screen: without a position of its own, it attaches to the
+     first positioned ancestor - the screen's bar, which is sticky - and opens
+     right below it. */
   @media (max-width: 719px) {
     .interval {
       position: static;
     }
-    /* Só o ícone, como os vizinhos da barra. Ligado, o chip não cabe na
-       linha do dia e a tela o põe numa linha só dele, de ponta a ponta. */
+    /* Only the icon, like the neighbors in the bar. When on, the chip does not
+       fit on the day row and the screen puts it on a row of its own, edge to
+       edge. */
     .label {
       display: none;
     }

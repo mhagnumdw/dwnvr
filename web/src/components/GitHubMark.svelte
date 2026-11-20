@@ -1,6 +1,6 @@
 <script lang="ts">
-  // A marca do GitHub, ao lado dos links para o repositório. Desenhada com a
-  // cor do texto em volta (currentColor), para acompanhar o link no hover.
+  // The GitHub mark, beside the links to the repository. Drawn in the
+  // surrounding text color (currentColor), to follow the link on hover.
   let { size = 14 } = $props();
 </script>
 

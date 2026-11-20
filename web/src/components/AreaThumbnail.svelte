@@ -1,24 +1,27 @@
 <!--
-  A miniatura das áreas de uma câmera: um quadro dela com o desenho de cada
-  área. Com várias áreas e o contorno tracejado, é o chip "2 áreas" do card em
-  Câmeras e o chip do filtro em Detecções; com uma área só, cheia, é a imagem
-  do RotuloDaArea e do LadrilhoDaArea.
+  The thumbnail of a camera's areas: a frame from it with the drawing of each
+  area. With several areas and a dashed outline, it is the "2 áreas" chip on the
+  card in Cameras and the filter chip in Detections; with a single, filled area,
+  it is the image of AreaLabel and AreaTile.
 
-  O quadro vem da miniatura da tira (thumbs.ts), já reduzida e em cache: quem
-  abre a tela com várias câmeras não decodifica nenhuma em tamanho cheio. Ela
-  tem a largura do quadrinho da tira; para desenhar maior sem borrar, quem já
-  tem o quadro cheio o passa em `fundo` - o cadastro da câmera, que o busca
-  para o editor. Sem `fundo` e mais larga que o quadrinho - o ladrilho do card
-  da câmera -, ela pede a miniatura maior, na largura em que é desenhada. Câmera sem área não monta isto, e não paga nada.
+  The frame comes from the strip thumbnail (thumbs.ts), already downscaled and
+  cached: whoever opens the screen with several cameras doesn't decode any at
+  full size. It has the width of the strip's framelet; to draw larger without
+  blurring, whoever already has the full frame passes it in `background` - the
+  camera form, which fetches it for the editor. Without `background` and wider
+  than the framelet - the camera card's tile - it asks for the larger thumbnail,
+  at the width it is drawn. A camera with no area doesn't mount this, and pays
+  nothing.
 
-  Com `zoom`, a área pequena (lib/area.ts, `vistaDaArea`), que no quadro
-  inteiro some, ganha uma passada de zoom: aproxima até enquadrá-la, fica um
-  instante e volta ao quadro inteiro. Uma vez quando a miniatura aparece;
-  depois, o zoom fica enquanto o mouse para em cima de quem a contém, ou
-  enquanto o dedo segura o toque longo nele, e volta quando ele sai ou solta.
-  Quem a contém pede com `data-toque-longo` (lib/dicaDoToque.ts). Quem pede
-  menos movimento ao sistema vê o salto, sem a transição. Só a área pequena paga o quadro maior
-  que o zoom pede.
+  With `zoom`, a small area (lib/area.ts, `areaView`), which disappears in the
+  full frame, gets a zoom pass: it zooms in until the area is framed, stays a
+  moment, and goes back to the full frame. Once when the thumbnail appears;
+  after that, the zoom stays while the mouse rests over whatever contains it, or
+  while a finger holds the long press on it, and returns when the mouse leaves
+  or the finger lets go. Whatever contains it asks with `data-toque-longo`
+  (lib/touchHint.ts). Whoever asks the system for less motion sees the jump,
+  without the transition. Only the small area pays for the larger frame the zoom
+  needs.
 -->
 <script lang="ts">
   import { onDestroy } from 'svelte';
@@ -34,29 +37,30 @@
   import { LONG_TOUCH } from '../lib/touchHint.ts';
   import { scaleToWidth, thumbnail, storedLastSegment } from '../lib/thumbs.ts';
 
-  // O zoom: quanto leva para aproximar (e para voltar), quanto a passada
-  // fica aproximada, e quanto o mouse tem de parar em cima para ele vir.
+  // The zoom: how long it takes to zoom in (and back), how long the pass stays
+  // zoomed in, and how long the mouse has to rest over it for the zoom to come.
   const ZOOM_IDA_MS = 700;
   const ZOOM_FICA_MS = 1000;
   const ZOOM_WAIT_MS = 350;
-  // E quanto ele fica depois que o mouse sai ou o dedo solta: um tremor da
-  // mão não desfaz o zoom.
+  // And how long it stays after the mouse leaves or the finger lets go: a hand
+  // tremor doesn't undo the zoom.
   const ZOOM_EXIT_MS = 500;
 
   interface Props {
     cam: string;
     areas: readonly { points: readonly Point[] }[];
-    // Em px de CSS; a altura segue a proporção da câmera. Sem ela, a
-    // miniatura ocupa a largura de quem a contém.
+    // In CSS px; the height follows the camera's aspect ratio. Without it, the
+    // thumbnail fills the width of whatever contains it.
     width?: number;
-    // `contorno`: o tracejado fino, que não esconde a imagem quando há várias
-    // áreas; `cheia`: o azul translúcido da aba Áreas, para uma área só.
+    // `contorno`: the thin dashed line, which doesn't hide the image when there
+    // are several areas; `cheia`: the translucent blue of the Areas tab, for a
+    // single area.
     drawing?: 'contorno' | 'cheia';
-    // A URL de um quadro já em mãos; vazia enquanto ele não chega. Sem ela, a
-    // miniatura da tira.
+    // The URL of a frame already in hand; empty until it arrives. Without it,
+    // the strip thumbnail.
     background?: string | undefined;
     radius?: number;
-    // A passada de zoom na área pequena. Só com uma área.
+    // The zoom pass on the small area. Only with a single area.
     zoom?: boolean;
   }
 
@@ -72,27 +76,28 @@
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let image = $state<{ source: CanvasImageSource; w: number; h: number } | null>(null);
-  // A largura medida, quando ela não vem de `largura`.
+  // The measured width, when it doesn't come from `width`.
   let measurement = $state(0);
-  // Sobe quando o bitmap guardado aqui foi fechado pelo cache que o despejou:
-  // a miniatura pede o quadro de novo.
+  // Goes up when the bitmap kept here was closed by the cache that evicted it:
+  // the thumbnail asks for the frame again.
   let refetch = $state(0);
 
-  // O pedaço do quadro que enquadra a área, quando ela é pequena e há zoom.
+  // The part of the frame that frames the area, when it is small and there is
+  // zoom.
   const target = $derived.by(() => {
     const a = areas[0];
     return zoom && areas.length === 1 && a ? areaView(a.points) : null;
   });
   const enlargeable = $derived(target !== null);
 
-  // A largura em que ela é desenhada; 0 enquanto a medida não chega.
+  // The width at which it is drawn; 0 until the measurement arrives.
   const drawnWidth = $derived(width ?? measurement);
-  // A miniatura da tira não aguenta o zoom: a da área pequena vem maior. Nem
-  // a largura maior que a do quadrinho. As duas juntas: no zoom, o recorte de
-  // 1/ZOOM_TETO do quadro ocupa a largura desenhada inteira, e o quadro tem de
-  // ter ZOOM_TETO vezes ela para o recorte não borrar no ladrilho largo.
-  // Derivada à parte, para o redimensionar só buscar de novo quando a escala
-  // muda, e não a cada pixel.
+  // The strip thumbnail can't take the zoom: the small area's comes larger. Nor
+  // the width larger than the framelet's. Both together: when zoomed, the crop
+  // of 1/ZOOM_CEILING of the frame takes the whole drawn width, and the frame
+  // has to be ZOOM_CEILING times that for the crop not to blur in the wide
+  // tile. Derived separately, so resizing only fetches again when the scale
+  // changes, not on every pixel.
   const scale = $derived(
     Math.max(
       enlargeable ? ZOOM_CEILING : 1,
@@ -104,15 +109,15 @@
   $effect(() => {
     const c = cam;
     const f = background;
-    // Com `fundo` a escala não conta: lida só sem ele, o redimensionar não
-    // recarrega o quadro que já está em mãos.
+    // With `background` the scale doesn't matter: read only without it, so
+    // resizing doesn't reload the frame already in hand.
     const e = f === undefined ? scale : 1;
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- only the read, so $effect tracks it
     refetch;
     let isLive = true;
     image = null;
-    // Sem a medida, a escala ainda não é a certa: buscar agora baixaria a
-    // miniatura duas vezes.
+    // Without the measurement, the scale isn't right yet: fetching now would
+    // download the thumbnail twice.
     if (f === undefined && noMeasurement) return;
     if (f === undefined) {
       void storedLastSegment(c)
@@ -121,7 +126,7 @@
           if (isLive && b) image = { source: b, w: b.width, h: b.height };
         })
         .catch(() => {
-          // Sem quadro, ficam só os desenhos sobre o fundo escuro.
+          // Without a frame, only the drawings remain over the dark background.
         });
     } else if (f) {
       const img = new Image();
@@ -149,20 +154,20 @@
 
   // --- o zoom -----------------------------------------------------------------
 
-  // O caminho do zoom, de 0 (o quadro inteiro) a 1 (a vista da área), e o
-  // `quanto` que se desenha: o mesmo caminho, suavizado nas pontas.
+  // The zoom path, from 0 (the full frame) to 1 (the area's view), and the
+  // `amounts` that is drawn: the same path, smoothed at the ends.
   let path = 0;
   let amounts = $state(0);
   let animationFrame = 0;
-  // O mouse ou o dedo segurando o zoom: ele não volta enquanto isso.
+  // The mouse or finger holding the zoom: it doesn't go back meanwhile.
   let holding = false;
   let back: ReturnType<typeof setTimeout> | undefined;
   let wait: ReturnType<typeof setTimeout> | undefined;
 
   const suave = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
-  // Leva o zoom até `para`, de onde ele estiver: voltar no meio da ida leva
-  // só o que já andou. Quem pede menos movimento vê o salto.
+  // Takes the zoom to `para`, from wherever it is: going back midway only takes
+  // what it already covered. Whoever asks for less motion sees the jump.
   function animate(dest: 0 | 1) {
     cancelAnimationFrame(animationFrame);
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -182,7 +187,7 @@
     animationFrame = requestAnimationFrame(step);
   }
 
-  // Uma passada: aproxima, fica ZOOM_FICA_MS e volta, se ninguém segurar.
+  // One pass: zooms in, stays ZOOM_FICA_MS and goes back, if nobody holds it.
   function pass() {
     if (!enlargeable) return;
     animate(1);
@@ -192,7 +197,8 @@
     }, ZOOM_IDA_MS + ZOOM_FICA_MS);
   }
 
-  // Segura o zoom enquanto o mouse está por cima ou o dedo no toque longo.
+  // Holds the zoom while the mouse is over it or the finger is in the long
+  // press.
   function holds() {
     if (!enlargeable) return;
     holding = true;
@@ -215,8 +221,9 @@
     clearTimeout(wait);
   });
 
-  // A primeira passada, quando a miniatura entra na vista com o quadro já
-  // carregado: a aba escondida do cadastro, com altura zero, não conta.
+  // The first pass, when the thumbnail enters the viewport with the frame
+  // already loaded: the hidden camera-form tab, with zero height, doesn't
+  // count.
   let isVisible = $state(false);
   let passed = false;
   $effect(() => {
@@ -235,17 +242,17 @@
     }
   });
 
-  // Depois dela, o zoom fica enquanto o mouse para em cima de quem a contém
-  // - passada rápida, a caminho de outro lugar, não conta - ou enquanto o
-  // dedo segura o toque longo, e volta ZOOM_SAIDA_MS depois que ele sai ou
-  // solta.
+  // After it, the zoom stays while the mouse rests over whatever contains it -
+  // a quick pass, on the way somewhere else, doesn't count - or while a finger
+  // holds the long press, and goes back ZOOM_EXIT_MS after it leaves or lets
+  // go.
   $effect(() => {
     const host = canvas?.closest('[data-toque-longo]');
     if (!host || !enlargeable) return;
     const enter = (e: Event) => {
       if ((e as PointerEvent).pointerType !== 'mouse') return;
       clearTimeout(wait);
-      // Ainda com zoom (o mouse voltou antes de ele sair), segura já.
+      // Still zoomed in (the mouse came back before it left): hold right away.
       if (path > 0) holds();
       else wait = setTimeout(holds, ZOOM_WAIT_MS);
     };
@@ -273,10 +280,11 @@
     h: a.h + (b.h - a.h) * t,
   });
 
-  // --- o desenho --------------------------------------------------------------
+  // --- drawing
+  // ----------------------------------------------------------------
 
-  // Redesenha quando o quadro chega, quando a largura muda, quando as áreas
-  // mudam (um save) e a cada passo do zoom.
+  // Redraws when the frame arrives, when the width changes, when the areas
+  // change (a save) and on every zoom step.
   $effect(() => {
     const c = canvas;
     const g = c?.getContext('2d');
@@ -290,10 +298,10 @@
     if (c.height !== h) c.height = h;
     g.fillStyle = '#000';
     g.fillRect(0, 0, w, h);
-    // O cache de `thumbs.ts` fecha o bitmap da tira que despeja, e todos no
-    // `clearThumbnails`; o fechado fica com largura zero. Esta miniatura ainda
-    // o guardava: sai e pede o quadro de novo. Enquanto ele não chega,
-    // `imagem` fica vazia, e o pedido não se repete a cada redesenho.
+    // The `thumbs.ts` cache closes the strip bitmap it evicts, and all of them
+    // in `clearThumbnails`; the closed one has zero width. This thumbnail still
+    // kept it: it drops it and asks for the frame again. Until it arrives,
+    // `image` stays empty, and the request isn't repeated on every redraw.
     if (image && image.source instanceof ImageBitmap && image.source.width === 0) {
       image = null;
       refetch++;
@@ -304,7 +312,7 @@
         g.drawImage(source, v.x * iw, v.y * ih, v.w * iw, v.h * ih, 0, 0, w, h);
       }
     } catch {
-      // Sem quadro, ficam só os desenhos sobre o fundo escuro.
+      // Without a frame, only the drawings remain over the dark background.
     }
     const draw = drawing === 'cheia' ? fillArea : drawOutline;
     for (const a of areas) draw(g, viewPoints(a.points, v), w, h);

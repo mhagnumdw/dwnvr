@@ -1,14 +1,15 @@
 <!--
-  O botão que abre a lista de câmeras, no Ao vivo e em Detecções. Mostra as
-  marcadas do total ("5/9"): só a contagem não dizia se havia mais câmeras.
-  A barra ocupa o lugar dos parênteses que havia, e o total vem cinza e menor,
-  então o botão cresce só ~2px. Com todas marcadas o ícone fica azul.
+  The button that opens the camera list, in Live and Detections. It shows the
+  checked cameras out of the total ("5/9"): the count alone did not say whether
+  there were more cameras. The slash takes the place of the parentheses that
+  used to be there, and the total comes in gray and smaller, so the button grows
+  only ~2px. With all checked, the icon turns blue.
 
-    <BotaoCameras marcadas={5} total={9} todas={false} onclick={...} />
+  <CamerasButton checkedList={5} total={9} all={false} onclick={...} />
 
-  No celular fica só o ícone e a contagem; o nome volta do tablet para cima.
-  Cada tela casa o botão com os vizinhos pelas custom properties `--traco`
-  (espessura do ícone) e `--pad-x`.
+  On the phone only the icon and the count remain; the name comes back from the
+  tablet up. Each screen matches the button to its neighbors through the custom
+  properties `--stroke` (icon thickness) and `--pad-x`.
 -->
 <script lang="ts">
   import Icon from './Icon.svelte';
@@ -22,8 +23,8 @@
   }: {
     checkedList: number;
     total: number;
-    // "Todas" não é sempre marcadas === total: em Detecções é o filtro sem
-    // restrição, que já inclui a câmera cadastrada depois.
+    // "All" is not always checked === total: in Detections it is the
+    // unrestricted filter, which already includes a camera registered later.
     all: boolean;
     isOpen?: boolean;
     onclick: () => void;
@@ -37,8 +38,8 @@
   aria-expanded={isOpen}
   aria-label={all ? `câmeras: todas as ${total}` : `câmeras: ${checkedList} de ${total}`}
 >
-  <!-- Filmadora desenhada à mão, no traço dos ícones ao lado: o ☰ dizia
-       "menu", e o botão abre a lista de câmeras. -->
+  <!-- Camcorder drawn by hand, in the stroke of the icons beside it: the ☰ said
+       "menu", and the button opens the camera list. -->
   <Icon name="camera" size={16} stroke="var(--stroke, 1.8)" />
   <span class="text">câmeras</span>
   <span class="mono">{checkedList}<span class="total">/{total}</span></span>

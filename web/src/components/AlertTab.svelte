@@ -1,11 +1,11 @@
 <!--
-  A aba Alerta do cadastro da câmera: ligar, as famílias que avisam, onde (a
-  imagem inteira ou só as áreas marcadas), quando (HorariosDoAlerta) e para
-  onde vai.
+  The Alert tab of the camera form: turn on, the families that alert, where (the
+  whole image or only the marked areas), when (AlertSchedules) and where it
+  goes.
 
-  Vem num chunk à parte (`import()`), como o editor de área: quem não tem
-  detecção não baixa a aba. Quem confere o alerta incompleto ao salvar é o
-  formulário, porque o "salvar" é dele; o motivo volta aqui em `erro`.
+  It comes in a separate chunk (`import()`), like the area editor: whoever has
+  no detection does not download the tab. The form checks the incomplete alert
+  on save, because "save" is its own; the reason comes back here in `error`.
 -->
 <script lang="ts">
   import type { CameraAlert, EmailAlert, CameraArea, AlertWhere } from '../lib/api.ts';
@@ -18,18 +18,19 @@
 
   interface Props {
     alert: CameraAlert | undefined;
-    // Os três moram no formulário, e não no `alerta`: é o salvar dele que
-    // confere.
+    // These three live in the form, not in `alert`: the form's save is what
+    // checks them.
     where?: AlertWhere;
     limitSchedules?: boolean;
     schedules?: Schedule[];
     areas: CameraArea[];
     cam: string;
-    // A URL do quadro da câmera, vazia enquanto ele não chega: o fundo dos
-    // ladrilhos das áreas.
+    // The URL of the camera frame, empty until it arrives: the background of
+    // the area tiles.
     frame: string;
     timezone: string;
-    // O "Para onde vai", do /api/cameras. Nulo contra servidor anterior a ele.
+    // The "Para onde vai", from /api/cameras. Null against a server older than
+    // it.
     byEmail: EmailAlert | null;
     error?: string;
   }
@@ -47,17 +48,17 @@
     error = $bindable(''),
   }: Props = $props();
 
-  // A aba só mexe nas famílias e nas áreas com o alerta já criado pelo liga;
-  // isto só poupa o `!`.
+  // The tab only touches families and areas once the alert has been created by
+  // the toggle; this only saves the `!`.
   const current = (): CameraAlert => alert ?? { enabled: false };
 
   const isEnabled = $derived(!!alert?.enabled);
   const families = $derived(alert?.families ?? []);
   const checkedList = $derived(alert?.areas ?? []);
 
-  // Ligar pela primeira vez começa em `pessoa`, a de maior prioridade: com
-  // `veiculo`, uma câmera voltada para a rua alertaria centenas de vezes por
-  // dia. Desligar guarda o resto, para religar sem refazer.
+  // Turning on for the first time starts with `pessoa`, the highest priority:
+  // with `veiculo`, a camera facing the street would alert hundreds of times a
+  // day. Turning off keeps the rest, so turning on again needs no redo.
   function enable(sim: boolean) {
     alert = { ...(alert ?? { families: ['pessoa'] }), enabled: sim };
     error = '';
@@ -65,7 +66,7 @@
 
   function toggleFamily(f: FamilyName) {
     const newOne = families.includes(f) ? families.filter((x) => x !== f) : [...families, f];
-    // Na ordem de prioridade, como o servidor lista.
+    // In priority order, as the server lists them.
     alert = { ...current(), families: FAMILY_NAMES.filter((x) => newOne.includes(x)) };
     error = '';
   }
@@ -87,8 +88,8 @@
   const addresses = $derived(byEmail?.to ?? []);
   const noList = $derived(!!byEmail?.missing?.includes('alerts.email.to'));
   const noSmtp = $derived(!!byEmail?.missing?.includes('smtp'));
-  // A seção smtp que falta, ou a recusada, com o motivo que o boot deu, e o
-  // que mais falta para o alerta sair por e-mail.
+  // The missing smtp section, or the rejected one, with the reason the boot
+  // gave, and whatever else is missing for the alert to go out by email.
   const smtpDisabled = $derived(
     (byEmail?.smtpError
       ? `${byEmail.smtpError}. Com a seção smtp consertada`
@@ -221,7 +222,7 @@
     flex-wrap: wrap;
     gap: 6px;
   }
-  /* O mesmo botão das famílias de Detecções, com o rótulo sempre à vista. */
+  /* The same button as the Detections families, with the label always visible. */
   .family {
     display: inline-flex;
     align-items: center;

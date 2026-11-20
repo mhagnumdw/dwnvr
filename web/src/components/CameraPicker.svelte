@@ -1,21 +1,21 @@
 <!--
-  A lista de câmeras que o botão "câmeras" abre, no Ao vivo e em Detecções: um
-  botão de um toque por câmera, com ponto verde e borda azul nas marcadas. Quem
-  usa decide o contêiner (um card no fluxo, um popover) e o que "marcada" quer
-  dizer; aqui só se desenha e se avisa o clique.
+  The list of cameras that the "câmeras" button opens, in Live and Detections: a
+  one-tap button per camera, with a green dot and a blue border on the checked
+  ones. Whoever uses it decides the container (a card in the flow, a popover)
+  and what "checked" means; here we only draw and report the click.
 
-    <SeletorCameras
-      cameras={cameras.list}
-      marcada={(id) => selected.has(id)}
-      todas={tudoMarcado}
-      ontoggle={toggle}
-      ontodas={todas}
-      erro={cameras.error}
-    />
+  <CameraPicker
+  cameras={cameras.list}
+  checked={(id) => selected.has(id)}
+  all={allChecked}
+  ontoggle={toggle}
+  onall={all}
+  error={cameras.error}
+  />
 
-  `todas` é o que troca "todas" por "limpar" no primeiro botão. `erro` é o
-  `cameras.error`: com a lista vazia porque a carga falhou, o seletor diz isso
-  em vez de "nenhuma câmera cadastrada", que seria falso.
+  `all` is what swaps "todas" for "limpar" on the first button. `error` is
+  `cameras.error`: with the list empty because the load failed, the picker says
+  so instead of "nenhuma câmera cadastrada", which would be false.
 -->
 <script lang="ts">
   import type { Camera } from '../lib/api.ts';

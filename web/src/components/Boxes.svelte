@@ -1,33 +1,33 @@
 <script lang="ts">
-  // A camada das caixas do detector de objetos, por cima do vídeo das gravações.
+  // The object detector's boxes layer, on top of the recordings video.
   //
-  // A caixa é de UM quadro - o que o detector olhou, `quadroMs` -, e por isso
-  // não fica na tela o tempo todo: ela acende quando a reprodução passa por esse
-  // quadro, fica acesa ACESA_MS e esmaece. Com o vídeo pausado, a caixa acesa
-  // fica acesa, e volta a contar o tempo quando a reprodução volta.
+  // A box belongs to ONE frame - the one the detector looked at, `frameMs` - so
+  // it isn't on screen all the time: it lights up when playback passes that
+  // frame, stays lit LIT_MS and fades out. With the video paused, the lit box
+  // stays lit, and starts counting time again when playback resumes.
   //
-  // A disposição e o desenho moram em lib/caixas.ts, que a captura de quadro
-  // também usa: esta camada só decide QUAIS caixas estão acesas e quanto.
+  // The layout and drawing live in lib/boxes.ts, which the frame capture also
+  // uses: this layer only decides WHICH boxes are lit and how much.
   import { onMount, untrack } from 'svelte';
   import type { Box } from '../lib/api.ts';
   import { context2d } from '../lib/canvas.ts';
   import { place, draw, LIGHT_UP_MS, LIT_MS, FADE_MS, LANDING_MS } from '../lib/boxes.ts';
   import type { PlacedBox, ObjectDetectorMark } from '../lib/boxes.ts';
 
-  // Uma marca com o instante do quadro olhado, quando houver: as do
-  // /api/rec/events, e os objetos de uma detecção com o `quadroMs` dela.
+  // A mark with the instant of the inspected frame, when there is one: the ones
+  // from /api/rec/events, and the objects of a detection with its `frameMs`.
   type Mark = ObjectDetectorMark & { quadroMs?: number };
 
   interface Props {
     video: HTMLVideoElement; // o <video> do palco
-    objects?: Mark[]; // as marcas do dia, como o /api/rec/events as entrega
+    objects?: Mark[]; // the day's marks, as /api/rec/events delivers them
     currentMs?: number;
     playing?: boolean;
     rate?: number;
     labels?: boolean;
   }
 
-  // A marca que tem o que acender: a caixa e o quadro olhado.
+  // The mark that has something to light up: the box and the inspected frame.
   type LightableMark = Mark & { caixa: Box; quadroMs: number };
 
   interface Lit {
@@ -45,34 +45,35 @@
   }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined;
-  // Onde o <video> está no palco. Ele é centralizado e tem altura máxima, então
-  // nem sempre começa no canto do palco.
+  // Where the <video> is in the stage. It is centered and has a maximum height,
+  // so it doesn't always start at the stage's corner.
   let element = $state({ left: 0, top: 0, w: 0, h: 0 });
-  // E onde a IMAGEM está dentro dele: com `object-fit: contain`, uma câmera que
-  // não seja 16:9 ganha faixas pretas, e a fração da caixa é da imagem.
+  // And where the IMAGE is inside it: with `object-fit: contain`, a camera that
+  // isn't 16:9 gets black bars, and the box fraction is relative to the image.
   let image = { x: 0, y: 0, w: 0, h: 0 };
 
-  // As caixas acesas: chave -> { marca, desde }, com `desde` no relógio de
-  // performance.now(). Sem reatividade de propósito: quem desenha é o canvas,
-  // e redesenhar é pedido à mão.
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- quem desenha é o canvas
+  // The lit boxes: key -> { mark, since }, with `since` on the
+  // performance.now() clock. Deliberately not reactive: the canvas does the
+  // drawing, and redrawing is requested by hand.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- the canvas does the drawing
   const lit = new Map<string, Lit>();
   let pausedSince: number | null = null;
   let items: PlacedBox<LightableMark>[] = [];
   let placed = '';
   let requestNo = 0;
 
-  // Uma olhada grava uma linha por objeto, e duas da mesma família no mesmo
-  // quadro só se distinguem pela caixa. Quadro e família não bastam: a segunda
-  // pessoa sobrescreveria a primeira, e só uma caixa acenderia.
+  // An inference writes one row per object, and two of the same family in the
+  // same frame can only be told apart by the box. Frame and family aren't
+  // enough: the second person would overwrite the first, and only one box would
+  // light up.
   const key = (o: LightableMark) => `${o.quadroMs}|${o.familia}|${o.caixa.join(',')}`;
   const LIFE_MS = LIGHT_UP_MS + LIT_MS + FADE_MS;
 
-  // Só as marcas que têm caixa e o instante do quadro olhado: sem os dois não
-  // há o que acender, nem quando.
+  // Only the marks that have a box and the inspected frame's instant: without
+  // both there is nothing to light up, nor when.
   const withBox = $derived(objects.filter((o): o is LightableMark => !!o.caixa && !!o.quadroMs));
 
-  // --- quando acender -------------------------------------------------------
+  // --- when to light up -----------------------------------------------------
 
   let lastMs = 0;
   let lastClock = 0;
@@ -86,10 +87,11 @@
 
   function advance(t: number) {
     const now = performance.now();
-    // Reproduzindo, o vídeo anda entre duas atualizações mais ou menos o tempo
-    // de relógio vezes a velocidade. Andar muito mais que isso, ou para trás, é
-    // um PULO - seek, toque na timeline, troca de dia -, e pulo não "passa" por
-    // quadro nenhum: pular uma hora não pode acender as caixas da hora inteira.
+    // While playing, the video moves between two updates about the clock time
+    // times the speed. Moving much more than that, or backward, is a JUMP -
+    // seek, tap on the timeline, day switch - and a jump doesn't "pass" through
+    // any frame: skipping an hour must not light up the boxes of the whole
+    // hour.
     const elapsed = Math.min(now - lastClock, 2000);
     const leap = t - lastMs;
     const moved =
@@ -100,7 +102,7 @@
         if (o.quadroMs > lastMs && o.quadroMs <= t) lit.set(key(o), { mark: o, desde: now });
       }
     } else {
-      // O que estava aceso era do trecho de onde se saiu.
+      // What was lit belonged to the clip we jumped from.
       lit.clear();
       for (const o of withBox) {
         if (o.quadroMs <= t && o.quadroMs >= t - LANDING_MS)
@@ -120,7 +122,7 @@
         deleteExpired(now);
         pausedSince = now;
       } else if (playingNow && pausedSince !== null) {
-        // O tempo parado não conta: a caixa retoma de onde estava.
+        // Paused time doesn't count: the box resumes from where it was.
         for (const a of lit.values()) a.desde += now - pausedSince;
         pausedSince = null;
       }
@@ -130,7 +132,7 @@
   });
 
   $effect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- só a leitura, para o $effect rastrear
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- only the read, so $effect tracks it
     labels;
     untrack(agenda);
   });
@@ -148,7 +150,7 @@
     return Math.max(0, 1 - (age - LIGHT_UP_MS - LIT_MS) / FADE_MS);
   }
 
-  // --- desenho --------------------------------------------------------------
+  // --- drawing --------------------------------------------------------------
 
   function agenda() {
     if (!requestNo) requestNo = requestAnimationFrame(frame);
@@ -159,14 +161,14 @@
     const now = performance.now();
     if (pausedSince === null) deleteExpired(now);
     paint(now);
-    // Só pede o próximo quadro enquanto alguma caixa muda de opacidade. Parado,
-    // ou sem caixa acesa, a camada não gasta nada.
+    // Only requests the next frame while some box is changing opacity. Paused,
+    // or with no box lit, the layer costs nothing.
     if (lit.size && pausedSince === null) agenda();
   }
 
-  // A disposição só é refeita quando muda o conjunto aceso, o tamanho ou os
-  // rótulos: refazer a cada quadro faria um rótulo trocar de lado no meio do
-  // esmaecimento do vizinho.
+  // The layout is only redone when the lit set, the size or the labels change:
+  // redoing it on every frame would make a label switch sides in the middle of
+  // its neighbor's fade-out.
   function placement(g: CanvasRenderingContext2D) {
     const k = `${[...lit.keys()].sort().join(',')}|${image.w}x${image.h}|${labels}`;
     if (k !== placed) {
@@ -200,11 +202,11 @@
     draw(g, placement(g), (it) => alpha(lit.get(key(it.mark)), now));
   }
 
-  // desenhaEm pinta as caixas acesas agora sobre a imagem baixada, que tem o
-  // tamanho NATIVO da câmera. A disposição é a da tela, só ampliada: a imagem
-  // sai como a tela está, com o rótulo no mesmo lugar e do mesmo tamanho
-  // relativo. A opacidade vai cheia - uma caixa pela metade numa foto parece
-  // defeito, não esmaecimento.
+  // drawOn paints the lit boxes now over the downloaded image, which has the
+  // camera's NATIVE size. The layout is the screen's, just scaled up: the image
+  // comes out as the screen is, with the label in the same place and at the
+  // same relative size. Opacity goes full - a half-faded box in a photo looks
+  // like a defect, not a fade.
   export function drawOn(g: CanvasRenderingContext2D, width: number, height: number) {
     if (!lit.size) return;
     if (!image.w) {
@@ -226,7 +228,7 @@
     g.restore();
   }
 
-  // --- tamanho --------------------------------------------------------------
+  // --- size -----------------------------------------------------------------
 
   function measure() {
     const w = video.clientWidth;
@@ -246,7 +248,8 @@
   onMount(() => {
     const ro = new ResizeObserver(measure);
     ro.observe(video);
-    // A resolução chega depois do elemento, e muda quando a câmera muda.
+    // The resolution arrives after the element, and changes when the camera
+    // changes.
     video.addEventListener('loadedmetadata', measure);
     video.addEventListener('resize', measure);
     measure();

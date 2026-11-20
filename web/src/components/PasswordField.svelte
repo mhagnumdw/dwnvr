@@ -1,14 +1,15 @@
 <!--
-  Campo de senha com o olho para conferir o que se digitou. Senha digitada no
-  celular erra fácil; o olho deixa conferir antes de mandar.
+  Password field with the eye to check what was typed. A password typed on the
+  phone is easy to get wrong; the eye lets you check before sending.
 
-    <CampoSenha bind:value={senha} placeholder="senha" autocomplete="current-password" />
+  <PasswordField bind:value={senha} placeholder="senha"
+  autocomplete="current-password" />
 -->
 <script lang="ts">
   import type { HTMLInputAttributes } from 'svelte/elements';
   import Icon from './Icon.svelte';
 
-  // O resto vai direto ao <input>: minlength, maxlength, id.
+  // The rest goes straight to the <input>: minlength, maxlength, id.
   interface Props extends Omit<HTMLInputAttributes, 'value' | 'type'> {
     value?: string;
   }
@@ -34,7 +35,7 @@
     required
     {...rest}
   />
-  <!-- type="button" para não submeter o formulário. -->
+  <!-- type="button" so it does not submit the form. -->
   <button
     type="button"
     class="eye"
@@ -52,13 +53,13 @@
     position: relative;
   }
 
-  /* Espaço para o olho, que fica por cima do fim do campo. */
+  /* Room for the eye, which sits over the end of the field. */
   input {
     width: 100%;
     padding-right: 44px;
   }
 
-  /* O Edge põe um olho próprio no campo de senha; com o nosso, seriam dois. */
+  /* Edge puts its own eye on the password field; with ours there would be two. */
   input::-ms-reveal {
     display: none;
   }

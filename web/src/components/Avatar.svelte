@@ -1,22 +1,22 @@
 <!--
-  A foto da pessoa, num círculo. Sem foto, as iniciais do nome num círculo
-  colorido, sem arquivo nenhum: a cor sai do usuário, então é sempre a mesma
-  para a mesma pessoa.
+  A person's photo, in a circle. Without a photo, the initials of the name in a
+  colored circle, with no file at all: the color comes from the user, so it is
+  always the same for the same person.
 
-    <Avatar pessoa={{ username, name, avatar }} tamanho={32} />
+  <Avatar person={{ username, name, avatar }} size={32} />
 -->
 <script lang="ts">
   import { mediaURL } from '../lib/api.ts';
 
   interface Props {
-    // Nulo antes de a sessão chegar: aí sai o círculo vazio.
+    // Null before the session arrives: then the empty circle is drawn.
     person: { username?: string; name?: string; avatar?: string } | null | undefined;
     size?: number;
   }
 
   let { person, size = 32 }: Props = $props();
 
-  // Escuras o bastante para o branco das iniciais ler bem.
+  // Dark enough for the white of the initials to read well.
   const COLORS = ['#8957e5', '#1f6feb', '#238636', '#9e6a03', '#bf4b8a', '#0e7490'] as const;
 
   function colorOf(user = '') {
@@ -25,14 +25,14 @@
     return COLORS[h % COLORS.length] ?? COLORS[0];
   }
 
-  // A primeira letra do primeiro e do último nome: "Maria Clara Souza" é MS.
+  // The first letter of the first and last names: "Maria Clara Souza" is MS.
   function initials(name = '') {
     const p = name.trim().split(/\s+/);
     return ((p[0]?.[0] ?? '') + (p.length > 1 ? (p.at(-1)?.[0] ?? '') : '')).toUpperCase();
   }
 
-  // A foto que não carregou (apagada por outro aparelho, servidor fora) cai
-  // nas iniciais, em vez do ícone de imagem quebrada.
+  // A photo that failed to load (deleted from another device, server down)
+  // falls back to the initials, instead of the broken-image icon.
   let failed = $state('');
   const photo = $derived(person?.avatar && failed !== person.avatar ? person.avatar : '');
 </script>

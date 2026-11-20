@@ -1,13 +1,13 @@
 <script lang="ts">
-  // Relógio da reprodução que também aceita um horário digitado.
+  // Playback clock that also accepts a typed time.
   //
-  // É um <input> o tempo todo, e não um texto que vira campo no clique: o
-  // Safari do iPhone só abre o teclado quando o foco nasce do próprio toque, e
-  // um focus() chamado depois de trocar o elemento chega tarde demais.
+  // It is an <input> all the time, not a text that becomes a field on click:
+  // iPhone Safari only opens the keyboard when focus comes from the tap itself,
+  // and a focus() called after swapping the element arrives too late.
   //
-  // A máscara mora em lib/mascaraHora.ts, a mesma dos campos de horário de
-  // Detecções. Sem os segundos (`segundos={false}`), o relógio mostra e aceita
-  // só HH:MM, e `onir` recebe o segundo zero do minuto digitado.
+  // The mask lives in lib/hourMask.ts, the same one as the time fields in
+  // Detections. Without the seconds (`segundos={false}`), the clock shows and
+  // accepts only HH:MM, and `ongo` receives second zero of the typed minute.
   import { hhmm, hhmmss } from '../lib/format.ts';
   import { ghost as rest, mask, shake, secondsOfDay } from '../lib/hourMask.ts';
 
@@ -26,8 +26,8 @@
   let editing = $state(false);
   let text = $state('');
   let typed = $state<string[]>(['']);
-  // O que o player mostrava ao abrir o campo, para servir de placeholder: o
-  // relógio de fundo continua andando, e o placeholder piscando distrai.
+  // What the player showed when the field opened, to serve as the placeholder:
+  // the background clock keeps running, and a flickering placeholder distracts.
   let before = $state('');
 
   const ghost = $derived(rest(typed, groups));
@@ -47,8 +47,9 @@
     );
     text = m.g.join(':');
     typed = m.g;
-    // Direto no DOM: quando o dígito é recusado o texto não muda, o Svelte não
-    // teria o que atualizar e o caractere recusado ficaria no campo.
+    // Straight on the DOM: when a digit is rejected the text does not change,
+    // Svelte has nothing to update, and the rejected character would stay in
+    // the field.
     e.currentTarget.value = text;
     if (m.rejected) shake(input);
   }
@@ -88,8 +89,9 @@
 </span>
 
 <style>
-  /* Em repouso e editando é a mesma caixa: nada ao lado se mexe quando o campo
-     abre. A largura cabe "00:00:00" com folga; os dígitos têm largura fixa. */
+  /* At rest and editing it is the same box: nothing beside it moves when the
+     field opens. The width fits "00:00:00" with room to spare; the digits have
+     fixed width. */
   .clock {
     position: relative;
     display: inline-block;
@@ -108,7 +110,7 @@
     width: 100%;
     height: 100%;
     margin: 0;
-    /* 16px também evita o zoom automático do Safari ao focar o campo. */
+    /* 16px also avoids Safari's automatic zoom when the field gets focus. */
     font: inherit;
     font-size: 16px;
     line-height: 24px;

@@ -1,13 +1,14 @@
 <script lang="ts">
-  // Um ícone da interface, pelo nome que ele tem em `lib/iconesUi.ts`. Segue a
-  // cor do texto em volta (currentColor), e o tamanho vem de quem usa: em
-  // pixels, ou o do texto por padrão.
+  // A UI icon, by the name it has in `lib/uiIcons.ts`. It follows the
+  // surrounding text color (currentColor), and the size comes from whoever uses
+  // it: in pixels, or the text size by default.
   import { UI_ICONS, DEFAULT_STROKE, type UiIconName } from '../lib/uiIcons.ts';
 
   interface Props {
     name: UiIconName;
     size?: number | string;
-    // Número, ou um `var(--x, n)` quando a tela casa o traço com os vizinhos.
+    // A number, or a `var(--x, n)` when the screen matches the stroke to its
+    // neighbors.
     stroke?: number | string;
   }
 

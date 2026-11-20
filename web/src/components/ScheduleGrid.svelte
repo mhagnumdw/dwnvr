@@ -1,12 +1,13 @@
 <!--
-  A grade da semana dos horários do alerta: no desktop os dias em linhas e as
-  horas em colunas, e no celular virada, com os dias em colunas. A virada é só
-  do CSS: cada célula leva a própria linha e coluna das duas orientações.
+  The week grid of the alert schedules: on the desktop the days in rows and the
+  hours in columns, and on the phone flipped, with the days in columns. The flip
+  is CSS only: each cell carries its own row and column for both orientations.
 
-  Clicar numa hora marca ou desmarca; arrastar com o mouse marca um retângulo,
-  no modo da primeira célula; o dia e a hora nas bordas marcam a linha ou a
-  coluna inteira. No toque só o toque parado marca, porque arrastar rola a
-  folha. Quem pinta é quem usa (`onpinta`): a grade só desenha a cobertura.
+  Clicking an hour checks or unchecks it; dragging with the mouse marks a
+  rectangle, in the mode of the first cell; the day and the hour on the edges
+  mark the whole row or column. On touch only a still tap marks, because
+  dragging scrolls the sheet. Whoever uses it does the painting (`onpaint`): the
+  grid only draws the coverage.
 -->
 <script lang="ts">
   import { DIAS, fullHour, whole, dayName, clipsOfHour } from '../lib/weekGrid.ts';
@@ -15,7 +16,8 @@
 
   interface Props {
     coverage: Coverage;
-    // As horas do horário sob o mouse ou o foco na lista, contornadas.
+    // The hours of the schedule under the mouse or the focus in the list,
+    // outlined.
     highlight: Coverage | null;
     onpaint: (d0: number, h0: number, d1: number, h1: number, mark: boolean) => void;
   }
@@ -24,8 +26,8 @@
 
   const HOURS = [...Array(24).keys()];
   const hh = (n: number) => String(n).padStart(2, '0');
-  // As horas 06, 12 e 18 abrem um respiro: o olho acha a manhã, a tarde e a
-  // noite sem contar quadradinho.
+  // The hours 06, 12 and 18 open a gap: the eye finds morning, afternoon and
+  // night without counting little squares.
   const quarto = (h: number) => h === 6 || h === 12 || h === 18;
 
   function condition(ps: [number, number][], h: number) {
@@ -37,8 +39,8 @@
     return `marcada ${clips.join(' e ')}`;
   }
 
-  // O pedaço marcado de uma hora pela metade, na posição dele. Um minuto só
-  // sumiria na tela: o pedaço tem um mínimo para ser visto.
+  // The marked piece of a half hour, at its position. A single minute would
+  // vanish on screen: the piece has a minimum so it can be seen.
   function clips(ps: [number, number][]) {
     return ps
       .flatMap(([a, b]) => {
@@ -76,8 +78,8 @@
   const fullDay = $derived(cells.map((hs) => hs.every((c) => c.full)));
   const fullHourAllDay = $derived(HOURS.map((h) => cells.every((hs) => hs[h]?.full)));
 
-  // O retângulo que o mouse está arrastando, e o toque que ainda pode virar
-  // rolagem.
+  // The rectangle the mouse is dragging, and the touch that may still turn into
+  // a scroll.
   let drag = $state<{
     d0: number;
     h0: number;
@@ -95,8 +97,8 @@
     h >= Math.min(drag.h0, drag.h1) &&
     h <= Math.max(drag.h0, drag.h1);
 
-  // A linha embaixo da grade: o que fazer, a hora sob o mouse, o que o arrasto
-  // vai marcar. Nula, a instrução.
+  // The line under the grid: what to do, the hour under the mouse, what the
+  // drag will mark. When null, the instruction.
   let info = $state<{ forte: string; rest: string } | null>(null);
   const instruction = () =>
     matchMedia('(pointer: coarse)').matches
@@ -132,7 +134,7 @@
   function press(e: PointerEvent & { currentTarget: HTMLElement }) {
     const c = cellOf(e.target);
     if (!c) return;
-    // No toque quem rola é o navegador: só o toque parado marca.
+    // On touch the browser does the scrolling: only a still tap marks.
     if (e.pointerType === 'touch') {
       touch = { ...c, x: e.clientX, y: e.clientY, id: e.pointerId };
       return;
@@ -153,7 +155,8 @@
 
   function move(e: PointerEvent) {
     if (drag?.id === e.pointerId) {
-      // Com o ponteiro capturado, o alvo é sempre a grade: a célula vem do ponto.
+      // With the pointer captured, the target is always the grid: the cell
+      // comes from the point.
       const c = cellOf(document.elementFromPoint(e.clientX, e.clientY));
       if (c && (c.d !== drag.d1 || c.h !== drag.h1)) {
         drag.d1 = c.d;
@@ -321,7 +324,7 @@
     background-color: var(--cor);
     border-color: var(--cor);
   }
-  /* A hora pela metade: só o pedaço marcado fica pintado, na posição dele. */
+  /* The half hour: only the marked piece is painted, at its position. */
   .cel.partial {
     border-color: var(--cor);
     border-style: dashed;
@@ -344,7 +347,7 @@
     margin-left: 3px;
   }
 
-  /* O celular: a grade virada, com os dias em colunas e as horas em linhas. */
+  /* The phone: the grid flipped, with the days in columns and the hours in rows. */
   @media (max-width: 639px) {
     .grid {
       --dir: to bottom;
@@ -374,9 +377,9 @@
     }
   }
 
-  /* Duas linhas sempre: a instrução ocupa duas, e a dica da hora, uma. Se a
-     altura mudasse no meio do arrasto, a folha rolada até o fim subiria, e a
-     grade fugiria do mouse. */
+  /* Always two lines: the instruction takes two, and the hour hint, one. If the
+     height changed mid-drag, the sheet scrolled to the end would jump up, and
+     the grid would slip away from the mouse. */
   .info {
     min-height: 3em;
     line-height: 1.5;

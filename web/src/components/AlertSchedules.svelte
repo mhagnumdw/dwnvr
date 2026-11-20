@@ -1,10 +1,11 @@
 <!--
-  A seção Horários da aba Alerta: a caixa que limita o alerta, a grade da
-  semana e a lista digitada, que andam juntas. Digitar repinta a grade; pintar
-  refaz a lista inteira na forma canônica (lib/horarios.ts).
+  The Schedules section of the Alert tab: the box that limits the alert, the
+  week grid, and the typed list, which go together. Typing repaints the grid;
+  painting rebuilds the whole list in canonical form (lib/schedules.ts).
 
-  A caixa e a lista moram no formulário, como o "onde" do alerta: é o salvar
-  dele que confere o que falta e apaga os horários com a caixa desmarcada.
+  The box and the list live in the form, like the alert's "where": the form's
+  save is what checks what is missing and deletes the schedules when the box is
+  unchecked.
 -->
 <script lang="ts">
   import { tick } from 'svelte';
@@ -26,9 +27,9 @@
   interface Props {
     limits?: boolean;
     schedules?: Schedule[];
-    // "America/Fortaleza (UTC−03:00)", do /api/health; vazio antes da leitura.
+    // "America/Fortaleza (UTC−03:00)", from /api/health; empty before the read.
     timezone: string;
-    // Depois de um salvar barrado: o horário pela metade fica vermelho.
+    // After a blocked save: the half-filled schedule turns red.
     markIncomplete: boolean;
     onchange: () => void;
   }
@@ -43,23 +44,23 @@
 
   const listCoverage = $derived(coverage(schedules));
 
-  // A linha com o foco: o "Até" antes do "De" só fica vermelho fora dela, porque
-  // no meio da digitação ("1" a caminho de "18:00") ele ainda é provisório.
+  // The row with focus: the "Até" before the "De" only turns red outside it,
+  // because mid-typing ("1" on the way to "18:00") it is still provisional.
   let focused = $state<number | null>(null);
 
-  // O horário sob o mouse.
+  // The schedule under the mouse.
   let sobOMouse = $state<number | null>(null);
 
-  // A grade contorna o horário sob o mouse e, sem mouse em cima de nenhum, o
-  // que tem o foco. Os dois ficam separados para o mouse que sai não apagar o
-  // contorno do foco que ficou.
+  // The grid outlines the schedule under the mouse and, with the mouse over
+  // none, the one with focus. The two are kept separate so a mouse that leaves
+  // does not erase the outline of the focus that stayed.
   const isHighlighted = $derived(sobOMouse ?? focused);
   const highlight = $derived.by(() => {
     const h = schedules.find((x) => x.key === isHighlighted);
     return h && valid(h) ? coverage([h]) : null;
   });
 
-  // A lista acabou de ser refeita pela grade: as linhas novas piscam.
+  // The list was just rebuilt by the grid: the new rows flash.
   let redone = $state(false);
 
   let list = $state<HTMLElement>();
@@ -72,8 +73,8 @@
 
   function paint(d0: number, h0: number, d1: number, h1: number, mark: boolean) {
     const c = paintHours(listCoverage, d0, h0, d1, h1, mark);
-    // O que estava pela metade (sem dia ou sem hora) vai para o fim, para não
-    // sumir.
+    // What was half-filled (no day or no time) goes to the end, so it does not
+    // vanish.
     change([...schedulesOf(c), ...schedules.filter((h) => !valid(h))], true);
   }
 
@@ -98,7 +99,8 @@
     await tick();
     const lastOne = list?.lastElementChild as HTMLElement | null;
     lastOne?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    // O horário vazio do "novo horário" já recebe o foco no primeiro dia.
+    // The empty schedule of the "new schedule" already gets focus on the first
+    // day.
     if (newOnes.some((h) => !valid(h)))
       lastOne?.querySelector<HTMLElement>('.day')?.focus({ preventScroll: true });
   }

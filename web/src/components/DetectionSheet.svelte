@@ -1,10 +1,11 @@
 <!--
-  A folha de uma detecção, aberta pelo toque na miniatura da tela Detecções.
+  The sheet of a detection, opened by tapping the thumbnail on the Detections
+  screen.
 
-  Mostra o quadro que o detector de objetos olhou, grande e com os rótulos das
-  caixas, e toca o trecho em volta dele só quando pedido: ANTES_MS antes do
-  onset até DEPOIS_MS depois. O player é o mesmo de Gravações, com a lista de
-  segmentos cortada nesse trecho - então ele não baixa nada além dele.
+  It shows the frame the object detector looked at, large and with the box
+  labels, and plays the clip around it only when asked: BEFORE_MS before the
+  onset until AFTER_MS after. The player is the same as Recordings, with the
+  segment list cut to that clip - so it downloads nothing beyond it.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -24,66 +25,71 @@
   import { recordingsLink } from '../lib/route.svelte.ts';
   import { fullscreen, toggleFullscreen, leaveFullscreen } from '../lib/fullscreen.svelte.ts';
 
-  // O trecho: um pouco antes do onset, para ver o objeto entrar, e o bastante
-  // depois para ver o que ele fez. Os mesmos números do mock aprovado.
+  // The clip: a bit before the onset, to see the object come in, and enough
+  // after to see what it did. The same numbers as the approved mock.
   const BEFORE_MS = 2000;
   const AFTER_MS = 6000;
 
-  // A largura da folha. O palco é 16:9 e é o que mais cresce, então numa
-  // janela baixa é a largura que precisa ceder para o quadro caber inteiro -
-  // o teto sai da altura livre, e não o contrário. `RESTO_PX` é o que o resto
-  // da folha ocupa em altura (cabeçalho 36 + objetos 36, a altura do botão
-  // de ocultar + ações 44 + três espaços de 14 + 28 de padding + 2 de borda)
-  // e `RESPIRO_PX` é o que fica dos lados do palco (28 de padding + 2 de
-  // borda), que entra na largura mas não no palco. Sem o botão, quando a
-  // câmera já está oculta, a linha dos objetos tem 19,5 e a conta sobra - a
-  // folha sai um pouco mais estreita, o que não faz mal.
+  // The sheet width. The stage is 16:9 and is what grows the most, so in a
+  // short window it is the width that has to give way for the frame to fit
+  // entirely - the ceiling comes from the free height, not the other way
+  // around. `REST_PX` is what the rest of the sheet takes in height (header 36
+  // + objects 36, the height of the hide button + actions 44 + three gaps of 14
+  // + 28 of padding + 2 of border) and `BREATHING_PX` is what is left on the
+  // sides of the stage (28 of padding + 2 of border), which goes into the width
+  // but not into the stage. Without the button, when the camera is already
+  // hidden, the objects row is 19.5 and the sum comes out long - the sheet ends
+  // up slightly narrower, which does no harm.
   //
-  // A conta precisa fechar certa, arredondando para cima: com a folha 1px
-  // acima do teto aparece a barra de rolagem, ela come a largura, o palco encolhe,
-  // a folha cabe, a barra some - e o ciclo se repete a cada quadro, com a
-  // folha vibrando. Foi o que aconteceu com 169 e 28, que esqueciam a borda e
-  // o meio pixel dos objetos. O `reservaRolagem` do Modal corta o ciclo de vez,
-  // para quando a folha rola de verdade.
+  // The math has to come out exactly right, rounding up: with the sheet 1px
+  // above the ceiling, the scrollbar appears, eats the width, the stage
+  // shrinks, the sheet fits, the bar goes away - and the cycle repeats every
+  // frame, with the sheet jittering. That is what happened with 169 and 28,
+  // which forgot the border and the half pixel of the objects. The Modal's
+  // `scrollReserve` cuts the cycle for good, for when the sheet really does
+  // scroll.
   //
-  // O piso existe porque a conta não tem fundo: numa janela muito baixa ela
-  // pedia uma folha mais estreita que a própria fileira de botões, e aí o
-  // palco é que transbordava para os lados.
+  // The floor exists because the math has no bottom: in a very short window it
+  // asked for a sheet narrower than the button row itself, and then the stage
+  // overflowed to the sides.
   //
-  // Uma lista de objetos que quebre em duas linhas deixa a conta curta, e o
-  // piso também. Nos dois casos o `grid-auto-rows` do Modal põe a folha para
-  // rolar, que é o pior caso - e não o quadro cobrindo os botões, que era o
-  // defeito.
+  // An object list that wraps onto two lines makes the math come up short, and
+  // so does the floor. In both cases the Modal's `grid-auto-rows` makes the
+  // sheet scroll, which is the worst case - and not the frame covering the
+  // buttons, which was the defect.
   //
-  // A detecção que alertou ganha o bloco "alertou" acima dos objetos, e a
-  // conta soma a altura dele: `BLOCO_PX` é o bloco com o título (14 de espaço
-  // + 2 de borda + 16 de padding + 21 do título) e `LINHA_DO_BLOCO_PX`, cada
-  // objeto dele (20 da linha + 4 de espaço).
+  // The detection that alerted gets the "alertou" block above the objects, and
+  // the math adds its height: `BLOCK_PX` is the block with the title (14 of gap
+  // + 2 of border + 16 of padding + 21 of title) and `BLOCK_ROW_PX`, each of
+  // its objects (20 for the row + 4 of gap).
   const MAX_WIDTH_PX = 880;
   const MIN_WIDTH_PX = 360;
   const REST_PX = 188;
   const BREATHING_PX = 30;
   const BLOCK_PX = 53;
   const BLOCK_ROW_PX = 24;
-  // A opacidade do que fica no quadro mas não é o assunto: o objeto que não
-  // entrou no alerta, e as áreas fora da realçada.
+  // The opacity of what stays in the frame but isn't the subject: the object
+  // that wasn't part of the alert, and the areas other than the highlighted
+  // one.
   const DIMMED = 0.35;
 
   interface Props {
     det: Detection;
     camera: string;
     onclose: () => void;
-    // Nulo é "não há": sem detecção anterior, ou a câmera já oculta.
+    // Null means "there isn't one": no previous detection, or the camera is
+    // already hidden.
     onprevious?: (() => void) | null;
     onnext?: (() => void) | null;
     onhide?: (() => void) | null;
-    // As áreas do filtro nesta câmera: o contorno vai sobre o quadro, e diz
-    // por que a detecção entrou.
+    // The filter's areas on this camera: the outline goes over the frame, and
+    // says why the detection got in.
     areas?: readonly (readonly Point[])[] | null;
-    // As áreas em que a detecção alertou, pelo id gravado na marca, com o
-    // nome e o contorno de agora; `pontos` nulo é a área apagada desde então.
+    // The areas where the detection alerted, by the id saved in the mark, with
+    // the current name and outline; null `points` means the area has been
+    // deleted since.
     alertAreas?: readonly { id: string; nome: string; points: readonly Point[] | null }[];
-    // Abre o editor de área sobre este quadro. Nulo sem quadro.
+    // Opens the area editor over this frame. Null without a frame.
     onarea?: (() => void) | null;
   }
 
@@ -106,11 +112,12 @@
 
   const player = new Player();
   let playingNow = $state(false);
-  // O vídeo já pintou o primeiro quadro. Entre o toque no play e esse quadro
-  // passam uns 300ms buscando bytes, e nesse intervalo o `<video>` ainda é
-  // transparente: é ele quem decide quando o quadro parado sai de cena, não o
-  // clique. Trocar no clique deixava aparecer a foto sem as caixas no meio do
-  // caminho - o quadro com as caixas fica até o vídeo ter o que mostrar.
+  // The video has painted its first frame. Between the tap on play and that
+  // frame, about 300ms go by fetching bytes, and in that interval the `<video>`
+  // is still transparent: it is the video that decides when the still frame
+  // leaves the scene, not the click. Switching on click let the photo without
+  // the boxes show halfway through - the frame with the boxes stays until the
+  // video has something to show.
   let videoPainted = $state(false);
   let error = $state('');
   let Boxes = $state<typeof VideoBoxes | null>(null);
@@ -120,17 +127,17 @@
       (a, b) => family(a.familia).priority - family(b.familia).priority || b.score - a.score,
     ),
   );
-  // Com alerta, o bloco "alertou" leva os objetos que passaram na regra, e os
-  // outros ficam embaixo, como "não entrou no alerta".
+  // With an alert, the "alertou" block carries the objects that passed the
+  // rule, and the others stay below, as "não entrou no alerta".
   const ofAlert = $derived(objects.filter((o) => o.alert));
   const outsideAlert = $derived(objects.filter((o) => !o.alert));
   const alerted = $derived(ofAlert.length > 0);
   const alertArea = (id: string) => alertAreas.find((a) => a.id === id);
 
-  // A área do alerta realçada no quadro pelo toque no chip dela: as outras
-  // ficam apagadas, e o mesmo toque volta a mostrar todas. Não passa à
-  // próxima detecção pelas setas: a folha remonta a cada uma (o `{#key}` de
-  // Detecções).
+  // The alert area highlighted in the frame by tapping its chip: the others are
+  // dimmed, and the same tap shows all of them again. It doesn't carry over to
+  // the next detection through the arrows: the sheet remounts for each one (the
+  // `{#key}` in Detections).
   let highlighted = $state<string | null>(null);
   const toggleHighlight = (id: string) => {
     highlighted = highlighted === id ? null : id;
@@ -140,8 +147,8 @@
     const rest = REST_PX + (alerted ? BLOCK_PX + ofAlert.length * BLOCK_ROW_PX : 0);
     return `clamp(${MIN_WIDTH_PX}px, calc((var(--altura-max) - ${rest}px) * 16 / 9 + ${BREATHING_PX}px), ${MAX_WIDTH_PX}px)`;
   });
-  // As caixas do vídeo acendem quando a reprodução passa pelo quadro olhado,
-  // e a camada de Gravações acha esse quadro em `quadroMs` de cada marca.
+  // The video's boxes light up when playback passes the inspected frame, and
+  // the Recordings layer finds that frame in each mark's `frameMs`.
   const marks = $derived.by(() => {
     const frameMs = det.quadroMs;
     return frameMs === undefined ? [] : det.objetos.map((o) => ({ ...o, quadroMs: frameMs }));
@@ -151,10 +158,11 @@
 
   const score = (v: number) => v.toFixed(2).replace('.', ',');
 
-  // --- o quadro parado, com as caixas e os rótulos ---------------------------
+  // --- the still frame, with the boxes and labels ----------------------------
 
-  // Onde a imagem está dentro do palco: `object-fit: contain` deixa faixas
-  // pretas quando a câmera não é 16:9, e a fração da caixa é da imagem.
+  // Where the image is inside the stage: `object-fit: contain` leaves black
+  // bars when the camera isn't 16:9, and the box fraction is relative to the
+  // image.
   function paintFrame() {
     if (!canvas || !stage) return;
     const dpr = window.devicePixelRatio || 1;
@@ -170,8 +178,8 @@
     if (!iw || !ih) return;
     const s = Math.min(w / iw, h / ih);
     g.translate((w - iw * s) / 2, (h - ih * s) / 2);
-    // O contorno das áreas do filtro e das do alerta, uma vez cada. A
-    // realçada vai cheia, por cima, e as outras, apagadas.
+    // The outline of the filter's areas and the alert's areas, once each. The
+    // highlighted one goes full, on top, and the others, dimmed.
     const outlines = [...(areas ?? [])];
     for (const a of alertAreas)
       if (a.points && !outlines.includes(a.points)) outlines.push(a.points);
@@ -180,13 +188,14 @@
     for (const a of outlines) if (a !== emphasis) drawOutline(g, a, iw * s, ih * s);
     g.globalAlpha = 1;
     if (emphasis) fillArea(g, emphasis, iw * s, ih * s);
-    // O objeto que não entrou no alerta fica no quadro, mas apagado.
+    // The object that wasn't part of the alert stays in the frame, but dimmed.
     draw(g, place(g, det.objetos, iw * s, ih * s, true), (it) =>
       alerted && !it.mark.alert ? DIMMED : 1,
     );
   }
 
-  // Repinta quando o realce muda (e com o que mais o quadro lê).
+  // Repaints when the highlight changes (and with whatever else the frame
+  // reads).
   $effect(paintFrame);
 
   onMount(() => {
@@ -232,21 +241,23 @@
     }
   }
 
-  // Passou do fim do trecho: acaba ali e a folha volta ao quadro da detecção,
-  // como quando abriu. Parar é obrigatório - sem isso o player seguiria
-  // pedindo os segmentos seguintes, que a lista cortada nem tem, e ficaria
-  // esperando. Voltar ao quadro é o que torna o trecho repetível: o player
-  // sai de cena, e o play seguinte refaz o mesmo caminho da primeira vez.
+  // Past the end of the clip: it ends there and the sheet goes back to the
+  // detection's frame, as when it opened. Stopping is mandatory - without it
+  // the player would keep requesting the following segments, which the cut list
+  // doesn't have, and would end up waiting. Going back to the frame is what
+  // makes the clip repeatable: the player leaves the scene, and the next play
+  // retraces the same path as the first time.
   //
-  // Só pausar não bastava por dois motivos. O relógio parava no fim, e o play
-  // seguinte reacendia `playing` com a posição ainda passada do fim - este
-  // mesmo efeito pausava no quadro seguinte, e o trecho só tocava de novo
-  // fechando e reabrindo a folha. E o `<video>` ficava por cima do `<img>`
-  // exibindo o último quadro: trocar o src para recomeçar o deixava vazio por
-  // um instante, e o quadro parado piscava por baixo antes do vídeo entrar.
+  // Just pausing wasn't enough, for two reasons. The clock stopped at the end,
+  // and the next play relit `playing` with the position still past the end -
+  // this same effect paused on the next frame, and the clip only played again
+  // by closing and reopening the sheet. And the `<video>` stayed on top of the
+  // `<img>` showing the last frame: switching the src to restart left it empty
+  // for an instant, and the still frame flashed underneath before the video
+  // came in.
   //
-  // Soltar o player também devolve a memória do vídeo decodificado entre uma
-  // reprodução e outra, que num celular são dezenas de MB.
+  // Releasing the player also gives back the memory of the decoded video
+  // between one playback and the next, which on a phone is tens of MB.
   $effect(() => {
     if (playingNow && player.playing && player.currentMs >= endMs) {
       player.destroy();
@@ -259,13 +270,14 @@
     playingNow ? Math.max(0, Math.min(1, (player.currentMs - startMs) / (endMs - startMs))) : 0,
   );
 
-  // --- a tela cheia -----------------------------------------------------------
+  // --- fullscreen
+  // -------------------------------------------------------------
   //
-  // Vai para a tela cheia só o palco: o quadro, o vídeo, as caixas e a barra
-  // do trecho. O duplo clique chega depois de dois cliques simples, e cada um
-  // tocaria ou pausaria: o segundo é ignorado, e o primeiro, se pausou, é
-  // desfeito no duplo. Assim o duplo clique nunca pausa - com o trecho parado,
-  // ele já começa a tocar na tela cheia.
+  // Only the stage goes fullscreen: the frame, the video, the boxes and the
+  // clip bar. The double click arrives after two single clicks, and each would
+  // play or pause: the second is ignored, and the first, if it paused, is
+  // undone on the double. That way the double click never pauses - with the
+  // clip stopped, it starts playing in fullscreen.
 
   const inFullscreen = $derived(!!stage && fullscreen.el === stage);
   let pausedOnClick = false;
@@ -286,8 +298,9 @@
     pausedOnClick = false;
   }
 
-  // Na tela cheia as setas não trocam de detecção: a folha seguinte é outra,
-  // e o palco que estava na tela cheia sairia dela junto com a anterior.
+  // In fullscreen the arrows don't switch detections: the next sheet is a
+  // different one, and the stage that was fullscreen would leave it together
+  // with the previous one.
   function keyHandler(e: KeyboardEvent) {
     if (inFullscreen) return;
     if (e.key === 'ArrowLeft' && onprevious) onprevious();
@@ -421,8 +434,8 @@
     {#if alerted && outsideAlert.length}
       <span class="muted">não entrou no alerta</span>
     {/if}
-    <!-- Mora aqui, e não no cabeçalho: lá ele deixava pouco espaço e o nome
-         da câmera saía cortado no celular. -->
+    <!-- Lives here, not in the header: there it left little space and the
+         camera name came out cut off on a phone. -->
     {#if onarea}
       <button
         class="ghost hide"
@@ -482,7 +495,7 @@
     font-size: 13px;
   }
 
-  /* Os dois botões ficam juntos, à direita. */
+  /* The two buttons stay together, on the right. */
   .hide.together {
     margin-left: 0;
   }
@@ -495,8 +508,8 @@
     overflow: hidden;
   }
 
-  /* Sem `position`, e sem o 16:9: quem dá os dois é o navegador (`:fullscreen`)
-     ou a regra da simulada no app.css. */
+  /* Without `position`, and without the 16:9: the browser provides both
+     (`:fullscreen`), or the simulated-fullscreen rule in app.css. */
   .stage.fs {
     border-radius: 0;
   }
@@ -548,8 +561,8 @@
     margin-left: 3px;
   }
 
-  /* Sempre à vista, com mouse ou no toque: aqui o vídeo é o assunto da folha,
-     e não um entre vários, como no Ao vivo. */
+  /* Always visible, with a mouse or on touch: here the video is the subject of
+     the sheet, not one among several, as in Live. */
   .fullscreen {
     position: absolute;
     right: 8px;
@@ -619,7 +632,7 @@
     display: block;
   }
 
-  /* Na cor do sino (o --warn, #d29922), como o "só alertas" de Detecções. */
+  /* In the bell's color (--warn, #d29922), like "só alertas" in Detections. */
   .alert-block {
     display: grid;
     gap: 4px;
@@ -645,7 +658,7 @@
     gap: 6px;
   }
 
-  /* O tracejado é o do contorno da área sobre o quadro. */
+  /* The dashes are those of the area outline over the frame. */
   .chip-area {
     padding: 0 7px;
     border: 1px dashed var(--accent);
@@ -653,8 +666,8 @@
     font-size: 12px;
     white-space: nowrap;
   }
-  /* O chip que realça a área: do tamanho do de antes, para a conta da largura
-     da folha continuar valendo, com o alvo do dedo maior que ele. */
+  /* The chip that highlights the area: the size of the previous one, so the
+     sheet width math keeps holding, with a finger target larger than it. */
   button.chip-area {
     position: relative;
     min-height: 0;
@@ -662,8 +675,8 @@
     background: transparent;
     color: inherit;
   }
-  /* Sem passar da metade do espaço entre as linhas do bloco: o alvo de uma
-     não cobre o chip da de baixo. */
+  /* Not going past half the space between the block's rows: one row's target
+     doesn't cover the chip of the row below. */
   button.chip-area::after {
     content: '';
     position: absolute;

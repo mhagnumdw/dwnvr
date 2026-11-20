@@ -1,7 +1,7 @@
 <!--
-  O teste da seção smtp, no card "Este servidor" do Diagnóstico: manda um
-  e-mail para o endereço digitado e mostra a resposta do servidor de e-mail do
-  jeito que ela veio. É chunk à parte: só baixa com o e-mail ligado.
+  The test of the smtp section, in the "Este servidor" card of Diagnostics: it
+  sends an email to the typed address and shows the email server's response as
+  it came. It is a separate chunk: it only downloads with email turned on.
 -->
 <script lang="ts">
   import { api, messageOf } from '../lib/api.ts';
@@ -16,7 +16,8 @@
     result = null;
     try {
       const r = await api.testEmail(dest);
-      // Entregue ao servidor não é entregue na caixa: o spam o dwnvr não vê.
+      // Delivered to the server is not delivered to the inbox: dwnvr does not
+      // see spam.
       result = {
         ok: true,
         texto: `Enviado para ${r.sentTo}. Confira a caixa de entrada e o spam.`,
@@ -55,7 +56,7 @@
     gap: 6px;
   }
 
-  /* O mesmo título das linhas do log, logo abaixo no card. */
+  /* The same title as the log rows, right below in the card. */
   .title {
     margin: 0;
     text-transform: uppercase;

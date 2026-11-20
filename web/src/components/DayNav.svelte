@@ -1,11 +1,11 @@
 <!--
-  O seletor de dia com as setas de dia anterior e próximo dia, o mesmo em toda
-  tela que anda pelo histórico.
+  The day picker with previous-day and next-day arrows, the same on every screen
+  that walks through the history.
 
-  As setas andam pelo que EXISTE na lista, pulando os buracos. Sem lista - a
-  consulta que ainda não voltou, ou que falhou - elas andam de um em um dia até
-  hoje: não saber onde há material não pode virar não poder navegar. É o mesmo
-  modo permissivo do DayPicker.
+  The arrows walk through what EXISTS in the list, skipping the gaps. Without a
+  list - the query that has not returned yet, or failed - they walk one day at a
+  time up to today: not knowing where there is material must not turn into not
+  being able to navigate. It is the same permissive mode as DayPicker.
 -->
 <script lang="ts">
   import DayPicker from './DayPicker.svelte';

@@ -1,20 +1,22 @@
 <script lang="ts">
-  // Rodapé das telas que releem a saúde (Câmeras e Diagnóstico): de quanto em
-  // quanto tempo os dados são relidos e de quando é o que está na tela.
+  // Footer of the screens that reread health (Cameras and Diagnostics): how
+  // often the data is reread and when the data on screen is from.
   //
-  // A leitura vai como hora, e não como "há Xs": o Svelte só redesenha quando o
-  // estado muda, e isso acontece logo depois de cada leitura, então a conta
-  // feita aqui daria sempre "0s". Os segundos da hora andam a cada leitura, e
-  // isso já mostra que a tela está viva, sem timer próprio. Quando a leitura
-  // falha, a hora pararia sem ninguém notar: por isso o aviso, que se redesenha
-  // sozinho porque health.failingSince muda na primeira falha.
+  // The reading is shown as a time, not as "Xs ago": Svelte only redraws when
+  // state changes, and that happens right after each reading, so a computation
+  // done here would always give "0s". The seconds of the time move on each
+  // reading, and that already shows the screen is alive, with no timer of its
+  // own. When the reading fails, the time would stall unnoticed: hence the
+  // warning, which redraws by itself because health.failingSince changes on the
+  // first failure.
   //
-  // A hora da leitura boa passa pelo quando(), que põe a data na frente quando
-  // não é de hoje: a aba que ficou oculta a noite toda volta com os dados de
-  // ontem, e a leitura que dá certo redesenha a frase com o dia de agora. O
-  // aviso de falha leva a data sempre: falha seguida não muda o estado, então
-  // nada o redesenha, e a queda que começou às 23:50 diria "23:50:00" na manhã
-  // seguinte. Com a data fixa, o texto não envelhece.
+  // The time of a good reading goes through when(), which puts the date in
+  // front when it is not today: a tab left hidden all night comes back with
+  // yesterday's data, and the reading that succeeds redraws the sentence with
+  // today's day. The failure warning always carries the date: consecutive
+  // failures do not change the state, so nothing redraws it, and an outage that
+  // began at 23:50 would say "23:50:00" the next morning. With the date fixed,
+  // the text does not age.
   import { when } from '../lib/notices.ts';
   import { ddmm, hhmmss } from '../lib/format.ts';
   import { health, HEALTH_POLL_MS } from '../lib/state.svelte.ts';
@@ -22,8 +24,8 @@
   const withDate = (ms: number) => `${ddmm(ms)} ${hhmmss(ms)}`;
 </script>
 
-<!-- O separador vai como expressão porque o Svelte apara o espaço no início de
-     um bloco {#if}, e sem isso sai "5s· última leitura". -->
+<!-- The separator goes as an expression because Svelte trims the space at the
+     start of an {#if} block, and without it the output is "5s· última leitura". -->
 {#if health.failingSince}
   <p class="small failing">
     Sem resposta do servidor desde {withDate(health.failingSince)}{#if health.updatedAt}{' · '}os
