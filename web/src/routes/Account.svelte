@@ -1,7 +1,8 @@
 <!--
-  Minha conta: o que cada pessoa muda de si mesma, de qualquer papel. A foto e
-  o nome valem para todos; a senha, só para quem não é o dono, cuja senha fica
-  no dwnvr.yaml. Chega-se aqui pelo avatar do header: não tem aba.
+  My account: what each person changes about themselves, of any role. The photo
+  and the name apply to everyone; the password only to whoever is not the owner,
+  whose password lives in dwnvr.yaml. You get here through the avatar in the
+  header: there is no tab.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -12,7 +13,7 @@
   import Avatar from '../components/Avatar.svelte';
   import PasswordField from '../components/PasswordField.svelte';
 
-  // Nulo até a API responder.
+  // Null until the API answers.
   let data = $state<Account | null>(null);
   let error = $state('');
 
@@ -27,20 +28,20 @@
     }
   });
 
-  // Toda resposta da conta traz a pessoa como ficou: o header se atualiza
-  // junto, sem perguntar de novo.
+  // Every account response carries the person as they ended up: the header
+  // updates along with it, without asking again.
   function refresh(r: WithPerson) {
     session.pessoa = r.user;
   }
 
   // ---- foto ----------------------------------------------------------------
 
-  let choose = $state<HTMLInputElement>(); // o <input type="file">, escondido atrás do botão
+  let choose = $state<HTMLInputElement>(); // the <input type="file">, hidden behind the button
   let photo = $state({ busy: false, erro: '' });
 
   async function onChoose(e: Event & { currentTarget: HTMLInputElement }) {
     const file = e.currentTarget.files?.[0];
-    // Limpo já: escolher a mesma foto de novo tem de disparar o change.
+    // Cleared right away: choosing the same photo again must fire the change.
     e.currentTarget.value = '';
     if (!file || !data) return;
     photo = { busy: true, erro: '' };
@@ -62,7 +63,7 @@
     }
   }
 
-  // ---- nome ----------------------------------------------------------------
+  // ---- name ----------------------------------------------------------------
 
   let name = $state('');
   let nameState = $state({ busy: false, erro: '', ok: false });
@@ -81,12 +82,13 @@
     }
   }
 
-  // ---- senha ---------------------------------------------------------------
+  // ---- password ------------------------------------------------------------
 
   let current = $state('');
   let newOne = $state('');
-  // A nova de novo: senha digitada no celular erra fácil, e o erro só
-  // apareceria no próximo login. A conferência é só daqui; a API recebe uma.
+  // The new one again: a password typed on the phone is easy to get wrong, and
+  // the error would only show on the next login. The check is only done here;
+  // the API receives one.
   let repeated = $state('');
   let passwordState = $state({ busy: false, erro: '', ok: false });
 
@@ -133,8 +135,8 @@
         </div>
         {#if photo.erro}<span class="small error">{photo.erro}</span>{/if}
       </div>
-      <!-- Qualquer imagem que o aparelho abra. O corte e a redução são daqui,
-           do navegador: a foto original não sai do aparelho. -->
+      <!-- Any image the device can open. The crop and the downscale happen
+           here, in the browser: the original photo never leaves the device. -->
       <input bind:this={choose} type="file" accept="image/*" hidden onchange={onChoose} />
     </div>
 
@@ -168,8 +170,8 @@
     {:else}
       <form class="card form" onsubmit={changePassword}>
         <strong>Trocar senha</strong>
-        <!-- O usuário, escondido, é para o gerenciador de senhas do navegador
-             saber de quem é a senha nova. -->
+        <!-- The user, hidden, so the browser's password manager knows whose the
+             new password is. -->
         <input
           class="hidden"
           value={p.username}
@@ -279,8 +281,9 @@
     min-width: 0;
   }
 
-  /* Fora da vista, mas no formulário: com display: none o gerenciador de
-     senhas não o lê. Preso ao card, para não alargar a página no celular. */
+  /* Out of view, but in the form: with display: none the password manager does
+     not read it. Attached to the card, so it does not widen the page on the
+     phone. */
   .form input.hidden {
     position: absolute;
     top: 0;

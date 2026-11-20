@@ -1,14 +1,14 @@
 <script lang="ts">
-  // Detecções: as detecções de objeto de todas as câmeras numa grade só, da
-  // mais nova para a mais velha, agrupadas por hora.
+  // Detections: the object detections from all cameras in a single grid, newest
+  // to oldest, grouped by hour.
   //
-  // O dia inteiro não cabe na memória de um celular nem na tela, então nada
-  // aqui é "tudo": o servidor entrega páginas por cursor, a tela guarda só uma
-  // janela delas (MAX_ITENS) e o DOM só tem as linhas que estão à vista, com
-  // uma tela de sobra para cada lado. O resto é conta: a miniatura tem largura
-  // de coluna e proporção 16:9, e o cabeçalho da hora tem altura fixa - então
-  // a posição de cada linha se calcula sem medir nada, e a barra de rolagem
-  // tem o tamanho certo desde o primeiro quadro.
+  // A whole day fits neither in a phone's memory nor on the screen, so nothing
+  // here is "everything": the server hands out pages by cursor, the screen
+  // keeps only a window of them (MAX_ITEMS), and the DOM only has the rows in
+  // view, with one extra screen on each side. The rest is arithmetic: the
+  // thumbnail is one column wide with a 16:9 ratio, and the hour header has a
+  // fixed height - so every row's position is computed without measuring
+  // anything, and the scrollbar has the right size from the first frame.
   import { onMount, tick } from 'svelte';
   import DayNav from '../components/DayNav.svelte';
   import Clock from '../components/Clock.svelte';
@@ -42,8 +42,8 @@
   import type { FilterArea, Point, Rule } from '../lib/area.ts';
   import { lastSegment } from '../lib/thumbs.ts';
 
-  // Uma linha da grade: o cabeçalho da hora, ou uma fileira de miniaturas.
-  // `primeira` é o índice na `lista` da primeira miniatura da fileira.
+  // One row of the grid: the hour header, or a row of thumbnails. `firstIndex`
+  // is the index in `list` of the row's first thumbnail.
   interface HourRow {
     tipo: 'hora';
     k: string;
@@ -62,79 +62,84 @@
   }
   type Row = HourRow | GridRow;
 
-  // O intervalo de horário: só as detecções entre `de` e `ate` do `dia`, em
-  // minutos do dia e com os dois minutos inteiros incluídos. O `ate` menor que
-  // o `de` termina no dia seguinte (22:00 até 06:00 é a noite).
+  // The time range: only the detections between `from` and `to` of the `day`,
+  // in minutes of the day, with both end minutes fully included. A `to` smaller
+  // than `from` ends on the next day (22:00 to 06:00 is the night).
   interface Interval {
     day: string;
     from: number;
     to: number;
   }
 
-  // A detecção que segura a vista, e a distância dela até o topo.
+  // The detection that holds the view, and its distance from the top.
   interface Anchor {
     k: string;
     dy: number;
   }
 
-  // --- parâmetros -------------------------------------------------------------
+  // --- parameters
+  // -------------------------------------------------------------
 
-  // Colunas da grade: o zoom anda entre as pontas, e o padrão é o que o mock
-  // aprovado mostrava. No celular a miniatura de 3 colunas (103 px) já foi
-  // recusada como pequena demais; 4 fica como opção de quem quer varrer.
+  // Grid columns: zoom moves between the ends, and the default is what the
+  // approved mock showed. On a phone the 3-column thumbnail (103 px) was
+  // already rejected as too small; 4 stays as an option for whoever wants to
+  // sweep through.
   const COLUMNS = {
     phone: { padrao: 2, min: 1, max: 4 },
     desktop: { padrao: 5, min: 3, max: 8 },
   };
-  // A mesma quebra do App.svelte, onde a navegação sobe para o cabeçalho.
+  // The same breakpoint as App.svelte, where the navigation moves up to the
+  // header.
   const DESKTOP_PX = 720;
-  const HOUR_PX = 40; // o cabeçalho da hora entre os grupos
+  const HOUR_PX = 40; // the hour header between the groups
 
-  // Quantas telas de detecção carregar à frente do que se vê, para a rolagem
-  // não alcançar a borda do que já chegou. E quantas telas de DOM manter além
-  // da vista: o bastante para um arremesso de dedo não mostrar buraco.
+  // How many screens of detections to load ahead of what is visible, so
+  // scrolling does not reach the edge of what has already arrived. And how many
+  // screens of DOM to keep beyond the view: enough that a finger fling does not
+  // show a gap.
   const FETCH_SCREENS = 1.5;
   const DOM_SCREENS = 1;
-  // Quantas detecções guardar ao todo. Passando disso, o que ficou longe da
-  // vista, do lado oposto ao da rolagem, é solto - e é buscado de novo se a
-  // rolagem voltar até lá.
+  // How many detections to keep in total. Past that, whatever is far from the
+  // view, on the side opposite the scroll, is released - and fetched again if
+  // the scroll comes back there.
   const MAX_ITEMS = 600;
 
-  // A detecção nova chega sozinha enquanto a tela está no topo. A marca de
-  // objeto é gravada depois que o detector olha, com o instante do onset, então
-  // uma detecção pode nascer ABAIXO do topo que já se mostrou: a busca volta
-  // ATRASO_MS antes do topo para pegar essas também.
+  // A new detection arrives by itself while the screen is at the top. The
+  // object mark is written after the object detector looks, with the onset
+  // instant, so a detection can appear BELOW the top that was already shown:
+  // the fetch goes back DELAY_MS before the top to catch those too.
   const NOVAS_MS = 20000;
   const DELAY_MS = 5 * 60 * 1000;
 
-  // A altura de cada linha do menu do ⋮ - a da área, com a miniatura, é mais
-  // alta -, e a do resto dele (bordas, padding e separadores), para abrir para
-  // cima quando não cabe embaixo. E quanto tempo o "desfazer" fica na tela
-  // depois de ocultar uma câmera.
+  // The height of each row of the ⋮ menu - the area one, with the thumbnail, is
+  // taller - and of the rest of it (borders, padding and separators), to open
+  // upward when it does not fit below. And how long the "undo" stays on screen
+  // after hiding a camera.
   const MENU_ITEM_PX = 36;
   const MENU_AREA_PX = 56;
   const MENU_BEZEL_PX = 20;
   const UNDO_MS = 6000;
-  // Quantas miniaturas o chip do filtro de área empilha.
+  // How many thumbnails the area filter chip stacks.
   const THUMBNAILS_IN_CHIP = 3;
 
   const FAMILY_ORDER = FAMILY_NAMES;
 
-  // --- estado da URL ----------------------------------------------------------
+  // --- URL state
+  // --------------------------------------------------------------
 
   const params = currentParams();
 
   const urlIds = <T extends string>(k: string, validItems: readonly T[]): T[] | null =>
     params.has(k) ? params.getAll(k).filter((v): v is T => validItems.some((x) => x === v)) : null;
 
-  // Nulo é "todas": é o padrão, e fica fora do link.
+  // Null is "all": it is the default, and stays out of the link.
   let checkedCams = $state<string[] | null>(null);
   let checkedFamilies = $state<FamilyName[] | null>(urlIds('familias', FAMILY_ORDER));
   let chosenColumns = $state<number | null>(Number(params.get('cols')) || null);
   let withBoxes = $state(params.get('caixas') !== '0');
   let refreshing = $state(params.get('atualizar') !== '0');
 
-  // O intervalo vem do link inteiro ou não vem: `dia`, `de` e `ate`.
+  // The range comes from the whole link or not at all: `day`, `from` and `to`.
   const urlMinute = (k: string) => {
     const m = /^(\d{2}):(\d{2})$/.exec(params.get(k) ?? '');
     if (!m) return null;
@@ -146,20 +151,21 @@
     const day = params.get('dia') ?? '';
     const from = urlMinute('de');
     const to = urlMinute('ate');
-    // A ida e volta recusa o dia que não existe: 2026-02-31 viraria 03/03.
+    // The round trip rejects a day that does not exist: 2026-02-31 would become
+    // 03/03.
     if (dayKey(parseDay(day)) !== day || from === null || to === null) return null;
     return { day, from, to };
   }
   let interval = $state<Interval | null>(urlInterval());
 
-  // A área desenhada na hora: `area` e `rule`, os mesmos nomes da API. Ela
-  // restringe só a câmera dela; as outras câmeras marcadas não mudam.
+  // The area drawn on the spot: `area` and `rule`, the same names as the API.
+  // It restricts only its own camera; the other checked cameras do not change.
   let area = $state<FilterArea | null>(queryArea(params.get('area'), params.get('rule')));
-  // As áreas cadastradas marcadas, `<cam>/<id>`, como a API: as de uma câmera
-  // somam, a desenhada junto. Conferidas no cadastro quando as câmeras chegam:
-  // a área apagada sai do link.
+  // The checked registered areas, `<cam>/<id>`, as in the API: the ones from
+  // one camera add up, with the drawn one on top. Checked against the registry
+  // when the cameras arrive: a deleted area drops out of the link.
   let checkedAreas = $state<string[]>(params.getAll('areas'));
-  // Só as detecções com objeto que alertou: `alert=1`, como a API.
+  // Only the detections with an object that alerted: `alert=1`, as in the API.
   let onlyAlerts = $state(params.get('alert') === '1');
 
   let desktop = $state(window.innerWidth >= DESKTOP_PX);
@@ -183,38 +189,39 @@
     });
   });
 
-  // --- as detecções -----------------------------------------------------------
+  // --- the detections
+  // ---------------------------------------------------------
 
-  // A janela carregada, da mais nova para a mais velha. `$state.raw` porque
-  // cada página troca o array inteiro: proxy em 600 objetos com caixas seria
-  // custo sem uso.
+  // The loaded window, newest to oldest. `$state.raw` because each page
+  // replaces the whole array: a proxy over 600 objects with boxes would be cost
+  // with no use.
   let list = $state.raw<Detection[]>([]);
-  // Se há mais além de cada ponta da janela. Acima: detecção mais nova que o
-  // topo carregado - depois de um "ir para", ou depois de soltar o topo.
+  // Whether there is more beyond each end of the window. Above: a detection
+  // newer than the loaded top - after a "go to", or after releasing the top.
   let endAbove = $state(true);
   let endBelow = $state(false);
   let loaded = $state(false);
   let fetchingAbove = false;
   let fetchingBelow = false;
   let error = $state('');
-  // O instante do último "ir para", que serve de cursor quando ele caiu antes
-  // de qualquer detecção e a lista começou vazia. Reativo porque é ele que o
-  // relógio mostra com a lista vazia.
+  // The instant of the last "go to", which serves as the cursor when it landed
+  // before any detection and the list started empty. Reactive because it is
+  // what the clock shows when the list is empty.
   let target = $state<number | null>(null);
-  // Invalida a resposta de uma busca que já não descreve a tela: filtro novo,
-  // "ir para" novo.
+  // Invalidates the response of a fetch that no longer describes the screen:
+  // new filter, new "go to".
   let generation = 0;
 
-  // O ao vivo e Gravações só abrem para câmera que ainda está no cadastro: uma
-  // detecção antiga pode citar uma câmera removida desde então, e as duas telas
-  // trocariam o id desconhecido por outra câmera.
+  // Live and Recordings only open for a camera that is still in the registry:
+  // an old detection can cite a camera removed since then, and the two screens
+  // would swap the unknown id for another camera.
   const exists = (cam: string) => cameras.list.some((c) => c.id === cam);
 
   const key = (d: Detection) => `${d.cam}|${d.instanteMs}`;
 
   const names = $derived(Object.fromEntries(cameras.list.map((c) => [c.id, c.name])));
 
-  // As áreas cadastradas, por `<cam>/<id>`.
+  // The registered areas, by `<cam>/<id>`.
   const registered = $derived(
     new Map(
       cameras.list.flatMap((c) =>
@@ -224,7 +231,8 @@
   );
   const anyRegistered = $derived(registered.size > 0);
 
-  // Os contornos de cada câmera com área no filtro: a desenhada e as marcadas.
+  // The outlines of each camera with an area in the filter: the drawn one and
+  // the checked ones.
   const outlines = $derived.by(() => {
     const out: Record<string, Point[][]> = {};
     const sum = (cam: string, p: Point[]) => (out[cam] ??= []).push(p);
@@ -237,14 +245,16 @@
   });
   const withArea = $derived(area !== null || checkedAreas.length > 0);
 
-  // O botão "só alertas" aparece com alguma câmera alertando, ou com ele já
-  // ligado pelo link. O viewer recebe do alerta só o `enabled`.
+  // The "alerts only" button appears when some camera is alerting, or when it
+  // is already turned on by the link. The viewer gets only `enabled` from the
+  // alert.
   const anyAlert = $derived(cameras.list.some((c) => c.alert?.enabled));
 
   const alerted = (d: Detection) => d.objetos.some((o) => o.alert);
 
-  // As áreas em que a detecção alertou, com o nome e o contorno de agora. A
-  // que foi apagada desde então fica sem contorno, como "área apagada".
+  // The areas where the detection alerted, with the current name and outline.
+  // One that was deleted since then stays without an outline, as "deleted
+  // area".
   function alertAreas(d: Detection) {
     const ids = [...new Set(d.objetos.flatMap((o) => o.alertAreas ?? []))];
     return ids.map((id) => {
@@ -253,8 +263,9 @@
     });
   }
 
-  // Os contornos sobre a miniatura: os do filtro e, com o "só alertas", os das
-  // áreas do alerta. A área cadastrada que está nos dois desenha uma vez só.
+  // The outlines over the thumbnail: the filter's and, with "alerts only",
+  // those of the alert areas. A registered area that is in both is drawn only
+  // once.
   function outlinesOf(d: Detection): readonly (readonly Point[])[] {
     const out: (readonly Point[])[] = [...(outlines[d.cam] ?? [])];
     if (!onlyAlerts) return out;
@@ -262,8 +273,8 @@
     return out;
   }
 
-  // O que vai no pedido. Nulo quando o filtro não deixou nada marcado, e aí nem
-  // se pergunta ao servidor.
+  // What goes in the request. Null when the filter left nothing checked, and
+  // then the server is not even asked.
   const filter = $derived.by((): DetectionsFilter | null => {
     if (checkedCams?.length === 0 || checkedFamilies?.length === 0) return null;
     return {
@@ -275,8 +286,8 @@
     };
   });
 
-  // O intervalo em instantes: `de` incluído, `ate` excluído (o minuto final
-  // inteiro fica dentro). Nulo sem intervalo.
+  // The range in instants: `from` included, `to` excluded (the whole final
+  // minute stays inside). Null without a range.
   const limites = $derived.by(() => {
     if (!interval) return null;
     const from = parseDay(interval.day);
@@ -287,9 +298,9 @@
     return { from: from.getTime(), to: to.getTime() };
   });
 
-  // As detecções de uma página que caem no intervalo, e se alguma ficou de
-  // fora: a que passou da ponta diz que a lista acabou daquele lado, porque o
-  // servidor entrega em ordem.
+  // The detections of a page that fall in the range, and whether any was left
+  // out: one that went past the end says the list ended on that side, because
+  // the server delivers in order.
   function isInside(ds: Detection[]) {
     if (!limites) return { ds, wasCut: false };
     const { from, to } = limites;
@@ -297,16 +308,18 @@
     return { ds: ok, wasCut: ok.length < ds.length };
   }
 
-  // Uma página é o que enche duas telas: pouco mais que isso já é o prefetch.
+  // A page is what fills two screens: slightly more than that is already
+  // prefetch.
   function page() {
     const rows = Math.ceil(window.innerHeight / (grid.tileHeight + grid.vao)) + 1;
     return Math.min(200, Math.max(24, rows * columns * 2));
   }
 
-  // junta duas fatias em ordem, sem repetir: a busca de novas volta de
-  // propósito sobre o que já se tem, e uma página pode empatar com a vizinha.
+  // merges two slices in order, without repeats: the fetch for new ones
+  // deliberately goes back over what we already have, and a page can tie with
+  // its neighbor.
   function join(a: Detection[], b: Detection[]) {
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Set local, só para juntar
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local Set, only used to merge
     const seen = new Set<string>();
     const out: Detection[] = [];
     for (const d of [...a, ...b].sort(
@@ -320,9 +333,9 @@
     return out;
   }
 
-  // Com intervalo, a busca parte da ponta de cima dele - ou do "ir para", que
-  // fica preso dentro, no mínimo o primeiro minuto -, e a ponta de cima vale
-  // como o topo da lista.
+  // With a range, the fetch starts from its upper end - or from the "go to",
+  // which is clamped inside, at least the first minute - and the upper end
+  // counts as the top of the list.
   async function restart(requestNo: number | null = null) {
     const g = ++generation;
     const before = limites
@@ -368,8 +381,9 @@
       const { ds, wasCut } = isInside(r.deteccoes);
       let newOne = join(list, ds);
       endBelow = r.fim || wasCut;
-      // Solta o topo, que ficou para trás. A âncora mora na vista e a vista
-      // nunca está no pedaço solto: a sobra é bem maior que uma tela.
+      // Releases the top, which was left behind. The anchor lives in the view
+      // and the view is never in the released part: the surplus is much bigger
+      // than one screen.
       if (newOne.length > MAX_ITEMS) {
         newOne = newOne.slice(newOne.length - MAX_ITEMS);
         endAbove = false;
@@ -399,9 +413,9 @@
         newOne = newOne.slice(0, MAX_ITEMS);
         endBelow = false;
       }
-      // A lista vazia é um "ir para" sem nada antes dele - comum no começo de
-      // um intervalo. A página chega acima do instante pedido, e a vista vai ao
-      // pé dela, onde está a detecção mais perto dele.
+      // The empty list is a "go to" with nothing before it - common at the
+      // start of a range. The page arrives above the requested instant, and the
+      // view goes to its bottom, where the detection closest to it is.
       const empty = !list.length;
       list = newOne;
       if (empty) {
@@ -419,9 +433,9 @@
     verify();
   }
 
-  // As novas, e as atrasadas logo abaixo do topo. Só com o topo carregado: fora
-  // dele, a rolagem para cima é que as traz. Com um intervalo que já acabou, e
-  // passada a folga das atrasadas, não há o que buscar.
+  // The new ones, and the late ones just below the top. Only with the top
+  // loaded: outside it, scrolling up is what brings them. With a range that has
+  // already ended, and past the slack for late ones, there is nothing to fetch.
   async function novas() {
     if (!refreshing || document.hidden || !loaded || !endAbove || !filter || fetchingAbove) return;
     if (limites && Date.now() > limites.to + DELAY_MS) return;
@@ -432,40 +446,41 @@
       const { ds, wasCut } = isInside(r.deteccoes);
       const newer = ds[0];
       if (g !== generation || !newer) return;
-      // Quem está olhando o topo vê a novidade entrar; quem rolou para baixo
-      // não pode ter a tela empurrada por ela.
+      // Whoever is looking at the top sees the new item come in; whoever
+      // scrolled down must not have the screen pushed by it.
       const a = scrollRange.ini > 0 ? anchor() : null;
       list = join(ds, list);
-      // Mais de 200 no intervalo: as mais novas ficaram de fora, e a rolagem
-      // para cima as busca como faria depois de um "ir para".
+      // More than 200 in the range: the newest were left out, and scrolling up
+      // fetches them as it would after a "go to".
       if (!r.fim && !wasCut) endAbove = false;
       recordDay(dayKey(new Date(newer.instanteMs)));
       if (a) await restoreAnchor(a);
     } catch {
-      // A próxima rodada tenta de novo; um soluço da rede não vira aviso.
+      // The next round tries again; a network hiccup does not become a notice.
     }
   }
 
-  // --- os dias do calendário -------------------------------------------------
+  // --- the calendar days -----------------------------------------------------
 
-  // Os dias com detecção do filtro, para o calendário e as setas. Vazia é o
-  // modo permissivo do seletor: até a resposta chegar, ou se ela falhar, todo
-  // dia até hoje vale.
+  // The days with detections for the filter, for the calendar and the arrows.
+  // Empty is the picker's permissive mode: until the response arrives, or if it
+  // fails, every day up to today is valid.
   let daysWithDetection = $state.raw<string[]>([]);
-  // Quantas detecções do filtro cada dia tem, que o calendário mostra no dia.
-  // Não segue o intervalo de horário: é o dia inteiro.
+  // How many detections of the filter each day has, which the calendar shows on
+  // the day. It does not follow the time range: it is the whole day.
   let detectionsPerDay = $state.raw<Record<string, number>>({});
-  // Segura a primeira consulta até a câmera da URL ser resolvida: antes disso o
-  // filtro é "todas", e a consulta sairia à toa - e, com o disco frio, é a mais
-  // cara da tela.
+  // Holds the first query until the camera from the URL is resolved: before
+  // that the filter is "all", and the query would go out for nothing - and,
+  // with a cold disk, it is the most expensive one on the screen.
   let resolvedCameras = $state(false);
 
   $effect(() => {
     if (resolvedCameras) void loadDays(filter);
   });
 
-  // `manter` é a releitura de quando o calendário abre: a lista que já está lá
-  // é do mesmo filtro, e um soluço da rede não a troca pelo modo permissivo.
+  // `keep` is the re-read for when the calendar opens: the list already there
+  // is from the same filter, and a network hiccup does not swap it for the
+  // permissive mode.
   async function loadDays(f: DetectionsFilter | null, keep = false) {
     if (!f) {
       daysWithDetection = [];
@@ -484,21 +499,23 @@
     }
   }
 
-  // Hoje estreando no calendário com a tela aberta: a detecção nova já diz o
-  // dia, sem reler a lista. Em modo permissivo a lista fica vazia - um dia só a
-  // tiraria do "tudo liberado".
+  // Today debuting in the calendar with the screen open: the new detection
+  // already tells the day, without re-reading the list. In permissive mode the
+  // list stays empty - a single day would take it out of "everything allowed".
   function recordDay(day: string) {
     if (!daysWithDetection.length || daysWithDetection.includes(day)) return;
     daysWithDetection = [...daysWithDetection, day].sort();
   }
 
-  // Religar busca na hora: esperar a rodada seguinte pareceria que não pegou.
+  // Turning it back on fetches right away: waiting for the next round would
+  // look like it did not take.
   function toggleRefresh() {
     refreshing = !refreshing;
     if (refreshing) void novas();
   }
 
-  // --- a grade, calculada -----------------------------------------------------
+  // --- the grid, computed
+  // -----------------------------------------------------
 
   let listEl: HTMLDivElement | undefined;
   let width = $state(0);
@@ -516,8 +533,8 @@
   const WEEK = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
   const longDay = (ms: number) => `${WEEK[new Date(ms).getDay()]}, ${ddmm(ms)}`;
 
-  // As linhas na ordem da tela, cada uma com o `y` onde começa. `linhaDe[i]`
-  // diz em que linha mora a detecção i, para achar a âncora depois de uma troca.
+  // The rows in screen order, each with the `y` where it starts. `rowOf[i]`
+  // says which row holds detection i, to find the anchor after a swap.
   const layout = $derived.by(() => {
     const { vao, tileHeight } = grid;
     const rows: Row[] = [];
@@ -562,13 +579,13 @@
 
   // --- rolagem ----------------------------------------------------------------
 
-  // A vista em px da lista: `ini` é o que está logo abaixo da barra, `fim` o pé
-  // da janela. Relida a cada quadro de rolagem.
+  // The view in px of the list: `ini` is what is just below the bar, `fim` the
+  // foot of the window. Re-read on every scroll frame.
   let scrollRange = $state({ ini: 0, fim: 0 });
   let barEl: HTMLDivElement | undefined;
   let barH = $state(0);
-  // O cabeçalho do App fica grudado no topo no desktop; a barra desta tela
-  // gruda logo abaixo dele.
+  // The App header stays stuck to the top on desktop; this screen's bar sticks
+  // right below it.
   let cabH = $state(0);
 
   function measure() {
@@ -579,14 +596,15 @@
     if (ini !== scrollRange.ini || end !== scrollRange.fim) scrollRange = { ini, fim: end };
   }
 
-  // A âncora da última vista inteira, para a troca de largura (girar o
-  // celular) voltar ao mesmo lugar. A rolagem é em px, e a largura muda a
-  // altura de tudo - e as colunas, na quebra do DESKTOP_PX. Só é relida
-  // enquanto a janela tem a largura com que a grade foi medida: no meio da
-  // rotação a grade ainda é a velha e a rolagem já foi cortada pelo navegador,
-  // e a âncora lida ali seria a errada. E só quando a rolagem sai do lugar
-  // onde a âncora foi posta: a linha de 5 colunas começa noutra detecção, e
-  // reler a âncora depois de girar a faria andar uma linha a cada giro.
+  // The anchor of the last whole view, so a width change (rotating the phone)
+  // goes back to the same place. Scrolling is in px, and the width changes the
+  // height of everything - and the columns, at the DESKTOP_PX breakpoint. It is
+  // only re-read while the window has the width the grid was measured with: in
+  // the middle of a rotation the grid is still the old one and the scroll has
+  // already been clipped by the browser, and the anchor read there would be the
+  // wrong one. And only when the scroll leaves the place where the anchor was
+  // set: the 5-column row starts at a different detection, and re-reading the
+  // anchor after rotating would make it walk one row per rotation.
   let viewAnchor: Anchor | null = null;
   let gridWindow = window.innerWidth;
   let anchorY = 0;
@@ -619,8 +637,8 @@
     if (!endAbove && !fetchingAbove && scrollRange.ini < screenInfo * FETCH_SCREENS) void above();
   }
 
-  // O que vai para o DOM. A faixa anda em degraus de DEGRAU_PX, e não a cada
-  // pixel: a lista de linhas só é refeita quando a rolagem cruza um degrau.
+  // What goes to the DOM. The band moves in STEP_PX steps, not on every pixel:
+  // the list of rows is only rebuilt when the scroll crosses a step.
   const STEP_PX = 200;
   const visibleWindow = $derived.by(() => {
     const leftover = window.innerHeight * DOM_SCREENS;
@@ -630,7 +648,7 @@
     };
   });
 
-  // Primeira linha cujo fim passa de `y`: busca binária, as linhas vêm em ordem.
+  // First row whose end is past `y`: binary search, the rows come in order.
   function firstBelow(y: number) {
     const l = layout.linhas;
     let lo = 0;
@@ -644,7 +662,7 @@
     return lo;
   }
 
-  // A linha onde mora a detecção i da `lista`.
+  // The row where detection i of `list` lives.
   function detectionRow(i: number) {
     const li = layout.rowOf[i];
     return li === undefined ? undefined : layout.linhas[li];
@@ -660,8 +678,8 @@
     return out;
   });
 
-  // A primeira linha de miniaturas à vista: é ela que dá o dia e a hora da
-  // barra, e o cabeçalho que gruda.
+  // The first row of thumbnails in view: it is what gives the bar its day and
+  // hour, and the header that sticks.
   const atTop = $derived.by(() => {
     for (const row of layout.linhas.slice(firstBelow(scrollRange.ini + 1))) {
       if (row.tipo !== 'grade') continue;
@@ -670,13 +688,14 @@
     }
     return null;
   });
-  // Sem detecção à vista, vale o "ir para" - menos 1 ms, porque ele é o limite
-  // exclusivo da busca: ir para o dia 29 busca antes da meia-noite do dia 30, e
-  // mostrar o próprio limite fazia a barra piscar o dia 30 até a resposta chegar.
+  // With no detection in view, the "go to" applies - minus 1 ms, because it is
+  // the exclusive limit of the fetch: going to day 29 fetches before midnight
+  // of day 30, and showing the limit itself made the bar flash day 30 until the
+  // response arrived.
   const topMs = $derived(atTop?.det.instanteMs ?? (target != null ? target - 1 : Date.now()));
 
-  // O cabeçalho da hora gruda enquanto as miniaturas dela passam. É um só,
-  // fora da grade, porque o de dentro vai embora com a linha dele.
+  // The hour header sticks while its thumbnails go by. It is a single one,
+  // outside the grid, because the one inside leaves along with its row.
   const stuckHour = $derived.by(() => {
     if (!atTop || scrollRange.ini <= 0) return null;
     const l = layout.linhas;
@@ -687,9 +706,10 @@
     return null;
   });
 
-  // A âncora é a detecção no topo da vista e a distância dela até lá. Trocar
-  // o que está acima - página que chegou, topo solto, novas - mexe no `y` de
-  // tudo; restaurar a âncora devolve a vista ao mesmo lugar.
+  // The anchor is the detection at the top of the view and its distance from
+  // there. Changing what is above - a page that arrived, a released top, new
+  // items - moves the `y` of everything; restoring the anchor puts the view
+  // back in the same place.
   function anchor(): Anchor | null {
     if (!atTop) return null;
     return { k: key(atTop.det), dy: atTop.row.y - scrollRange.ini };
@@ -698,8 +718,8 @@
   async function restoreAnchor(a: Anchor | null) {
     await tick();
     if (!a) return;
-    // De novo: a ponta do intervalo, que aparece acima da lista quando a
-    // rolagem chega nela, empurra a lista sem mudar o `y` de linha nenhuma.
+    // Again: the end of the range, which appears above the list when the scroll
+    // reaches it, pushes the list without changing any row's `y`.
     measure();
     const row = detectionRow(list.findIndex((d) => key(d) === a.k));
     if (!row) return;
@@ -708,7 +728,7 @@
     measure();
   }
 
-  // Zoom e largura mudam a altura de tudo: a âncora segura a vista.
+  // Zoom and width change the height of everything: the anchor holds the view.
   async function changeColumns(step: number) {
     const a = anchor();
     chosenColumns = Math.min(strip.max, Math.max(strip.min, columns + step));
@@ -716,11 +736,12 @@
     verify();
   }
 
-  // --- as miniaturas ----------------------------------------------------------
+  // --- the thumbnails
+  // ---------------------------------------------------------
 
-  // A proporção de cada câmera, aprendida da primeira imagem que chega. A
-  // caixa do objeto é uma fração da IMAGEM, e numa câmera 4:3 dentro de uma
-  // miniatura 16:9 a imagem não ocupa a miniatura inteira.
+  // The aspect ratio of each camera, learned from the first image that arrives.
+  // The object's box is a fraction of the IMAGE, and on a 4:3 camera inside a
+  // 16:9 thumbnail the image does not fill the whole thumbnail.
   let ratios = $state<Record<string, number>>({});
 
   function learn(cam: string, img: HTMLImageElement) {
@@ -728,7 +749,7 @@
     if (w && h && ratios[cam] !== w / h) ratios[cam] = w / h;
   }
 
-  // Onde a imagem da câmera fica dentro da miniatura, em px.
+  // Where the camera's image sits inside the thumbnail, in px.
   function imageRect(cam: string) {
     const { tileWidth: W, tileHeight: H } = grid;
     const p = ratios[cam] ?? 16 / 9;
@@ -742,15 +763,15 @@
     return `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
   }
 
-  // O tamanho do score na miniatura, o mesmo do CSS de `.score` (altura) e uma
-  // folga para "0,84" (largura).
+  // The size of the score on the thumbnail, the same as the CSS of `.score`
+  // (height) plus some slack for "0,84" (width).
   const SCORE_HEIGHT_PX = { normal: 13, compact: 11 };
   const SCORE_WIDTH_PX = { normal: 30, compact: 26 };
 
-  // Em que lado de FORA da caixa o score cabe inteiro na miniatura: em cima,
-  // senão embaixo, senão ao lado. Nunca por dentro, que cobre o objeto - a
-  // cabeça de uma pessoa perto do topo. Sem lugar nenhum (caixa do tamanho da
-  // imagem), fica sem score; ele está na folha.
+  // On which side OUTSIDE the box the score fits entirely in the thumbnail:
+  // above, otherwise below, otherwise beside. Never inside, which covers the
+  // object - the head of a person near the top. With no room anywhere (box the
+  // size of the image), it goes without the score; it is on the sheet.
   function scoreSide(cam: string, box: Box, compact: boolean) {
     const { tileWidth: W, tileHeight: H } = grid;
     const img = imageRect(cam);
@@ -768,7 +789,7 @@
     return null;
   }
 
-  // As famílias de uma detecção, uma vez cada.
+  // The families of a detection, once each.
   function familiesOf(d: Detection) {
     const out: string[] = [];
     for (const o of d.objetos) if (!out.includes(o.familia)) out.push(o.familia);
@@ -779,9 +800,9 @@
 
   const pct = (v: number) => `${Math.min(1, Math.max(0, v)) * 100}%`;
 
-  // A caixa com a mesma folga do vídeo e da folha (CAIXA_FOLGA_PX), parando na
-  // borda da imagem. A folga é em px e a caixa em fração, então quem soma é o
-  // CSS.
+  // The box with the same slack as the video and the sheet (BOX_SLACK_PX),
+  // stopping at the image edge. The slack is in px and the box is a fraction,
+  // so the CSS does the adding.
   const start = (v: number) => `max(0px, calc(${pct(v)} - ${BOX_SLACK_PX}px))`;
   const size = (from: number, to: number) =>
     `calc(min(100%, calc(${pct(to)} + ${BOX_SLACK_PX}px)) - ${start(from)})`;
@@ -833,8 +854,9 @@
   function outsideCameras(e: MouseEvent) {
     const clickTarget = e.target instanceof Element ? e.target : null;
     if (openedCameras && camsEl && !camsEl.contains(clickTarget)) openedCameras = false;
-    // O alvo já fora da página é um item do menu que trocou de página: o
-    // "Filtrar por área" some debaixo do dedo, e o menu tem de ficar.
+    // A target already out of the page is a menu item that changed pages:
+    // "Filtrar por área" disappears from under the finger, and the menu has to
+    // stay.
     if (
       menu &&
       menuEl &&
@@ -845,21 +867,23 @@
       menu = null;
   }
 
-  // --- ocultar uma câmera daqui mesmo -----------------------------------------
+  // --- hiding a camera right here
+  // ---------------------------------------------
 
-  // O menu do ⋮ de uma miniatura. Um só, fora da grade e em `position: fixed`:
-  // a miniatura corta o que passa da borda dela, e a linha pode sair do DOM
-  // no meio da rolagem. Por isso mesmo ele fecha quando a tela rola.
+  // The ⋮ menu of a thumbnail. A single one, outside the grid and in `position:
+  // fixed`: the thumbnail clips whatever goes past its edge, and the row can
+  // leave the DOM in the middle of a scroll. For that very reason it closes
+  // when the screen scrolls.
   let menu = $state<{
     k: string;
     det: Detection;
     cam: string;
     instanteMs: number;
     x: number;
-    // Onde o ⋮ está na tela: o menu abre embaixo dele, ou em cima.
+    // Where the ⋮ is on screen: the menu opens below it, or above.
     topPos: number;
     base: number;
-    // A página das áreas: o conteúdo do menu vira a lista delas.
+    // The areas page: the menu content becomes the list of them.
     areas: boolean;
   } | null>(null);
   let menuEl = $state<HTMLDivElement | null>(null);
@@ -884,8 +908,9 @@
 
   const areasOf = (cam: string) => cameras.list.find((c) => c.id === cam)?.areas ?? [];
 
-  // O menu abre embaixo do ⋮ quando cabe, e senão do lado que tem mais espaço.
-  // A página das áreas pode passar dos dois - são até 8 -, e aí rola dentro.
+  // The menu opens below the ⋮ when it fits, and otherwise on the side with
+  // more room. The areas page can exceed both - there are up to 8 - and then it
+  // scrolls inside.
   const menuPosition = $derived.by(() => {
     if (!menu) return null;
     const rows = menu.areas ? (area?.cam === menu.cam ? 1 : 0) + 2 : exists(menu.cam) ? 4 : 1;
@@ -896,9 +921,10 @@
     return { upward, max: (upward ? menu.topPos : atBottom) - 8 };
   });
 
-  // O "Filtrar por área" do ⋮. Sem área cadastrada na câmera não há o que
-  // escolher, e ele vai direto ao editor sobre o quadro daquela detecção, como
-  // o "filtrar por área" da folha. Com área, o menu vira a lista delas.
+  // The ⋮ "Filtrar por área". With no registered area on the camera there is
+  // nothing to choose, and it goes straight to the editor over the frame of
+  // that detection, like the sheet's "filtrar por área". With areas, the menu
+  // becomes the list of them.
   function filterByMenuArea() {
     if (!menu) return;
     if (areasOf(menu.cam).length) {
@@ -908,8 +934,8 @@
     drawMenu();
   }
 
-  // Pelo ⋮, a lista recomeça no instante daquele quadro, e não no topo: foi
-  // sobre ele que se pediu o filtro, como no "Ocultar a câmera".
+  // Through the ⋮, the list restarts at the instant of that frame, not at the
+  // top: the filter was requested on it, as with "Ocultar a câmera".
   function drawMenu() {
     const m = menu;
     if (!m) return;
@@ -932,13 +958,14 @@
     void restart(m.instanteMs + 1);
   }
 
-  // O aviso de desfazer, na snackbar: a miniatura some debaixo do dedo, e um
-  // toque errado no meio da rolagem é fácil. Desfazer sai mais barato que
-  // perguntar antes.
+  // The undo notice, in the snackbar: the thumbnail disappears from under the
+  // finger, and a wrong tap in the middle of scrolling is easy. Undo is cheaper
+  // than asking first.
   let undoNotice: number | undefined;
 
-  // A âncora de `ancora()`, mas pulando a câmera que vai sair: a detecção que
-  // segura a vista precisa continuar na lista depois do filtro.
+  // The anchor from `anchor()`, but skipping the camera that is about to leave:
+  // the detection that holds the view has to remain in the list after the
+  // filter.
   function anchorSkipping(cam: string): Anchor | null {
     if (!atTop) return null;
     for (let i = atTop.row.firstIndex; i < list.length; i++) {
@@ -949,9 +976,10 @@
     return null;
   }
 
-  // Só desmarca a câmera no filtro desta tela, o mesmo do botão "câmeras". A
-  // lista não recomeça: as detecções dela saem do que já está carregado e a
-  // vista fica onde estava, que é o ponto de ocultar sem subir até a barra.
+  // It only unchecks the camera in this screen's filter, the same as the
+  // "câmeras" button. The list does not restart: its detections leave what is
+  // already loaded and the view stays where it was, which is the point of
+  // hiding without scrolling up to the bar.
   async function hideCamera(cam: string) {
     menu = null;
     isOpen = null;
@@ -978,7 +1006,8 @@
       return;
     }
     const a = anchorSkipping(cam);
-    // A busca que estava no ar ainda traria a câmera: ela é descartada.
+    // The fetch that was in flight would still bring the camera: it is
+    // discarded.
     generation++;
     fetchingAbove = fetchingBelow = false;
     checkedCams = remaining;
@@ -987,9 +1016,9 @@
     verify();
   }
 
-  // Desfazer precisa buscar de novo: o que era da câmera já foi solto. A busca
-  // parte da detecção do topo da vista, como um "ir para", e o que está acima
-  // chega com a rolagem.
+  // Undo has to fetch again: what belonged to the camera was already released.
+  // The fetch starts from the detection at the top of the view, like a "go to",
+  // and what is above arrives with the scroll.
   function undo(before: string[] | null) {
     checkedCams = before;
     const ms = atTop?.det.instanteMs;
@@ -1000,11 +1029,11 @@
     if (e.key === 'Escape') menu = null;
   }
 
-  // "Ir para": o dia vai ao fim dele, e o horário ao minuto digitado, os dois
-  // incluídos - a detecção de 14:32:07 aparece quando se pede 14:32.
+  // "Go to": the day goes to its end, and the time to the minute typed, both
+  // included - the 14:32:07 detection appears when 14:32 is requested.
   const topDay = $derived(dayKey(new Date(topMs)));
 
-  // Com intervalo, trocar de dia leva o mesmo horário para o outro dia.
+  // With a range, changing the day carries the same time over to the other day.
   function goToDay(dayKeyValue: string) {
     if (interval) {
       interval = { ...interval, day: dayKeyValue };
@@ -1016,8 +1045,8 @@
     void restart(dayKeyValue === dayKey() ? null : d.getTime());
   }
 
-  // Num intervalo que vira a meia-noite, o horário antes do `de` é o do dia
-  // seguinte. O recomeca prende o instante dentro do intervalo.
+  // In a range that crosses midnight, the time before `from` is the next day's.
+  // `restart` clamps the instant inside the range.
   function goToHour(segundos: number) {
     const day = parseDay(interval?.day ?? topDay);
     if (interval && interval.to < interval.from && segundos / 60 < interval.from)
@@ -1025,14 +1054,14 @@
     void restart(day.getTime() + (segundos + 60) * 1000);
   }
 
-  // O intervalo novo vale para o dia que estava à vista.
+  // The new range applies to the day that was in view.
   function applyInterval(from: number, to: number) {
     interval = { day: interval?.day ?? topDay, from, to };
     void restart();
   }
 
-  // Volta à rolagem infinita sem sair de onde estava: a busca parte da
-  // detecção do topo da vista, como no desfazer.
+  // Goes back to infinite scroll without leaving where it was: the fetch starts
+  // from the detection at the top of the view, as in undo.
   function resetInterval() {
     const ms = scrollRange.ini > 0 ? atTop?.det.instanteMs : undefined;
     const topPos = ms != null ? ms + 1 : limites?.to;
@@ -1040,17 +1069,18 @@
     void restart(topPos != null && topPos <= Date.now() ? topPos : null);
   }
 
-  // --- a área desenhada na hora ----------------------------------------------
+  // --- the area drawn on the spot --------------------------------------------
 
-  // O editor vem num chunk à parte: quem não desenha área não o baixa.
+  // The editor comes in a separate chunk: whoever does not draw an area does
+  // not download it.
   let AreaEditor = $state<typeof AreaEditorT | null>(null);
   let editor = $state<{
     cam: string;
     background: { tipo: 'imagem' | 'video'; url: string } | null;
     boxes: { caixa: Box; color: string }[];
     erro: string;
-    // Onde a lista recomeça ao aplicar: no topo, ou no instante do quadro
-    // quando o editor veio do ⋮ dele.
+    // Where the list restarts on apply: at the top, or at the frame's instant
+    // when the editor came from its ⋮.
     stayAt: number | null;
   } | null>(null);
   let openedArea = $state(false);
@@ -1059,9 +1089,9 @@
   const boxesOf = (d: Detection) =>
     d.objetos.flatMap((o) => (o.caixa ? [{ caixa: o.caixa, color: family(o.familia).color }] : []));
 
-  // Abre o editor sobre um quadro da câmera: o da detecção dada, ou o da mais
-  // recente dela com quadro, ou o keyframe do último segmento quando ela não
-  // tem detecção nenhuma.
+  // Opens the editor over a frame of the camera: that of the given detection,
+  // or that of its most recent detection with a frame, or the keyframe of the
+  // last segment when it has no detection at all.
   async function openEditor(
     cam: string,
     det: Detection | null = null,
@@ -1084,9 +1114,10 @@
       return;
     }
     editor = { cam, background: null, boxes: [], erro: '', stayAt };
-    // O editor pode ter fechado, ou ter sido aberto de novo, durante a busca. A
-    // câmera não basta: reaberto na mesma, pela folha de uma detecção, ele já
-    // tem o quadro dela, e a busca velha o trocaria.
+    // The editor may have closed, or been opened again, during the fetch. The
+    // camera is not enough: reopened on the same one, from a detection's sheet,
+    // it already has that detection's frame, and the old fetch would replace
+    // it.
     const target = editor;
     const stillOpen = () => (editor === target ? target : null);
     try {
@@ -1113,8 +1144,9 @@
     }
   }
 
-  // Desenhar ou marcar uma área numa câmera desmarcada é pedir para vê-la: ela
-  // volta à lista. Desmarcá-la depois a tira, com a área ou sem.
+  // Drawing or marking an area on an unchecked camera is asking to see it: it
+  // goes back to the list. Unchecking it afterwards removes it, with or without
+  // the area.
   function markCamera(cam: string) {
     if (checkedCams && !checkedCams.includes(cam)) {
       const novas = [...checkedCams, cam];
@@ -1131,20 +1163,21 @@
     void restart(stayAt);
   }
 
-  // O "salvar na câmera" do editor, só do admin: grava a área desenhada no
-  // cadastro e o filtro passa a apontar para ela, como se tivesse sido
-  // marcada no popover. Relê o cadastro antes, para não devolver ao servidor
-  // uma câmera que alguém mudou depois que esta tela abriu.
+  // The editor's "salvar na câmera", admin only: it writes the drawn area to
+  // the registry and the filter now points to it, as if it had been checked in
+  // the popover. It re-reads the registry first, so as not to hand the server
+  // back a camera that someone changed after this screen opened.
   async function saveArea(points: Point[], rule: Rule, name: string) {
     if (!editor) return;
     const id = editor.cam;
-    // O editor pode ter fechado, ou ter sido aberto de novo, durante a gravação.
+    // The editor may have closed, or been opened again, during the save.
     const target = editor;
     const stillOpen = () => editor === target;
     try {
       await loadCameras();
-      // O loadCameras guarda o erro em vez de lançá-lo: sem parar aqui, a
-      // câmera iria da cópia velha e desfaria no servidor o que mudou depois.
+      // loadCameras stores the error instead of throwing it: without stopping
+      // here, the camera would go from the old copy and undo on the server what
+      // changed afterwards.
       if (cameras.error) throw new Error(cameras.error);
       const registry = cameras.list.find((c) => c.id === id);
       if (!registry) throw new Error('a câmera saiu do cadastro');
@@ -1165,8 +1198,8 @@
     }
   }
 
-  // Liga ou desliga uma área cadastrada. O popover fica aberto: escolher
-  // várias soma. `ficarEm` é o instante onde a lista recomeça, pelo ⋮.
+  // Turns a registered area on or off. The popover stays open: choosing several
+  // adds up. `stayAt` is the instant where the list restarts, via the ⋮.
   function toggleArea(k: string, stayAt: number | null = null) {
     const a = registered.get(k);
     if (!a) return;
@@ -1180,20 +1213,20 @@
     void restart(stayAt);
   }
 
-  // Volta à lista sem sair de onde estava, como o limpaIntervalo: tirar
-  // filtro só acrescenta detecções.
+  // Goes back to the list without leaving where it was, like resetInterval:
+  // removing a filter only adds detections.
   function restartInPlace() {
     const ms = scrollRange.ini > 0 ? atTop?.det.instanteMs : undefined;
     return restart(ms != null ? ms + 1 : null);
   }
 
-  // Tira a área desenhada; as cadastradas marcadas ficam.
+  // Removes the drawn area; the checked registered ones stay.
   function removeDrawn() {
     area = null;
     void restartInPlace();
   }
 
-  // O ✕ do chip: tira todas.
+  // The chip's ✕: removes all of them.
   function clearArea() {
     area = null;
     checkedAreas = [];
@@ -1201,8 +1234,8 @@
     void restartInPlace();
   }
 
-  // O chip abre o popover das áreas. Sem área cadastrada não há o que
-  // escolher, e ele reabre o editor da área desenhada.
+  // The chip opens the areas popover. With no registered area there is nothing
+  // to choose, and it reopens the editor for the drawn area.
   function reopenArea() {
     if (area && !anyRegistered) {
       void openEditor(area.cam);
@@ -1211,8 +1244,8 @@
     openedArea = !openedArea;
   }
 
-  // As miniaturas do chip, no lugar do ícone: uma por área, empilhadas, até
-  // MINIATURAS_NO_CHIP - além disso a pilha só alarga o chip.
+  // The chip's thumbnails, in place of the icon: one per area, stacked, up to
+  // THUMBNAILS_IN_CHIP - beyond that the stack only widens the chip.
   const chipThumbnails = $derived.by(() => {
     const out: { cam: string; points: Point[] }[] = [];
     if (area) out.push({ cam: area.cam, points: area.points });
@@ -1223,7 +1256,7 @@
     return out.slice(0, THUMBNAILS_IN_CHIP);
   });
 
-  // O que o chip diz: o nome da área quando é uma só, ou quantas.
+  // What the chip says: the area's name when there is just one, or how many.
   const chipLabel = $derived.by(() => {
     const n = checkedAreas.length + (area ? 1 : 0);
     if (n !== 1) return { nome: `${n} áreas`, where: '' };
@@ -1237,18 +1270,19 @@
     outsideArea(e);
   }
 
-  // O alvo já fora da página é um botão do popover que mudou de lugar: o
-  // primeiro toque numa área troca o botão "área" pelo chip, e o popover vai
-  // junto.
+  // A target already out of the page is a popover button that moved: the first
+  // tap on an area swaps the "área" button for the chip, and the popover goes
+  // along.
   function outsideArea(e: MouseEvent) {
     if (!(e.target instanceof Node) || !e.target.isConnected) return;
     if (openedArea && areaEl && !areaEl.contains(e.target)) openedArea = false;
   }
 
-  // --- ciclo de vida ----------------------------------------------------------
+  // --- lifecycle
+  // --------------------------------------------------------------
 
-  // Largura nova: as colunas e o tamanho da miniatura mudam juntos, e a
-  // âncora de antes devolve a vista à mesma detecção.
+  // New width: the columns and the thumbnail size change together, and the
+  // previous anchor puts the view back on the same detection.
   async function changeWidth(newOne: number) {
     const a = viewAnchor;
     width = newOne;
@@ -1260,8 +1294,8 @@
   }
 
   onMount(() => {
-    // O header e a faixa de versão nova, quando ela aparece: os dois grudam no
-    // topo, e a barra desta tela se encosta embaixo deles.
+    // The header and the new-version strip, when it appears: both stick to the
+    // top, and this screen's bar sits right under them.
     const cab = document.querySelector<HTMLElement>('#app > .top');
     const measureAll = () => {
       cabH = cab?.offsetHeight ?? 0;
@@ -1271,8 +1305,8 @@
       else width = newOne;
       scrolled();
     };
-    // Já agora, e não só quando o observador responder: a primeira página é
-    // do tamanho da tela, e sem largura a conta dela sai errada.
+    // Right now, and not only when the observer answers: the first page is the
+    // size of the screen, and without a width its computation comes out wrong.
     measureAll();
     const ro = new ResizeObserver(measureAll);
     if (cab) ro.observe(cab);
@@ -1352,8 +1386,8 @@
       {/if}
     </div>
 
-    <!-- Ligados, os chips não cabem na linha do dia no celular: ganham uma
-         linha só deles, que dividem quando são dois. -->
+    <!-- When on, the chips do not fit on the day's row on a phone: they get a
+         row of their own, which they split when there are two. -->
     {#if interval !== null || withArea}
       <div class="chips">
         {#if interval}
@@ -1481,8 +1515,8 @@
     </div>
 
     <div class="cams" bind:this={camsEl}>
-      <!-- O ícone daqui tinha 16 de viewBox e traço 1.4: o 2.1 é o mesmo
-           traço no viewBox 24 do componente. -->
+      <!-- The icon here had a 16 viewBox and a 1.4 stroke: 2.1 is the same
+           stroke in the component's 24 viewBox. -->
       <CamerasButton
         checkedList={nChecked}
         total={cameras.list.length}
@@ -1680,10 +1714,10 @@
   {/key}
 {/if}
 
-<!-- O popover das áreas, aberto pelo botão "área" ou pelo chip. Sem área
-     cadastrada, é a escolha da câmera para desenhar. Com elas, cada câmera
-     lista as suas, para marcar uma ou várias, e o "desenhar" daquela
-     câmera. -->
+<!-- The areas popover, opened by the "área" button or by the chip. With no
+     registered area, it is the choice of which camera to draw on. With areas,
+     each camera lists its own, to check one or several, and that camera's
+     "desenhar". -->
 {#snippet areasPopover()}
   <div class="popover popover-area" role="dialog" aria-label="áreas">
     {#if !anyRegistered}
@@ -1862,10 +1896,10 @@
     min-width: 0;
   }
 
-  /* No celular: dia, hora e câmeras na primeira linha; famílias e controles
-     das miniaturas na segunda, todos só com o ícone. Com o nome escrito eles
-     pedem ~470 px numa linha de 370. As três colunas deixam cada linha se
-     dividir do seu jeito: a 1ª é a largura das famílias, a 3ª a das câmeras. */
+  /* On a phone: day, time and cameras on the first row; families and thumbnail
+     controls on the second, all with just the icon. With the name written out
+     they need ~470 px on a 370 row. The three columns let each row split in its
+     own way: the 1st is the width of the families, the 3rd that of the cameras. */
   .when {
     grid-column: 1 / 3;
     grid-row: 1;
@@ -1886,8 +1920,8 @@
   .bar .label {
     display: none;
   }
-  /* O intervalo e a área ligados: no celular, uma 3ª linha inteira, que os
-     dois chips dividem. */
+  /* The range and the area turned on: on a phone, a whole 3rd row, which the
+     two chips split. */
   .chips {
     grid-column: 1 / 4;
     grid-row: 3;
@@ -1948,7 +1982,7 @@
     font-weight: 600;
     color: var(--dim);
   }
-  /* Os ladrilhos das áreas, dois por linha, como na aba Alerta do cadastro. */
+  /* The area tiles, two per row, as in the registry's Alert tab. */
   .tiles {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1959,7 +1993,7 @@
     flex-wrap: wrap;
     gap: 6px;
   }
-  /* A forma do chip do SeletorCameras: ponto verde e borda azul na marcada. */
+  /* The shape of the CameraPicker chip: green dot and blue border on the checked one. */
   .areachip {
     display: inline-flex;
     align-items: center;
@@ -1999,7 +2033,7 @@
     color: var(--dim);
   }
 
-  /* O chip da área, com a forma do chip do intervalo. */
+  /* The area chip, with the shape of the range chip. */
   .chip-area {
     display: inline-flex;
     align-items: stretch;
@@ -2022,8 +2056,8 @@
     padding: 0 4px 0 11px;
     white-space: nowrap;
   }
-  /* As miniaturas das áreas do filtro, uma sobre a outra, cada uma com um
-     respiro da cor do chip para não se fundirem. */
+  /* The thumbnails of the filter's areas, one over the other, each with a
+     margin in the chip's color so they do not blend together. */
   .stack {
     display: inline-flex;
     flex: none;
@@ -2042,8 +2076,8 @@
     color: var(--dim);
   }
 
-  /* O contorno da área sobre a miniatura: fino e tracejado, para não cobrir
-     o objeto. */
+  /* The area outline over the thumbnail: thin and dashed, so it does not cover
+     the object. */
   .outline {
     position: absolute;
     inset: 0;
@@ -2085,15 +2119,15 @@
     opacity: 0.4;
   }
 
-  /* O "só alertas" ligado na cor do sino, e não na das famílias: é outro
-     filtro, que diz "menos", e não "estas". */
+  /* "Alerts only" turned on in the bell's color, not the families': it is
+     another filter, one that says "less", not "these". */
   .alerts.on {
     color: var(--warn);
     border-color: var(--warn);
   }
 
-  /* Os controles das miniaturas têm a forma das famílias ao lado: o mesmo
-     botão, o mesmo "ligado". */
+  /* The thumbnail controls have the shape of the families beside them: the same
+     button, the same "on". */
   .controls {
     display: flex;
     align-items: center;
@@ -2134,12 +2168,12 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
 
-  /* --- a grade --- */
+  /* --- the grid --- */
 
   .list {
     position: relative;
-    /* As linhas são absolutas: a ancoragem de rolagem do navegador não teria
-       em que se apoiar, e quem segura a vista é a âncora da tela. */
+    /* The rows are absolute: the browser's scroll anchoring would have nothing
+       to rely on, and what holds the view is the screen's anchor. */
     overflow-anchor: none;
   }
 
@@ -2155,8 +2189,8 @@
     background: var(--bg);
   }
 
-  /* O cabeçalho que gruda logo abaixo da barra. Altura zero no fluxo: ele não
-     empurra a grade, só se deita sobre ela. */
+  /* The header that sticks right below the bar. Zero height in the flow: it
+     does not push the grid, it just lies over it. */
   .stuck {
     position: sticky;
     top: calc(var(--cab-h) + var(--barra-h));
@@ -2209,15 +2243,15 @@
     pointer-events: none;
   }
 
-  /* Com o "só alertas", o objeto que não entrou no alerta fica na detecção,
-     mas apagado. */
+  /* With "alerts only", an object that did not make it into the alert stays on
+     the detection, but dimmed. */
   .box.fora {
     opacity: 0.35;
     border-style: dashed;
   }
 
-  /* O score do detector de objetos, colado na caixa e sempre do lado de fora:
-     o lado vem de ladoDoScore. Os -2px e os 2px são a borda da caixa. */
+  /* The object detector's score, glued to the box and always outside: the side
+     comes from scoreSide. The -2px and 2px are the box border. */
   .score {
     position: absolute;
     padding: 0 3px;
@@ -2264,8 +2298,8 @@
     display: none;
   }
 
-  /* O ⋮ no canto, à direita dos ícones das famílias e com a mesma pastilha
-     deles. A pastilha é pequena, mas o alvo do toque é o canto inteiro. */
+  /* The ⋮ in the corner, to the right of the family icons and with the same
+     pill as them. The pill is small, but the touch target is the whole corner. */
   .mais {
     position: absolute;
     top: 0;
@@ -2299,13 +2333,13 @@
     outline: 2px solid var(--accent);
   }
 
-  /* O selo das famílias abre espaço para o ⋮ à direita dele. */
+  /* The families badge makes room for the ⋮ to its right. */
   .cell :global(.badge) {
     right: 30px;
   }
 
-  /* Com mouse o ⋮ aparece só sobre a miniatura, e fica enquanto o menu dele
-     está aberto. No toque não há hover: ele fica sempre à vista. */
+  /* With a mouse the ⋮ shows only over the thumbnail, and stays while its menu
+     is open. On touch there is no hover: it is always in view. */
   @media (hover: hover) {
     .mais {
       opacity: 0;
@@ -2320,7 +2354,7 @@
     }
   }
 
-  /* Na miniatura pequena o ⋮ não se acerta com o dedo: a ação fica na folha. */
+  /* On a small thumbnail the ⋮ cannot be hit with a finger: the action stays on the sheet. */
   .compact .mais {
     display: none;
   }
@@ -2364,7 +2398,7 @@
     border-top: 1px solid var(--line);
   }
 
-  /* A página das áreas: a marca, o nome e a regra numa linha. */
+  /* The areas page: the mark, the name and the rule on one row. */
   .menu .back,
   .menu .menu-area,
   .menu .filter-area,
@@ -2429,7 +2463,7 @@
     color: var(--warn);
   }
 
-  /* Na miniatura pequena não cabe o nome da câmera: fica só a hora. */
+  /* The camera name does not fit on a small thumbnail: only the time stays. */
   .compact .name,
   .compact .alert-area {
     display: none;
@@ -2452,8 +2486,8 @@
     padding: 16px 0;
   }
 
-  /* As pontas do intervalo, no começo e no fim da lista: dizem onde ela para
-     e oferecem a volta à rolagem infinita ali mesmo. */
+  /* The range ends, at the start and end of the list: they say where it stops
+     and offer the way back to infinite scroll right there. */
   .edge {
     display: flex;
     flex-wrap: wrap;
@@ -2488,9 +2522,8 @@
       padding: 0 18px 8px;
     }
 
-    /* Do tablet para cima os nomes voltam, mas as duas linhas do celular
-       continuam: no iPad em pé (820 px) a barra inteira não cabe numa linha
-       só. */
+    /* From tablet up the names come back, but the phone's two rows stay: on a
+       portrait iPad (820 px) the whole bar does not fit on a single row. */
     .bar {
       gap: 10px;
       margin: 0 -18px;
@@ -2501,7 +2534,7 @@
       display: inline;
     }
 
-    /* Da largura do tablet para cima, os chips cabem na linha do dia. */
+    /* From tablet width up, the chips fit on the day's row. */
     .bar:has(> .chips) .when {
       grid-column: 1;
     }
@@ -2532,18 +2565,18 @@
     }
   }
 
-  /* Linha única quando tudo cabe: a barra inteira mede ~1210 px. Quem decide
-     é o espaço que sobra, e não um número de largura que envelhece a cada
-     botão novo: o que não cabe (hoje o botão das câmeras) quebra para a 2ª
-     linha, à direita, no lugar de empurrar a página para o lado. */
-  /* Com os chips ligados ela não cabe mais, e fica nas duas linhas do
-     tablet. O `>` vale: o seletor de câmeras aberto tem um `.chips` dele, e
-     sem o `>` a barra voltaria para o grid só por abri-lo. */
+  /* A single row when everything fits: the whole bar measures ~1210 px. What
+     decides is the leftover space, not a width number that gets stale with
+     every new button: whatever does not fit (today the cameras button) wraps to
+     the 2nd row, on the right, instead of pushing the page sideways. */
+  /* With the chips on it no longer fits, and stays on the tablet's two rows.
+     The `>` matters: the open camera picker has a `.chips` of its own, and
+     without the `>` the bar would go back to the grid just by opening it. */
   @media (min-width: 1060px) {
-    /* O `justify-content` junta à direita o que sobra sozinho numa linha (o
-       botão das câmeras, quando quebra); a `margin-right: auto` das famílias
-       empurra os controles para a direita na linha de cima. Duas margens
-       `auto` dividiriam a folga e afastariam os controles das câmeras. */
+    /* `justify-content` gathers on the right whatever is left alone on a row
+       (the cameras button, when it wraps); the families' `margin-right: auto`
+       pushes the controls to the right on the top row. Two `auto` margins would
+       split the slack and move the controls away from the cameras. */
     .bar:not(:has(> .chips)) {
       display: flex;
       flex-wrap: wrap;

@@ -1,7 +1,8 @@
 <!--
-  A tela do link de convite (`#convite?token=…`): quem recebeu o link define a
-  própria senha e já entra. O token fica no fragmento da URL, que não sai do
-  navegador, e vai ao servidor no corpo de um POST.
+  The invite link screen (`#convite?token=…`): whoever received the link sets
+  their own password and is signed in right away. The token stays in the URL
+  fragment, which does not leave the browser, and goes to the server in the body
+  of a POST.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -19,12 +20,14 @@
 
   const token = currentParams().get('token') ?? '';
 
-  // null enquanto confere; o link valendo; false com ele vencido ou já usado.
+  // null while checking; true with the link valid; false with it expired or
+  // already used.
   let link = $state<InviteLink | false | null>(null);
   let checkError = $state('');
   let password = $state('');
-  // A senha de novo, como na Minha conta: digitada no celular erra fácil, e o
-  // erro só apareceria no primeiro login. A conferência é só daqui.
+  // The password again, as in My account: a password typed on the phone is easy
+  // to get wrong, and the error would only show on the first login. The check
+  // is only done here.
   let repeated = $state('');
   let error = $state('');
   let sending = $state(false);
@@ -67,8 +70,8 @@
 
     {#if link}
       <p>Olá, <strong>{link.name}</strong>. Defina a sua senha para entrar.</p>
-      <!-- O usuário vai num campo, e não só no texto, para o gerenciador de
-           senhas do navegador guardá-lo junto com a senha. -->
+      <!-- The user goes in a field, and not only in the text, so the browser's
+           password manager saves it together with the password. -->
       <label>
         Seu usuário, para entrar das próximas vezes
         <input value={link.username} autocomplete="username" readonly />
@@ -110,11 +113,11 @@
 </div>
 
 <style>
-  /* A mesma moldura da tela de login. */
+  /* The same frame as the login screen. */
   .screen {
     display: grid;
     place-items: center;
-    /* A coluna do #app inteira, que tem a altura da janela (ver app.css). */
+    /* The whole #app column, which has the window height (see app.css). */
     flex: 1;
     padding: 20px;
   }

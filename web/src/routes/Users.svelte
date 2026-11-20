@@ -1,8 +1,9 @@
 <!--
-  Usuários: quem entra no dwnvr além do dono. Sem SMTP, o admin cria a pessoa,
-  o dwnvr gera um link, e ela mesma define a senha por ele. O mesmo link serve
-  para "esqueci a senha" e "perdi o celular": gerar outro apaga a senha atual.
-  Só o admin chega aqui; a API recusa o viewer com 403.
+  Users: who signs in to dwnvr besides the owner. Without SMTP, the admin
+  creates the person, dwnvr generates a link, and they set the password
+  themselves through it. The same link serves "forgot my password" and "lost my
+  phone": generating another one erases the current password. Only the admin
+  gets here; the API rejects the viewer with 403.
 -->
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
@@ -19,21 +20,21 @@
 
   type Action = 'link' | 'foto' | 'remover' | 'email';
 
-  // Nulo até a API responder.
+  // Null until the API answers.
   let data = $state<Users | null>(null);
   let error = $state('');
 
-  // O link recém-gerado. Ver mostrarLink.
+  // The newly generated link. See showLink.
   let generated = $state<{
     username: string;
     name: string;
-    email: string; // vazio sem e-mail
+    email: string; // empty without email
     url: string;
     expiresInMs: number;
   } | null>(null);
 
-  // O relógio da contagem dos links, num tique de um segundo. Só anda com um
-  // link aberto na tela.
+  // The clock for the link countdown, ticking once a second. It only runs with
+  // a link open on screen.
   let now = $state(Date.now());
   const hasOpenLink = $derived(
     generated !== null || (data?.users.some((u) => u.status === 'invitePending') ?? false),
@@ -49,8 +50,8 @@
   async function load() {
     try {
       data = await api.users();
-      // O "hoje" e o "ontem" do último acesso contam daqui: sem link aberto,
-      // o tique não anda.
+      // The "hoje" and "ontem" of the last access count from here: with no link
+      // open, the tick does not run.
       now = Date.now();
       error = '';
     } catch (e) {
@@ -60,18 +61,18 @@
 
   onMount(load);
 
-  // Sair da tela com uma conferência na espera: nada mais vai ao servidor.
+  // Leaving the screen with a check pending: nothing else goes to the server.
   onDestroy(() => {
     newValidation.stop();
     emailValidation.stop();
   });
 
-  // ---- o link recém-gerado -------------------------------------------------
+  // ---- the newly generated link --------------------------------------------
   //
-  // É o único lugar onde o link existe: o servidor guarda só o hash do token.
-  // Sai do endereço pelo qual o admin está acessando, que é o que a pessoa
-  // também alcança na maioria dos casos (o mesmo nome no Tailscale, o mesmo IP
-  // na rede de casa).
+  // It is the only place where the link exists: the server keeps only the token
+  // hash. It comes from the address the admin is using, which is the one the
+  // person can also reach in most cases (the same name on Tailscale, the same
+  // IP on the home network).
 
   let copied = $state('');
 
@@ -81,15 +82,16 @@
       name: r.user.name,
       email: r.user.email ?? '',
       url: `${location.origin}${location.pathname}#convite?token=${r.token}`,
-      // O link novo sempre vem com o prazo; sem ele, conta como vencido.
+      // The new link always comes with the deadline; without it, it counts as
+      // expired.
       expiresInMs: r.user.inviteExpiresAtMs ?? 0,
     };
     copied = '';
     delivery = null;
   }
 
-  // O link por e-mail: vai o mesmo link da tela, para o e-mail da pessoa. O
-  // resultado fica no card, e mandar de novo é tocar de novo.
+  // The link by email: the same link as on screen goes to the person's email.
+  // The result stays on the card, and sending again means tapping again.
   let delivery = $state<{ ok: boolean; texto: string } | null>(null);
   let sending = $state(false);
 
@@ -107,9 +109,9 @@
     }
   }
 
-  // O Compartilhar abre o menu do sistema (e-mail, WhatsApp). Só existe onde o
-  // navegador oferece, e só em HTTPS; no resto fica o Copiar, que funciona
-  // também em HTTP.
+  // "Compartilhar" opens the system menu (email, WhatsApp). It only exists
+  // where the browser offers it, and only over HTTPS; elsewhere "Copiar"
+  // remains, which also works over HTTP.
   const canShare = typeof navigator.share === 'function';
 
   async function onCopy() {
@@ -126,11 +128,11 @@
         url: generated.url,
       });
     } catch {
-      // Cancelar o menu do sistema também cai aqui. Nada a fazer.
+      // Dismissing the system menu also lands here. Nothing to do.
     }
   }
 
-  // "9:41", até o link vencer.
+  // "9:41", until the link expires.
   function missing(ms: number) {
     const s = Math.max(0, Math.ceil((ms - now) / 1000));
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -138,11 +140,12 @@
 
   // ---- criar ----------------------------------------------------------------
 
-  let newItem = $state<{ username: string; name: string; email: string } | null>(null); // com o formulário aberto
+  let newItem = $state<{ username: string; name: string; email: string } | null>(null); // with the form open
   let saving = $state(false);
   let newError = $state('');
-  // Se o admin já escreveu no usuário. Até lá, o usuário segue o nome (ver
-  // sugerirUsuario); apagar tudo devolve a sugestão.
+  // Whether the admin has already typed in the user field. Until then, the user
+  // follows the name (see suggestUser); clearing everything brings the
+  // suggestion back.
   let typedUser = false;
   let newValidation = $state.raw(new Validation(['username', 'name', 'email'], checkNew));
   const newFields: Partial<Record<PersonField, HTMLInputElement>> = {};
@@ -164,9 +167,9 @@
     newItem = null;
   }
 
-  // "João da Silva Santos" vira "joao.santos": o primeiro e o último nome, sem
-  // acento, em minúsculas, só com o que o usuário aceita, cortado no tamanho
-  // máximo.
+  // "João da Silva Santos" becomes "joao.santos": the first and last names,
+  // without accents, in lowercase, with only what the user field accepts, cut
+  // to the maximum length.
   function suggestUser(name: string, max: number) {
     const parts = name
       .normalize('NFD')
@@ -188,9 +191,9 @@
     newValidation.typeIn();
   }
 
-  // Quem preencheu o usuário foi o nome, e o admin talvez nem passe por ele:
-  // o usuário sugerido é conferido junto, para o "já existe" aparecer antes
-  // do salvar.
+  // What filled in the user was the name, and the admin may not even go through
+  // it: the suggested user is checked along with it, so the "já existe" shows
+  // up before the save.
   function onNameLeave() {
     if (!newItem) return;
     newValidation.leave('name', newItem.name);
@@ -202,7 +205,7 @@
     newValidation.typeIn();
   }
 
-  // O primeiro campo recusado, na ordem da tela, recebe o foco.
+  // The first rejected field, in screen order, gets focus.
   function focusFieldError(
     validation: Validation,
     campos: Partial<Record<PersonField, HTMLInputElement>>,
@@ -212,10 +215,10 @@
     if (field) campos[field]?.focus();
   }
 
-  // A recusa do salvar é dos valores enviados. Ela vale só para o formulário
-  // que a pediu (`conf`), se ele ainda está aberto; e, se os campos mudaram
-  // enquanto a resposta vinha, eles são conferidos de novo, em vez de levarem
-  // o vermelho de um valor que já não está lá.
+  // The save's rejection is about the values that were sent. It only applies to
+  // the form that requested it (`validation`), if it is still open; and, if the
+  // fields changed while the response was on its way, they are checked again,
+  // instead of carrying the red of a value that is no longer there.
   function applyFieldError(
     validation: Validation,
     opened: Validation,
@@ -235,7 +238,8 @@
     if (!newItem) return;
     const validation = newValidation;
     const sent = { ...newItem };
-    // Os campos mudaram (ou o formulário fechou) enquanto a resposta vinha.
+    // The fields changed (or the form closed) while the response was on its
+    // way.
     const changed = () => JSON.stringify(newItem) !== JSON.stringify(sent);
     saving = true;
     newError = '';
@@ -258,9 +262,9 @@
     }
   }
 
-  // ---- o ⋮ de cada pessoa ----------------------------------------------------
+  // ---- each person's ⋮ ------------------------------------------------------
 
-  let menu = $state<string | null>(null); // o usuário com o menu aberto
+  let menu = $state<string | null>(null); // the user with the menu open
   let confirming = $state<{ action: Action; u: User } | null>(null);
   let actionError = $state('');
 
@@ -277,8 +281,8 @@
       emailValidation = new Validation(['email'], checkEmail);
       return;
     }
-    // Link novo para quem ainda não tem senha não derruba ninguém: só troca
-    // um link por outro, e dispensa a confirmação.
+    // A new link for someone who does not have a password yet signs no one out:
+    // it only swaps one link for another, and skips the confirmation.
     if (action === 'link' && u.status !== 'active') void run(action, u);
     else confirming = { action, u };
   }
@@ -298,7 +302,7 @@
     await load();
   }
 
-  // ---- o e-mail de quem já existe ------------------------------------------
+  // ---- the email of an existing user ---------------------------------------
 
   let editingEmail = $state<{ u: User; email: string } | null>(null);
   let savingEmail = $state(false);
@@ -321,13 +325,13 @@
     if (!editingEmail) return;
     const validation = emailValidation;
     const sent = editingEmail.email;
-    // Numa closure, o TypeScript não supõe que o formulário segue aberto.
+    // In a closure, TypeScript does not assume the form is still open.
     const changed = () => editingEmail?.email !== sent;
     savingEmail = true;
     emailError = '';
     try {
       const { user } = await api.changeEmail(editingEmail.u.username, sent);
-      // O link aberto no card passa a ir para o e-mail novo.
+      // The link open on the card now goes to the new email.
       if (generated?.username === user.username) generated.email = user.email ?? '';
       if (validation === emailValidation) closeEmail();
       await load();
@@ -342,9 +346,10 @@
     }
   }
 
-  // O sinal à direita do campo. O verde só aparece com algo escrito: no
-  // e-mail, que é opcional, um "certo" no campo vazio não diria nada. `soErro`
-  // é o campo que só avisa o que está errado, como o nome.
+  // The signal to the right of the field. Green only shows with something
+  // written: in the email, which is optional, a "right" on the empty field
+  // would say nothing. `onlyError` is the field that only warns about what is
+  // wrong, like the name.
   function signal(
     validation: Validation,
     field: PersonField,
@@ -447,8 +452,8 @@
       {#each data.users as u (u.username)}
         <div class="row">
           <Avatar person={u} size={36} />
-          <!-- O nome e o chip: no celular, um embaixo do outro; de 720 px para
-               cima, lado a lado (ver .meio). -->
+          <!-- The name and the chip: on the phone, one under the other; from
+               720 px up, side by side (see .middle). -->
           <div class="middle">
             <div class="who">
               <div class="name"><strong>{u.name}</strong></div>
@@ -456,10 +461,10 @@
                 @{u.username}{u.role === 'admin' ? ' · administrador' : ''}
               </div>
               {#if u.email}<div class="muted small login">{u.email}</div>{/if}
-              <!-- Quem está ativo tem o último acesso no chip, que é o que se
-                   quer saber no dia a dia, e aqui a data em que definiu a senha.
-                   Quem tem link aberto ou vencido tem o link no chip, e aqui o
-                   acesso de antes, se houver. -->
+              <!-- Whoever is active has the last access on the chip, which is
+                   what you want to know day to day, and here the date they set
+                   the password. Whoever has an open or expired link has the
+                   link on the chip, and here the earlier access, if any. -->
               {#if u.status === 'active' && u.activeSinceMs}
                 <div class="muted small">
                   ativo desde <span class="when">{dateTime(u.activeSinceMs)}</span>
@@ -471,9 +476,9 @@
               {/if}
             </div>
             {#if u.status === 'active'}
-              <!-- O ponto verde diz que está ativo. Sem acesso registrado é
-                   quem não usou o dwnvr desde que o último acesso passou a ser
-                   anotado. -->
+              <!-- The green dot says they are active. No recorded access means
+                   someone who has not used dwnvr since the last access started
+                   being recorded. -->
               <span class="chip wrap">
                 <span class="dot ok"></span>
                 {#if u.lastAccessMs}
@@ -504,8 +509,9 @@
           </button>
           {#if menu === u.username}
             <div class="menu" role="menu">
-              <!-- Para quem está ativo, o link novo apaga a senha: o rótulo diz
-                   isso. Para quem não definiu, não há senha a redefinir. -->
+              <!-- For whoever is active, the new link erases the password: the
+                   label says so. For whoever has not set one, there is no
+                   password to reset. -->
               <button
                 class="ghost"
                 role="menuitem"
@@ -522,7 +528,8 @@
                   request('email', u);
                 }}>{u.email ? 'Alterar o e-mail' : 'Cadastrar o e-mail'}</button
               >
-              <!-- O admin não troca a foto de ninguém; só tira uma que não sirva. -->
+              <!-- The admin does not change anyone's photo; they only remove
+                   one that does not fit. -->
               {#if u.avatar}
                 <button
                   class="ghost"
@@ -551,8 +558,8 @@
   {/if}
 </div>
 
-<!-- O e-mail serve para entrar mesmo sem a seção smtp; só o envio do link
-     depende dela, e a tela avisa isso onde o e-mail é escrito. -->
+<!-- The email serves for signing in even without the smtp section; only sending
+     the link depends on it, and the screen says so where the email is written. -->
 {#snippet noDelivery()}
   <p class="small muted no-delivery">
     <Icon name="info" size={14} />
@@ -560,8 +567,8 @@
   </p>
 {/snippet}
 
-<!-- O sinal à direita de um campo conferido pelo servidor (ver
-     lib/conferencia.svelte.ts). O texto da recusa vai embaixo, no `recusa`. -->
+<!-- The signal to the right of a field checked by the server (see
+     lib/validation.svelte.ts). The rejection text goes below, in `fieldError`. -->
 {#snippet fieldSignal(condition: FieldState)}
   {#if condition}
     <span class="signal {condition}"
@@ -570,14 +577,15 @@
   {/if}
 {/snippet}
 
-<!-- A linha da recusa existe sempre, vazia ou não: o espaço já está guardado,
-     e a mensagem aparece e some sem empurrar o resto do formulário. -->
+<!-- The rejection line always exists, empty or not: the space is already
+     reserved, and the message appears and disappears without pushing the rest
+     of the form. -->
 {#snippet fieldError(id: string, text: string)}
   <p class="small error field-error" {id}>{text}</p>
 {/snippet}
 
-<!-- novalidate: a recusa do navegador é um balão com outro desenho e outro
-     texto; aqui todas vêm do servidor e ficam embaixo do campo. -->
+<!-- novalidate: the browser's rejection is a bubble with another look and
+     another text; here they all come from the server and sit under the field. -->
 {#if newItem && data}
   {@const sName = signal(newValidation, 'name', newItem.name, true)}
   {@const sUser = signal(newValidation, 'username', newItem.username)}
@@ -781,9 +789,9 @@
 {/if}
 
 <style>
-  /* A coluna é minmax(0, 1fr), e não a implícita: esta cresce até a largura
-     mínima do conteúdo, e um nome comprido, que não quebra, empurrava a tela
-     para além da largura do celular. Assim o nome corta com reticências. */
+  /* The column is minmax(0, 1fr), not the implicit one: that one grows to the
+     content's minimum width, and a long name, which does not wrap, pushed the
+     screen past the phone width. This way the name is cut with an ellipsis. */
   .page {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -801,8 +809,8 @@
     color: var(--bad);
   }
 
-  /* O ícone fica centrado na primeira linha quando o texto quebra: 13px com o
-     line-height 1.5 do body dão 19,5px de linha, e o ícone tem 14. */
+  /* The icon stays centered on the first line when the text wraps: 13px with
+     the body's line-height 1.5 gives a 19.5px line, and the icon is 14. */
   .no-delivery {
     display: flex;
     gap: 6px;
@@ -813,7 +821,7 @@
     margin-top: 3px;
   }
 
-  /* A borda de destaque é o --accent translúcido, a mesma da pílula de versão. */
+  /* The highlight border is the translucent --accent, the same as the version pill. */
   .new-link {
     display: grid;
     gap: 8px;
@@ -826,8 +834,8 @@
     font-size: 14px;
   }
 
-  /* O link inteiro, quebrando onde precisar: cortado com reticências, não
-     daria para conferir o que vai ser mandado. */
+  /* The whole link, wrapping where it must: cut with an ellipsis, there would
+     be no way to check what is about to be sent. */
   .url {
     padding: 8px 10px;
     border-radius: 8px;
@@ -853,10 +861,10 @@
     border-bottom: 0;
   }
 
-  /* No celular, o chip é a quarta linha, embaixo do nome, do @usuário e da
-     data: ao lado deles, disputava a largura com o nome e quebrava em duas
-     linhas. De 720 px para cima há largura, e ele volta para a direita. O
-     avatar e o ⋮ ficam no meio da linha nos dois casos. */
+  /* On the phone, the chip is the fourth line, under the name, the @user and
+     the date: beside them, it fought the name for width and wrapped onto two
+     lines. From 720 px up there is width, and it goes back to the right. The
+     avatar and the ⋮ stay in the middle of the row in both cases. */
   .middle {
     flex: 1;
     min-width: 0;
@@ -881,8 +889,8 @@
     }
   }
 
-  /* Em 320 px, nem na linha própria cabe "último acesso ontem 22:47": o chip
-     quebra antes da data, e o raio deixa de ser de pílula. */
+  /* At 320 px, not even on its own line does "último acesso ontem 22:47" fit:
+     the chip wraps before the date, and the radius stops being a pill's. */
   .chip.wrap {
     white-space: normal;
     border-radius: 12px;
@@ -916,8 +924,8 @@
     padding: 12px 0;
   }
 
-  /* O ícone é um svg em bloco, que o text-align do botão não centraliza: sem
-     o flex, ele encostava à esquerda, 8 px fora do centro. */
+  /* The icon is a block svg, which the button's text-align does not center:
+     without the flex, it stuck to the left, 8 px off center. */
   .mais {
     flex: none;
     display: flex;
@@ -928,7 +936,7 @@
     padding: 0;
   }
 
-  /* O mesmo desenho do menu do ⋮ da tela Detecções, preso à linha. */
+  /* The same drawing as the ⋮ menu of the Detections screen, attached to the row. */
   .menu {
     position: absolute;
     z-index: 30;
@@ -983,11 +991,11 @@
     font-size: 15px;
   }
 
-  /* O campo e a linha da recusa embaixo dele, mais perto um do outro que
-     dos outros campos. A linha guardada (ver o snippet recusa) ocupa o vão
-     entre um campo e o próximo: os grupos ficam a 10 px, e não aos 14 do
-     formulário, para o vão vazio não crescer tanto. Menos que 10 deixa a
-     mensagem colada no rótulo de baixo, como se fosse dele. */
+  /* The field and the rejection line below it, closer to each other than to the
+     other fields. The reserved line (see the fieldError snippet) fills the gap
+     between one field and the next: the groups sit 10 px apart, not the form's
+     14, so the empty gap does not grow so much. Less than 10 leaves the message
+     glued to the label below, as if it were its own. */
   .groups {
     display: grid;
     gap: 10px;
@@ -998,14 +1006,14 @@
     gap: 4px;
   }
 
-  /* Uma linha do .small (13 px com o line-height 1.5 do body). A mensagem
-     que quebra em duas, no celular, ainda empurra uma linha. */
+  /* One line of .small (13 px with the body's line-height 1.5). A message that
+     wraps onto two, on the phone, still pushes one line. */
   .field-error {
     min-height: 19.5px;
   }
 
-  /* O sinal fica dentro da borda, à direita, e o texto não passa por baixo
-     dele: 12 px de margem + 18 do ícone + 8 de folga. */
+  /* The signal sits inside the border, on the right, and the text does not run
+     under it: 12 px of margin + 18 of icon + 8 of slack. */
   .field {
     position: relative;
     display: block;

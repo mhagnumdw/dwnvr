@@ -16,9 +16,9 @@
   let error = $state('');
   let busy = $state(false);
 
-  // O 429: passado o limite de tentativas, a linha do erro conta até a
-  // próxima, e o botão fica desligado até lá. O relógio só anda enquanto a
-  // contagem corre.
+  // The 429: past the attempt limit, the error line counts down to the next
+  // one, and the button stays disabled until then. The clock only runs while
+  // the countdown is running.
   let unlocksAt = $state(0);
   let now = $state(Date.now());
   const wait = $derived(Math.max(0, Math.ceil((unlocksAt - now) / 1000)));
@@ -41,8 +41,8 @@
       onSuccess(r.user);
     } catch (err) {
       if (err instanceof TooManyAttempts) {
-        // A senha fica: o servidor nem a conferiu, e ao fim da contagem basta
-        // tocar em Entrar de novo.
+        // The password stays: the server did not even check it, and when the
+        // countdown ends it is enough to tap "Entrar" again.
         now = Date.now();
         unlocksAt = now + err.segundos * 1000;
         return;
@@ -58,7 +58,7 @@
 <div class="screen">
   <form class="card" onsubmit={submit}>
     <h1>
-      <!-- Mesma marca do header e do favicon, servida de public/. -->
+      <!-- Same brand as the header and the favicon, served from public/. -->
       <img class="mark" src="/favicon.svg" alt="" width="32" height="32" />
       dwnvr
     </h1>
@@ -78,19 +78,21 @@
       {busy ? 'entrando…' : 'Entrar'}
     </button>
 
-    <!-- Espaço reservado sempre: sem isto o formulário salta quando o erro
-         aparece, e o botão foge do dedo no meio do toque. -->
+    <!-- Space always reserved: without this the form jumps when the error
+         appears, and the button runs away from the finger mid-tap. -->
     <p class="error small">
       {wait > 0 ? `Muitas tentativas. Tente de novo em ${wait} s.` : error}
     </p>
 
-    <!-- Não há e-mail para recuperar a senha: o remédio é o admin gerar um
-         link de convite novo, e quem esqueceu precisa saber disso daqui. -->
+    <!-- There is no email to recover the password: the remedy is for the admin
+         to generate a new invite link, and whoever forgot needs to know that
+         from here. -->
     <p class="muted small">Esqueceu a senha? Peça um link novo a quem cuida do dwnvr.</p>
   </form>
 
-  <!-- Antes de entrar já dá para saber qual dwnvr é este - útil quando há um
-       de teste e um de verdade na mesma rede - e de onde ele vem. -->
+  <!-- Before signing in you can already tell which dwnvr this is - useful when
+       there is a test one and a real one on the same network - and where it
+       comes from. -->
   <p class="small ver">
     {#if build.version}<span class="mono">{build.version}</span> ·{/if}
     <a href={REPO_URL} target="_blank" rel="noopener"><GitHubMark size={13} />GitHub</a>
@@ -101,12 +103,13 @@
   .screen {
     display: grid;
     place-items: center;
-    /* align-content, e não só place-items: com duas linhas, place-items
-       centraliza cada uma DENTRO da sua faixa, e as faixas esticam para
-       preencher a tela - o que jogaria a versão para o meio do vazio. */
+    /* align-content, and not just place-items: with two rows, place-items
+       centers each one INSIDE its track, and the tracks stretch to fill the
+       screen - which would throw the version into the middle of the empty
+       space. */
     align-content: center;
     gap: 16px;
-    /* A coluna do #app inteira, que tem a altura da janela (ver app.css). */
+    /* The whole #app column, which has the window height (see app.css). */
     flex: 1;
     padding: 20px;
   }
@@ -118,7 +121,7 @@
     color: var(--dim);
   }
 
-  /* Discreto como a versão ao lado: é rodapé, não chamada. */
+  /* Discreet like the version beside it: it is a footer, not a call to action. */
   .ver a {
     display: inline-flex;
     align-items: center;
@@ -145,7 +148,7 @@
     font-size: 22px;
   }
 
-  /* O SVG já traz o próprio arredondamento; nada de border-radius aqui. */
+  /* The SVG already has its own rounding; no border-radius here. */
   .mark {
     display: block;
     flex: none;

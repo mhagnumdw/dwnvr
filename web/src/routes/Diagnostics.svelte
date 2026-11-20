@@ -37,8 +37,8 @@
   import Icon from '../components/Icon.svelte';
   import HealthFooter from '../components/HealthFooter.svelte';
 
-  // Uma coluna das tabelas: sabe extrair o valor que a ordena. Texto passa
-  // pelo colator; número, pela subtração.
+  // A table column: it knows how to extract the value that sorts it. Text goes
+  // through the collator; numbers, through subtraction.
   interface ColumnBase {
     id: string;
     label: string;
@@ -46,7 +46,8 @@
   }
   type Column<T> = ColumnBase &
     ({ texto: true; value: (c: T) => string } | { texto?: false; value: (c: T) => number });
-  // Nunca vazia: a primeira é a de quando a URL pede uma que não existe.
+  // Never empty: the first one is the fallback for when the URL asks for one
+  // that does not exist.
   type Columns<T> = readonly [Column<T>, ...Column<T>[]];
 
   interface Order {
@@ -54,26 +55,29 @@
     asc: boolean;
   }
 
-  // Câmera com o funil do detector de objetos, que só vem com ele configurado.
+  // Camera with the object detector funnel, which only comes when the detector
+  // is configured.
   type WithFunnel = HealthCamera & { funil: Funnel };
 
-  // O viewer vê só "Este navegador" e a versão: a saúde do servidor é
-  // do admin, e a tela dele nem a pede. O papel não muda com a tela aberta -
-  // sair desmonta tudo.
+  // The viewer sees only "Este navegador" and the version: server health
+  // belongs to the admin, and the viewer's screen does not even request it. The
+  // role does not change while the screen is open - signing out tears
+  // everything down.
   const admin = isAdmin();
   if (admin) onDestroy(pollHealth());
 
   const disk = $derived(health.disk);
 
-  // Os segundos andam de HEALTH_POLL_MS em HEALTH_POLL_MS, junto com a leitura,
-  // e não de um em um: contar o tempo aqui só para preencher o intervalo daria
-  // um relógio movido pelo navegador, que é o relógio que este campo existe
-  // para NÃO mostrar. O que aparece é sempre um instante que o servidor disse.
+  // The seconds advance in HEALTH_POLL_MS steps, together with the read, and
+  // not one by one: counting time here just to fill the gap would give a clock
+  // driven by the browser, which is the clock this field exists to NOT show.
+  // What appears is always an instant the server reported.
   //
-  // A abreviação ("-03") não identifica região nenhuma - vale para São Paulo,
-  // Buenos Aires e mais um punhado de lugares -, então o nome IANA é o que vai
-  // na tela quando o servidor consegue descobri-lo, e a sigla fica no title.
-  // Servidor sem /etc/timezone manda só a sigla, e aí ela assume o lugar.
+  // The abbreviation ("-03") does not identify any region - it applies to São
+  // Paulo, Buenos Aires and a handful of other places - so the IANA name is
+  // what goes on screen when the server can find it, and the abbreviation goes
+  // in the title. A server without /etc/timezone sends only the abbreviation,
+  // and then it takes the IANA name's place.
   const clock = $derived.by(() => {
     const c = health.clock;
     if (!c) return null;
@@ -85,8 +89,8 @@
       sigla: c.zone ? c.abbr : undefined,
     };
   });
-  // As órfãs saem da conta de "outros": são gravação do dwnvr, só que de câmera
-  // removida, e nenhum limite da retenção as apaga.
+  // Orphans are left out of the "outros" count: they are dwnvr recordings, just
+  // from a removed camera, and no retention limit deletes them.
   const orphansBytes = $derived(disk?.orphanBytes ?? 0);
   const othersBytes = $derived(
     disk ? disk.totalBytes - disk.freeBytes - disk.dwnvrBytes - orphansBytes : 0,
@@ -95,20 +99,21 @@
   const usedByOrphans = $derived(disk ? orphansBytes / disk.totalBytes : 0);
   const usedByOthers = $derived(disk ? othersBytes / disk.totalBytes : 0);
 
-  // retidoMs é a retenção real: do segmento mais antigo em disco até agora.
+  // retainedMs is the real retention: from the oldest segment on disk until
+  // now.
   //
-  // O servidor manda o instante, e não os dias já contados, porque com ele a
-  // mesma resposta serve à tabela ("12 dias 4h") e ao card de câmeras ("desde
-  // 31/07"). Câmera que nunca gravou não traz o campo, e o zero vira "-" no
-  // duracao() em vez de "0s".
+  // The server sends the instant, not the days already counted, because with it
+  // the same response serves both the table ("12 dias 4h") and the cameras card
+  // ("desde 31/07"). A camera that never recorded does not send the field, and
+  // the zero becomes "-" in duration() instead of "0s".
   function retainedMs(c: HealthCamera) {
     return c.oldestSegmentAt ? Date.now() - new Date(c.oldestSegmentAt).getTime() : 0;
   }
 
-  // O cabeçalho explica O QUE a coluna mede, uma vez só; a célula responde
-  // DESDE QUANDO, que é por câmera. undefined e não '' porque o Svelte omite o
-  // atributo inteiro assim, e um title vazio deixaria a célula com sublinhado
-  // de dica sem dica nenhuma.
+  // The header explains WHAT the column measures, once; the cell answers SINCE
+  // WHEN, which is per camera. undefined and not '' because Svelte omits the
+  // whole attribute that way, and an empty title would leave the cell with a
+  // hint underline and no hint.
   function sinceTitle(c: HealthCamera) {
     if (!c.oldestSegmentAt) return undefined;
     const since = `Desde ${ddmm(new Date(c.oldestSegmentAt).getTime())}`;
@@ -116,12 +121,12 @@
     return recorded ? `${since}. ${duration(retainedMs(c) - recorded)} sem gravar.` : since;
   }
 
-  // Cada coluna sabe extrair o valor que a ordena; assim o cabeçalho e a
-  // ordenação não podem discordar sobre o que "disco" significa.
+  // Each column knows how to extract the value that sorts it; this way the
+  // header and the sorting cannot disagree about what "disco" means.
   //
-  // A ajuda fica aqui junto, e não solta no template, porque é a mesma coisa: o
-  // rótulo cabe em uma palavra e nenhuma delas ("retenção", "reconex.") diz
-  // sozinha o que está sendo medido.
+  // The help text lives here, and not loose in the template, because it is the
+  // same thing: the label fits in one word, and none of them ("retenção",
+  // "reconex.") says by itself what is being measured.
   const columns: Columns<HealthCamera> = [
     {
       id: 'name',
@@ -162,13 +167,13 @@
     },
   ];
 
-  // numeric para "cam2" vir antes de "cam10", que é como as câmeras costumam
-  // ser nomeadas aqui.
+  // numeric so "cam2" comes before "cam10", which is how cameras are usually
+  // named here.
   const collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
 
-  // A ordenação vem da URL quando o link traz uma, e é validada contra as
-  // colunas acima - `sort=inventado` cai no padrão em vez de deixar a tabela
-  // sem critério nenhum.
+  // The sort order comes from the URL when the link carries one, and is
+  // validated against the columns above - `sort=inventado` falls back to the
+  // default instead of leaving the table with no criterion at all.
   const params = currentParams();
   const urlSort = params.get('sort');
 
@@ -177,8 +182,8 @@
     asc: params.get('dir') !== 'desc',
   });
 
-  // De volta para a URL, com o padrão - nome, crescente - ficando de fora: o
-  // link não precisa carregar o que já vale sem ele.
+  // Back to the URL, leaving out the default - name, ascending: the link does
+  // not need to carry what already applies without it.
   $effect(() => {
     write({
       sort: order.col === 'name' ? null : order.col,
@@ -191,10 +196,11 @@
     else order = { col: id, asc: true };
   }
 
-  // As duas tabelas desta tela ordenam igual, então a regra mora num lugar só:
-  // a coluna sabe extrair o valor que a ordena, texto passa pelo colator, e o
-  // empate cai SEMPRE no nome - senão a tabela dança a cada leitura de 5 s,
-  // que é o que acontece quando meia dúzia de câmeras tem o mesmo zero.
+  // Both tables on this screen sort the same way, so the rule lives in one
+  // place: the column knows how to extract the value that sorts it, text goes
+  // through the collator, and ties ALWAYS fall back to the name - otherwise the
+  // table jumps around on every 5 s read, which is what happens when half a
+  // dozen cameras share the same zero.
   function sortRows<T>(
     items: readonly T[],
     columns: Columns<T>,
@@ -203,7 +209,7 @@
   ) {
     const col = columns.find((c) => c.id === order.col) ?? columns[0];
     const dir = order.asc ? 1 : -1;
-    // Cópia: a origem é estado global e a tela só quer uma visão dele.
+    // Copy: the source is global state and the screen only wants a view of it.
     return [...items].sort((a, b) => {
       const d = col.texto
         ? collator.compare(col.value(a), col.value(b))
@@ -214,9 +220,9 @@
 
   const rows = $derived(sortRows(health.cameras, columns, order, (c) => c.name));
 
-  // A data vem em ISO/UTC do servidor; aqui interessa a hora local de quem lê.
-  // Builds antigos podem não trazê-la, e um "Invalid Date" na tela seria pior
-  // que não mostrar nada.
+  // The date comes from the server in ISO/UTC; what matters here is the local
+  // time of whoever is reading. Old builds may not send it, and an "Invalid
+  // Date" on screen would be worse than showing nothing.
   const compiledAt = $derived.by(() => {
     const d = new Date(build.date);
     return build.date && !isNaN(d.getTime())
@@ -224,14 +230,15 @@
       : '';
   });
 
-  // ---- este navegador ---------------------------------------------------
+  // ---- this browser ---------------------------------------------------
   //
-  // Vem fechado e só coleta ao abrir: é consulta de quem está investigando um
-  // defeito, e quem só veio ver as câmeras não paga por ela. Aberto, coleta de
-  // novo quando a janela muda de tamanho - girar o celular muda a área da
-  // página, que é justamente um dos números.
-  // Muda pelo `bind:aberto` do card: o tipo vai explícito, senão ele seria
-  // o `false` do valor inicial.
+  // Starts closed and only collects when opened: it is a lookup for someone
+  // investigating a defect, and whoever only came to watch the cameras does not
+  // pay for it. When open, it collects again when the window is resized -
+  // rotating the phone changes the page area, which is exactly one of the
+  // numbers.
+  // It changes through the card's `bind:isOpen`: the type is explicit,
+  // otherwise it would be the `false` of the initial value.
   let browserOpened = $state<boolean>(false);
   let groups = $state<CardGroup[]>([]);
 
@@ -255,8 +262,8 @@
     };
   });
 
-  // A hora do servidor para o viewer, que não lê o /api/health: o header Date
-  // de uma resposta qualquer, lido ao abrir o card. { servidor, aqui } em ms.
+  // The server time for the viewer, who does not read /api/health: the Date
+  // header of any response, read when the card opens. { server, here } in ms.
   let headerHour = $state<{ server: number; here: number } | null>(null);
 
   $effect(() => {
@@ -269,17 +276,17 @@
         if (isLive && !isNaN(server)) headerHour = { server, here: Date.now() };
       })
       .catch(() => {
-        // Sem resposta, a linha do relógio só não aparece.
+        // Without a response, the clock line just does not appear.
       });
     return () => {
       isLive = false;
     };
   });
 
-  // O relógio do aparelho contra o do servidor. A hora da resposta, pela
-  // latência, chega uns milissegundos atrasada, e a do header Date ainda vem
-  // sem os milissegundos; abaixo de 5s é ruído, e acima é relógio errado, que
-  // faz "agora" apontar para outro ponto da timeline.
+  // The device clock against the server's. The response time, because of
+  // latency, arrives a few milliseconds late, and the Date header still comes
+  // without milliseconds; below 5s it is noise, and above it the clock is
+  // wrong, which makes "now" point to a different spot on the timeline.
   const clockDifference = $derived.by((): { value: string; alert?: boolean } | null => {
     const lido = admin ? (health.clock ? Date.parse(health.clock.now) : NaN) : headerHour?.server;
     const here = admin ? health.updatedAt : headerHour?.here;
@@ -308,16 +315,16 @@
     return asText(groupsWithClock, header, [`user agent: ${navigator.userAgent}`]);
   }
 
-  // ---- este servidor ----------------------------------------------------
+  // ---- this server ----------------------------------------------------
   //
-  // Mesmo trato do navegador: fechado, e só pergunta ao servidor com o card
-  // aberto. A leitura custa um teste de escrita no storage e uma ida ao
-  // go2rtc e ao detector de objetos, então o ritmo é mais lento que o do resto
-  // da tela - temperatura e pressão mudam em dezenas de segundos, não em 5.
+  // Same treatment as the browser: closed, and it only asks the server while
+  // the card is open. The read costs a write test on storage and a round trip
+  // to go2rtc and the object detector, so the pace is slower than the rest of
+  // the screen - temperature and pressure change over tens of seconds, not 5.
   //
-  // A leitura de antes fica guardada porque a CPU do dwnvr sai da diferença
-  // entre as duas. Fechar o card esquece ambas: reaberto uma hora depois, a
-  // conta seria a média dessa hora, e não a de agora.
+  // The previous read is kept because dwnvr's CPU comes from the difference
+  // between the two. Closing the card forgets both: reopened an hour later, the
+  // figure would be the average of that hour, not of now.
   const SERVER_POLL_MS = 15000;
   let serverOpened = $state<boolean>(false);
   let server = $state<Server | null>(null);
@@ -327,9 +334,10 @@
   $effect(() => {
     if (!serverOpened) return;
     let isLive = true;
-    // Aba em segundo plano não pergunta: cada leitura grava no storage, e um
-    // card esquecido aberto numa aba escondida faria isso a cada 15 s para
-    // sempre. Ao voltar para a aba, lê na hora em vez de esperar o próximo tique.
+    // A background tab does not ask: each read writes to storage, and a card
+    // forgotten open in a hidden tab would do that every 15 s forever. When the
+    // tab becomes visible again, it reads right away instead of waiting for the
+    // next tick.
     const ler = async () => {
       if (document.hidden) return;
       try {
@@ -359,7 +367,8 @@
 
   const serverGroups = $derived(server ? groupsFromServer(server, previousServer) : []);
 
-  // O teste de e-mail é chunk à parte: só baixa com a seção smtp ligada.
+  // The email test is a separate chunk: it only downloads with the smtp section
+  // on.
   const emailEnabled = $derived(!!server?.smtp && !server.smtp.error);
   let EmailTest = $state<typeof EmailTestT | null>(null);
   $effect(() => {
@@ -372,9 +381,9 @@
   const serverLog = $derived(server?.log);
   const serverCollected = $derived(server ? collectedAt(server.coletadoEm) : '');
 
-  // O "copiar" leva a hora da coleta, e não a de quando se tocou no botão: o
-  // texto descreve aquela leitura. Os espaços inquebráveis do subtítulo voltam
-  // a ser espaço comum no texto colado.
+  // "Copy" carries the time of the collection, not the time the button was
+  // tapped: the text describes that read. The non-breaking spaces in the
+  // subtitle go back to ordinary spaces in the pasted text.
   function serverText() {
     const collected = serverCollected.replaceAll(' ', ' ');
     const header = [
@@ -393,19 +402,19 @@
   const totalKbps = $derived(health.cameras.reduce((a, c) => a + (c.bitrateKbps || 0), 0));
   const bytesPerDay = $derived(((totalKbps * 1000) / 8) * 86400);
 
-  // ---- reconhecimento de objetos ----------------------------------------
+  // ---- object recognition ----------------------------------------
   //
-  // O desenho é um funil, sobre os números que o servidor dá: o `funil` de
-  // cada câmera, contado desde que o dwnvr subiu. Câmera sem detector não traz o
-  // campo, e sem nenhuma câmera com ele a seção inteira some, em vez de
-  // aparecer zerada e parecer defeito.
+  // The design is a funnel, built on the numbers the server provides: each
+  // camera's `funil`, counted since dwnvr started. A camera without a detector
+  // does not send the field, and when no camera has it the whole section
+  // disappears, instead of showing up zeroed and looking like a defect.
   const withFunnel = $derived(health.cameras.filter((c): c is WithFunnel => c.funil !== undefined));
-  // A fila, que é uma só para todas as câmeras, e os tempos das últimas
-  // olhadas. Some junto com o detector.
+  // The queue, which is a single one for all cameras, and the times of the
+  // latest inferences. It disappears together with the detector.
   const detector = $derived(health.detector);
 
-  // Os pedaços do funil de uma câmera. As fatias fecham a conta com os onsets
-  // (ver `Funil` em internal/recorder/recorder.go).
+  // The pieces of a camera's funnel. The slices add up to the onsets (see
+  // `Funnel` in internal/recorder/recorder.go).
   interface Outcomes {
     total: number;
     dropped: number;
@@ -442,24 +451,26 @@
     };
   }
 
-  // O funil é a história inteira de uma marca de movimento, e cada pedaço é um
-  // desfecho DIFERENTE. Não somar tudo num "perdidas" só é a razão de esta
-  // barra existir: "descartada" é a fila fazendo o papel de freio de propósito,
-  // "olhou, nada novo" inclui o carro que já estava estacionado, e só o
-  // vermelho quer dizer que uma marca ficou sem resposta.
-  // A cor de cada desfecho mora junto do rótulo, e vai para a tela em `style`
-  // em vez de virar classe. São duas razões: a barra e a legenda passam a ler
-  // a MESMA definição, que é o que impede o quadradinho da legenda de
-  // discordar do pedaço da barra; e o Svelte apaga do CSS toda regra que ele
-  // não vê usada no template - uma classe montada em tempo de execução, como
-  // `s-{id}`, ele não vê, e a barra sairia sem cor nenhuma.
+  // The funnel is the whole story of one motion mark, and each piece is a
+  // DIFFERENT outcome. Not adding everything into a single "perdidas" is the
+  // reason this bar exists: "descartada" is the queue acting as a deliberate
+  // brake, "olhou, nada novo" includes the car that was already parked, and
+  // only red means a mark was left without an answer.
+  // The color of each outcome lives next to its label, and goes to the screen
+  // in `style` instead of becoming a class. There are two reasons: the bar and
+  // the legend read the SAME definition, which is what keeps the legend's
+  // little square from disagreeing with the bar's piece; and Svelte removes
+  // from the CSS every rule it does not see used in the template - a class
+  // built at runtime, like `s-{id}`, it does not see, and the bar would come
+  // out with no color at all.
   //
-  // `escuro` diz se o número dentro do pedaço vai em texto escuro: só os três
-  // pedaços de cor forte têm contraste para isso; nos dois cinzas ele sumiria.
+  // `dark` says whether the number inside the piece goes in dark text: only the
+  // three strong-colored pieces have the contrast for that; on the two grays it
+  // would vanish.
   //
-  // `sempre` mantém o desfecho na legenda mesmo zerado: "na fila" é estado de
-  // agora, e vai de 0 a 1 e volta a cada poucos segundos - sumindo e voltando,
-  // a legenda inteira pulava.
+  // `always` keeps the outcome in the legend even when zero: "na fila" is a
+  // state of right now, and goes from 0 to 1 and back every few seconds -
+  // appearing and disappearing, the whole legend would jump.
   interface Outcome {
     id: Exclude<keyof Outcomes, 'total' | 'semVideo' | 'recusados' | 'falhas'> | 'lost';
     color: string;
@@ -470,22 +481,23 @@
   }
 
   const OUTCOMES: Outcome[] = [
-    // A fila guarda poucas marcas por câmera: a que chega com a câmera já no
-    // limite é descartada - não vai ao detector nem depois -, e fica só como
-    // movimento na timeline.
+    // The queue holds few marks per camera: one that arrives with the camera
+    // already at the limit is discarded - it does not go to the detector now or
+    // later - and stays only as motion on the timeline.
     { id: 'dropped', color: '#3d444d', dark: false, label: 'descartada: fila da câmera cheia' },
     { id: 'inferred', color: 'var(--accent)', dark: true, label: 'olhou, nada novo' },
     { id: 'object', color: 'var(--ok)', dark: true, label: 'achou objeto' },
-    // Cinza claro, e não outro tom do escuro: um cinza escuro fica quase igual
-    // ao `#3d444d` do descartado, e os dois pedaços colam num borrão. Cor
-    // nova de verdade também não serve - roxo e rosa já são veículo e animal
-    // na timeline, e repeti-las aqui inventaria um parentesco que não existe.
+    // Light gray, and not another shade of the dark one: a dark gray ends up
+    // almost identical to the `#3d444d` of discarded, and the two pieces blur
+    // together. A truly new color does not work either - purple and pink are
+    // already vehicle and animal on the timeline, and repeating them here would
+    // invent a kinship that does not exist.
     //
-    // "Em andamento", e não "na fila": o pedaço junta tudo o que ainda não tem
-    // resultado - a marca esperando o pico para ser cortada, as que esperam a
-    // vez e a que está em análise. Chamado de "na fila", ele não batia com o
-    // chip da fila nem com as bolinhas da tabela, que contam só as que
-    // esperam a vez.
+    // "Em andamento", and not "na fila": the piece gathers everything that has
+    // no result yet - the mark waiting for the peak to be cut, the ones waiting
+    // their turn and the one being analyzed. Called "na fila", it matched
+    // neither the queue chip nor the dots in the table, which count only the
+    // ones waiting their turn.
     {
       id: 'esperando',
       color: 'var(--dim)',
@@ -497,28 +509,29 @@
     { id: 'lost', color: 'var(--bad)', dark: true, label: 'não analisadas' },
   ];
 
-  // A largura da barra em pixels, medida pelo próprio navegador. Sem ela não
-  // dá para saber se o número cabe no pedaço: a fatia é uma PORCENTAGEM, e 0,2%
-  // são 2px no celular e 2px no desktop - o que muda é só quantos pixels há no
-  // total. Nove marcas em quatro mil não cabem em lugar nenhum.
+  // The bar width in pixels, measured by the browser itself. Without it there
+  // is no way to know whether the number fits in the piece: the slice is a
+  // PERCENTAGE, and 0.2% is 2px on the phone and 2px on the desktop - what
+  // changes is only how many pixels there are in total. Nine marks out of four
+  // thousand fit nowhere.
   let funnelWidth = $state(0);
 
-  // Cabe o número dentro do pedaço? 12px em negrito dá ~8px por algarismo, mais
-  // uma folga de cada lado para ele não encostar na divisa. Quando não cabe, o
-  // número vai para a legenda em vez de ser cortado ao meio - foi assim que um
-  // "9" apareceu como meio risco na tela.
+  // Does the number fit inside the piece? 12px bold is about 8px per digit,
+  // plus some slack on each side so it does not touch the edge. When it does
+  // not fit, the number goes to the legend instead of being cut in half - that
+  // is how a "9" ended up looking like half a stroke on screen.
   function fits(p: { n: number }) {
     if (!funnelWidth || !funnel) return false;
     return (p.n / funnel.total) * funnelWidth >= String(p.n).length * 8 + 8;
   }
 
-  // Os tempos do detector em segundos com uma casa, e não pelo `duracao()`:
-  // a espera na fila fica quase sempre abaixo de um segundo, e ele a
-  // arredondaria para "0s".
+  // The detector times in seconds with one decimal, and not through
+  // `duration()`: the queue wait is almost always under one second, and it
+  // would round it to "0s".
   const segundos = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')}s`;
 
-  // A soma das câmeras. O servidor manda por câmera, e o total é conta que a
-  // tela faz: é uma soma de poucos números por câmera.
+  // The sum over the cameras. The server sends per camera, and the total is
+  // arithmetic the screen does: it is a sum of a few numbers per camera.
   const sum = $derived.by(() => {
     const s: Outcomes = {
       total: 0,
@@ -541,18 +554,18 @@
     if (!sum.total) return null;
     const lostCount = sum.semVideo + sum.recusados + sum.falhas;
     const amounts = { ...sum, lost: lostCount };
-    // Só o que existe entra na barra. Na legenda também, menos o que é
-    // `sempre`: legenda de pedaço que não foi desenhado manda procurar na tela
-    // uma cor que não está lá, mas o "0" dele diz exatamente isso.
+    // Only what exists goes in the bar. In the legend too, except what is
+    // `always`: a legend entry for a piece that was not drawn sends the reader
+    // looking for a color that is not there, but its "0" says exactly that.
     const allItems = OUTCOMES.map((d) => ({ ...d, n: amounts[d.id] }));
     const clips = allItems.filter((d) => d.n > 0);
     const caption = allItems.filter((d) => d.n > 0 || d.always === true);
     return { pedacos: clips, caption, total: sum.total, lostCount };
   });
 
-  // A quebra do pedaço vermelho, em palavras. Aparece só quando há o que
-  // explicar, e cada motivo tem o seu - é aqui que "não analisadas" para de
-  // ser um monte só.
+  // The breakdown of the red piece, in words. It only appears when there is
+  // something to explain, and each reason has its own entry - this is where
+  // "não analisadas" stops being a single lump.
   const unanalyzed = $derived(
     [
       { n: sum.semVideo, texto: 'sem vídeo inteiro para mandar, logo depois de conectar' },
@@ -561,13 +574,14 @@
     ].filter((x) => x.n > 0),
   );
 
-  // As colunas da tabela de detecção. Mesma forma das de cima: cada uma sabe
-  // extrair o valor que a ordena e carrega a própria ajuda, para o cabeçalho e
-  // a ordenação não terem como discordar sobre o que a coluna mede.
+  // The columns of the detection table. Same shape as the ones above: each
+  // knows how to extract the value that sorts it and carries its own help text,
+  // so the header and the sorting cannot disagree about what the column
+  // measures.
   //
-  // O `??` do acerto não é detalhe: câmera nunca olhada não tem acerto, e sem
-  // um valor a ordenação a jogaria em qualquer lugar. -1 põe o "sem dado"
-  // antes de todo mundo no crescente.
+  // The `??` on the hit rate is not a detail: a camera never inferred has no
+  // hit rate, and without a value the sorting would throw it anywhere. -1 puts
+  // "sem dado" before everyone else in ascending order.
   const detColumns: Columns<DetRow> = [
     { id: 'nome', label: 'câmera', value: (c) => c.nome, texto: true },
     {
@@ -603,10 +617,10 @@
     {
       id: 'fila',
       label: 'na fila',
-      // Quem mais espera primeiro; o processamento desempata.
+      // Whoever waits the most comes first; processing breaks ties.
       value: (c) => c.fila.esperando * 2 + (c.fila.olhando ? 1 : 0),
-      // Getter, e não texto fixo: o número de lugares vem do servidor, e o
-      // cabeçalho relê a dica quando ele chega.
+      // A getter, and not fixed text: the number of slots comes from the
+      // server, and the header rereads the hint when it arrives.
       get help() {
         const n = detector?.fila.porCamera ?? 2;
         return `Os lugares desta câmera na fila: até ${n} marcas esperando a vez (cinza). Com os ${n} ocupados (âmbar), a próxima marca desta câmera é descartada e fica só como movimento na timeline. O ponto azul, à parte, é a câmera cuja imagem o detector está processando agora - essa marca já saiu da fila.`;
@@ -614,8 +628,8 @@
     },
   ];
 
-  // Chaves próprias na URL (`dsort`/`ddir`): as duas tabelas da tela ordenam
-  // sozinhas, e compartilhar `sort` faria uma mexer na outra.
+  // Own keys in the URL (`dsort`/`ddir`): the two tables on the screen sort
+  // independently, and sharing `sort` would make one affect the other.
   const urlSortDet = params.get('dsort');
   let detOrder = $state<Order>({
     col: urlSortDet !== null && detColumns.some((c) => c.id === urlSortDet) ? urlSortDet : 'nome',
@@ -634,9 +648,10 @@
     else detOrder = { col: id, asc: true };
   }
 
-  // O que uma câmera tem na fila agora: os lugares, ocupados primeiro, e se
-  // uma imagem dela está sendo processada. Essa já saiu da fila, então não
-  // ocupa lugar - vai à parte. Câmera fora de `cameras` não tem nada.
+  // What a camera has in the queue right now: the slots, occupied first, and
+  // whether an image of it is being processed. That one has already left the
+  // queue, so it does not take a slot - it goes separately. A camera not in
+  // `cameras` has nothing.
   function queueOf(id: string) {
     const n = detector?.fila.porCamera ?? 0;
     const l = detector?.fila.cameras[id] ?? { esperando: 0, olhando: false };
@@ -646,7 +661,7 @@
     return { ...l, slots, full: n > 0 && l.esperando >= n };
   }
 
-  // Uma linha da tabela de detecção.
+  // One row of the detection table.
   function detRow(c: WithFunnel) {
     const d = outcomesOf(c);
     const inferences = d.inferred + d.object;
@@ -665,11 +680,11 @@
 
   const detCams = $derived.by(() => {
     const rows = withFunnel.map(detRow);
-    // O servidor manda o funil de toda câmera assim que existe detector, com a
-    // detecção de movimento dela ligada ou não. Desligada ela não marca nada, e
-    // a linha zerada leria como "não viu nada". Fica na tabela, porque os
-    // números sobrevivem a desligar no meio do dia, mas num grupo à parte, no
-    // fim: a ordenação escolhida vale dentro de cada grupo.
+    // The server sends every camera's funnel as soon as there is a detector,
+    // whether or not its motion detection is on. When off, it marks nothing,
+    // and the zeroed row would read as "saw nothing". It stays in the table,
+    // because the numbers survive being turned off mid-day, but in a separate
+    // group, at the end: the chosen sort order applies within each group.
     const sorted = sortRows(rows, detColumns, detOrder, (c) => c.nome);
     return {
       enabledCams: sorted.filter((c) => c.enabled),
@@ -677,20 +692,20 @@
     };
   });
 
-  // ---- avisos ------------------------------------------------------------
+  // ---- notices ------------------------------------------------------------
 
-  // A lista mora em lib/avisos.ts, que o sino do header também usa: os dois
-  // contam com a mesma regra.
+  // The list lives in lib/notices.ts, which the header bell also uses: both
+  // count with the same rule.
   const now = $derived(serverNow(health));
   const notices = $derived(noticesOf(health));
 
-  // O zerar só aparece quando há o que zerar.
+  // The reset only appears when there is something to reset.
   const hasReconnection = $derived(health.cameras.some((c) => c.reconnects > 0));
 
-  // "contando desde" no título só quando todas as câmeras no ar contam do mesmo
-  // ponto - a subida do dwnvr, ou o último zerar. Câmera reiniciada por mudança
-  // de configuração conta do próprio reinício, e aí o desde de cada aviso é o
-  // que vale.
+  // "contando desde" in the title only when all online cameras count from the
+  // same point - dwnvr startup, or the last reset. A camera restarted by a
+  // config change counts from its own restart, and then each notice's own since
+  // is what applies.
   const countingSince = $derived.by(() => {
     const starts = health.cameras
       .map((c) => Date.parse(c.reconnectsSince))
@@ -721,13 +736,14 @@
 
 <div class="page">
   {#if admin}
-    <!-- Os dois uptimes ficam lado a lado de propósito: é a comparação entre
-         eles que diagnostica. Iguais, nada reiniciou; só o do dwnvr curto, foi
-         deploy ou queda do processo; os dois curtos, a máquina reiniciou - e aí
-         "reconex. 0" e "não gravou nada desde que o dwnvr subiu", logo abaixo,
-         deixam de ser mistério.
+    <!-- The two uptimes sit side by side on purpose: the comparison between
+         them is what diagnoses. Equal, nothing restarted; only dwnvr's short,
+         it was a deploy or a process crash; both short, the machine rebooted -
+         and then "reconex. 0" and "não gravou nada desde que o dwnvr subiu",
+         just below, stop being a mystery.
 
-         Some inteira contra servidor antigo, que não responde o campo. -->
+         The whole thing disappears against an old server, which does not answer
+         the field. -->
     {#if health.uptime}
       <div class="card row wrap statusbar small">
         <span class="dot ok"></span>
@@ -738,9 +754,9 @@
           <span class="muted">máquina há</span>
           <span class="mono">{duration(health.uptime.machineSeconds * 1000)}</span>
         {/if}
-        <!-- Horário do servidor no fuso do servidor, e não no do navegador: é
-             assim que se descobre relógio ou TZ errado na máquina que grava, que
-             é a que carimba o nome dos segmentos. -->
+        <!-- Server time in the server's time zone, and not the browser's: that
+             is how a wrong clock or TZ is found on the machine that records,
+             which is the one that stamps the segment names. -->
         {#if clock}
           <span class="muted">·</span>
           <span class="muted">horário do servidor</span>
@@ -774,8 +790,9 @@
 
         <div class="row wrap small muted legend">
           <span><i class="dwnvr"></i> dwnvr: {bytes(disk.dwnvrBytes)}</span>
-          <!-- Só com órfã: a legenda permanente sugeriria que sobrar gravação sem
-               câmera é o normal. Quem apaga é a tela de Câmeras, não a retenção. -->
+          <!-- Only with an orphan: a permanent legend would suggest that
+               leftover recordings without a camera are normal. Whoever deletes
+               them is the Cameras screen, not retention. -->
           {#if orphansBytes > 0}
             <span
               title="Gravações de câmeras removidas. A retenção não as apaga; apague em Câmeras."
@@ -808,8 +825,9 @@
       </div>
     </div>
 
-    <!-- O card existe também sem aviso nenhum, com o "nenhum problema": a área
-         não muda de cara, e o zerar continua à mão para a coluna reconex. -->
+    <!-- The card exists even with no notice at all, showing "nenhum problema":
+         the area does not change its look, and the reset stays at hand for the
+         reconex. column. -->
     {#if notices.length || health.updatedAt}
       <div class="card notices">
         <div class="row wrap">
@@ -835,7 +853,7 @@
             <span class="dot bad"></span>Não foi possível zerar as reconexões: {resetError}
           </p>
         {/if}
-        <!-- eslint-disable-next-line svelte/require-each-key -- só texto, sem estado por linha; e dois avisos podem ter o mesmo texto, o que quebraria a chave -->
+        <!-- eslint-disable-next-line svelte/require-each-key -- text only, no per-row state; and two notices can have the same text, which would break the key -->
         {#each notices as a}
           <p class="row {a.nivel}"><span class="dot {a.nivel}"></span>{a.texto}</p>
         {:else}
@@ -856,8 +874,8 @@
       </ConfirmDialog>
     {/if}
 
-    <!-- A ordenação no celular: o cabeçalho de colunas não existe lá, então cada
-         coluna vira um chip. Mesmo estado e mesma URL do cabeçalho do desktop. -->
+    <!-- Sorting on the phone: the column header does not exist there, so each
+         column becomes a chip. Same state and same URL as the desktop header. -->
     {#snippet chipsOrder(cols: readonly ColumnBase[], o: Order, sortedBy: (id: string) => void)}
       <div class="order row wrap small">
         <span class="muted">ordenar</span>
@@ -879,8 +897,9 @@
       </div>
     {/snippet}
 
-    <!-- O rótulo de cada valor no cartão do celular, tirado da mesma coluna que
-         nomeia o chip. No desktop some: lá quem nomeia é o cabeçalho. -->
+    <!-- The label of each value on the phone card, taken from the same column
+         that names the chip. On desktop it goes away: there the header names
+         it. -->
     {#snippet label(cols: readonly ColumnBase[], o: Order, id: string)}
       <span class="rot-cel" class:active={o.col === id}>{cols.find((c) => c.id === id)?.label}</span
       >
@@ -890,9 +909,9 @@
       {@render chipsOrder(columns, order, sortBy)}
       <div class="thead row small muted">
         {#each columns as col (col.id)}
-          <!-- O title fica no botão inteiro, e não só no rótulo: a área de
-               passagem do mouse é a célula do cabeçalho, que é onde a pessoa
-               para para decidir se clica. -->
+          <!-- The title goes on the whole button, not just the label: the mouse
+               hover area is the header cell, which is where the person pauses
+               to decide whether to click. -->
           <button
             class="th"
             class:active={order.col === col.id}
@@ -903,7 +922,7 @@
             }}
           >
             <span class="label">{col.label}</span>
-            <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
+            <!-- The arrow always takes up space, otherwise the header jumps on each click. -->
             <span class="arrow">
               {#if order.col === col.id}
                 <Icon name={order.asc ? 'chevronUp' : 'chevronDown'} size={12} stroke={2.5} />
@@ -921,8 +940,8 @@
               class:bad={c.enabled && (c.silent || !c.connected)}
             ></span>
             <span class="name">{c.name}</span>
-            <!-- Conectada mas sem gravar é o estado traiçoeiro: o ponto verde
-                 dizia "tudo bem" enquanto a câmera não produzia nada. -->
+            <!-- Connected but not recording is the treacherous state: the green
+                 dot said "all good" while the camera produced nothing. -->
             {#if c.silent}<span class="chip stopped">não grava</span>
             {:else if c.lastSegmentAt}<span class="chip"
                 >{hhmmss(new Date(c.lastSegmentAt).getTime())}</span
@@ -930,15 +949,16 @@
             {#if c.hasAudio}<span class="chip">áudio</span>{/if}
           </span>
           <span class="mono">{@render label(columns, order, 'bitrate')}{kbps(c.bitrateKbps)}</span>
-          <!-- Uso e cota juntos, como no chip da tela de Câmeras: o número
-               sozinho não diz se é muito ou pouco para esta câmera. -->
+          <!-- Usage and quota together, as in the chip on the Cameras screen:
+               the number alone does not say whether it is a lot or a little for
+               this camera. -->
           <span class="mono"
             >{@render label(columns, order, 'disco')}<span class="whole">{bytes(c.diskBytes)}</span>
             de <span class="whole">{mbToBytes(c.quotaMB)}</span></span
           >
-          <!-- O gravado vai em linha própria, e só com buraco: na câmera sem
-               falha a célula fica como sempre foi, e a linha a mais é o próprio
-               sinal de que algo faltou. -->
+          <!-- The recorded amount goes on its own line, and only with a gap: on
+               a camera without failures the cell stays as it always was, and
+               the extra line is itself the sign that something was missing. -->
           <span class="mono" title={sinceTitle(c)}>
             {@render label(columns, order, 'retido')}{duration(retainedMs(c))}
             {#if recordedWithGap(retainedMs(c), c.recordedMs)}
@@ -950,10 +970,11 @@
         </div>
       {/each}
       {#if !health.cameras.length}
-        <!-- Duas ausências diferentes moravam no mesmo "sem dados ainda": o
-             servidor que ainda não respondeu e a instalação sem câmera nenhuma.
-             `updatedAt` só sai de 0 quando uma leitura volta, e a resposta traz
-             toda câmera cadastrada - inclusive a desabilitada. -->
+        <!-- Two different absences used to live in the same "sem dados ainda":
+             the server that has not answered yet and the installation with no
+             camera at all. `updatedAt` only leaves 0 when a read comes back,
+             and the response carries every registered camera - including the
+             disabled one. -->
         {#if health.updatedAt}
           <NoCameras />
         {:else}
@@ -962,20 +983,20 @@
       {/if}
     </div>
 
-    <!-- Reconhecimento de objetos. Some inteiro quando nenhuma câmera tem
-         detector configurado.
+    <!-- Object recognition. Disappears entirely when no camera has a detector
+         configured.
 
-         Um card só, e não dois: o funil e a tabela são a mesma coisa vista de
-         longe e de perto. Dois cards sugeriam dois assuntos; o que separa os
-         dois aqui é um risco, não um vão. -->
+         A single card, not two: the funnel and the table are the same thing
+         seen from far and from near. Two cards would suggest two subjects; what
+         separates the two halves here is a rule, not a gap. -->
     {#if withFunnel.length}
       <div class="card detection">
         <div class="top">
           <div class="row wrap">
             <strong>Reconhecimento de objetos</strong>
             <span class="spacer"></span>
-            <!-- Os números zeram quando o dwnvr reinicia: sem dizer desde quando
-                 eles contam, "12 com objeto" não é muito nem pouco. -->
+            <!-- The numbers reset when dwnvr restarts: without saying since
+                 when they count, "12 com objeto" is neither a lot nor a little. -->
             {#if health.uptime}
               <span class="muted small"
                 >desde que o dwnvr subiu, há {duration(health.uptime.appSeconds * 1000)}</span
@@ -999,11 +1020,11 @@
           </div>
 
           {#if funnel}
-            <!-- Uma barra só conta a história inteira: de tudo que as câmeras
-                 marcaram, o que foi descartado, o que o detector olhou, o que virou
-                 objeto e o que ficou sem resposta. É a única forma desta tela de
-                 responder POR QUE uma marca não virou objeto sem precisar de
-                 prosa. -->
+            <!-- A single bar tells the whole story: of everything the cameras
+                 marked, what was discarded, what the detector looked at, what
+                 became an object and what was left without an answer. It is
+                 this screen's only way to answer WHY a mark did not become an
+                 object without needing prose. -->
             <div
               class="funnel"
               bind:clientWidth={funnelWidth}
@@ -1019,9 +1040,9 @@
               {/each}
             </div>
 
-            <!-- O número acompanha o rótulo quando não coube no pedaço. Assim
-                 cada número aparece exatamente uma vez, e nenhum aparece pela
-                 metade. -->
+            <!-- The number accompanies the label when it did not fit in the
+                 piece. This way each number appears exactly once, and none
+                 appears cut in half. -->
             <div class="row wrap small muted legend">
               {#each funnel.caption as p (p.id)}
                 <span title={p.help}>
@@ -1034,10 +1055,11 @@
             <div class="row wrap small muted numbers">
               <span><b class="mono">{funnel.total}</b> marcas de movimento</span>
               <span><b class="mono">{sum.object}</b> viraram objeto na timeline</span>
-              <!-- Dois tempos, e não um: analisar é o detector olhando, a espera
-                   é quanto a marca ficou parada na fila antes dele - e é a que
-                   cresce quando o aparelho não dá conta. Zero é "ainda não
-                   olhou nenhuma", e um "0,0s" ali diria que é instantâneo. -->
+              <!-- Two times, not one: analyzing is the detector looking, the
+                   wait is how long the mark sat in the queue before it - and
+                   that is the one that grows when the device cannot keep up.
+                   Zero means "ainda não olhou nenhuma", and a "0,0s" there
+                   would say it is instantaneous. -->
               {#if detector?.tempos.analiseMs}
                 <span
                   >analisar leva <b class="mono">{segundos(detector.tempos.analiseMs)}</b> por marca</span
@@ -1076,7 +1098,7 @@
                 }}
               >
                 <span class="label">{col.label}</span>
-                <!-- A seta ocupa lugar sempre, senão o cabeçalho pula a cada clique. -->
+                <!-- The arrow always takes up space, otherwise the header jumps on each click. -->
                 <span class="arrow">
                   {#if detOrder.col === col.id}
                     <Icon
@@ -1105,9 +1127,10 @@
               <span class="mono" class:zero={!c.object}
                 >{@render label(detColumns, detOrder, 'objeto')}{c.object}</span
               >
-              <!-- Quase tudo com objeto não é bom sinal: costuma ser um objeto
-                   parado dentro do quadro, e aí o reconhecimento está confirmando
-                   sempre a mesma coisa em vez de avisar de algo novo. -->
+              <!-- Almost everything having an object is not a good sign: it is
+                   usually a stationary object inside the frame, and then
+                   recognition is confirming the same thing over and over
+                   instead of warning about something new. -->
               <span class="mono" class:zero={!c.object} class:alert={c.hit !== null && c.hit >= 90}>
                 {@render label(detColumns, detOrder, 'acerto')}{c.hit === null ? '-' : `${c.hit}%`}
               </span>
@@ -1117,12 +1140,12 @@
               <span class="mono" class:zero={!c.lostCount} class:alert={c.lostCount > 0}
                 >{@render label(detColumns, detOrder, 'perdidas')}{c.lostCount}</span
               >
-              <!-- Os lugares da câmera, e não um número: cheio ou vazio se lê
-                   de relance. Âmbar quando todos estão ocupados, que é quando a
-                   próxima marca dela é descartada. O azul fica à esquerda deles,
-                   e separado: a imagem em processamento não está na fila. Sem
-                   detecção a câmera não entra na fila, e lugares vazios ali
-                   diriam que ela está esperando a vez. -->
+              <!-- The camera's slots, and not a number: full or empty reads at
+                   a glance. Amber when all are occupied, which is when its next
+                   mark is discarded. Blue sits to their left, and separate: the
+                   image being processed is not in the queue. Without detection
+                   the camera does not enter the queue, and empty slots there
+                   would say it is waiting its turn. -->
               <span class="queue-cell">
                 {#if c.enabled}
                   {#if c.fila.olhando}
@@ -1160,9 +1183,9 @@
     {/if}
   {/if}
 
-  <!-- Este navegador: o lado de quem olha, que o servidor não enxerga. O
-       "copiar" é o que torna a seção útil de longe - a pessoa manda o texto
-       numa conversa em vez de descrever o celular. -->
+  <!-- This browser: the side of whoever is looking, which the server cannot
+       see. "Copy" is what makes the section useful from afar - the person sends
+       the text in a chat instead of describing the phone. -->
   <DiagnosticsCard
     title="Este navegador"
     groups={groupsWithClock}
@@ -1171,9 +1194,9 @@
   />
 
   {#if admin}
-    <!-- Este servidor: a máquina que grava, vista de dentro. Responde "a
-         máquina tem fôlego para gravar?", que a tabela de câmeras acima não
-         responde - ela só mostra a consequência. -->
+    <!-- This server: the machine that records, seen from the inside. It answers
+         "does the machine have the headroom to record?", which the cameras
+         table above does not answer - it only shows the consequence. -->
     <DiagnosticsCard
       title="Este servidor"
       subtitle={serverCollected}
@@ -1207,10 +1230,11 @@
     <HealthFooter />
   {/if}
 
-  <!-- Único lugar onde a versão em uso aparece fora da tela de login, e por
-       isso é onde se procura versão: a nova, quando há, entra ao lado dela,
-       além da pílula do header. Os links valem mesmo sem versão - build
-       antigo não a traz, e o repositório continua no mesmo endereço. -->
+  <!-- The only place where the version in use appears outside the login screen,
+       and therefore where people look for the version: the new one, when there
+       is one, shows up next to it, besides the header pill. The links apply
+       even without a version - an old build does not carry it, and the
+       repository stays at the same address. -->
   <div class="card about">
     <p class="row wrap versao">
       <strong>dwnvr</strong>
@@ -1241,17 +1265,17 @@
     margin: 0 auto;
   }
 
-  /* O :not(.row) importa: esta regra é escopada, e escopo no Svelte acrescenta
-     uma classe ao seletor - ou seja, ela ganha do .row global por
-     especificidade. Sem a ressalva, todo card que se declara linha (os totais,
-     o "nenhum problema", a faixa de estado) virava coluna calado. */
+  /* The :not(.row) matters: this rule is scoped, and scoping in Svelte adds a
+     class to the selector - so it beats the global .row on specificity. Without
+     the exception, every card that declares itself a row (the totals, "nenhum
+     problema", the status strip) silently became a column. */
   .card:not(.row) {
     display: grid;
     gap: 10px;
   }
 
-  /* Mais baixa que os outros cards: é contexto de leitura rápida, não deve
-     disputar espaço com o disco logo abaixo. */
+  /* Shorter than the other cards: it is quick-read context, and should not
+     compete for space with the disk just below. */
   .statusbar {
     padding: 8px 12px;
   }
@@ -1269,8 +1293,8 @@
   .seg.orphans {
     background: var(--warn);
   }
-  /* Órfã de poucos MB num disco de centenas de GB daria um trecho de 0px: o
-     amarelo da legenda não teria par na barra. */
+  /* An orphan of a few MB on a disk of hundreds of GB would give a 0px stretch:
+     the legend's yellow would have no match in the bar. */
   .seg.orphans.visible {
     min-width: 4px;
   }
@@ -1308,15 +1332,15 @@
     font-weight: 600;
   }
 
-  /* ---- sobre ---- */
+  /* ---- about ---- */
 
   .about .versao {
     margin: 0;
     gap: 4px 8px;
   }
 
-  /* Com cara de botão, e não de link solto numa frase: são destinos, e no
-     celular o dedo precisa de alvo. */
+  /* Button-like, and not a link loose in a sentence: they are destinations, and
+     on the phone the finger needs a target. */
   .about .links {
     display: flex;
     flex-wrap: wrap;
@@ -1364,12 +1388,13 @@
     color: var(--ok);
   }
 
-  /* ---- reconhecimento de objetos ---- */
+  /* ---- object recognition ---- */
 
-  /* O card não tem padding próprio: quem espaça é cada metade. A tabela
-     precisa encostar na borda para rolar de lado inteira no celular, e o
-     resumo precisa do respiro que todo card tem. O gap zerado é o que faz o
-     risco divisor colar nas duas metades em vez de flutuar entre elas. */
+  /* The card has no padding of its own: each half provides the spacing. The
+     table needs to touch the edge to scroll sideways across its full width on
+     the phone, and the summary needs the breathing room every card has. The
+     zeroed gap is what makes the divider rule hug both halves instead of
+     floating between them. */
   .detection {
     padding: 0;
     gap: 0;
@@ -1384,8 +1409,8 @@
     overflow-x: auto;
   }
 
-  /* A barra do funil. Mesma altura da barra de disco não serve: aqui os
-     pedaços carregam número dentro, e 12px cortaria o algarismo. */
+  /* The funnel bar. The same height as the disk bar will not do: here the
+     pieces carry a number inside, and 12px would cut the digit. */
   .funnel {
     display: flex;
     height: 26px;
@@ -1395,9 +1420,10 @@
   }
   .funnel .seg {
     display: flex;
-    /* Pedaço que existe tem de aparecer: 9 marcas em 4 mil dão fatia de meio
-       pixel, e a legenda ficaria apontando para uma cor que não está na
-       barra. O erro que isso introduz na largura é menor que a borda. */
+    /* A piece that exists has to show: 9 marks out of 4 thousand give a
+       half-pixel slice, and the legend would point to a color that is not in
+       the bar. The error this introduces in the width is smaller than the
+       border. */
     min-width: 4px;
     align-items: center;
     justify-content: center;
@@ -1406,18 +1432,19 @@
     font-weight: 600;
     color: var(--dim);
   }
-  /* Texto escuro só onde o fundo é forte o bastante para sustentá-lo. */
+  /* Dark text only where the background is strong enough to carry it. */
   .funnel .seg.dark {
     color: #0d1117;
   }
 
-  /* Espalhados na linha inteira no desktop e empilhados no celular, que é o
-     que o wrap já faz - o gap é o que impede os números de se colarem. */
+  /* Spread across the whole row on desktop and stacked on the phone, which is
+     what wrap already does - the gap is what keeps the numbers from sticking
+     together. */
   .numbers {
     gap: 14px;
   }
-  /* O número que não coube no pedaço vem colado no rótulo da legenda, e
-     precisa ler como número e não como parte do texto. */
+  /* The number that did not fit in the piece comes attached to the legend
+     label, and needs to read as a number and not as part of the text. */
   .legend b {
     color: var(--fg);
   }
@@ -1432,8 +1459,8 @@
     color: var(--fg);
   }
 
-  /* No cartão do celular, a fila vai no canto da linha do nome: é o que
-     muda de um instante para outro, e fica à vista sem procurar. */
+  /* On the phone card, the queue goes in the corner of the name row: it is what
+     changes from one moment to the next, and stays in view without searching. */
   .trow.detgrid > :first-child {
     grid-column: 1 / 3;
     grid-row: 1;
@@ -1446,12 +1473,12 @@
   }
 
   @media (min-width: 720px) {
-    /* Colunas: câmera, olhadas, com objeto, acerto, descartadas, perdidas, na
-       fila. São sete num espaço que já era apertado para seis, então as
-       numéricas vão no mínimo que ainda cabe o cabeçalho. */
-    /* .thead e .trow também são classe, e a regra deles vem depois nesta folha -
-       no empate de especificidade ela ganharia e a grade voltaria a ter as seis
-       colunas da tabela de câmeras. Os dois nomes juntos desempatam. */
+    /* Columns: camera, inferences, with object, hit rate, discarded, lost, in
+       queue. That is seven in a space that was already tight for six, so the
+       numeric ones go at the minimum that still fits the header. */
+    /* .thead and .trow are also classes, and their rule comes later in this
+       sheet - on a specificity tie it would win and the grid would go back to
+       the six columns of the cameras table. Both names together break the tie. */
     .thead.detgrid,
     .trow.detgrid {
       grid-template-columns:
@@ -1463,27 +1490,27 @@
       grid-column: auto;
       grid-row: auto;
     }
-    /* Números à direita: é assim que se compara uma coluna de olho. O nome fica
-       onde está, à esquerda - e o critério é a POSIÇÃO, não a classe `.nome`,
-       que só as linhas têm: por classe, o "câmera" do cabeçalho ia para a
-       direita sozinho, desalinhado da coluna que ele nomeia. */
+    /* Numbers on the right: that is how a column is compared by eye. The name
+       stays where it is, on the left - and the criterion is POSITION, not the
+       `.name` class, which only the rows have: by class, the header's "câmera"
+       would move right on its own, misaligned from the column it names. */
     .detgrid > :not(:first-child) {
       text-align: right;
     }
-    /* O cabeçalho é botão, e botão é flex: nele o que alinha não é o text-align
-       e sim o justify-content, senão rótulo e seta ficam colados à esquerda
-       enquanto os números da coluna estão à direita. */
+    /* The header is a button, and a button is flex: there what aligns is not
+       text-align but justify-content, otherwise label and arrow stick to the
+       left while the column's numbers are on the right. */
     .thead.detgrid .th:not(:first-child) {
       justify-content: flex-end;
     }
   }
-  /* Zero é resposta, mas não é notícia: apagado para a linha que tem número
-     saltar dentre as que não têm. */
+  /* Zero is an answer, but not news: dimmed so the row that has a number stands
+     out from the ones that do not. */
   .zero {
     color: #4a5058;
   }
-  /* A câmera sem detecção: o nome continua legível, porque é ele que diz de
-     quem é o aviso, e os números recuam. */
+  /* The camera without detection: the name stays legible, because it is what
+     says whom the notice is about, and the numbers recede. */
   .c-disabled {
     gap: 8px;
     min-width: 0;
@@ -1491,8 +1518,8 @@
   .disabled > :not(:first-child) {
     opacity: 0.5;
   }
-  /* O rótulo do grupo das câmeras sem detecção, no tom dos cabeçalhos: é
-     divisão da tabela, não mais uma linha dela. */
+  /* The label of the group of cameras without detection, in the tone of the
+     headers: it is a division of the table, not one more row of it. */
   .group {
     padding: 12px 12px 6px;
     border-top: 1px solid var(--line);
@@ -1504,8 +1531,8 @@
     color: var(--warn);
   }
 
-  /* Os lugares de uma câmera na fila. Do tamanho do .dot global, para ler
-     como parente dele; o livre é só o contorno. */
+  /* A camera's queue slots. The size of the global .dot, to read as its
+     relative; the free one is just an outline. */
   .slots {
     display: inline-flex;
     gap: 4px;
@@ -1527,8 +1554,8 @@
     background: var(--warn);
     border-color: var(--warn);
   }
-  /* A câmera em processamento: fora da fila, então fora dos lugares - um
-     ponto à parte, com halo, para não ler como mais um lugar. */
+  /* The camera being processed: outside the queue, so outside the slots - a
+     separate dot, with a halo, so it does not read as one more slot. */
   .queue-cell {
     display: inline-flex;
     align-items: center;
@@ -1554,11 +1581,11 @@
     vertical-align: -1px;
   }
 
-  /* ---- este servidor ---- */
+  /* ---- this server ---- */
 
-  /* O log fica em lista corrida e não em rótulo e valor: cada linha é longa,
-     e alinhada à direita ficaria ilegível. Rola por dentro para 50 linhas não
-     empurrarem o resto da tela. */
+  /* The log stays as a running list and not as label and value: each line is
+     long, and right-aligned it would be unreadable. It scrolls inside so that
+     50 lines do not push the rest of the screen. */
   .log .title {
     margin: 0 0 4px;
     text-transform: uppercase;
@@ -1586,12 +1613,12 @@
     padding: 0;
     overflow-x: auto;
   }
-  /* No celular as duas tabelas não cabem em colunas e rolavam de lado. Cada
-     linha vira um cartão: o nome em cima, e os valores numa grade de três,
-     cada um com o rótulo da coluna em cima dele. A grade é a mesma em todos
-     os cartões, então um valor fica sempre no mesmo lugar - descer o olho
-     pelo "reconex." de cada câmera continua sendo ler uma coluna. Sem
-     cabeçalho, a ordenação vai para os chips. */
+  /* On the phone the two tables do not fit in columns and used to scroll
+     sideways. Each row becomes a card: the name on top, and the values in a
+     three-column grid, each with the column label above it. The grid is the
+     same in every card, so a value is always in the same place - scanning down
+     the "reconex." of each camera is still reading a column. With no header,
+     sorting moves to the chips. */
   .thead,
   .trow {
     display: grid;
@@ -1603,9 +1630,9 @@
   .trow > :first-child {
     grid-column: 1 / -1;
   }
-  /* O disco é o valor mais largo ("19,93 GB de 20 GB") e leva a fatia maior;
-     se ainda assim não couber, quebra antes do "de", e não no meio de um
-     número com a unidade. */
+  /* The disk is the widest value ("19,93 GB de 20 GB") and takes the biggest
+     share; if it still does not fit, it breaks before the "de", and not in the
+     middle of a number with its unit. */
   .table .trow {
     grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.3fr) minmax(0, 1fr);
   }
@@ -1630,8 +1657,8 @@
     padding: 10px 12px;
     border-bottom: 1px solid var(--line);
   }
-  /* Chip e não botão cheio: abaixo dos 44px do botão global, porque são
-     sete lado a lado e quebrariam em três linhas. */
+  /* A chip and not a full button: below the global button's 44px, because there
+     are seven side by side and they would wrap onto three lines. */
   .order .chip {
     min-height: 32px;
     padding: 4px 11px;
@@ -1658,9 +1685,10 @@
     .thead,
     .trow,
     .table .trow {
-      /* Colunas: nome, taxa, disco, retido, cabem, reconex. O disco tem faixa
-         própria porque carrega duas grandezas ("12,91 GB de 20 GB") e no repeat
-         uniforme ele quebrava em duas linhas antes das outras precisarem. */
+      /* Columns: name, rate, disk, retained, fit, reconex. The disk gets its
+         own track because it carries two quantities ("12,91 GB de 20 GB") and
+         in a uniform repeat it wrapped onto two lines before the others needed
+         to. */
       grid-template-columns:
         minmax(130px, 2fr) minmax(70px, 1fr) minmax(125px, 1.6fr)
         repeat(2, minmax(80px, 1.1fr)) minmax(60px, 0.8fr);
@@ -1672,8 +1700,8 @@
       grid-column: auto;
     }
   }
-  /* O cabeçalho é botão para funcionar com teclado, mas continua parecendo
-     cabeçalho: o estilo global de button não serve aqui. */
+  /* The header is a button so it works with the keyboard, but still looks like
+     a header: the global button style does not suit here. */
   .th {
     display: flex;
     align-items: center;
@@ -1695,9 +1723,10 @@
   .th.active {
     color: var(--fg);
   }
-  /* O sublinhado pontilhado é a marca de que há explicação ali: sem ele o
-     title existe e ninguém descobre que basta parar o mouse. Fica na cor da
-     linha para insinuar, não para competir com o rótulo. */
+  /* The dotted underline is the mark that there is an explanation there:
+     without it the title exists and nobody finds out that pausing the mouse is
+     enough. It stays in the line's color to hint, not to compete with the
+     label. */
   .th .label {
     overflow: hidden;
     text-overflow: ellipsis;
