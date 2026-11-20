@@ -200,23 +200,22 @@ What is inside them does not change. With the old names, only the owner from
 `dwnvr.yaml` logs in, the photos are gone and the Users screen shows no last
 access.
 
-With the stack still down from section 0, this must print nothing:
+With the stack still down from section 0:
 
 ```sh
 d=~/dwnvr/config/dwnvr
-ls -d "$d/users.json" "$d/access.json" "$d/avatars" 2>/dev/null
+for pair in usuarios.json:users.json acessos.json:access.json avatares:avatars; do
+  old="$d/${pair%%:*}" new="$d/${pair##*:}"
+  test -e "$old" || continue
+  test ! -e "$new" || mv "$new" "$new.new"
+  mv "$old" "$new"
+done
 ```
 
-If it prints a name, the new version already ran here before this section,
-and the old files are the ones with your people. Move what it printed out of
-the way, for example with `mv "$d/users.json" "$d/users.json.new"`, and keep
-it until you check the result. Then rename what exists:
-
-```sh
-test ! -e "$d/usuarios.json" || mv "$d/usuarios.json" "$d/users.json"
-test ! -e "$d/acessos.json" || mv "$d/acessos.json" "$d/access.json"
-test ! -e "$d/avatares" || mv "$d/avatares" "$d/avatars"
-```
+Each old name that exists gets the new one. If the new name is already there
+too, the new version ran before this section: the old file has your people,
+so it wins, and the other one is kept with `.new` at the end, for you to check
+and delete. Running the loop again does nothing.
 
 `mv` keeps the owner and the `0600` permissions. If you moved the
 configuration folder with `DWNVR_CONFIG_DIR`, set `d` to that folder.
