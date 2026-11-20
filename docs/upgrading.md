@@ -133,7 +133,14 @@ sed -i -E 's/^(\s*#?\s*)detectMecanismo:/\1detectMethod:/; s/^(\s*#?\s*)detectSe
 ```
 
 The expression only touches a key at the start of a line, so the name of an
-area or a camera is left alone.
+area or a camera is left alone. It does not reach a key written inline, as in
+`defaults: {detectMecanismo: periodico}`. To check, this must print nothing:
+
+```sh
+grep -n -E 'detectMecanismo|detectSensibilidade' ~/dwnvr/config/dwnvr/dwnvr.yaml
+```
+
+If it prints a line, rename the key in it by hand.
 
 ### `cameras.json`
 

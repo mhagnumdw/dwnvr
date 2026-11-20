@@ -137,7 +137,7 @@ parâmetro, ou sem achado, o campo não vem.
 
 A caixa vai em fração do quadro (x1, y1, x2, y2). Ele devolve TODA caixa a
 partir do `minScore`, de qualquer classe, e não decide nada: o corte por família e
-a memória de objeto parado são do dwnvr, que só lê `detections`. Os outros campos
+a memória de objeto parado são do dwnvr, que só lê `detections`, `frame` e `error`. Os outros campos
 são para quem chama à mão. Pedaço que não decodifica até o fim volta `422`:
 olhar o último quadro que sobrou seria olhar outro instante.
 
