@@ -1,5 +1,5 @@
 <!--
-  Day picker: for recordings, or detections. `oQue` is the material the marked
+  Day picker: for recordings, or detections. `material` is the material the marked
   days have, and only changes what the screen reader announces. With `counts`,
   the day shows how much material it has, in place of the dot that only says it
   has some.
@@ -22,7 +22,7 @@
     value?: string;
     days?: string[];
     // Explicit undefined: DayNav passes on its own, which may not have come.
-    oQue?: string | undefined;
+    material?: string | undefined;
     // Day -> how much material it has. A day in `days` that is missing here
     // keeps the dot.
     counts?: Record<string, number> | undefined;
@@ -47,7 +47,7 @@
   let {
     value = dayKey(),
     days = [],
-    oQue = 'gravação',
+    material = 'gravação',
     counts,
     onchange,
     onopen,
@@ -258,7 +258,7 @@
         // there.
         label:
           `${d} de ${MONTHS[viewMonth] ?? ''} de ${viewYear}` +
-          (permissive ? '' : `, ${recorded ? 'com' : 'sem'} ${oQue}`) +
+          (permissive ? '' : `, ${recorded ? 'com' : 'sem'} ${material}`) +
           (count === undefined ? '' : `: ${count}`) +
           (key === value ? ', selecionado' : ''),
       });
@@ -340,7 +340,7 @@
       bind:this={popoverEl}
       style="--desloc: {offset}px"
       role="dialog"
-      aria-label="calendário: dias com {oQue}"
+      aria-label="calendário: dias com {material}"
     >
       <div class="header">
         <button

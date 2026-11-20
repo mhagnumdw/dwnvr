@@ -1354,7 +1354,7 @@
       <DayNav
         value={interval?.day ?? topDay}
         days={daysWithDetection}
-        oQue="detecção"
+        material="detecção"
         counts={detectionsPerDay}
         onchange={goToDay}
         onopen={() => {

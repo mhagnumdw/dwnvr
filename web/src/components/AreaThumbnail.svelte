@@ -39,8 +39,8 @@
 
   // The zoom: how long it takes to zoom in (and back), how long the pass stays
   // zoomed in, and how long the mouse has to rest over it for the zoom to come.
-  const ZOOM_IDA_MS = 700;
-  const ZOOM_FICA_MS = 1000;
+  const ZOOM_IN_MS = 700;
+  const ZOOM_HOLD_MS = 1000;
   const ZOOM_WAIT_MS = 350;
   // And how long it stays after the mouse leaves or the finger lets go: a hand
   // tremor doesn't undo the zoom.
@@ -178,7 +178,7 @@
     }
     let before = performance.now();
     const step = (now: number) => {
-      const delta = (now - before) / ZOOM_IDA_MS;
+      const delta = (now - before) / ZOOM_IN_MS;
       before = now;
       path = dest ? Math.min(1, path + delta) : Math.max(0, path - delta);
       amounts = suave(path);
@@ -187,14 +187,14 @@
     animationFrame = requestAnimationFrame(step);
   }
 
-  // One pass: zooms in, stays ZOOM_FICA_MS and goes back, if nobody holds it.
+  // One pass: zooms in, stays ZOOM_HOLD_MS and goes back, if nobody holds it.
   function pass() {
     if (!enlargeable) return;
     animate(1);
     clearTimeout(back);
     back = setTimeout(() => {
       if (!holding) animate(0);
-    }, ZOOM_IDA_MS + ZOOM_FICA_MS);
+    }, ZOOM_IN_MS + ZOOM_HOLD_MS);
   }
 
   // Holds the zoom while the mouse is over it or the finger is in the long

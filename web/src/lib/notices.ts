@@ -227,12 +227,12 @@ function droppedAlerts(d: AlertsDropped, now: number) {
       : d.overLimit === 0
         ? 'a fila de envio encheu'
         : `${d.overLimit} ${ceiling(d.overLimit)}, e ${d.queueFull} não ${one(d.queueFull, 'coube', 'couberam')} na fila de envio`;
-  const oQue =
+  const what =
     total === 1
       ? `1 alerta não foi enviado, às ${when(Date.parse(d.since), now)}`
       : `${total} alertas não foram enviados ${since(d.since, now)}, o último às ${when(Date.parse(d.lastAt), now)}`;
   const where = one(total, 'Ele está gravado', 'Eles estão gravados');
-  return `${oQue}: ${reason}. ${where} em Detecções, no filtro só alertas.`;
+  return `${what}: ${reason}. ${where} em Detecções, no filtro só alertas.`;
 }
 
 // What the bell needs: how many, and the color of the worst. One red is enough

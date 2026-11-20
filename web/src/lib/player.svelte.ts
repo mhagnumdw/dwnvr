@@ -68,9 +68,9 @@ export class Player {
   // Cancels the downloads of the generation that was just invalidated. Without
   // this, the old pump held up the new one until the segment nobody wants
   // anymore finished arriving - and also shared bandwidth with it.
-  #cancela = new AbortController();
+  #abort = new AbortController();
   #seeking = false; // seek in flight: `base` and `currentTime` are out of sync
-  #avisoTimer: number | undefined; // counts the ms of waiting before lighting up "carregando…"
+  #noticeTimer: number | undefined; // counts the ms of waiting before lighting up "carregando…"
 
   #mime: string | null = null; // which codecs the current SourceBuffer was created with
   // eslint-disable-next-line svelte/prefer-svelte-reactivity -- internal cache, not on screen
@@ -81,7 +81,7 @@ export class Player {
   // flight. The <video>'s `paused` does not work here: #reset swaps the src,
   // and the video stays paused until the seek ends, whether or not it was
   // playing before.
-  #pularPausado: boolean | null = null;
+  #skipPaused: boolean | null = null;
 
   attach(video: HTMLVideoElement) {
     this.video = video;
@@ -111,7 +111,7 @@ export class Player {
     v.removeEventListener('error', this.#onError);
     // Leaving the screen drops the segment that was arriving: nobody sees it
     // anymore.
-    this.#novaGeracao();
+    this.#newGeneration();
     // A scheduled notice that fires after this would light up "carregando…" for
     // a player that no longer exists - and nobody would clear it.
     this.#aviso(false);
@@ -142,7 +142,7 @@ export class Player {
     this.#mimes.clear();
     this.#boundary = null;
     this.#pulo = null;
-    this.#novaGeracao();
+    this.#newGeneration();
     // The new generation above prevents the `finally` of an in-flight seek from
     // running, so the gate has to be opened here: a new day with no recording
     // at all does not call seek(), and the clock would stay mute forever.
@@ -181,9 +181,9 @@ export class Player {
     await this.#pump();
   }
 
-  #novaGeracao() {
-    this.#cancela.abort();
-    this.#cancela = new AbortController();
+  #newGeneration() {
+    this.#abort.abort();
+    this.#abort = new AbortController();
     return ++this.#generation;
   }
 
@@ -202,13 +202,13 @@ export class Player {
 
   // Only path to `buffering`: lighting up is deferred, clearing is immediate.
   #aviso(on: boolean) {
-    clearTimeout(this.#avisoTimer);
-    this.#avisoTimer = undefined;
+    clearTimeout(this.#noticeTimer);
+    this.#noticeTimer = undefined;
     if (!on) {
       this.buffering = false;
       return;
     }
-    this.#avisoTimer = setTimeout(() => {
+    this.#noticeTimer = setTimeout(() => {
       this.buffering = true;
     }, NOTICE_MS);
   }
@@ -325,9 +325,9 @@ export class Player {
     if (ms > start + dur && i + 1 < this.#segments.length) i++;
     const [targetMs, targetDur, targetGen] = this.#segments[i] ?? found;
 
-    const gen = this.#novaGeracao();
+    const gen = this.#newGeneration();
     this.#seeking = true;
-    this.#pularPausado = null;
+    this.#skipPaused = null;
     this.loading = true;
     this.error = '';
     this.#aviso(true);
@@ -419,17 +419,17 @@ export class Player {
 
     // During a seek, the intent is that of the jump that started it; one from
     // another origin - a click on the timeline - ends in play().
-    const paused = this.#seeking ? (this.#pularPausado ?? false) : video.paused;
+    const paused = this.#seeking ? (this.#skipPaused ?? false) : video.paused;
     const seek = this.seek(target);
     // After seek(), which clears it when it starts.
-    this.#pularPausado = paused;
+    this.#skipPaused = paused;
     // seek() swaps the generation before the first await. Another seek that
     // arrives later - a click on the timeline - rules over play and is not
     // paused here.
     const gen = this.#generation;
     void seek.then(() => {
       if (gen !== this.#generation) return;
-      this.#pularPausado = null;
+      this.#skipPaused = null;
       if (paused) video.pause();
     });
   }
@@ -464,7 +464,7 @@ export class Player {
     // marking the track boundary at the start of the day.
     this.#sb = null;
 
-    const mime = await this.#mimeFor(gen, this.#cancela.signal);
+    const mime = await this.#mimeFor(gen, this.#abort.signal);
     // Another seek started while the init was coming - in a quick camera
     // switch, the new camera's, with an init that may have arrived first. The
     // <video> is now its own: swapping the src here would tear down what it
@@ -583,7 +583,7 @@ export class Player {
 
   async #pumpOnce() {
     const gen = this.#generation;
-    const signal = this.#cancela.signal;
+    const signal = this.#abort.signal;
 
     try {
       while (

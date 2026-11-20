@@ -1,7 +1,7 @@
 // The alert schedules as the screen edits them, and the round trip to the
 // server. The camera form uses this on open and on save, and the camera card
 // summarizes the alert with the day names, so it comes in the main bundle; the
-// grid, which only the Alerta tab uses, lives in weekGrid.ts, in its own chunk.
+// grid, which only the Alert tab uses, lives in weekGrid.ts, in its own chunk.
 //
 // The screen edits the time in minutes of the day, with BOTH ends included (the
 // whole day is 00:00 to 23:59), and the server stores "HH:MM". No schedule

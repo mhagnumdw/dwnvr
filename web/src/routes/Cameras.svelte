@@ -69,7 +69,7 @@
   // Whose recordings are about to be deleted: a registered camera or an orphan.
   interface Target {
     id: string;
-    nome: string;
+    name: string;
     bytes: number;
     orphan: boolean;
   }
@@ -324,7 +324,7 @@
     url: string;
     ratio: number;
     fetching: boolean;
-    erro: string;
+    error: string;
   } | null>(null);
   // Each fetch gets its own number: the response of a fetch already replaced by
   // another, or of a form already closed, is discarded.
@@ -361,13 +361,13 @@
       url: before?.url ?? '',
       ratio: before?.ratio ?? 16 / 9,
       fetching: true,
-      erro: '',
+      error: '',
     };
     const q = frame;
     // The new camera hasn't recorded yet, and the server doesn't even know it.
     if (newItem) {
       q.fetching = false;
-      q.erro =
+      q.error =
         'Esta câmera ainda não gravou nada. Salve, e depois do primeiro minuto de gravação volte aqui, em editar, na aba Áreas, para desenhar sobre a imagem dela.';
       return;
     }
@@ -388,7 +388,7 @@
       q.url = url;
       q.ratio = ratio;
     } catch (e) {
-      if (mine === fetchSeq) q.erro = messageOf(e);
+      if (mine === fetchSeq) q.error = messageOf(e);
     } finally {
       if (mine === fetchSeq) q.fetching = false;
     }
@@ -405,7 +405,7 @@
     // and writes the frame before the first await.
     untrack(() => {
       const q = frame;
-      if (q?.cam !== cam || (q.erro && !q.fetching)) void fetchFrame(cam, newItem);
+      if (q?.cam !== cam || (q.error && !q.fetching)) void fetchFrame(cam, newItem);
     });
   });
   $effect(() => {
@@ -490,7 +490,7 @@
     }
   }
 
-  // --- the Alerta tab -------------------------------------------------------
+  // --- the Alert tab -------------------------------------------------------
 
   // Comes in a separate chunk, only downloaded when the tab exists.
   let AlertTab = $state<typeof AlertTabT | null>(null);
@@ -596,14 +596,14 @@
   // the disk scan found.
   const cameraTarget = (cam: RegisteredCamera): Target => ({
     id: cam.id,
-    nome: cam.name,
+    name: cam.name,
     bytes: sizeOf(cam),
     orphan: false,
   });
 
   const orphanTarget = (o: Orphan): Target => ({
     id: o.id,
-    nome: o.id,
+    name: o.id,
     bytes: o.bytes,
     orphan: true,
   });
@@ -852,23 +852,23 @@
     </div>
 
     {#if cameras.go2rtcConfigFile}
-      {@const arq = cameras.go2rtcConfigFile}
+      {@const file = cameras.go2rtcConfigFile}
       <div class="card warnbox notice">
         <p class="small">
           O <code>go2rtc.yaml</code> mudou depois que o go2rtc subiu. Ele só lê o arquivo quando sobe,
           então estas mudanças ainda não valem:
         </p>
         <ul class="small">
-          {#each arq.novas ?? [] as id (id)}
+          {#each file.novas ?? [] as id (id)}
             <li>
               <code>{id}</code>
               <span class="muted">nova - aparece para cadastrar depois do reinício</span>
             </li>
           {/each}
-          {#each arq.alteradas ?? [] as id (id)}
+          {#each file.alteradas ?? [] as id (id)}
             <li><code>{id}</code> <span class="muted">configuração mudou</span></li>
           {/each}
-          {#each arq.foraDoArquivo ?? [] as id (id)}
+          {#each file.foraDoArquivo ?? [] as id (id)}
             <li>
               <code>{id}</code>
               <span class="muted">
@@ -1197,8 +1197,8 @@
               Pedaços da imagem com nome, como "Portão". Em Detecções, qualquer pessoa filtra por
               eles. Se a câmera for movida, redesenhe.
             </p>
-            {#if frame?.erro}
-              <p class="small areas-notice">{frame.erro}</p>
+            {#if frame?.error}
+              <p class="small areas-notice">{frame.error}</p>
             {/if}
             {#if areas.length}
               <div class="areas">
@@ -1312,7 +1312,7 @@
       title={current ? 'Editar área' : 'Nova área'}
       applyLabel={current ? 'salvar' : 'criar área'}
       background={frame?.url ? { tipo: 'imagem', url: frame.url } : null}
-      error={frame?.erro ?? ''}
+      error={frame?.error ?? ''}
       initial={current ? { points: current.points, rule: current.rule ?? DEFAULT_RULE } : null}
       name={current?.name ?? ''}
       namesInUse={areas.filter((_, j) => j !== i).map((a) => a.name)}
@@ -1361,10 +1361,10 @@
 {/if}
 
 {#if removing}
-  {@const tam = sizeOf(removing)}
+  {@const size = sizeOf(removing)}
   <ConfirmDialog
     title="Remover {removing.name}?"
-    confirmLabel={deleteRecordings ? `remover e apagar ${bytes(tam)}` : 'remover'}
+    confirmLabel={deleteRecordings ? `remover e apagar ${bytes(size)}` : 'remover'}
     danger
     onconfirm={confirmRemoval}
     oncancel={() => (removing = null)}
@@ -1376,7 +1376,7 @@
          consequence is written on what you click. -->
     <label class="check delete">
       <input type="checkbox" bind:checked={deleteRecordings} />
-      apagar também as gravações ({bytes(tam)})
+      apagar também as gravações ({bytes(size)})
     </label>
 
     {#if !deleteRecordings}
@@ -1408,7 +1408,7 @@
 
 {#if deleting}
   <ConfirmDialog
-    title="Apagar as gravações de {deleting.nome}?"
+    title="Apagar as gravações de {deleting.name}?"
     confirmLabel={deleting.bytes ? `apagar ${bytes(deleting.bytes)}` : 'apagar'}
     danger
     onconfirm={confirmDeletion}
@@ -1574,9 +1574,9 @@
     border-color: transparent;
   }
   .refresh.spinning :global(svg) {
-    animation: girar 0.8s linear infinite;
+    animation: spin 0.8s linear infinite;
   }
-  @keyframes girar {
+  @keyframes spin {
     to {
       transform: rotate(360deg);
     }

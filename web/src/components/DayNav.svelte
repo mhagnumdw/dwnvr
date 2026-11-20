@@ -15,13 +15,13 @@
   interface Props {
     value: string;
     days?: string[];
-    oQue?: string | undefined;
+    material?: string | undefined;
     counts?: Record<string, number> | undefined;
     onchange: (day: string) => void;
     onopen?: (() => void) | undefined;
   }
 
-  let { value, days = [], oQue, counts, onchange, onopen }: Props = $props();
+  let { value, days = [], material, counts, onchange, onopen }: Props = $props();
 
   function neighbor(n: number) {
     const d = parseDay(value);
@@ -46,7 +46,7 @@
   >
     <Icon name="chevronEsq" size={18} />
   </button>
-  <DayPicker {value} {days} {oQue} {counts} {onchange} {onopen} />
+  <DayPicker {value} {days} {material} {counts} {onchange} {onopen} />
   <button
     class="ghost"
     onclick={() => {

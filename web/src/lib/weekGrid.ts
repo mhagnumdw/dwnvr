@@ -1,4 +1,4 @@
-// The week grid of the alert schedules, with no DOM: only the Alerta tab uses
+// The week grid of the alert schedules, with no DOM: only the Alert tab uses
 // it, and it comes in its chunk.
 //
 // The grid works over the "coverage": one byte per minute of the week (10080),
