@@ -40,8 +40,8 @@ próxima, em andamento ou concluída, com a data.
     - [x] Parte 1, a API e a interface: as rotas, os parâmetros, as chaves do JSON, as rotas do hash, as chaves da URL, as chaves do `localStorage` e os ids de coluna do Diagnóstico: PR #90, em 20/11/2026
     - [ ] Parte 2, o `dwnvr.yaml`, a env e o contrato com o `dwnvr-detect` (`DETECT_MODEL` e `DETECT_PORT`, os parâmetros e as chaves do `POST /detect` e do `/health`, e `detectMethod` e `detectSensitivity`, que são a mesma chave no yaml, no `cameras.json` e na API)
       - [x] As duas pontas e os docs, na branch `en-us-config`; a seção 2 do guia
-      - [ ] A mesma resposta da imagem de antes para o mesmo clipe, com os nomes novos
-      - [ ] A seção 2 do guia aplicada na instalação de teste, e o deploy da branch lá
+      - [x] A mesma resposta da imagem de antes para o mesmo clipe, com os nomes novos (57 achados, o quadro em base64 inclusive)
+      - [x] A seção 2 do guia aplicada na instalação de teste, com uma câmera fora do padrão, e o deploy da branch lá
       - [ ] O PR mergeado por squash
     - [ ] Parte 3, os nomes dos arquivos das pessoas (`usuarios.json`, `acessos.json`, `avatares/`)
     - [ ] Parte 4, os eventos e os quadros gravados (`eventos/`, `quadros/` e as chaves de cada linha); começa pelo backup
