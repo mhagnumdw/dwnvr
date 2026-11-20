@@ -253,15 +253,15 @@ With the stack still down from section 0:
 
 ```sh
 sh -s ~/dwnvr/storage <<'EOF'
-aside() {
-  test ! -e "$1" && return
-  test ! -e "$1.new" && mv "$1" "$1.new" && return
-  echo "$1.new already exists: move it out of the way and run again"
-  return 1
+taken() {
+  test -d "$1/$2" && test -e "$1/$3" && test -e "$1/$3.new" &&
+    echo "$1: $3/ and $3.new/ both exist: move $3.new/ out of the way and run again"
 }
+aside() { test ! -e "$1" || mv "$1" "$1.new"; }
 t=$(mktemp) || exit 1
 for cam in "$1"/*/; do
   cam=${cam%/}
+  taken "$cam" eventos events || taken "$cam" quadros frames && continue
   if test -d "$cam/eventos"; then
     test -e "$cam/eventos.bak" || {
       rm -rf "$cam/eventos.bak.tmp" &&
@@ -274,7 +274,7 @@ for cam in "$1"/*/; do
       jq -R -c 'fromjson? | objects | with_entries(.key |= ({"instanteMs": "atMs", "familia": "family", "classe": "class", "quadroMs": "frameMs", "caixa": "box", "temQuadro": "hasFrame"}[.] // .))' \
         "$b" > "$t" && cat "$t" > "$cam/eventos/${b##*/}" || { ok=; echo "$b: not converted"; }
     done
-    test -n "$ok" && aside "$cam/events" && mv "$cam/eventos" "$cam/events"
+    test -n "$ok" && aside "$cam/events" && mv "$cam/eventos" "$cam/events" || continue
   fi
   if test -d "$cam/quadros"; then
     aside "$cam/frames" && mv "$cam/quadros" "$cam/frames"
@@ -286,19 +286,21 @@ EOF
 
 For each camera, it copies `eventos/` to `eventos.bak/`, writes each file of
 `eventos/` again from its copy, with the new keys, and renames the folder.
-`quadros/` is only renamed: the images do not change. For 420 thousand lines it takes under a minute on a
-small ARM board, and a few seconds on a desktop.
+`quadros/` is only renamed: the images do not change. For 420 thousand lines
+it takes under a minute on a small ARM board, and a few seconds on a desktop.
 
 - A line that a power loss left cut or filled with zeros is dropped. dwnvr
   already skipped it, so nothing disappears from the screens.
 - If `events/` or `frames/` is already there too, the new version ran before
   this section: the old folder has your history, so it wins, and the other one
   is kept with `.new` at the end, for you to check and delete. If that `.new`
-  name is taken too, the camera is skipped with a message.
-- A camera that fails prints why and keeps the old names. Fix the cause (a
-  full disk, for example) and run the same command again: each file is read
-  from `eventos.bak/` again, so a file cut by the failure is written whole,
-  and a camera that is done is left alone.
+  name is taken too, the camera is skipped with a message, before anything
+  in it changes.
+- A camera that fails prints why. If its marks fail, it keeps both old folder
+  names, `quadros/` included. Fix the cause (a full disk, for example) and run
+  the same command again: each file of the marks is read from `eventos.bak/`
+  again, so a file cut by the failure is written whole, and the folders
+  already renamed are left alone.
 - Rewriting with `cat`, and not `mv`, keeps the owner and permissions of each
   file, as in section 2.
 
