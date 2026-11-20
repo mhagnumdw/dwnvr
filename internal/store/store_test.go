@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -975,6 +976,51 @@ func TestEventsAppendAndRead(t *testing.T) {
 	}
 }
 
+// TestOnDiskNames pins what an installation already has on disk: the folder
+// names and the keys of each line. Renaming any of them makes the new version
+// blind to everything recorded before, so it only changes together with a
+// section of docs/upgrading.md.
+func TestOnDiskNames(t *testing.T) {
+	c := newTestCamera(t)
+	base := baseTime()
+	day := base.Format(DayLayout)
+	at := base.UnixMilli()
+
+	box := [4]float64{0.5, 0.25, 0.75, 1}
+	for _, ev := range []Event{
+		{AtMs: at},
+		{AtMs: at, Family: "pessoa", Class: "person", Score: 0.87, FrameMs: at + 100,
+			Box: &box, HasFrame: true, Alert: true, AlertAreas: []string{"a1"}},
+	} {
+		if err := c.AppendEvent(ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := os.ReadFile(filepath.Join(c.Dir(), "events", day+".ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := fmt.Sprintf(`{"atMs":%d}
+{"atMs":%d,"family":"pessoa","class":"person","score":0.87,"frameMs":%d,"box":[0.5,0.25,0.75,1],"hasFrame":true,"alert":true,"alertAreas":["a1"]}
+`, at, at, at+100)
+	if string(got) != want {
+		t.Errorf("events file:\n%s\nexpected:\n%s", got, want)
+	}
+
+	// The object mark is found by the text of its key, not by decoding.
+	objs, err := c.DayObjects(day)
+	if err != nil || len(objs) != 1 {
+		t.Errorf("DayObjects: %d marks, error %v; expected 1", len(objs), err)
+	}
+
+	if err := c.WriteFrame(day, at, []byte("jpeg")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(c.Dir(), "frames", day, strconv.FormatInt(at, 10)+".jpg")); err != nil {
+		t.Errorf("frame file: %v", err)
+	}
+}
+
 // TestEnsureDirsDoesNotCreateEvents: someone who only records doesn't get
 // the detection directory.
 func TestEnsureDirsDoesNotCreateEvents(t *testing.T) {
@@ -984,7 +1030,7 @@ func TestEnsureDirsDoesNotCreateEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(c.EventsDir()); !os.IsNotExist(err) {
-		t.Fatalf("eventos/ created without any event: %v", err)
+		t.Fatalf("events/ created without any event: %v", err)
 	}
 	appendEvents(t, c, base, 0)
 	if _, err := os.Stat(c.EventsPath(base.Format(DayLayout))); err != nil {
@@ -1104,7 +1150,7 @@ func TestEventsIgnoreTruncatedLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.WriteString(`{"instanteMs":178849`); err != nil {
+	if _, err := f.WriteString(`{"atMs":178849`); err != nil {
 		t.Fatal(err)
 	}
 	f.Close()

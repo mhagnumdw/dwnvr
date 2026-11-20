@@ -89,7 +89,7 @@ func TestDayObjectsWaitsForTheLineToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	if _, err := f.WriteString(`{"instanteMs":1786201260000,"familia":"vei`); err != nil {
+	if _, err := f.WriteString(`{"atMs":1786201260000,"family":"vei`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -98,7 +98,7 @@ func TestDayObjectsWaitsForTheLineToEnd(t *testing.T) {
 		t.Fatalf("the half line went in: %v", instants(got))
 	}
 
-	if _, err := f.WriteString(`culo","classe":"car","score":0.8}` + "\n"); err != nil {
+	if _, err := f.WriteString(`culo","class":"car","score":0.8}` + "\n"); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = c.DayObjects(day)

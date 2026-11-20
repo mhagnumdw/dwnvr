@@ -758,7 +758,7 @@ qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
 
 Uma **detecção** é uma olhada do detector numa câmera: o instante do onset e
 tudo o que ele achou naquele quadro. Duas pessoas e um carro no mesmo quadro
-são três marcas no `eventos/{dia}.ndjson`, mas uma detecção só, com três
+são três marcas no `events/{dia}.ndjson`, mas uma detecção só, com três
 objetos. O filtro de família e o de área tiram objetos, e a detecção que fica
 sem nenhum sai da página. Com área, a marca sem caixa, gravada antes de a
 caixa existir, fica de fora: não há como saber onde ela estava.

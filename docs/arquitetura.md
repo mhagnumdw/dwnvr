@@ -84,8 +84,8 @@ Sem banco de dados. O índice é um NDJSON por câmera por dia, append-only:
     init/4edbc50d8e70.mp4        # init segment (ftyp+moov), identificado por hash do conteúdo
     2026-08-08/1786220564113.mp4 # segmento; o nome é o início em epoch ms
     index/2026-08-08.ndjson
-    eventos/2026-08-08.ndjson    # marcas da detecção; só existe com ela ligada
-    quadros/2026-08-08/1786220571900.jpg  # o quadro de uma detecção; o nome é o instante dela
+    events/2026-08-08.ndjson     # marcas da detecção; só existe com ela ligada
+    frames/2026-08-08/1786220571900.jpg  # o quadro de uma detecção; o nome é o instante dela
 ```
 
 > **NDJSON** (*Newline-Delimited JSON*) é um arquivo texto com **um objeto JSON
@@ -125,7 +125,7 @@ Três detalhes que o formato compra barato:
 - **`g` (geração)** identifica o init segment pelo **hash do seu conteúdo**, e
   não por um contador - ver abaixo
 
-O `eventos/` segue o mesmo desenho, append-only e um arquivo por dia, e só
+O `events/` segue o mesmo desenho, append-only e um arquivo por dia, e só
 nasce na primeira marca: câmera sem detecção não ganha diretório vazio. Cada
 linha é um instante, e não um intervalo. A de movimento leva só o instante; a
 de objeto leva também a família, a classe, a confiança, o quadro olhado e a
@@ -133,16 +133,16 @@ caixa em fração do quadro. É uma linha por objeto: duas pessoas que chegam
 juntas são duas linhas de `pessoa` no mesmo instante, cada uma com a sua caixa:
 
 ```json
-{"instanteMs":1786220571900}
-{"instanteMs":1786220571900,"familia":"pessoa","classe":"person","score":0.87,"quadroMs":1786220573300,"caixa":[0.41,0.32,0.47,0.62],"temQuadro":true}
+{"atMs":1786220571900}
+{"atMs":1786220571900,"family":"pessoa","class":"person","score":0.87,"frameMs":1786220573300,"box":[0.41,0.32,0.47,0.62],"hasFrame":true}
 ```
 
 O arquivo do dia sai junto com o vídeo do dia na retenção. O que cada campo
 quer dizer está em [`deteccao.md`](deteccao.md).
 
-### `quadros/`: a imagem da detecção
+### `frames/`: a imagem da detecção
 
-`temQuadro` diz que existe `quadros/{dia}/{instanteMs}.jpg`: o quadro que o
+`hasFrame` diz que existe `frames/{dia}/{atMs}.jpg`: o quadro que o
 detector olhou, em JPEG de 480 px. É a miniatura da tela de Detecções, e é a
 única forma de mostrar o objeto - o keyframe do segmento pode estar meio minuto
 antes dele. O caminho não é guardado, é derivável do instante, como o do
@@ -159,7 +159,7 @@ que a cota precisa para somar bytes: a conta de cada dia é feita uma vez e
 memorizada, e as gravações seguintes a mantêm em dia.
 
 Todas as marcas do mesmo instante, de qualquer família, apontam para o mesmo
-arquivo: o quadro é um só. Marca sem `temQuadro` é marca sem imagem - de antes
+arquivo: o quadro é um só. Marca sem `hasFrame` é marca sem imagem - de antes
 desta versão, ou de uma olhada em que o quadro não voltou.
 
 O layout em disco e o índice vivem em [`internal/store/`](../internal/store/).

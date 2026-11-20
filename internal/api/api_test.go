@@ -181,7 +181,7 @@ func TestEventsCarriesTheBoxOnlyForMarksThatHaveOne(t *testing.T) {
 
 	got := getEvents(t, s, "cam=cam_teste&day=2026-08-08").Objects[1]
 	if got.FrameMs != base+62_000 {
-		t.Errorf("quadroMs = %d, expected %d", got.FrameMs, base+62_000)
+		t.Errorf("frameMs = %d, expected %d", got.FrameMs, base+62_000)
 	}
 	if got.Box == nil || *got.Box != box {
 		t.Errorf("box = %v, expected %v", got.Box, box)

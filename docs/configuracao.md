@@ -215,7 +215,7 @@ azul: quanto mais forte o âmbar, mais coisas aconteceram naquele instante.
 
 O sinal é o **tamanho de cada quadro**, que o gravador já tem na mão - nenhum
 pixel é decodificado, e nada é gravado além de uma linha por marca em
-`eventos/{dia}.ndjson`. A faixa diz QUANDO houve movimento; dizer o que era é
+`events/{dia}.ndjson`. A faixa diz QUANDO houve movimento; dizer o que era é
 do detector de objetos, opcional - ver abaixo.
 
 **A sensibilidade é o custo, e ele é por câmera.** Com seis câmeras no nível 4
@@ -251,8 +251,8 @@ Como o destaque, o onset e os níveis funcionam por dentro está em
 A marca de movimento diz QUANDO. O detector diz O QUÊ: a cada marca, o dwnvr
 separa o pedaço de vídeo daquele instante e pergunta ao container
 `dwnvr-detect` o que havia nele. Se era pessoa, veículo ou animal, a marca de
-objeto vai para o mesmo `eventos/{dia}.ndjson`, e o quadro em que o objeto
-aparece vai para `quadros/{dia}/{instanteMs}.jpg`, do lado. Os dois somem junto com o vídeo
+objeto vai para o mesmo `events/{dia}.ndjson`, e o quadro em que o objeto
+aparece vai para `frames/{dia}/{atMs}.jpg`, do lado. Os dois somem junto com o vídeo
 na retenção, e os quadros contam na cota da câmera: ~14 KB por detecção, uns
 37 MB num dia de nove câmeras movimentadas.
 

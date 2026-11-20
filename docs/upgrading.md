@@ -220,6 +220,108 @@ and delete. Running the loop again does nothing.
 `mv` keeps the owner and the `0600` permissions. If you moved the
 configuration folder with `DWNVR_CONFIG_DIR`, set `d` to that folder.
 
+## 4. The detection marks and frames
+
+Who is affected: **everyone who turned motion marking on** (`detect: true`).
+In the storage folder, two folders of each camera were renamed, and so were
+the keys of each line in the marks:
+
+| Before | Now |
+| --- | --- |
+| `eventos/` | `events/` |
+| `quadros/` | `frames/` |
+| `instanteMs` | `atMs` |
+| `familia` | `family` |
+| `classe` | `class` |
+| `quadroMs` | `frameMs` |
+| `caixa` | `box` |
+| `temQuadro` | `hasFrame` |
+
+The family **values** (`pessoa`, `veiculo`, `animal`) do not change in this
+section. Without this section, the new version does not see anything detected
+before the update: the timeline loses the motion strip of the old recordings,
+and the Detections screen starts empty.
+
+The backup is a copy of each `eventos/`, which is small next to the video
+(about 15 MB for nine cameras and 30 days). To see how much room it takes:
+
+```sh
+du -sch ~/dwnvr/storage/*/eventos | tail -1
+```
+
+With the stack still down from section 0:
+
+```sh
+sh -s ~/dwnvr/storage <<'EOF'
+taken() {
+  test -d "$1/$2" && test -e "$1/$3" && test -e "$1/$3.new" &&
+    echo "$1: $3/ and $3.new/ both exist: move $3.new/ out of the way and run again"
+}
+aside() { test ! -e "$1" || mv "$1" "$1.new"; }
+t=$(mktemp) || exit 1
+for cam in "$1"/*/; do
+  cam=${cam%/}
+  taken "$cam" eventos events || taken "$cam" quadros frames && continue
+  if test -d "$cam/eventos"; then
+    test -e "$cam/eventos.bak" || {
+      rm -rf "$cam/eventos.bak.tmp" &&
+      cp -a "$cam/eventos" "$cam/eventos.bak.tmp" &&
+      mv "$cam/eventos.bak.tmp" "$cam/eventos.bak"
+    } || { echo "$cam: backup failed, skipped"; continue; }
+    ok=1
+    for b in "$cam"/eventos.bak/*.ndjson; do
+      test -e "$b" || continue
+      jq -R -c 'fromjson? | objects | with_entries(.key |= ({"instanteMs": "atMs", "familia": "family", "classe": "class", "quadroMs": "frameMs", "caixa": "box", "temQuadro": "hasFrame"}[.] // .))' \
+        "$b" > "$t" && cat "$t" > "$cam/eventos/${b##*/}" || { ok=; echo "$b: not converted"; }
+    done
+    test -n "$ok" && aside "$cam/events" && mv "$cam/eventos" "$cam/events" || continue
+  fi
+  if test -d "$cam/quadros"; then
+    aside "$cam/frames" && mv "$cam/quadros" "$cam/frames"
+  fi
+done
+rm -f "$t"
+EOF
+```
+
+For each camera, it copies `eventos/` to `eventos.bak/`, writes each file of
+`eventos/` again from its copy, with the new keys, and renames the folder.
+`quadros/` is only renamed: the images do not change. For 420 thousand lines
+it takes under a minute on a small ARM board, and a few seconds on a desktop.
+
+- A line that a power loss left cut or filled with zeros is dropped. dwnvr
+  already skipped it, so nothing disappears from the screens.
+- If `events/` or `frames/` is already there too, the new version ran before
+  this section: the old folder has your history, so it wins, and the other one
+  is kept with `.new` at the end, for you to check and delete. If that `.new`
+  name is taken too, the camera is skipped with a message, before anything
+  in it changes.
+- A camera that fails prints why. If its marks fail, it keeps both old folder
+  names, `quadros/` included. Fix the cause (a full disk, for example) and run
+  the same command again: each file of the marks is read from `eventos.bak/`
+  again, so a file cut by the failure is written whole, and the folders
+  already renamed are left alone.
+- Rewriting with `cat`, and not `mv`, keeps the owner and permissions of each
+  file, as in section 2.
+
+If you moved the storage folder with `DWNVR_STORAGE_DIR`, use that folder in
+the place of `~/dwnvr/storage`. To check, this must print nothing:
+
+```sh
+ls -d ~/dwnvr/storage/*/eventos ~/dwnvr/storage/*/quadros 2>/dev/null
+```
+
+Once the Detections screen shows the marks from before the update, delete the
+backup:
+
+```sh
+rm -rf ~/dwnvr/storage/*/eventos.bak
+```
+
+To go back to the previous version instead, rename each `eventos.bak/` back
+to `eventos/` (after removing the `events/` next to it) and each `frames/`
+back to `quadros/`.
+
 ## Start again
 
 ```sh
@@ -228,4 +330,5 @@ docker compose up -d
 
 On the Cameras screen, the method and sensitivity of each camera are the ones
 you had before the update. On the Users screen, each person has their photo
-and last access.
+and last access. On the Detections screen, the marks from before the update
+are there, each with its frame.
