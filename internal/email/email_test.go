@@ -40,7 +40,7 @@ func TestWithoutAttachmentComesOutAsBefore(t *testing.T) {
 		"Content-Transfer-Encoding: quoted-printable\r\n" +
 		"\r\n" +
 		"Ol=C3=A1, Jo=C3=A3o Silva.\r\n\r\nAbra o link abaixo:\r\n\r\n" +
-		"https://nvr.exemplo.com/#convite?token=3Dtoken-falsotoken-falsotoken-falsot=\r\noken-fals\r\n\r\n" +
+		"https://nvr.exemplo.com/#invite?token=3Dtoken-falsotoken-falsotoken-falsoto=\r\nken-fals\r\n\r\n" +
 		"Seu usu=C3=A1rio: joao.silva\r\n"
 	if got != want {
 		t.Errorf("message without attachment changed:\n%q\nwant\n%q", got, want)

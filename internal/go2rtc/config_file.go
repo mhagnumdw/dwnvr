@@ -28,11 +28,11 @@ const configFileTimeout = 3 * time.Second
 // WebRTC) doesn't show up here.
 type Drift struct {
 	// Added are in the file and weren't loaded.
-	Added []string `json:"novas,omitempty"`
+	Added []string `json:"added,omitempty"`
 	// Changed exist on both sides, with a different source.
-	Changed []string `json:"alteradas,omitempty"`
+	Changed []string `json:"changed,omitempty"`
 	// NotInFile are running and are no longer in the file.
-	NotInFile []string `json:"foraDoArquivo,omitempty"`
+	NotInFile []string `json:"notInFile,omitempty"`
 }
 
 func (d Drift) Empty() bool {

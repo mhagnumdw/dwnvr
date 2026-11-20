@@ -70,8 +70,8 @@ func TestCollectMachineHot(t *testing.T) {
 	if len(m.Load) != 3 || m.Load[0] != 3.10 {
 		t.Errorf("load %v", m.Load)
 	}
-	if len(m.Sensores) != 2 || m.Sensores[0] != (sensor{"cpu_thermal", 84.3}) {
-		t.Errorf("sensors %v: the hottest must come first, in °C", m.Sensores)
+	if len(m.Sensors) != 2 || m.Sensors[0] != (sensor{"cpu_thermal", 84.3}) {
+		t.Errorf("sensors %v: the hottest must come first, in °C", m.Sensors)
 	}
 	if m.MHz != 1008 || m.MHzMax != 1512 || m.Governor != "ondemand" {
 		t.Errorf("frequency %d of %d (%s)", m.MHz, m.MHzMax, m.Governor)
@@ -192,7 +192,7 @@ func TestCollectMemory(t *testing.T) {
 // all".
 func TestCollectPressure(t *testing.T) {
 	p := collectPressure(fakeSystem(t))
-	if _, has := p["memoria"]; has {
+	if _, has := p["memory"]; has {
 		t.Error("made-up memory pressure")
 	}
 	io := p["io"]
@@ -285,7 +285,7 @@ func TestHandleServerDiagnostics(t *testing.T) {
 	s.log.Warn("connection dropped", "cam", "garagem")
 
 	rec := httptest.NewRecorder()
-	s.handleServerDiagnostics(rec, httptest.NewRequest(http.MethodGet, "/api/health/servidor", nil))
+	s.handleServerDiagnostics(rec, httptest.NewRequest(http.MethodGet, "/api/health/server", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
@@ -323,7 +323,7 @@ func TestDiagnosticsWithDetector(t *testing.T) {
 	s.cfg.Detector.URL = strings.Replace(srv.URL, "http://", "http://u:senha@", 1)
 
 	rec := httptest.NewRecorder()
-	s.handleServerDiagnostics(rec, httptest.NewRequest(http.MethodGet, "/api/health/servidor", nil))
+	s.handleServerDiagnostics(rec, httptest.NewRequest(http.MethodGet, "/api/health/server", nil))
 	var got serverInfo
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)

@@ -95,7 +95,7 @@ func TestDropInHealth(t *testing.T) {
 }
 
 // With the notifier failing, /api/health carries the since-when and the error,
-// for the red Warning, and /api/health/servidor, the notifier's numbers.
+// for the red Warning, and /api/health/server, the notifier's numbers.
 func TestFailingNotifierInHealth(t *testing.T) {
 	s, _ := testServer(t)
 	s.cfg.Detector.URL = "http://127.0.0.1:1"
@@ -111,7 +111,7 @@ func TestFailingNotifierInHealth(t *testing.T) {
 	if got := string(request(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":0}` {
 		t.Errorf("alerts before the send: %s", got)
 	}
-	if got := string(request(t, s.handleServerDiagnostics, "/api/health/servidor")["alertas"]); got != `[{"nome":"email","enviados":0,"falhas":0}]` {
+	if got := string(request(t, s.handleServerDiagnostics, "/api/health/server")["alerts"]); got != `[{"name":"email","sent":0,"failures":0}]` {
 		t.Errorf("alerts in diagnostics before the send: %s", got)
 	}
 
@@ -140,7 +140,7 @@ func TestFailingNotifierInHealth(t *testing.T) {
 	}
 
 	var notifiers []alertNotifierInfo
-	if err := json.Unmarshal(request(t, s.handleServerDiagnostics, "/api/health/servidor")["alertas"], &notifiers); err != nil {
+	if err := json.Unmarshal(request(t, s.handleServerDiagnostics, "/api/health/server")["alerts"], &notifiers); err != nil {
 		t.Fatal(err)
 	}
 	if len(notifiers) != 1 || notifiers[0].Failures != 1 || notifiers[0].Sent != 0 || notifiers[0].Last == nil ||

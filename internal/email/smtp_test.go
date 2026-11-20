@@ -35,7 +35,7 @@ func client(t *testing.T, f *fakeServer) *SMTP {
 // The invite link has 43 characters of token: the line goes past
 // quoted-printable's 76 and must come back whole. The token is repeated on
 // purpose, so it doesn't look like a real key to betterleaks.
-var testLink = "https://nvr.exemplo.com/#convite?token=" + strings.Repeat("token-falso", 4)[:43]
+var testLink = "https://nvr.exemplo.com/#invite?token=" + strings.Repeat("token-falso", 4)[:43]
 
 var testMessage = Message{
 	To:      []string{"fulano@exemplo.com"},

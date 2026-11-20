@@ -67,7 +67,7 @@
     // comes in a separate chunk: the viewer never downloads the screen.
     { id: 'cams', label: 'Câmeras', icon: 'list', component: Cameras, adminOnly: true },
     {
-      id: 'usuarios',
+      id: 'users',
       label: 'Usuários',
       icon: 'users',
       load: () => import('./routes/Users.svelte'),
@@ -79,7 +79,7 @@
     // with login, because without it there is no one the account could belong
     // to.
     {
-      id: 'conta',
+      id: 'account',
       label: 'Minha conta',
       load: () => import('./routes/Account.svelte'),
       noTab: true,
@@ -89,13 +89,13 @@
   const canSee = (r: Route) =>
     (!r.onlyWithObjectDetector || cameras.detector) &&
     (!r.adminOnly || isAdmin()) &&
-    (r.id !== 'conta' || session.authRequired);
+    (r.id !== 'account' || session.authRequired);
   const tabs = $derived(ROUTES.filter((r) => !r.noTab && canSee(r)));
 
-  // The invite link (`#convite?token=…`) opens the set-password screen, with or
+  // The invite link (`#invite?token=…`) opens the set-password screen, with or
   // without a session: whoever receives it does not have a password yet.
   // Separate chunk, because only people who open an invite link use it.
-  const invite = $derived(routeState.id === 'convite');
+  const invite = $derived(routeState.id === 'invite');
   let Invite = $state<typeof InviteScreen | null>(null);
   $effect(() => {
     if (invite && !Invite) {
@@ -117,7 +117,7 @@
   // writes the hash, because it also carries the state of each screen.
   // A hash that points to a screen that does not exist or that the person
   // cannot see - a typo, a link from a future version, `#detection` on a server
-  // without the object detector, `#usuarios` opened by the viewer: the default
+  // without the object detector, `#users` opened by the viewer: the default
   // screen takes over.
   const route = $derived(
     ROUTES.find((r) => r.id === routeState.id && canSee(r)) ??
@@ -165,9 +165,9 @@
 
   // The address bar tells which screen is open. When the default takes over
   // (see route), the state it writes would end up under the requested name
-  // (`#usuarios?cams=…`). Only after the session and the object detector are
+  // (`#users?cams=…`). Only after the session and the object detector are
   // decided: before that, even the admin looks like a viewer, and would lose
-  // the `#usuarios` on reload.
+  // the `#users` on reload.
   $effect(() => {
     if (loggedIn && !invite && !waiting && route.id !== routeState.id) fixRoute(route.id);
   });
@@ -396,7 +396,7 @@
           <div class="account">
             <button
               class="avbtn"
-              class:active={accountMenu || route.id === 'conta'}
+              class:active={accountMenu || route.id === 'account'}
               onclick={() => (accountMenu = !accountMenu)}
               aria-haspopup="menu"
               aria-expanded={accountMenu}
@@ -416,11 +416,11 @@
                 </div>
                 <div class="sep"></div>
                 <a
-                  href="#conta"
+                  href="#account"
                   role="menuitem"
-                  class:current={route.id === 'conta'}
+                  class:current={route.id === 'account'}
                   onclick={(e) => {
-                    navigate(e, 'conta');
+                    navigate(e, 'account');
                     accountMenu = false;
                   }}>Minha conta</a
                 >

@@ -236,9 +236,9 @@ func TestRolePerRoute(t *testing.T) {
 	soAdmin := []string{
 		"POST /api/cameras", "DELETE /api/cameras?id=cam_teste", "GET /api/streams/probe?src=x",
 		"POST /api/go2rtc/restart", "GET /api/health", "POST /api/reconnects/reset",
-		"GET /api/health/servidor", "DELETE /api/rec?cam=cam_teste",
-		"GET /api/usuarios", "POST /api/usuarios", "POST /api/usuarios/link",
-		"DELETE /api/usuarios?username=maria", "DELETE /api/usuarios/avatar?username=maria",
+		"GET /api/health/server", "DELETE /api/rec?cam=cam_teste",
+		"GET /api/users", "POST /api/users", "POST /api/users/link",
+		"DELETE /api/users?username=maria", "DELETE /api/users/avatar?username=maria",
 	}
 	for _, r := range soAdmin {
 		method, route, _ := strings.Cut(r, " ")
@@ -252,7 +252,7 @@ func TestRolePerRoute(t *testing.T) {
 
 	// What belongs to everyone passes: here, it just must not be 401 or 403.
 	ofAll := []string{
-		"GET /api/cameras", "GET /api/rec/days?cam=cam_teste", "GET /api/deteccoes/dias",
+		"GET /api/cameras", "GET /api/rec/days?cam=cam_teste", "GET /api/detections/days",
 		"GET /api/rec/timeline?cam=cam_teste&day=2026-10-09",
 	}
 	for _, r := range ofAll {
@@ -267,7 +267,7 @@ func TestRolePerRoute(t *testing.T) {
 }
 
 // The viewer gets only the cameras and the detector: nothing from go2rtc, the
-// orphans, the padrao, the faixas or the path on disk, and from the alert only
+// orphans, the defaults, the ranges or the path on disk, and from the alert only
 // whether it is on, without the families or the schedules. A camera with the
 // alert off goes without it.
 func TestCamerasLeanForTheViewer(t *testing.T) {

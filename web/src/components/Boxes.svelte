@@ -16,7 +16,7 @@
 
   // A mark with the instant of the inspected frame, when there is one: the ones
   // from /api/rec/events, and the objects of a detection with its `frameMs`.
-  type Mark = ObjectDetectorMark & { quadroMs?: number };
+  type Mark = ObjectDetectorMark & { frameMs?: number };
 
   interface Props {
     video: HTMLVideoElement; // o <video> do palco
@@ -28,11 +28,11 @@
   }
 
   // The mark that has something to light up: the box and the inspected frame.
-  type LightableMark = Mark & { caixa: Box; quadroMs: number };
+  type LightableMark = Mark & { box: Box; frameMs: number };
 
   interface Lit {
     mark: LightableMark;
-    desde: number;
+    since: number;
   }
 
   let {
@@ -66,12 +66,12 @@
   // same frame can only be told apart by the box. Frame and family aren't
   // enough: the second person would overwrite the first, and only one box would
   // light up.
-  const key = (o: LightableMark) => `${o.quadroMs}|${o.familia}|${o.caixa.join(',')}`;
+  const key = (o: LightableMark) => `${o.frameMs}|${o.family}|${o.box.join(',')}`;
   const LIFE_MS = LIGHT_UP_MS + LIT_MS + FADE_MS;
 
   // Only the marks that have a box and the inspected frame's instant: without
   // both there is nothing to light up, nor when.
-  const withBox = $derived(objects.filter((o): o is LightableMark => !!o.caixa && !!o.quadroMs));
+  const withBox = $derived(objects.filter((o): o is LightableMark => !!o.box && !!o.frameMs));
 
   // --- when to light up -----------------------------------------------------
 
@@ -99,14 +99,13 @@
 
     if (moved) {
       for (const o of withBox) {
-        if (o.quadroMs > lastMs && o.quadroMs <= t) lit.set(key(o), { mark: o, desde: now });
+        if (o.frameMs > lastMs && o.frameMs <= t) lit.set(key(o), { mark: o, since: now });
       }
     } else {
       // What was lit belonged to the clip we jumped from.
       lit.clear();
       for (const o of withBox) {
-        if (o.quadroMs <= t && o.quadroMs >= t - LANDING_MS)
-          lit.set(key(o), { mark: o, desde: now });
+        if (o.frameMs <= t && o.frameMs >= t - LANDING_MS) lit.set(key(o), { mark: o, since: now });
       }
     }
     lastMs = t;
@@ -123,7 +122,7 @@
         pausedSince = now;
       } else if (playingNow && pausedSince !== null) {
         // Paused time doesn't count: the box resumes from where it was.
-        for (const a of lit.values()) a.desde += now - pausedSince;
+        for (const a of lit.values()) a.since += now - pausedSince;
         pausedSince = null;
       }
       lastClock = now;
@@ -138,13 +137,13 @@
   });
 
   function deleteExpired(now: number) {
-    for (const [k, a] of lit) if (now - a.desde >= LIFE_MS) lit.delete(k);
+    for (const [k, a] of lit) if (now - a.since >= LIFE_MS) lit.delete(k);
   }
 
   function alpha(a: Lit | undefined, now: number) {
     if (!a) return 0;
     if (pausedSince !== null) return 1;
-    const age = now - a.desde;
+    const age = now - a.since;
     if (age < LIGHT_UP_MS) return age / LIGHT_UP_MS;
     if (age < LIGHT_UP_MS + LIT_MS) return 1;
     return Math.max(0, 1 - (age - LIGHT_UP_MS - LIT_MS) / FADE_MS);

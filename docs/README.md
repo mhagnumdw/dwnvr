@@ -17,6 +17,11 @@ Aqui ficam as respostas longas.
   na rede de casa, sem o Tailscale: o Caddy na frente e a CA dele em cada
   aparelho
 
+## Para atualizar
+
+- [upgrading.md](upgrading.md) - o guia da atualização para a 1.0.0, em inglês:
+  o que renomear antes de subir a versão nova
+
 ## Para entender
 
 - [arquitetura.md](arquitetura.md) - o formato em disco: por que consumir o

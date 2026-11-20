@@ -140,20 +140,20 @@
   // its class is the one the icon and tooltip show.
   const groups = $derived.by((): Group[] => {
     const out: { t: number; marks: MarkedObject[] }[] = [];
-    for (const o of [...objects].sort((a, b) => a.instanteMs - b.instanteMs)) {
+    for (const o of [...objects].sort((a, b) => a.atMs - b.atMs)) {
       const ult = out.at(-1);
-      if (ult?.t !== o.instanteMs) {
-        out.push({ t: o.instanteMs, marks: [o] });
+      if (ult?.t !== o.atMs) {
+        out.push({ t: o.atMs, marks: [o] });
         continue;
       }
-      const i = ult.marks.findIndex((m) => m.familia === o.familia);
+      const i = ult.marks.findIndex((m) => m.family === o.family);
       const same = ult.marks[i];
       if (!same) ult.marks.push(o);
       else if (o.score > same.score) ult.marks[i] = o;
     }
     return out.map((gr) => {
-      const priorities = gr.marks.map((m) => family(m.familia).priority);
-      gr.marks.sort((a, b) => family(a.familia).priority - family(b.familia).priority);
+      const priorities = gr.marks.map((m) => family(m.family).priority);
+      gr.marks.sort((a, b) => family(a.family).priority - family(b.family).priority);
       return { ...gr, priority: Math.min(...priorities) };
     });
   });
@@ -229,7 +229,7 @@
     const x = toX(gr.t) - TICK_PX / 2;
     const h = OBJ_PX / gr.marks.length;
     gr.marks.forEach((m, i) => {
-      g.fillStyle = family(m.familia).color;
+      g.fillStyle = family(m.family).color;
       g.fillRect(x, objTop + i * h, TICK_PX, h);
     });
   }
@@ -258,7 +258,7 @@
         marks.forEach((m, i) => {
           const name = iconOf(m, byClass);
           if (name)
-            placements.push({ nome: name, x: x0 + i * (side + 2), color: family(m.familia).color });
+            placements.push({ nome: name, x: x0 + i * (side + 2), color: family(m.family).color });
         });
         break;
       }
@@ -304,7 +304,7 @@
   }
 
   function describe(gr: Group) {
-    return gr.marks.map((m) => CLASS_NAME[m.classe] ?? m.classe).join(' + ');
+    return gr.marks.map((m) => CLASS_NAME[m.class] ?? m.class).join(' + ');
   }
 
   function draw() {

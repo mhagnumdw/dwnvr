@@ -55,19 +55,19 @@
     if (!first || !last || !objects.length) return perTile;
     const end = last[0] + last[1];
     for (const o of objects) {
-      if (o.instanteMs < first[0] || o.instanteMs >= end) continue;
+      if (o.atMs < first[0] || o.atMs >= end) continue;
       let lo = 0;
       let hi = tiles.length - 1;
       while (lo < hi) {
         const m = (lo + hi + 1) >> 1;
-        if ((tiles[m]?.[0] ?? Infinity) <= o.instanteMs) lo = m;
+        if ((tiles[m]?.[0] ?? Infinity) <= o.atMs) lo = m;
         else hi = m - 1;
       }
       const tile = tiles[lo];
       // In a gap between two segments, the mark belongs to no thumbnail.
-      if (!tile || o.instanteMs >= tile[0] + tile[1]) continue;
+      if (!tile || o.atMs >= tile[0] + tile[1]) continue;
       const fams = (perTile[tile[0]] ??= []);
-      if (!fams.includes(o.familia)) fams.push(o.familia);
+      if (!fams.includes(o.family)) fams.push(o.family);
     }
     return perTile;
   });

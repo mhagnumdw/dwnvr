@@ -21,8 +21,8 @@ Convenções que valem para tudo:
 | `GET /api/session` | **público**: diz se este dwnvr exige login e, com sessão, quem está logado |
 | `GET /api/session/ws` | o aviso de sessão: websocket mudo que o servidor fecha quando a pessoa é derrubada |
 | `GET /api/version` | **público**: versão, commit e data do build |
-| `POST /api/convite/conferir` | **público**: diz de quem é o link de convite e até quando vale |
-| `POST /api/convite` | **público**: define a senha pelo link de convite e já abre a sessão |
+| `POST /api/invite/check` | **público**: diz de quem é o link de convite e até quando vale |
+| `POST /api/invite` | **público**: define a senha pelo link de convite e já abre a sessão |
 
 `/api/session` e `/api/version` ficam fora da autenticação pelo mesmo motivo:
 precisam ser visíveis antes de entrar. As duas do convite também, porque quem
@@ -112,7 +112,7 @@ sessões](operacao.md#trocar-a-senha-e-derrubar-as-sessões).
 Quem entra pela primeira vez entra por um link: o admin cria a pessoa na
 tela Usuários, e ela define a própria senha. Com o e-mail ligado, o link pode
 ir direto para ela (ver [Usuários](#usuários)). O link é
-`<endereço>/#convite?token=<token>`, com 32 bytes aleatórios no token. O
+`<endereço>/#invite?token=<token>`, com 32 bytes aleatórios no token. O
 endereço é o pelo qual o admin está acessando. O token fica no fragmento da
 URL, que não sai do navegador, e vai ao servidor no corpo de um POST: não
 aparece em log do dwnvr nem de proxy nenhum. O `usuarios.json` guarda só o
@@ -125,11 +125,11 @@ tem um link por vez: gerar outro invalida o anterior. Vencido, usado,
 substituído ou inventado, a resposta é a mesma, `410`.
 
 ```json
-// POST /api/convite/conferir   {"token": "..."}
+// POST /api/invite/check   {"token": "..."}
 { "username": "maria", "name": "Maria", "inviteExpiresAtMs": 1791587903000, "minPasswordLength": 8, "maxPasswordLength": 128 }
 ```
 
-O `POST /api/convite` recebe `{"token", "password"}` e devolve o mesmo
+O `POST /api/invite` recebe `{"token", "password"}` e devolve o mesmo
 `{"ok": true, "user": {...}}` do login, com o cookie. A senha vai de 8 a 128
 caracteres, sem regra de composição (NIST SP 800-63B); fora disso, `400` com o
 motivo, e o link continua valendo. A conta da senha espera a mesma fila do
@@ -173,8 +173,8 @@ cair, mas não abre outra.
 | `POST /api/go2rtc/restart` | - | **só admin**: reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
 | `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes, relógio, o problema da seção `smtp` e, com alerta ligado, o total de alertas |
 | `POST /api/reconnects/reset` | - | **só admin**: zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
-| `GET /api/health/servidor` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos, servidor de e-mail, envios do alerta e últimos avisos do log |
-| `POST /api/email/teste` | `{"to"}` | **só admin**: manda um e-mail de teste para o endereço, pela seção `smtp` |
+| `GET /api/health/server` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos, servidor de e-mail, envios do alerta e últimos avisos do log |
+| `POST /api/email/test` | `{"to"}` | **só admin**: manda um e-mail de teste para o endereço, pela seção `smtp` |
 | `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
 
 No `POST /api/cameras`, cada área sem `id` ganha um gerado pelo servidor, e a
@@ -219,17 +219,17 @@ listagem - a resposta dele pode custar alguns segundos e uma conexão nova.
 `probed` diz se a resposta custou uma conexão: `false` quando ela veio do
 `medias` de um produtor que já estava vivo, ou do cache da sonda anterior. Se a
 sonda falhar - câmera fora do ar, por exemplo -, a resposta ainda é `200`, com o
-motivo em `erro` e `hasAudio: false`; quem chama deve tratar isso como "não sei",
+motivo em `error` e `hasAudio: false`; quem chama deve tratar isso como "não sei",
 e não como "não tem áudio".
 
-O `GET /api/cameras` traz também o `padrao`: uma câmera vazia com os `defaults`
+O `GET /api/cameras` traz também o `defaults`: uma câmera vazia com os `defaults`
 do `dwnvr.yaml` aplicados. É dele que o formulário de câmera nova parte, e não
-de números repetidos na interface. Traz as `faixas` dos campos numéricos da
+de números repetidos na interface. Traz as `ranges` dos campos numéricos da
 câmera, a mesma régua com que o `POST /api/cameras` recusa, de onde saem o
 `min` e o `max` dos inputs; sem teto, o `max` não vem:
 
 ```json
-"faixas": {
+"ranges": {
   "quotaMB": { "min": 100 },
   "segmentSeconds": { "min": 10, "max": 300 },
   "maxDays": { "min": 0 },
@@ -268,17 +268,17 @@ tela oferece o `POST /api/go2rtc/restart`:
 
 ```json
 "go2rtcConfigFile": {
-  "novas": ["cam_quintal"],
-  "alteradas": ["cam_portao"],
-  "foraDoArquivo": ["cam_garagem"]
+  "added": ["cam_quintal"],
+  "changed": ["cam_portao"],
+  "notInFile": ["cam_garagem"]
 }
 ```
 
-`novas` estão no arquivo e não foram carregadas; `foraDoArquivo` estão rodando
-e saíram do arquivo; `alteradas` existem nos dois lados com fonte diferente.
+`added` estão no arquivo e não foram carregadas; `notInFile` estão rodando
+e saíram do arquivo; `changed` existem nos dois lados com fonte diferente.
 Listas vazias são omitidas, e o campo inteiro some quando os dois lados batem
 ou quando o go2rtc não deixa ler o arquivo (`GET /api/config` dele). A
-comparação é só da seção `streams`. `alteradas` não é completa: enquanto uma
+comparação é só da seção `streams`. `changed` não é completa: enquanto uma
 fonte `ffmpeg:` ou `exec:` está em uso, o go2rtc não mostra a fonte original, e
 essa câmera fica de fora. RTSP em uso mostra, e entra. O arquivo, que tem as
 URLs com usuário e senha, é lido no servidor e não vai ao navegador - só os
@@ -329,32 +329,32 @@ primeira falha de transporte, e qualquer resposta HTTP, mesmo um erro, o apaga:
 Com o detector de objetos configurado, cada câmera do `/api/health` traz também
 o **funil**: o destino de cada onset, desde que o dwnvr subiu. As fatias fecham
 a conta com o `onsets` da câmera -
-`onsets = semVideo + descartados + falhas + recusados + semObjeto + comObjeto + naFila`:
+`onsets = noVideo + dropped + failed + rejected + noObject + withObject + queued`:
 
 ```json
-"funil": {
-  "pedacos": 412,
-  "semVideo": 3,
-  "descartados": 31,
-  "falhas": 0,
-  "recusados": 2,
-  "semObjeto": 350,
-  "comObjeto": 28,
-  "naFila": 1
+"funnel": {
+  "clips": 412,
+  "noVideo": 3,
+  "dropped": 31,
+  "failed": 0,
+  "rejected": 2,
+  "noObject": 350,
+  "withObject": 28,
+  "queued": 1
 }
 ```
 
-`pedacos` não é fatia: é quantos onsets tiveram o vídeo cortado e oferecido à
-fila. `semVideo` são onsets que terminaram sem pedaço - logo depois de
-conectar, antes do primeiro frame I. `naFila` é o que ainda não tem desfecho:
+`clips` não é fatia: é quantos onsets tiveram o vídeo cortado e oferecido à
+fila. `noVideo` são onsets que terminaram sem pedaço - logo depois de
+conectar, antes do primeiro frame I. `queued` é o que ainda não tem desfecho:
 esperando o pico da janela para ser cortado, esperando a vez, ou sendo olhado.
 
-`falhas` é detector fora do ar ou travado; `recusados` é detector no ar que não
+`failed` é detector fora do ar ou travado; `rejected` é detector no ar que não
 conseguiu olhar, quase sempre vídeo que a câmera mandou corrompido.
 
-`descartados` são os que a fila recusou porque a câmera já tinha `porCamera`
+`dropped` são os que a fila recusou porque a câmera já tinha `perCamera`
 pedaços esperando a vez (ver `detector` abaixo): não vão ao detector nem
-depois, e ficam só como movimento. `semObjeto` inclui o carro que já estava
+depois, e ficam só como movimento. `noObject` inclui o carro que já estava
 estacionado - olhado, mas não CHEGOU agora.
 
 A fila é uma só para todas as câmeras, e vem fora da lista delas, em
@@ -362,46 +362,46 @@ A fila é uma só para todas as câmeras, e vem fora da lista delas, em
 
 ```json
 "detector": {
-  "fila": {
-    "agora": 1,
+  "queue": {
+    "length": 1,
     "cap": 8,
-    "pico": 5,
-    "porCamera": 2,
+    "peak": 5,
+    "perCamera": 2,
     "cameras": {
       "cam_teste1": {
-        "esperando": 1,
-        "olhando": true
+        "waiting": 1,
+        "busy": true
       }
     }
   },
-  "tempos": {
-    "analiseMs": 3620,
-    "esperaMs": 410
+  "times": {
+    "inferenceMs": 3620,
+    "waitMs": 410
   }
 }
 ```
 
-`agora` são os pedaços esperando a vez, sem contar o que está sendo olhado, e
-`pico` o maior `agora` desde que o dwnvr subiu. A fila não tem total fixo: cada
-câmera pode ter `porCamera` pedaços esperando a vez, e `cap` é isso vezes as
+`length` são os pedaços esperando a vez, sem contar o que está sendo olhado, e
+`peak` o maior `length` desde que o dwnvr subiu. A fila não tem total fixo: cada
+câmera pode ter `perCamera` pedaços esperando a vez, e `cap` é isso vezes as
 câmeras com detecção ligada agora - cresce e diminui com elas. O pedaço que o
-detector está processando já saiu da fila: `esperando` nunca passa de
-`porCamera`, e `olhando` diz, à parte, de qual câmera é a imagem em
+detector está processando já saiu da fila: `waiting` nunca passa de
+`perCamera`, e `busy` diz, à parte, de qual câmera é a imagem em
 processamento. `cameras` traz só as câmeras com algo numa coisa ou na outra. Os tempos são
-a média das últimas 20 olhadas: `analiseMs` é quanto o detector leva para
-responder - só as que ele respondeu -, e `esperaMs` quanto o pedaço esperou a
+a média das últimas 20 olhadas: `inferenceMs` é quanto o detector leva para
+responder - só as que ele respondeu -, e `waitMs` quanto o pedaço esperou a
 vez antes. Zero antes da primeira olhada. Sem detector configurado, o campo
 não vem.
 
-Enquanto o detector não responde, o `detector` traz também `foraDoAr`, com a
+Enquanto o detector não responde, o `detector` traz também `outage`, com a
 primeira olhada seguida que falhou e o motivo da mais recente. A primeira
 olhada que ele responde o apaga. Pedaço recusado (vídeo corrompido) não conta:
 é o detector no ar dizendo não.
 
 ```json
-"foraDoAr": {
-  "desde": "2026-09-29T14:02:10-03:00",
-  "erro": "dial tcp 172.18.0.3:8480: connect: connection refused"
+"outage": {
+  "since": "2026-09-29T14:02:10-03:00",
+  "error": "dial tcp 172.18.0.3:8480: connect: connection refused"
 }
 ```
 
@@ -413,7 +413,7 @@ o alerta seja desligado, e não vem antes:
 "alerts": { "total": 12 }
 ```
 
-Os alertas em si ficam gravados na detecção, e se leem no `GET /api/deteccoes`
+Os alertas em si ficam gravados na detecção, e se leem no `GET /api/detections`
 (`alert` e `alertAreas` em cada objeto, e o filtro `alert=1`).
 
 Com algum meio de envio configurado, o alerta que não sai é descartado e
@@ -483,7 +483,7 @@ problema, o campo não vem.
 }
 ```
 
-O `POST /api/email/teste` devolve `{"sentTo": "..."}`. Endereço vazio, com nome
+O `POST /api/email/test` devolve `{"sentTo": "..."}`. Endereço vazio, com nome
 ou mais de um é `400`; com o e-mail desligado, `409` com o motivo. Se o
 servidor de e-mail recusar, é `502`, com a resposta dele do jeito que veio, como
 `o e-mail não foi: o servidor recusou o login: 535 5.7.8 Username and Password
@@ -511,7 +511,7 @@ descobri-lo (nem `TZ`, nem `/etc/timezone`, nem o link de `/etc/localtime`); aí
 resta a `abbr`, que sozinha não identifica região - `-03` vale para São Paulo,
 Buenos Aires e outros.
 
-O `GET /api/health/servidor` é o card "Este servidor" do Diagnóstico. Fica fora
+O `GET /api/health/server` é o card "Este servidor" do Diagnóstico. Fica fora
 do `/api/health` porque custa mais: a cada chamada ele grava, sincroniza com
 `fsync` e apaga 4 KB no `storage.root`, pergunta a versão ao go2rtc e, com
 `detector.url` configurado, chama o `GET /health` do detector de objetos. A
@@ -521,90 +521,90 @@ sem cgroup, fora do Linux).
 
 ```json
 {
-  "coletadoEm": {
-    "em": "2026-10-02T17:45:12-03:00", "sigla": "-03",
-    "offsetSeconds": -10800, "zona": "America/Sao_Paulo"
+  "collectedAt": {
+    "at": "2026-10-02T17:45:12-03:00", "abbreviation": "-03",
+    "offsetSeconds": -10800, "zone": "America/Sao_Paulo"
   },
-  "maquina": {
-    "placa": "OrangePi Zero3", "kernel": "6.12.58-current-sunxi64",
-    "nucleos": 4, "nucleosLiberados": 1.5, "carga": [3.1, 2.05, 1.5],
-    "sensores": [{ "nome": "cpu_thermal", "celsius": 84.3 }],
+  "machine": {
+    "board": "OrangePi Zero3", "kernel": "6.12.58-current-sunxi64",
+    "cores": 4, "allowedCores": 1.5, "load": [3.1, 2.05, 1.5],
+    "sensors": [{ "name": "cpu_thermal", "celsius": 84.3 }],
     "mhz": 1008, "mhzMax": 1512, "governor": "ondemand"
   },
-  "processo": {
-    "cpuMs": 811550, "vivoMs": 18585000, "memoriaBytes": 33980416,
-    "goroutines": 112, "arquivosAbertos": 34, "limiteDeArquivos": 524287,
-    "uid": 1000, "gid": 1000, "go": "go1.27.1", "arquitetura": "linux/arm64"
+  "process": {
+    "cpuMs": 811550, "aliveMs": 18585000, "memoryBytes": 33980416,
+    "goroutines": 112, "openFiles": 34, "fileLimit": 524287,
+    "uid": 1000, "gid": 1000, "go": "go1.27.1", "architecture": "linux/arm64"
   },
-  "memoria": {
-    "totalBytes": 1036640256, "disponivelBytes": 209715200,
-    "swapTotalBytes": 536870912, "swapUsadaBytes": 268435456,
-    "limiteBytes": 536870912, "oomKills": 2
+  "memory": {
+    "totalBytes": 1036640256, "availableBytes": 209715200,
+    "swapTotalBytes": 536870912, "swapUsedBytes": 268435456,
+    "limitBytes": 536870912, "oomKills": 2
   },
-  "pressao": {
+  "pressure": {
     "cpu":     { "some": { "avg10": 12.5, "avg60": 8, "avg300": 3.25 }, "full": { "avg10": 0, "avg60": 0, "avg300": 0 } },
-    "memoria": { "some": { "avg10": 0, "avg60": 0, "avg300": 0 } },
+    "memory": { "some": { "avg10": 0, "avg60": 0, "avg300": 0 } },
     "io":      { "some": { "avg10": 40, "avg60": 35.1, "avg300": 20 } }
   },
   "storage": {
-    "caminho": "/storage", "tipo": "ext4", "origem": "/dev/sda1",
-    "opcoes": "rw,relatime", "somenteLeitura": false,
-    "escrita": { "ok": true, "ms": 12 }
+    "path": "/storage", "type": "ext4", "origin": "/dev/sda1",
+    "options": "rw,relatime", "readOnly": false,
+    "write": { "ok": true, "ms": 12 }
   },
-  "go2rtc": { "ok": true, "ms": 4, "versao": "1.9.9", "url": "http://go2rtc:1984" },
+  "go2rtc": { "ok": true, "ms": 4, "version": "1.9.9", "url": "http://go2rtc:1984" },
   "detector": {
-    "ok": true, "ms": 128, "modelo": "modelo.onnx", "entrada": "512x288",
+    "ok": true, "ms": 128, "model": "modelo.onnx", "entry": "512x288",
     "threads": 2, "url": "http://dwnvr-detect:8480"
   },
   "smtp": {
     "host": "smtp.gmail.com", "port": 587, "security": "starttls",
     "from": "dwnvr <dwnvr.exemplo@gmail.com>"
   },
-  "alertas": [
-    { "nome": "email", "enviados": 47, "falhas": 9, "ultimo": "2026-10-02T17:44:37-03:00", "erro": "dial tcp 142.250.0.108:587: connect: connection timed out" }
+  "alerts": [
+    { "name": "email", "sent": 47, "failures": 9, "last": "2026-10-02T17:44:37-03:00", "error": "dial tcp 142.250.0.108:587: connect: connection timed out" }
   ],
   "log": {
     "total": 37,
-    "linhas": [{ "em": "2026-09-22T18:37:12-03:00", "nivel": "WARN", "texto": "connection dropped cam=garagem err=EOF" }]
+    "lines": [{ "at": "2026-09-22T18:37:12-03:00", "level": "WARN", "text": "connection dropped cam=garagem err=EOF" }]
   }
 }
 ```
 
-- `coletadoEm` é o instante da leitura no relógio do servidor, com o fuso dele,
+- `collectedAt` é o instante da leitura no relógio do servidor, com o fuso dele,
   como o `clock` do `/api/health`: a tela o mostra na hora de lá, sem converter.
-  `zona` some quando o servidor não sabe o nome IANA.
-- `placa` vem do device tree e só existe em ARM; `processador` vem do
+  `zone` some quando o servidor não sabe o nome IANA.
+- `board` vem do device tree e só existe em ARM; `processor` vem do
   `/proc/cpuinfo` e só tem nome no x86. `kernel` é o do host, mesmo dentro do
   container.
-- `nucleosLiberados` é o teto de CPU do container, em núcleos (`--cpus 1.5`), e
+- `allowedCores` é o teto de CPU do container, em núcleos (`--cpus 1.5`), e
   some quando não há teto.
-- `processo` é o próprio dwnvr. `cpuMs` é o tempo de CPU gasto desde que ele
-  subiu, e `vivoMs`, há quanto tempo está no ar: a porcentagem sai da diferença
+- `process` é o próprio dwnvr. `cpuMs` é o tempo de CPU gasto desde que ele
+  subiu, e `aliveMs`, há quanto tempo está no ar: a porcentagem sai da diferença
   entre duas leituras, e quem guarda a leitura anterior é a tela, não o
-  servidor. `memoriaBytes` é a memória física do processo (`VmRSS`), que é o
-  que bate contra o `limiteBytes`. O `memory.current` do cgroup não serve para
+  servidor. `memoryBytes` é a memória física do processo (`VmRSS`), que é o
+  que bate contra o `limitBytes`. O `memory.current` do cgroup não serve para
   isso: soma o cache dos vídeos gravados, que o kernel devolve quando precisa.
 - `detector` só vem com `detector.url` configurado. Responde mesmo sem
-  movimento em câmera nenhuma, ao contrário do `foraDoAr` do `/api/health`, que
+  movimento em câmera nenhuma, ao contrário do `outage` do `/api/health`, que
   só aparece depois de uma olhada falhar.
 - As `url` vêm sem usuário e senha.
 - `smtp` só vem com a seção `smtp` no `dwnvr.yaml`, sem o login e sem a senha.
   Não há sonda: conferir o servidor de e-mail é mandar um, e para isso existe o
-  `POST /api/email/teste`. Com a seção recusada, traz o `error`.
-- `alertas` são os envios de cada meio do alerta desde que o dwnvr subiu, e só
-  vêm com meio configurado e alguma câmera com o alerta ligado. `ultimo` é a
-  tentativa mais recente e some antes da primeira; `erro` vem só se ela falhou.
-- `pressao` é o PSI do kernel: a porcentagem do tempo em que alguma tarefa
+  `POST /api/email/test`. Com a seção recusada, traz o `error`.
+- `alerts` são os envios de cada meio do alerta desde que o dwnvr subiu, e só
+  vêm com meio configurado e alguma câmera com o alerta ligado. `last` é a
+  tentativa mais recente e some antes da primeira; `error` vem só se ela falhou.
+- `pressure` é o PSI do kernel: a porcentagem do tempo em que alguma tarefa
   (`some`) ou todas (`full`) ficaram paradas esperando CPU, memória ou disco,
   em média de 10, 60 e 300 segundos.
 - `oomKills` conta os processos que o kernel matou por falta de memória desde
   que a **máquina** ligou, e não só os do container. Quando a vítima é o próprio
   dwnvr, o Docker sobe um container novo e o contador do cgroup antigo some
   junto; o da máquina continua lá.
-- `limiteBytes` é o teto de memória do container, e some quando não há teto.
-- `somenteLeitura` vale para a montagem ou para o superbloco: um cartão SD com
+- `limitBytes` é o teto de memória do container, e some quando não há teto.
+- `readOnly` vale para a montagem ou para o superbloco: um cartão SD com
   defeito é remontado somente leitura pelo kernel sem avisar ninguém.
-- `escrita.erro` só traz causa conhecida (somente leitura, sem permissão, disco
+- `write.error` só traz causa conhecida (somente leitura, sem permissão, disco
   cheio, diretório inexistente, disco que não respondeu em 5 s). Qualquer outra
   falha vai genérica, com o detalhe no log. Enquanto um teste anterior continuar
   preso num disco travado, a resposta diz isso e não abre outro teste.
@@ -653,14 +653,14 @@ da timeline desenha, e as marcas de objeto que o detector confirmou:
   "from": 1786176000000,
   "to": 1786262400000,
   "onsets": [1786220571043, 1786220604112],
-  "objetos": [
+  "objects": [
     {
-      "instanteMs": 1786220571043,
-      "familia": "pessoa",
-      "classe": "person",
+      "atMs": 1786220571043,
+      "family": "pessoa",
+      "class": "person",
       "score": 0.87,
-      "quadroMs": 1786220572851,
-      "caixa": [0.5156, 0.2611, 0.6734, 0.9778]
+      "frameMs": 1786220572851,
+      "box": [0.5156, 0.2611, 0.6734, 0.9778]
     }
   ]
 }
@@ -668,14 +668,14 @@ da timeline desenha, e as marcas de objeto que o detector confirmou:
 
 Os `onsets` são números soltos, e não objetos, pela mesma razão que a timeline
 é compacta: um dia no nível mais sensível tem ~2.400 marcas, e a forma verbosa
-dobraria a resposta para dizer o mesmo. Os `objetos` são dezenas por dia, e vão
+dobraria a resposta para dizer o mesmo. Os `objects` são dezenas por dia, e vão
 com chave por extenso; o instante de cada um é o do onset que o originou. É um
 por objeto: duas pessoas no mesmo quadro são dois itens de `pessoa` com o mesmo
-`instanteMs`, e a timeline junta os dois numa chegada.
+`atMs`, e a timeline junta os dois numa chegada.
 
-`quadroMs` e `caixa` dizem onde desenhar o objeto sobre o vídeo: `caixa` é
+`frameMs` e `box` dizem onde desenhar o objeto sobre o vídeo: `box` é
 X1, Y1, X2, Y2 em fração da imagem, de 0 a 1, e vale para o quadro de
-`quadroMs` - o que o detector olhou, até 3 s depois do onset -, e não para o
+`frameMs` - o que o detector olhou, até 3 s depois do onset -, e não para o
 instante da marca. Marca sem as duas chaves não ganha caixa na tela.
 
 Câmera com a detecção desligada, ou sem detector configurado, responde lista
@@ -695,21 +695,21 @@ rola.
 
 | Endpoint | Parâmetros | Devolve |
 | --- | --- | --- |
-| `GET /api/deteccoes` | `antes` ou `depois`, `limite`, `cams`, `familias`, `area`, `rule`, `areas`, `alert` | uma página de detecções, da mais nova para a mais velha |
-| `GET /api/deteccoes/quadro` | `cam`, `t` | o JPEG do quadro que o detector olhou, `immutable` |
-| `GET /api/deteccoes/dias` | `cams`, `familias`, `area`, `rule`, `areas`, `alert` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
+| `GET /api/detections` | `before` ou `after`, `limit`, `cams`, `families`, `area`, `rule`, `areas`, `alert` | uma página de detecções, da mais nova para a mais velha |
+| `GET /api/detections/frame` | `cam`, `t` | o JPEG do quadro que o detector olhou, `immutable` |
+| `GET /api/detections/days` | `cams`, `families`, `area`, `rule`, `areas`, `alert` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
 
-**`/api/deteccoes`** pagina por cursor, e não por número de página: o dia
+**`/api/detections`** pagina por cursor, e não por número de página: o dia
 corrente ganha detecção nova a todo momento, e "página 3" mudaria de conteúdo
 entre um pedido e outro.
 
-- `antes=<ms>`: as detecções anteriores a este instante, para rolar para baixo.
+- `before=<ms>`: as detecções anteriores a este instante, para rolar para baixo.
   Sem cursor nenhum, vêm as mais novas.
-- `depois=<ms>`: as posteriores, para rolar para cima depois de um "ir para".
+- `after=<ms>`: as posteriores, para rolar para cima depois de um "ir para".
   São as mais próximas do cursor, mas a resposta vem na mesma ordem das outras:
   da mais nova para a mais velha.
-- `limite`: quantas, de 1 a 200. Padrão 60.
-- `cams=cam_a,cam_b` e `familias=pessoa,veiculo`: só essas. Sem eles, todas.
+- `limit`: quantas, de 1 a 200. Padrão 60.
+- `cams=cam_a,cam_b` e `families=pessoa,veiculo`: só essas. Sem eles, todas.
   Câmera não cadastrada ou família desconhecida é erro.
 - `area=<cam>:<x>,<y>,<x>,<y>,...`: na câmera `<cam>`, só os objetos dentro
   de uma área desenhada sobre a imagem dela, como
@@ -731,7 +731,7 @@ entre um pedido e outro.
 
 - `alert=1`: só as detecções em que algum objeto alertou (ver abaixo). O
   filtro é por detecção: o objeto que não alertou fica nela. Ele vale sobre o
-  que sobra dos outros filtros: com `familias=veiculo`, a detecção que alertou
+  que sobra dos outros filtros: com `families=veiculo`, a detecção que alertou
   só pela pessoa sai, porque a pessoa sai. Outro valor é erro.
 
 As áreas de uma câmera **somam**, a de `area` junto: o objeto fica se está em
@@ -739,20 +739,20 @@ qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
 
 ```json
 {
-  "deteccoes": [
+  "detections": [
     {
       "cam": "cam_teste1",
-      "instanteMs": 1786220571043,
-      "quadroMs": 1786220572851,
-      "temQuadro": true,
-      "objetos": [
-        { "familia": "pessoa", "classe": "person", "score": 0.87, "caixa": [0.5156, 0.2611, 0.6734, 0.9778],
+      "atMs": 1786220571043,
+      "frameMs": 1786220572851,
+      "hasFrame": true,
+      "objects": [
+        { "family": "pessoa", "class": "person", "score": 0.87, "box": [0.5156, 0.2611, 0.6734, 0.9778],
           "alert": true, "alertAreas": ["k3f9a2"] },
-        { "familia": "veiculo", "classe": "car", "score": 0.61, "caixa": [0.05, 0.4, 0.3, 0.7] }
+        { "family": "veiculo", "class": "car", "score": 0.61, "box": [0.05, 0.4, 0.3, 0.7] }
       ]
     }
   ],
-  "fim": false
+  "end": false
 }
 ```
 
@@ -762,7 +762,7 @@ são três marcas no `eventos/{dia}.ndjson`, mas uma detecção só, com três
 objetos. O filtro de família e o de área tiram objetos, e a detecção que fica
 sem nenhum sai da página. Com área, a marca sem caixa, gravada antes de a
 caixa existir, fica de fora: não há como saber onde ela estava.
-`caixa` e `quadroMs` são os mesmos de `/api/rec/events`.
+`box` e `frameMs` são os mesmos de `/api/rec/events`.
 
 `alert` diz que o objeto passou na regra de alerta da câmera na hora em que foi
 olhado, e `alertAreas`, os ids das áreas do alerta em que ele caiu; sem áreas
@@ -770,12 +770,12 @@ no alerta, ou sem alerta, o campo não vem. É o que foi gravado: mudar o alerta
 da câmera não muda o passado, e o id de uma área apagada continua vindo. O
 viewer também os recebe.
 
-O próximo cursor é o `instanteMs` da última detecção da página. A página **não
+O próximo cursor é o `atMs` da última detecção da página. A página **não
 parte um instante ao meio**: se a última empata, no mesmo milissegundo, com a de
 outra câmera, as duas vêm e a página passa um pouco do limite - senão o cursor
-pularia a que ficou de fora. `fim` diz que não há mais nada na direção pedida;
+pularia a que ficou de fora. `end` diz que não há mais nada na direção pedida;
 ele pode vir falso na página que por acaso pegou a última detecção, e a próxima
-vem vazia e com `fim` verdadeiro.
+vem vazia e com `end` verdadeiro.
 
 A marca de objeto chega **atrasada**, como em `/api/rec/events`: ela leva o
 instante do onset, mas só é gravada depois que o detector olha. Uma detecção
@@ -787,17 +787,17 @@ arquivo cresceu. Medido com 11 dias de uma instalação real, nove câmeras e 7.
 detecções: 0,85 MB em memória, e uma página de 60 em 0,2 ms depois da primeira
 leitura. O dia sai da memória quando a retenção o apaga.
 
-**`/api/deteccoes/dias`** é o que o calendário da tela de Detecções deixa
-escolher, com o número que ele mostra em cada dia. `cams`, `familias`, `area`,
-`rule`, `areas` e `alert` são os mesmos de `/api/deteccoes`, e o dia entra se tiver ao menos uma detecção do
-filtro. `deteccoesPorDia` conta detecções, não marcas, como `/api/deteccoes`
+**`/api/detections/days`** é o que o calendário da tela de Detecções deixa
+escolher, com o número que ele mostra em cada dia. `cams`, `families`, `area`,
+`rule`, `areas` e `alert` são os mesmos de `/api/detections`, e o dia entra se tiver ao menos uma detecção do
+filtro. `detectionsPerDay` conta detecções, não marcas, como `/api/detections`
 as monta: pessoa e carro no mesmo quadro contam uma vez. Dia sem gravação fica
 de fora mesmo com marca, porque a rolagem também não chega nele.
 
 ```json
 {
-  "dias": ["2026-10-03", "2026-10-04", "2026-10-05"],
-  "deteccoesPorDia": { "2026-10-03": 508, "2026-10-04": 294, "2026-10-05": 462 }
+  "days": ["2026-10-03", "2026-10-04", "2026-10-05"],
+  "detectionsPerDay": { "2026-10-03": 508, "2026-10-04": 294, "2026-10-05": 462 }
 }
 ```
 
@@ -808,10 +808,10 @@ eventos e 18.772 detecções, com o cache de disco frio: a primeira chamada levo
 câmera com marca, sem contar, levava 0,4 s. A tela relê a lista a cada abertura
 do calendário, porque o dia corrente cresce com ela aberta.
 
-**`/api/deteccoes/quadro`** serve o arquivo como ele está no disco, sem
-redimensionar nem reencodar: `t` é o `instanteMs` da detecção. Ele nunca muda
+**`/api/detections/frame`** serve o arquivo como ele está no disco, sem
+redimensionar nem reencodar: `t` é o `atMs` da detecção. Ele nunca muda
 depois de gravado, então vai com `immutable` e rolar de volta não pede nada ao
-servidor. Detecção com `temQuadro` falso responde 404.
+servidor. Detecção com `hasFrame` falso responde 404.
 
 ## Usuários
 
@@ -820,18 +820,18 @@ Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem 
 
 | Endpoint | O que faz |
 | --- | --- |
-| `GET /api/usuarios` | as pessoas, com a situação de cada uma, e o dono à parte |
-| `POST /api/usuarios` | cria um viewer, `{"username", "name", "email"}`, e devolve o token do link; o e-mail é opcional |
-| `POST /api/usuarios/conferir` | o que o `POST /api/usuarios` recusaria com o mesmo corpo, sem criar ninguém |
-| `POST /api/usuarios/link` | link novo, `{"username"}`: apaga a senha atual e derruba a pessoa na hora |
-| `POST /api/usuarios/link/email` | manda o link por e-mail, `{"username", "url"}`, para o e-mail da pessoa |
-| `POST /api/usuarios/email` | troca o e-mail de alguém, `{"username", "email"}`; vazio apaga |
-| `POST /api/usuarios/email/conferir` | o que o `POST /api/usuarios/email` recusaria com o mesmo corpo, sem trocar nada |
-| `DELETE /api/usuarios?username=` | remove a pessoa, e a foto dela, e a derruba na hora |
-| `DELETE /api/usuarios/avatar?username=` | tira a foto de alguém; trocar, só a própria pessoa |
+| `GET /api/users` | as pessoas, com a situação de cada uma, e o dono à parte |
+| `POST /api/users` | cria um viewer, `{"username", "name", "email"}`, e devolve o token do link; o e-mail é opcional |
+| `POST /api/users/check` | o que o `POST /api/users` recusaria com o mesmo corpo, sem criar ninguém |
+| `POST /api/users/link` | link novo, `{"username"}`: apaga a senha atual e derruba a pessoa na hora |
+| `POST /api/users/link/email` | manda o link por e-mail, `{"username", "url"}`, para o e-mail da pessoa |
+| `POST /api/users/email` | troca o e-mail de alguém, `{"username", "email"}`; vazio apaga |
+| `POST /api/users/email/check` | o que o `POST /api/users/email` recusaria com o mesmo corpo, sem trocar nada |
+| `DELETE /api/users?username=` | remove a pessoa, e a foto dela, e a derruba na hora |
+| `DELETE /api/users/avatar?username=` | tira a foto de alguém; trocar, só a própria pessoa |
 
 ```json
-// GET /api/usuarios
+// GET /api/users
 {
   "authRequired": true,
   "owner": { "username": "admin", "name": "admin", "avatar": "", "lastAccessMs": 1791986400000 },
@@ -871,7 +871,7 @@ A recusa do criar e a do trocar e-mail vêm campo a campo em `fields`, com a
 primeira, na ordem da tela, também no `error` de sempre:
 
 ```json
-// POST /api/usuarios -> 400
+// POST /api/users -> 400
 {
   "error": "já existe alguém com este usuário",
   "fields": { "username": "já existe alguém com este usuário", "email": "já existe alguém com este e-mail" }
@@ -888,17 +888,17 @@ respondem `500` em vez de dizer que está tudo certo.
 
 O `email` é um endereço só, sem nome na frente, e é **único** entre as
 pessoas, sem diferença de maiúscula e minúscula: e-mail inválido ou de outra
-pessoa é `400`. O `POST /api/usuarios/email` devolve `{"user": {...}}` e vale
+pessoa é `400`. O `POST /api/users/email` devolve `{"user": {...}}` e vale
 mesmo com o e-mail desligado, porque guardar não envia nada. Um e-mail
 escrito errado à mão no `usuarios.json` vira aviso no log e no `/api/health`
 e não vem na listagem, mas continua no arquivo. O `emailEnabled` diz se a
 seção `smtp` está ligada; sem ela, a tela esconde o "Enviar por e-mail" e avisa,
 onde o e-mail é escrito, que o link não vai por e-mail.
 
-O `POST /api/usuarios/link/email` recebe o link do jeito que a tela o mostra,
+O `POST /api/users/link/email` recebe o link do jeito que a tela o mostra,
 porque o servidor não sabe por qual endereço é acessado: a tela o monta com o
 do navegador do admin. O servidor confere que é o link em aberto daquela
-pessoa (`http` ou `https`, sem usuário nem query, só o `#convite?token=`) e
+pessoa (`http` ou `https`, sem usuário nem query, só o `#invite?token=`) e
 manda para o e-mail dela. Devolve `{"sentTo": "..."}`. Link de outra pessoa,
 em outra forma, ou pessoa sem e-mail, são `400`; link vencido ou usado, `410`;
 e-mail desligado, `409`; servidor de e-mail recusando, `502` com a resposta
@@ -912,15 +912,15 @@ responde `409`.
 
 | Endpoint | O que faz |
 | --- | --- |
-| `GET /api/conta` | quem está logado e os números do formulário |
-| `POST /api/conta/senha` | troca a própria senha, `{"currentPassword", "newPassword"}`; o dono recebe `409` |
-| `POST /api/conta/nome` | troca o próprio nome de exibição, `{"name"}` |
-| `PUT /api/conta/avatar` | guarda a própria foto: o corpo é o JPEG, já reduzido |
-| `DELETE /api/conta/avatar` | tira a própria foto |
+| `GET /api/account` | quem está logado e os números do formulário |
+| `POST /api/account/password` | troca a própria senha, `{"currentPassword", "newPassword"}`; o dono recebe `409` |
+| `POST /api/account/name` | troca o próprio nome de exibição, `{"name"}` |
+| `PUT /api/account/avatar` | guarda a própria foto: o corpo é o JPEG, já reduzido |
+| `DELETE /api/account/avatar` | tira a própria foto |
 | `GET /api/avatar?id=` | a foto: a própria, ou qualquer uma para o admin |
 
 ```json
-// GET /api/conta
+// GET /api/account
 {
   "user": { "username": "maria", "name": "Maria", "role": "viewer", "owner": false },
   "minPasswordLength": 8,

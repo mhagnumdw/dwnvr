@@ -49,7 +49,7 @@ func TestInviteFromScreenToLogin(t *testing.T) {
 	s, _ := testServer(t)
 	withAuth(t, s)
 
-	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios",
+	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/users",
 		map[string]string{"username": "maria", "name": "Maria"})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("create: status %d, %s", rec.Code, rec.Body)
@@ -62,17 +62,17 @@ func TestInviteFromScreenToLogin(t *testing.T) {
 		t.Errorf("the response carries the token hash: %s", rec.Body)
 	}
 
-	rec, resp = requestAs(t, s, "", http.MethodPost, "/api/convite/conferir", map[string]string{"token": token})
+	rec, resp = requestAs(t, s, "", http.MethodPost, "/api/invite/check", map[string]string{"token": token})
 	if rec.Code != http.StatusOK || resp["name"] != "Maria" || resp["minPasswordLength"] != float64(users.MinPasswordLen) {
 		t.Errorf("check: status %d, %s", rec.Code, rec.Body)
 	}
 
-	rec, _ = requestAs(t, s, "", http.MethodPost, "/api/convite", map[string]string{"token": token, "password": "curta"})
+	rec, _ = requestAs(t, s, "", http.MethodPost, "/api/invite", map[string]string{"token": token, "password": "curta"})
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("short password: status %d, expected 400", rec.Code)
 	}
 
-	rec, _ = requestAs(t, s, "", http.MethodPost, "/api/convite", map[string]string{"token": token, "password": "uma senha boa"})
+	rec, _ = requestAs(t, s, "", http.MethodPost, "/api/invite", map[string]string{"token": token, "password": "uma senha boa"})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("set the password: status %d, %s", rec.Code, rec.Body)
 	}
@@ -85,12 +85,12 @@ func TestInviteFromScreenToLogin(t *testing.T) {
 	}
 
 	// Single use.
-	rec, _ = requestAs(t, s, "", http.MethodPost, "/api/convite", map[string]string{"token": token, "password": "outra senha boa"})
+	rec, _ = requestAs(t, s, "", http.MethodPost, "/api/invite", map[string]string{"token": token, "password": "outra senha boa"})
 	if rec.Code != http.StatusGone {
 		t.Errorf("link used again: status %d, expected 410", rec.Code)
 	}
 
-	rec, resp = requestAs(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
+	rec, resp = requestAs(t, s, "admin", http.MethodGet, "/api/users", nil)
 	list, _ := resp["users"].([]any)
 	if rec.Code != http.StatusOK || len(list) != 1 || list[0].(map[string]any)["status"] != "active" {
 		t.Errorf("list: status %d, %s", rec.Code, rec.Body)
@@ -109,11 +109,11 @@ func TestCreateUserRejects(t *testing.T) {
 		{"username": "Zé", "name": "Zé"},       // wrong format
 		{"username": "ze", "name": ""},
 	} {
-		if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios", body); rec.Code != http.StatusBadRequest {
+		if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/users", body); rec.Code != http.StatusBadRequest {
 			t.Errorf("%v: status %d, expected 400", body, rec.Code)
 		}
 	}
-	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/usuarios?username=ninguem", nil); rec.Code != http.StatusNotFound {
+	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/users?username=ninguem", nil); rec.Code != http.StatusNotFound {
 		t.Errorf("remove someone who does not exist: status %d", rec.Code)
 	}
 }
@@ -133,7 +133,7 @@ func fieldsOf(t *testing.T, resp map[string]any) map[string]any {
 func TestCreateUserRejectsByField(t *testing.T) {
 	s, _ := testServer(t)
 	withAuth(t, s, maria)
-	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios",
+	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/users",
 		map[string]string{"username": "maria", "name": "Outra", "email": "outra"})
 	fields := fieldsOf(t, resp)
 	if rec.Code != http.StatusBadRequest || len(fields) != 2 || fields["username"] == nil || fields["email"] == nil {
@@ -153,12 +153,12 @@ func TestCheckUsername(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/conferir",
+	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/users/check",
 		map[string]string{"username": "Maria", "name": " ", "email": "MARIA@exemplo.com"})
 	if fields := fieldsOf(t, resp); rec.Code != http.StatusOK || len(fields) != 3 {
 		t.Errorf("rejections: status %d, %s", rec.Code, rec.Body)
 	}
-	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/conferir",
+	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/users/check",
 		map[string]string{"username": "joao", "name": "João", "email": ""})
 	if fields := fieldsOf(t, resp); rec.Code != http.StatusOK || len(fields) != 0 {
 		t.Errorf("all good: status %d, %s", rec.Code, rec.Body)
@@ -167,13 +167,13 @@ func TestCheckUsername(t *testing.T) {
 		t.Error("the check created the person")
 	}
 
-	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
+	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/users/email/check",
 		map[string]string{"username": "maria", "email": "Maria@Exemplo.com"})
 	if fields := fieldsOf(t, resp); rec.Code != http.StatusOK || len(fields) != 0 {
 		t.Errorf("their own e-mail: status %d, %s", rec.Code, rec.Body)
 	}
 	// A free and different e-mail: accepted, and the saved one does not change.
-	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
+	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/users/email/check",
 		map[string]string{"username": "maria", "email": "outra@exemplo.com"})
 	if fields := fieldsOf(t, resp); rec.Code != http.StatusOK || len(fields) != 0 {
 		t.Errorf("free e-mail: status %d, %s", rec.Code, rec.Body)
@@ -181,12 +181,12 @@ func TestCheckUsername(t *testing.T) {
 	if u, _ := s.users.Find("maria"); u.Email != "maria@exemplo.com" {
 		t.Errorf("the check saved the e-mail: %q", u.Email)
 	}
-	if rec, _ = requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/email/conferir",
+	if rec, _ = requestAs(t, s, "admin", http.MethodPost, "/api/users/email/check",
 		map[string]string{"username": "ninguem", "email": "x@exemplo.com"}); rec.Code != http.StatusNotFound {
 		t.Errorf("someone who does not exist: status %d, expected 404", rec.Code)
 	}
 
-	for _, route := range []string{"/api/usuarios/conferir", "/api/usuarios/email/conferir"} {
+	for _, route := range []string{"/api/users/check", "/api/users/email/check"} {
 		if rec, _ = requestAs(t, s, "maria", http.MethodPost, route,
 			map[string]string{"username": "maria"}); rec.Code != http.StatusForbidden {
 			t.Errorf("%s by the viewer: status %d, expected 403", route, rec.Code)
@@ -198,28 +198,28 @@ func TestCheckUsername(t *testing.T) {
 // link is valid.
 func TestNoAuthNoRegistry(t *testing.T) {
 	s, _ := testServer(t)
-	if rec, _ := requestAs(t, s, "", http.MethodPost, "/api/usuarios",
+	if rec, _ := requestAs(t, s, "", http.MethodPost, "/api/users",
 		map[string]string{"username": "maria", "name": "Maria"}); rec.Code != http.StatusConflict {
 		t.Errorf("create without authentication: status %d, expected 409", rec.Code)
 	}
-	if rec, _ := requestAs(t, s, "", http.MethodPost, "/api/usuarios/conferir",
+	if rec, _ := requestAs(t, s, "", http.MethodPost, "/api/users/check",
 		map[string]string{"username": "maria", "name": "Maria"}); rec.Code != http.StatusConflict {
 		t.Errorf("check the new one without authentication: status %d, expected 409", rec.Code)
 	}
-	if rec, _ := requestAs(t, s, "", http.MethodPost, "/api/convite/conferir",
+	if rec, _ := requestAs(t, s, "", http.MethodPost, "/api/invite/check",
 		map[string]string{"token": "x"}); rec.Code != http.StatusGone {
 		t.Errorf("check without authentication: status %d, expected 410", rec.Code)
 	}
-	if rec, resp := requestAs(t, s, "", http.MethodGet, "/api/usuarios", nil); rec.Code != http.StatusOK || resp["authRequired"] != false {
+	if rec, resp := requestAs(t, s, "", http.MethodGet, "/api/users", nil); rec.Code != http.StatusOK || resp["authRequired"] != false {
 		t.Errorf("list without authentication: status %d, %s", rec.Code, rec.Body)
 	}
 }
 
-// accessOnScreen is the person's lastAccessMs in GET /api/usuarios, requested
+// accessOnScreen is the person's lastAccessMs in GET /api/users, requested
 // by the admin, or nil if it did not come.
 func accessOnScreen(t *testing.T, s *Server, username string) any {
 	t.Helper()
-	_, resp := requestAs(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
+	_, resp := requestAs(t, s, "admin", http.MethodGet, "/api/users", nil)
 	list, _ := resp["users"].([]any)
 	for _, u := range list {
 		if m, _ := u.(map[string]any); m["username"] == username {
@@ -250,12 +250,12 @@ func TestLastAccessOnUsersScreen(t *testing.T) {
 	}
 
 	// The admin who lists has also just used it: the owner comes with theirs.
-	_, resp := requestAs(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
+	_, resp := requestAs(t, s, "admin", http.MethodGet, "/api/users", nil)
 	if owner, _ := resp["owner"].(map[string]any); owner["lastAccessMs"] == nil {
 		t.Errorf("the owner came without lastAccessMs: %v", resp["owner"])
 	}
 
-	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/usuarios?username=maria", nil); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/users?username=maria", nil); rec.Code != http.StatusOK {
 		t.Fatalf("remove: status %d, %s", rec.Code, rec.Body)
 	}
 	if got := s.accesses.Last("maria"); !got.IsZero() {
@@ -365,7 +365,7 @@ func TestDropsThePersonsConnections(t *testing.T) {
 		t.Fatal("the warning closed on its own")
 	}
 
-	if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/link",
+	if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/users/link",
 		map[string]string{"username": "maria"}); rec.Code != http.StatusOK {
 		t.Fatalf("link novo: status %d, %s", rec.Code, rec.Body)
 	}
@@ -376,7 +376,7 @@ func TestDropsThePersonsConnections(t *testing.T) {
 		t.Error("zé's warning dropped too")
 	}
 
-	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/usuarios?username=ze", nil); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/users?username=ze", nil); rec.Code != http.StatusOK {
 		t.Fatalf("remove: status %d", rec.Code)
 	}
 	if !closes(zesLink, 2*time.Second) {
@@ -421,7 +421,7 @@ func TestDropsTheLiveView(t *testing.T) {
 		t.Fatalf("live view: status %d", resp.StatusCode)
 	}
 
-	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/usuarios?username=maria", nil); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/users?username=maria", nil); rec.Code != http.StatusOK {
 		t.Fatalf("remove: status %d", rec.Code)
 	}
 	if !closes(conn, 2*time.Second) {

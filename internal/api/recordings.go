@@ -182,18 +182,18 @@ type eventsResponse struct {
 	// inference, at the instant of the onset that triggered it. They are few -
 	// dozens per camera per day -, so they go with full keys, unlike the
 	// onsets. A camera without an object detector responds with an empty list.
-	Objects []markedObject `json:"objetos"`
+	Objects []markedObject `json:"objects"`
 }
 
 type markedObject struct {
-	AtMs   int64   `json:"instanteMs"`
-	Family string  `json:"familia"`
-	Class  string  `json:"classe"`
+	AtMs   int64   `json:"atMs"`
+	Family string  `json:"family"`
+	Class  string  `json:"class"`
 	Score  float64 `json:"score"`
 	// Where and when to draw the box over the video. A mark without them gets
 	// no box on screen. See store.Event.
-	FrameMs int64       `json:"quadroMs,omitempty"`
-	Box     *[4]float64 `json:"caixa,omitempty"`
+	FrameMs int64       `json:"frameMs,omitempty"`
+	Box     *[4]float64 `json:"box,omitempty"`
 }
 
 // handleEvents returns the marks of a stretch: the motion onsets, which the

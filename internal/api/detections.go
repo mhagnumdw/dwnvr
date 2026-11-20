@@ -33,21 +33,21 @@ const maxDetectionsLimit = 200
 // one.
 type detection struct {
 	Cam  string `json:"cam"`
-	AtMs int64  `json:"instanteMs"`
+	AtMs int64  `json:"atMs"`
 	// FrameMs is the instant of the inferred frame, which is where the boxes
 	// are in the right place. See store.Event.
-	FrameMs int64 `json:"quadroMs,omitempty"`
-	// HasFrame says whether there is an image at /api/deteccoes/quadro for this
+	FrameMs int64 `json:"frameMs,omitempty"`
+	// HasFrame says whether there is an image at /api/detections/frame for this
 	// detection.
-	HasFrame bool            `json:"temQuadro"`
-	Objects  []objectInFrame `json:"objetos"`
+	HasFrame bool            `json:"hasFrame"`
+	Objects  []objectInFrame `json:"objects"`
 }
 
 type objectInFrame struct {
-	Family string      `json:"familia"`
-	Class  string      `json:"classe"`
+	Family string      `json:"family"`
+	Class  string      `json:"class"`
 	Score  float64     `json:"score"`
-	Box    *[4]float64 `json:"caixa,omitempty"`
+	Box    *[4]float64 `json:"box,omitempty"`
 	// Alert and AlertAreas come as recorded: the object passed the camera's
 	// alert rule, in the areas with these ids. See store.Event.
 	Alert      bool     `json:"alert,omitempty"`
@@ -56,22 +56,22 @@ type objectInFrame struct {
 
 type detectionsPage struct {
 	// Detections always come from newest to oldest, in both directions.
-	Detections []detection `json:"deteccoes"`
+	Detections []detection `json:"detections"`
 	// End says there is nothing more in the requested direction. It may be
 	// false on a page that happened to get the last detection; the next one
 	// comes empty and with End true.
-	End bool `json:"fim"`
+	End bool `json:"end"`
 }
 
 // handleDetections returns a page of object detections from all cameras together,
 // from newest to oldest. It is the scrolling of the Detections screen.
 //
-//	antes=<ms>   the detections before this instant (scrolling down).
+//	before=<ms>   the detections before this instant (scrolling down).
 //	             Without it, the newest.
-//	depois=<ms>  the ones after (scrolling up, after a "go to").
-//	limite=<N>   how many; default defaultDetectionsLimit.
+//	after=<ms>  the ones after (scrolling up, after a "go to").
+//	limit=<N>   how many; default defaultDetectionsLimit.
 //	cams=a,b     only these cameras; without it, all.
-//	familias=... only these families; without it, all.
+//	families=... only these families; without it, all.
 //	area=... on the area's camera, only the objects inside it; see
 //	filterFromQuery.
 //	rule=...     the area rule: touch or foot (the default).
@@ -81,19 +81,19 @@ type detectionsPage struct {
 //
 // The page never splits an instant in half: if the last detection ties with others
 // in the same millisecond, on another camera, they come together and the page goes
-// a little past the limit. Without this the `antes` cursor would skip the ones
+// a little past the limit. Without this the `before` cursor would skip the ones
 // left out.
 func (s *Server) handleDetections(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	if q.Has("antes") && q.Has("depois") {
-		writeError(w, http.StatusBadRequest, "use antes ou depois, não os dois")
+	if q.Has("before") && q.Has("after") {
+		writeError(w, http.StatusBadRequest, "use before ou after, não os dois")
 		return
 	}
-	descending := !q.Has("depois")
+	descending := !q.Has("after")
 	cursor := int64(math.MaxInt64)
-	name := "antes"
+	name := "before"
 	if !descending {
-		name = "depois"
+		name = "after"
 	}
 	if q.Has(name) {
 		v, err := strconv.ParseInt(q.Get(name), 10, 64)
@@ -105,11 +105,11 @@ func (s *Server) handleDetections(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limit := defaultDetectionsLimit
-	if q.Has("limite") {
-		v, err := strconv.Atoi(q.Get("limite"))
+	if q.Has("limit") {
+		v, err := strconv.Atoi(q.Get("limit"))
 		if err != nil || v < 1 || v > maxDetectionsLimit {
 			writeError(w, http.StatusBadRequest,
-				fmt.Sprintf("parâmetro limite inválido (de 1 a %d)", maxDetectionsLimit))
+				fmt.Sprintf("parâmetro limit inválido (de 1 a %d)", maxDetectionsLimit))
 			return
 		}
 		limit = v
@@ -134,7 +134,7 @@ func (s *Server) handleDetections(w http.ResponseWriter, r *http.Request) {
 // calendar of the Detections screen lets you pick, and the number it shows on
 // each day.
 //
-//	cams, familias, area, rule, areas and alert: the same as
+//	cams, families, area, rule, areas and alert: the same as
 //	handleDetections.
 func (s *Server) handleDetectionDays(w http.ResponseWriter, r *http.Request) {
 	cams, filter, err := s.filterFromQuery(r.URL.Query())
@@ -148,7 +148,7 @@ func (s *Server) handleDetectionDays(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, "lendo os dias com detecção", err)
 		return
 	}
-	writeJSON(w, map[string]any{"dias": days, "deteccoesPorDia": perDay})
+	writeJSON(w, map[string]any{"days": days, "detectionsPerDay": perDay})
 }
 
 // daysWithDetection walks the days with recordings and counts, in each one, the
@@ -372,7 +372,7 @@ func (f *objectFilter) add(cam string, a areaWithRule) {
 }
 
 // filterFromQuery resolves the parameters the list and the calendar share:
-// `cams`, `familias`, `area`, `rule`, `areas` and `alert`.
+// `cams`, `families`, `area`, `rule`, `areas` and `alert`.
 //
 // `area=<cam>:<x>,<y>,<x>,<y>,...` is an area drawn over the camera image, with
 // X and Y in thousandths of the frame (integers from 0 to 1000), to keep the
@@ -387,7 +387,7 @@ func (f *objectFilter) add(cam string, a areaWithRule) {
 //
 // `alert=1` keeps only the detections in which some object that passed the
 // other filters alerted, by the mark recorded at the time: changing the
-// camera's alert doesn't change the past. With `familias=veiculo`, the
+// camera's alert doesn't change the past. With `families=veiculo`, the
 // detection that alerted only because of the person goes, because the person
 // goes.
 func (s *Server) filterFromQuery(q url.Values) ([]*store.Camera, objectFilter, error) {
@@ -402,7 +402,7 @@ func (s *Server) filterFromQuery(q url.Values) ([]*store.Camera, objectFilter, e
 		}
 		f.alertsOnly = true
 	}
-	if f.families, err = filterFamilies(q.Get("familias")); err != nil {
+	if f.families, err = filterFamilies(q.Get("families")); err != nil {
 		return nil, f, err
 	}
 	if q.Has("areas") {
@@ -518,7 +518,7 @@ func (s *Server) filterCameras(list string) ([]*store.Camera, error) {
 	return out, nil
 }
 
-// filterFamilies resolves `familias=pessoa,veiculo`. Empty returns nil, which
+// filterFamilies resolves `families=pessoa,veiculo`. Empty returns nil, which
 // means "all" - including a family that a future object detector may mark.
 func filterFamilies(list string) (map[string]bool, error) {
 	if list == "" {

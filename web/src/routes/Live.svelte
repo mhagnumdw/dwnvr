@@ -22,7 +22,7 @@
 
   const STORAGE_KEY = 'dwnvr.live.selection';
   const LAYOUT_KEY = 'dwnvr.live.layout';
-  const ALWAYS_KEY = 'dwnvr.live.sempreLigadas';
+  const ALWAYS_KEY = 'dwnvr.live.alwaysOn';
 
   // How many columns, or fit everything on screen.
   type Mode = 'fit' | number;
@@ -106,10 +106,10 @@
     const fromURL = params.get('view');
     if (fromURL === 'fit') return 'fit';
     if (COLUMNS.includes(Number(fromURL))) return Number(fromURL);
-    return lerLayout();
+    return readLayout();
   }
 
-  function lerLayout(): Mode {
+  function readLayout(): Mode {
     const saved = localStorage.getItem(LAYOUT_KEY);
     if (saved === 'fit') return 'fit';
     if (COLUMNS.includes(Number(saved))) return Number(saved);

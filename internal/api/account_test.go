@@ -31,7 +31,7 @@ func TestChangePasswordThroughTheAccount(t *testing.T) {
 	}
 	otherDevice := cookieOf(t, s, "maria")
 
-	rec, _ := requestAs(t, s, "maria", http.MethodPost, "/api/conta/senha",
+	rec, _ := requestAs(t, s, "maria", http.MethodPost, "/api/account/password",
 		map[string]string{"currentPassword": "senha errada", "newPassword": "outra senha boa"})
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("wrong current password: status %d, expected 400", rec.Code)
@@ -40,7 +40,7 @@ func TestChangePasswordThroughTheAccount(t *testing.T) {
 		t.Error("the wrong attempt dropped the session")
 	}
 
-	rec, resp := requestAs(t, s, "maria", http.MethodPost, "/api/conta/senha",
+	rec, resp := requestAs(t, s, "maria", http.MethodPost, "/api/account/password",
 		map[string]string{"currentPassword": "uma senha boa", "newPassword": "outra senha boa"})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("change: status %d, %s", rec.Code, rec.Body)
@@ -59,7 +59,7 @@ func TestChangePasswordThroughTheAccount(t *testing.T) {
 	}
 
 	// The owner changes the password in dwnvr.yaml.
-	if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/conta/senha",
+	if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/account/password",
 		map[string]string{"currentPassword": "senha", "newPassword": "outra senha boa"}); rec.Code != http.StatusConflict {
 		t.Errorf("owner: status %d, expected 409", rec.Code)
 	}
@@ -78,7 +78,7 @@ func testPhoto(t *testing.T, side int) []byte {
 // sendPhoto sends the raw JPEG, as the screen does.
 func sendPhoto(t *testing.T, s *Server, username string, photo []byte) (*httptest.ResponseRecorder, map[string]any) {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPut, "/api/conta/avatar", bytes.NewReader(photo))
+	req := httptest.NewRequest(http.MethodPut, "/api/account/avatar", bytes.NewReader(photo))
 	req.Header.Set("Content-Type", "image/jpeg")
 	req.AddCookie(cookieOf(t, s, username))
 	rec := httptest.NewRecorder()
@@ -93,16 +93,16 @@ func TestNameAndAvatarThroughTheAccount(t *testing.T) {
 	s, _ := testServer(t)
 	withAuth(t, s, maria, jose)
 
-	rec, resp := requestAs(t, s, "maria", http.MethodGet, "/api/conta", nil)
+	rec, resp := requestAs(t, s, "maria", http.MethodGet, "/api/account", nil)
 	if rec.Code != http.StatusOK || resp["minPasswordLength"] != float64(users.MinPasswordLen) {
 		t.Errorf("account: status %d, %s", rec.Code, rec.Body)
 	}
 
-	rec, resp = requestAs(t, s, "maria", http.MethodPost, "/api/conta/nome", map[string]string{"name": "Maria Clara"})
+	rec, resp = requestAs(t, s, "maria", http.MethodPost, "/api/account/name", map[string]string{"name": "Maria Clara"})
 	if p, _ := resp["user"].(map[string]any); rec.Code != http.StatusOK || p["name"] != "Maria Clara" {
 		t.Errorf("nome: status %d, %s", rec.Code, rec.Body)
 	}
-	if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/conta/nome", map[string]string{"name": "Dono"}); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/account/name", map[string]string{"name": "Dono"}); rec.Code != http.StatusOK {
 		t.Errorf("owner's name: status %d, %s", rec.Code, rec.Body)
 	}
 	if p, _ := s.who("admin"); p.Name != "Dono" {
@@ -135,10 +135,10 @@ func TestNameAndAvatarThroughTheAccount(t *testing.T) {
 	}
 
 	// The admin removes other people's photos; the viewer does not.
-	if rec, _ := requestAs(t, s, "jose", http.MethodDelete, "/api/usuarios/avatar?username=maria", nil); rec.Code != http.StatusForbidden {
+	if rec, _ := requestAs(t, s, "jose", http.MethodDelete, "/api/users/avatar?username=maria", nil); rec.Code != http.StatusForbidden {
 		t.Errorf("viewer removing someone else's photo: status %d", rec.Code)
 	}
-	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/usuarios/avatar?username=maria", nil); rec.Code != http.StatusOK {
+	if rec, _ := requestAs(t, s, "admin", http.MethodDelete, "/api/users/avatar?username=maria", nil); rec.Code != http.StatusOK {
 		t.Errorf("admin removing the photo: status %d, %s", rec.Code, rec.Body)
 	}
 	if rec, _ := requestAs(t, s, "maria", http.MethodGet, "/api/avatar?id="+id, nil); rec.Code != http.StatusNotFound {
@@ -148,7 +148,7 @@ func TestNameAndAvatarThroughTheAccount(t *testing.T) {
 	if rec, _ := sendPhoto(t, s, "jose", testPhoto(t, 64)); rec.Code != http.StatusOK {
 		t.Fatalf("josé's photo: status %d", rec.Code)
 	}
-	rec, resp = requestAs(t, s, "jose", http.MethodDelete, "/api/conta/avatar", nil)
+	rec, resp = requestAs(t, s, "jose", http.MethodDelete, "/api/account/avatar", nil)
 	if p, _ := resp["user"].(map[string]any); rec.Code != http.StatusOK || p["avatar"] != nil {
 		t.Errorf("removing one's own photo: status %d, %s", rec.Code, rec.Body)
 	}
@@ -160,10 +160,10 @@ func TestNameAndAvatarThroughTheAccount(t *testing.T) {
 func TestNoAuthNothingIsSaved(t *testing.T) {
 	s, _ := testServer(t)
 	routes := []string{
-		"GET /api/conta", "POST /api/conta/senha", "POST /api/conta/nome",
-		"PUT /api/conta/avatar", "DELETE /api/conta/avatar",
-		"POST /api/usuarios/link", "DELETE /api/usuarios?username=maria",
-		"DELETE /api/usuarios/avatar?username=maria",
+		"GET /api/account", "POST /api/account/password", "POST /api/account/name",
+		"PUT /api/account/avatar", "DELETE /api/account/avatar",
+		"POST /api/users/link", "DELETE /api/users?username=maria",
+		"DELETE /api/users/avatar?username=maria",
 	}
 	for _, r := range routes {
 		method, route, _ := strings.Cut(r, " ")

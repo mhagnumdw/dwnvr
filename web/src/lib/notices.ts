@@ -155,11 +155,11 @@ export function noticesOf(health: HealthState): Notice[] {
   // With the object detector down, recording and the motion marks continue
   // normally: without this notice, the missing object marks are only noticed
   // later, on the timeline, and the marks from that interval don't come back.
-  if (health.detector?.foraDoAr) {
-    const f = health.detector.foraDoAr;
+  if (health.detector?.outage) {
+    const f = health.detector.outage;
     out.push({
       nivel: 'bad',
-      texto: `Detector de objetos inacessível ${since(f.desde, now)}: ${f.erro}. As câmeras seguem gravando e marcando movimento, mas nenhuma marca de objeto é criada enquanto isso.`,
+      texto: `Detector de objetos inacessível ${since(f.since, now)}: ${f.error}. As câmeras seguem gravando e marcando movimento, mas nenhuma marca de objeto é criada enquanto isso.`,
     });
   }
   // The smtp section rejected at boot turns email off until someone fixes

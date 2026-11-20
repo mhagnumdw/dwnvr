@@ -47,7 +47,7 @@ func withEmail(t *testing.T, s *Server) (*fakeSender, *bytes.Buffer) {
 // screen builds it.
 func createWithLink(t *testing.T, s *Server, username, herEmail string) string {
 	t.Helper()
-	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios",
+	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/users",
 		map[string]string{"username": username, "name": "Maria Silva", "email": herEmail})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("create: status %d, %s", rec.Code, rec.Body)
@@ -57,7 +57,7 @@ func createWithLink(t *testing.T, s *Server, username, herEmail string) string {
 		t.Errorf("created with email %v", user["email"])
 	}
 	token, _ := resp["token"].(string)
-	return "https://nvr.exemplo.com/#convite?token=" + token
+	return "https://nvr.exemplo.com/#invite?token=" + token
 }
 
 // From the admin creating the person with an email until the link reaches them.
@@ -66,7 +66,7 @@ func TestLinkByEmail(t *testing.T) {
 	fake, log := withEmail(t, s)
 	link := createWithLink(t, s, "maria", "maria@exemplo.com")
 
-	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/link/email",
+	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/users/link/email",
 		map[string]string{"username": "maria", "url": link})
 	if rec.Code != http.StatusOK || resp["sentTo"] != "maria@exemplo.com" {
 		t.Fatalf("send: status %d, %s", rec.Code, rec.Body)
@@ -83,7 +83,7 @@ func TestLinkByEmail(t *testing.T) {
 			t.Errorf("the text does not have %q:\n%s", stretch, m.Text)
 		}
 	}
-	token := strings.TrimPrefix(link, "https://nvr.exemplo.com/#convite?token=")
+	token := strings.TrimPrefix(link, "https://nvr.exemplo.com/#invite?token=")
 	if strings.Contains(log.String(), token) {
 		t.Error("the token ended up in the log")
 	}
@@ -99,7 +99,7 @@ func TestLinkByEmailChecksTheLink(t *testing.T) {
 	fake, _ := withEmail(t, s)
 	link := createWithLink(t, s, "maria", "maria@exemplo.com")
 	joaosLink := createWithLink(t, s, "joao", "")
-	token := strings.TrimPrefix(link, "https://nvr.exemplo.com/#convite?token=")
+	token := strings.TrimPrefix(link, "https://nvr.exemplo.com/#invite?token=")
 
 	for _, c := range []struct {
 		name, username, url string
@@ -107,14 +107,14 @@ func TestLinkByEmailChecksTheLink(t *testing.T) {
 	}{
 		{"another person's link", "maria", joaosLink, http.StatusBadRequest},
 		{"person without email", "joao", joaosLink, http.StatusBadRequest},
-		{"made-up token", "maria", "https://nvr.exemplo.com/#convite?token=inventado", http.StatusGone},
-		{"another scheme", "maria", "javascript:alert(1)#convite?token=" + token, http.StatusBadRequest},
-		{"with login in the URL", "maria", "https://x@nvr.exemplo.com/#convite?token=" + token, http.StatusBadRequest},
-		{"with query", "maria", "https://nvr.exemplo.com/?a=1#convite?token=" + token, http.StatusBadRequest},
-		{"another fragment", "maria", "https://nvr.exemplo.com/#conta?token=" + token, http.StatusBadRequest},
+		{"made-up token", "maria", "https://nvr.exemplo.com/#invite?token=inventado", http.StatusGone},
+		{"another scheme", "maria", "javascript:alert(1)#invite?token=" + token, http.StatusBadRequest},
+		{"with login in the URL", "maria", "https://x@nvr.exemplo.com/#invite?token=" + token, http.StatusBadRequest},
+		{"with query", "maria", "https://nvr.exemplo.com/?a=1#invite?token=" + token, http.StatusBadRequest},
+		{"another fragment", "maria", "https://nvr.exemplo.com/#account?token=" + token, http.StatusBadRequest},
 		{"extra token", "maria", link + "&token=outro", http.StatusBadRequest},
 	} {
-		rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/link/email",
+		rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/users/link/email",
 			map[string]string{"username": c.username, "url": c.url})
 		if rec.Code != c.status {
 			t.Errorf("%s: status %d, expected %d (%s)", c.name, rec.Code, c.status, rec.Body)
@@ -132,7 +132,7 @@ func TestLinkByEmailChecksTheLink(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if rec, _ := requestAs(t, s, "ana", http.MethodPost, "/api/usuarios/link/email",
+	if rec, _ := requestAs(t, s, "ana", http.MethodPost, "/api/users/link/email",
 		map[string]string{"username": "maria", "url": link}); rec.Code != http.StatusForbidden {
 		t.Errorf("not admin: status %d", rec.Code)
 	}
@@ -146,12 +146,12 @@ func TestEmailServerFailureReachesTheScreen(t *testing.T) {
 	link := createWithLink(t, s, "maria", "maria@exemplo.com")
 	fake.errText = errors.New("o servidor recusou o login: 535 5.7.8 Username and Password not accepted")
 
-	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/link/email",
+	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/users/link/email",
 		map[string]string{"username": "maria", "url": link})
 	if rec.Code != http.StatusBadGateway || !strings.Contains(resp["error"].(string), "535 5.7.8") {
 		t.Errorf("status %d, %s", rec.Code, rec.Body)
 	}
-	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/email/teste",
+	rec, resp = requestAs(t, s, "admin", http.MethodPost, "/api/email/test",
 		map[string]string{"to": "dono@exemplo.com"})
 	if rec.Code != http.StatusBadGateway || !strings.Contains(resp["error"].(string), "535 5.7.8") {
 		t.Errorf("test: status %d, %s", rec.Code, rec.Body)
@@ -166,13 +166,13 @@ func TestWithoutEmailTheRoutesReject(t *testing.T) {
 	s.cfg.SMTP.Problem = "smtp.from vazio"
 	link := createWithLink(t, s, "maria", "maria@exemplo.com")
 
-	_, resp := requestAs(t, s, "admin", http.MethodGet, "/api/usuarios", nil)
+	_, resp := requestAs(t, s, "admin", http.MethodGet, "/api/users", nil)
 	if resp["emailEnabled"] != false {
 		t.Errorf("emailEnabled %v without email", resp["emailEnabled"])
 	}
 	for route, body := range map[string]map[string]string{
-		"/api/usuarios/link/email": {"username": "maria", "url": link},
-		"/api/email/teste":         {"to": "dono@exemplo.com"},
+		"/api/users/link/email": {"username": "maria", "url": link},
+		"/api/email/test":       {"to": "dono@exemplo.com"},
 	} {
 		rec, resp := requestAs(t, s, "admin", http.MethodPost, route, body)
 		if rec.Code != http.StatusConflict || !strings.Contains(resp["error"].(string), "smtp.from vazio") {
@@ -186,12 +186,12 @@ func TestEmailTest(t *testing.T) {
 	s, _ := testServer(t)
 	fake, _ := withEmail(t, s)
 	for _, to := range []string{"", "dono", "Dono <dono@exemplo.com>", "a@exemplo.com, b@exemplo.com"} {
-		if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/email/teste",
+		if rec, _ := requestAs(t, s, "admin", http.MethodPost, "/api/email/test",
 			map[string]string{"to": to}); rec.Code != http.StatusBadRequest {
 			t.Errorf("%q: status %d", to, rec.Code)
 		}
 	}
-	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/email/teste",
+	rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/email/test",
 		map[string]string{"to": " dono@exemplo.com "})
 	if rec.Code != http.StatusOK || resp["sentTo"] != "dono@exemplo.com" {
 		t.Fatalf("status %d, %s", rec.Code, rec.Body)
@@ -210,7 +210,7 @@ func TestChangeEmailThroughTheAPI(t *testing.T) {
 	createWithLink(t, s, "joao", "")
 
 	swap := func(username, e string) (int, map[string]any) {
-		rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/usuarios/email",
+		rec, resp := requestAs(t, s, "admin", http.MethodPost, "/api/users/email",
 			map[string]string{"username": username, "email": e})
 		return rec.Code, resp
 	}
@@ -270,7 +270,7 @@ func TestDiagnosticsShowsTheServerWithoutThePassword(t *testing.T) {
 	s.cfg.SMTP.Username = login
 	s.cfg.SMTP.Password = password
 	s.cfg.SMTP.From = "dwnvr <dwnvr@exemplo.com>"
-	rec, resp := requestAs(t, s, "", http.MethodGet, "/api/health/servidor", nil)
+	rec, resp := requestAs(t, s, "", http.MethodGet, "/api/health/server", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}

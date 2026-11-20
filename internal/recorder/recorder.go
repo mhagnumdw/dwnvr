@@ -178,7 +178,7 @@ type Status struct {
 
 	// Funnel is the destination of this camera's onsets since dwnvr started.
 	// It only exists with the object detector configured.
-	Funnel *Funnel `json:"funil,omitempty"`
+	Funnel *Funnel `json:"funnel,omitempty"`
 
 	// QuotaMB and disk Bytes feed the retention estimate shown on the cameras
 	// screen ("with this quota, ~N days fit").
@@ -193,28 +193,28 @@ type Status struct {
 type Funnel struct {
 	// Clips are the onsets whose video was cut and offered to the object
 	// detector. Not a slice: it's the total that reached the queue.
-	Clips int64 `json:"pedacos"`
+	Clips int64 `json:"clips"`
 	// NoVideo are onsets that ended without a clip to send - right after
 	// connecting, before the first I frame. See Clipper.NoVideo.
-	NoVideo int64 `json:"semVideo"`
+	NoVideo int64 `json:"noVideo"`
 	// Dropped the queue refused: the camera already had ClipsPerCamera
 	// waiting. They're not inferred later either: they stay only as motion on
 	// the timeline.
-	Dropped int64 `json:"descartados"`
+	Dropped int64 `json:"dropped"`
 	// Failed are inferences the object detector didn't answer: down, or
 	// stuck.
-	Failed int64 `json:"falhas"`
+	Failed int64 `json:"failed"`
 	// Rejected the object detector answered it couldn't infer - video that
 	// doesn't decode, which the camera itself sent corrupted.
-	Rejected int64 `json:"recusados"`
+	Rejected int64 `json:"rejected"`
 	// NoObject: inferred, and nothing that ARRIVED just now - including the
 	// car that was already parked.
-	NoObject int64 `json:"semObjeto"`
+	NoObject int64 `json:"noObject"`
 	// WithObject: inferred, and became an object mark on the timeline.
-	WithObject int64 `json:"comObjeto"`
+	WithObject int64 `json:"withObject"`
 	// Queued is the rest, what has no outcome yet: waiting for the window's
 	// peak to be cut, waiting its turn in the queue, or being inferred now.
-	Queued int64 `json:"naFila"`
+	Queued int64 `json:"queued"`
 }
 
 // Recorder records one camera.

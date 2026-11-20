@@ -3,7 +3,7 @@
 // a JPEG of up to `sidePx` pixels. The canvas doesn't copy the EXIF, so the
 // photo's GPS stays behind.
 //
-// The numbers (`sidePx`, `maxBytes`, `quality`) come from GET /api/conta: they
+// The numbers (`sidePx`, `maxBytes`, `quality`) come from GET /api/account: they
 // live on the server, which rejects whatever exceeds them.
 
 import type { AvatarRule } from './api.ts';

@@ -18,7 +18,7 @@ export type FamilyName = 'pessoa' | 'veiculo' | 'animal';
 // The three families, in priority order: `pessoa` is what detection exists to
 // find, `animal` is what matters least. The priority decides who stays on top
 // when two marks overlap and who gets the icon slot when not all fit. The
-// family name is what the server sends in `familia`.
+// family name is what the server sends in `family`.
 export const FAMILIES: Readonly<Record<FamilyName, Family>> = {
   pessoa: { nome: 'pessoa', color: '#3fb950', priority: 0 },
   veiculo: { nome: 'veículo', color: '#a371f7', priority: 1 },
@@ -216,11 +216,8 @@ const CLASS_ICON: Readonly<Record<string, IconName>> = {
 export const familyIcon = (name: string): IconName | null => (isIcon(name) ? name : null);
 
 // The icon name for a mark at the requested level of detail.
-export function iconOf(
-  mark: { classe: string; familia: string },
-  byClass: boolean,
-): IconName | null {
-  const name = byClass ? (CLASS_ICON[mark.classe] ?? mark.familia) : mark.familia;
+export function iconOf(mark: { class: string; family: string }, byClass: boolean): IconName | null {
+  const name = byClass ? (CLASS_ICON[mark.class] ?? mark.family) : mark.family;
   return isIcon(name) ? name : null;
 }
 

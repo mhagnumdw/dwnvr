@@ -43,11 +43,11 @@ type sources struct{ proc, sys string }
 var systemSources = sources{proc: "/proc", sys: "/sys"}
 
 type serverInfo struct {
-	CollectedAt collection          `json:"coletadoEm"`
-	Machine     machineInfo         `json:"maquina"`
-	Process     processInfo         `json:"processo"`
-	Memory      *memoryInfo         `json:"memoria,omitempty"`
-	Pressure    map[string]pressure `json:"pressao,omitempty"`
+	CollectedAt collection          `json:"collectedAt"`
+	Machine     machineInfo         `json:"machine"`
+	Process     processInfo         `json:"process"`
+	Memory      *memoryInfo         `json:"memory,omitempty"`
+	Pressure    map[string]pressure `json:"pressure,omitempty"`
 	Storage     storageInfo         `json:"storage"`
 	Go2RTC      go2rtcInfo          `json:"go2rtc"`
 	// Detector disappears without `detector.url`: whoever does not use object
@@ -59,18 +59,18 @@ type serverInfo struct {
 	SMTP *smtpInfo `json:"smtp,omitempty"`
 	// Alerts are the numbers of each alert notifier since dwnvr started. It
 	// disappears without a notifier, or before some camera turns on the alert.
-	Alerts []alertNotifierInfo `json:"alertas,omitempty"`
+	Alerts []alertNotifierInfo `json:"alerts,omitempty"`
 	Log    *logInfo            `json:"log,omitempty"`
 }
 
 // alertNotifierInfo is the Dispatcher's NotifierState. Ultimo disappears before
 // the first send, and Error when the last send succeeded.
 type alertNotifierInfo struct {
-	Name     string     `json:"nome"`
-	Sent     int64      `json:"enviados"`
-	Failures int64      `json:"falhas"`
-	Last     *time.Time `json:"ultimo,omitempty"`
-	Error    string     `json:"erro,omitempty"`
+	Name     string     `json:"name"`
+	Sent     int64      `json:"sent"`
+	Failures int64      `json:"failures"`
+	Last     *time.Time `json:"last,omitempty"`
+	Error    string     `json:"error,omitempty"`
 }
 
 // collection is the moment of the reading on the server's clock, in its time
@@ -79,29 +79,29 @@ type alertNotifierInfo struct {
 // converted to the browser's time zone it would hide a server with a wrong time
 // zone or NTP.
 type collection struct {
-	At            string `json:"em"`
-	Abbreviation  string `json:"sigla"`
+	At            string `json:"at"`
+	Abbreviation  string `json:"abbreviation"`
 	OffsetSeconds int    `json:"offsetSeconds"`
 	// Zone is the IANA name ("America/Sao_Paulo"), when the server knows it.
-	Zone string `json:"zona,omitempty"`
+	Zone string `json:"zone,omitempty"`
 }
 
 type machineInfo struct {
 	// Board comes from the device tree, which only exists on ARM ("OrangePi
 	// Zero3"); Processor, from /proc/cpuinfo, which only has a name on x86. One
 	// or the other is usually missing, and whatever is missing disappears.
-	Board     string `json:"placa,omitempty"`
-	Processor string `json:"processador,omitempty"`
+	Board     string `json:"board,omitempty"`
+	Processor string `json:"processor,omitempty"`
 	// Kernel is the host's kernel even inside the container, which has no
 	// kernel of its own.
 	Kernel string `json:"kernel,omitempty"`
-	Cores  int    `json:"nucleos"`
+	Cores  int    `json:"cores"`
 	// AllowedCores is the container's CPU ceiling (cgroup), in cores: 1.5 is
 	// one and a half cores. It disappears without a ceiling.
-	AllowedCores float64 `json:"nucleosLiberados,omitempty"`
+	AllowedCores float64 `json:"allowedCores,omitempty"`
 	// Load is the load average over 1, 5 and 15 minutes.
-	Load     []float64 `json:"carga,omitempty"`
-	Sensores []sensor  `json:"sensores,omitempty"`
+	Load    []float64 `json:"load,omitempty"`
+	Sensors []sensor  `json:"sensors,omitempty"`
 	// MHz is the highest current frequency among the cores, and MHzMax the
 	// hardware ceiling. Below the ceiling with the machine hot is the kernel
 	// itself holding back the CPU to cool it down.
@@ -111,18 +111,18 @@ type machineInfo struct {
 }
 
 type sensor struct {
-	Name    string  `json:"nome"`
+	Name    string  `json:"name"`
 	Celsius float64 `json:"celsius"`
 }
 
 type memoryInfo struct {
 	TotalBytes     int64 `json:"totalBytes"`
-	AvailableBytes int64 `json:"disponivelBytes"`
+	AvailableBytes int64 `json:"availableBytes"`
 	SwapTotalBytes int64 `json:"swapTotalBytes"`
-	SwapUsedBytes  int64 `json:"swapUsadaBytes"`
+	SwapUsedBytes  int64 `json:"swapUsedBytes"`
 	// LimitBytes is the container's memory ceiling (cgroup). It disappears
 	// without a limit.
-	LimitBytes int64 `json:"limiteBytes,omitempty"`
+	LimitBytes int64 `json:"limitBytes,omitempty"`
 	// OOMKills counts the processes the kernel killed for lack of memory since
 	// the MACHINE booted, and not only in the container: when the victim is
 	// dwnvr itself, Docker starts a new container and the old cgroup's counter
@@ -146,28 +146,28 @@ type medias struct {
 }
 
 type storageInfo struct {
-	Path string `json:"caminho"`
+	Path string `json:"path"`
 	// Type, Origin and Options come from the mount that contains the path:
 	// "ext4", "/dev/sda1", "rw,noatime". They disappear if mountinfo is not
 	// readable.
-	Type     string `json:"tipo,omitempty"`
-	Origin   string `json:"origem,omitempty"`
-	Options  string `json:"opcoes,omitempty"`
-	ReadOnly bool   `json:"somenteLeitura"`
-	Write    write  `json:"escrita"`
+	Type     string `json:"type,omitempty"`
+	Origin   string `json:"origin,omitempty"`
+	Options  string `json:"options,omitempty"`
+	ReadOnly bool   `json:"readOnly"`
+	Write    write  `json:"write"`
 }
 
 type write struct {
 	OK    bool   `json:"ok"`
 	Ms    int64  `json:"ms"`
-	Error string `json:"erro,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 type go2rtcInfo struct {
 	OK      bool   `json:"ok"`
 	Ms      int64  `json:"ms"`
-	Version string `json:"versao,omitempty"`
-	Error   string `json:"erro,omitempty"`
+	Version string `json:"version,omitempty"`
+	Error   string `json:"error,omitempty"`
 	// URL is the address dwnvr actually uses, without user and password.
 	URL string `json:"url,omitempty"`
 }
@@ -175,10 +175,10 @@ type go2rtcInfo struct {
 type detectorInfo struct {
 	OK      bool   `json:"ok"`
 	Ms      int64  `json:"ms"`
-	Model   string `json:"modelo,omitempty"`
-	Entry   string `json:"entrada,omitempty"`
+	Model   string `json:"model,omitempty"`
+	Entry   string `json:"entry,omitempty"`
 	Threads int    `json:"threads,omitempty"`
-	Error   string `json:"erro,omitempty"`
+	Error   string `json:"error,omitempty"`
 	URL     string `json:"url"`
 }
 
@@ -186,7 +186,7 @@ type logInfo struct {
 	// Total is how many warnings and errors there were since dwnvr started;
 	// Lines, only the most recent ones.
 	Total int64         `json:"total"`
-	Lines []logbuf.Line `json:"linhas"`
+	Lines []logbuf.Line `json:"lines"`
 }
 
 // recentes is what the log handler in main.go offers. It goes through an
@@ -262,7 +262,7 @@ func collectMachine(f sources) machineInfo {
 	if b, err := os.ReadFile(filepath.Join(f.proc, "loadavg")); err == nil {
 		m.Load = readLoad(string(b))
 	}
-	m.Sensores = readSensors(f.sys)
+	m.Sensors = readSensors(f.sys)
 
 	cpus, _ := filepath.Glob(filepath.Join(f.sys, "devices/system/cpu/cpu[0-9]*/cpufreq"))
 	for _, d := range cpus {
@@ -469,7 +469,7 @@ func cgroupCores(f sources) float64 {
 // disappears.
 func collectPressure(f sources) map[string]pressure {
 	out := map[string]pressure{}
-	for file, key := range map[string]string{"cpu": "cpu", "memory": "memoria", "io": "io"} {
+	for file, key := range map[string]string{"cpu": "cpu", "memory": "memory", "io": "io"} {
 		if b, err := os.ReadFile(filepath.Join(f.proc, "pressure", file)); err == nil {
 			out[key] = readPressure(string(b))
 		}

@@ -31,13 +31,13 @@ type processInfo struct {
 	// Pointer because zero is a measurement: a freshly started dwnvr has not
 	// spent a CPU tick yet.
 	CPUMs   *int64 `json:"cpuMs,omitempty"`
-	AliveMs int64  `json:"vivoMs"`
+	AliveMs int64  `json:"aliveMs"`
 	// MemoryBytes is the physical memory used by dwnvr (VmRSS). It is the
 	// number that hits the container limit, and not the cgroup's
 	// memory.current: that one includes the cache of the recorded videos, which
 	// the kernel gives back when it needs to, and on a machine that records all
 	// day it lives close to the ceiling.
-	MemoryBytes int64 `json:"memoriaBytes,omitempty"`
+	MemoryBytes int64 `json:"memoryBytes,omitempty"`
 	// Goroutines has no fixed ceiling - it depends on the number of cameras and
 	// on who is watching. The sign of a leak is growing from one reading to the
 	// next.
@@ -45,8 +45,8 @@ type processInfo struct {
 	// OpenFiles counts the open descriptors (files and connections), and
 	// FileLimit is the process ceiling. Hitting it makes recording, which opens
 	// segments, and the network, which opens sockets, fail at the same time.
-	OpenFiles int   `json:"arquivosAbertos,omitempty"`
-	FileLimit int64 `json:"limiteDeArquivos,omitempty"`
+	OpenFiles int   `json:"openFiles,omitempty"`
+	FileLimit int64 `json:"fileLimit,omitempty"`
 	// UID and GID dwnvr runs as. If they are wrong, the storage and
 	// cameras.json do not accept writes; see DWNVR_UID and DWNVR_GID in
 	// docker-compose.yml.
@@ -55,7 +55,7 @@ type processInfo struct {
 	// Go and Architecture say which binary is actually running: "go1.27.1" and
 	// "linux/arm64".
 	Go           string `json:"go"`
-	Architecture string `json:"arquitetura"`
+	Architecture string `json:"architecture"`
 }
 
 // ticksPerSecond is USER_HZ, the unit of the times in /proc/self/stat. It is

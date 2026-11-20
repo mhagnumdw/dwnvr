@@ -123,8 +123,8 @@
   let Boxes = $state<typeof VideoBoxes | null>(null);
 
   const objects = $derived(
-    [...det.objetos].sort(
-      (a, b) => family(a.familia).priority - family(b.familia).priority || b.score - a.score,
+    [...det.objects].sort(
+      (a, b) => family(a.family).priority - family(b.family).priority || b.score - a.score,
     ),
   );
   // With an alert, the "alertou" block carries the objects that passed the
@@ -150,11 +150,11 @@
   // The video's boxes light up when playback passes the inspected frame, and
   // the Recordings layer finds that frame in each mark's `frameMs`.
   const marks = $derived.by(() => {
-    const frameMs = det.quadroMs;
-    return frameMs === undefined ? [] : det.objetos.map((o) => ({ ...o, quadroMs: frameMs }));
+    const frameMs = det.frameMs;
+    return frameMs === undefined ? [] : det.objects.map((o) => ({ ...o, frameMs: frameMs }));
   });
 
-  const link = $derived(recordingsLink(det.cam, det.instanteMs));
+  const link = $derived(recordingsLink(det.cam, det.atMs));
 
   const score = (v: number) => v.toFixed(2).replace('.', ',');
 
@@ -189,7 +189,7 @@
     g.globalAlpha = 1;
     if (emphasis) fillArea(g, emphasis, iw * s, ih * s);
     // The object that wasn't part of the alert stays in the frame, but dimmed.
-    draw(g, place(g, det.objetos, iw * s, ih * s, true), (it) =>
+    draw(g, place(g, det.objects, iw * s, ih * s, true), (it) =>
       alerted && !it.mark.alert ? DIMMED : 1,
     );
   }
@@ -209,8 +209,8 @@
 
   // --- o trecho ---------------------------------------------------------------
 
-  const endMs = $derived(det.instanteMs + AFTER_MS);
-  const startMs = $derived(det.instanteMs - BEFORE_MS);
+  const endMs = $derived(det.atMs + AFTER_MS);
+  const startMs = $derived(det.atMs - BEFORE_MS);
 
   async function play() {
     if (playingNow) {
@@ -312,8 +312,8 @@
 
 <Modal {onclose} {width} scrollReserve centered>
   <div class="cab">
-    <span class="hour mono">{hhmmss(det.instanteMs)}</span>
-    <span class="muted small">{ddmm(det.instanteMs)}</span>
+    <span class="hour mono">{hhmmss(det.atMs)}</span>
+    <span class="muted small">{ddmm(det.atMs)}</span>
     <span class="muted">·</span>
     <span class="camera">{camera}</span>
     <span class="spacer"></span>
@@ -334,11 +334,11 @@
       if (fullscreen.el === node) leaveFullscreen();
     }}
   >
-    {#if det.temQuadro}
+    {#if det.hasFrame}
       <img
         bind:this={img}
-        src={mediaURL.frame(det.cam, det.instanteMs)}
-        alt="quadro da detecção das {hhmmss(det.instanteMs)}"
+        src={mediaURL.frame(det.cam, det.atMs)}
+        alt="quadro da detecção das {hhmmss(det.atMs)}"
         onload={paintFrame}
       />
     {/if}
@@ -354,15 +354,13 @@
           rate={player.rate}
         />
       {/if}
-      <span class="badge video-hour mono">{hhmmss(player.currentMs || det.instanteMs)}</span>
+      <span class="badge video-hour mono">{hhmmss(player.currentMs || det.atMs)}</span>
       <span class="progress" style:width="{progress * 100}%"></span>
     {/if}
     <button
       class="touch"
       onclick={clique}
-      aria-label={playingNow
-        ? 'pausar ou continuar'
-        : `tocar o trecho das ${hhmmss(det.instanteMs)}`}
+      aria-label={playingNow ? 'pausar ou continuar' : `tocar o trecho das ${hhmmss(det.atMs)}`}
     ></button>
     {#if !player.playing}
       <span class="play" aria-hidden="true">
@@ -387,16 +385,16 @@
         <span class="alert-row">
           <span class="object">
             {#if icon}<img
-                src={iconURL(icon, 14, family(o.familia).color)}
+                src={iconURL(icon, 14, family(o.family).color)}
                 alt=""
                 width="14"
                 height="14"
               />{/if}
-            <span>{CLASS_NAME[o.classe] ?? o.classe} {score(o.score)}</span>
+            <span>{CLASS_NAME[o.class] ?? o.class} {score(o.score)}</span>
           </span>
           {#each o.alertAreas ?? [] as id (id)}
             {@const a = alertArea(id)}
-            {#if a?.points && det.temQuadro}
+            {#if a?.points && det.hasFrame}
               <button
                 type="button"
                 class="chip-area"
@@ -423,12 +421,12 @@
       {@const icon = iconOf(o, true) ?? iconOf(o, false)}
       <span class="object">
         {#if icon}<img
-            src={iconURL(icon, 14, family(o.familia).color)}
+            src={iconURL(icon, 14, family(o.family).color)}
             alt=""
             width="14"
             height="14"
           />{/if}
-        <span>{CLASS_NAME[o.classe] ?? o.classe} {score(o.score)}</span>
+        <span>{CLASS_NAME[o.class] ?? o.class} {score(o.score)}</span>
       </span>
     {/each}
     {#if alerted && outsideAlert.length}
