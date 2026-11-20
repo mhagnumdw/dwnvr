@@ -130,11 +130,11 @@ nasce na primeira marca: câmera sem detecção não ganha diretório vazio. Cad
 linha é um instante, e não um intervalo. A de movimento leva só o instante; a
 de objeto leva também a família, a classe, a confiança, o quadro olhado e a
 caixa em fração do quadro. É uma linha por objeto: duas pessoas que chegam
-juntas são duas linhas de `pessoa` no mesmo instante, cada uma com a sua caixa:
+juntas são duas linhas de `person` no mesmo instante, cada uma com a sua caixa:
 
 ```json
 {"atMs":1786220571900}
-{"atMs":1786220571900,"family":"pessoa","class":"person","score":0.87,"frameMs":1786220573300,"box":[0.41,0.32,0.47,0.62],"hasFrame":true}
+{"atMs":1786220571900,"family":"person","class":"person","score":0.87,"frameMs":1786220573300,"box":[0.41,0.32,0.47,0.62],"hasFrame":true}
 ```
 
 O arquivo do dia sai junto com o vídeo do dia na retenção. O que cada campo

@@ -19,7 +19,7 @@ import (
 // of the second day.
 //
 //	day 1 (yesterday), 12:00 + N min: cam_teste 0, 2 · cam_b 1
-//	day 2 (today), 12:00 + N min: cam_teste 0 (pessoa+veiculo), 3 · cam_b 1 (animal),
+//	day 2 (today), 12:00 + N min: cam_teste 0 (person+vehicle), 3 · cam_b 1 (animal),
 //	3
 //
 // Minute 3 of today ties on both cameras, in the same millisecond.
@@ -46,14 +46,14 @@ func detectionsScenario(t *testing.T) (*Server, time.Time) {
 			t.Fatal(err)
 		}
 	}
-	mark(camTest, yesterday, 0, "pessoa")
-	mark(camTest, yesterday, 2, "pessoa")
-	mark(camB, yesterday, 1, "veiculo")
-	mark(camTest, today, 0, "pessoa")
-	mark(camTest, today, 0, "veiculo")
-	mark(camTest, today, 3, "pessoa")
+	mark(camTest, yesterday, 0, "person")
+	mark(camTest, yesterday, 2, "person")
+	mark(camB, yesterday, 1, "vehicle")
+	mark(camTest, today, 0, "person")
+	mark(camTest, today, 0, "vehicle")
+	mark(camTest, today, 3, "person")
 	mark(camB, today, 1, "animal")
-	mark(camB, today, 3, "pessoa")
+	mark(camB, today, 3, "person")
 	return s, today
 }
 
@@ -145,11 +145,11 @@ func TestDetectionsPageGoesUpFromTheCursor(t *testing.T) {
 func TestDetectionsPageFilters(t *testing.T) {
 	s, today := detectionsScenario(t)
 
-	p := getPage(t, s, "families=veiculo,animal")
+	p := getPage(t, s, "families=vehicle,animal")
 	if got := labels(p, today); !equal(got, []string{"cam_b@1", "cam_teste@0", "cam_b@-1439"}) {
 		t.Errorf("families: %v", got)
 	}
-	if o := p.Detections[1].Objects; len(o) != 1 || o[0].Family != "veiculo" {
+	if o := p.Detections[1].Objects; len(o) != 1 || o[0].Family != "vehicle" {
 		t.Errorf("the hidden person stayed in the detection: %+v", o)
 	}
 
@@ -181,10 +181,10 @@ func areaScenario(t *testing.T) (*Server, time.Time) {
 			t.Fatal(err)
 		}
 	}
-	mark("cam_teste", 5, "pessoa", [4]float64{0.45, 0.3, 0.55, 0.65})
-	mark("cam_teste", 5, "veiculo", [4]float64{0.05, 0.05, 0.15, 0.2})
-	mark("cam_teste", 6, "pessoa", [4]float64{0.35, 0.2, 0.65, 0.95})
-	mark("cam_b", 5, "pessoa", [4]float64{0.45, 0.3, 0.55, 0.65})
+	mark("cam_teste", 5, "person", [4]float64{0.45, 0.3, 0.55, 0.65})
+	mark("cam_teste", 5, "vehicle", [4]float64{0.05, 0.05, 0.15, 0.2})
+	mark("cam_teste", 6, "person", [4]float64{0.35, 0.2, 0.65, 0.95})
+	mark("cam_b", 5, "person", [4]float64{0.45, 0.3, 0.55, 0.65})
 	return s, today
 }
 
@@ -199,7 +199,7 @@ func TestDetectionsPageFiltersByArea(t *testing.T) {
 	if got := labels(p, today); !equal(got, append([]string{"cam_b@5", "cam_teste@5"}, camB...)) {
 		t.Errorf("foot, the default: %v", got)
 	}
-	if o := p.Detections[1].Objects; len(o) != 1 || o[0].Family != "pessoa" {
+	if o := p.Detections[1].Objects; len(o) != 1 || o[0].Family != "person" {
 		t.Errorf("the vehicle outside the area stayed in the detection: %+v", o)
 	}
 
@@ -220,7 +220,7 @@ func TestDetectionsPageFiltersByArea(t *testing.T) {
 		}
 	}
 
-	p = getPage(t, s, "area="+gateInThousandths+"&rule=touch&families=veiculo")
+	p = getPage(t, s, "area="+gateInThousandths+"&rule=touch&families=vehicle")
 	if got := labels(p, today); !equal(got, []string{"cam_b@-1439"}) {
 		t.Errorf("family and area together: %v", got)
 	}
@@ -293,7 +293,7 @@ func TestDetectionsPageFiltersByRegisteredArea(t *testing.T) {
 	if got := labels(p, today); !equal(got, append([]string{"cam_b@5", "cam_teste@5"}, camB...)) {
 		t.Errorf("the gate: %v", got)
 	}
-	if o := p.Detections[1].Objects; len(o) != 1 || o[0].Family != "pessoa" {
+	if o := p.Detections[1].Objects; len(o) != 1 || o[0].Family != "person" {
 		t.Errorf("the vehicle outside the gate stayed in the detection: %+v", o)
 	}
 
@@ -388,10 +388,10 @@ func alertScenario(t *testing.T) (*Server, time.Time) {
 		}
 	}
 	yesterday := today.AddDate(0, 0, -1)
-	mark("cam_teste", today, 7, "pessoa", true, "portao")
-	mark("cam_teste", today, 7, "veiculo", false)
-	mark("cam_b", today, 8, "pessoa", false)
-	mark("cam_b", yesterday, 4, "pessoa", true)
+	mark("cam_teste", today, 7, "person", true, "portao")
+	mark("cam_teste", today, 7, "vehicle", false)
+	mark("cam_b", today, 8, "person", false)
+	mark("cam_b", yesterday, 4, "person", true)
 	return s, today
 }
 
@@ -415,7 +415,7 @@ func TestDetectionsPageAlertsOnly(t *testing.T) {
 		t.Errorf("alert on the whole image: %+v", o)
 	}
 
-	if got := labels(getPage(t, s, "alert=1&families=veiculo"), today); len(got) != 0 {
+	if got := labels(getPage(t, s, "alert=1&families=vehicle"), today); len(got) != 0 {
 		t.Errorf("vehicle that didn't alert: %v", got)
 	}
 	if got := labels(getPage(t, s, "alert=1&cams=cam_b"), today); !equal(got, []string{"cam_b@-1436"}) {
@@ -423,7 +423,7 @@ func TestDetectionsPageAlertsOnly(t *testing.T) {
 	}
 
 	// Without the filter, the mark comes all the same.
-	p = getPage(t, s, "cams=cam_teste&families=pessoa")
+	p = getPage(t, s, "cams=cam_teste&families=person")
 	if o := p.Detections[0].Objects; labels(p, today)[0] != "cam_teste@7" || !o[0].Alert {
 		t.Errorf("without the filter: %v %+v", labels(p, today), o)
 	}
@@ -468,9 +468,9 @@ func TestDetectionDays(t *testing.T) {
 	for q, want := range map[string]map[string]int{
 		"":                                   {yesterday: 3, day: 4},
 		"families=animal":                    {day: 1},
-		"families=pessoa,veiculo":            {yesterday: 3, day: 3},
-		"cams=cam_b&families=veiculo":        {yesterday: 1},
-		"cams=cam_b&families=animal,veiculo": {yesterday: 1, day: 1},
+		"families=person,vehicle":            {yesterday: 3, day: 3},
+		"cams=cam_b&families=vehicle":        {yesterday: 1},
+		"cams=cam_b&families=animal,vehicle": {yesterday: 1, day: 1},
 	} {
 		rec := httptest.NewRecorder()
 		s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/detections/days?"+q, nil))

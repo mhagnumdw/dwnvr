@@ -56,12 +56,12 @@ type Detector interface {
 }
 
 // Detectors is the constructor map, twin of the others. The argument is the
-// object detector's address, for those who have one; `nenhum` ignores it.
+// object detector's address, for those who have one; `none` ignores it.
 //
-// `nenhum` is what makes motion detection work without any sidecar: the
+// `none` is what makes motion detection work without any sidecar: the
 // trigger marks motion on the timeline, and nobody infers.
 var Detectors = map[string]func(url string) Detector{
-	"nenhum":  func(string) Detector { return none{} },
+	"none":    func(string) Detector { return none{} },
 	"sidecar": NewSidecar,
 }
 
@@ -70,6 +70,6 @@ var Detectors = map[string]func(url string) Detector{
 // guarantees motion marking is usable on its own.
 type none struct{}
 
-func (none) Name() string { return "nenhum" }
+func (none) Name() string { return "none" }
 
 func (none) Infer(context.Context, Clip) (Output, error) { return Output{}, nil }

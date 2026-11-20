@@ -5,10 +5,11 @@ as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
 **Agora (20/11/2026):** a Etapa 2 (conversão para en-US) está no passo 6, os
-contratos, na parte 4 (os eventos e os quadros gravados), na branch
-`en-us-events`. Já estão em en-US na `main` o Go (PR 86), a interface (PR 88),
+contratos, na parte 5, a última (os valores das enumerações), na branch
+`en-us-enums`. Já estão em en-US na `main` o Go (PR 86), a interface (PR 88),
 o `dwnvr-detect` (PR 89), a API (PR 90), o `dwnvr.yaml`, a env e o contrato
-com o `dwnvr-detect` (PR 91) e os arquivos das pessoas (PR 92).
+com o `dwnvr-detect` (PR 91), os arquivos das pessoas (PR 92) e os eventos e
+os quadros gravados (PR 95).
 O guia de atualização nasce junto, em
 [docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
@@ -48,12 +49,16 @@ próxima, em andamento ou concluída, com a data.
       - [x] O Go, a interface e os docs, na branch `en-us-people`; a seção 3 do guia
       - [x] A seção 3 do guia aplicada na instalação de teste e o deploy da branch lá
       - [x] O PR mergeado por squash
-    - [ ] Parte 4, os eventos e os quadros gravados (`eventos/`, `quadros/` e as chaves de cada linha viram `events/`, `frames/`, `atMs`, `family`, `class`, `frameMs`, `box`, `hasFrame`); começa pelo backup
+    - [x] Parte 4, os eventos e os quadros gravados (`eventos/`, `quadros/` e as chaves de cada linha viram `events/`, `frames/`, `atMs`, `family`, `class`, `frameMs`, `box`, `hasFrame`); começa pelo backup
       - [x] O Go e os docs, na branch `en-us-events`; a seção 4 do guia, com o backup de cada `eventos/`
       - [x] A seção 4 testada numa cópia dos eventos da instalação de teste: as mesmas linhas, chave e valor; rodar de novo não muda nada; a versão nova que rodou antes, a rodada interrompida e a falha do `jq`
-      - [ ] A seção 4 aplicada na instalação de teste e o deploy da branch lá
+      - [x] A seção 4 aplicada na instalação de teste e o deploy da branch lá
+      - [x] O PR mergeado por squash: PR #95, em 20/11/2026
+    - [ ] Parte 5, os valores das enumerações (`pessoa`, `veiculo`, `periodico` viram `person`, `vehicle`, `periodic`), que são a mesma constante na API, no `cameras.json`, no yaml e nos eventos
+      - [x] O Go, a interface e os docs, na branch `en-us-enums`; a seção 5 do guia
+      - [ ] A seção 5 testada numa cópia da instalação de teste
+      - [ ] A seção 5 aplicada na instalação de teste e o deploy da branch lá
       - [ ] O PR mergeado por squash
-    - [ ] Parte 5, os valores das enumerações (`pessoa`, `veiculo`, `periodico`), que são a mesma constante na API, no `cameras.json`, no yaml e nos eventos
   - [ ] Os `docs/TODO/` abertos revistos com o mantenedor
   - [ ] A documentação, os exemplos, os workflows e o resto
   - [ ] O `README.md` em en-US e o `README.pt-BR.md`

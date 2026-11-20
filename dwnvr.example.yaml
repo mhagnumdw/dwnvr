@@ -155,7 +155,7 @@ defaults:
   #              câmera. Foi medido contra 23 concorrentes em gravações reais
   #              e ganhou de todos - pega 2 a 3 vezes mais que o periódico
   #              pelo mesmo custo.
-  # periodico    dispara em intervalo fixo, ignorando a imagem. Custo idêntico
+  # periodic     dispara em intervalo fixo, ignorando a imagem. Custo idêntico
   #              e perfeitamente previsível; pega bem menos.
   detectMethod: kleinberg-p
 

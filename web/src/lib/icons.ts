@@ -13,15 +13,15 @@ export interface Family {
   priority: number;
 }
 
-export type FamilyName = 'pessoa' | 'veiculo' | 'animal';
+export type FamilyName = 'person' | 'vehicle' | 'animal';
 
-// The three families, in priority order: `pessoa` is what detection exists to
+// The three families, in priority order: `person` is what detection exists to
 // find, `animal` is what matters least. The priority decides who stays on top
 // when two marks overlap and who gets the icon slot when not all fit. The
 // family name is what the server sends in `family`.
 export const FAMILIES: Readonly<Record<FamilyName, Family>> = {
-  pessoa: { nome: 'pessoa', color: '#3fb950', priority: 0 },
-  veiculo: { nome: 'veículo', color: '#a371f7', priority: 1 },
+  person: { nome: 'pessoa', color: '#3fb950', priority: 0 },
+  vehicle: { nome: 'veículo', color: '#a371f7', priority: 1 },
   animal: { nome: 'animal', color: '#db61a2', priority: 2 },
 };
 
@@ -30,7 +30,7 @@ export const FAMILIES: Readonly<Record<FamilyName, Family>> = {
 export const UNKNOWN_FAMILY: Family = { nome: '?', color: '#8b949e', priority: 9 };
 
 // The families in the order the screen lists them.
-export const FAMILY_NAMES: readonly FamilyName[] = ['pessoa', 'veiculo', 'animal'];
+export const FAMILY_NAMES: readonly FamilyName[] = ['person', 'vehicle', 'animal'];
 
 // hasOwn, and not `in`: `constructor` is on every object, and it isn't a
 // family.
@@ -75,7 +75,7 @@ type Drawing = (g: CanvasRenderingContext2D) => void;
 // Cada linha é um traço do desenho, com o comentário dizendo qual.
 // prettier-ignore
 const DRAWINGS = {
-  pessoa(g: CanvasRenderingContext2D) {
+  person(g: CanvasRenderingContext2D) {
     g.beginPath(); g.arc(0.5, 0.18, 0.16, 0, 7); g.fill();       // head
     g.beginPath();
     g.moveTo(0.5, 0.36); g.lineTo(0.5, 0.68);                    // tronco
@@ -174,12 +174,12 @@ const DRAWINGS = {
   },
 };
 
-export type IconName = keyof typeof DRAWINGS | 'veiculo';
+export type IconName = keyof typeof DRAWINGS | 'vehicle';
 
 // The family's vehicle is the car, its most common class.
 const ICONS: Readonly<Record<IconName, Drawing>> = {
   ...DRAWINGS,
-  veiculo: (g) => {
+  vehicle: (g) => {
     DRAWINGS.car(g);
   },
 };
@@ -200,7 +200,7 @@ function hollow(g: CanvasRenderingContext2D, path: () => void) {
 // The model class -> its own icon. A class with no icon (horse, sheep, cow)
 // draws the family's.
 const CLASS_ICON: Readonly<Record<string, IconName>> = {
-  person: 'pessoa',
+  person: 'person',
   bicycle: 'bicycle',
   car: 'car',
   motorcycle: 'motorcycle',

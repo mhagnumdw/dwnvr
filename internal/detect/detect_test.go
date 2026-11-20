@@ -276,7 +276,7 @@ func TestPeriodicCostsExactlyWhatItPromises(t *testing.T) {
 		// a divisor of the period, on purpose: it's the accumulated remainder
 		// that "subtract instead of zeroing" exists not to lose.
 		const stepMs, count = 67, 3_600_000 / 67
-		onsets := newPilot(NewMethod("periodico", level), stepMs).run(count)
+		onsets := newPilot(NewMethod("periodic", level), stepMs).run(count)
 
 		expected := OnsetsPerHour[level]
 		if diff := math.Abs(float64(len(onsets)) - expected); diff > 1 {
@@ -287,8 +287,8 @@ func TestPeriodicCostsExactlyWhatItPromises(t *testing.T) {
 }
 
 func TestPeriodicWaitsAFullPeriodAfterAGap(t *testing.T) {
-	p := newPilot(NewMethod("periodico", 5), 67) // 100/hour = one every 36 s
-	p.run(500)                                   // 33.5 s: almost there
+	p := newPilot(NewMethod("periodic", 5), 67) // 100/hour = one every 36 s
+	p.run(500)                                  // 33.5 s: almost there
 
 	// The gap must throw away what it already waited.
 	p.skip(GapMs + 1)
@@ -301,7 +301,7 @@ func TestPeriodicWaitsAFullPeriodAfterAGap(t *testing.T) {
 }
 
 func TestPeriodicInfersAtTheOnsetItself(t *testing.T) {
-	m := NewMethod("periodico", 5) // one every 36 s
+	m := NewMethod("periodic", 5) // one every 36 s
 	now := int64(1_000_000)
 	var onsetMs int64
 	for range 2 * 36_000 / 67 {
@@ -640,7 +640,7 @@ func TestScoreDoesNotAllocateOnHotPath(t *testing.T) {
 }
 
 func TestNoneDetectorReturnsAnEmptyResult(t *testing.T) {
-	d := Detectors["nenhum"]("")
+	d := Detectors["none"]("")
 	out, err := d.Infer(t.Context(), Clip{Fmp4: []byte("gop")})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

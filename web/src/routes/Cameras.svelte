@@ -1161,10 +1161,10 @@
               Mecanismo
               <select bind:value={editing.detectMethod}>
                 <option value="kleinberg-p">estatístico (recomendado)</option>
-                <option value="periodico">periódico</option>
+                <option value="periodic">periódico</option>
               </select>
               <small class="muted">
-                {editing.detectMethod === 'periodico'
+                {editing.detectMethod === 'periodic'
                   ? 'dispara em intervalo fixo, ignorando a imagem - custo previsível, mas pega menos'
                   : 'dispara quando a imagem destoa do normal da própria câmera'}
               </small>

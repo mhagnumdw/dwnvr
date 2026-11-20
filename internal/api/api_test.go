@@ -131,7 +131,7 @@ func TestEventsSeparatesObjectFromMotion(t *testing.T) {
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local).UnixMilli()
 	for _, ev := range []store.Event{
 		{AtMs: base},
-		{AtMs: base, Family: "pessoa", Class: "person", Score: 0.87},
+		{AtMs: base, Family: "person", Class: "person", Score: 0.87},
 		{AtMs: base + 60_000},
 	} {
 		if err := cam.AppendEvent(ev); err != nil {
@@ -142,7 +142,7 @@ func TestEventsSeparatesObjectFromMotion(t *testing.T) {
 	if len(got.Onsets) != 2 {
 		t.Errorf("onsets %v: the object mark got into the heat strip", got.Onsets)
 	}
-	want := markedObject{AtMs: base, Family: "pessoa", Class: "person", Score: 0.87}
+	want := markedObject{AtMs: base, Family: "person", Class: "person", Score: 0.87}
 	if len(got.Objects) != 1 || got.Objects[0] != want {
 		t.Errorf("objects %+v, expected [%+v]", got.Objects, want)
 	}
@@ -156,8 +156,8 @@ func TestEventsCarriesTheBoxOnlyForMarksThatHaveOne(t *testing.T) {
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local).UnixMilli()
 	box := [4]float64{0.5156, 0.2611, 0.6734, 0.9778}
 	for _, ev := range []store.Event{
-		{AtMs: base, Family: "pessoa", Class: "person", Score: 0.87},
-		{AtMs: base + 60_000, Family: "veiculo", Class: "car", Score: 0.91,
+		{AtMs: base, Family: "person", Class: "person", Score: 0.87},
+		{AtMs: base + 60_000, Family: "vehicle", Class: "car", Score: 0.91,
 			FrameMs: base + 62_000, Box: &box},
 	} {
 		if err := cam.AppendEvent(ev); err != nil {
@@ -560,14 +560,14 @@ func TestValidateCameraDetect(t *testing.T) {
 	// valid.
 	valid := []config.Camera{
 		{ID: "cam_teste"},
-		{ID: "cam_teste", DetectMethod: "periodico"},
+		{ID: "cam_teste", DetectMethod: "periodic"},
 		{ID: "cam_teste", DetectSensitivity: 1},
 		{ID: "cam_teste", DetectMethod: "kleinberg-p", DetectSensitivity: 5},
 	}
 	invalid := []config.Camera{
 		{ID: "cam_teste", DetectMethod: "magico"},
 		{ID: "cam_teste", DetectSensitivity: 6},
-		{ID: "cam_teste", DetectMethod: "periodico", DetectSensitivity: 9},
+		{ID: "cam_teste", DetectMethod: "periodic", DetectSensitivity: 9},
 	}
 	cfg := defaultConfig(t)
 	for _, c := range valid {
@@ -587,7 +587,7 @@ func TestValidateCameraDetect(t *testing.T) {
 // "ranges" do the same for the min/max of the inputs.
 func TestCamerasBringsTheDefault(t *testing.T) {
 	s, _ := testServer(t)
-	s.cfg.Defaults.DetectMethod, s.cfg.Defaults.DetectSensitivity = "periodico", 2
+	s.cfg.Defaults.DetectMethod, s.cfg.Defaults.DetectSensitivity = "periodic", 2
 	s.client = go2rtc.New(config.Go2RTC{URL: "http://127.0.0.1:1"}) // down
 
 	rec := httptest.NewRecorder()
@@ -600,8 +600,8 @@ func TestCamerasBringsTheDefault(t *testing.T) {
 		t.Fatalf("response %s (%v)", rec.Body.String(), err)
 	}
 	p := got.Default
-	if p.Detect == nil || *p.Detect || p.DetectMethod != "periodico" || p.DetectSensitivity != 2 {
-		t.Errorf("defaults %+v: expected detect false, periodico, level 2", p)
+	if p.Detect == nil || *p.Detect || p.DetectMethod != "periodic" || p.DetectSensitivity != 2 {
+		t.Errorf("defaults %+v: expected detect false, periodic, level 2", p)
 	}
 
 	// The min/max of the inputs comes from here. Without a ceiling, the max

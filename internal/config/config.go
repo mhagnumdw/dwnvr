@@ -169,7 +169,7 @@ type Camera struct {
 	Detect *bool `json:"detect,omitempty"`
 
 	// DetectMethod picks what decides to fire: `kleinberg-p`, the best of the
-	// 24 candidates measured, or `periodico`, which fires every X seconds and
+	// 24 candidates measured, or `periodic`, which fires every X seconds and
 	// is the honest reference to beat.
 	//
 	// It's per camera because cameras aren't alike: on one of them, measured,

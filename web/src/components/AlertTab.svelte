@@ -56,11 +56,11 @@
   const families = $derived(alert?.families ?? []);
   const checkedList = $derived(alert?.areas ?? []);
 
-  // Turning on for the first time starts with `pessoa`, the highest priority:
-  // with `veiculo`, a camera facing the street would alert hundreds of times a
+  // Turning on for the first time starts with `person`, the highest priority:
+  // with `vehicle`, a camera facing the street would alert hundreds of times a
   // day. Turning off keeps the rest, so turning on again needs no redo.
   function enable(sim: boolean) {
-    alert = { ...(alert ?? { families: ['pessoa'] }), enabled: sim };
+    alert = { ...(alert ?? { families: ['person'] }), enabled: sim };
     error = '';
   }
 

@@ -51,13 +51,13 @@ como ela funciona por dentro, e por quê.
 | Termo | O que é |
 | --- | --- |
 | **destaque** (score) | o quanto um quadro destoa do normal DA PRÓPRIA câmera, em unidades do ruído dela. Sai do tamanho do quadro, sem decodificar |
-| **mecanismo** | quem decide QUANDO disparar, olhando o destaque. `kleinberg-p` (estatístico, o padrão) ou `periodico` (intervalo fixo) |
+| **mecanismo** | quem decide QUANDO disparar, olhando o destaque. `kleinberg-p` (estatístico, o padrão) ou `periodic` (intervalo fixo) |
 | **onset** | o instante em que o mecanismo dispara. Vira uma marca de movimento, e é o instante que a timeline mostra |
 | **sensibilidade** | o nível de 1 a 5. É o **custo**: quantos onsets por hora cada câmera gera |
 | **pico** | o quadro de maior destaque nos 3 s depois do onset. É ele que o detector olha, porque no onset o objeto ainda está entrando pela metade |
 | **pedaço** | o trecho de vídeo que vai ao detector: do frame I do GOP até o quadro do pico |
 | **olhada** | uma ida ao `dwnvr-detect` com um pedaço, e a resposta dele |
-| **família** | `pessoa`, `veiculo` ou `animal`: o agrupamento das classes do modelo que a timeline colore. A prioridade é nessa ordem |
+| **família** | `person`, `vehicle` ou `animal`: o agrupamento das classes do modelo que a timeline colore. A prioridade é nessa ordem |
 | **chegada** | um objeto aparecendo onde antes não havia. É o que a marca de objeto registra - não a presença |
 | **rastreio** | a memória, por câmera, dos lugares já ocupados por objeto parado |
 | **funil** | o destino de cada onset: descartado, olhado sem novidade, com objeto, ainda em andamento ou sem resposta |
@@ -129,7 +129,7 @@ flowchart TD
 
     notaDestaque["o quanto o quadro destoa do normal<br>DA PRÓPRIA câmera, em unidades do ruído dela.<br>Sai do tamanho do quadro, sem decodificar"]:::nota
     destaque -.- notaDestaque
-    notaMecanismo["quem decide, olhando o destaque, QUANDO marcar movimento<br>e mandar um quadro ao detector de objetos.<br>kleinberg-p (estatístico, o padrão)<br>ou periodico (intervalo fixo)"]:::nota
+    notaMecanismo["quem decide, olhando o destaque, QUANDO marcar movimento<br>e mandar um quadro ao detector de objetos.<br>kleinberg-p (estatístico, o padrão)<br>ou periodic (intervalo fixo)"]:::nota
     mecanismo -.- notaMecanismo
     notaCorte["das caixas da resposta HTTP, joga fora<br>a classe que não é pessoa, veículo ou animal.<br>Caixa abaixo de 0,40 de confiança não vira marca,<br>mas segue para o rastreio, que aprende com ela"]:::nota
     corte -.- notaCorte
@@ -159,7 +159,7 @@ flowchart TD
 7. **A marca de objeto.** O dwnvr descarta classe fora das famílias, aplica o
    corte de confiança e o rastreio, e grava uma marca por objeto que passou,
    todas no instante do onset. Duas pessoas chegando juntas são duas marcas;
-   a timeline junta as duas numa chegada de `pessoa`.
+   a timeline junta as duas numa chegada de `person`.
 
 Todo objeto tem um movimento embaixo, mas nem todo movimento tem objeto.
 
@@ -293,11 +293,11 @@ com áreas no alerta, `"alertAreas"` com o id das áreas em que o objeto caiu; o
 objeto que não passou fica sem nada:
 
 ```json
-{"atMs":1792525050142,"family":"pessoa","class":"person","score":0.566,"frameMs":1792525050171,"box":[0.2276,0.3703,0.2784,0.4249],"hasFrame":true,"alert":true,"alertAreas":["calcad"]}
+{"atMs":1792525050142,"family":"person","class":"person","score":0.566,"frameMs":1792525050171,"box":[0.2276,0.3703,0.2784,0.4249],"hasFrame":true,"alert":true,"alertAreas":["calcad"]}
 ```
 
 ```text
-level=INFO msg=alerta cam=portao familias=pessoa objetos=2 areas=Portão
+level=INFO msg=alert cam=portao families=person objects=2 areas=Portão
 ```
 
 A marca é o que valia na hora: mudar o alerta da câmera não muda o passado. Ela
@@ -410,7 +410,7 @@ novo faz a medição deixar de valer em silêncio:
 | `InferenceTimeoutMs` | 60 s | quanto a fila espera uma resposta |
 | `PauseAfterFailureMs` | 30 s | a pausa da fila depois de uma olhada que falhou |
 | `MaxGOPBytes` | 4 MB | o maior GOP guardado por câmera; freio de RAM |
-| `ClassFamilies` | 12 classes | quais classes do COCO viram `pessoa`, `veiculo` ou `animal` |
+| `ClassFamilies` | 12 classes | quais classes do COCO viram `person`, `vehicle` ou `animal` |
 
 Os números do alerta, que são escolha de desenho e não medida, ficam em
 [`internal/alert/params.go`](../internal/alert/params.go):
@@ -511,7 +511,7 @@ e [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO/TODO_recalibrar-modelo
 | Arquivo | O quê |
 | --- | --- |
 | `internal/detect/score.go` | o destaque de cada quadro |
-| `internal/detect/method.go` | o onset e o pico: `kleinberg-p` e `periodico` |
+| `internal/detect/method.go` | o onset e o pico: `kleinberg-p` e `periodic` |
 | `internal/detect/clipper.go` | o GOP guardado e o pedaço fMP4 |
 | `internal/detect/queue.go` | a fila única, o limite por câmera, a pausa depois de falha |
 | `internal/detect/sidecar.go` | o cliente HTTP do `dwnvr-detect` |

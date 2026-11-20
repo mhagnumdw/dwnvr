@@ -492,7 +492,7 @@ func (r *Recorder) onInference(o detect.Inference, rule *alert.Rule) (alert.Aler
 	}
 
 	// One line per object that became a mark, all at the onset instant: two
-	// people arriving together are two `pessoa` lines, and the area filter finds
+	// people arriving together are two `person` lines, and the area filter finds
 	// the detection through any of them. Whoever wants one arrival per family,
 	// like the timeline, merges on read. The order is by family and, within it,
 	// by confidence: whoever reads the raw line sees what matters most first.

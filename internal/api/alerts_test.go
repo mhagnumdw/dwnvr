@@ -53,7 +53,7 @@ func TestAlertsInHealth(t *testing.T) {
 	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &yes,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
 	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
-		Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
+		Objects: []alert.Object{{Family: "person", Class: "person", Score: 0.87}}})
 
 	if got := string(request(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":1}` {
 		t.Errorf("alerts no /api/health: %s", got)
@@ -75,7 +75,7 @@ func TestDropInHealth(t *testing.T) {
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
 	for range alert.AlertBurst + 2 {
 		s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
-			Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
+			Objects: []alert.Object{{Family: "person", Class: "person", Score: 0.87}}})
 	}
 
 	var alerts struct {
@@ -118,7 +118,7 @@ func TestFailingNotifierInHealth(t *testing.T) {
 	// Without the Manager's Start, the send goroutine is the test's.
 	go s.mgr.Alerts().Run(t.Context())
 	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
-		Objects: []alert.Object{{Family: "pessoa", Class: "person", Score: 0.87}}})
+		Objects: []alert.Object{{Family: "person", Class: "person", Score: 0.87}}})
 
 	var alerts struct {
 		Failing []struct{ Name, Since, Error string }

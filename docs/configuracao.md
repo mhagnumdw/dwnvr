@@ -62,7 +62,7 @@ Tudo que é política de gravação é **por câmera**, não global:
 | `maxDays` | idade máxima, opcional | 0 (sem limite) ou mais |
 | `stallSeconds` | tolerância antes de considerar o stream morto | de 1 a 3600 |
 | `detect` | marcar movimento na timeline - ver abaixo | |
-| `detectMethod` | quem decide disparar | `kleinberg-p` ou `periodico` |
+| `detectMethod` | quem decide disparar | `kleinberg-p` ou `periodic` |
 | `detectSensitivity` | o nível, que é o custo em CPU | de 1 a 5 |
 | `areas` | as áreas desenhadas sobre a imagem - ver abaixo | até 8 |
 | `alert` | quando uma detecção vira alerta - ver abaixo | |
@@ -125,10 +125,10 @@ marcado na detecção, que Detecções filtra, e, com a lista de
 gravação.
 
 ```json
-"alert": { "enabled": true, "families": ["pessoa"], "areas": ["k3f9a2"] }
+"alert": { "enabled": true, "families": ["person"], "areas": ["k3f9a2"] }
 ```
 
-- `families` são as famílias que alertam: `pessoa`, `veiculo` ou `animal`. Com
+- `families` são as famílias que alertam: `person`, `vehicle` ou `animal`. Com
   o alerta ligado, pelo menos uma.
 - `areas` são os `id` das áreas da câmera em que o objeto precisa cair, cada
   uma pela própria `rule`. Vazio ou ausente é a imagem inteira.
@@ -235,7 +235,7 @@ de gravação real, contra chegadas marcadas à mão.
 
 **O mecanismo** decide como disparar. O `kleinberg-p` compara cada quadro com o
 normal da própria câmera - é por isso que o mesmo nível significa a mesma coisa
-numa câmera silenciosa e numa cheia de ruído de infravermelho. O `periodico`
+numa câmera silenciosa e numa cheia de ruído de infravermelho. O `periodic`
 dispara em intervalo fixo, ignorando a imagem: mesmo custo, e pega de 2 a 3
 vezes menos. Ele existe por ser a régua a bater, e para quem preferir um
 comportamento sem surpresa numa câmera específica.
@@ -274,7 +274,7 @@ por câmera, contínuo; no 4, a metade. As olhadas passam por uma **fila com
 dois lugares por câmera**: se uma câmera dispara de novo com os dois ocupados,
 a marca nova fica só como
 movimento. Isso impede a câmera mais agitada de ocupar a vez das outras, e é o
-que segura a entrega de `pessoa` perto do teto medido. Se o
+que segura a entrega de `person` perto do teto medido. Se o
 detector cair, a gravação e a faixa de movimento seguem como se ele não
 existisse; o log avisa uma vez quando ele sai do ar, e outra quando volta.
 

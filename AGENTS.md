@@ -34,11 +34,9 @@ reactive, responsive UI that works well on mobile and desktop (browser).
 - **Keys and values in en-US**, in JSON (API, `cameras.json`, `users.json`,
   `events/`) and in YAML (`dwnvr.yaml`, compose): `rule`, not `regra`;
   `"touch"`, not `"encosta"`. This covers enum values, not text the user types
-  (an area name). The Portuguese values still in place (`"pessoa"`,
-  `"veiculo"`, `"periodico"`) are renamed in step 6 of the
-  [conversion](docs/TODO/v1.0.0/conversao-en-us.md), together with the upgrade
-  guide, and never on their own: renaming one breaks the stored file and
-  whoever reads the API.
+  (an area name). A stored or API value is renamed only together with a
+  section of the [upgrade guide](docs/upgrading.md), never on its own:
+  renaming one breaks the stored file and whoever reads the API.
 - **A term says what it is.** "Object detector" (the model), never a bare
   "detector": it gets confused with motion detection. Prefer the verb for what
   actually happens ("dropped", not "spared"). Don't change the meaning of a

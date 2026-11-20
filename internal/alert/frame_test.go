@@ -73,7 +73,7 @@ func TestBoxInTheFamilyColor(t *testing.T) {
 	// The box goes from (120, 54) to (240, 216) on the 480×270 frame, and the
 	// drawn one, from (115, 49) to (245, 221).
 	a := Alert{Frame: testFrame(t, false),
-		Objects: []Object{{Family: "pessoa", Box: [4]float64{0.25, 0.2, 0.5, 0.8}}}}
+		Objects: []Object{{Family: "person", Box: [4]float64{0.25, 0.2, 0.5, 0.8}}}}
 	frame, err := drawnFrame(a)
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestBoxInTheFamilyColor(t *testing.T) {
 	if img.Bounds() != image.Rect(0, 0, 480, 270) {
 		t.Fatalf("the frame changed size: %v", img.Bounds())
 	}
-	green := familyColors["pessoa"]
+	green := familyColors["person"]
 	for _, p := range []image.Point{{180, 49}, {180, 220}, {115, 130}, {244, 130}} {
 		if !near(img, p.X, p.Y, green) {
 			t.Errorf("the stroke isn't at %v", p)
@@ -101,13 +101,13 @@ func TestBoxInTheFamilyColor(t *testing.T) {
 func TestPriorityOnTop(t *testing.T) {
 	box := [4]float64{0.25, 0.2, 0.5, 0.8}
 	a := Alert{Frame: testFrame(t, false), Objects: []Object{
-		{Family: "pessoa", Box: box}, {Family: "veiculo", Box: box}}}
+		{Family: "person", Box: box}, {Family: "vehicle", Box: box}}}
 	frame, err := drawnFrame(a)
 	if err != nil {
 		t.Fatal(err)
 	}
 	c := color.RGBAModel.Convert(decode(t, frame).At(180, 49)).(color.RGBA)
-	if distance(c, familyColors["pessoa"]) >= distance(c, familyColors["veiculo"]) {
+	if distance(c, familyColors["person"]) >= distance(c, familyColors["vehicle"]) {
 		t.Errorf("%v ended up on top, not the person", c)
 	}
 }
@@ -147,7 +147,7 @@ func TestBoxAtTheEdge(t *testing.T) {
 	a := Alert{Frame: testFrame(t, false), Objects: []Object{
 		{Family: "animal", Box: [4]float64{0, 0, 0.1, 0.1}},
 		{Family: "outra", Box: [4]float64{0.9, 0.9, 1, 1}},
-		{Family: "pessoa", Box: [4]float64{1.2, 1.2, 1.5, 1.5}}}}
+		{Family: "person", Box: [4]float64{1.2, 1.2, 1.5, 1.5}}}}
 	frame, err := drawnFrame(a)
 	if err != nil {
 		t.Fatal(err)
@@ -186,7 +186,7 @@ func TestNotifierGetsTheDrawnFrame(t *testing.T) {
 	if bytes.Equal(got.Frame, a.Frame) {
 		t.Fatal("the notifier got the inferred frame")
 	}
-	if !near(decode(t, got.Frame), 180, 49, familyColors["pessoa"]) {
+	if !near(decode(t, got.Frame), 180, 49, familyColors["person"]) {
 		t.Error("the frame the notifier got doesn't have the box")
 	}
 }
@@ -196,8 +196,8 @@ func TestNotifierGetsTheDrawnFrame(t *testing.T) {
 func BenchmarkDrawnFrame(b *testing.B) {
 	a := Alert{Frame: testFrame(b, true),
 		Objects: []Object{
-			{Family: "pessoa", Box: [4]float64{0.25, 0.2, 0.35, 0.6}},
-			{Family: "pessoa", Box: [4]float64{0.6, 0.3, 0.7, 0.9}}},
+			{Family: "person", Box: [4]float64{0.25, 0.2, 0.35, 0.6}},
+			{Family: "person", Box: [4]float64{0.6, 0.3, 0.7, 0.9}}},
 		Areas: []AlertArea{{Name: "Portão",
 			Points: []area.Point{{0.1, 0.3}, {0.5, 0.25}, {0.8, 0.5}, {0.7, 0.95}, {0.15, 0.9}}}}}
 	b.ReportAllocs()

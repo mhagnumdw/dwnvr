@@ -13,7 +13,7 @@ import (
 // notifiers. Each one carries the JPEG of the inferred frame, a few dozen KB at
 // 480 px, and 32 stay under 2 MB. With a stuck notifier, each send takes up to
 // SendTimeout, and the send goroutine handles 120 an hour. On the test
-// installation, `pessoa` on the 9 cameras, on the whole image, gave ~629
+// installation, `person` on the 9 cameras, on the whole image, gave ~629
 // alerts a day (measured on 10/22/2026), about 26 an hour: the queue only
 // fills in a burst, and what doesn't fit is dropped and counted.
 const QueuedAlerts = 32

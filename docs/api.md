@@ -656,7 +656,7 @@ da timeline desenha, e as marcas de objeto que o detector confirmou:
   "objects": [
     {
       "atMs": 1786220571043,
-      "family": "pessoa",
+      "family": "person",
       "class": "person",
       "score": 0.87,
       "frameMs": 1786220572851,
@@ -670,7 +670,7 @@ Os `onsets` são números soltos, e não objetos, pela mesma razão que a timeli
 é compacta: um dia no nível mais sensível tem ~2.400 marcas, e a forma verbosa
 dobraria a resposta para dizer o mesmo. Os `objects` são dezenas por dia, e vão
 com chave por extenso; o instante de cada um é o do onset que o originou. É um
-por objeto: duas pessoas no mesmo quadro são dois itens de `pessoa` com o mesmo
+por objeto: duas pessoas no mesmo quadro são dois itens de `person` com o mesmo
 `atMs`, e a timeline junta os dois numa chegada.
 
 `frameMs` e `box` dizem onde desenhar o objeto sobre o vídeo: `box` é
@@ -709,7 +709,7 @@ entre um pedido e outro.
   São as mais próximas do cursor, mas a resposta vem na mesma ordem das outras:
   da mais nova para a mais velha.
 - `limit`: quantas, de 1 a 200. Padrão 60.
-- `cams=cam_a,cam_b` e `families=pessoa,veiculo`: só essas. Sem eles, todas.
+- `cams=cam_a,cam_b` e `families=person,vehicle`: só essas. Sem eles, todas.
   Câmera não cadastrada ou família desconhecida é erro.
 - `area=<cam>:<x>,<y>,<x>,<y>,...`: na câmera `<cam>`, só os objetos dentro
   de uma área desenhada sobre a imagem dela, como
@@ -731,7 +731,7 @@ entre um pedido e outro.
 
 - `alert=1`: só as detecções em que algum objeto alertou (ver abaixo). O
   filtro é por detecção: o objeto que não alertou fica nela. Ele vale sobre o
-  que sobra dos outros filtros: com `families=veiculo`, a detecção que alertou
+  que sobra dos outros filtros: com `families=vehicle`, a detecção que alertou
   só pela pessoa sai, porque a pessoa sai. Outro valor é erro.
 
 As áreas de uma câmera **somam**, a de `area` junto: o objeto fica se está em
@@ -746,9 +746,9 @@ qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
       "frameMs": 1786220572851,
       "hasFrame": true,
       "objects": [
-        { "family": "pessoa", "class": "person", "score": 0.87, "box": [0.5156, 0.2611, 0.6734, 0.9778],
+        { "family": "person", "class": "person", "score": 0.87, "box": [0.5156, 0.2611, 0.6734, 0.9778],
           "alert": true, "alertAreas": ["k3f9a2"] },
-        { "family": "veiculo", "class": "car", "score": 0.61, "box": [0.05, 0.4, 0.3, 0.7] }
+        { "family": "vehicle", "class": "car", "score": 0.61, "box": [0.05, 0.4, 0.3, 0.7] }
       ]
     }
   ],

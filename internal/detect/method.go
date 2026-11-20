@@ -11,12 +11,12 @@ import "math"
 // MARK sits on the onset, which is what matches the arrival. The FRAME to
 // infer is the one with the highest salience in the following PeakWindowMs: at
 // the onset the object is still coming in, half of it in view, and inferring
-// at the peak takes `pessoa` from 9.0% to 12.2% of arrivals, without one extra
+// at the peak takes `person` from 9.0% to 12.2% of arrivals, without one extra
 // detection.
 //
 // It's the piece the user swaps in the camera settings, so it's a contract:
 // `kleinberg-p` is the statistical one, which spends each inference where the
-// image changed, and `periodico` is the honest reference to beat, which the UI
+// image changed, and `periodic` is the honest reference to beat, which the UI
 // offers to whoever prefers a predictable cost to a well-spent one. A new
 // method goes into the Methods map.
 //
@@ -65,7 +65,7 @@ var Methods = map[string]func(level int) Method{
 	"kleinberg-p": func(level int) Method {
 		return newStatistical(ScoreFuncs["kleinberg-p"](), KleinbergPThreshold[level])
 	},
-	"periodico": func(level int) Method {
+	"periodic": func(level int) Method {
 		return newPeriodic(3_600_000 / OnsetsPerHour[level])
 	},
 }
@@ -302,7 +302,7 @@ func newPeriodic(periodMs float64) *periodic {
 	return &periodic{periodMs: periodMs}
 }
 
-func (p *periodic) Name() string { return "periodico" }
+func (p *periodic) Name() string { return "periodic" }
 
 func (p *periodic) Reset() {
 	p.clock.reset()

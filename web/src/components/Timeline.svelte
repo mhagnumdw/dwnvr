@@ -136,7 +136,7 @@
   // comes first.
   //
   // The timeline marks arrival per family: two people at the same instant are
-  // two recorded rows, but one `pessoa` arrival, with the highest confidence -
+  // two recorded rows, but one `person` arrival, with the highest confidence -
   // its class is the one the icon and tooltip show.
   const groups = $derived.by((): Group[] => {
     const out: { t: number; marks: MarkedObject[] }[] = [];
@@ -237,7 +237,7 @@
   /*
    * Where each icon goes, with no two overlapping.
    *
-   * It walks by PRIORITY, not by time: `pessoa` picks its place before all the
+   * It walks by PRIORITY, not by time: `person` picks its place before all the
    * others, so a neighboring cat never takes a person's icon. A group of two
    * families asks for room for both icons side by side; without space, it tries
    * at least the main family's. What didn't fit stays in the tick.
@@ -278,7 +278,7 @@
     });
 
     // Lowest priority first: where two ticks fall on the same pixel, the
-    // `pessoa` one is painted last, and stays on top.
+    // `person` one is painted last, and stays on top.
     for (const gr of [...visibleOnes].sort((a, b) => b.priority - a.priority)) tick(g, gr);
 
     const byClass = span <= CLASS_UNTIL_MS;

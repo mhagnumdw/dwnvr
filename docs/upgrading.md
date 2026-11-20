@@ -68,8 +68,8 @@ On `GET /api/detections` and `GET /api/detections/days`:
 | `limite` | `limit` |
 | `familias` | `families` |
 
-The family **values** (`pessoa`, `veiculo`, `animal`) do not change in this
-section.
+The family **values** (`pessoa`, `veiculo`) change in
+[section 5](#5-the-family-and-method-values).
 
 ### JSON keys in the responses
 
@@ -118,8 +118,8 @@ they are the same key in three places:
 | `detectMecanismo` | `detectMethod` |
 | `detectSensibilidade` | `detectSensitivity` |
 
-Their **values** (`kleinberg-p`, `periodico`, `1` to `5`) do not change in
-this section.
+Their **values** change only in
+[section 5](#5-the-family-and-method-values): `periodico` becomes `periodic`.
 
 A key with the old name is ignored, with no warning: the camera falls back to
 the default method and sensitivity.
@@ -237,8 +237,8 @@ the keys of each line in the marks:
 | `caixa` | `box` |
 | `temQuadro` | `hasFrame` |
 
-The family **values** (`pessoa`, `veiculo`, `animal`) do not change in this
-section. Without this section, the new version does not see anything detected
+The family **values** (`pessoa`, `veiculo`) change in
+[section 5](#5-the-family-and-method-values). Without this section, the new version does not see anything detected
 before the update: the timeline loses the motion strip of the old recordings,
 and the Detections screen starts empty.
 
@@ -311,8 +311,8 @@ the place of `~/dwnvr/storage`. To check, this must print nothing:
 ls -d ~/dwnvr/storage/*/eventos ~/dwnvr/storage/*/quadros 2>/dev/null
 ```
 
-Once the Detections screen shows the marks from before the update, delete the
-backup:
+The backup also covers section 5. Once the Detections screen shows the marks
+from before the update, after [Start again](#start-again), delete it:
 
 ```sh
 rm -rf ~/dwnvr/storage/*/eventos.bak
@@ -321,6 +321,89 @@ rm -rf ~/dwnvr/storage/*/eventos.bak
 To go back to the previous version instead, rename each `eventos.bak/` back
 to `eventos/` (after removing the `events/` next to it) and each `frames/`
 back to `quadros/`.
+
+## 5. The family and method values
+
+Who is affected: **everyone who turned motion marking on** (`detect: true`).
+Three values were renamed, and each one is the same value everywhere it
+appears:
+
+| Before | Now | Where |
+| --- | --- | --- |
+| `pessoa` | `person` | the families of a camera's alert, the marks in `events/`, the API |
+| `veiculo` | `vehicle` | the same |
+| `periodico` | `periodic` | `detectMethod`, in `dwnvr.yaml`, `cameras.json` and the API |
+
+`animal` and `kleinberg-p` keep their names. With an old value, a camera on
+`periodico` falls back to the default method, an alert loses the `pessoa` and
+`veiculo` families (and is turned off if none is left), and the marks from
+before the update show up in gray, without an icon, and leave the family
+filter of the Detections screen. On the API, `families=pessoa` is now an
+error.
+
+The stack is still down from section 0. The three steps below change only
+these values: an area or camera name stays as it is, and running a step again
+changes nothing.
+
+### `dwnvr.yaml`
+
+```sh
+sed -i -E 's/^(\s*#?\s*detectMethod:\s*"?)periodico\b/\1periodic/' \
+  ~/dwnvr/config/dwnvr/dwnvr.yaml
+```
+
+To check, this must print nothing:
+
+```sh
+grep -n -E 'detectMethod.*periodico' ~/dwnvr/config/dwnvr/dwnvr.yaml
+```
+
+If it prints a line, write `periodic` in it by hand.
+
+### `cameras.json`
+
+The method of a camera, and the families of its alert:
+
+```sh
+f=~/dwnvr/config/dwnvr/cameras.json
+jq 'map(
+      (if .detectMethod == "periodico" then .detectMethod = "periodic" else . end)
+    | (if .alert.families then .alert.families |= map({"pessoa": "person", "veiculo": "vehicle"}[.] // .) else . end))' \
+  "$f" > "$f.new" && cat "$f.new" > "$f" && rm "$f.new"
+```
+
+### The marks in `events/`
+
+Each mark of an object has its family, written the same way on every line:
+`"family":"pessoa"`. This replaces that text, and nothing else, in each file
+that still has it:
+
+```sh
+sh -s ~/dwnvr/storage <<'EOF'
+for f in "$1"/*/events/*.ndjson; do
+  test -e "$f" && grep -a -q -E '"family":"(pessoa|veiculo)"' "$f" || continue
+  if sed -e 's/"family":"pessoa"/"family":"person"/' -e 's/"family":"veiculo"/"family":"vehicle"/' \
+    "$f" > "$f.new"; then
+    cat "$f.new" > "$f" && rm "$f.new" || echo "$f: not rewritten; the converted file is $f.new"
+  else
+    rm -f "$f.new"; echo "$f: not converted"
+  fi
+done
+EOF
+```
+
+The new value has the same length as the old one, so each file keeps its
+size. A file that fails prints why; fix the cause (a full disk, for example)
+and run the same command again. To check, this must print nothing:
+
+```sh
+grep -a -l -E '"family":"(pessoa|veiculo)"' ~/dwnvr/storage/*/events/*.ndjson
+```
+
+If you moved the configuration or the storage folder, use your folders in the
+place of `~/dwnvr/config` and `~/dwnvr/storage`. The backups of sections 0
+and 4 still have the old values, and are the way back to the previous
+version.
 
 ## Start again
 
@@ -331,4 +414,4 @@ docker compose up -d
 On the Cameras screen, the method and sensitivity of each camera are the ones
 you had before the update. On the Users screen, each person has their photo
 and last access. On the Detections screen, the marks from before the update
-are there, each with its frame.
+are there, each with its frame, its icon and its color.

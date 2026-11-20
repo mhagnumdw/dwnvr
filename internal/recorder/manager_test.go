@@ -21,7 +21,7 @@ import (
 func TestQueueCapGrowsWithTheCameras(t *testing.T) {
 	yes, no := true, false
 	m := &Manager{
-		queue: detect.NewQueue(detect.Detectors["nenhum"](""), func(detect.Inference) {}, discardLogger()),
+		queue: detect.NewQueue(detect.Detectors["none"](""), func(detect.Inference) {}, discardLogger()),
 		recs:  map[string]*running{},
 	}
 	for id, d := range map[string]*bool{"a": &yes, "b": &yes, "c": &no, "d": nil} {
@@ -58,11 +58,11 @@ func TestSetMidFlightDoesNotRace(t *testing.T) {
 
 	st := store.New(t.TempDir())
 	m := NewManager(&config.Config{}, go2rtc.New(config.Go2RTC{URL: srv.URL}), st, discardLogger())
-	m.queue = detect.NewQueue(detect.Detectors["nenhum"](""), m.onInference, discardLogger())
+	m.queue = detect.NewQueue(detect.Detectors["none"](""), m.onInference, discardLogger())
 
 	on, off := true, false
 	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
-		StallSeconds: 5, QuotaMB: 1000, Detect: &on, DetectMethod: "periodico",
+		StallSeconds: 5, QuotaMB: 1000, Detect: &on, DetectMethod: "periodic",
 		DetectSensitivity: 5}
 
 	// The recorder is set up by hand, without run: the test is what calls the
@@ -142,7 +142,7 @@ func withAlert(t *testing.T) *Manager {
 	t.Helper()
 	st := store.New(t.TempDir())
 	m := NewManager(&config.Config{}, nil, st, discardLogger())
-	m.queue = detect.NewQueue(detect.Detectors["nenhum"](""), m.onInference, discardLogger())
+	m.queue = detect.NewQueue(detect.Detectors["none"](""), m.onInference, discardLogger())
 	yes := true
 	cam := config.Camera{ID: "cam_teste", Name: "Front", Enabled: true, Detect: &yes,
 		Areas: []config.Area{{ID: "esq", Name: "Gate",
@@ -220,7 +220,7 @@ func TestNoAlertNothingIsCreated(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			m := NewManager(&config.Config{}, nil, store.New(t.TempDir()), discardLogger())
 			if c.detector {
-				m.queue = detect.NewQueue(detect.Detectors["nenhum"](""), m.onInference, discardLogger())
+				m.queue = detect.NewQueue(detect.Detectors["none"](""), m.onInference, discardLogger())
 			}
 			m.Set(c.cam)
 			if m.Alerts() != nil || len(m.rules) > 0 {

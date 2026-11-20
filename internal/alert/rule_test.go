@@ -36,11 +36,11 @@ func mark(family, class string, score float64, box [4]float64) store.Event {
 
 var (
 	// personOnLeft has the foot at (0.3, 0.6): on the left half.
-	personOnLeft = mark("pessoa", "person", 0.87, [4]float64{0.25, 0.2, 0.35, 0.6})
+	personOnLeft = mark("person", "person", 0.87, [4]float64{0.25, 0.2, 0.35, 0.6})
 	// personOnRight has the foot at (0.8, 0.9): on the bottom band, on the right.
-	personOnRight = mark("pessoa", "person", 0.55, [4]float64{0.75, 0.5, 0.85, 0.9})
+	personOnRight = mark("person", "person", 0.55, [4]float64{0.75, 0.5, 0.85, 0.9})
 	// motorcycleOnLeft has the foot at (0.2, 0.7).
-	motorcycleOnLeft = mark("veiculo", "motorcycle", 0.71, [4]float64{0.1, 0.4, 0.3, 0.7})
+	motorcycleOnLeft = mark("vehicle", "motorcycle", 0.71, [4]float64{0.1, 0.4, 0.3, 0.7})
 )
 
 // TestRuleOnlyExistsWithAlertOn: nil is "no alert", and covers everything
@@ -92,7 +92,7 @@ func TestOnTheWholeImage(t *testing.T) {
 		t.Fatalf("objects %+v, want both people", a.Objects)
 	}
 	o := a.Objects[0]
-	if o.Family != "pessoa" || o.Class != "person" || o.Box != *personOnLeft.Box || o.Areas != nil {
+	if o.Family != "person" || o.Class != "person" || o.Box != *personOnLeft.Box || o.Areas != nil {
 		t.Errorf("object %+v", o)
 	}
 }
@@ -122,7 +122,7 @@ func TestInTheAreas(t *testing.T) {
 		},
 		"nas duas": {
 			[]string{"esq", "chao"},
-			[]store.Event{mark("pessoa", "person", 0.9, [4]float64{0.2, 0.5, 0.3, 0.95})},
+			[]store.Event{mark("person", "person", 0.9, [4]float64{0.2, 0.5, 0.3, 0.95})},
 			[]float64{0.9}, [][]string{{"Portão", "Calçada"}},
 		},
 	}
@@ -149,7 +149,7 @@ func TestInTheAreas(t *testing.T) {
 func TestSeveralFamilies(t *testing.T) {
 	r := NewRule(camera([]detect.Family{detect.Person, detect.Vehicle}, "esq"))
 	a, ok := r.Evaluate([]store.Event{personOnLeft, motorcycleOnLeft}, nil)
-	if !ok || len(a.Objects) != 2 || a.Objects[1].Family != "veiculo" {
+	if !ok || len(a.Objects) != 2 || a.Objects[1].Family != "vehicle" {
 		t.Errorf("alerted: %v, objects %+v", ok, a.Objects)
 	}
 }
