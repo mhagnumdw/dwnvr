@@ -293,7 +293,7 @@ com áreas no alerta, `"alertAreas"` com o id das áreas em que o objeto caiu; o
 objeto que não passou fica sem nada:
 
 ```json
-{"instanteMs":1792525050142,"familia":"pessoa","class":"person","score":0.566,"quadroMs":1792525050171,"box":[0.2276,0.3703,0.2784,0.4249],"temQuadro":true,"alert":true,"alertAreas":["calcad"]}
+{"instanteMs":1792525050142,"familia":"pessoa","classe":"person","score":0.566,"quadroMs":1792525050171,"caixa":[0.2276,0.3703,0.2784,0.4249],"temQuadro":true,"alert":true,"alertAreas":["calcad"]}
 ```
 
 ```text
