@@ -152,16 +152,20 @@ repos:
   # segundo, só na CI, olha o histórico inteiro: pega o que entrou sem passar
   # pelo hook (editor do GitHub, clone sem `prek install`). À mão:
   # prek run betterleaks-historico --stage manual --all-files
+  # O --config é obrigatório desde a 1.10: sem ele, o betterleaks ignora o
+  # .betterleaks.toml e acusa as senhas de exemplo que o filter de lá libera.
   - repo: https://github.com/betterleaks/betterleaks
     rev: v1.10.1
     hooks:
       - id: betterleaks
         priority: conferir
+        args: [--config, .betterleaks.toml]
       - id: betterleaks
         priority: conferir
         alias: betterleaks-historico
         name: betterleaks no histórico
         entry: betterleaks git --redact --verbose
+        args: [--config, .betterleaks.toml]
         stages: [manual]
 
   # Go: bug (errcheck, govet, staticcheck, unused...) e formatação (gofmt e
