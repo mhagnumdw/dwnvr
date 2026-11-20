@@ -122,28 +122,28 @@ export const api = {
 
   // Users, admin only. Create and the new link return the link's token, which
   // only exists in that response.
-  users: () => request<Users>('usuarios'),
+  users: () => request<Users>('users'),
   createUser: (user: string, name: string, email: string) =>
-    request<Invite>('usuarios', {
+    request<Invite>('users', {
       method: 'POST',
       body: JSON.stringify({ username: user, name, email }),
     }),
   // What createUser would reject with this data, field by field, without
   // creating anyone. Empty means "all good".
   checkNew: (user: string, name: string, email: string) =>
-    request<{ fields: FieldErrors }>('usuarios/conferir', {
+    request<{ fields: FieldErrors }>('users/check', {
       method: 'POST',
       body: JSON.stringify({ username: user, name, email }),
     }),
   // Vazio apaga o e-mail.
   changeEmail: (user: string, email: string) =>
-    request<{ user: User }>('usuarios/email', {
+    request<{ user: User }>('users/email', {
       method: 'POST',
       body: JSON.stringify({ username: user, email }),
     }),
   // What changeEmail would reject with this email, without changing anything.
   checkEmail: (user: string, email: string) =>
-    request<{ fields: FieldErrors }>('usuarios/email/conferir', {
+    request<{ fields: FieldErrors }>('users/email/check', {
       method: 'POST',
       body: JSON.stringify({ username: user, email }),
     }),
@@ -151,48 +151,48 @@ export const api = {
   // address it is accessed by, and only checks that it is the person's open
   // link.
   sendLink: (user: string, url: string) =>
-    request<{ sentTo: string }>('usuarios/link/email', {
+    request<{ sentTo: string }>('users/link/email', {
       method: 'POST',
       body: JSON.stringify({ username: user, url }),
     }),
   newLink: (user: string) =>
-    request<Invite>('usuarios/link', {
+    request<Invite>('users/link', {
       method: 'POST',
       body: JSON.stringify({ username: user }),
     }),
   removeUser: (user: string) =>
-    request<unknown>('usuarios?username=' + encodeURIComponent(user), { method: 'DELETE' }),
+    request<unknown>('users?username=' + encodeURIComponent(user), { method: 'DELETE' }),
   removeAvatarOf: (user: string) =>
-    request<unknown>('usuarios/avatar?username=' + encodeURIComponent(user), {
+    request<unknown>('users/avatar?username=' + encodeURIComponent(user), {
       method: 'DELETE',
     }),
 
   // My account: each person changes what is theirs. Everything returns { user }
   // as it ended up, so the header updates without asking again. The photo goes
   // raw, the JPEG already shrunk by the browser (see lib/avatar.ts).
-  account: () => request<Account>('conta'),
+  account: () => request<Account>('account'),
   changePassword: (current: string, newOne: string) =>
-    request<WithPerson>('conta/senha', {
+    request<WithPerson>('account/password', {
       method: 'POST',
       body: JSON.stringify({ currentPassword: current, newPassword: newOne }),
     }),
   changeName: (name: string) =>
-    request<WithPerson>('conta/nome', { method: 'POST', body: JSON.stringify({ name }) }),
+    request<WithPerson>('account/name', { method: 'POST', body: JSON.stringify({ name }) }),
   uploadAvatar: (jpeg: Blob) =>
-    request<WithPerson>('conta/avatar', {
+    request<WithPerson>('account/avatar', {
       method: 'PUT',
       headers: { 'Content-Type': 'image/jpeg' },
       body: jpeg,
     }),
-  removeAvatar: () => request<WithPerson>('conta/avatar', { method: 'DELETE' }),
+  removeAvatar: () => request<WithPerson>('account/avatar', { method: 'DELETE' }),
 
   // The invite link: public, with the token in the body and not in the URL, so
   // it does not end up in any proxy's log. An expired or already used link is
   // 410.
   checkInvite: (token: string) =>
-    request<InviteLink>('convite/conferir', { method: 'POST', body: JSON.stringify({ token }) }),
+    request<InviteLink>('invite/check', { method: 'POST', body: JSON.stringify({ token }) }),
   setPassword: (token: string, password: string) =>
-    request<WithPerson>('convite', {
+    request<WithPerson>('invite', {
       method: 'POST',
       body: JSON.stringify({ token, password }),
     }),
@@ -234,17 +234,17 @@ export const api = {
   // and the latest log warnings. Separate from health because it costs a write
   // test on the disk - only requested by whoever opened the "Este servidor"
   // card.
-  server: () => request<Server>('health/servidor'),
+  server: () => request<Server>('health/server'),
 
   // A test email through the smtp section. The email server's error comes back
   // as it answered.
   testEmail: (dest: string) =>
-    request<{ sentTo: string }>('email/teste', {
+    request<{ sentTo: string }>('email/test', {
       method: 'POST',
       body: JSON.stringify({ to: dest }),
     }),
 
-  days: (cam: string) => request<Dias>('rec/days?cam=' + encodeURIComponent(cam)),
+  days: (cam: string) => request<Days>('rec/days?cam=' + encodeURIComponent(cam)),
 
   timeline: (cam: string, day: string) =>
     request<Timeline>(`rec/timeline?cam=${encodeURIComponent(cam)}&day=${day}`),
@@ -267,35 +267,29 @@ export const api = {
     request<Events>(`rec/events?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`),
 
   // A page of the object detections of all cameras, from newest to oldest.
-  // `antes` and `depois` are the cursor (one or none); null `cams` and
-  // `familias` mean "all".
-  deteccoes: ({ antes: before, depois: after, limite: limit, ...filter }: DetectionsRequest) => {
+  // `before` and `after` are the cursor (one or none); null `cams` and
+  // `families` mean "all".
+  detections: ({ before, after, limit, ...filter }: DetectionsRequest) => {
     const q = filterQuery(filter);
-    if (before != null) q.set('antes', String(before));
-    if (after != null) q.set('depois', String(after));
-    if (limit) q.set('limite', String(limit));
-    return request<DetectionsPage>(`deteccoes?${q}`);
+    if (before != null) q.set('before', String(before));
+    if (after != null) q.set('after', String(after));
+    if (limit) q.set('limit', String(limit));
+    return request<DetectionsPage>(`detections?${q}`);
   },
 
   // The days with at least one detection of the filter, in ascending order, and
   // how many each one has: it is what the Detections screen calendar lets you
   // pick, and the number it shows on each day.
   detectionDays: (filter: DetectionsFilter) =>
-    request<DetectionDays>(`deteccoes/dias?${filterQuery(filter)}`),
+    request<DetectionDays>(`detections/days?${filterQuery(filter)}`),
 };
 
 // The filter that the Detections list and calendar share. Areas restrict only
 // their own camera; the others in `cams` stay whole.
-function filterQuery({
-  cams,
-  familias: families,
-  area,
-  areas,
-  soAlertas: onlyAlerts,
-}: DetectionsFilter) {
+function filterQuery({ cams, families, area, areas, onlyAlerts }: DetectionsFilter) {
   const q = new URLSearchParams();
   if (cams?.length) q.set('cams', cams.join(','));
-  if (families?.length) q.set('familias', families.join(','));
+  if (families?.length) q.set('families', families.join(','));
   if (area) {
     q.set('area', areaInQuery(area));
     q.set('rule', area.rule);
@@ -315,8 +309,8 @@ export const mediaURL = {
   // forever.
   avatar: (id: string) => `api/avatar?id=${encodeURIComponent(id)}`,
   // The JPEG the object detector looked at. `t` is the detection's
-  // `instanteMs`.
-  frame: (cam: string, t: number) => `api/deteccoes/quadro?cam=${encodeURIComponent(cam)}&t=${t}`,
+  // `atMs`.
+  frame: (cam: string, t: number) => `api/detections/frame?cam=${encodeURIComponent(cam)}&t=${t}`,
   export: (cam: string, from: number, to: number) =>
     `api/rec/export?cam=${encodeURIComponent(cam)}&from=${from}&to=${to}`,
   // Live goes to go2rtc through dwnvr's proxy, so that its credential never
@@ -531,9 +525,9 @@ export type BoundsMap = Partial<Record<FieldWithBounds, Bounds>>;
 // What is in go2rtc.yaml and go2rtc has not loaded yet. An empty list is not
 // sent.
 export interface Go2rtcDrift {
-  novas?: string[];
-  alteradas?: string[];
-  foraDoArquivo?: string[];
+  added?: string[];
+  changed?: string[];
+  notInFile?: string[];
 }
 
 // The viewer receives only `cameras` and `detector`; the rest is the admin's,
@@ -541,8 +535,8 @@ export interface Go2rtcDrift {
 export interface CamerasResponse {
   cameras: RegisteredCamera[];
   detector: boolean;
-  padrao?: Camera;
-  faixas?: BoundsMap;
+  defaults?: Camera;
+  ranges?: BoundsMap;
   orphans?: Orphan[];
   streams?: Stream[];
   go2rtcError?: string;
@@ -562,29 +556,29 @@ export interface EmailAlert {
   smtpError?: string;
 }
 
-// `erro` comes when the probe failed: then `hasAudio` is "don't know", not
+// `error` comes when the probe failed: then `hasAudio` is "don't know", not
 // "doesn't have".
 export interface Probe {
   name: string;
   hasAudio: boolean;
   audioCodecs?: string[];
   probed?: boolean;
-  erro?: string;
+  error?: string;
 }
 
 // --- health
 
-// The slices add up to the camera's `onsets`. `pedacos` is not a slice: it is
+// The slices add up to the camera's `onsets`. `clips` is not a slice: it is
 // how many onsets had the video cut and offered to the queue.
 export interface Funnel {
-  pedacos: number;
-  semVideo: number;
-  descartados: number;
-  falhas: number;
-  recusados: number;
-  semObjeto: number;
-  comObjeto: number;
-  naFila: number;
+  clips: number;
+  noVideo: number;
+  dropped: number;
+  failed: number;
+  rejected: number;
+  noObject: number;
+  withObject: number;
+  queued: number;
 }
 
 // A camera from /api/health. A disabled camera comes without `audio`.
@@ -616,7 +610,7 @@ export interface HealthCamera {
   recordedMs?: number;
   detect: boolean;
   onsets: number;
-  funil?: Funnel;
+  funnel?: Funnel;
   quotaMB: number;
   diskBytes: number;
   retainDays: number;
@@ -647,15 +641,15 @@ export interface Clock {
 // The object detector queue, a single one for all cameras. `cameras` carries
 // only the cameras with something waiting or being inferred.
 export interface Detector {
-  fila: {
-    agora: number;
+  queue: {
+    length: number;
     cap: number;
-    pico: number;
-    porCamera: number;
-    cameras: Record<string, { esperando: number; olhando: boolean }>;
+    peak: number;
+    perCamera: number;
+    cameras: Record<string, { waiting: number; busy: boolean }>;
   };
-  tempos: { analiseMs: number; esperaMs: number };
-  foraDoAr?: { desde: string; erro: string };
+  times: { inferenceMs: number; waitMs: number };
+  outage?: { since: string; error: string };
 }
 
 // `disk` disappears when storage does not answer; `detector`, without a
@@ -729,86 +723,86 @@ export interface Pressure {
   full?: PressureAverages;
 }
 
-export type PressureResource = 'cpu' | 'memoria' | 'io';
+export type PressureResource = 'cpu' | 'memory' | 'io';
 
 export interface ServerProcess {
   cpuMs?: number;
-  vivoMs: number;
-  memoriaBytes?: number;
+  aliveMs: number;
+  memoryBytes?: number;
   goroutines: number;
-  arquivosAbertos?: number;
-  limiteDeArquivos?: number;
+  openFiles?: number;
+  fileLimit?: number;
   uid?: number;
   gid?: number;
   go: string;
-  arquitetura: string;
+  architecture: string;
 }
 
 export interface LogLine {
   em: string;
-  nivel: string;
-  texto: string;
+  level: string;
+  text: string;
 }
 
-// `coletadoEm` and `processo` are optional because a server older than them
+// `collectedAt` and `process` are optional because a server older than them
 // does not send them: the `npm run dev` screen may be pointed at one.
 export interface Server {
-  coletadoEm?: { em: string; sigla: string; offsetSeconds: number; zona?: string };
-  maquina: {
-    placa?: string;
-    processador?: string;
+  collectedAt?: { at: string; abbreviation: string; offsetSeconds: number; zone?: string };
+  machine: {
+    board?: string;
+    processor?: string;
     kernel?: string;
-    nucleos: number;
-    nucleosLiberados?: number;
-    carga?: number[];
-    sensores?: { nome: string; celsius: number }[];
+    cores: number;
+    allowedCores?: number;
+    load?: number[];
+    sensors?: { name: string; celsius: number }[];
     mhz?: number;
     mhzMax?: number;
     governor?: string;
   };
-  processo?: ServerProcess;
-  memoria?: {
+  process?: ServerProcess;
+  memory?: {
     totalBytes: number;
-    disponivelBytes: number;
+    availableBytes: number;
     swapTotalBytes: number;
-    swapUsadaBytes: number;
-    limiteBytes?: number;
+    swapUsedBytes: number;
+    limitBytes?: number;
     oomKills?: number;
   };
-  pressao?: Partial<Record<PressureResource, Pressure>>;
+  pressure?: Partial<Record<PressureResource, Pressure>>;
   storage: {
-    caminho: string;
-    tipo?: string;
-    origem?: string;
-    opcoes?: string;
-    somenteLeitura: boolean;
-    escrita: { ok: boolean; ms: number; erro?: string };
+    path: string;
+    type?: string;
+    origin?: string;
+    options?: string;
+    readOnly: boolean;
+    write: { ok: boolean; ms: number; error?: string };
   };
-  go2rtc: { ok: boolean; ms: number; versao?: string; erro?: string; url?: string };
+  go2rtc: { ok: boolean; ms: number; version?: string; error?: string; url?: string };
   detector?: {
     ok: boolean;
     ms: number;
-    modelo?: string;
-    entrada?: string;
+    model?: string;
+    entry?: string;
     threads?: number;
-    erro?: string;
+    error?: string;
     url: string;
   };
   // Only with the smtp section in dwnvr.yaml; without the login and the
   // password. `error` is the reason email is off.
   smtp?: { host?: string; port?: number; security?: string; from?: string; error?: string };
-  // Only with an alert notifier and some camera with alerts on. `ultimo`
-  // disappears before the first send, and `erro` when the last send worked.
-  alertas?: AlertNotifier[];
-  log?: { total: number; linhas: LogLine[] };
+  // Only with an alert notifier and some camera with alerts on. `last`
+  // disappears before the first send, and `error` when the last send worked.
+  alerts?: AlertNotifier[];
+  log?: { total: number; lines: LogLine[] };
 }
 
 export interface AlertNotifier {
-  nome: string;
-  enviados: number;
-  falhas: number;
-  ultimo?: string;
-  erro?: string;
+  name: string;
+  sent: number;
+  failures: number;
+  last?: string;
+  error?: string;
 }
 
 // --- recordings
@@ -822,7 +816,7 @@ export interface DaySummary {
   durMs: number;
 }
 
-export interface Dias {
+export interface Days {
   cam: string;
   days: DaySummary[];
 }
@@ -846,15 +840,15 @@ export interface Timeline {
 // X1, Y1, X2, Y2 as a fraction of the image, from 0 to 1.
 export type Box = [x1: number, y1: number, x2: number, y2: number];
 
-// An object mark. `quadroMs` and `caixa` say where to draw the object over the
+// An object mark. `frameMs` and `box` say where to draw the object over the
 // video; a mark without both gets no box.
 export interface MarkedObject {
-  instanteMs: number;
-  familia: string;
-  classe: string;
+  atMs: number;
+  family: string;
+  class: string;
   score: number;
-  quadroMs?: number;
-  caixa?: Box;
+  frameMs?: number;
+  box?: Box;
 }
 
 export interface Events {
@@ -862,16 +856,16 @@ export interface Events {
   from: number;
   to: number;
   onsets: number[];
-  objetos: MarkedObject[];
+  objects: MarkedObject[];
 }
 
 // --- detections
 
 export interface ObjectInFrame {
-  familia: string;
-  classe: string;
+  family: string;
+  class: string;
   score: number;
-  caixa?: Box;
+  box?: Box;
   // The object passed the camera's alert rule, at the time it was inferred, and
   // fell into the alert areas with these ids. Without areas in the alert,
   // `alertAreas` is not sent. The id of an area deleted since then keeps
@@ -884,21 +878,21 @@ export interface ObjectInFrame {
 // found in that frame.
 export interface Detection {
   cam: string;
-  instanteMs: number;
-  quadroMs?: number;
-  temQuadro: boolean;
-  objetos: ObjectInFrame[];
+  atMs: number;
+  frameMs?: number;
+  hasFrame: boolean;
+  objects: ObjectInFrame[];
 }
 
 export interface DetectionsPage {
-  deteccoes: Detection[];
-  fim: boolean;
+  detections: Detection[];
+  end: boolean;
 }
 
 // Null or absent means "all".
 export interface DetectionsFilter {
   cams?: readonly string[] | null;
-  familias?: readonly string[] | null;
+  families?: readonly string[] | null;
   // On this area's camera, only the objects inside it. The other cameras do not
   // change.
   area?: FilterArea | null;
@@ -907,18 +901,18 @@ export interface DetectionsFilter {
   areas?: readonly string[] | null;
   // Only the detections where some object that stays raised an alert; they come
   // whole, including the object that did not alert.
-  soAlertas?: boolean;
+  onlyAlerts?: boolean;
 }
 
-// `antes` and `depois` are the cursor: one or none.
+// `before` and `after` are the cursor: one or none.
 export interface DetectionsRequest extends DetectionsFilter {
-  antes?: number | null;
-  depois?: number | null;
-  limite?: number;
+  before?: number | null;
+  after?: number | null;
+  limit?: number;
 }
 
 export interface DetectionDays {
-  dias: string[];
-  // Day -> how many detections of the filter. Only the days in `dias`.
-  deteccoesPorDia: Record<string, number>;
+  days: string[];
+  // Day -> how many detections of the filter. Only the days in `days`.
+  detectionsPerDay: Record<string, number>;
 }

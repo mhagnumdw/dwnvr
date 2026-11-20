@@ -23,9 +23,9 @@ import (
 // Line is a warning or error already formatted: the message followed by the
 // attributes as key=value, as the TextHandler would write them.
 type Line struct {
-	At    time.Time `json:"em"`
-	Level string    `json:"nivel"`
-	Text  string    `json:"texto"`
+	At    time.Time `json:"at"`
+	Level string    `json:"level"`
+	Text  string    `json:"text"`
 }
 
 // ring is shared by every Handler derived from the same New: each recorder's

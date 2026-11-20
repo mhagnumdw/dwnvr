@@ -28,7 +28,7 @@
     // one.
     background: { tipo: 'imagem' | 'video'; url: string } | null;
     // The boxes of the background detection, only to guide the drawing.
-    boxes?: { caixa: Box; color: string }[];
+    boxes?: { box: Box; color: string }[];
     initial?: { points: Point[]; rule: Rule } | null;
     error?: string;
     // With a string, the name becomes a field, required and different from
@@ -319,7 +319,7 @@
             <text x={cx * stage.w} y={cy * stage.h} class="label">{o.name}</text>
           {/each}
           {#each boxes as c, i (i)}
-            {@const [x1, y1, x2, y2] = c.caixa}
+            {@const [x1, y1, x2, y2] = c.box}
             <rect
               x={x1 * stage.w}
               y={y1 * stage.h}
@@ -329,7 +329,7 @@
               style:stroke={c.color}
             />
             {#if rule === 'foot'}
-              {@const [px, py] = pe(c.caixa)}
+              {@const [px, py] = pe(c.box)}
               <circle cx={px * stage.w} cy={py * stage.h} r="4" style:fill={c.color} />
             {/if}
           {/each}

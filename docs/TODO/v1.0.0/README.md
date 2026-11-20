@@ -4,12 +4,11 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (20/11/2026):** a Etapa 2 (conversão para en-US) está no passo 5, o
-`dwnvr-detect`, na branch `en-us-detect`. O Go (PR #86) e a interface (PR #88)
-já estão em en-US na `main`. Na branch, o `server.py`, o `model/` e o resto da
-pasta estão em en-US, e a instalação de teste já roda a imagem do detector da
-branch. Os nomes que cruzam a fronteira (a env `DETECT_*`, os parâmetros e as
-chaves JSON do `POST /detect`) ficam para o passo seguinte, os contratos.
+**Agora (20/11/2026):** a Etapa 2 (conversão para en-US) está no passo 6, os
+contratos, na parte 1 (a API e a interface), na branch `en-us-api`. Já estão em
+en-US na `main` o Go (PR 86), a interface (PR 88) e o `dwnvr-detect` (PR 89).
+O guia de atualização nasce junto, em
+[docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
 ## Andamento
 
@@ -32,11 +31,16 @@ próxima, em andamento ou concluída, com a data.
   - [x] O `AGENTS.md` com a regra nova de escrita
   - [x] Go, pacote a pacote, sem mudar comportamento: PR #86, em 11/11/2026
   - [x] A interface, sem os textos da tela: PR #88, em 20/11/2026
-  - [ ] O `dwnvr-detect`
+  - [x] O `dwnvr-detect`: PR #89, em 20/11/2026
     - [x] Os nomes e os comentários do `server.py`, `check_pyc.py`, `sitecustomize.py` e `model/export.py`; os arquivos renomeados (`server.py`, `check_pyc.py`, `model/`, `export.py`)
     - [x] A mesma resposta da imagem de antes para o mesmo clipe (57 achados, o quadro em base64 inclusive), e a imagem na instalação de teste
-    - [ ] O PR aberto; falta a revisão e o squash
-  - [ ] Os contratos (API, o que o dwnvr grava, `dwnvr.yaml`, env), em partes, cada uma com a sua seção do guia de atualização aplicada na instalação de teste
+    - [x] O PR mergeado por squash
+  - [ ] Os contratos (API, o que o dwnvr grava, `dwnvr.yaml`, env), em partes, cada uma com a sua seção do guia de atualização aplicada na instalação de teste. Sem aviso para quem não seguiu o guia, sem número de versão nos arquivos e sem compatibilidade nenhuma com o formato antigo (decidido em 20/11/2026)
+    - [ ] Parte 1, a API e a interface: as rotas, os parâmetros, as chaves do JSON, as rotas do hash, as chaves da URL, as chaves do `localStorage` e os ids de coluna do Diagnóstico
+    - [ ] Parte 2, o `dwnvr.yaml`, a env e o contrato com o `dwnvr-detect` (`DETECT_*`, `minScore`, as chaves do `POST /detect`, e `detectMecanismo` e `detectSensibilidade`, que são a mesma chave no yaml, no `cameras.json` e na API)
+    - [ ] Parte 3, os nomes dos arquivos das pessoas (`usuarios.json`, `acessos.json`, `avatares/`)
+    - [ ] Parte 4, os eventos e os quadros gravados (`eventos/`, `quadros/` e as chaves de cada linha); começa pelo backup
+    - [ ] Parte 5, os valores das enumerações (`pessoa`, `veiculo`, `periodico`), que são a mesma constante na API, no `cameras.json`, no yaml e nos eventos
   - [ ] Os `docs/TODO/` abertos revistos com o mantenedor
   - [ ] A documentação, os exemplos, os workflows e o resto
   - [ ] O `README.md` em en-US e o `README.pt-BR.md`

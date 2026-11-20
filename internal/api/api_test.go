@@ -168,12 +168,12 @@ func TestEventsCarriesTheBoxOnlyForMarksThatHaveOne(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.handleEvents(rec, httptest.NewRequest(http.MethodGet, "/api/rec/events?cam=cam_teste&day=2026-08-08", nil))
 	var raw struct {
-		Objects []map[string]json.RawMessage `json:"objetos"`
+		Objects []map[string]json.RawMessage `json:"objects"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil || len(raw.Objects) != 2 {
 		t.Fatalf("response %s (%v)", rec.Body.String(), err)
 	}
-	for _, key := range []string{"quadroMs", "caixa"} {
+	for _, key := range []string{"frameMs", "box"} {
 		if _, has := raw.Objects[0][key]; has {
 			t.Errorf("the mark without a box came out with %q: %s", key, rec.Body.String())
 		}
@@ -582,9 +582,9 @@ func TestValidateCameraDetect(t *testing.T) {
 	}
 }
 
-// The new camera form starts from "padrao", and not from numbers repeated by
+// The new camera form starts from "defaults", and not from numbers repeated by
 // hand in the interface: that is how it follows the defaults in dwnvr.yaml. The
-// "faixas" do the same for the min/max of the inputs.
+// "ranges" do the same for the min/max of the inputs.
 func TestCamerasBringsTheDefault(t *testing.T) {
 	s, _ := testServer(t)
 	s.cfg.Defaults.DetectMethod, s.cfg.Defaults.DetectSensitivity = "periodico", 2
@@ -593,15 +593,15 @@ func TestCamerasBringsTheDefault(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.requireAuth(s.handleCameras)(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
 	var got struct {
-		Default config.Camera                     `json:"padrao"`
-		Tracks  map[string]map[string]json.Number `json:"faixas"`
+		Default config.Camera                     `json:"defaults"`
+		Tracks  map[string]map[string]json.Number `json:"ranges"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("response %s (%v)", rec.Body.String(), err)
 	}
 	p := got.Default
 	if p.Detect == nil || *p.Detect || p.DetectMethod != "periodico" || p.DetectSensitivity != 2 {
-		t.Errorf("padrao %+v: expected detect false, periodico, level 2", p)
+		t.Errorf("defaults %+v: expected detect false, periodico, level 2", p)
 	}
 
 	// The min/max of the inputs comes from here. Without a ceiling, the max
@@ -609,10 +609,10 @@ func TestCamerasBringsTheDefault(t *testing.T) {
 	// zero.
 	seg, quota := got.Tracks["segmentSeconds"], got.Tracks["quotaMB"]
 	if seg["min"] != "10" || seg["max"] != "300" {
-		t.Errorf("faixas.segmentSeconds %v: expected min 10, max 300", seg)
+		t.Errorf("ranges.segmentSeconds %v: expected min 10, max 300", seg)
 	}
 	if _, has := quota["max"]; quota["min"] != "100" || has {
-		t.Errorf("faixas.quotaMB %v: expected min 100 and no max", quota)
+		t.Errorf("ranges.quotaMB %v: expected min 100 and no max", quota)
 	}
 }
 

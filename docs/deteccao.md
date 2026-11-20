@@ -302,7 +302,7 @@ level=INFO msg=alerta cam=portao familias=pessoa objetos=2 areas=Portão
 
 A marca é o que valia na hora: mudar o alerta da câmera não muda o passado. Ela
 fica onde a detecção já fica, com a retenção do vídeo, e se vê em Detecções,
-com o filtro "só alertas" (`alert=1` no `/api/deteccoes`, ver
+com o filtro "só alertas" (`alert=1` no `/api/detections`, ver
 [`api.md`](api.md)). O `/api/health` leva o total desde que o dwnvr subiu e,
 com um meio configurado, o que alimenta os Avisos: o meio falhando e os alertas
 que não saíram.

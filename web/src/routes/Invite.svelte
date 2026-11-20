@@ -1,5 +1,5 @@
 <!--
-  The invite link screen (`#convite?token=…`): whoever received the link sets
+  The invite link screen (`#invite?token=…`): whoever received the link sets
   their own password and is signed in right away. The token stays in the URL
   fragment, which does not leave the browser, and goes to the server in the body
   of a POST.

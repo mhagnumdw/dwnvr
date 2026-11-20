@@ -181,7 +181,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.inviteOnScreen(c))
 }
 
-// handleCheckNew says what POST /api/usuarios would reject with the same body,
+// handleCheckNew says what POST /api/users would reject with the same body,
 // without creating anyone: the screen checks each field when the admin leaves
 // it. It answers 200 with empty "fields" when everything is right.
 func (s *Server) handleCheckNew(w http.ResponseWriter, r *http.Request) {
@@ -249,7 +249,7 @@ func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"user": s.onScreen(u, time.Now())})
 }
 
-// handleCheckEmail says what POST /api/usuarios/email would reject with the
+// handleCheckEmail says what POST /api/users/email would reject with the
 // same body, without changing anything. It answers 200 with empty "fields" when
 // everything is right.
 func (s *Server) handleCheckEmail(w http.ResponseWriter, r *http.Request) {

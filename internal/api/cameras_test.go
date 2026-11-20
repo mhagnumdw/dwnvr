@@ -186,7 +186,7 @@ func withRealDefaults(t *testing.T) *Server {
 }
 
 // getResponse is the admin's GET /api/cameras, with each camera and the
-// `padrao` in generic JSON: the screen edits this object and sends it back
+// `defaults` in generic JSON: the screen edits this object and sends it back
 // whole, and the test does the same, without going through config.Camera.
 func getResponse(t *testing.T, s *Server) (cams map[string]map[string]any, defaults map[string]any) {
 	t.Helper()
@@ -194,7 +194,7 @@ func getResponse(t *testing.T, s *Server) (cams map[string]map[string]any, defau
 	s.requireAuth(s.handleCameras)(rec, httptest.NewRequest(http.MethodGet, "/api/cameras", nil))
 	var got struct {
 		Cameras []map[string]any `json:"cameras"`
-		Default map[string]any   `json:"padrao"`
+		Default map[string]any   `json:"defaults"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("response %s (%v)", rec.Body.String(), err)
@@ -232,7 +232,7 @@ func keys(m map[string]any) []string {
 // The screen edits the camera as the GET shows it, with the defaults already
 // applied, and sends it back whole. Saving without changing anything wrote each
 // default to cameras.json, and changing the defaults in dwnvr.yaml no longer
-// reached the camera. A new camera, which the screen builds from `padrao`, was
+// reached the camera. A new camera, which the screen builds from `defaults`, was
 // written the same way.
 func TestSaveWithoutChangesDoesNotFreezeTheDefaults(t *testing.T) {
 	s := withRealDefaults(t)

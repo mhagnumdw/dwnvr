@@ -81,7 +81,7 @@
       username: r.user.username,
       name: r.user.name,
       email: r.user.email ?? '',
-      url: `${location.origin}${location.pathname}#convite?token=${r.token}`,
+      url: `${location.origin}${location.pathname}#invite?token=${r.token}`,
       // The new link always comes with the deadline; without it, it counts as
       // expired.
       expiresInMs: r.user.inviteExpiresAtMs ?? 0,
@@ -443,7 +443,7 @@
             {/if}
           </div>
           {#if you === data.owner.username}
-            <a class="small" href="#conta">Minha conta</a>
+            <a class="small" href="#account">Minha conta</a>
           {:else}
             <span class="muted small">do dwnvr.yaml</span>
           {/if}

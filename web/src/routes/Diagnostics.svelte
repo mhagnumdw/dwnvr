@@ -57,7 +57,7 @@
 
   // Camera with the object detector funnel, which only comes when the detector
   // is configured.
-  type WithFunnel = HealthCamera & { funil: Funnel };
+  type WithFunnel = HealthCamera & { funnel: Funnel };
 
   // The viewer sees only "Este navegador" and the version: server health
   // belongs to the admin, and the viewer's screen does not even request it. The
@@ -142,25 +142,25 @@
       help: 'Taxa de bits que está chegando da câmera agora, medida no fluxo gravado.',
     },
     {
-      id: 'disco',
+      id: 'disk',
       label: 'disco',
       value: (c) => c.diskBytes || 0,
       help: 'Espaço que as gravações desta câmera ocupam hoje, somando todos os dias em disco, e a cota configurada para ela.',
     },
     {
-      id: 'retido',
+      id: 'retained',
       label: 'retido',
       value: (c) => retainedMs(c),
       help: HELP_RETAINED,
     },
     {
-      id: 'cabem',
+      id: 'fit',
       label: 'cabem',
       value: (c) => c.retainDays || 0,
       help: HELP_FIT,
     },
     {
-      id: 'reconex',
+      id: 'reconnects',
       label: 'reconex.',
       value: (c) => c.reconnects || 0,
       help: 'Quantas vezes o dwnvr precisou reabrir a conexão desde o início da contagem: a subida do dwnvr, ou o último zerar. Número alto indica enlace instável com a câmera.',
@@ -379,7 +379,7 @@
     }
   });
   const serverLog = $derived(server?.log);
-  const serverCollected = $derived(server ? collectedAt(server.coletadoEm) : '');
+  const serverCollected = $derived(server ? collectedAt(server.collectedAt) : '');
 
   // "Copy" carries the time of the collection, not the time the button was
   // tapped: the text describes that read. The non-breaking spaces in the
@@ -390,10 +390,10 @@
       `dwnvr ${build.version || '?'} - diagnóstico do servidor`,
       collected || new Date().toString(),
     ];
-    const log = serverLog?.linhas.length
+    const log = serverLog?.lines.length
       ? [
-          `[Últimos avisos e erros do log: ${serverLog.linhas.length} de ${serverLog.total}]`,
-          ...serverLog.linhas.map(logLine),
+          `[Últimos avisos e erros do log: ${serverLog.lines.length} de ${serverLog.total}]`,
+          ...serverLog.lines.map(logLine),
         ]
       : [];
     return asText(serverGroups, header, log);
@@ -405,10 +405,12 @@
   // ---- object recognition ----------------------------------------
   //
   // The design is a funnel, built on the numbers the server provides: each
-  // camera's `funil`, counted since dwnvr started. A camera without a detector
+  // camera's `funnel`, counted since dwnvr started. A camera without a detector
   // does not send the field, and when no camera has it the whole section
   // disappears, instead of showing up zeroed and looking like a defect.
-  const withFunnel = $derived(health.cameras.filter((c): c is WithFunnel => c.funil !== undefined));
+  const withFunnel = $derived(
+    health.cameras.filter((c): c is WithFunnel => c.funnel !== undefined),
+  );
   // The queue, which is a single one for all cameras, and the times of the
   // latest inferences. It disappears together with the detector.
   const detector = $derived(health.detector);
@@ -420,10 +422,10 @@
     dropped: number;
     inferred: number;
     object: number;
-    esperando: number;
-    semVideo: number;
-    recusados: number;
-    falhas: number;
+    waiting: number;
+    noVideo: number;
+    rejected: number;
+    failed: number;
   }
 
   const OUTCOME_KEYS = [
@@ -431,23 +433,23 @@
     'dropped',
     'inferred',
     'object',
-    'esperando',
-    'semVideo',
-    'recusados',
-    'falhas',
+    'waiting',
+    'noVideo',
+    'rejected',
+    'failed',
   ] as const satisfies readonly (keyof Outcomes)[];
 
   function outcomesOf(c: WithFunnel): Outcomes {
-    const f = c.funil;
+    const f = c.funnel;
     return {
       total: c.onsets,
-      dropped: f.descartados,
-      inferred: f.semObjeto,
-      object: f.comObjeto,
-      esperando: f.naFila,
-      semVideo: f.semVideo,
-      recusados: f.recusados,
-      falhas: f.falhas,
+      dropped: f.dropped,
+      inferred: f.noObject,
+      object: f.withObject,
+      waiting: f.queued,
+      noVideo: f.noVideo,
+      rejected: f.rejected,
+      failed: f.failed,
     };
   }
 
@@ -472,7 +474,7 @@
   // state of right now, and goes from 0 to 1 and back every few seconds -
   // appearing and disappearing, the whole legend would jump.
   interface Outcome {
-    id: Exclude<keyof Outcomes, 'total' | 'semVideo' | 'recusados' | 'falhas'> | 'lost';
+    id: Exclude<keyof Outcomes, 'total' | 'noVideo' | 'rejected' | 'failed'> | 'lost';
     color: string;
     dark: boolean;
     label: string;
@@ -499,7 +501,7 @@
     // neither the queue chip nor the dots in the table, which count only the
     // ones waiting their turn.
     {
-      id: 'esperando',
+      id: 'waiting',
       color: 'var(--dim)',
       dark: true,
       label: 'em andamento',
@@ -538,10 +540,10 @@
       dropped: 0,
       inferred: 0,
       object: 0,
-      esperando: 0,
-      semVideo: 0,
-      recusados: 0,
-      falhas: 0,
+      waiting: 0,
+      noVideo: 0,
+      rejected: 0,
+      failed: 0,
     };
     for (const c of withFunnel) {
       const d = outcomesOf(c);
@@ -552,7 +554,7 @@
 
   const funnel = $derived.by(() => {
     if (!sum.total) return null;
-    const lostCount = sum.semVideo + sum.recusados + sum.falhas;
+    const lostCount = sum.noVideo + sum.rejected + sum.failed;
     const amounts = { ...sum, lost: lostCount };
     // Only what exists goes in the bar. In the legend too, except what is
     // `always`: a legend entry for a piece that was not drawn sends the reader
@@ -568,9 +570,9 @@
   // "não analisadas" stops being a single lump.
   const unanalyzed = $derived(
     [
-      { n: sum.semVideo, texto: 'sem vídeo inteiro para mandar, logo depois de conectar' },
-      { n: sum.recusados, texto: 'vídeo corrompido vindo da câmera' },
-      { n: sum.falhas, texto: 'o detector não respondeu' },
+      { n: sum.noVideo, texto: 'sem vídeo inteiro para mandar, logo depois de conectar' },
+      { n: sum.rejected, texto: 'vídeo corrompido vindo da câmera' },
+      { n: sum.failed, texto: 'o detector não respondeu' },
     ].filter((x) => x.n > 0),
   );
 
@@ -583,46 +585,46 @@
   // hit rate, and without a value the sorting would throw it anywhere. -1 puts
   // "sem dado" before everyone else in ascending order.
   const detColumns: Columns<DetRow> = [
-    { id: 'nome', label: 'câmera', value: (c) => c.nome, texto: true },
+    { id: 'name', label: 'câmera', value: (c) => c.nome, texto: true },
     {
-      id: 'olhadas',
+      id: 'inferences',
       label: 'olhadas',
       value: (c) => c.inferences,
       help: 'Marcas de movimento desta câmera que o detector olhou, desde que o dwnvr subiu.',
     },
     {
-      id: 'objeto',
+      id: 'object',
       label: 'com objeto',
       value: (c) => c.object,
       help: 'Destas, quantas viraram marca de pessoa, veículo ou animal na timeline.',
     },
     {
-      id: 'acerto',
+      id: 'hitRate',
       label: 'acerto',
       value: (c) => c.hit ?? -1,
       help: 'A fatia das olhadas que achou algo. Perto de 100% costuma ser cena parada com objeto fixo no quadro, e não qualidade.',
     },
     {
-      id: 'descartadas',
+      id: 'dropped',
       label: 'descartadas',
       value: (c) => c.dropped,
       help: 'Marcas que chegaram com esta câmera já com o limite dela esperando na fila. Foram descartadas: não vão ao detector nem depois, e ficam só como movimento na timeline. É o freio que impede uma câmera agitada de tomar a vez das outras - ela só perde o que é dela.',
     },
     {
-      id: 'perdidas',
+      id: 'lost',
       label: 'perdidas',
       value: (c) => c.lostCount,
       help: 'Marcas que ficaram sem resposta: sem vídeo inteiro para mandar, vídeo corrompido vindo da câmera, ou o detector que não respondeu.',
     },
     {
-      id: 'fila',
+      id: 'queue',
       label: 'na fila',
       // Whoever waits the most comes first; processing breaks ties.
-      value: (c) => c.fila.esperando * 2 + (c.fila.olhando ? 1 : 0),
+      value: (c) => c.fila.waiting * 2 + (c.fila.busy ? 1 : 0),
       // A getter, and not fixed text: the number of slots comes from the
       // server, and the header rereads the hint when it arrives.
       get help() {
-        const n = detector?.fila.porCamera ?? 2;
+        const n = detector?.queue.perCamera ?? 2;
         return `Os lugares desta câmera na fila: até ${n} marcas esperando a vez (cinza). Com os ${n} ocupados (âmbar), a próxima marca desta câmera é descartada e fica só como movimento na timeline. O ponto azul, à parte, é a câmera cuja imagem o detector está processando agora - essa marca já saiu da fila.`;
       },
     },
@@ -632,13 +634,13 @@
   // independently, and sharing `sort` would make one affect the other.
   const urlSortDet = params.get('dsort');
   let detOrder = $state<Order>({
-    col: urlSortDet !== null && detColumns.some((c) => c.id === urlSortDet) ? urlSortDet : 'nome',
+    col: urlSortDet !== null && detColumns.some((c) => c.id === urlSortDet) ? urlSortDet : 'name',
     asc: params.get('ddir') !== 'desc',
   });
 
   $effect(() => {
     write({
-      dsort: detOrder.col === 'nome' ? null : detOrder.col,
+      dsort: detOrder.col === 'name' ? null : detOrder.col,
       ddir: detOrder.asc ? null : 'desc',
     });
   });
@@ -653,12 +655,12 @@
   // queue, so it does not take a slot - it goes separately. A camera not in
   // `cameras` has nothing.
   function queueOf(id: string) {
-    const n = detector?.fila.porCamera ?? 0;
-    const l = detector?.fila.cameras[id] ?? { esperando: 0, olhando: false };
-    const slots = Array.from({ length: Math.max(n, l.esperando) }, (_, i) =>
-      i < l.esperando ? 'waiting' : 'free',
+    const n = detector?.queue.perCamera ?? 0;
+    const l = detector?.queue.cameras[id] ?? { waiting: 0, busy: false };
+    const slots = Array.from({ length: Math.max(n, l.waiting) }, (_, i) =>
+      i < l.waiting ? 'waiting' : 'free',
     );
-    return { ...l, slots, full: n > 0 && l.esperando >= n };
+    return { ...l, slots, full: n > 0 && l.waiting >= n };
   }
 
   // One row of the detection table.
@@ -670,7 +672,7 @@
       nome: c.name || c.id,
       ...d,
       inferences,
-      lostCount: d.semVideo + d.recusados + d.falhas,
+      lostCount: d.noVideo + d.rejected + d.failed,
       hit: inferences ? Math.round((d.object / inferences) * 100) : null,
       fila: queueOf(c.id),
       enabled: c.detect,
@@ -953,20 +955,20 @@
                the number alone does not say whether it is a lot or a little for
                this camera. -->
           <span class="mono"
-            >{@render label(columns, order, 'disco')}<span class="whole">{bytes(c.diskBytes)}</span>
+            >{@render label(columns, order, 'disk')}<span class="whole">{bytes(c.diskBytes)}</span>
             de <span class="whole">{mbToBytes(c.quotaMB)}</span></span
           >
           <!-- The recorded amount goes on its own line, and only with a gap: on
                a camera without failures the cell stays as it always was, and
                the extra line is itself the sign that something was missing. -->
           <span class="mono" title={sinceTitle(c)}>
-            {@render label(columns, order, 'retido')}{duration(retainedMs(c))}
+            {@render label(columns, order, 'retained')}{duration(retainedMs(c))}
             {#if recordedWithGap(retainedMs(c), c.recordedMs)}
               <br /><span class="muted small">{duration(c.recordedMs)} grav.</span>
             {/if}
           </span>
-          <span class="mono">{@render label(columns, order, 'cabem')}{dias(c.retainDays)}</span>
-          <span class="mono">{@render label(columns, order, 'reconex')}{c.reconnects}</span>
+          <span class="mono">{@render label(columns, order, 'fit')}{dias(c.retainDays)}</span>
+          <span class="mono">{@render label(columns, order, 'reconnects')}{c.reconnects}</span>
         </div>
       {/each}
       {#if !health.cameras.length}
@@ -1005,16 +1007,16 @@
             {#if detector}
               <span
                 class="chip mono"
-                title="marcas esperando a vez agora, e o teto: {detector.fila
-                  .porCamera} por câmera com detecção ligada"
+                title="marcas esperando a vez agora, e o teto: {detector.queue
+                  .perCamera} por câmera com detecção ligada"
               >
-                fila {detector.fila.agora}/{detector.fila.cap}
+                fila {detector.queue.length}/{detector.queue.cap}
               </span>
               <span
                 class="chip mono"
                 title="o maior tamanho que a fila já teve desde que o dwnvr subiu"
               >
-                pico {detector.fila.pico}
+                pico {detector.queue.peak}
               </span>
             {/if}
           </div>
@@ -1060,13 +1062,12 @@
                    that is the one that grows when the device cannot keep up.
                    Zero means "ainda não olhou nenhuma", and a "0,0s" there
                    would say it is instantaneous. -->
-              {#if detector?.tempos.analiseMs}
+              {#if detector?.times.inferenceMs}
                 <span
-                  >analisar leva <b class="mono">{segundos(detector.tempos.analiseMs)}</b> por marca</span
+                  >analisar leva <b class="mono">{segundos(detector.times.inferenceMs)}</b> por marca</span
                 >
                 <span
-                  >espera de cada marca na fila <b class="mono"
-                    >{segundos(detector.tempos.esperaMs)}</b
+                  >espera de cada marca na fila <b class="mono">{segundos(detector.times.waitMs)}</b
                   ></span
                 >
               {/if}
@@ -1118,27 +1119,27 @@
               {:else}
                 <span class="c-disabled row">
                   <span class="name">{c.nome}</span>
-                  <a class="small" href="#cams?editar={encodeURIComponent(c.id)}">ligar</a>
+                  <a class="small" href="#cams?edit={encodeURIComponent(c.id)}">ligar</a>
                 </span>
               {/if}
               <span class="mono" class:zero={!c.inferences}
-                >{@render label(detColumns, detOrder, 'olhadas')}{c.inferences}</span
+                >{@render label(detColumns, detOrder, 'inferences')}{c.inferences}</span
               >
               <span class="mono" class:zero={!c.object}
-                >{@render label(detColumns, detOrder, 'objeto')}{c.object}</span
+                >{@render label(detColumns, detOrder, 'object')}{c.object}</span
               >
               <!-- Almost everything having an object is not a good sign: it is
                    usually a stationary object inside the frame, and then
                    recognition is confirming the same thing over and over
                    instead of warning about something new. -->
               <span class="mono" class:zero={!c.object} class:alert={c.hit !== null && c.hit >= 90}>
-                {@render label(detColumns, detOrder, 'acerto')}{c.hit === null ? '-' : `${c.hit}%`}
+                {@render label(detColumns, detOrder, 'hitRate')}{c.hit === null ? '-' : `${c.hit}%`}
               </span>
               <span class="mono" class:zero={!c.dropped}
-                >{@render label(detColumns, detOrder, 'descartadas')}{c.dropped}</span
+                >{@render label(detColumns, detOrder, 'dropped')}{c.dropped}</span
               >
               <span class="mono" class:zero={!c.lostCount} class:alert={c.lostCount > 0}
-                >{@render label(detColumns, detOrder, 'perdidas')}{c.lostCount}</span
+                >{@render label(detColumns, detOrder, 'lost')}{c.lostCount}</span
               >
               <!-- The camera's slots, and not a number: full or empty reads at
                    a glance. Amber when all are occupied, which is when its next
@@ -1148,7 +1149,7 @@
                    would say it is waiting its turn. -->
               <span class="queue-cell">
                 {#if c.enabled}
-                  {#if c.fila.olhando}
+                  {#if c.fila.busy}
                     <span
                       class="processing"
                       title="o detector está processando uma imagem desta câmera agora"
@@ -1157,7 +1158,7 @@
                   <span
                     class="slots"
                     class:full={c.fila.full}
-                    title="{c.fila.esperando} de {c.fila.slots.length} lugares ocupados"
+                    title="{c.fila.waiting} de {c.fila.slots.length} lugares ocupados"
                   >
                     {#each c.fila.slots as l, i (i)}<span class="slot {l}"></span>{/each}
                   </span>
@@ -1209,12 +1210,12 @@
         <section class="log">
           <p class="title muted">
             Últimos avisos e erros do log
-            {#if serverLog.total > serverLog.linhas.length}({serverLog.linhas.length} de {serverLog.total}){/if}
+            {#if serverLog.total > serverLog.lines.length}({serverLog.lines.length} de {serverLog.total}){/if}
           </p>
-          {#if serverLog.linhas.length}
+          {#if serverLog.lines.length}
             <ol class="mono small">
-              {#each serverLog.linhas as l, i (i)}
-                <li class:error={l.nivel === 'ERROR'}>{logLine(l)}</li>
+              {#each serverLog.lines as l, i (i)}
+                <li class:error={l.level === 'ERROR'}>{logLine(l)}</li>
               {/each}
             </ol>
           {:else}

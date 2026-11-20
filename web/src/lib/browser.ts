@@ -124,7 +124,7 @@ function supports(mime: string) {
 // browsers, zeroed quota, blocked site data. Only a write proves it.
 function storageOk() {
   try {
-    const k = 'dwnvr.diag.teste';
+    const k = 'dwnvr.diag.test';
     localStorage.setItem(k, '1');
     localStorage.removeItem(k);
     return true;

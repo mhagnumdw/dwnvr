@@ -126,7 +126,7 @@ func (s *Server) handleProbeStream(w http.ResponseWriter, r *http.Request) {
 		// instead of lying that the camera has no microphone. Hence the 200 with
 		// the reason attached, and nothing stored in the cache.
 		s.log.Warn("probing stream audio", "stream", name, "err", err)
-		resp["erro"] = err.Error()
+		resp["error"] = err.Error()
 		writeJSON(w, resp)
 		return
 	}

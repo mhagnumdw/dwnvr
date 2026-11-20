@@ -81,18 +81,18 @@ type QueueState struct {
 		// inferred; Peak, the largest Length since dwnvr started. Cap is the
 		// ceiling, ClipsPerCamera times the cameras with detection - the
 		// Manager knows how many there are, and it fills it in.
-		Length int `json:"agora"`
+		Length int `json:"length"`
 		Cap    int `json:"cap"`
-		Peak   int `json:"pico"`
+		Peak   int `json:"peak"`
 		// PerCamera is ClipsPerCamera: how many clips a camera can have
 		// waiting their turn. With every slot taken, its next mark is
 		// dropped.
-		PerCamera int `json:"porCamera"`
+		PerCamera int `json:"perCamera"`
 		// Cameras says, for the cameras with something in the queue or being
 		// inferred now, how many clips are waiting their turn and whether one
 		// is being inferred. A camera not in here has nothing in either.
 		Cameras map[string]QueuedCamera `json:"cameras"`
-	} `json:"fila"`
+	} `json:"queue"`
 	Times struct {
 		// InferenceMs is how long an inference takes in the object detector;
 		// WaitMs, how long the clip waited its turn before it. Averages of the
@@ -100,28 +100,28 @@ type QueueState struct {
 		// inference time only counts the inferences the object detector
 		// answered: one that timed out says it went down, not how long it
 		// takes.
-		InferenceMs int64 `json:"analiseMs"`
-		WaitMs      int64 `json:"esperaMs"`
-	} `json:"tempos"`
+		InferenceMs int64 `json:"inferenceMs"`
+		WaitMs      int64 `json:"waitMs"`
+	} `json:"times"`
 	// Outage is only present while the object detector doesn't answer. It's
 	// the Diagnostics screen warning: with it down, the cameras keep
 	// recording and marking motion, and the missing object marks wouldn't be
 	// noticed any other way.
-	Outage *Outage `json:"foraDoAr,omitempty"`
+	Outage *Outage `json:"outage,omitempty"`
 }
 
 // Outage is since when the object detector hasn't answered, and why.
 type Outage struct {
-	Since time.Time `json:"desde"`
-	Err   string    `json:"erro"`
+	Since time.Time `json:"since"`
+	Err   string    `json:"error"`
 }
 
 // QueuedCamera is what a camera has in the queue now. Waiting never goes above
 // ClipsPerCamera; Busy is separate, because the clip the object detector is
 // processing has already left the queue.
 type QueuedCamera struct {
-	Waiting int  `json:"esperando"`
-	Busy    bool `json:"olhando"`
+	Waiting int  `json:"waiting"`
+	Busy    bool `json:"busy"`
 }
 
 // rollingAvg is the average of the last InferencesInAverage durations.

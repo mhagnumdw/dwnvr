@@ -135,26 +135,26 @@ func (s *Server) Handler() http.Handler {
 
 	// Invite link: public, because whoever opens it has no password yet. The
 	// token comes in the body, and it alone gives access.
-	mux.HandleFunc("POST /api/convite/conferir", s.handleCheckInvite)
-	mux.HandleFunc("POST /api/convite", s.handleInvite)
+	mux.HandleFunc("POST /api/invite/check", s.handleCheckInvite)
+	mux.HandleFunc("POST /api/invite", s.handleInvite)
 
 	// Users: the screen belongs to the admin.
-	mux.HandleFunc("GET /api/usuarios", s.requireAdmin(s.handleUsers))
-	mux.HandleFunc("POST /api/usuarios", s.requireAdmin(s.handleCreateUser))
-	mux.HandleFunc("POST /api/usuarios/conferir", s.requireAdmin(s.handleCheckNew))
-	mux.HandleFunc("POST /api/usuarios/link", s.requireAdmin(s.handleNewLink))
-	mux.HandleFunc("POST /api/usuarios/link/email", s.requireAdmin(s.handleSendLink))
-	mux.HandleFunc("POST /api/usuarios/email", s.requireAdmin(s.handleChangeEmail))
-	mux.HandleFunc("POST /api/usuarios/email/conferir", s.requireAdmin(s.handleCheckEmail))
-	mux.HandleFunc("DELETE /api/usuarios", s.requireAdmin(s.handleRemoveUser))
-	mux.HandleFunc("DELETE /api/usuarios/avatar", s.requireAdmin(s.handleRemoveAvatarOf))
+	mux.HandleFunc("GET /api/users", s.requireAdmin(s.handleUsers))
+	mux.HandleFunc("POST /api/users", s.requireAdmin(s.handleCreateUser))
+	mux.HandleFunc("POST /api/users/check", s.requireAdmin(s.handleCheckNew))
+	mux.HandleFunc("POST /api/users/link", s.requireAdmin(s.handleNewLink))
+	mux.HandleFunc("POST /api/users/link/email", s.requireAdmin(s.handleSendLink))
+	mux.HandleFunc("POST /api/users/email", s.requireAdmin(s.handleChangeEmail))
+	mux.HandleFunc("POST /api/users/email/check", s.requireAdmin(s.handleCheckEmail))
+	mux.HandleFunc("DELETE /api/users", s.requireAdmin(s.handleRemoveUser))
+	mux.HandleFunc("DELETE /api/users/avatar", s.requireAdmin(s.handleRemoveAvatarOf))
 
 	// My account: each person changes what is theirs, in any role.
-	mux.HandleFunc("GET /api/conta", s.requireAuth(s.handleAccount))
-	mux.HandleFunc("POST /api/conta/senha", s.requireAuth(s.handleChangePassword))
-	mux.HandleFunc("POST /api/conta/nome", s.requireAuth(s.handleChangeName))
-	mux.HandleFunc("PUT /api/conta/avatar", s.requireAuth(s.handleChangeAvatar))
-	mux.HandleFunc("DELETE /api/conta/avatar", s.requireAuth(s.handleRemoveAvatar))
+	mux.HandleFunc("GET /api/account", s.requireAuth(s.handleAccount))
+	mux.HandleFunc("POST /api/account/password", s.requireAuth(s.handleChangePassword))
+	mux.HandleFunc("POST /api/account/name", s.requireAuth(s.handleChangeName))
+	mux.HandleFunc("PUT /api/account/avatar", s.requireAuth(s.handleChangeAvatar))
+	mux.HandleFunc("DELETE /api/account/avatar", s.requireAuth(s.handleRemoveAvatar))
 	mux.HandleFunc("GET /api/avatar", s.requireAuth(s.handleAvatar))
 
 	// Version stays outside authentication for the same reason as the login
@@ -173,8 +173,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/go2rtc/restart", s.requireAdmin(s.handleRestartGo2rtc))
 	mux.HandleFunc("GET /api/health", s.requireAdmin(s.handleHealth))
 	mux.HandleFunc("POST /api/reconnects/reset", s.requireAdmin(s.handleResetReconnects))
-	mux.HandleFunc("GET /api/health/servidor", s.requireAdmin(s.handleServerDiagnostics))
-	mux.HandleFunc("POST /api/email/teste", s.requireAdmin(s.handleEmailTest))
+	mux.HandleFunc("GET /api/health/server", s.requireAdmin(s.handleServerDiagnostics))
+	mux.HandleFunc("POST /api/email/test", s.requireAdmin(s.handleEmailTest))
 	mux.HandleFunc("DELETE /api/rec", s.requireAdmin(s.handleDeleteRecordings))
 
 	// Recordings
@@ -188,9 +188,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/rec/export", s.requireAuth(s.handleExport))
 
 	// Object detections, from all cameras together: the Detections screen.
-	mux.HandleFunc("GET /api/deteccoes", s.requireAuth(s.handleDetections))
-	mux.HandleFunc("GET /api/deteccoes/quadro", s.requireAuth(s.handleDetectionFrame))
-	mux.HandleFunc("GET /api/deteccoes/dias", s.requireAuth(s.handleDetectionDays))
+	mux.HandleFunc("GET /api/detections", s.requireAuth(s.handleDetections))
+	mux.HandleFunc("GET /api/detections/frame", s.requireAuth(s.handleDetectionFrame))
+	mux.HandleFunc("GET /api/detections/days", s.requireAuth(s.handleDetectionDays))
 
 	// Live: signaling and media stay with go2rtc; dwnvr only proxies the
 	// player's websocket, and the rest of the go2rtc API stays out.
@@ -245,12 +245,12 @@ func (s *Server) handleCameras(w http.ResponseWriter, r *http.Request) {
 		Transcoding bool     `json:"transcoding"`
 	}
 
-	// "padrao" is an empty camera with the defaults applied: the new camera
-	// form starts from it, to follow the defaults of dwnvr.yaml. "faixas" gives
+	// "defaults" is an empty camera with the defaults applied: the new camera
+	// form starts from it, to follow the defaults of dwnvr.yaml. "ranges" gives
 	// the min/max of the inputs, so the screen enforces the same rule as the
 	// API.
-	resp := map[string]any{"cameras": cams, "padrao": s.cfg.Resolve(config.Camera{}),
-		"faixas": config.CameraRanges}
+	resp := map[string]any{"cameras": cams, "defaults": s.cfg.Resolve(config.Camera{}),
+		"ranges": config.CameraRanges}
 
 	// The interface only shows the Detections tab with the object detector
 	// configured: without it there is no detection at all to list. It goes
@@ -349,7 +349,7 @@ func (s *Server) handleRestartGo2rtc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.log.Info("go2rtc restarted from the interface")
-	writeJSON(w, map[string]bool{"reiniciado": true})
+	writeJSON(w, map[string]bool{"restarted": true})
 }
 
 // handleResetReconnects restarts the reconnect count of all cameras. It drops
@@ -357,7 +357,7 @@ func (s *Server) handleRestartGo2rtc(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleResetReconnects(w http.ResponseWriter, r *http.Request) {
 	s.mgr.ResetReconnects()
 	s.log.Info("reconnects reset from the interface")
-	writeJSON(w, map[string]bool{"zeradas": true})
+	writeJSON(w, map[string]bool{"reset": true})
 }
 
 // handleVersion says which code is running.

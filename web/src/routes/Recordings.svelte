@@ -90,19 +90,19 @@
   // timeline request on purpose: the blue bar is what the screen exists to
   // show, and a failure reading the marks must not leave it undrawn.
   let events = $state<number[]>([]);
-  // The day's object marks, from the same request: [{ instanteMs, familia,
-  // classe, score }, …].
+  // The day's object marks, from the same request: [{ atMs, family,
+  // class, score }, …].
   let objects = $state<MarkedObject[]>([]);
   let loading = $state(false);
   let error = $state('');
   // Thumbnails are a matter of taste of whoever uses the device, like the
   // export duration: in localStorage, and on until someone turns them off.
-  let showThumbs = $state(localStorage.getItem('dwnvr.rec.miniaturas') !== '0');
+  let showThumbs = $state(localStorage.getItem('dwnvr.rec.thumbnails') !== '0');
   // The detector's boxes over the video, and their labels. On by default and
   // kept in the URL: they're part of what a link shows. A label without a box
   // doesn't exist; a single button cycles through the three states.
-  let showBoxes = $state(params.get('caixas') !== '0');
-  let showLabels = $state(params.get('rotulos') !== '0');
+  let showBoxes = $state(params.get('boxes') !== '0');
+  let showLabels = $state(params.get('labels') !== '0');
   let boxesLayer = $state<{ drawOn: OverlayDrawing } | null>(null);
   // The boxes component comes in a separate chunk, downloaded only when the day
   // has an object: whoever doesn't use detection doesn't pay for its bytes.
@@ -140,7 +140,7 @@
   const inFullscreen = $derived(!!full && fullscreen.el === full);
   // In localStorage, like the export duration: it's a matter of taste of
   // whoever uses the device, not part of the scene a link replays.
-  let pinnedControls = $state(localStorage.getItem('dwnvr.rec.controlesFixos') === '1');
+  let pinnedControls = $state(localStorage.getItem('dwnvr.rec.fixedControls') === '1');
   let overControls = false;
   // They only disappear while the video is playing: whoever paused wants to
   // look and interact. With the mouse over them, they stay too.
@@ -151,7 +151,7 @@
   const hiddenControls = $derived(inFullscreen && !controls.visibleOnes);
 
   $effect(() => {
-    localStorage.setItem('dwnvr.rec.controlesFixos', pinnedControls ? '1' : '0');
+    localStorage.setItem('dwnvr.rec.fixedControls', pinnedControls ? '1' : '0');
   });
 
   // Entering fullscreen, play, pause, unpinning and switching camera restart
@@ -602,7 +602,7 @@
     localStorage.setItem('dwnvr.rec.exportMin', String(exportMin));
   });
   $effect(() => {
-    localStorage.setItem('dwnvr.rec.miniaturas', showThumbs ? '1' : '0');
+    localStorage.setItem('dwnvr.rec.thumbnails', showThumbs ? '1' : '0');
   });
 
   // The URL, by contrast, now describes the whole scene: camera, day, instant,
@@ -626,8 +626,8 @@
       // Thumbnails moved from the URL to localStorage: an old link no longer
       // carries `thumbs=0` forward.
       thumbs: null,
-      caixas: showBoxes ? null : '0',
-      rotulos: showLabels ? null : '0',
+      boxes: showBoxes ? null : '0',
+      labels: showLabels ? null : '0',
     });
   });
 
@@ -842,7 +842,7 @@
     // whoever only records pays no request for the strip. The price is that the
     // marks from a period when it was on disappear from the screen together
     // with turning it off.
-    let ev: Pick<Events, 'onsets' | 'objetos'> = { onsets: [], objetos: [] };
+    let ev: Pick<Events, 'onsets' | 'objects'> = { onsets: [], objects: [] };
     if (detectEnabled(c)) {
       try {
         ev = await api.events(c, d);
@@ -853,7 +853,7 @@
     }
     if (mine === loadAvg) {
       events = ev.onsets;
-      objects = ev.objetos;
+      objects = ev.objects;
     }
   }
 
@@ -983,10 +983,9 @@
       // the same instant are only told apart by the box. Instant and family
       // aren't enough: a round that fell between the two writes would lose the
       // second.
-      const key = (o: MarkedObject) =>
-        `${o.instanteMs}|${o.classe}|${o.score}|${o.caixa?.join(',') ?? ''}`;
+      const key = (o: MarkedObject) => `${o.atMs}|${o.class}|${o.score}|${o.box?.join(',') ?? ''}`;
       const known = new Set(objects.map(key));
-      const newOnes = ev.objetos.filter((o) => !known.has(key(o)));
+      const newOnes = ev.objects.filter((o) => !known.has(key(o)));
       if (newOnes.length) objects = [...objects, ...newOnes];
     } catch {
       // Same as the timeline: a background failure doesn't erase what's already

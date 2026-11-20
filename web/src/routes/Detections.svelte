@@ -134,10 +134,10 @@
 
   // Null is "all": it is the default, and stays out of the link.
   let checkedCams = $state<string[] | null>(null);
-  let checkedFamilies = $state<FamilyName[] | null>(urlIds('familias', FAMILY_ORDER));
+  let checkedFamilies = $state<FamilyName[] | null>(urlIds('families', FAMILY_ORDER));
   let chosenColumns = $state<number | null>(Number(params.get('cols')) || null);
-  let withBoxes = $state(params.get('caixas') !== '0');
-  let refreshing = $state(params.get('atualizar') !== '0');
+  let withBoxes = $state(params.get('boxes') !== '0');
+  let refreshing = $state(params.get('refresh') !== '0');
 
   // The range comes from the whole link or not at all: `day`, `from` and `to`.
   const urlMinute = (k: string) => {
@@ -148,9 +148,9 @@
     return h < 24 && min < 60 ? h * 60 + min : null;
   };
   function urlInterval(): Interval | null {
-    const day = params.get('dia') ?? '';
-    const from = urlMinute('de');
-    const to = urlMinute('ate');
+    const day = params.get('day') ?? '';
+    const from = urlMinute('from');
+    const to = urlMinute('to');
     // The round trip rejects a day that does not exist: 2026-02-31 would become
     // 03/03.
     if (dayKey(parseDay(day)) !== day || from === null || to === null) return null;
@@ -175,13 +175,13 @@
   $effect(() => {
     write({
       cams: checkedCams,
-      familias: checkedFamilies,
+      families: checkedFamilies,
       cols: chosenColumns,
-      caixas: withBoxes ? null : '0',
-      atualizar: refreshing ? null : '0',
-      dia: interval?.day,
-      de: interval ? hourOfMinute(interval.from) : null,
-      ate: interval ? hourOfMinute(interval.to) : null,
+      boxes: withBoxes ? null : '0',
+      refresh: refreshing ? null : '0',
+      day: interval?.day,
+      from: interval ? hourOfMinute(interval.from) : null,
+      to: interval ? hourOfMinute(interval.to) : null,
       area: area ? areaInQuery(area) : null,
       rule: area?.rule ?? null,
       areas: checkedAreas.length ? checkedAreas : null,
@@ -217,7 +217,7 @@
   // would swap the unknown id for another camera.
   const exists = (cam: string) => cameras.list.some((c) => c.id === cam);
 
-  const key = (d: Detection) => `${d.cam}|${d.instanteMs}`;
+  const key = (d: Detection) => `${d.cam}|${d.atMs}`;
 
   const names = $derived(Object.fromEntries(cameras.list.map((c) => [c.id, c.name])));
 
@@ -250,13 +250,13 @@
   // alert.
   const anyAlert = $derived(cameras.list.some((c) => c.alert?.enabled));
 
-  const alerted = (d: Detection) => d.objetos.some((o) => o.alert);
+  const alerted = (d: Detection) => d.objects.some((o) => o.alert);
 
   // The areas where the detection alerted, with the current name and outline.
   // One that was deleted since then stays without an outline, as "deleted
   // area".
   function alertAreas(d: Detection) {
-    const ids = [...new Set(d.objetos.flatMap((o) => o.alertAreas ?? []))];
+    const ids = [...new Set(d.objects.flatMap((o) => o.alertAreas ?? []))];
     return ids.map((id) => {
       const a = registered.get(`${d.cam}/${id}`);
       return { id, nome: a?.name ?? 'área apagada', points: a?.points ?? null };
@@ -279,10 +279,10 @@
     if (checkedCams?.length === 0 || checkedFamilies?.length === 0) return null;
     return {
       cams: checkedCams,
-      familias: checkedFamilies,
+      families: checkedFamilies,
       area,
       areas: checkedAreas,
-      soAlertas: onlyAlerts,
+      onlyAlerts: onlyAlerts,
     };
   });
 
@@ -304,7 +304,7 @@
   function isInside(ds: Detection[]) {
     if (!limites) return { ds, wasCut: false };
     const { from, to } = limites;
-    const ok = ds.filter((d) => d.instanteMs >= from && d.instanteMs < to);
+    const ok = ds.filter((d) => d.atMs >= from && d.atMs < to);
     return { ds: ok, wasCut: ok.length < ds.length };
   }
 
@@ -322,9 +322,7 @@
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local Set, only used to merge
     const seen = new Set<string>();
     const out: Detection[] = [];
-    for (const d of [...a, ...b].sort(
-      (x, y) => y.instanteMs - x.instanteMs || (x.cam < y.cam ? -1 : 1),
-    )) {
+    for (const d of [...a, ...b].sort((x, y) => y.atMs - x.atMs || (x.cam < y.cam ? -1 : 1))) {
       const k = key(d);
       if (seen.has(k)) continue;
       seen.add(k);
@@ -356,11 +354,11 @@
       return;
     }
     try {
-      const r = await api.deteccoes({ ...filter, antes: before, limite: page() });
+      const r = await api.detections({ ...filter, before: before, limit: page() });
       if (g !== generation) return;
-      const { ds, wasCut } = isInside(r.deteccoes);
+      const { ds, wasCut } = isInside(r.detections);
       list = ds;
-      endBelow = r.fim || wasCut;
+      endBelow = r.end || wasCut;
       loaded = true;
       await tick();
       verify();
@@ -375,12 +373,12 @@
     fetchingBelow = true;
     const g = generation;
     try {
-      const r = await api.deteccoes({ ...filter, antes: last.instanteMs, limite: page() });
+      const r = await api.detections({ ...filter, before: last.atMs, limit: page() });
       if (g !== generation) return;
       const a = anchor();
-      const { ds, wasCut } = isInside(r.deteccoes);
+      const { ds, wasCut } = isInside(r.detections);
       let newOne = join(list, ds);
-      endBelow = r.fim || wasCut;
+      endBelow = r.end || wasCut;
       // Releases the top, which was left behind. The anchor lives in the view
       // and the view is never in the released part: the surplus is much bigger
       // than one screen.
@@ -402,13 +400,13 @@
     fetchingAbove = true;
     const g = generation;
     try {
-      const after = list[0]?.instanteMs ?? target;
-      const r = await api.deteccoes({ ...filter, depois: after, limite: page() });
+      const after = list[0]?.atMs ?? target;
+      const r = await api.detections({ ...filter, after: after, limit: page() });
       if (g !== generation) return;
       const a = anchor();
-      const { ds, wasCut } = isInside(r.deteccoes);
+      const { ds, wasCut } = isInside(r.detections);
       let newOne = join(ds, list);
-      endAbove = r.fim || wasCut;
+      endAbove = r.end || wasCut;
       if (newOne.length > MAX_ITEMS) {
         newOne = newOne.slice(0, MAX_ITEMS);
         endBelow = false;
@@ -440,10 +438,10 @@
     if (!refreshing || document.hidden || !loaded || !endAbove || !filter || fetchingAbove) return;
     if (limites && Date.now() > limites.to + DELAY_MS) return;
     const g = generation;
-    const topPos = list[0]?.instanteMs ?? Math.min(Date.now(), limites?.to ?? Infinity);
+    const topPos = list[0]?.atMs ?? Math.min(Date.now(), limites?.to ?? Infinity);
     try {
-      const r = await api.deteccoes({ ...filter, depois: topPos - DELAY_MS, limite: 200 });
-      const { ds, wasCut } = isInside(r.deteccoes);
+      const r = await api.detections({ ...filter, after: topPos - DELAY_MS, limit: 200 });
+      const { ds, wasCut } = isInside(r.detections);
       const newer = ds[0];
       if (g !== generation || !newer) return;
       // Whoever is looking at the top sees the new item come in; whoever
@@ -452,8 +450,8 @@
       list = join(ds, list);
       // More than 200 in the range: the newest were left out, and scrolling up
       // fetches them as it would after a "go to".
-      if (!r.fim && !wasCut) endAbove = false;
-      recordDay(dayKey(new Date(newer.instanteMs)));
+      if (!r.end && !wasCut) endAbove = false;
+      recordDay(dayKey(new Date(newer.atMs)));
       if (a) await restoreAnchor(a);
     } catch {
       // The next round tries again; a network hiccup does not become a notice.
@@ -490,8 +488,8 @@
     try {
       const r = await api.detectionDays(f);
       if (f !== filter) return;
-      daysWithDetection = r.dias;
-      detectionsPerDay = r.deteccoesPorDia;
+      daysWithDetection = r.days;
+      detectionsPerDay = r.detectionsPerDay;
     } catch {
       if (f !== filter || keep) return;
       daysWithDetection = [];
@@ -543,7 +541,7 @@
     let hour: string | null = null;
     let current: GridRow | null = null;
     for (const [i, det] of list.entries()) {
-      const ms = det.instanteMs;
+      const ms = det.atMs;
       const h = hourKey(ms);
       if (h !== hour) {
         const d = new Date(ms);
@@ -692,7 +690,7 @@
   // the exclusive limit of the fetch: going to day 29 fetches before midnight
   // of day 30, and showing the limit itself made the bar flash day 30 until the
   // response arrived.
-  const topMs = $derived(atTop?.det.instanteMs ?? (target != null ? target - 1 : Date.now()));
+  const topMs = $derived(atTop?.det.atMs ?? (target != null ? target - 1 : Date.now()));
 
   // The hour header sticks while its thumbnails go by. It is a single one,
   // outside the grid, because the one inside leaves along with its row.
@@ -792,7 +790,7 @@
   // The families of a detection, once each.
   function familiesOf(d: Detection) {
     const out: string[] = [];
-    for (const o of d.objetos) if (!out.includes(o.familia)) out.push(o.familia);
+    for (const o of d.objects) if (!out.includes(o.family)) out.push(o.family);
     return out;
   }
 
@@ -878,7 +876,7 @@
     k: string;
     det: Detection;
     cam: string;
-    instanteMs: number;
+    atMs: number;
     x: number;
     // Where the ⋮ is on screen: the menu opens below it, or above.
     topPos: number;
@@ -898,7 +896,7 @@
       k: key(d),
       det: d,
       cam: d.cam,
-      instanteMs: d.instanteMs,
+      atMs: d.atMs,
       x: window.innerWidth - r.right,
       topPos: r.top,
       base: r.bottom,
@@ -940,14 +938,14 @@
     const m = menu;
     if (!m) return;
     menu = null;
-    void openEditor(m.cam, m.det, m.instanteMs + 1);
+    void openEditor(m.cam, m.det, m.atMs + 1);
   }
 
   function toggleMenuArea(k: string) {
     const m = menu;
     if (!m) return;
     menu = null;
-    toggleArea(k, m.instanteMs + 1);
+    toggleArea(k, m.atMs + 1);
   }
 
   function removeMenuDrawn() {
@@ -955,7 +953,7 @@
     if (!m) return;
     menu = null;
     area = null;
-    void restart(m.instanteMs + 1);
+    void restart(m.atMs + 1);
   }
 
   // The undo notice, in the snackbar: the thumbnail disappears from under the
@@ -1021,7 +1019,7 @@
   // and what is above arrives with the scroll.
   function undo(before: string[] | null) {
     checkedCams = before;
-    const ms = atTop?.det.instanteMs;
+    const ms = atTop?.det.atMs;
     void restart(scrollRange.ini > 0 && ms != null ? ms + 1 : null);
   }
 
@@ -1063,7 +1061,7 @@
   // Goes back to infinite scroll without leaving where it was: the fetch starts
   // from the detection at the top of the view, as in undo.
   function resetInterval() {
-    const ms = scrollRange.ini > 0 ? atTop?.det.instanteMs : undefined;
+    const ms = scrollRange.ini > 0 ? atTop?.det.atMs : undefined;
     const topPos = ms != null ? ms + 1 : limites?.to;
     interval = null;
     void restart(topPos != null && topPos <= Date.now() ? topPos : null);
@@ -1077,7 +1075,7 @@
   let editor = $state<{
     cam: string;
     background: { tipo: 'imagem' | 'video'; url: string } | null;
-    boxes: { caixa: Box; color: string }[];
+    boxes: { box: Box; color: string }[];
     erro: string;
     // Where the list restarts on apply: at the top, or at the frame's instant
     // when the editor came from its ⋮.
@@ -1087,7 +1085,7 @@
   let areaEl = $state<HTMLDivElement | undefined>();
 
   const boxesOf = (d: Detection) =>
-    d.objetos.flatMap((o) => (o.caixa ? [{ caixa: o.caixa, color: family(o.familia).color }] : []));
+    d.objects.flatMap((o) => (o.box ? [{ box: o.box, color: family(o.family).color }] : []));
 
   // Opens the editor over a frame of the camera: that of the given detection,
   // or that of its most recent detection with a frame, or the keyframe of the
@@ -1103,10 +1101,10 @@
       void import('../components/AreaEditor.svelte').then((m) => {
         AreaEditor = m.default;
       });
-    if (det?.temQuadro) {
+    if (det?.hasFrame) {
       editor = {
         cam,
-        background: { tipo: 'imagem', url: mediaURL.frame(cam, det.instanteMs) },
+        background: { tipo: 'imagem', url: mediaURL.frame(cam, det.atMs) },
         boxes: boxesOf(det),
         erro: '',
         stayAt,
@@ -1121,12 +1119,12 @@
     const target = editor;
     const stillOpen = () => (editor === target ? target : null);
     try {
-      const r = await api.deteccoes({ cams: [cam], limite: 20 });
-      const recent = r.deteccoes.find((d) => d.temQuadro);
+      const r = await api.detections({ cams: [cam], limit: 20 });
+      const recent = r.detections.find((d) => d.hasFrame);
       let ed = stillOpen();
       if (!ed) return;
       if (recent) {
-        ed.background = { tipo: 'imagem', url: mediaURL.frame(cam, recent.instanteMs) };
+        ed.background = { tipo: 'imagem', url: mediaURL.frame(cam, recent.atMs) };
         ed.boxes = boxesOf(recent);
         return;
       }
@@ -1216,7 +1214,7 @@
   // Goes back to the list without leaving where it was, like resetInterval:
   // removing a filter only adds detections.
   function restartInPlace() {
-    const ms = scrollRange.ini > 0 ? atTop?.det.instanteMs : undefined;
+    const ms = scrollRange.ini > 0 ? atTop?.det.atMs : undefined;
     return restart(ms != null ? ms + 1 : null);
   }
 
@@ -1583,14 +1581,14 @@
               <button
                 class="tile"
                 onclick={() => (isOpen = key(d))}
-                aria-label="abrir {hhmmss(d.instanteMs)}, {names[d.cam] ?? d.cam}, {familyNames(
+                aria-label="abrir {hhmmss(d.atMs)}, {names[d.cam] ?? d.cam}, {familyNames(
                   familiesOf(d),
                 )}"
               >
                 <span class="image" style={imageArea(d.cam)}>
-                  {#if d.temQuadro}
+                  {#if d.hasFrame}
                     <img
-                      src={mediaURL.frame(d.cam, d.instanteMs)}
+                      src={mediaURL.frame(d.cam, d.atMs)}
                       alt=""
                       decoding="async"
                       onload={(e) => {
@@ -1611,22 +1609,21 @@
                       {/each}
                     </svg>
                   {/if}
-                  {#each d.objetos as o, j (j)}
-                    {#if o.caixa}
+                  {#each d.objects as o, j (j)}
+                    {#if o.box}
                       {@const fora = onlyAlerts && !o.alert}
-                      {@const side =
-                        !fora && scoreSide(d.cam, o.caixa, columns >= (desktop ? 7 : 4))}
+                      {@const side = !fora && scoreSide(d.cam, o.box, columns >= (desktop ? 7 : 4))}
                       <span
                         class="box"
                         class:fora
-                        style:left={start(o.caixa[0])}
-                        style:top={start(o.caixa[1])}
-                        style:width={size(o.caixa[0], o.caixa[2])}
-                        style:height={size(o.caixa[1], o.caixa[3])}
-                        style:border-color={family(o.familia).color}
+                        style:left={start(o.box[0])}
+                        style:top={start(o.box[1])}
+                        style:width={size(o.box[0], o.box[2])}
+                        style:height={size(o.box[1], o.box[3])}
+                        style:border-color={family(o.family).color}
                       >
                         {#if side}
-                          <span class="score mono {side}" style:background={family(o.familia).color}
+                          <span class="score mono {side}" style:background={family(o.family).color}
                             >{score(o.score)}</span
                           >
                         {/if}
@@ -1636,7 +1633,7 @@
                 </span>
                 <FamilyBadge families={familiesOf(d)} alert={alerted(d)} />
                 <span class="caption">
-                  <span class="mono">{hhmmss(d.instanteMs)}</span>
+                  <span class="mono">{hhmmss(d.atMs)}</span>
                   <span class="name">{names[d.cam] ?? d.cam}</span>
                   {#if onlyAlerts}
                     {@const alertNames = alertAreas(d).map((a) => a.nome)}
@@ -1843,7 +1840,7 @@
         <a
           class="item"
           role="menuitem"
-          href={recordingsLink(m.cam, m.instanteMs)}
+          href={recordingsLink(m.cam, m.atMs)}
           onclick={() => (menu = null)}
         >
           Abrir em Gravações

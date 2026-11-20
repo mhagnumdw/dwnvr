@@ -144,7 +144,7 @@
   // it's the only effect of the restart that someone might not want, and the
   // dialog repeats it.
   const willStop = $derived(
-    (cameras.go2rtcConfigFile?.foraDoArquivo ?? []).filter((id) => registered.has(id)),
+    (cameras.go2rtcConfigFile?.notInFile ?? []).filter((id) => registered.has(id)),
   );
 
   // While the probe hasn't answered, the audio options stay locked; if it
@@ -157,10 +157,10 @@
   // Diagnostics screen for someone who has detection turned off. The parameter
   // is consumed on open, otherwise reloading the page would reopen the form.
   onMount(async () => {
-    const id = currentParams().get('editar');
+    const id = currentParams().get('edit');
     if (!cameras.list.length) await loadCameras();
     if (!id) return;
-    write({ editar: null });
+    write({ edit: null });
     const cam = cameras.list.find((c) => c.id === id);
     // With another form already open (the list may have arrived by another path
     // while this one was waiting), the open request does not replace it.
@@ -288,7 +288,7 @@
       if (editing !== form) return;
       form._hasAudio = r.hasAudio;
       form._audioCodecs = r.audioCodecs ?? [];
-      form._probeError = r.erro ?? '';
+      form._probeError = r.error ?? '';
     } catch (e) {
       if (editing !== form) return;
       form._probeError = messageOf(e);
@@ -859,16 +859,16 @@
           então estas mudanças ainda não valem:
         </p>
         <ul class="small">
-          {#each file.novas ?? [] as id (id)}
+          {#each file.added ?? [] as id (id)}
             <li>
               <code>{id}</code>
               <span class="muted">nova - aparece para cadastrar depois do reinício</span>
             </li>
           {/each}
-          {#each file.alteradas ?? [] as id (id)}
+          {#each file.changed ?? [] as id (id)}
             <li><code>{id}</code> <span class="muted">configuração mudou</span></li>
           {/each}
-          {#each file.foraDoArquivo ?? [] as id (id)}
+          {#each file.notInFile ?? [] as id (id)}
             <li>
               <code>{id}</code>
               <span class="muted">

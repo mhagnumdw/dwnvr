@@ -60,7 +60,7 @@ func detectionsScenario(t *testing.T) (*Server, time.Time) {
 func getPage(t *testing.T, s *Server, query string) detectionsPage {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	s.handleDetections(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes?"+query, nil))
+	s.handleDetections(rec, httptest.NewRequest(http.MethodGet, "/api/detections?"+query, nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
@@ -102,20 +102,20 @@ func TestDetectionsPageMergesTheCameras(t *testing.T) {
 func TestDetectionsPageScrollsWithoutSkippingOrRepeating(t *testing.T) {
 	s, today := detectionsScenario(t)
 
-	p := getPage(t, s, "limite=1")
+	p := getPage(t, s, "limit=1")
 	if got := labels(p, today); !equal(got, []string{"cam_b@3", "cam_teste@3"}) || p.End {
 		t.Fatalf("first page %v end=%v: the tie needed to come whole", got, p.End)
 	}
 
 	var all []string
-	query := "limite=2"
+	query := "limit=2"
 	for range 10 {
 		p := getPage(t, s, query)
 		all = append(all, labels(p, today)...)
 		if p.End {
 			break
 		}
-		query = fmt.Sprintf("limite=2&antes=%d", p.Detections[len(p.Detections)-1].AtMs)
+		query = fmt.Sprintf("limit=2&before=%d", p.Detections[len(p.Detections)-1].AtMs)
 	}
 	want := []string{"cam_b@3", "cam_teste@3", "cam_b@1", "cam_teste@0",
 		"cam_teste@-1438", "cam_b@-1439", "cam_teste@-1440"}
@@ -130,11 +130,11 @@ func TestDetectionsPageGoesUpFromTheCursor(t *testing.T) {
 	s, today := detectionsScenario(t)
 	cursor := today.AddDate(0, 0, -1).UnixMilli() + 60_000 // yesterday, cam_b@-1439
 
-	p := getPage(t, s, fmt.Sprintf("limite=2&depois=%d", cursor))
+	p := getPage(t, s, fmt.Sprintf("limit=2&after=%d", cursor))
 	if got := labels(p, today); !equal(got, []string{"cam_teste@0", "cam_teste@-1438"}) || p.End {
 		t.Errorf("going up: %v end=%v", got, p.End)
 	}
-	p = getPage(t, s, fmt.Sprintf("depois=%d", today.UnixMilli()+60_000))
+	p = getPage(t, s, fmt.Sprintf("after=%d", today.UnixMilli()+60_000))
 	if got := labels(p, today); !equal(got, []string{"cam_b@3", "cam_teste@3"}) || !p.End {
 		t.Errorf("reaching the top: %v end=%v", got, p.End)
 	}
@@ -145,7 +145,7 @@ func TestDetectionsPageGoesUpFromTheCursor(t *testing.T) {
 func TestDetectionsPageFilters(t *testing.T) {
 	s, today := detectionsScenario(t)
 
-	p := getPage(t, s, "familias=veiculo,animal")
+	p := getPage(t, s, "families=veiculo,animal")
 	if got := labels(p, today); !equal(got, []string{"cam_b@1", "cam_teste@0", "cam_b@-1439"}) {
 		t.Errorf("families: %v", got)
 	}
@@ -220,7 +220,7 @@ func TestDetectionsPageFiltersByArea(t *testing.T) {
 		}
 	}
 
-	p = getPage(t, s, "area="+gateInThousandths+"&rule=touch&familias=veiculo")
+	p = getPage(t, s, "area="+gateInThousandths+"&rule=touch&families=veiculo")
 	if got := labels(p, today); !equal(got, []string{"cam_b@-1439"}) {
 		t.Errorf("family and area together: %v", got)
 	}
@@ -248,13 +248,13 @@ func TestDetectionDaysByArea(t *testing.T) {
 		"area=" + gateInThousandths:                      {yesterday: 1, day: 4},
 		"area=" + gateInThousandths + "&rule=touch":      {yesterday: 1, day: 5},
 		"area=cam_teste:0,0,100,0,100,100,0,100":         {yesterday: 1, day: 3},
-		"area=" + gateInThousandths + "&familias=animal": {day: 1},
+		"area=" + gateInThousandths + "&families=animal": {day: 1},
 		"area=" + gateInThousandths + "&cams=cam_teste":  {day: 1},
 	} {
 		rec := httptest.NewRecorder()
-		s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?"+q, nil))
+		s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/detections/days?"+q, nil))
 		var out struct {
-			DetectionsPerDay map[string]int `json:"deteccoesPorDia"`
+			DetectionsPerDay map[string]int `json:"detectionsPerDay"`
 		}
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("%s: unreadable response: %s", q, rec.Body.String())
@@ -323,9 +323,9 @@ func TestDetectionDaysByRegisteredArea(t *testing.T) {
 	registerAreas(s)
 	rec := httptest.NewRecorder()
 	s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet,
-		"/api/deteccoes/dias?areas=cam_teste/portao", nil))
+		"/api/detections/days?areas=cam_teste/portao", nil))
 	var out struct {
-		DetectionsPerDay map[string]int `json:"deteccoesPorDia"`
+		DetectionsPerDay map[string]int `json:"detectionsPerDay"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unreadable response: %s", rec.Body.String())
@@ -359,10 +359,10 @@ func TestAreaFilterRejectsBadParameter(t *testing.T) {
 		"areas=",
 	} {
 		for name, h := range map[string]http.HandlerFunc{
-			"deteccoes": s.handleDetections, "dias": s.handleDetectionDays,
+			"detections": s.handleDetections, "days": s.handleDetectionDays,
 		} {
 			rec := httptest.NewRecorder()
-			h(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes?"+q, nil))
+			h(rec, httptest.NewRequest(http.MethodGet, "/api/detections?"+q, nil))
 			if rec.Code != http.StatusBadRequest {
 				t.Errorf("%s, %s: HTTP %d, want 400", name, q, rec.Code)
 			}
@@ -415,7 +415,7 @@ func TestDetectionsPageAlertsOnly(t *testing.T) {
 		t.Errorf("alert on the whole image: %+v", o)
 	}
 
-	if got := labels(getPage(t, s, "alert=1&familias=veiculo"), today); len(got) != 0 {
+	if got := labels(getPage(t, s, "alert=1&families=veiculo"), today); len(got) != 0 {
 		t.Errorf("vehicle that didn't alert: %v", got)
 	}
 	if got := labels(getPage(t, s, "alert=1&cams=cam_b"), today); !equal(got, []string{"cam_b@-1436"}) {
@@ -423,15 +423,15 @@ func TestDetectionsPageAlertsOnly(t *testing.T) {
 	}
 
 	// Without the filter, the mark comes all the same.
-	p = getPage(t, s, "cams=cam_teste&familias=pessoa")
+	p = getPage(t, s, "cams=cam_teste&families=pessoa")
 	if o := p.Detections[0].Objects; labels(p, today)[0] != "cam_teste@7" || !o[0].Alert {
 		t.Errorf("without the filter: %v %+v", labels(p, today), o)
 	}
 
 	rec := httptest.NewRecorder()
-	s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?alert=1", nil))
+	s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/detections/days?alert=1", nil))
 	var days struct {
-		DetectionsPerDay map[string]int `json:"deteccoesPorDia"`
+		DetectionsPerDay map[string]int `json:"detectionsPerDay"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &days); err != nil {
 		t.Fatal(err)
@@ -444,10 +444,10 @@ func TestDetectionsPageAlertsOnly(t *testing.T) {
 
 func TestDetectionsPageRejectsBadParameter(t *testing.T) {
 	s, _ := detectionsScenario(t)
-	for _, q := range []string{"cams=../etc", "familias=fantasma", "limite=0",
-		"limite=999", "antes=x", "antes=1&depois=2", "alert=0", "alert=true"} {
+	for _, q := range []string{"cams=../etc", "families=fantasma", "limit=0",
+		"limit=999", "before=x", "before=1&after=2", "alert=0", "alert=true"} {
 		rec := httptest.NewRecorder()
-		s.handleDetections(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes?"+q, nil))
+		s.handleDetections(rec, httptest.NewRequest(http.MethodGet, "/api/detections?"+q, nil))
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("%s: HTTP %d, want 400", q, rec.Code)
 		}
@@ -467,16 +467,16 @@ func TestDetectionDays(t *testing.T) {
 	day := today.Format(store.DayLayout)
 	for q, want := range map[string]map[string]int{
 		"":                                   {yesterday: 3, day: 4},
-		"familias=animal":                    {day: 1},
-		"familias=pessoa,veiculo":            {yesterday: 3, day: 3},
-		"cams=cam_b&familias=veiculo":        {yesterday: 1},
-		"cams=cam_b&familias=animal,veiculo": {yesterday: 1, day: 1},
+		"families=animal":                    {day: 1},
+		"families=pessoa,veiculo":            {yesterday: 3, day: 3},
+		"cams=cam_b&families=veiculo":        {yesterday: 1},
+		"cams=cam_b&families=animal,veiculo": {yesterday: 1, day: 1},
 	} {
 		rec := httptest.NewRecorder()
-		s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?"+q, nil))
+		s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/detections/days?"+q, nil))
 		var out struct {
-			Days             []string       `json:"dias"`
-			DetectionsPerDay map[string]int `json:"deteccoesPorDia"`
+			Days             []string       `json:"days"`
+			DetectionsPerDay map[string]int `json:"detectionsPerDay"`
 		}
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || out.Days == nil || out.DetectionsPerDay == nil {
 			t.Fatalf("%s: unreadable response or no list: %s", q, rec.Body.String())
@@ -490,9 +490,9 @@ func TestDetectionDays(t *testing.T) {
 		}
 	}
 
-	for _, q := range []string{"cams=../etc", "familias=fantasma"} {
+	for _, q := range []string{"cams=../etc", "families=fantasma"} {
 		rec := httptest.NewRecorder()
-		s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/deteccoes/dias?"+q, nil))
+		s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/detections/days?"+q, nil))
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("%s: HTTP %d, want 400", q, rec.Code)
 		}
@@ -511,7 +511,7 @@ func TestDetectionFrame(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	s.handleDetectionFrame(rec, httptest.NewRequest(http.MethodGet,
-		fmt.Sprintf("/api/deteccoes/quadro?cam=cam_teste&t=%d", t0), nil))
+		fmt.Sprintf("/api/detections/frame?cam=cam_teste&t=%d", t0), nil))
 	if rec.Code != http.StatusOK || rec.Body.String() != string(jpeg) {
 		t.Fatalf("HTTP %d, %d bytes", rec.Code, rec.Body.Len())
 	}
@@ -521,7 +521,7 @@ func TestDetectionFrame(t *testing.T) {
 
 	rec = httptest.NewRecorder()
 	s.handleDetectionFrame(rec, httptest.NewRequest(http.MethodGet,
-		fmt.Sprintf("/api/deteccoes/quadro?cam=cam_teste&t=%d", t0+1), nil))
+		fmt.Sprintf("/api/detections/frame?cam=cam_teste&t=%d", t0+1), nil))
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("no frame: HTTP %d, want 404", rec.Code)
 	}

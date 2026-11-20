@@ -26,10 +26,10 @@ interface Rect extends Point {
 // What the boxes read from a mark: those from /api/rec/events and from a
 // detection both work.
 export interface ObjectDetectorMark {
-  familia: string;
-  classe: string;
+  family: string;
+  class: string;
   score: number;
-  caixa?: Box;
+  box?: Box;
 }
 
 // A placed box, in pixels of the displayed frame. `label` and `stroke` only
@@ -38,7 +38,7 @@ export interface PlacedBox<M extends ObjectDetectorMark> {
   mark: M;
   color: string;
   priority: number;
-  caixa: Rect;
+  box: Rect;
   label?: Rect & { texto: string; icon: IconName | null };
   stroke?: { from: Point; to: Point };
 }
@@ -83,7 +83,7 @@ const DARK = '#0d1117';
 
 // place computes, in pixels of the displayed frame (width x height), each
 // mark's box, already with BOX_SLACK_PX, and - with `withLabel` - where the
-// label goes and the stroke that ties it to the box. A mark without `caixa` is
+// label goes and the stroke that ties it to the box. A mark without `box` is
 // skipped.
 //
 // `g` is only used to measure text.
@@ -96,8 +96,8 @@ export function place<M extends ObjectDetectorMark>(
 ): PlacedBox<M>[] {
   const fraction = (v: number) => Math.min(1, Math.max(0, v));
   const items = marks.flatMap((m): PlacedBox<M>[] => {
-    if (!m.caixa) return [];
-    const [x1, y1, x2, y2] = m.caixa;
+    if (!m.box) return [];
+    const [x1, y1, x2, y2] = m.box;
     const x = Math.max(0, fraction(x1) * width - BOX_SLACK_PX);
     const y = Math.max(0, fraction(y1) * height - BOX_SLACK_PX);
     const xf = Math.min(width, fraction(x2) * width + BOX_SLACK_PX);
@@ -105,9 +105,9 @@ export function place<M extends ObjectDetectorMark>(
     return [
       {
         mark: m,
-        color: family(m.familia).color,
-        priority: family(m.familia).priority,
-        caixa: { x, y, w: xf - x, h: yf - y },
+        color: family(m.family).color,
+        priority: family(m.family).priority,
+        box: { x, y, w: xf - x, h: yf - y },
       },
     ];
   });
@@ -115,7 +115,7 @@ export function place<M extends ObjectDetectorMark>(
 
   g.save();
   g.font = FONT;
-  const boxes = items.map((it) => it.caixa);
+  const boxes = items.map((it) => it.box);
   const placements: Rect[] = [];
   // By family priority: `pessoa` picks its place first, as already happens with
   // the timeline icons.
@@ -128,10 +128,10 @@ export function place<M extends ObjectDetectorMark>(
     // no box or other label. If there is none, the closest one that fits.
     let free: { r: Rect; near: number } | null = null;
     let reserve: { r: Rect; near: number } | null = null;
-    for (const p of slots(it.caixa, w, h)) {
+    for (const p of slots(it.box, w, h)) {
       if (p.x < 2 || p.y < 2 || p.x + w > width - 2 || p.y + h > height - 2) continue;
       const r = { x: p.x, y: p.y, w, h };
-      const near = distance(r, it.caixa);
+      const near = distance(r, it.box);
       if (!reserve || near < reserve.near) reserve = { r, near };
       const roomy = {
         x: r.x - SLACK_PX,
@@ -157,11 +157,11 @@ export function place<M extends ObjectDetectorMark>(
     const label = it.label;
     if (!label) continue;
     const obstacles = [
-      ...boxes.filter((c) => c !== it.caixa),
+      ...boxes.filter((c) => c !== it.box),
       ...placements.filter((q) => q.x !== label.x || q.y !== label.y),
     ];
     let best: { from: Point; to: Point; cost: number } | null = null;
-    for (const to of contactPoints(it.caixa)) {
+    for (const to of contactPoints(it.box)) {
       // The tip leaves from the label's EDGE, toward the box: aiming at a
       // corner, the stroke would be born loose, in the void of the curvature.
       const from = border(label, to);
@@ -177,7 +177,7 @@ export function place<M extends ObjectDetectorMark>(
 }
 
 function textFor(m: ObjectDetectorMark) {
-  const name = CLASS_NAME[m.classe] ?? m.classe;
+  const name = CLASS_NAME[m.class] ?? m.class;
   return `${name} ${m.score.toFixed(2).replace('.', ',')}`;
 }
 
@@ -312,7 +312,7 @@ export function draw<M extends ObjectDetectorMark>(
 
   for (const it of order) {
     g.globalAlpha = alpha(it);
-    const { x, y, w, h } = it.caixa;
+    const { x, y, w, h } = it.box;
     g.strokeStyle = it.color;
     g.lineWidth = BOX_STROKE_PX;
     // Inset by half a stroke: the border stays INSIDE the box, like a CSS

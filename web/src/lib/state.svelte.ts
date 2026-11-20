@@ -260,17 +260,17 @@ function newer(a: number[], b: number[]): boolean {
 }
 
 // The stored tag, or undefined if there is nothing valid within the deadline.
-function lerCacheRelease(): string | undefined {
+function readReleaseCache(): string | undefined {
   try {
     const c = JSON.parse(localStorage.getItem(RELEASE_CACHE) ?? 'null') as {
       tag?: unknown;
-      em?: unknown;
+      at?: unknown;
     } | null;
     if (
       c &&
       typeof c.tag === 'string' &&
-      typeof c.em === 'number' &&
-      Date.now() - c.em < RELEASE_CACHE_MS
+      typeof c.at === 'number' &&
+      Date.now() - c.at < RELEASE_CACHE_MS
     ) {
       return c.tag;
     }
@@ -282,7 +282,7 @@ function lerCacheRelease(): string | undefined {
 
 function writeReleaseCache(tag: string) {
   try {
-    localStorage.setItem(RELEASE_CACHE, JSON.stringify({ tag, em: Date.now() }));
+    localStorage.setItem(RELEASE_CACHE, JSON.stringify({ tag, at: Date.now() }));
   } catch {
     // With nowhere to store it, the next open asks again. That is all.
   }
@@ -293,7 +293,7 @@ function writeReleaseCache(tag: string) {
 export async function checkNewVersion() {
   const current = semver(build.version);
   if (!current) return;
-  let tag = lerCacheRelease();
+  let tag = readReleaseCache();
   if (tag === undefined) {
     try {
       const r = await fetch(RELEASE_API);
@@ -332,8 +332,8 @@ export async function loadCameras() {
     cameras.list = data.cameras;
     cameras.streams = data.streams ?? [];
     cameras.orphans = data.orphans ?? [];
-    cameras.padrao = data.padrao ?? null;
-    cameras.faixas = data.faixas ?? null;
+    cameras.padrao = data.defaults ?? null;
+    cameras.faixas = data.ranges ?? null;
     cameras.detector = data.detector;
     cameras.go2rtcError = data.go2rtcError ?? null;
     cameras.go2rtcConfigFile = data.go2rtcConfigFile ?? null;
