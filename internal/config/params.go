@@ -76,11 +76,11 @@ var DefaultTrustedProxies = []string{"127.0.0.0/8", "::1/128", "172.16.0.0/12"}
 // name. It's what the API sends to the screen; a new numeric field with an
 // input on screen goes in here.
 var CameraRanges = map[string]Range{
-	"quotaMB":             QuotaMBRange,
-	"segmentSeconds":      SegmentSecondsRange,
-	"maxDays":             MaxDaysRange,
-	"stallSeconds":        StallSecondsRange,
-	"detectSensibilidade": sensitivityRange,
+	"quotaMB":           QuotaMBRange,
+	"segmentSeconds":    SegmentSecondsRange,
+	"maxDays":           MaxDaysRange,
+	"stallSeconds":      StallSecondsRange,
+	"detectSensitivity": sensitivityRange,
 }
 
 // Range is a closed interval of accepted values. Max zero means "no ceiling",

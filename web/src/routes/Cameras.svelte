@@ -218,8 +218,8 @@
       // whoever only records pays nothing for it. The literal only covers a
       // response without "padrao".
       detect: cameras.padrao?.detect ?? false,
-      detectMecanismo: cameras.padrao?.detectMecanismo ?? 'kleinberg-p',
-      detectSensibilidade: cameras.padrao?.detectSensibilidade ?? 5,
+      detectMethod: cameras.padrao?.detectMethod ?? 'kleinberg-p',
+      detectSensitivity: cameras.padrao?.detectSensitivity ?? 5,
       _new: true,
       ...audioKnown(s),
     };
@@ -727,7 +727,7 @@
           <span class="chip">áudio: {cam.audio}</span>
           {#if cam.detect}
             <span class="chip" title={HELP_SENSITIVITY}>
-              movimento: {level(cam.detectSensibilidade)?.label ?? cam.detectSensibilidade}
+              movimento: {level(cam.detectSensitivity)?.label ?? cam.detectSensitivity}
             </span>
           {/if}
           <span class="chip">{kbps(st?.bitrateKbps)}</span>
@@ -1144,7 +1144,7 @@
           {#if editing.detect}
             <label>
               Sensibilidade
-              <select bind:value={editing.detectSensibilidade}>
+              <select bind:value={editing.detectSensitivity}>
                 {#each LEVELS as n, i (i)}
                   <option value={i + 1}>{i + 1} - {n.label}</option>
                 {/each}
@@ -1153,18 +1153,18 @@
                    with ten cameras at level 4 that's 500 inferences per hour,
                    not 50. -->
               <small class="muted">
-                ≈ {level(editing.detectSensibilidade)?.perHour} marcas por hora nesta câmera
+                ≈ {level(editing.detectSensitivity)?.perHour} marcas por hora nesta câmera
               </small>
             </label>
 
             <label>
               Mecanismo
-              <select bind:value={editing.detectMecanismo}>
+              <select bind:value={editing.detectMethod}>
                 <option value="kleinberg-p">estatístico (recomendado)</option>
                 <option value="periodico">periódico</option>
               </select>
               <small class="muted">
-                {editing.detectMecanismo === 'periodico'
+                {editing.detectMethod === 'periodico'
                   ? 'dispara em intervalo fixo, ignorando a imagem - custo previsível, mas pega menos'
                   : 'dispara quando a imagem destoa do normal da própria câmera'}
               </small>

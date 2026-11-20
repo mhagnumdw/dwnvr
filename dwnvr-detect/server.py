@@ -7,11 +7,11 @@ was in the LAST frame of it. Nothing else: no state, no queue, no deciding what
 becomes a mark. All of that is dwnvr's job, and dwnvr is pure Go, so it can't
 carry a video decoder or a model runtime.
 
-  POST /detect?piso=0.20&larguraDoQuadro=480&qualidade=75
-                        body: the clip (.mp4)    -> {"achados": [...], ...}
+  POST /detect?minScore=0.20&frameWidth=480&quality=75
+                        body: the clip (.mp4)    -> {"detections": [...], ...}
   GET  /health                                   -> the loaded model
 
-With `larguraDoQuadro`, and when there is a detection, the response also
+With `frameWidth`, and when there is a detection, the response also
 carries the inspected frame as a JPEG, scaled down to that width and in
 base64. It is the thumbnail of the Detections screen: the frame comes from
 here because here it is already decoded - dwnvr has no way to decode video -,
@@ -34,15 +34,11 @@ The preparation (`prepare`) is the same one that calibrated the int8:
 `model/export.py` imports it from here. If the two diverged, the model would
 run on a different numeric range from the one it was calibrated for.
 
-The wire names - the query parameters, the JSON keys and the environment
-variables below - are a contract with dwnvr and stay in pt-BR until the
-contracts step of the en-US conversion.
-
 Configuration by environment variable:
 
-  DETECT_MODELO   the .onnx                     (/app/model.onnx)
+  DETECT_MODEL    the .onnx                     (/app/model.onnx)
   DETECT_THREADS  threads of the model and video (auto)
-  DETECT_PORTA    HTTP port                     (8480)
+  DETECT_PORT     HTTP port                     (8480)
 
 `auto` is half the cores the container sees, up to 4, and never above its CPU
 limit: see `auto_threads`. The port isn't 8555 on purpose: that one is
@@ -68,8 +64,8 @@ import av
 import numpy as np
 import onnxruntime as ort
 
-MODEL_PATH = os.environ.get("DETECT_MODELO", "/app/model.onnx")
-PORT = int(os.environ.get("DETECT_PORTA", "8480"))
+MODEL_PATH = os.environ.get("DETECT_MODEL", "/app/model.onnx")
+PORT = int(os.environ.get("DETECT_PORT", "8480"))
 
 #: Cap of `DETECT_THREADS=auto`. Measured on the model alone, on a laptop i7:
 #: from 2 to 4 threads the inference gets 1.7x faster for 15 to 19% more CPU,
@@ -315,12 +311,12 @@ class Model:
             cx, cy, w, h = boxes[i]
             detections.append(
                 {
-                    "classe": class_name,
+                    "class": class_name,
                     "score": float(scores[i]),
-                    "caixa": [float(cx - w / 2), float(cy - h / 2), float(cx + w / 2), float(cy + h / 2)],
+                    "box": [float(cx - w / 2), float(cy - h / 2), float(cx + w / 2), float(cy + h / 2)],
                 }
             )
-        return detections, {"preparo": round((t1 - t0) * 1000, 1), "modelo": round((t2 - t1) * 1000, 1)}
+        return detections, {"preprocess": round((t1 - t0) * 1000, 1), "model": round((t2 - t1) * 1000, 1)}
 
 
 # ------------------------------------------------------------------ the HTTP
@@ -364,24 +360,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path != "/health":
-            return self._respond(404, {"erro": "not found"})
+            return self._respond(404, {"error": "not found"})
         m = self.model
-        self._respond(200, {"modelo": m.name, "entrada": f"{m.in_w}x{m.in_h}", "threads": m.threads})
+        self._respond(200, {"model": m.name, "inputSize": f"{m.in_w}x{m.in_h}", "threads": m.threads})
 
     def do_POST(self):
         url = urllib.parse.urlsplit(self.path)
         if url.path != "/detect":
-            return self._respond(404, {"erro": "not found"})
+            return self._respond(404, {"error": "not found"})
         query = urllib.parse.parse_qs(url.query)
         try:
-            min_score = float(query.get("piso", [DEFAULT_MIN_SCORE])[0])
-            frame_width = min(MAX_FRAME_WIDTH, int(query.get("larguraDoQuadro", [0])[0]))
-            quality = min(100, max(1, int(query.get("qualidade", [75])[0])))
+            min_score = float(query.get("minScore", [DEFAULT_MIN_SCORE])[0])
+            frame_width = min(MAX_FRAME_WIDTH, int(query.get("frameWidth", [0])[0]))
+            quality = min(100, max(1, int(query.get("quality", [75])[0])))
         except ValueError:
-            return self._respond(400, {"erro": "unreadable piso, larguraDoQuadro or qualidade"})
+            return self._respond(400, {"error": "unreadable minScore, frameWidth or quality"})
         size = int(self.headers.get("Content-Length") or 0)
         if size <= 0 or size > MAX_CLIP_BYTES:
-            return self._respond(413 if size > 0 else 400, {"erro": f"clip of {size} bytes"})
+            return self._respond(413 if size > 0 else 400, {"error": f"clip of {size} bytes"})
         body = self.rfile.read(size)
 
         with self.turn:
@@ -393,10 +389,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 try:
                     n, img = last_frame(body, self.model.threads)
                 except BadClip as ex:
-                    return self._respond(422, {"erro": f"clip doesn't decode: {ex}"})
+                    return self._respond(422, {"error": f"clip doesn't decode: {ex}"})
                 t1 = time.perf_counter()
                 detections, timings = self.model.infer(img, min_score)
-                timings["decodifica"] = round((t1 - t0) * 1000, 1)
+                timings["decode"] = round((t1 - t0) * 1000, 1)
 
                 # Only with a detection: an onset frame with no object nobody
                 # sees, and they are most of the inferences. Failing to encode
@@ -406,21 +402,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     t2 = time.perf_counter()
                     try:
                         frame = base64.b64encode(frame_jpeg(img, frame_width, quality)).decode()
-                        timings["quadro"] = round((time.perf_counter() - t2) * 1000, 1)
+                        timings["frame"] = round((time.perf_counter() - t2) * 1000, 1)
                     except av.error.FFmpegError as ex:
                         print(f"frame didn't encode: {ex}", file=sys.stderr, flush=True)
             finally:
                 watchdog.cancel()
 
         response = {
-            "achados": detections,
-            "quadrosDecodificados": n,
-            "largura": int(img.shape[1]),
-            "altura": int(img.shape[0]),
-            "tempoMs": timings,
+            "detections": detections,
+            "decodedFrames": n,
+            "width": int(img.shape[1]),
+            "height": int(img.shape[0]),
+            "timingsMs": timings,
         }
         if frame:
-            response["quadro"] = frame
+            response["frame"] = frame
         self._respond(200, response)
 
     def log_message(self, format, *args):

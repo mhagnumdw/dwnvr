@@ -35,7 +35,7 @@ reactive, responsive UI that works well on mobile and desktop (browser).
   `eventos/`) and in YAML (`dwnvr.yaml`, compose): `rule`, not `regra`;
   `"touch"`, not `"encosta"`. This covers enum values, not text the user types
   (an area name). The Portuguese keys and values still in place (`instanteMs`,
-  `familia`, `"pessoa"`, `detectMecanismo`) are renamed in step 6 of the
+  `familia`, `"pessoa"`, `eventos/`) are renamed in step 6 of the
   [conversion](docs/TODO/v1.0.0/conversao-en-us.md), together with the upgrade
   guide, and never on their own: renaming one breaks the stored file and
   whoever reads the API.
@@ -188,7 +188,7 @@ the file.
 | format of a JSON response or error | the screen in `web/src/routes/` |
 | new `.go` in `internal/api/` | the §Estrutura do projeto tree in `README.md` |
 | field in `internal/config/config.go` | `dwnvr.example.yaml` (with a comment) · `docs/configuracao.md` · §Configuração of `README.md` |
-| default in `config.defaults()` | the number is repeated by hand in `dwnvr.example.yaml` · `docs/configuracao.md` · `web/src/routes/Cameras.svelte` (`audio`, `quotaMB`, `segmentSeconds`, `maxDays`, and in the `padrao` fallback: `detect`, `detectMecanismo`, `detectSensibilidade`) |
+| default in `config.defaults()` | the number is repeated by hand in `dwnvr.example.yaml` · `docs/configuracao.md` · `web/src/routes/Cameras.svelte` (`audio`, `quotaMB`, `segmentSeconds`, `maxDays`, and in the `padrao` fallback: `detect`, `detectMethod`, `detectSensitivity`) |
 | field in `config.Camera` | `config.Resolve` and, with a default, its way back in `config.DropNewDefaults` · `config.CheckCamera` (the validation shared by the API and boot) · `Cameras.svelte` · §Política por câmera of `docs/configuracao.md` |
 | range in `internal/config/params.go` | a field with an input on screen goes into `CameraRanges`, where `Cameras.svelte` reads `min`/`max` · the Aceito column of §Política por câmera in `docs/configuracao.md` · the field's comment in `dwnvr.example.yaml` · `faixas` in `docs/api.md` |
 | path or `DayLayout` in `internal/store/store.go` | `docs/arquitetura.md` · `docs/operacao.md` · §Conferir por fora da interface of `README.md` |

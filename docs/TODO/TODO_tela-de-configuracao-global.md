@@ -10,7 +10,7 @@ para a tela.
 | `storage.minFreeMB` | `dwnvr.yaml` | É do disco, global por natureza. A retenção relê o valor a cada passada (1 min), então vale sem reiniciar, e o Diagnóstico já mostra "mínimo livre". Precisa de teto: um valor perto do tamanho do disco apaga as gravações de todas as câmeras |
 | `defaults.maxDays` | `dwnvr.yaml` | Guardar no máximo N dias é uma escolha que vale para todas as câmeras, e o campo nem aparece no formulário de câmera. A retenção resolve as câmeras a cada passada, então também vale sem reiniciar. Só vale com herança (ver abaixo) |
 | `defaults.detect` | `dwnvr.yaml` | Liga ou desliga a marcação de movimento de todas as câmeras num lugar só. Mudar a detecção não reconecta a câmera. Só vale com herança |
-| `defaults.detectSensibilidade` | `dwnvr.yaml` | O mesmo nível em todas as câmeras é o caso comum, e hoje ele exige editar câmera por câmera: levar dez câmeras a outro nível custa dez edições. Mudar não reconecta a câmera. Só vale com herança |
+| `defaults.detectSensitivity` | `dwnvr.yaml` | O mesmo nível em todas as câmeras é o caso comum, e hoje ele exige editar câmera por câmera: levar dez câmeras a outro nível custa dez edições. Mudar não reconecta a câmera. Só vale com herança |
 | `DETECT_THREADS` | env do `dwnvr-detect` | É o único ajuste de custo x espera do detector de objetos, é global (um container atende todas as câmeras) e depende do hardware: num Orange Pi Zero 3, de 1 para 2 threads a olhada cai de ~6,5 s para ~3,6 s, por ~10% a mais de CPU. Sem a variável, ele já escolhe o número pelos núcleos da máquina; a tela serviria para fugir disso. O Diagnóstico mostra o efeito em um ou dois minutos ("analisar leva X s", das últimas 20 olhadas). Mora em outro container, ver a seção própria abaixo |
 
 ## Não recomendo
@@ -27,10 +27,10 @@ para a tela.
 | `defaults.stallSeconds` | `dwnvr.yaml` | Depende do enlace de cada câmera (Wi-Fi ruim precisa de mais folga que cabo), e mudar reconecta a câmera. Nem o formulário de câmera o mostra |
 | `TZ` | env do container do dwnvr | É do container, não da aplicação. Mudar desloca a virada de dia das gravações novas em relação às antigas |
 | constantes internas (`sessionTTL`, `maxExportSpan`, `gapTolerance`, backoff de reconexão, intervalo da retenção) | código | Ninguém pediu, e algumas estão amarradas: o `gapTolerance` precisa ser igual ao `GapMs` da detecção, senão os limiares medidos deixam de valer |
-| `defaults.detectMecanismo` | `dwnvr.yaml` | O `periodico` existe como régua de comparação e para quem quer um comportamento sem surpresa numa câmera específica, não como padrão de todas |
+| `defaults.detectMethod` | `dwnvr.yaml` | O `periodico` existe como régua de comparação e para quem quer um comportamento sem surpresa numa câmera específica, não como padrão de todas |
 | `detector.url` | `dwnvr.yaml` | Ligação entre containers, amarrada ao nome do serviço no compose. Hoje é lida só na subida: é dela que a fila nasce ou não |
-| `DETECT_MODELO` | env do `dwnvr-detect` | Outro `.onnx` entra por volume no compose, e a tela não monta volume |
-| `DETECT_PORTA` | env do `dwnvr-detect` | Ligação entre containers, e tem que bater com a `detector.url` |
+| `DETECT_MODEL` | env do `dwnvr-detect` | Outro `.onnx` entra por volume no compose, e a tela não monta volume |
+| `DETECT_PORT` | env do `dwnvr-detect` | Ligação entre containers, e tem que bater com a `detector.url` |
 | números do `internal/detect/params.go`: corte 0,40, piso 0,20, IoU 0,7, 5 faltas, janela de 3 s, 2 pedaços por câmera, timeout de 60 s, teto de 4 MB do GOP, parâmetros do score e `KleinbergPThreshold` | código | É medição, não preferência. Expor seria decisão técnica no colo do usuário, e qualquer mudança faz a medição deixar de valer. Há acoplamento que não se vê: o `KleinbergPThreshold` só corresponde aos cinco níveis enquanto os parâmetros do score não mudam. O corte de confiança é o que outros NVRs expõem, e a resposta é a mesma |
 | famílias que viram marca (`ClassFamilies`) | código | Desligar `animal` não economiza CPU, porque a olhada acontece igual, e a marca não seria gravada: some para sempre. Se um dia incomodar, o caminho é um filtro na timeline |
 
@@ -68,7 +68,7 @@ Salva pela tela, a câmera não acompanha mais o global. O que o
 `docs/configuracao.md` diz ("Os valores de `defaults` no `dwnvr.yaml` valem para
 qualquer câmera que não defina o campo") é verdade no código e quase nunca na
 prática: toda câmera que passou pela tela ignora uma mudança de
-`defaults.detectSensibilidade` no `dwnvr.yaml`.
+`defaults.detectSensitivity` no `dwnvr.yaml`.
 
 Sem herança, a tela fica com dois campos (`minFreeMB` e `DETECT_THREADS`), e uma
 seção de padrões enganaria quem usa.
@@ -76,8 +76,8 @@ seção de padrões enganaria quem usa.
 ## O `DETECT_THREADS` mora em outro container
 
 - **O dwnvr não muda env de outro container.** O caminho que respeita o contrato
-  atual é o mesmo do `piso`: o dwnvr manda o valor a cada pedido
-  (`POST /detect?piso=0.20&threads=2`), e a env vale só quando o pedido não
+  atual é o mesmo do `minScore`: o dwnvr manda o valor a cada pedido
+  (`POST /detect?minScore=0.20&threads=2`), e a env vale só quando o pedido não
   disser nada. O sidecar continua sem estado.
 - **Trocar o número exige reiniciar o sidecar.** O onnxruntime fixa as threads
   quando a sessão é criada (`intra_op_num_threads`, em

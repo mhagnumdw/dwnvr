@@ -278,7 +278,7 @@ func TestQueueFailureReason(t *testing.T) {
 		err  error
 		want string
 	}{
-		{&url.Error{Op: "Post", URL: "http://dwnvr-detect:8480/detect?piso=0.2", Err: refused}, refused.Error()},
+		{&url.Error{Op: "Post", URL: "http://dwnvr-detect:8480/detect?minScore=0.2", Err: refused}, refused.Error()},
 		{&url.Error{Op: "Post", URL: "http://dwnvr-detect:8480/detect", Err: context.DeadlineExceeded}, "não respondeu em 60 s"},
 		{errors.New("sidecar answered HTTP 500: failed"), "sidecar answered HTTP 500: failed"},
 	}

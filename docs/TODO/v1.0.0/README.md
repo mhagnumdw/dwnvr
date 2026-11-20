@@ -5,8 +5,9 @@ as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
 **Agora (20/11/2026):** a Etapa 2 (conversão para en-US) está no passo 6, os
-contratos, na parte 1 (a API e a interface), na branch `en-us-api`. Já estão em
-en-US na `main` o Go (PR 86), a interface (PR 88) e o `dwnvr-detect` (PR 89).
+contratos, na parte 2 (o `dwnvr.yaml`, a env e o contrato com o
+`dwnvr-detect`), na branch `en-us-config`. Já estão em en-US na `main` o Go
+(PR 86), a interface (PR 88), o `dwnvr-detect` (PR 89) e a API (PR 90).
 O guia de atualização nasce junto, em
 [docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
@@ -36,8 +37,12 @@ próxima, em andamento ou concluída, com a data.
     - [x] A mesma resposta da imagem de antes para o mesmo clipe (57 achados, o quadro em base64 inclusive), e a imagem na instalação de teste
     - [x] O PR mergeado por squash
   - [ ] Os contratos (API, o que o dwnvr grava, `dwnvr.yaml`, env), em partes, cada uma com a sua seção do guia de atualização aplicada na instalação de teste. Sem aviso para quem não seguiu o guia, sem número de versão nos arquivos e sem compatibilidade nenhuma com o formato antigo (decidido em 20/11/2026)
-    - [ ] Parte 1, a API e a interface: as rotas, os parâmetros, as chaves do JSON, as rotas do hash, as chaves da URL, as chaves do `localStorage` e os ids de coluna do Diagnóstico
-    - [ ] Parte 2, o `dwnvr.yaml`, a env e o contrato com o `dwnvr-detect` (`DETECT_*`, `minScore`, as chaves do `POST /detect`, e `detectMecanismo` e `detectSensibilidade`, que são a mesma chave no yaml, no `cameras.json` e na API)
+    - [x] Parte 1, a API e a interface: as rotas, os parâmetros, as chaves do JSON, as rotas do hash, as chaves da URL, as chaves do `localStorage` e os ids de coluna do Diagnóstico: PR #90, em 20/11/2026
+    - [ ] Parte 2, o `dwnvr.yaml`, a env e o contrato com o `dwnvr-detect` (`DETECT_MODEL` e `DETECT_PORT`, os parâmetros e as chaves do `POST /detect` e do `/health`, e `detectMethod` e `detectSensitivity`, que são a mesma chave no yaml, no `cameras.json` e na API)
+      - [x] As duas pontas e os docs, na branch `en-us-config`; a seção 2 do guia
+      - [x] A mesma resposta da imagem de antes para o mesmo clipe, com os nomes novos (57 achados, o quadro em base64 inclusive)
+      - [x] A seção 2 do guia aplicada na instalação de teste, com uma câmera fora do padrão, e o deploy da branch lá
+      - [ ] O PR mergeado por squash
     - [ ] Parte 3, os nomes dos arquivos das pessoas (`usuarios.json`, `acessos.json`, `avatares/`)
     - [ ] Parte 4, os eventos e os quadros gravados (`eventos/`, `quadros/` e as chaves de cada linha); começa pelo backup
     - [ ] Parte 5, os valores das enumerações (`pessoa`, `veiculo`, `periodico`), que são a mesma constante na API, no `cameras.json`, no yaml e nos eventos

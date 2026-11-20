@@ -316,7 +316,7 @@ func TestHandleServerDiagnostics(t *testing.T) {
 // address without the credential.
 func TestDiagnosticsWithDetector(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"modelo": "modelo.onnx", "entrada": "512x288", "threads": 2}`))
+		_, _ = w.Write([]byte(`{"model": "model.onnx", "inputSize": "512x288", "threads": 2}`))
 	}))
 	defer srv.Close()
 	s, _ := testServer(t)
@@ -329,7 +329,19 @@ func TestDiagnosticsWithDetector(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := got.Detector
-	if d == nil || !d.OK || d.Model != "modelo.onnx" || d.Threads != 2 || d.URL != srv.URL {
+	if d == nil || !d.OK || d.Model != "model.onnx" || d.InputSize != "512x288" || d.Threads != 2 || d.URL != srv.URL {
 		t.Errorf("detector: %+v", d)
+	}
+
+	// The key the screen reads, checked apart from the struct: a wrong tag
+	// would pass the check above, since the same struct decodes it.
+	var raw struct {
+		Detector map[string]any `json:"detector"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if raw.Detector["inputSize"] != "512x288" {
+		t.Errorf("detector inputSize in the JSON: %v", raw.Detector)
 	}
 }

@@ -70,10 +70,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 #
 # Checking the result is the job of the check stage, further down.
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYC_FORA="/(test|tests|testing|idlelib|tkinter|turtledemo|ensurepip|lib2to3|pydoc_data|site-packages|_pyinstaller|f2py)/"
+    PYC_SKIP="/(test|tests|testing|idlelib|tkinter|turtledemo|ensurepip|lib2to3|pydoc_data|site-packages|_pyinstaller|f2py)/"
 COPY --from=target /usr/local/lib/python3.12 /target/usr/local/lib/python3.12
 RUN PYTHONPYCACHEPREFIX=/tmp/pyc python3 -m compileall -q -j0 \
-      --invalidation-mode checked-hash -x "$PYC_FORA" \
+      --invalidation-mode checked-hash -x "$PYC_SKIP" \
       /target/usr/local/lib/python3.12 /opt/packages && \
     mkdir /opt/pyc && \
     mv /tmp/pyc/target/usr /tmp/pyc/opt /opt/pyc/

@@ -62,8 +62,8 @@ Tudo que é política de gravação é **por câmera**, não global:
 | `maxDays` | idade máxima, opcional | 0 (sem limite) ou mais |
 | `stallSeconds` | tolerância antes de considerar o stream morto | de 1 a 3600 |
 | `detect` | marcar movimento na timeline - ver abaixo | |
-| `detectMecanismo` | quem decide disparar | `kleinberg-p` ou `periodico` |
-| `detectSensibilidade` | o nível, que é o custo em CPU | de 1 a 5 |
+| `detectMethod` | quem decide disparar | `kleinberg-p` ou `periodico` |
+| `detectSensitivity` | o nível, que é o custo em CPU | de 1 a 5 |
 | `areas` | as áreas desenhadas sobre a imagem - ver abaixo | até 8 |
 | `alert` | quando uma detecção vira alerta - ver abaixo | |
 

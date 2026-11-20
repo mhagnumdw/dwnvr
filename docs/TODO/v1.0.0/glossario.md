@@ -40,7 +40,7 @@ termo.
 | --- | --- | --- |
 | achado | `Detection` | toda caixa que o modelo devolve; no texto, "raw detection" |
 | detecção (a tela, a API) | `detection` | o achado que virou marca |
-| piso | `minScore` | no `dwnvr-detect`, `min_score`, inclusive o parâmetro do `POST /detect` |
+| piso | `minScore` | o parâmetro do `POST /detect` também é `minScore`; só a variável no Python é `min_score` |
 | mecanismo | `detectMethod` | valores `kleinberg-p` e `periodic` |
 | caixa | `box` | |
 | rajada | `burst` | |

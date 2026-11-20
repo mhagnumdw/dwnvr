@@ -79,13 +79,13 @@ calibração usa por construção o mesmo preparo que roda em produção.
 
 O fp32 não passa por calibração nenhuma, então serve de comparação quando o
 int8 parecer errar numa câmera. Ele entra sem rebuild da imagem, por volume e
-`DETECT_MODELO`:
+`DETECT_MODEL`:
 
 ```yaml
     volumes:
       - ./rfdetr-n_512x288_fp32.onnx:/models/fp32.onnx:ro
     environment:
-      - DETECT_MODELO=/models/fp32.onnx
+      - DETECT_MODEL=/models/fp32.onnx
 ```
 
 Qualquer `.onnx` com a mesma saída do RF-DETR funciona: o servidor lê o

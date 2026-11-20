@@ -14,7 +14,7 @@ the build fails, if:
 - any .pyc has no .py: a leftover from another build.
 
 What stays without a .pyc on purpose (tests, pip...) is the regex of the
-PYC_FORA variable, the same one compileall gets in `-x`.
+PYC_SKIP variable, the same one compileall gets in `-x`.
 """
 
 import importlib.util
@@ -51,7 +51,7 @@ def pyc_problem(pyc: str, source: bytes) -> str | None:
 
 
 def check(root: str) -> tuple[int, list[str]]:
-    skip = re.compile(os.environ["PYC_FORA"])
+    skip = re.compile(os.environ["PYC_SKIP"])
     expected, problems = set(), []
     for base in SOURCES:
         if not os.path.isdir(root + base):

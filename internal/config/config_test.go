@@ -108,9 +108,9 @@ func byField(warnings []Warning) map[string]Warning {
 func TestBadCameraValueStartsWithDefault(t *testing.T) {
 	cfg, cams, warnings, err := loadWithWarnings(t, "", `[
 		{"id":"cam_ruim","quotaMB":5,"segmentSeconds":600,"maxDays":-1,"stallSeconds":99999,
-		 "audio":"mp3","detectMecanismo":"magico","detectSensibilidade":9},
+		 "audio":"mp3","detectMethod":"magico","detectSensitivity":9},
 		{"id":"cam_boa","quotaMB":100,"segmentSeconds":300,"maxDays":7,"stallSeconds":30,
-		 "audio":"flac","detectMecanismo":"periodico","detectSensibilidade":1}]`)
+		 "audio":"flac","detectMethod":"periodico","detectSensitivity":1}]`)
 	if err != nil {
 		t.Fatalf("boot failed: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestBadCameraValueStartsWithDefault(t *testing.T) {
 	wanted := map[string]any{
 		"quotaMB": p.QuotaMB, "segmentSeconds": p.SegmentSeconds, "maxDays": p.MaxDays,
 		"stallSeconds": p.StallSeconds, "audio": p.Audio,
-		"detectMecanismo": p.DetectMethod, "detectSensibilidade": p.DetectSensitivity,
+		"detectMethod": p.DetectMethod, "detectSensitivity": p.DetectSensitivity,
 	}
 	got := byField(warnings)
 	if len(warnings) != len(wanted) {
@@ -188,8 +188,8 @@ defaults:
   maxDays: -3
   stallSeconds: 0
   audio: mp3
-  detectMecanismo: magico
-  detectSensibilidade: 9
+  detectMethod: magico
+  detectSensitivity: 9
 `, "")
 	if err != nil {
 		t.Fatalf("boot failed: %v", err)
@@ -201,7 +201,7 @@ defaults:
 	got := byField(warnings)
 	for _, field := range []string{"storage.minFreeMB", "defaults.segmentSeconds",
 		"defaults.quotaMB", "defaults.maxDays", "defaults.stallSeconds", "defaults.audio",
-		"defaults.detectMecanismo", "defaults.detectSensibilidade"} {
+		"defaults.detectMethod", "defaults.detectSensitivity"} {
 		if a, ok := got[field]; !ok || a.Camera != "" {
 			t.Errorf("%s: warning %+v", field, a)
 		}

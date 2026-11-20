@@ -8,10 +8,10 @@ import "context"
 // that still holds when the camera's resolution changes - and it does: some
 // cameras' init advertises 2560x1440 while the stream delivers 1920x1080.
 type Detection struct {
-	Class string  `json:"classe"`
+	Class string  `json:"class"`
 	Score float64 `json:"score"`
 	// X1, Y1, X2, Y2 as a fraction of the frame, from 0 to 1.
-	Box [4]float64 `json:"caixa"`
+	Box [4]float64 `json:"box"`
 }
 
 // Output is what the object detector returns from an inference: the
