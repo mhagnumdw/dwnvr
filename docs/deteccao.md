@@ -485,8 +485,8 @@ um detector que caiu aos 50 s, antes do timeout de 60 s.
 
 O modelo é o RF-DETR Nano, treinado no COCO, exportado com entrada fixa em
 512x288 e quantizado para int8 (ver
-[`dwnvr-detect/modelo/README.md`](../dwnvr-detect/modelo/README.md)). Ele
-aceita qualquer resolução: o `servidor.py` estica o quadro até 512x288, e a
+[`dwnvr-detect/model/README.md`](../dwnvr-detect/model/README.md)). Ele
+aceita qualquer resolução: o `server.py` estica o quadro até 512x288, e a
 caixa volta em fração. Aceitar não é detectar bem:
 
 | Requisito | Por quê |
@@ -522,7 +522,7 @@ e [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO/TODO_recalibrar-modelo
 | `internal/alert/rule.go` | quando as marcas de uma olhada viram alerta |
 | `internal/alert/dispatcher.go` | o registro e a entrega aos meios |
 | `internal/store/store.go` | `eventos/{dia}.ndjson` |
-| `dwnvr-detect/servidor.py` | decodificar e rodar o modelo |
+| `dwnvr-detect/server.py` | decodificar e rodar o modelo |
 | `web/src/components/Timeline.svelte` | a faixa de calor e as marcas de objeto |
 | `web/src/components/Boxes.svelte` | as caixas sobre o vídeo |
 | `web/src/routes/Diagnostics.svelte` | o funil e a fila no Diagnóstico |

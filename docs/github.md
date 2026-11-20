@@ -192,9 +192,9 @@ mão.
 
 O Dependabot manda as dependências ao dependency graph em snapshots por pasta,
 no workflow "Dependency Graph", e cada snapshot só é trocado por outro de mesmo
-correlator. A leitura de `/dwnvr-detect` desce até `modelo/` e leva o
-`modelo/requirements.txt` junto; um push que só mexe em `modelo/` refaz apenas
-o snapshot de `/dwnvr-detect/modelo`. O de `/dwnvr-detect` fica com a versão
+correlator. A leitura de `/dwnvr-detect` desce até `model/` e leva o
+`model/requirements.txt` junto; um push que só mexe em `model/` refaz apenas
+o snapshot de `/dwnvr-detect/model`. O de `/dwnvr-detect` fica com a versão
 velha, e o alert continua aberto com o arquivo já corrigido. Foi o que
 aconteceu com o `torch` em 29/09/2026.
 

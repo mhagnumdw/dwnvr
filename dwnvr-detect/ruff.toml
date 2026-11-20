@@ -1,8 +1,8 @@
-# ruff: lint e formatação do Python do dwnvr-detect. Roda pelo hook do
-# .pre-commit-config.yaml, e o editor lê este mesmo arquivo.
+# ruff: lint and formatting of dwnvr-detect's Python. It runs through the hook in
+# .pre-commit-config.yaml, and the editor reads this same file.
 
-# A da imagem (Dockerfile).
+# The image's (Dockerfile).
 target-version = "py312"
-# Sem o limite de 88: o resto do repositório não limita linha (MD013 e
-# line-length do yamllint desligados), e o 120 só quebra o que é longo demais.
+# Without the 88 limit: the rest of the repository doesn't limit lines (MD013
+# and yamllint's line-length off), and 120 only breaks what is too long.
 line-length = 120

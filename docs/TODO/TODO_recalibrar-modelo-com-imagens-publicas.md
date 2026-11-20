@@ -6,10 +6,10 @@
 
 O `.onnx` publicado foi calibrado com quadros das câmeras do autor, que não
 estão no repositório (ver
-[`dwnvr-detect/modelo/README.md`](../../dwnvr-detect/modelo/README.md)).
+[`dwnvr-detect/model/README.md`](../../dwnvr-detect/model/README.md)).
 Funciona, mas tem dois defeitos:
 
-- **Ninguém consegue reproduzir o arquivo publicado.** O `exporta.py` roda com
+- **Ninguém consegue reproduzir o arquivo publicado.** O `export.py` roda com
   qualquer pasta de imagens, mas o `.onnx` que sai dele não é o mesmo, e as
   medições do publicado não valem para ele. Só o autor, com os quadros dele,
   refaz o publicado (ver "O que se mediu em 29/09").
@@ -21,7 +21,7 @@ Funciona, mas tem dois defeitos:
 
 Montar a amostra de calibração só com imagens públicas, de licença que permita
 redistribuir, e versionar a lista delas (ou as próprias imagens, se forem
-poucas e pequenas) junto do `exporta.py`. Assim o `.onnx` publicado passa a
+poucas e pequenas) junto do `export.py`. Assim o `.onnx` publicado passa a
 ser reproduzível por qualquer um.
 
 O critério da amostra continua o mesmo do README do modelo: dividida entre
@@ -78,7 +78,7 @@ Os quadros terão pessoas, o que a licença permite.
 Com os quadros originais da calibração (163) e do holdout (66), que continuam
 fora do repositório, em PNG sem perda:
 
-1. **O pipeline é determinístico.** O `exporta.py` de hoje, com o `torch`
+1. **O pipeline é determinístico.** O `export.py` de hoje, com o `torch`
    2.11.0 do build de CUDA (`+cu128`), que foi o que gerou o publicado, refaz
    o fp32 e o int8 publicados byte a byte. O int8 também sai idêntico
    quantizando de novo o fp32 original: a quantização não sorteia nada.

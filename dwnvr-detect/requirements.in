@@ -1,11 +1,12 @@
-# As dependências diretas do servidor.py. O requirements.txt sai daqui, com as
-# indiretas e o hash de cada wheel, valendo para amd64 e arm64:
+# The direct dependencies of server.py. requirements.txt comes from here, with
+# the indirect ones and the hash of each wheel, valid for amd64 and arm64:
 #
 #   uv pip compile --universal --generate-hashes --python-version 3.12 \
 #     requirements.in -o requirements.txt
 #
-# As versões são as que exportaram o .onnx e mediram a entrega. Outro runtime é
-# outro número: trocar alguma delas exige conferir de novo, como diz o README.
+# The versions are the ones that exported the .onnx and measured the delivery.
+# Another runtime is another number: changing any of them requires checking
+# again, as the README says.
 onnxruntime==1.29.0
 numpy==2.5.3
 av==18.1.0

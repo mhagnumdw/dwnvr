@@ -1,11 +1,11 @@
-# Mesma lógica do .dockerignore da raiz: nada entra no contexto de build, exceto
-# o que for liberado abaixo.
+# Same logic as the root .dockerignore: nothing enters the build context, except
+# what is let in below.
 **
 
 !requirements.txt
-!servidor.py
+!server.py
 !sitecustomize.py
-!confere_pyc.py
-# Só o modelo que vai na imagem: o fp32 que o exporta.py deixa ao lado tem
-# ~100 MB, e entraria à toa no contexto do build.
-!modelo/rfdetr-n_512x288_int8.onnx
+!check_pyc.py
+# Only the model that goes in the image: the fp32 that export.py leaves next to
+# it is ~100 MB, and would enter the build context for nothing.
+!model/rfdetr-n_512x288_int8.onnx

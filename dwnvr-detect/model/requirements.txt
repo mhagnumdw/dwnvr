@@ -1,0 +1,18 @@
+# The dependencies of export.py, in the versions that redo the published .onnx.
+# They don't go into the image: they only serve to generate the model again.
+#
+# torch is the PyPI one, which is the CUDA build (~5 GB), even without a GPU:
+# only it redoes the published .onnx byte by byte. The CPU one is much smaller
+# and gives an int8 of the same quality, but another file (see the README).
+rfdetr==1.10.1
+torch==2.13.0
+torchvision==0.28.0
+transformers==5.16.1
+supervision==0.30.2
+onnx==1.22.0
+onnxslim==0.1.96
+onnxruntime==1.29.0
+numpy==2.5.3
+pillow==13.0.0
+# export.py imports the preparation from server.py, which loads PyAV.
+av==18.1.0

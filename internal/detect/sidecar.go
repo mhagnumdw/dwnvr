@@ -16,7 +16,7 @@ import (
 
 // sidecar is the Detector that sends the clip to the `dwnvr-detect` container
 // over HTTP and returns what it found. The container is
-// `dwnvr-detect/servidor.py`.
+// `dwnvr-detect/server.py`.
 //
 // It has no timeout of its own: the caller passes the deadline in ctx,
 // because it's the queue that knows how long an inference is still worth
