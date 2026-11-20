@@ -45,14 +45,14 @@ var ErrClipRejected = errors.New("object detector rejected the clip")
 // sidecarResponse is the JSON of POST /detect: the detections, or the reason
 // it didn't infer.
 type sidecarResponse struct {
-	Detections []Detection `json:"achados"`
-	Err        string      `json:"erro"`
+	Detections []Detection `json:"detections"`
+	Err        string      `json:"error"`
 
 	// Frame is the JPEG of the inferred frame, in base64, and only comes when
 	// there was a detection. Base64 costs a third more bytes on a connection
 	// that is local - the sidecar runs on the same machine -, and in exchange
 	// the answer stays a single JSON, readable with `curl` when debugging.
-	Frame []byte `json:"quadro,omitempty"`
+	Frame []byte `json:"frame,omitempty"`
 }
 
 // maxResponse is a wide margin: an inference with 300 boxes above the floor,
@@ -61,8 +61,8 @@ type sidecarResponse struct {
 const maxResponse = 4 << 20
 
 func (s *sidecar) Infer(ctx context.Context, p Clip) (Output, error) {
-	url := s.url + "/detect?piso=" + strconv.FormatFloat(MinScore, 'f', -1, 64) +
-		"&larguraDoQuadro=" + strconv.Itoa(FrameWidth) + "&qualidade=" + strconv.Itoa(FrameQuality)
+	url := s.url + "/detect?minScore=" + strconv.FormatFloat(MinScore, 'f', -1, 64) +
+		"&frameWidth=" + strconv.Itoa(FrameWidth) + "&quality=" + strconv.Itoa(FrameQuality)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(p.Fmp4))
 	if err != nil {
 		return Output{}, err
@@ -93,8 +93,8 @@ func (s *sidecar) Infer(ctx context.Context, p Clip) (Output, error) {
 // Health is what the sidecar's GET /health returns: the loaded model, the
 // size it infers the frame at, and how many threads it uses.
 type Health struct {
-	Model     string `json:"modelo"`
-	InputSize string `json:"entrada"`
+	Model     string `json:"model"`
+	InputSize string `json:"inputSize"`
 	Threads   int    `json:"threads"`
 }
 

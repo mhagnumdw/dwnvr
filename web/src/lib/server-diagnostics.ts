@@ -226,7 +226,7 @@ function detector(d: NonNullable<Server['detector']>) {
   if (d.model)
     items.push({
       label: 'modelo',
-      value: d.entry ? `${d.model}, entrada ${d.entry}` : d.model,
+      value: d.inputSize ? `${d.model}, entrada ${d.inputSize}` : d.model,
     });
   if (d.threads) items.push({ label: 'threads', value: String(d.threads) });
   items.push({ label: 'endereço', value: d.url });

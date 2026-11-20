@@ -103,41 +103,41 @@ docker buildx build --platform linux/amd64 -t dwnvr-detect:amd64 --load dwnvr-de
 ## O contrato
 
 ```text
-POST /detect?piso=0.20&larguraDoQuadro=480&qualidade=75
+POST /detect?minScore=0.20&frameWidth=480&quality=75
                                       corpo: o pedaço (.mp4), do frame I ao quadro a olhar
 GET  /health
 ```
 
 ```json
 {
-  "achados": [
+  "detections": [
     {
-      "classe": "person",
+      "class": "person",
       "score": 0.87,
-      "caixa": [0.31, 0.12, 0.38, 0.55]
+      "box": [0.31, 0.12, 0.38, 0.55]
     }
   ],
-  "quadrosDecodificados": 14,
-  "largura": 640,
-  "altura": 360,
-  "tempoMs": {
-    "decodifica": 180.2,
-    "preparo": 190.4,
-    "modelo": 5900.1,
-    "quadro": 11.4
+  "decodedFrames": 14,
+  "width": 640,
+  "height": 360,
+  "timingsMs": {
+    "decode": 180.2,
+    "preprocess": 190.4,
+    "model": 5900.1,
+    "frame": 11.4
   },
-  "quadro": "/9j/4AAQSkZJRgABAQAAAQ… (base64)"
+  "frame": "/9j/4AAQSkZJRgABAQAAAQ… (base64)"
 }
 ```
 
-Com `larguraDoQuadro=<largura>`, e havendo achado, a resposta traz também o quadro
+Com `frameWidth=<largura>`, e havendo achado, a resposta traz também o quadro
 olhado em JPEG, reduzido àquela largura, em base64. É a miniatura da tela de
 Detecções: o quadro sai daqui porque aqui ele já está decodificado. Sem o
 parâmetro, ou sem achado, o campo não vem.
 
 A caixa vai em fração do quadro (x1, y1, x2, y2). Ele devolve TODA caixa a
-partir do `piso`, de qualquer classe, e não decide nada: o corte por família e
-a memória de objeto parado são do dwnvr, que só lê `achados`. Os outros campos
+partir do `minScore`, de qualquer classe, e não decide nada: o corte por família e
+a memória de objeto parado são do dwnvr, que só lê `detections`. Os outros campos
 são para quem chama à mão. Pedaço que não decodifica até o fim volta `422`:
 olhar o último quadro que sobrou seria olhar outro instante.
 
@@ -145,9 +145,9 @@ Configuração, por variável de ambiente:
 
 | Variável | O que é | Padrão |
 | --- | --- | --- |
-| `DETECT_MODELO` | o `.onnx` | `/app/model.onnx` |
+| `DETECT_MODEL` | o `.onnx` | `/app/model.onnx` |
 | `DETECT_THREADS` | threads do modelo e do vídeo | `auto` |
-| `DETECT_PORTA` | porta HTTP | `8480` |
+| `DETECT_PORT` | porta HTTP | `8480` |
 
 O `auto` é metade dos núcleos que o container enxerga, até 4, e nunca acima
 do teto de CPU do container, se alguém puser um (o `docker-compose.yml` do

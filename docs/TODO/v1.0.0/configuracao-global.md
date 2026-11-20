@@ -16,7 +16,7 @@ editar arquivo e sem reiniciar.
   uso, que se muda olhando o efeito? É número medido de um `params.go`?
   Vale sem reiniciar?
 - **Entram** o `storage.minFreeMB`, o `defaults.maxDays`, o `defaults.detect`,
-  o `defaults.detectSensibilidade` e o `DETECT_THREADS` do `dwnvr-detect`.
+  o `defaults.detectSensitivity` e o `DETECT_THREADS` do `dwnvr-detect`.
   **Ficam de fora** a ligação entre containers (`server.listen`, `go2rtc.*`,
   `storage.root`, `detector.url`), o que depende de cada câmera (cota, áudio,
   duração do segmento, tolerância de travamento, mecanismo da detecção), a

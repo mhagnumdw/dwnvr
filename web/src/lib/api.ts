@@ -447,8 +447,8 @@ export interface Camera {
   audio?: string;
   stallSeconds?: number;
   detect?: boolean;
-  detectMecanismo?: string;
-  detectSensibilidade?: number;
+  detectMethod?: string;
+  detectSensitivity?: number;
   areas?: CameraArea[];
   // Only the admin receives it: the viewer does not edit cameras.
   alert?: CameraAlert;
@@ -519,7 +519,7 @@ export interface Bounds {
 // The camera fields with a range: the CameraRanges of
 // internal/config/params.go.
 export type FieldWithBounds =
-  'quotaMB' | 'segmentSeconds' | 'maxDays' | 'stallSeconds' | 'detectSensibilidade';
+  'quotaMB' | 'segmentSeconds' | 'maxDays' | 'stallSeconds' | 'detectSensitivity';
 export type BoundsMap = Partial<Record<FieldWithBounds, Bounds>>;
 
 // What is in go2rtc.yaml and go2rtc has not loaded yet. An empty list is not
@@ -783,7 +783,7 @@ export interface Server {
     ok: boolean;
     ms: number;
     model?: string;
-    entry?: string;
+    inputSize?: string;
     threads?: number;
     error?: string;
     url: string;

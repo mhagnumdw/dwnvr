@@ -157,7 +157,7 @@ defaults:
   #              pelo mesmo custo.
   # periodico    dispara em intervalo fixo, ignorando a imagem. Custo idêntico
   #              e perfeitamente previsível; pega bem menos.
-  detectMecanismo: kleinberg-p
+  detectMethod: kleinberg-p
 
   # De 1 a 5, e o que ele controla é o CUSTO - quantas vezes por hora, POR
   # CÂMERA, o dwnvr para para olhar. Multiplique pelo número de câmeras.
@@ -169,4 +169,4 @@ defaults:
   #   5 muito alta   100 marcas/hora   pega 57,4%   <- padrão
   #
   # As duas colunas são medidas, não estimadas: ver docs/configuracao.md.
-  detectSensibilidade: 5
+  detectSensitivity: 5

@@ -173,13 +173,13 @@ type go2rtcInfo struct {
 }
 
 type detectorInfo struct {
-	OK      bool   `json:"ok"`
-	Ms      int64  `json:"ms"`
-	Model   string `json:"model,omitempty"`
-	Entry   string `json:"entry,omitempty"`
-	Threads int    `json:"threads,omitempty"`
-	Error   string `json:"error,omitempty"`
-	URL     string `json:"url"`
+	OK        bool   `json:"ok"`
+	Ms        int64  `json:"ms"`
+	Model     string `json:"model,omitempty"`
+	InputSize string `json:"inputSize,omitempty"`
+	Threads   int    `json:"threads,omitempty"`
+	Error     string `json:"error,omitempty"`
+	URL       string `json:"url"`
 }
 
 type logInfo struct {
@@ -743,7 +743,7 @@ func (s *Server) probeDetector(ctx context.Context) *detectorInfo {
 		info.Error = err.Error()
 		return info
 	}
-	info.OK, info.Model, info.Entry, info.Threads = true, health.Model, health.InputSize, health.Threads
+	info.OK, info.Model, info.InputSize, info.Threads = true, health.Model, health.InputSize, health.Threads
 	return info
 }
 

@@ -234,7 +234,7 @@ câmera, a mesma régua com que o `POST /api/cameras` recusa, de onde saem o
   "segmentSeconds": { "min": 10, "max": 300 },
   "maxDays": { "min": 0 },
   "stallSeconds": { "min": 1, "max": 3600 },
-  "detectSensibilidade": { "min": 1, "max": 5 }
+  "detectSensitivity": { "min": 1, "max": 5 }
 }
 ```
 
@@ -553,7 +553,7 @@ sem cgroup, fora do Linux).
   },
   "go2rtc": { "ok": true, "ms": 4, "version": "1.9.9", "url": "http://go2rtc:1984" },
   "detector": {
-    "ok": true, "ms": 128, "model": "modelo.onnx", "entry": "512x288",
+    "ok": true, "ms": 128, "model": "model.onnx", "inputSize": "512x288",
     "threads": 2, "url": "http://dwnvr-detect:8480"
   },
   "smtp": {

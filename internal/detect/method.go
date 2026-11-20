@@ -58,7 +58,7 @@ type Verdict struct {
 }
 
 // Methods is the constructor map: switching method is switching the string in
-// the camera's `detectMecanismo` field. The level is the 1 to 5 one from the
+// the camera's `detectMethod` field. The level is the 1 to 5 one from the
 // camera settings, and it carries the cost - each method knows how to
 // translate it into what concerns it.
 var Methods = map[string]func(level int) Method{

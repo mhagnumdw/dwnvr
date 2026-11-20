@@ -316,7 +316,7 @@ func TestHandleServerDiagnostics(t *testing.T) {
 // address without the credential.
 func TestDiagnosticsWithDetector(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"modelo": "modelo.onnx", "entrada": "512x288", "threads": 2}`))
+		_, _ = w.Write([]byte(`{"model": "model.onnx", "inputSize": "512x288", "threads": 2}`))
 	}))
 	defer srv.Close()
 	s, _ := testServer(t)
@@ -329,7 +329,7 @@ func TestDiagnosticsWithDetector(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := got.Detector
-	if d == nil || !d.OK || d.Model != "modelo.onnx" || d.Threads != 2 || d.URL != srv.URL {
+	if d == nil || !d.OK || d.Model != "model.onnx" || d.Threads != 2 || d.URL != srv.URL {
 		t.Errorf("detector: %+v", d)
 	}
 }

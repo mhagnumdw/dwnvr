@@ -26,12 +26,12 @@ func TestSidecarSendsClipAndMinScoreAndReadsDetections(t *testing.T) {
 		switch {
 		case r.Method != http.MethodPost || r.URL.Path != "/detect":
 			t.Errorf("%s %s, expected POST /detect", r.Method, r.URL.Path)
-		case r.URL.Query().Get("piso") != "0.2":
-			t.Errorf("piso %q, expected MinScore", r.URL.Query().Get("piso"))
+		case r.URL.Query().Get("minScore") != "0.2":
+			t.Errorf("minScore %q, expected MinScore", r.URL.Query().Get("minScore"))
 		case !bytes.Equal(body, clip):
 			t.Errorf("body %q, expected the clip", body)
 		}
-		_, _ = io.WriteString(w, `{"achados":[{"classe":"person","score":0.87,"caixa":[0.1,0.2,0.3,0.4]}]}`)
+		_, _ = io.WriteString(w, `{"detections":[{"class":"person","score":0.87,"box":[0.1,0.2,0.3,0.4]}]}`)
 	})
 	out, err := d.Infer(t.Context(), Clip{Fmp4: clip})
 	if err != nil {
@@ -47,7 +47,7 @@ func TestSidecarSendsClipAndMinScoreAndReadsDetections(t *testing.T) {
 // tracker. It must not come back nil, which reads as "didn't infer".
 // That also holds for a response without the field, or with it null.
 func TestSidecarEmptyInferenceIsAResult(t *testing.T) {
-	for _, body := range []string{`{"achados":[]}`, `{"achados":null}`, `{}`} {
+	for _, body := range []string{`{"detections":[]}`, `{"detections":null}`, `{}`} {
 		d := fakeSidecar(t, func(w http.ResponseWriter, r *http.Request) {
 			_, _ = io.WriteString(w, body)
 		})
@@ -61,10 +61,10 @@ func TestSidecarEmptyInferenceIsAResult(t *testing.T) {
 func TestSidecarErrorComesBackWithReason(t *testing.T) {
 	d := fakeSidecar(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = io.WriteString(w, `{"erro":"pedaço não decodifica: nenhum quadro"}`)
+		_, _ = io.WriteString(w, `{"error":"clip doesn't decode: no frame"}`)
 	})
 	_, err := d.Infer(t.Context(), Clip{Fmp4: []byte("x")})
-	if err == nil || !strings.Contains(err.Error(), "nenhum quadro") || !strings.Contains(err.Error(), "422") {
+	if err == nil || !strings.Contains(err.Error(), "no frame") || !strings.Contains(err.Error(), "422") {
 		t.Errorf("error %v: expected the HTTP status and the sidecar's reason", err)
 	}
 	// 422 is a bad clip with the object detector up - it must not become
@@ -77,7 +77,7 @@ func TestSidecarErrorComesBackWithReason(t *testing.T) {
 func TestSidecarServerErrorIsNotRejection(t *testing.T) {
 	d := fakeSidecar(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = io.WriteString(w, `{"erro":"quebrou"}`)
+		_, _ = io.WriteString(w, `{"error":"broke"}`)
 	})
 	_, err := d.Infer(t.Context(), Clip{Fmp4: []byte("x")})
 	if err == nil || errors.Is(err, ErrClipRejected) {
@@ -109,14 +109,14 @@ func TestSidecarHealth(t *testing.T) {
 		if r.Method != http.MethodGet || r.URL.Path != "/health" {
 			t.Errorf("%s %s, expected GET /health", r.Method, r.URL.Path)
 		}
-		_, _ = io.WriteString(w, `{"modelo": "modelo.onnx", "entrada": "512x288", "threads": 2}`)
+		_, _ = io.WriteString(w, `{"model": "model.onnx", "inputSize": "512x288", "threads": 2}`)
 	}))
 	defer srv.Close()
 	s, err := SidecarHealth(t.Context(), srv.URL+"/")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s != (Health{Model: "modelo.onnx", InputSize: "512x288", Threads: 2}) {
+	if s != (Health{Model: "model.onnx", InputSize: "512x288", Threads: 2}) {
 		t.Errorf("health %+v", s)
 	}
 }

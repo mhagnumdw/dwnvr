@@ -120,7 +120,7 @@ flowchart TD
     mecanismo -->|"quadro do pico (até 3 s depois)"| gop
     gop --> pedaco
     pedaco --> fila
-    fila -->|"HTTP: POST /detect?piso=0.2"| modelo
+    fila -->|"HTTP: POST /detect?minScore=0.2"| modelo
     modelo -->|caixas| corte
     corte --> rastreio
     rastreio --> objeto
@@ -170,7 +170,7 @@ quadro. Não tem fila, não tem memória e não decide o que vira marca. Detalhe
 de build, modelo e licença em [`dwnvr-detect/README.md`](../dwnvr-detect/README.md).
 
 ```text
-POST /detect?piso=0.2&larguraDoQuadro=480&qualidade=75
+POST /detect?minScore=0.2&frameWidth=480&quality=75
                           Content-Type: video/mp4, corpo: o pedaço
 GET  /health              o HEALTHCHECK do Docker e o card "Este servidor"
                           do Diagnóstico; a fila não usa
@@ -178,36 +178,36 @@ GET  /health              o HEALTHCHECK do Docker e o card "Este servidor"
 
 ```json
 {
-  "achados": [
+  "detections": [
     {
-      "classe": "person",
+      "class": "person",
       "score": 0.87,
-      "caixa": [0.41, 0.32, 0.47, 0.62]
+      "box": [0.41, 0.32, 0.47, 0.62]
     }
   ],
-  "quadrosDecodificados": 14,
-  "largura": 640,
-  "altura": 360,
-  "tempoMs": {
-    "decodifica": 181.3,
-    "preparo": 42.7,
-    "modelo": 3391.5,
-    "quadro": 11.4
+  "decodedFrames": 14,
+  "width": 640,
+  "height": 360,
+  "timingsMs": {
+    "decode": 181.3,
+    "preprocess": 42.7,
+    "model": 3391.5,
+    "frame": 11.4
   },
-  "quadro": "/9j/4AAQSkZJRgABAQAAAQ… (base64)"
+  "frame": "/9j/4AAQSkZJRgABAQAAAQ… (base64)"
 }
 ```
 
-- **`caixa` é `[x1, y1, x2, y2]` em fração do quadro**, e não em pixels: é a
+- **`box` é `[x1, y1, x2, y2]` em fração do quadro**, e não em pixels: é a
   única forma que continua valendo quando a resolução da câmera muda.
-- **`quadro` é o quadro olhado em JPEG**, na largura que o `larguraDoQuadro=`
+- **`frame` é o quadro olhado em JPEG**, na largura que o `frameWidth=`
   pediu, e só vem quando houve achado - quadro de onset sem objeto ninguém
   vê. É a miniatura da tela de Detecções. Ele sai daqui porque aqui ele já está
   decodificado, e a caixa, sendo fração, cai no lugar certo sobre ele em
   qualquer tamanho. Medido em quadros reais: 13,8 KB a 480 px com qualidade
   75, e ~11 ms para encodar. O dwnvr o grava em `quadros/{dia}/{instanteMs}.jpg`, ver
   [`arquitetura.md`](arquitetura.md).
-- **O `piso`** é a menor confiança que ele devolve, de qualquer classe. O dwnvr
+- **O `minScore`** é a menor confiança que ele devolve, de qualquer classe. O dwnvr
   manda 0,20, bem abaixo do corte de 0,40, porque o rastreio aprende também com
   caixa fraca.
 - **Um pedido por vez**, de propósito: numa placa de 4 núcleos que também
@@ -293,7 +293,7 @@ com áreas no alerta, `"alertAreas"` com o id das áreas em que o objeto caiu; o
 objeto que não passou fica sem nada:
 
 ```json
-{"instanteMs":1792525050142,"familia":"pessoa","classe":"person","score":0.566,"quadroMs":1792525050171,"caixa":[0.2276,0.3703,0.2784,0.4249],"temQuadro":true,"alert":true,"alertAreas":["calcad"]}
+{"instanteMs":1792525050142,"familia":"pessoa","class":"person","score":0.566,"quadroMs":1792525050171,"box":[0.2276,0.3703,0.2784,0.4249],"temQuadro":true,"alert":true,"alertAreas":["calcad"]}
 ```
 
 ```text
@@ -388,9 +388,9 @@ espera e a goroutine de envio ficam com ela, paradas.
 
 | Onde | O quê |
 | --- | --- |
-| `cameras.json`, pela tela de Câmeras | `detect`, `detectMecanismo`, `detectSensibilidade`, `areas` e `alert` |
+| `cameras.json`, pela tela de Câmeras | `detect`, `detectMethod`, `detectSensitivity`, `areas` e `alert` |
 | `dwnvr.yaml` | `defaults` desses três, e `detector.url` |
-| env do `dwnvr-detect` | `DETECT_THREADS`, `DETECT_MODELO`, `DETECT_PORTA` |
+| env do `dwnvr-detect` | `DETECT_THREADS`, `DETECT_MODEL`, `DETECT_PORT` |
 
 **O que é medido**, fixo em
 [`internal/detect/params.go`](../internal/detect/params.go). Cada

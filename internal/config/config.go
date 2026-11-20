@@ -136,8 +136,8 @@ type Defaults struct {
 	// shouldn't start paying for it.
 	Detect bool `yaml:"detect"`
 
-	DetectMethod      string `yaml:"detectMecanismo"`
-	DetectSensitivity int    `yaml:"detectSensibilidade"`
+	DetectMethod      string `yaml:"detectMethod"`
+	DetectSensitivity int    `yaml:"detectSensitivity"`
 }
 
 // Camera is a registered camera. The ID is the stream name in go2rtc: dwnvr
@@ -176,12 +176,12 @@ type Camera struct {
 	// the winner caught 10.1% of arrivals and the runner-up 23.4%. Switching
 	// the method of a difficult camera is cheaper than raising the level of
 	// all of them.
-	DetectMethod string `json:"detectMecanismo,omitempty"`
+	DetectMethod string `json:"detectMethod,omitempty"`
 
 	// DetectSensitivity is the level from 1 to 5. It's the COST: each level
 	// doubles the number of detections per hour, and each detection is the
 	// feature's entire CPU cost.
-	DetectSensitivity int `json:"detectSensibilidade,omitempty"`
+	DetectSensitivity int `json:"detectSensitivity,omitempty"`
 
 	// Areas are the areas drawn over this camera's image, which the
 	// Detections filter and the alert use. Changing an area doesn't restart
@@ -308,11 +308,11 @@ func (c *Config) check() []Warning {
 		d.Audio = pd.Audio
 	}
 	if _, ok := detect.Methods[d.DetectMethod]; !ok {
-		av = append(av, Warning{Field: "defaults.detectMecanismo", Value: d.DetectMethod,
+		av = append(av, Warning{Field: "defaults.detectMethod", Value: d.DetectMethod,
 			Accepted: acceptedMethods(), InEffect: pd.DetectMethod})
 		d.DetectMethod = pd.DetectMethod
 	}
-	checkRange(&av, Warning{Field: "defaults.detectSensibilidade"}, &d.DetectSensitivity,
+	checkRange(&av, Warning{Field: "defaults.detectSensitivity"}, &d.DetectSensitivity,
 		sensitivityRange, pd.DetectSensitivity, pd.DetectSensitivity)
 	return av
 }
@@ -368,13 +368,13 @@ func (c *Config) CheckCamera(cam Camera) (Camera, []Warning) {
 		cam.Audio = ""
 	}
 	if _, ok := detect.Methods[cam.DetectMethod]; cam.DetectMethod != "" && !ok {
-		a := base("detectMecanismo")
+		a := base("detectMethod")
 		a.Value, a.Accepted, a.InEffect = cam.DetectMethod, acceptedMethods(), c.Defaults.DetectMethod
 		av = append(av, a)
 		cam.DetectMethod = ""
 	}
 	if cam.DetectSensitivity != 0 {
-		checkRange(&av, base("detectSensibilidade"), &cam.DetectSensitivity,
+		checkRange(&av, base("detectSensitivity"), &cam.DetectSensitivity,
 			sensitivityRange, 0, c.Defaults.DetectSensitivity)
 	}
 	cam.Areas = checkAreas(cam, &av)

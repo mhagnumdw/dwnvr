@@ -105,3 +105,82 @@ documentation in [api.md](api.md).
 - Three browser preferences go back to their defaults once, because their
   storage keys were renamed: the recordings thumbnails, the pinned recording
   controls, and the "always on" cameras of the live screen.
+
+## 2. `dwnvr.yaml`, `cameras.json` and the object detector
+
+Who is affected: **everyone who turned motion marking on** (`detect: true`),
+and anyone who calls `/api/cameras` with a script. Two keys were renamed, and
+they are the same key in three places:
+
+| Before | Now |
+| --- | --- |
+| `detectMecanismo` | `detectMethod` |
+| `detectSensibilidade` | `detectSensitivity` |
+
+Their **values** (`kleinberg-p`, `periodico`, `1` to `5`) do not change in
+this section.
+
+A key with the old name is ignored, with no warning: the camera falls back to
+the default method and sensitivity.
+
+### `dwnvr.yaml`
+
+The keys live under `defaults`. With the stack still down from section 0:
+
+```sh
+sed -i -E 's/^(\s*#?\s*)detectMecanismo:/\1detectMethod:/; s/^(\s*#?\s*)detectSensibilidade:/\1detectSensitivity:/' \
+  ~/dwnvr/config/dwnvr/dwnvr.yaml
+```
+
+The expression only touches a key at the start of a line, so the name of an
+area or a camera is left alone.
+
+### `cameras.json`
+
+The Cameras screen writes this file, with one entry per camera. A camera that
+uses the defaults from `dwnvr.yaml` has neither key, and that is fine.
+
+```sh
+f=~/dwnvr/config/dwnvr/cameras.json
+jq 'map(with_entries(.key |= ({"detectMecanismo": "detectMethod", "detectSensibilidade": "detectSensitivity"}[.] // .)))' \
+  "$f" > "$f.new" && cat "$f.new" > "$f" && rm "$f.new"
+```
+
+`cat` over the file, and not `mv`, keeps its owner and permissions. If you
+moved the configuration folder with `DWNVR_CONFIG_DIR`, use that folder in the
+two commands above.
+
+### The object detector (`dwnvr-detect`)
+
+Two environment variables were renamed:
+
+| Before | Now |
+| --- | --- |
+| `DETECT_MODELO` | `DETECT_MODEL` |
+| `DETECT_PORTA` | `DETECT_PORT` |
+
+`DETECT_THREADS` keeps its name. The `docker-compose.yml` of dwnvr sets none of
+the two renamed ones, so only an installation that added them by hand needs a
+change. To find them:
+
+```sh
+grep -n -E 'DETECT_(MODELO|PORTA)' ~/dwnvr/.env ~/dwnvr/docker-compose*.y*ml
+```
+
+Rename each line it prints. With the old name, the object detector uses its
+default model and port.
+
+The HTTP contract between dwnvr and the object detector also moved to en-US.
+There is nothing to do about it: the two images of the same version speak the
+same names, so update both together, as the `docker-compose.yml` already does.
+Only a script that calls `POST /detect` by hand needs the new names, in
+[dwnvr-detect/README.md](../dwnvr-detect/README.md).
+
+### Start again
+
+```sh
+docker compose up -d
+```
+
+On the Cameras screen, the method and sensitivity of each camera are the ones
+you had before the update.
