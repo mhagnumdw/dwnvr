@@ -1,12 +1,13 @@
-// O que o navegador de quem está olhando é e consegue fazer, para a tela de
-// Diagnóstico. Tudo sai do próprio navegador: o servidor não sabe nada disso, e
-// é justamente o que falta quando alguém diz "no meu celular ficou estranho".
+// What the viewer's browser is and can do, for the Diagnostics screen. It all
+// comes from the browser itself: the server knows none of this, and it is
+// exactly what is missing when someone says "it looked weird on my phone".
 //
-// O critério do que entra é explicar um defeito que a app pode ter - layout,
-// vídeo, relógio, armazenamento. Não é inventário do aparelho.
+// The criterion for what goes in is explaining a defect the app can have -
+// layout, video, clock, storage. It is not an inventory of the device.
 
-// O que só alguns navegadores têm, e que o lib.dom do TypeScript ainda não
-// declara. Por isso tudo opcional: a pergunta aqui é justamente se existe.
+// What only some browsers have, and TypeScript's lib.dom doesn't declare yet.
+// Hence everything is optional: the question here is precisely whether it
+// exists.
 declare global {
   interface Navigator {
     readonly userAgentData?: {
@@ -16,13 +17,14 @@ declare global {
     readonly deviceMemory?: number;
   }
   interface Window {
-    // O MediaSource do Safari no iPhone, que não tem o MediaSource comum.
+    // Safari's MediaSource on the iPhone, which doesn't have the standard
+    // MediaSource.
     readonly ManagedMediaSource?: typeof MediaSource;
   }
 }
 
-// Um item dos cards de diagnóstico, o do navegador e o do servidor. `alerta`
-// marca o valor que já é, sozinho, uma explicação provável de defeito.
+// An item of the diagnostics cards, the browser's and the server's. `alert`
+// flags a value that by itself is already a probable explanation for a defect.
 export interface CardItem {
   label: string;
   value: string;
@@ -34,10 +36,10 @@ export interface CardGroup {
   items: CardItem[];
 }
 
-// Os codecs que o player das gravações de fato pede ao MediaSource: é a mesma
-// tabela do #mimeFor em player.svelte.ts, e o live (video-rtc.js) negocia a
-// partir de H.264, H.265 e AAC. Um "não" aqui é a explicação direta do "este
-// navegador não reproduz" na tela de Gravações.
+// The codecs the recordings player actually asks MediaSource for: it is the
+// same table as #mimeFor in player.svelte.ts, and live (video-rtc.js)
+// negotiates from H.264, H.265 and AAC. A "no" here directly explains "this
+// browser can't play" on the Recordings screen.
 const CODECS = [
   { id: 'avc1.640029', label: 'H.264' },
   { id: 'hvc1.1.6.L153.B0', label: 'H.265 (hvc1)' },
@@ -47,12 +49,12 @@ const CODECS = [
   { id: 'flac', label: 'FLAC' },
 ];
 
-// O tamanho de letra que a app pede no body (app.css). A escala do texto é
-// medida contra ele.
+// The font size the app asks for on the body (app.css). The text scale is
+// measured against it.
 const BASE_FONT_PX = 15;
 
-// Navegador e versão a partir do user agent. A ordem importa: Edge, Samsung e
-// Opera também dizem "Chrome/" no UA, então o Chrome é o último a ser tentado.
+// Browser and version from the user agent. The order matters: Edge, Samsung and
+// Opera also say "Chrome/" in the UA, so Chrome is the last one tried.
 function uaBrowser(ua: string) {
   const attempts: [RegExp, string][] = [
     [/EdgA?\/([\d.]+)/, 'Edge'],
@@ -80,24 +82,25 @@ function uaSystem(ua: string) {
   return 'desconhecido';
 }
 
-// appInstalado diz se a página roda como o app instalado (PWA), na janela
-// própria, sem barra de endereços.
+// appInstalled says whether the page runs as the installed app (PWA), in its
+// own window, with no address bar.
 export function appInstalled() {
   return matchMedia('(display-mode: standalone)').matches;
 }
 
-// Onde a página está rodando. O WebView é o navegador embutido de outro app
-// (abrir o link de dentro do WhatsApp, por exemplo): ele é outro motor, com
-// outra versão, e não o Chrome que a pessoa acha que está usando.
+// Where the page is running. A WebView is another app's embedded browser
+// (opening the link from inside WhatsApp, for example): it is a different
+// engine, with a different version, and not the Chrome the person thinks they
+// are using.
 function whereRuns(ua: string) {
   if (ua.includes('; wv)')) return 'WebView de outro app';
   if (appInstalled()) return 'app instalado (PWA)';
   return 'aba do navegador';
 }
 
-// A escala real do texto, medida e não lida. A fonte grande do Android chega
-// ao Chrome de mais de um jeito - ajuste de texto, zoom da página - e o
-// getComputedStyle nem sempre enxerga; o tamanho desenhado enxerga todos.
+// The real text scale, measured and not read. Android's large font reaches
+// Chrome in more than one way - text adjustment, page zoom - and
+// getComputedStyle doesn't always see it; the drawn size sees all of them.
 function textScale() {
   const s = document.createElement('span');
   s.textContent = 'M';
@@ -117,8 +120,8 @@ function supports(mime: string) {
   }
 }
 
-// O localStorage pode existir e jogar ao ser usado: aba anônima de alguns
-// navegadores, cota zerada, dado do site bloqueado. Só a escrita prova.
+// localStorage can exist and still throw when used: incognito tab in some
+// browsers, zeroed quota, blocked site data. Only a write proves it.
 function storageOk() {
   try {
     const k = 'dwnvr.diag.teste';
@@ -130,18 +133,19 @@ function storageOk() {
   }
 }
 
-// O modelo do aparelho. O user agent do Chrome no Android não o traz mais (diz
-// só "Android 10; K"), e o único caminho, o userAgentData, é [SecureContext]:
-// num dwnvr servido em http:// ele nem existe. Por isso a resposta distingue
-// "não deu porque é http" de "o navegador não informa".
+// The device model. Chrome's user agent on Android no longer carries it (it
+// only says "Android 10; K"), and the only way, userAgentData, is
+// [SecureContext]: on a dwnvr served over http:// it doesn't even exist. So the
+// answer tells apart "couldn't because it's http" from "the browser doesn't
+// report it".
 async function model() {
   if (!isSecureContext) return 'indisponível (http)';
   const uad = navigator.userAgentData;
   if (!uad?.getHighEntropyValues) return 'o navegador não informa';
   try {
     const v = await uad.getHighEntropyValues(['model']);
-    // O desktop responde o modelo vazio, e não ausente.
-    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- o vazio também cai no texto
+    // Desktop answers an empty model, and not an absent one.
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- empty also falls back to the text
     return v.model || 'o navegador não informa';
   } catch {
     return 'o navegador não informa';
@@ -152,8 +156,8 @@ function sim(v: boolean) {
   return v ? 'sim' : 'não';
 }
 
-// coletar devolve grupos de itens { rotulo, valor, alerta? }. `alerta` marca o
-// valor que já é, sozinho, uma explicação provável de defeito.
+// collect returns groups of items { label, value, alert? }. `alert` flags a
+// value that by itself is already a probable explanation for a defect.
 export async function collect(): Promise<CardGroup[]> {
   const ua = navigator.userAgent;
   const vv = window.visualViewport;
@@ -174,7 +178,7 @@ export async function collect(): Promise<CardGroup[]> {
       ? [{ label: 'área visível', value: `${Math.round(vv.width)} × ${Math.round(vv.height)}` }]
       : []),
     { label: 'densidade de pixels', value: `${devicePixelRatio}×` },
-    // Safari anterior ao 16.4 não tem o screen.orientation.
+    // Safari before 16.4 doesn't have screen.orientation.
     {
       label: 'orientação',
       value:
@@ -184,8 +188,8 @@ export async function collect(): Promise<CardGroup[]> {
             ? 'landscape'
             : 'portrait',
     },
-    // Acima de 115% o layout, calibrado em 15px, começa a quebrar linha onde
-    // não quebrava.
+    // Above 115% the layout, calibrated at 15px, starts wrapping lines where it
+    // didn't before.
     { label: 'escala do texto', value: `${Math.round(scale * 100)}%`, alert: scale > 1.15 },
     { label: 'toque', value: sim(matchMedia('(pointer: coarse)').matches) },
     {
@@ -240,9 +244,9 @@ export async function collect(): Promise<CardGroup[]> {
   ];
 }
 
-// comoTexto põe os grupos numa linha por item, para colar numa conversa.
-// `cabecalho` vai antes dos grupos e `rodape` depois - o user agent no card do
-// navegador, as linhas do log no do servidor.
+// asText puts the groups on one line per item, to paste into a chat. `header`
+// goes before the groups and `footer` after - the user agent in the browser
+// card, the log lines in the server's.
 export function asText(groups: CardGroup[], header: string[] = [], footer: string[] = []) {
   const rows = [...header];
   for (const g of groups) {
@@ -253,17 +257,18 @@ export function asText(groups: CardGroup[], header: string[] = [], footer: strin
   return rows.join('\n').trim();
 }
 
-// copiar põe o texto na área de transferência. A Clipboard API é
-// [SecureContext], então em http:// fica o execCommand antigo, que o Chrome
-// ainda aceita a partir de um toque. Devolve se conseguiu.
+// copy puts the text on the clipboard. The Clipboard API is [SecureContext], so
+// on http:// the old execCommand is left, which Chrome still accepts from a
+// tap. It returns whether it worked.
 export async function copy(text: string) {
-  // Fora do https o clipboard nem existe, apesar do que o lib.dom declara.
+  // Outside https the clipboard doesn't even exist, despite what lib.dom
+  // declares.
   if ('clipboard' in navigator) {
     try {
       await navigator.clipboard.writeText(text);
       return true;
     } catch {
-      // cai para o caminho antigo
+      // falls back to the old path
     }
   }
   const ta = document.createElement('textarea');
@@ -273,7 +278,7 @@ export async function copy(text: string) {
   document.body.append(ta);
   ta.select();
   try {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- é o único caminho fora do https
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- it is the only path outside https
     return document.execCommand('copy');
   } catch {
     return false;

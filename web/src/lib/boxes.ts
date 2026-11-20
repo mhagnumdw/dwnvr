@@ -1,12 +1,13 @@
-// As caixas do detector de objetos sobre o vídeo das gravações: quanto tempo
-// cada uma fica acesa, onde o rótulo dela vai e como tudo é desenhado.
+// The object detector's boxes over the recordings video: how long each one
+// stays lit, where its label goes and how everything is drawn.
 //
-// Em canvas, e não em DOM, por dois motivos: é o MESMO desenho que vai para a
-// imagem baixada - um código só, e a imagem sai igual à tela -, e os ícones das
-// famílias já são path de canvas (icones.ts).
+// On a canvas, and not in the DOM, for two reasons: it is the SAME drawing that
+// goes into the downloaded image - one piece of code, and the image comes out
+// equal to the screen -, and the family icons are already canvas paths
+// (icons.ts).
 //
-// O desenho é o retângulo simples, com o rótulo afastado do objeto e ligado a
-// ele por um traço, para nenhum rótulo cobrir objeto nenhum.
+// The drawing is the plain rectangle, with the label set apart from the object
+// and tied to it by a stroke, so no label covers any object.
 
 import type { Box } from './api.ts';
 import { family, iconOf, drawIcon, CLASS_NAME } from './icons.ts';
@@ -22,8 +23,8 @@ interface Rect extends Point {
   h: number;
 }
 
-// O que as caixas leem de uma marca: as do /api/rec/events e as de uma
-// detecção servem.
+// What the boxes read from a mark: those from /api/rec/events and from a
+// detection both work.
 export interface ObjectDetectorMark {
   familia: string;
   classe: string;
@@ -31,8 +32,8 @@ export interface ObjectDetectorMark {
   caixa?: Box;
 }
 
-// Uma caixa disposta, em pixels do quadro mostrado. `rotulo` e `traco` só
-// existem quando foram pedidos e couberam.
+// A placed box, in pixels of the displayed frame. `label` and `stroke` only
+// exist when they were requested and fit.
 export interface PlacedBox<M extends ObjectDetectorMark> {
   mark: M;
   color: string;
@@ -42,33 +43,33 @@ export interface PlacedBox<M extends ObjectDetectorMark> {
   stroke?: { from: Point; to: Point };
 }
 
-// --- parâmetros -------------------------------------------------------------
+// --- parameters -------------------------------------------------------------
 
-// Quanto tempo a caixa fica acesa, em tempo de RELÓGIO e não de vídeo: a caixa
-// é de um quadro só, e a 8x 1,5 s de vídeo passariam em 190 ms - ninguém veria.
+// How long the box stays lit, in CLOCK time and not video time: the box belongs
+// to a single frame, and at 8x 1.5 s of video would go by in 190 ms - nobody
+// would see it.
 export const LIT_MS = 1500;
-// A entrada é curta para a caixa não chegar atrasada ao quadro que ela
-// descreve; a saída é mais longa, para o olho perceber que ela foi embora.
+// The entrance is short so the box doesn't arrive late to the frame it
+// describes; the exit is longer, so the eye notices it left.
 export const LIGHT_UP_MS = 180;
 export const FADE_MS = 450;
-// Quanto um pulo pode pousar DEPOIS do quadro olhado e ainda acender a caixa.
-// Tocar a marca da timeline pula para o onset, e o quadro olhado é o próprio
-// onset sempre que o pico não veio depois dele - sem esta folga, a reprodução
-// nunca "passaria" por ele.
+// How far a jump may land AFTER the inferred frame and still light the box.
+// Tapping the timeline mark jumps to the onset, and the inferred frame is the
+// onset itself whenever the peak didn't come after it - without this slack,
+// playback would never "pass" through it.
 export const LANDING_MS = 300;
 
-// Quanto a caixa desenhada cresce para cada lado além da caixa do detector de
-// objetos, em pixel de TELA - o mesmo em miniatura e em tela cheia. O traço
-// fica por dentro da caixa, então com 0 ele cobre a beirada do objeto, e num
-// gato de 20 px isso é metade das orelhas. Com 5, sobram 3 px livres em volta.
-// Perto da borda a caixa para na imagem: a folga some só daquele lado. 0 volta
-// à caixa exata do detector de objetos. A grade da tela Detecções usa o mesmo
-// valor.
+// How far the drawn box grows on each side beyond the object detector's box, in
+// SCREEN pixels - the same in thumbnail and fullscreen. The stroke sits inside
+// the box, so with 0 it covers the object's edge, and on a 20 px cat that is
+// half the ears. With 5, 3 px stay free around it. Near the edge the box stops
+// at the image: the slack disappears only on that side. 0 goes back to the
+// object detector's exact box. The Detections screen grid uses the same value.
 export const BOX_SLACK_PX = 5;
 
-// A geometria do rótulo.
-const OFFSET_PX = 18; // entre o rótulo e a borda da caixa
-const SLACK_PX = 4; // entre um rótulo e o que ele está evitando
+// The label geometry.
+const OFFSET_PX = 18; // between the label and the box edge
+const SLACK_PX = 4; // between a label and what it is avoiding
 const FONT = '600 11px system-ui, -apple-system, "Segoe UI", sans-serif';
 const LABEL_HEIGHT_PX = 17;
 const LABEL_PADDING_PX = 5;
@@ -78,13 +79,14 @@ const ICON_GAP_PX = 4;
 const BOX_STROKE_PX = 2;
 const DARK = '#0d1117';
 
-// --- disposição -------------------------------------------------------------
+// --- placement --------------------------------------------------------------
 
-// dispoe calcula, em pixels do quadro mostrado (largura x altura), a caixa de
-// cada marca, já com a CAIXA_FOLGA_PX, e - com `comRotulo` - onde vai o rótulo
-// e o traço que o liga à caixa. Marca sem `caixa` não entra.
+// place computes, in pixels of the displayed frame (width x height), each
+// mark's box, already with BOX_SLACK_PX, and - with `withLabel` - where the
+// label goes and the stroke that ties it to the box. A mark without `caixa` is
+// skipped.
 //
-// `g` só é usado para medir o texto.
+// `g` is only used to measure text.
 export function place<M extends ObjectDetectorMark>(
   g: CanvasRenderingContext2D,
   marks: readonly M[],
@@ -115,15 +117,15 @@ export function place<M extends ObjectDetectorMark>(
   g.font = FONT;
   const boxes = items.map((it) => it.caixa);
   const placements: Rect[] = [];
-  // Pela prioridade da família: `pessoa` escolhe lugar primeiro, como já
-  // acontece com os ícones da timeline.
+  // By family priority: `pessoa` picks its place first, as already happens with
+  // the timeline icons.
   for (const it of [...items].sort((a, b) => a.priority - b.priority)) {
     const text = textFor(it.mark);
     const w = LABEL_PADDING_PX * 2 + ICON_PX + ICON_GAP_PX + Math.ceil(g.measureText(text).width);
     const h = LABEL_HEIGHT_PX;
 
-    // O lugar mais PERTO da caixa que caiba inteiro no quadro e não cubra
-    // caixa nenhuma nem outro rótulo. Não havendo, o mais perto que caiba.
+    // The CLOSEST place to the box that fits entirely in the frame and covers
+    // no box or other label. If there is none, the closest one that fits.
     let free: { r: Rect; near: number } | null = null;
     let reserve: { r: Rect; near: number } | null = null;
     for (const p of slots(it.caixa, w, h)) {
@@ -142,14 +144,15 @@ export function place<M extends ObjectDetectorMark>(
       if (!free || near < free.near) free = { r, near };
     }
     const label = (free ?? reserve)?.r;
-    if (!label) continue; // quadro menor que o próprio rótulo
+    if (!label) continue; // frame smaller than the label itself
     placements.push(label);
     it.label = { ...label, texto: text, icon: iconOf(it.mark, true) };
   }
 
-  // O traço, com todos os rótulos postos: o caminho mais curto até a caixa que
-  // NÃO atravesse outra caixa nem outro rótulo. Atravessar não é proibido, é
-  // caro: num quadro apertado ainda tem que sair traço, e sai o menos ruim.
+  // The stroke, with all labels placed: the shortest path to the box that does
+  // NOT cross another box or label. Crossing isn't forbidden, it is expensive:
+  // in a tight frame a stroke still has to come out, and the least bad one
+  // wins.
   for (const it of items) {
     const label = it.label;
     if (!label) continue;
@@ -159,8 +162,8 @@ export function place<M extends ObjectDetectorMark>(
     ];
     let best: { from: Point; to: Point; cost: number } | null = null;
     for (const to of contactPoints(it.caixa)) {
-      // A ponta sai da BORDA do rótulo, na direção da caixa: mirando um canto,
-      // o traço nasceria solto, no vazio da curvatura.
+      // The tip leaves from the label's EDGE, toward the box: aiming at a
+      // corner, the stroke would be born loose, in the void of the curvature.
       const from = border(label, to);
       const cost =
         Math.hypot(to.x - from.x, to.y - from.y) +
@@ -178,9 +181,9 @@ function textFor(m: ObjectDetectorMark) {
   return `${name} ${m.score.toFixed(2).replace('.', ',')}`;
 }
 
-// Os lugares onde um rótulo pode ficar: dos quatro lados da caixa, deslizando
-// ao longo do lado e afastando aos poucos. Ao lado, na altura do objeto,
-// costuma ser mais perto do que em cima.
+// The places where a label can sit: on the four sides of the box, sliding along
+// the side and moving away little by little. Beside it, at the object's height,
+// is usually closer than above it.
 function slots(c: Rect, w: number, h: number) {
   const out: Point[] = [];
   for (let step = 0; step < 8; step++) {
@@ -198,14 +201,15 @@ function slots(c: Rect, w: number, h: number) {
 const overlaps = (a: Rect, b: Rect) =>
   a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
-// Distância entre dois retângulos: zero se eles se tocam.
+// Distance between two rectangles: zero if they touch.
 function distance(a: Rect, b: Rect) {
   const dx = Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), 0);
   const dy = Math.max(b.y - (a.y + a.h), a.y - (b.y + b.h), 0);
   return Math.hypot(dx, dy);
 }
 
-// Onde o traço pode encostar na caixa: o meio de cada lado e os quatro cantos.
+// Where the stroke can touch the box: the middle of each side and the four
+// corners.
 const contactPoints = (r: Rect): Point[] => [
   { x: r.x + r.w / 2, y: r.y },
   { x: r.x + r.w / 2, y: r.y + r.h },
@@ -217,7 +221,7 @@ const contactPoints = (r: Rect): Point[] => [
   { x: r.x + r.w, y: r.y + r.h },
 ];
 
-// O ponto da borda do retângulo na direção de um alvo.
+// The point on the rectangle's border in the direction of a target.
 function border(r: Rect, target: Point): Point {
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
@@ -231,9 +235,9 @@ function border(r: Rect, target: Point): Point {
   return { x: cx + dx * t, y: cy + dy * t };
 }
 
-// O segmento de p a q corta o retângulo? Recorte de Liang-Barsky: o segmento
-// vive em t de 0 a 1, e cada lado do retângulo aperta essa faixa. Sobrou
-// faixa, cruzou.
+// Does the segment from p to q cut the rectangle? Liang-Barsky clipping: the
+// segment lives in t from 0 to 1, and each side of the rectangle narrows that
+// range. If a range is left, it crossed.
 function crosses(p: Point, q: Point, r: Rect) {
   let t0 = 0;
   let t1 = 1;
@@ -262,26 +266,26 @@ function crosses(p: Point, q: Point, r: Rect) {
   return true;
 }
 
-// --- desenho ----------------------------------------------------------------
+// --- drawing ----------------------------------------------------------------
 
-// desenha pinta os itens de `dispoe` no contexto, cada um com a opacidade que
-// `alfa(item)` disser. A ordem das camadas é fixa - traços, caixas, rótulos -
-// para um rótulo nunca ficar embaixo do traço de outro.
+// draw paints the items from `place` onto the context, each with the opacity
+// that `alpha(item)` says. The layer order is fixed - strokes, boxes, labels -
+// so a label never ends up under another's stroke.
 export function draw<M extends ObjectDetectorMark>(
   g: CanvasRenderingContext2D,
   items: readonly PlacedBox<M>[],
   alpha: (it: PlacedBox<M>) => number = () => 1,
 ) {
   g.save();
-  // A família de menos prioridade primeiro: `pessoa` fica por cima.
+  // The lowest-priority family first: `pessoa` ends up on top.
   const order = [...items].sort((a, b) => b.priority - a.priority);
 
   for (const it of order) {
     if (!it.stroke) continue;
     g.globalAlpha = alpha(it);
     const { from, to } = it.stroke;
-    // Um fio escuro por baixo do colorido: o traço de 1 px some tanto no muro
-    // claro quanto no cinza da noite sem ele.
+    // A dark hairline under the colored one: a 1 px stroke vanishes on both a
+    // light wall and the gray of night without it.
     const strokes: [width: number, color: string, opacity: number][] = [
       [2.5, '#000', 0.65],
       [1, it.color, 1],
@@ -311,7 +315,8 @@ export function draw<M extends ObjectDetectorMark>(
     const { x, y, w, h } = it.caixa;
     g.strokeStyle = it.color;
     g.lineWidth = BOX_STROKE_PX;
-    // Recuado meio traço: a borda fica DENTRO da caixa, como um `border` do CSS.
+    // Inset by half a stroke: the border stays INSIDE the box, like a CSS
+    // `border`.
     const m = BOX_STROKE_PX / 2;
     g.strokeRect(x + m, y + m, Math.max(0, w - 2 * m), Math.max(0, h - 2 * m));
   }
@@ -323,7 +328,7 @@ export function draw<M extends ObjectDetectorMark>(
     g.globalAlpha = alpha(it);
     const { x, y, w, h, texto: text, icon } = it.label;
     g.beginPath();
-    // Safari anterior ao 16 não tem o roundRect.
+    // Safari before 16 doesn't have roundRect.
     if (typeof g.roundRect === 'function') g.roundRect(x, y, w, h, LABEL_RADIUS_PX);
     else g.rect(x, y, w, h);
     g.fillStyle = it.color;

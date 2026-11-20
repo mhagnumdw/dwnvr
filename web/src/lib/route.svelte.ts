@@ -1,22 +1,22 @@
-// Roteamento por hash, com o estado da tela junto dele.
+// Hash routing, with the screen state alongside it.
 //
-// O hash é `#<rota>?<query>`: a rota escolhe a tela, a query descreve o que se
-// está vendo dentro dela. É isso que faz copiar a barra de endereços e colar em
-// outra aba cair na mesma cena - as mesmas câmeras, o mesmo instante, o mesmo
-// zoom - em vez da tela genérica.
+// The hash is `#<route>?<query>`: the route picks the screen, the query
+// describes what is being viewed inside it. That is what makes copying the
+// address bar and pasting it in another tab land on the same scene - the same
+// cameras, the same instant, the same zoom - instead of the generic screen.
 //
-// Continua sendo hash, e não caminho de verdade, por um motivo prático: o
-// fragmento nunca sai do navegador, então nenhuma rota nova precisa existir do
-// lado do servidor. O `internal/api/web.go` só serve arquivo, e um `/rec` real
-// exigiria devolver o index.html para todo caminho que não existe.
+// It stays a hash, and not a real path, for a practical reason: the fragment
+// never leaves the browser, so no new route has to exist on the server side.
+// internal/api/web.go only serves files, and a real `/rec` would require
+// returning index.html for every path that does not exist.
 
 import { dayKey, hhmmss } from './format.ts';
 
 export const DEFAULT_ROUTE = 'live';
 
-// Piso entre duas escritas na barra de endereços. O instante do player muda
-// várias vezes por segundo, e o Safari recusa mais de 100 replaceState em 30s;
-// um segundo deixa ~30 dentro da janela que ele conta, com folga de sobra.
+// Floor between two writes to the address bar. The player's instant changes
+// several times a second, and Safari rejects more than 100 replaceState in 30s;
+// one second leaves ~30 inside the window it counts, with plenty of margin.
 const FLOOR_MS = 1000;
 
 function parts(hash: string) {
@@ -27,13 +27,14 @@ function parts(hash: string) {
     : { id: cru.slice(0, i) || DEFAULT_ROUTE, query: cru.slice(i + 1) };
 }
 
-// A leitura é do URLSearchParams, que é o que a plataforma já traz: ele
-// decodifica, tolera sequência inválida de uma URL escrita à mão e resolve
-// parâmetro repetido com getAll. A ESCRITA é própria só por causa de dois
-// caracteres: o toString() dele percent-encoda `:` e `,`, e `t=14%3A32%3A07`
-// jogaria fora a legibilidade que é o motivo de escrever o horário assim. Os
-// dois são permitidos em query pela RFC 3986, e a leitura aceita as duas formas
-// - então link antigo ou copiado de outro lugar continua valendo.
+// Reading is done by URLSearchParams, which is what the platform already
+// brings: it decodes, tolerates an invalid sequence from a hand-written URL and
+// resolves a repeated parameter with getAll. WRITING is custom only because of
+// two characters: its toString() percent-encodes `:` and `,`, and
+// `t=14%3A32%3A07` would throw away the readability that is the reason for
+// writing the time this way. Both are allowed in a query by RFC 3986, and
+// reading accepts both forms - so an old link or one copied from elsewhere
+// stays valid.
 const enc = (s: string) => encodeURIComponent(s).replaceAll('%3A', ':').replaceAll('%2C', ',');
 
 function join(sp: URLSearchParams) {
@@ -44,39 +45,40 @@ function join(sp: URLSearchParams) {
 
 export const routeState = $state({
   id: parts(location.hash).id,
-  // O hash inteiro, como estava na última navegação DE VERDADE. É a chave que
-  // remonta a tela: as escritas daqui usam replaceState, que não dispara
-  // hashchange, então elas não tocam neste valor e não remontam nada.
+  // The whole hash, as it was at the last REAL navigation. It is the key that
+  // remounts the screen: the writes here use replaceState, which does not fire
+  // hashchange, so they do not touch this value and do not remount anything.
   hash: location.hash,
 });
 
-// cena diz em palavras o que a tela mostra ("frente, 14/10 às 04:48:05"), para
-// o texto do compartilhar. Só as telas que mostram uma cena preenchem; a troca
-// de tela zera, para o texto de uma não sair no link da outra.
+// scene says in words what the screen shows ("frente, 14/10 às 04:48:05"), for
+// the share text. Only the screens that show a scene fill it in; switching
+// screens clears it, so one screen's text does not come out in another's link.
 export const scene = $state({ texto: '' });
 
-// paramsAtuais lê a query de agora. As telas chamam uma vez, na inicialização:
-// a URL é a fonte da PRIMEIRA leitura, e daí em diante quem manda é o estado da
-// tela, que escreve de volta.
+// currentParams reads the query as of now. The screens call it once, on
+// initialization: the URL is the source of the FIRST read, and from then on the
+// screen state rules, writing back.
 export function currentParams() {
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- leitura única, na inicialização
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- single read, on initialization
   return new URLSearchParams(parts(location.hash).query);
 }
 
-let pending: URLSearchParams | null = null; // o que ainda não chegou à barra de endereços
+let pending: URLSearchParams | null = null; // what has not yet reached the address bar
 let timer: number | undefined;
 let lastWrite = 0;
 
-// escrever funde um punhado de chaves no que já está na URL.
+// write merges a handful of keys into what is already in the URL.
 //
-// - null ou undefined apaga a chave. É assim que o que está no padrão fica de
-//   fora do link.
-// - array vira parâmetro repetido (`cams=a&cams=b`), que é como um formulário
-//   HTML serializa escolha múltipla. Sem separador não há o que confundir: o id
-//   da câmera vem do nome do stream no go2rtc e pode conter vírgula.
-// - array vazio escreve a chave sem valor, porque "nenhuma câmera marcada" é
-//   uma escolha, diferente de não ter opinião nenhuma sobre a seleção.
-// O valor de uma chave da URL: ver escrever().
+// - null or undefined deletes the key. That is how what is at the default stays
+//   out of the link.
+// - an array becomes a repeated parameter (`cams=a&cams=b`), which is how an
+//   HTML form serializes multiple choice. With no separator there is nothing to
+//   confuse: the camera id comes from the stream name in go2rtc and may contain
+//   a comma.
+// - an empty array writes the key with no value, because "no camera checked" is
+//   a choice, different from having no opinion at all about the selection.
+// The value of a URL key: see write().
 export type ValueInURL = string | number | boolean | readonly string[] | null | undefined;
 
 export function write(patch: Record<string, ValueInURL>) {
@@ -96,7 +98,8 @@ export function write(patch: Record<string, ValueInURL>) {
   else timer = setTimeout(apply, wait);
 }
 
-// O Array.isArray não estreita `readonly string[]`: ver microsoft/TypeScript#17002.
+// Array.isArray does not narrow `readonly string[]`: see
+// microsoft/TypeScript#17002.
 function isList(v: ValueInURL): v is readonly string[] {
   return Array.isArray(v);
 }
@@ -108,47 +111,49 @@ function apply() {
   pending = null;
 
   const target = `#${routeState.id}${query ? `?${query}` : ''}`;
-  // Nada a fazer se a barra de endereços já diz isso, e durante a reprodução
-  // esse é o caso comum: `t` é escrito em segundos, então a maior parte dos
-  // quadros não muda letra nenhuma. Sem escrita, o piso também não corre - o
-  // segundo seguinte aparece na hora, sem esperar o intervalo.
+  // Nothing to do if the address bar already says so, and during playback that
+  // is the common case: `t` is written in seconds, so most frames do not change
+  // a single letter. With no write, the floor does not run either - the next
+  // second shows up right away, without waiting for the interval.
   if (location.hash === target) return;
 
   lastWrite = Date.now();
   try {
     history.replaceState(history.state, '', target);
   } catch {
-    // O Safari lança ao passar do limite de replaceState. Perder uma escrita da
-    // barra de endereços não pode derrubar a tela: a próxima conserta.
+    // Safari throws when it goes past the replaceState limit. Losing a write to
+    // the address bar must not bring the screen down: the next one fixes it.
   }
 }
 
-// linkDaTela é o link da cena que está na tela agora, para mandar a alguém. Lê
-// a escrita pendente antes da barra de endereços: com o piso de 1s, o
-// location.href pode estar um segundo atrás do player. Não escreve nada.
+// screenLink is the link of the scene that is on screen now, to send to
+// someone. It reads the pending write before the address bar: with the 1s
+// floor, location.href may be one second behind the player. It writes nothing.
 export function screenLink() {
   const query = join(pending ?? currentParams());
   return `${location.origin}${location.pathname}#${routeState.id}${query ? `?${query}` : ''}`;
 }
 
-// corrigirRota troca o nome da rota na barra de endereços, quando a tela
-// aberta não é a pedida (ver o App). A query fica: ou já é a que a tela aberta
-// escreveu, ou é lixo inofensivo do link pedido. Sem hashchange e sem mexer em
-// rota.hash, então a tela não remonta.
+// fixRoute swaps the route name in the address bar, when the screen that opened
+// is not the requested one (see App). The query stays: either it is already the
+// one the open screen wrote, or it is harmless garbage from the requested link.
+// No hashchange and no touching routeState.hash, so the screen does not
+// remount.
 export function fixRoute(id: string) {
   routeState.id = id;
   const query = parts(location.hash).query;
   try {
     history.replaceState(history.state, '', `#${id}${query ? `?${query}` : ''}`);
   } catch {
-    // O limite do Safari, como em aplica: a próxima escrita da tela já sai com
-    // o nome certo, porque ela lê rota.id.
+    // Safari's limit, as in apply: the screen's next write already goes out
+    // with the right name, because it reads routeState.id.
   }
 }
 
 addEventListener('hashchange', () => {
-  // A tela que está saindo pode ter deixado uma escrita agendada. Ela descreve a
-  // rota antiga, e cair na rota nova seria pura sujeira - `#live?cam=x&day=…`.
+  // The screen that is leaving may have left a scheduled write. It describes
+  // the old route, and landing on the new route would be pure dirt -
+  // `#live?cam=x&day=…`.
   clearTimeout(timer);
   timer = undefined;
   pending = null;
@@ -158,9 +163,10 @@ addEventListener('hashchange', () => {
   routeState.hash = location.hash;
 });
 
-// linkGravacoes leva a Gravações já na câmera e no instante de uma detecção. É
-// o mesmo link no modal e no menu do ⋮ da tela Detecções.
+// recordingsLink takes Recordings already to the camera and instant of a
+// detection. It is the same link in the modal and in the ⋮ menu of the
+// Detections screen.
 export function recordingsLink(cam: string, instantMs: number) {
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- data de leitura única, ninguém a observa
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- single-read date, nobody observes it
   return `#rec?cam=${encodeURIComponent(cam)}&day=${dayKey(new Date(instantMs))}&t=${hhmmss(instantMs)}`;
 }

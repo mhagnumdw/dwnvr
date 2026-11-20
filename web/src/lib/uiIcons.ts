@@ -1,26 +1,26 @@
-// Os ícones da interface (botões, menu, setas), todos num viewBox 24×24 para o
-// `<Icone>` desenhar com traço `currentColor` e pontas redondas. Os de
-// detecção, que são canvas, ficam em `icones.ts`.
+// The interface icons (buttons, menu, arrows), all in a 24×24 viewBox for
+// `<Icon>` to draw with a `currentColor` stroke and round caps. The detection
+// ones, which are canvas, live in `icons.ts`.
 //
-// São desenhos e não caracteres (◉ ⏱ ⋮ ▶ ⏸ ✕): o caractere muda de forma a cada
-// sistema, vira emoji em alguns e não aceita a cor do texto. Cada ícone é a
-// lista de peças SVG que o compõem, e não um texto de markup, para o Svelte
-// montar os elementos sem `{@html}`.
+// They are drawings and not characters (◉ ⏱ ⋮ ▶ ⏸ ✕): a character changes shape
+// on every system, turns into an emoji on some and doesn't accept the text
+// color. Each icon is the list of SVG pieces that compose it, and not a markup
+// string, so Svelte builds the elements without `{@html}`.
 
 type Attributes = Readonly<Record<string, string | number>>;
 type Piece = readonly [tag: 'path' | 'circle' | 'rect', attributes: Attributes];
 
 const isFull = { fill: 'currentColor', stroke: 'none' } as const;
 
-// Os dois do interruptor "Pausar fora da tela": o glifo é do accent e leva um
-// recorte da cor do fundo em volta, para se separar da moldura da tela.
-// `style` e não atributos: o `var()` num atributo de apresentação não vale em
-// todo navegador.
+// The two for the "Pausar fora da tela" switch: the glyph is the accent's and
+// carries a cutout in the background color around it, to separate from the
+// screen frame. `style` and not attributes: `var()` in a presentation attribute
+// isn't valid in every browser.
 const switchGlyph = {
   style: 'fill: var(--accent); stroke: var(--bg); stroke-width: 2; paint-order: stroke',
 } as const;
-// A área nos ícones das regras, com as cores do polígono do editor: o azul não
-// segue a cor do texto, para a área ser reconhecida sem legenda.
+// The area in the rule icons, with the editor polygon's colors: the blue
+// doesn't follow the text color, so the area is recognized without a legend.
 const editorArea = { style: 'fill: var(--accent); fill-opacity: 0.32; stroke: none' } as const;
 const areaBorder = { style: 'stroke: var(--accent)' } as const;
 const screenBezel: readonly Piece[] = [
@@ -29,7 +29,7 @@ const screenBezel: readonly Piece[] = [
 ];
 
 export const UI_ICONS = {
-  // Navegação
+  // Navigation
   live: [
     ['circle', { cx: 12, cy: 12, r: 2.5, ...isFull }],
     [
@@ -63,7 +63,7 @@ export const UI_ICONS = {
     ],
   ],
 
-  // Cabeçalho e avisos
+  // Header and notices
   share: [
     ['circle', { cx: 18, cy: 5, r: 3 }],
     ['circle', { cx: 6, cy: 12, r: 3 }],
@@ -78,7 +78,7 @@ export const UI_ICONS = {
   arrowUp: [['path', { d: 'M12 19V5M5 12l7-7 7 7' }]],
   refresh: [['path', { d: 'M19.5 12a7.5 7.5 0 1 1-2.25-5.4M19.5 3.75v3.75h-3.75' }]],
 
-  // Ao vivo
+  // Live
   camera: [
     ['rect', { x: 2, y: 6, width: 13.5, height: 12, rx: 2 }],
     ['path', { d: 'M15.5 10.5 22 7v10l-6.5-3.5z' }],
@@ -93,14 +93,14 @@ export const UI_ICONS = {
   ],
   fullscreen: [['path', { d: 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5' }]],
   fullscreenExit: [['path', { d: 'M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5' }]],
-  // A janela grande com a pequena no canto: o desenho que os sistemas usam
-  // para PiP.
+  // The big window with the small one in the corner: the drawing systems use
+  // for PiP.
   pip: [
     ['rect', { x: 3, y: 5, width: 18, height: 14, rx: 2 }],
     ['rect', { x: 12, y: 12, width: 7, height: 5, rx: 1, ...isFull }],
   ],
-  // A tela com o vídeo escapando por baixo dela: o ▶ é "toca fora da área
-  // visível", e o ❚❚, "pausa lá".
+  // The screen with the video escaping below it: ▶ is "plays outside the
+  // visible area", and ❚❚ is "pauses there".
   offScreenPlay: [
     ...screenBezel,
     ['path', { d: 'M12.6 11.4 23.2 17.3 12.6 23.2z', ...switchGlyph }],
@@ -120,7 +120,7 @@ export const UI_ICONS = {
     ['circle', { cx: 12, cy: 19, r: 1.7, ...isFull }],
   ],
 
-  // Gravações
+  // Recordings
   pin: [['path', { d: 'M9 4h6M10 4v6l-3 4h10l-3-4V4M12 14v6' }]],
   play: [['path', { d: 'M7 4.5v15l13-7.5z', ...isFull }]],
   pause: [
@@ -133,14 +133,14 @@ export const UI_ICONS = {
     ['rect', { x: 3, y: 4.5, width: 18, height: 16.5, rx: 3 }],
     ['path', { d: 'M3 10.5h18M7.5 2.25v4.5M16.5 2.25v4.5' }],
   ],
-  // Três quadros lado a lado: a tira de miniaturas.
+  // Three frames side by side: the thumbnail strip.
   thumbnails: [
     ['rect', { x: 2.5, y: 6, width: 5.5, height: 12, rx: 1 }],
     ['rect', { x: 9.25, y: 6, width: 5.5, height: 12, rx: 1 }],
     ['rect', { x: 16, y: 6, width: 5.5, height: 12, rx: 1 }],
   ],
-  // A caixa com o rótulo em cima, como o detector as desenha sobre o vídeo. O
-  // vão entre os dois é o que o separa de uma pasta.
+  // The box with the label on top, like the detector draws them over the video.
+  // The gap between the two is what sets it apart from a folder.
   boxesLabel: [
     ['rect', { x: 3.75, y: 10, width: 16.5, height: 10, rx: 1.5 }],
     ['rect', { x: 3, y: 2.5, width: 12, height: 5, rx: 1, ...isFull }],
@@ -157,19 +157,20 @@ export const UI_ICONS = {
     ['circle', { cx: 12, cy: 7.6, r: 1.1, ...isFull }],
   ],
 
-  // Detecções e formulários
+  // Detections and forms
   boxes: [['rect', { x: 3.75, y: 6, width: 16.5, height: 12, rx: 1.5 }]],
-  // A área: um polígono com três dos vértices marcados, como no editor.
+  // The area: a polygon with three of the vertices marked, as in the editor.
   area: [
     ['path', { d: 'M4 8l7-5 9 6-3 11H6z', 'stroke-linejoin': 'round' }],
     ['circle', { cx: 4, cy: 8, r: 1.6, ...isFull }],
     ['circle', { cx: 20, cy: 9, r: 1.6, ...isFull }],
     ['circle', { cx: 6, cy: 20, r: 1.6, ...isFull }],
   ],
-  // As duas regras da área. A área é o azul translúcido do editor, e o traço
-  // dela se interrompe onde a pessoa passa, para o corpo não se fundir na
-  // borda. `pisa`: a área deitada em perspectiva, é o chão, e a pessoa em pé
-  // sobre ela; `encosta`: a pessoa com a mão na área.
+  // The area's two rules. The area is the editor's translucent blue, and its
+  // stroke is interrupted where the person passes, so the body doesn't merge
+  // into the border. `ruleStepsOn`: the area lying flat in perspective, it is
+  // the floor, and the person standing on it; `ruleTouches`: the person with a
+  // hand on the area.
   ruleStepsOn: [
     ['path', { d: 'M5.5 13.5h13l4 7.5h-21z', ...editorArea }],
     ['path', { d: 'M7.8 13.5H5.5l-4 7.5h21l-4-7.5h-2.3', ...areaBorder }],
@@ -213,6 +214,6 @@ export const UI_ICONS = {
 
 export type UiIconName = keyof typeof UI_ICONS;
 
-// Grades 16×16 que viraram 24×24 mantêm o traço em pixels de antes: o `traco`
-// de quem usa é o de antes vezes 1,5.
+// 16×16 grids that became 24×24 keep the stroke in the old pixels: the user's
+// `stroke` is the old one times 1.5.
 export const DEFAULT_STROKE = 2;

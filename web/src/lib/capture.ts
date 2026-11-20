@@ -1,36 +1,36 @@
-// Captura do quadro mostrado no player, entregue como arquivo ao usuário.
+// Capture of the frame shown in the player, delivered to the user as a file.
 //
-// Não há nada disso no servidor de propósito: o dwnvr nunca decodifica vídeo, e
-// aqui não precisa mesmo. O <video> das gravações é alimentado por MSE com
-// bytes buscados da mesma origem, então o canvas não fica marcado e o quadro já
-// decodificado pela placa pode ser lido de volta em pixels.
+// There is none of this on the server on purpose: dwnvr never decodes video,
+// and here it doesn't need to. The recordings <video> is fed by MSE with bytes
+// fetched from the same origin, so the canvas isn't tainted and the frame
+// already decoded by the GPU can be read back as pixels.
 
 import { context2d } from './canvas.ts';
 
-// Desenha sobre o quadro, no tamanho nativo dele.
+// Draws over the frame, at its native size.
 export type OverlayDrawing = (g: CanvasRenderingContext2D, width: number, height: number) => void;
 
-// baixarQuadro recorta o quadro corrente do <video> e o entrega ao usuário:
-// folha de compartilhamento onde houver, download onde não houver. Joga se não
-// der para capturar, para quem chamou avisar na tela.
+// downloadFrame crops the <video>'s current frame and hands it to the user:
+// share sheet where available, download where not. It throws if it can't
+// capture, so the caller can warn on screen.
 //
-// `porCima(g, largura, altura)`, quando vier, desenha sobre o quadro já no
-// tamanho nativo - é assim que as caixas do detector entram na imagem quando
-// estão ligadas na tela.
+// `overlay(g, width, height)`, when given, draws over the frame already at
+// native size - this is how the detector's boxes get into the image when they
+// are turned on in the screen.
 export async function downloadFrame(
   video: HTMLVideoElement | null | undefined,
   name: string,
   overlay?: OverlayDrawing,
 ) {
-  // Antes do primeiro quadro decodificado o <video> ainda não tem tamanho, e
-  // capturar aí produziria uma imagem 0x0 sem erro nenhum.
+  // Before the first decoded frame the <video> has no size yet, and capturing
+  // then would produce a 0x0 image with no error at all.
   if (!video?.videoWidth || !video.videoHeight) {
     throw new Error('ainda não há quadro para capturar');
   }
 
-  // O tamanho é o NATIVO da câmera, não o da tela: o `max-height: 56dvh` do CSS
-  // encolhe o vídeo para a timeline caber junto, e uma captura no tamanho
-  // exibido devolveria menos pixels do que a gravação tem.
+  // The size is the camera's NATIVE one, not the screen's: the CSS `max-height:
+  // 56dvh` shrinks the video so the timeline fits with it, and a capture at the
+  // displayed size would return fewer pixels than the recording has.
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -38,8 +38,9 @@ export async function downloadFrame(
   g.drawImage(video, 0, 0);
   overlay?.(g, canvas.width, canvas.height);
 
-  // JPEG porque o quadro veio de um H.264/H.265 já comprimido: o PNG guardaria
-  // fielmente os artefatos da compressão anterior por várias vezes o tamanho.
+  // JPEG because the frame came from already-compressed H.264/H.265: PNG would
+  // faithfully keep the previous compression's artifacts at several times the
+  // size.
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, 'image/jpeg', 0.92);
   });
@@ -47,24 +48,25 @@ export async function downloadFrame(
 
   const file = new File([blob], name, { type: 'image/jpeg' });
 
-  // No celular o download cai numa pasta que ninguém abre; a folha do sistema
-  // leva a imagem para a galeria ou para a conversa em que ela é útil.
+  // On the phone the download lands in a folder nobody opens; the system sheet
+  // takes the image to the gallery or to the conversation where it is useful.
   //
-  // Onde ela não existir, o download é o caminho - e ela não existe em mais
-  // lugares do que parece: a Web Share API é [SecureContext], então num dwnvr
-  // servido em http:// nem `navigator.canShare` chega a ser definido, e o
-  // celular baixa igual ao desktop. Não é defeito, é o endereço; ver
-  // docs/acesso-remoto.md.
+  // Where it doesn't exist, download is the way - and it doesn't exist in more
+  // places than it seems: the Web Share API is [SecureContext], so on a dwnvr
+  // served over http:// not even `navigator.canShare` gets defined, and the
+  // phone downloads just like the desktop. It is not a defect, it is the
+  // address; see docs/acesso-remoto.md.
   if ('canShare' in navigator && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });
       return;
     } catch (e) {
-      // Fechar a folha sem escolher nada é decisão do usuário, não falha: a
-      // captura acabou aqui e a tela não deve acusar erro.
+      // Closing the sheet without choosing anything is the user's decision, not
+      // a failure: the capture ended here and the screen shouldn't report an
+      // error.
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      // Qualquer outra coisa - permissão negada, tipo recusado - ainda tem o
-      // download como saída.
+      // Anything else - permission denied, type rejected - still has download
+      // as the way out.
     }
   }
 
@@ -75,8 +77,8 @@ export async function downloadFrame(
     a.download = name;
     a.click();
   } finally {
-    // Sem isto o blob fica na memória até a aba fechar, e num celular olhando
-    // câmera de 4 MP isso pesa.
+    // Without this the blob stays in memory until the tab closes, and on a
+    // phone watching a 4 MP camera that is heavy.
     URL.revokeObjectURL(url);
   }
 }

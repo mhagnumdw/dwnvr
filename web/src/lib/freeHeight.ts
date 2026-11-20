@@ -1,12 +1,13 @@
-// A altura que um elemento pode ter para terminar junto com a janela: do topo
-// dele até o fim dela, menos o que fica reservado abaixo dele - o respiro de
-// cada pai até o `main`, e o espaço que o `main` guarda para a navegação
-// inferior não cobrir o conteúdo. Esse padding do `main` é zero no desktop,
-// onde a navegação sobe: lê-lo evita repetir aqui, em JS, o breakpoint que já
-// está no CSS.
+// The height an element can have to end together with the window: from its top
+// to the window's bottom, minus what is reserved below it - each parent's
+// breathing room up to `main`, and the space `main` keeps so the bottom
+// navigation doesn't cover the content. That `main` padding is zero on desktop,
+// where the navigation moves up: reading it avoids repeating here, in JS, the
+// breakpoint that is already in the CSS.
 //
-// Medida em JS porque o CSS sozinho não chega nela: o `#app` só tem altura
-// mínima, e o cabeçalho, com ou sem a faixa de versão nova, não tem altura fixa.
+// Measured in JS because CSS alone can't get there: `#app` only has a minimum
+// height, and the header, with or without the new-version strip, has no fixed
+// height.
 export function freeHeight(el: Element, minimum = 80) {
   let reserved = 0;
   const main = el.closest('main');

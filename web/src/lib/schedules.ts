@@ -1,12 +1,12 @@
-// Os horários do alerta como a tela os edita, e a ida e a volta do servidor.
-// O formulário da câmera usa isto ao abrir e ao salvar, e o card da câmera
-// resume o alerta com os nomes dos dias, e por isso vem no bundle principal; a
-// grade, que só a aba Alerta usa, fica no gradeDaSemana.ts, no chunk dela.
+// The alert schedules as the screen edits them, and the round trip to the
+// server. The camera form uses this on open and on save, and the camera card
+// summarizes the alert with the day names, so it comes in the main bundle; the
+// grid, which only the Alerta tab uses, lives in weekGrid.ts, in its own chunk.
 //
-// A tela edita o horário em minutos do dia, com as DUAS pontas incluídas (o
-// dia inteiro é 00:00 até 23:59), e o servidor guarda "HH:MM". Nenhum horário
-// atravessa a meia-noite: o `to` é MAIOR que o `from`, nunca igual. A noite são
-// dois horários, um até 23:59 e outro a partir de 00:00 do dia seguinte.
+// The screen edits the time in minutes of the day, with BOTH ends included (the
+// whole day is 00:00 to 23:59), and the server stores "HH:MM". No schedule
+// crosses midnight: `to` is GREATER than `from`, never equal. A night is two
+// schedules, one until 23:59 and another from 00:00 the next day.
 import type { AlertSchedule } from './api.ts';
 import { hourOfMinute } from './format.ts';
 
@@ -15,9 +15,9 @@ export const DAY = 1440;
 // O mesmo teto do internal/config/params.go (MaxAlertSchedules).
 export const MAX_SCHEDULES = 84;
 
-// Um horário como a tela o edita: as horas são nulas com o campo vazio. A
-// chave segura a linha da lista no lugar enquanto se digita; o horário que a
-// grade refaz ganha chave nova, e a linha nasce de novo com os valores dele.
+// A schedule as the screen edits it: the hours are null with an empty field.
+// The key holds the list row in place while typing; a schedule the grid
+// rebuilds gets a new key, and the row is born again with its values.
 export interface Schedule {
   key: number;
   days: number[];
@@ -37,11 +37,11 @@ export const newSchedule = (
   to,
 });
 
-// Válido: com dia, com as duas horas e o `to` depois do `from`.
+// Valid: with a day, with both hours and `to` after `from`.
 export const valid = (h: Schedule): h is Schedule & { from: number; to: number } =>
   h.days.length > 0 && h.from !== null && h.to !== null && h.to > h.from;
 
-// "HH:MM" em minutos do dia, como o MinuteOfDay do servidor.
+// "HH:MM" in minutes of the day, like the server's MinuteOfDay.
 function textMinute(s: string): number | null {
   const m = /^(\d\d):(\d\d)$/.exec(s);
   const hour = Number(m?.[1]);
@@ -53,7 +53,7 @@ export function fromServer(hs: AlertSchedule[] | undefined): Schedule[] {
   return (hs ?? []).map((h) => newSchedule([...h.days], textMinute(h.from), textMinute(h.to)));
 }
 
-// Só os válidos vão: quem confere o que falta é o salvar.
+// Only the valid ones go: whoever checks what is missing is the save.
 export function toServer(hs: Schedule[]): AlertSchedule[] {
   return hs.filter(valid).map((h) => ({
     days: [...h.days].sort((a, b) => a - b),
@@ -65,7 +65,7 @@ export function toServer(hs: Schedule[]): AlertSchedule[] {
 export const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 export const LONG_DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
-// "seg" e "Segunda", pelo número do dia.
+// "seg" and "Segunda", by day number.
 export const dayName = (d: number, long = false) => (long ? LONG_DAYS : DIAS)[d] ?? '';
 
 function joinWithAnd(parts: string[]) {

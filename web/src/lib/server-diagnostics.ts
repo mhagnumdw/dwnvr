@@ -1,11 +1,11 @@
-// O que a máquina que grava está passando, para o card "Este servidor" do
-// Diagnóstico. Os números vêm do GET /api/health/servidor; aqui eles viram os
-// mesmos grupos { titulo, itens } do card do navegador, com `alerta` marcando o
-// valor que, sozinho, já é explicação provável de defeito.
+// What the recording machine is going through, for the "Este servidor" card on
+// Diagnostics. The numbers come from GET /api/health/servidor; here they become
+// the same { title, items } groups as the browser card, with `alert` flagging
+// the value that, by itself, is already a probable explanation for a defect.
 //
-// Os limites de alerta são deliberadamente largos: o alvo é hardware pequeno,
-// que trabalha perto do teto no dia a dia, e um card vermelho à toa ensina a
-// ignorar o vermelho.
+// The alert limits are deliberately wide: the target is small hardware, which
+// works near the ceiling day to day, and a red card for nothing teaches people
+// to ignore red.
 
 import {
   alertNotifier,
@@ -18,19 +18,20 @@ import {
 import { bytes, duration, timezoneClock } from './format.ts';
 import type { CardGroup, CardItem } from './browser.ts';
 
-// Acima disso a maioria dos SoCs ARM começa a reduzir a frequência para
-// esfriar, e o Orange Pi Zero 3 chega lá sem dissipador.
+// Above this most ARM SoCs start throttling the frequency to cool down, and the
+// Orange Pi Zero 3 gets there without a heatsink.
 const HIGH_TEMPERATURE = 80;
 
-// PSI, média de 60s, em % do tempo parado esperando o recurso. Memória é o mais
-// sensível: 10% já é o kernel recuperando página no lugar de trabalhar.
+// PSI, 60s average, as % of the time stalled waiting for the resource. Memory
+// is the most sensitive: 10% is already the kernel reclaiming pages instead of
+// working.
 const HIGH_PRESSURE: Readonly<Record<PressureResource, number>> = { cpu: 50, memoria: 10, io: 25 };
 
-// Um fsync de 4 KB acima disso é disco sofrendo.
+// A 4 KB fsync above this means a disk in trouble.
 const SLOW_WRITE_MS = 1000;
 
-// Fração do teto - memória do container, arquivos abertos - a partir da qual o
-// processo está a um susto de bater nele.
+// Fraction of the ceiling - container memory, open files - from which the
+// process is one scare away from hitting it.
 const NEAR_CEILING = 0.9;
 
 function num(v: number, decimals = 0) {
@@ -45,14 +46,15 @@ function machine(m: Server['maquina']) {
   if (m.placa) items.push({ label: 'placa', value: m.placa });
   if (m.processador) items.push({ label: 'processador', value: m.processador });
   if (m.kernel) items.push({ label: 'kernel', value: m.kernel });
-  // O teto do container vai junto dos núcleos, e não numa linha à parte: é ele
-  // que diz quantos o dwnvr enxerga de fato.
+  // The container's ceiling goes along with the cores, and not on a separate
+  // line: it is what says how many dwnvr actually sees.
   const allowed = m.nucleosLiberados
     ? ` (o container pode usar ${num(m.nucleosLiberados, m.nucleosLiberados % 1 ? 1 : 0)})`
     : '';
   items.push({ label: 'núcleos', value: `${m.nucleos}${allowed}` });
   if (m.carga) {
-    // Carga acima do número de núcleos é fila: tem processo esperando CPU.
+    // Load above the number of cores is a queue: there are processes waiting
+    // for CPU.
     items.push({
       label: 'carga (1, 5, 15 min)',
       value: m.carga.map((c) => num(c, 2)).join(' · '),
@@ -75,8 +77,9 @@ function machine(m: Server['maquina']) {
   return items;
 }
 
-// processo é o dwnvr visto por ele mesmo. `anterior` é a leitura de antes, da
-// qual sai a CPU de agora; sem ela, vale a média desde que o dwnvr subiu.
+// processInfo is dwnvr seen by itself. `previous` is the earlier reading, from
+// which the current CPU comes; without it, the average since dwnvr booted
+// applies.
 function processInfo(
   p: ServerProcess,
   cores: number,
@@ -85,16 +88,16 @@ function processInfo(
 ) {
   const items: CardItem[] = [];
   if (p.cpuMs != null && p.vivoMs > 0) {
-    // Leitura de antes da última subida do dwnvr não serve: o tempo de CPU
-    // recomeçou do zero.
+    // A reading from before dwnvr's last boot is no good: the CPU time
+    // restarted from zero.
     const a =
       previous?.cpuMs != null && p.vivoMs > previous.vivoMs && p.cpuMs >= previous.cpuMs
         ? { cpuMs: previous.cpuMs, vivoMs: previous.vivoMs }
         : null;
     const used = a ? (p.cpuMs - a.cpuMs) / (p.vivoMs - a.vivoMs) : p.cpuMs / p.vivoMs;
     const when = a ? `últimos ${duration(p.vivoMs - a.vivoMs)}` : 'média desde que subiu';
-    // Em fração da máquina inteira, e não de um núcleo, para comparar direto
-    // com a carga e a pressão ao lado.
+    // As a fraction of the whole machine, and not of one core, to compare
+    // directly with the load and the pressure beside it.
     items.push({
       label: 'CPU',
       value: `${num((used / cores) * 100, 1)}% da máquina (${when})`,
@@ -123,8 +126,8 @@ function processInfo(
   return items;
 }
 
-// O limite do container vai na linha de memória do processo, que é quem bate
-// nele; aqui ele só aparece se essa linha faltar.
+// The container limit goes on the process's memory line, which is what hits it;
+// here it only appears if that line is missing.
 function memory(m: NonNullable<Server['memoria']>, processLimit: boolean) {
   const free = m.totalBytes ? m.disponivelBytes / m.totalBytes : 1;
   const items: CardItem[] = [
@@ -135,8 +138,8 @@ function memory(m: NonNullable<Server['memoria']>, processLimit: boolean) {
     },
   ];
   if (m.swapTotalBytes) {
-    // Swap usada por si só não é problema - o kernel manda para lá o que
-    // ninguém usa. Metade cheia é que já é memória faltando de verdade.
+    // Swap used by itself is not a problem - the kernel sends there what nobody
+    // uses. Half full is what is already really missing memory.
     items.push({
       label: 'swap usada',
       value: `${bytes(m.swapUsadaBytes)} de ${bytes(m.swapTotalBytes)}`,
@@ -236,8 +239,8 @@ const SAFETY: Record<string, string> = {
   none: 'sem TLS',
 };
 
-// smtp é a seção smtp como ficou valendo; recusada, só o motivo. A conferência
-// de verdade é o e-mail de teste, logo abaixo no card.
+// smtp is the smtp section as it ended up in effect; if rejected, only the
+// reason. The real check is the test email, right below in the card.
 function smtp(s: NonNullable<Server['smtp']>): CardItem[] {
   if (s.error) return [{ label: 'situação', value: `desligado: ${s.error}`, alert: true }];
   return [
@@ -247,8 +250,8 @@ function smtp(s: NonNullable<Server['smtp']>): CardItem[] {
   ];
 }
 
-// meio são os envios de um meio do alerta desde que o dwnvr subiu. O último vai
-// no relógio do servidor, como o "Coletado em" do card.
+// middle is the deliveries of an alert notifier since dwnvr booted. The last
+// one goes on the server's clock, like the card's "Coletado em".
 function middle(m: AlertNotifier, offsetSeconds: number): CardItem[] {
   const ms = m.ultimo ? Date.parse(m.ultimo) : NaN;
   const at = isNaN(ms) ? '' : timezoneClock(ms, offsetSeconds);
@@ -263,13 +266,13 @@ function middle(m: AlertNotifier, offsetSeconds: number): CardItem[] {
   ];
 }
 
-// grupos monta o card. Grupo sem fonte - kernel sem PSI, servidor fora do
-// Linux, instalação sem detector de objetos - some em vez de aparecer vazio.
-// `anterior` é a leitura de antes, para a CPU do processo.
+// groups builds the card. A group with no source - kernel without PSI, server
+// outside Linux, installation without an object detector - disappears instead
+// of showing up empty. `previous` is the earlier reading, for the process CPU.
 export function groups(info: Server, previous: Server | null): CardGroup[] {
   const limit = info.memoria?.limiteBytes;
   const out: CardGroup[] = [{ title: 'Máquina', items: machine(info.maquina) }];
-  // Servidor anterior a este campo não manda o processo.
+  // A server older than this field doesn't send the process.
   if (info.processo) {
     out.push({
       title: 'Processo do dwnvr',
@@ -287,7 +290,8 @@ export function groups(info: Server, previous: Server | null): CardGroup[] {
   out.push({ title: 'go2rtc', items: go2rtc(info.go2rtc) });
   if (info.detector) out.push({ title: 'Detector de objetos', items: detector(info.detector) });
   if (info.smtp) out.push({ title: 'E-mail', items: smtp(info.smtp) });
-  // Um grupo por meio: o e-mail do servidor, acima, não é o meio do alerta.
+  // One group per notifier: the server's email, above, is not the alert
+  // notifier.
   for (const m of info.alertas ?? []) {
     out.push({
       title: `Alertas ${alertNotifier(m.nome)}`,
@@ -297,13 +301,14 @@ export function groups(info: Server, previous: Server | null): CardGroup[] {
   return out;
 }
 
-// coletadoEm diz quando o servidor fez a leitura, no relógio e no fuso DELE,
-// como o "horário do servidor" da faixa do topo: convertido para o fuso de quem
-// lê, esconderia um servidor com fuso errado. Servidor anterior a este campo
-// não manda nada.
+// collectedAt says when the server took the reading, on ITS clock and timezone,
+// like the "horário do servidor" in the top strip: converted to the reader's
+// timezone, it would hide a server with the wrong timezone. A server older than
+// this field sends nothing.
 //
-// Os espaços de dentro da data e do fuso são inquebráveis: sem caber numa
-// linha, no celular, a quebra cai entre a hora e o fuso, e não no meio de um.
+// The spaces inside the date and the timezone are non-breaking: when it doesn't
+// fit on one line, on the phone, the break falls between the time and the
+// timezone, and not in the middle of one.
 export function collectedAt(c: Server['coletadoEm']) {
   if (!c) return '';
   const lido = Date.parse(c.em);
@@ -312,7 +317,7 @@ export function collectedAt(c: Server['coletadoEm']) {
   return `${wholeNumber(`Coletado em ${timezoneClock(lido, c.offsetSeconds)}`)} ${wholeNumber(c.zona ?? c.sigla)}`;
 }
 
-// linhaDoLog formata como o docker logs mostraria, com a hora local de quem lê.
+// logLine formats like docker logs would show, with the reader's local time.
 export function logLine(l: LogLine) {
   const hour = new Date(l.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
   return `${hour} ${l.nivel} ${l.texto}`;

@@ -1,58 +1,60 @@
-// Conferencia é a validação de um formulário de pessoa pelo servidor, campo a
-// campo, no padrão "punir tarde, perdoar cedo":
+// Validation is the server's validation of a person form, field by field,
+// following the "punish late, forgive early" pattern:
 //
-// - um campo só mostra o resultado depois que a pessoa sai dele com algo
-//   escrito, ou depois de um salvar recusado: ninguém leva vermelho no meio
-//   da digitação;
-// - a partir daí, ele é conferido de novo enquanto ela digita, depois de
-//   ESPERA_AO_DIGITAR sem tecla, para o vermelho sumir assim que ela corrigir.
+// - a field only shows the result after the person leaves it with something
+//   written in it, or after a rejected save: nobody gets red in the middle of
+//   typing;
+// - from then on, it is checked again while the person types, after TYPING_WAIT
+//   without a keystroke, so the red goes away as soon as they fix it.
 //
-// A régua é a do servidor (o `pedir`), a mesma do salvar: a tela não a repete,
-// porque não tem como (o e-mail passa pelo net/mail do Go, e o login e o
-// e-mail de uma entrada ignorada do usuarios.json não vêm na listagem).
+// The ruler is the server's (the `request`), the same as the save's: the screen
+// doesn't repeat it, because it can't (the email goes through Go's net/mail,
+// and the login and email of an ignored usuarios.json entry aren't in the
+// listing).
 import type { PersonField, FieldErrors } from './api.ts';
 
-// ESPERA_AO_DIGITAR é a pausa na digitação, em ms, antes de conferir de novo
-// um campo que já mostra o resultado.
+// TYPING_WAIT is the pause in typing, in ms, before checking again a field that
+// already shows the result.
 export const TYPING_WAIT = 300;
 
 export type FieldState = 'ok' | 'erro' | null;
 
 export class Validation {
-  // Os campos que já podem mostrar o resultado.
+  // The fields that can already show the result.
   #mostrados = $state<PersonField[]>([]);
-  // Os campos que a última resposta cobriu, e as recusas dela.
+  // The fields the last response covered, and its rejections.
   #conferidos = $state<PersonField[]>([]);
   #recusas = $state<FieldErrors>({});
 
-  // Só vale a resposta do pedido mais recente; digitar de novo também
-  // descarta a que está a caminho, que é de valores que já não estão lá.
+  // Only the response to the most recent request counts; typing again also
+  // discards the one on its way, which is for values that are no longer there.
   #pedido = 0;
   #espera: ReturnType<typeof setTimeout> | undefined;
 
   readonly #campos: PersonField[];
   readonly #pedir: () => Promise<FieldErrors>;
 
-  // `campos` são os do formulário, e `pedir` confere os valores de agora no
-  // servidor e devolve as recusas.
+  // `fields` are the form's, and `request` checks the current values on the
+  // server and returns the rejections.
   constructor(campos: PersonField[], request: () => Promise<FieldErrors>) {
     this.#campos = campos;
     this.#pedir = request;
   }
 
-  // O resultado do campo: nulo enquanto ele não foi conferido.
+  // The field's result: null while it hasn't been checked.
   condition(field: PersonField): FieldState {
     if (!this.#conferidos.includes(field)) return null;
     return this.#recusas[field] ? 'erro' : 'ok';
   }
 
-  // A mensagem da recusa do campo, ou vazio.
+  // The field's rejection message, or empty.
   message(field: PersonField): string {
     return this.#conferidos.includes(field) ? (this.#recusas[field] ?? '') : '';
   }
 
-  // A pessoa saiu do campo (ou ele foi preenchido por ela, como o usuário
-  // sugerido pelo nome). Vazio só entra se o campo já mostrava o resultado.
+  // The person left the field (or it was filled in for them, like the user
+  // suggested from the name). Empty only gets in if the field already showed
+  // the result.
   leave(field: PersonField, value: string) {
     if (value.trim() !== '' && !this.#mostrados.includes(field)) {
       this.#mostrados = [...this.#mostrados, field];
@@ -60,8 +62,8 @@ export class Validation {
     if (this.#mostrados.length > 0) void this.#conferir();
   }
 
-  // A pessoa digitou em algum campo. Os que já mostram o resultado são
-  // conferidos de novo depois da pausa.
+  // The person typed in some field. The ones that already show the result are
+  // checked again after the pause.
   typeIn() {
     this.#pedido++;
     clearTimeout(this.#espera);
@@ -69,8 +71,8 @@ export class Validation {
     this.#espera = setTimeout(() => void this.#conferir(), TYPING_WAIT);
   }
 
-  // O salvar foi recusado com estas recusas: o servidor conferiu todos os
-  // campos, e todos passam a mostrar o resultado.
+  // The save was rejected with these rejections: the server checked all the
+  // fields, and all of them start showing the result.
   invalid(fieldErrors: FieldErrors) {
     this.stop();
     this.#mostrados = [...this.#campos];
@@ -78,7 +80,7 @@ export class Validation {
     this.#recusas = fieldErrors;
   }
 
-  // O formulário fechou: nada mais vai ao servidor.
+  // The form closed: nothing else goes to the server.
   stop() {
     this.#pedido++;
     clearTimeout(this.#espera);
@@ -92,8 +94,9 @@ export class Validation {
     try {
       fieldErrors = await this.#pedir();
     } catch {
-      // Sem resposta, some o resultado de antes, que pode ser de um valor já
-      // trocado (um verde que o servidor não deu). O salvar confere de novo.
+      // With no response, the earlier result disappears, since it may be for a
+      // value that has already changed (a green the server didn't give). The
+      // save checks again.
       if (meu === this.#pedido) this.#conferidos = [];
       return;
     }

@@ -1,22 +1,23 @@
-// A dica do toque longo, como nos apps do Android: segurar o dedo num botão
-// mostra o que ele faz, e soltar depois disso não o aciona. No desktop quem
-// faz esse papel é o `title`, que o navegador do celular não mostra.
+// The long-press hint, like in Android apps: holding a finger on a button shows
+// what it does, and releasing afterward doesn't trigger it. On desktop the
+// `title` plays that role, and the phone's browser doesn't show it.
 //
-// O texto é o `aria-label` do botão, ou o `title`: o que o leitor de tela já
-// lê. Botão sem nenhum dos dois não tem dica. Vale para o app inteiro, com um
-// ouvinte só no document, instalado pelo App.
+// The text is the button's `aria-label`, or the `title`: what the screen reader
+// already reads. A button with neither has no hint. It applies to the whole
+// app, with a single listener on the document, installed by App.
 //
-// O mesmo toque longo vale para quem o pede com `data-toque-longo`, com dica
-// ou sem: o elemento recebe o evento `toquelongo` no mesmo instante em que a
-// dica abriria. É a miniatura da área pequena, que amplia de novo (o
-// MiniaturaDasAreas). Um gesto só, com o mesmo tempo e a mesma tolerância da
-// dica, em vez de dois relógios disputando o dedo.
+// The same long press applies to whoever asks for it with `data-toque-longo`,
+// with a hint or without: the element receives the `toquelongo` event at the
+// very moment the hint would open. It is the small area's thumbnail, which
+// zooms again (the AreaThumbnail). A single gesture, with the same timing and
+// the same tolerance as the hint, instead of two clocks fighting over the
+// finger.
 
-// Quanto o dedo precisa ficar parado para a dica abrir: o toque longo do
-// Android. E quanto ele pode andar sem virar rolagem.
+// How long the finger has to stay still for the hint to open: Android's long
+// press. And how far it can move without turning into a scroll.
 const HOLD_MS = 500;
 const TOLERANCE_PX = 10;
-// Quanto a dica fica à vista depois de o dedo sair.
+// How long the hint stays visible after the finger leaves.
 const FICA_MS = 1500;
 const VAO_PX = 10;
 
@@ -25,7 +26,7 @@ const LISTENER = '[data-toque-longo]';
 export const LONG_TOUCH = 'toquelongo';
 
 function textOf(el: Element) {
-  // O aria-label vazio também cai para o title.
+  // An empty aria-label also falls back to the title.
   const t = [el.getAttribute('aria-label'), el.getAttribute('title')].find(Boolean) ?? '';
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
 }
@@ -35,13 +36,14 @@ export function installTouchHint() {
   let someTimer: number | undefined;
   let target: Element | null = null;
   let listener: Element | null = null;
-  // O de quem pediu o toque longo neste toque, mesmo depois do aviso: o
-  // `contextmenu` que chega atrasado também não abre o menu do sistema nele.
-  // O mouse e o teclado o zeram: o clique direito e a tecla de menu, depois
-  // de um toque, abrem o menu de sempre.
+  // The one of whoever requested the long press on this touch, even after the
+  // notice: the `contextmenu` that arrives late doesn't open the system menu on
+  // it either. The mouse and the keyboard reset it: the right click and the
+  // menu key, after a touch, open the usual menu.
   let touchListener: Element | null = null;
   let origin = { x: 0, y: 0 };
-  // A dica abriu neste toque: o clique que vem ao soltar é engolido.
+  // The hint opened on this touch: the click that comes on release is
+  // swallowed.
   let didOpen = false;
   let hint: HTMLDivElement | null = null;
 
@@ -49,17 +51,19 @@ export function installTouchHint() {
     const text = textOf(el);
     if (!text) return;
     didOpen = true;
-    // O Safari não tem vibração: lá a dica só aparece.
+    // Safari has no vibration: there the hint just appears.
     if ('vibrate' in navigator) navigator.vibrate(10);
     hint ??= Object.assign(document.createElement('div'), { className: 'touch-hint' });
     hint.setAttribute('role', 'tooltip');
     hint.textContent = text;
-    // Dentro da tela cheia, quando ela existe: fora dela a dica não aparece.
+    // Inside the fullscreen element, when there is one: outside it the hint
+    // doesn't show.
     (document.fullscreenElement ?? document.body).append(hint);
     hint.hidden = false;
     clearTimeout(someTimer);
 
-    // Acima do botão, onde o dedo não cobre; embaixo, se não couber.
+    // Above the button, where the finger doesn't cover it; below, if it doesn't
+    // fit.
     const r = el.getBoundingClientRect();
     const d = hint.getBoundingClientRect();
     const x = Math.min(innerWidth - d.width - 8, Math.max(8, r.left + r.width / 2 - d.width / 2));
@@ -74,7 +78,8 @@ export function installTouchHint() {
     listener = null;
   }
 
-  // O toque longo chegou: a dica, se o botão tem, e o aviso a quem o pediu.
+  // The long press arrived: the hint, if the button has one, and the notice to
+  // whoever requested it.
   function held() {
     if (target) showHint(target);
     listener?.dispatchEvent(new CustomEvent(LONG_TOUCH));
@@ -111,22 +116,22 @@ export function installTouchHint() {
       if (hint) hint.hidden = true;
     }, FICA_MS);
   };
-  // Na fase de captura, antes do botão: depois da dica, soltar o dedo não faz
-  // o que o botão faz.
+  // In the capture phase, before the button: after the hint, releasing the
+  // finger doesn't do what the button does.
   const onClick = (e: MouseEvent) => {
     if (!didOpen) return;
     didOpen = false;
     e.preventDefault();
     e.stopImmediatePropagation();
   };
-  // A tecla de menu depois de um toque: o menu de sempre abre.
+  // The menu key after a touch: the usual menu opens.
   const onKey = () => {
     touchListener = null;
   };
-  // O `contextmenu` é o próprio toque longo para o navegador, e pode chegar
-  // antes do nosso tempo: a dica abre com ele. E o menu do sistema (abrir o
-  // link, copiar), que abriria no mesmo toque, não abre. Só no toque: o
-  // clique direito e a tecla de menu continuam abrindo o menu de sempre.
+  // For the browser, `contextmenu` is the long press itself, and it may arrive
+  // before our timer: the hint opens with it. And the system menu (open the
+  // link, copy), which would open on the same touch, doesn't. Only on touch:
+  // the right click and the menu key still open the usual menu.
   const onMenu = (e: Event) => {
     const from = e.target instanceof Element ? e.target : null;
     const el = from?.closest(TARGET) ?? null;
@@ -142,9 +147,9 @@ export function installTouchHint() {
   document.addEventListener('pointerdown', onTouch);
   document.addEventListener('pointermove', onMove);
   document.addEventListener('pointerup', onRelease);
-  // O navegador tomou o toque para si (rolagem): a dica, se abriu, some como
-  // ao soltar. Não vem clique depois, e o `abriu` que sobra o próximo toque
-  // zera.
+  // The browser took the touch for itself (scrolling): the hint, if it opened,
+  // disappears as on release. No click follows, and the leftover `didOpen` is
+  // reset by the next touch.
   document.addEventListener('pointercancel', onRelease);
   document.addEventListener('click', onClick, true);
   document.addEventListener('contextmenu', onMenu);

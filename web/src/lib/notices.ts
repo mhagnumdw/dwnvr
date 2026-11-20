@@ -1,8 +1,8 @@
-// Os avisos do diagnóstico: o card Avisos da tela Diagnóstico e o sino do
-// header contam com a mesma função, então os dois não têm como discordar.
+// The diagnostics notices: the Avisos card on the Diagnostics screen and the
+// header bell both rely on the same function, so the two can't disagree.
 //
-// Função pura sobre o `health` de `state.svelte.ts`: chamada dentro de um
-// $derived, o Svelte rastreia os campos que ela lê.
+// A pure function over the `health` from `state.svelte.ts`: called inside a
+// $derived, Svelte tracks the fields it reads.
 
 import { alertNotifier, type HealthCamera, type AlertsDropped } from './api.ts';
 import { bytes, mbToBytes, duration, hhmmss, ddmm } from './format.ts';
@@ -15,30 +15,30 @@ export interface Notice {
   texto: string;
 }
 
-// De quanto em quanto tempo o header relê a saúde para o sino, fora das telas
-// que já a releem a cada HEALTH_POLL_MS. Um problema novo aparece no sino em
-// até este tempo; mais curto, cada aba aberta no ao vivo pagaria uma
-// requisição a mais por intervalo só para manter um número.
+// How often the header rereads health for the bell, outside the screens that
+// already reread it every HEALTH_POLL_MS. A new problem shows up on the bell
+// within this time; shorter, every tab open on Live would pay for one more
+// request per interval just to keep a number.
 export const NOTICES_POLL_MS = 30000;
 
 const MS_HOUR = 3600e3;
 
-// "Agora" pelo relógio do servidor, que é quem carimbou os instantes dos
-// avisos: com o relógio do aparelho errado, "desde 13:58 (12min)" viraria
-// "(3h12min)". Cai no do aparelho contra servidor antigo, sem o campo.
+// "Now" by the server's clock, which is what stamped the notices' instants:
+// with the device clock wrong, "since 13:58 (12min)" would become "(3h12min)".
+// It falls back to the device's against an old server, without the field.
 export function serverNow(health: HealthState) {
   const lido = health.clock ? Date.parse(health.clock.now) : NaN;
   return isNaN(lido) ? health.updatedAt || Date.now() : lido;
 }
 
-// quando escreve um instante: só a hora se é de hoje, com a data na frente se
-// não é - "13:58:12" de ontem leria como de hoje.
+// when writes an instant: just the time if it is today, with the date in front
+// if not - "13:58:12" from yesterday would read as today's.
 const ofToday = (ms: number, now: number) =>
   new Date(now).toDateString() === new Date(ms).toDateString();
 export const when = (ms: number, now: number) =>
   ofToday(ms, now) ? hhmmss(ms) : `${ddmm(ms)} ${hhmmss(ms)}`;
 
-// desde é o "desde quando" de todo aviso que depende de tempo, no formato do
+// since is the "since when" of every time-dependent notice, in the format of
 // "NÃO ESTÁ GRAVANDO": "desde 13:58:12 (12min)".
 export function since(iso: string, now: number) {
   const ms = Date.parse(iso);
@@ -47,26 +47,28 @@ export function since(iso: string, now: number) {
 
 const perHour = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: v < 10 ? 1 : 0 });
 
-// A mensagem de reconexão diz o total, desde quando ele conta, a taxa, o
-// recente e a última: "24 vezes" sozinho não diz se é muito.
+// The reconnection message states the total, since when it counts, the rate,
+// the recent count and the last one: "24 vezes" alone doesn't say whether that
+// is a lot.
 function reconnections(c: HealthCamera, health: HealthState, now: number) {
   const start = Date.parse(c.reconnectsSince);
-  if (isNaN(start)) return `${c.name} já reconectou ${c.reconnects} vezes.`; // servidor antigo
+  if (isNaN(start)) return `${c.name} já reconectou ${c.reconnects} vezes.`; // old server
 
-  // Menos de um minuto entre a subida do dwnvr e o início da contagem é a
-  // mesma coisa; depois disso, a contagem foi zerada ou a câmera reiniciada.
+  // Less than a minute between dwnvr boot and the start of the count is the
+  // same thing; beyond that, the count was reset or the camera restarted.
   const boot = health.uptime ? now - health.uptime.appSeconds * 1000 : NaN;
   const origin =
     Math.abs(start - boot) < 60e3 ? 'desde que o dwnvr subiu' : `desde ${when(start, now)}`;
 
   const counting = now - start;
   const between = [duration(counting)];
-  // Com menos de uma hora de contagem, "por hora" extrapola demais.
+  // With less than an hour of count, "per hour" extrapolates too much.
   if (counting >= MS_HOUR)
     between.push(`~${perHour(c.reconnects / (counting / MS_HOUR))} por hora`);
 
   let text = `${c.name} reconectou ${c.reconnects} vezes ${origin} (${between.join(', ')})`;
-  // Antes de a contagem cobrir a janela inteira, o recente é o próprio total.
+  // Before the count covers the whole window, the recent count is the total
+  // itself.
   const visibleWindow = health.reconnectsWindowHours;
   if (visibleWindow && counting >= visibleWindow * MS_HOUR) {
     text += `, ${c.reconnectsInWindow} nas últimas ${visibleWindow}h`;
@@ -80,9 +82,9 @@ function reconnections(c: HealthCamera, health: HealthState, now: number) {
   return text + '.';
 }
 
-// Avisos que explicam problemas antes de eles virarem mistério - que foi
-// exatamente o que faltou nos NVRs anteriores. Devolve [{ nivel, texto }], com
-// nivel 'bad' ou 'warn'.
+// Notices that explain problems before they become a mystery - which is exactly
+// what was missing in the previous NVRs. Returns [{ level, text }], with level
+// 'bad' or 'warn'.
 export function noticesOf(health: HealthState): Notice[] {
   const now = serverNow(health);
   const disk = health.disk;
@@ -94,9 +96,9 @@ export function noticesOf(health: HealthState): Notice[] {
       texto: `Disco abaixo do mínimo livre (${mbToBytes(disk.minFreeMB)})${whenDisk}: restam ${bytes(disk.freeBytes)}. A retenção está apagando gravações antigas de todas as câmeras.`,
     });
   }
-  // "Parada" vem antes de "desconectada" porque é a pergunta que importa: uma
-  // conexão de pé que não produz segmento nenhum continua sendo gravação
-  // perdida, e foi assim que 9 câmeras passaram horas fora sem ninguém notar.
+  // "Stalled" comes before "disconnected" because it is the question that
+  // matters: a live connection that produces no segment at all is still a lost
+  // recording, and that is how 9 cameras spent hours down with nobody noticing.
   for (const c of health.cameras) {
     if (!c.enabled || !c.silent) continue;
     const whenStopped = c.lastSegmentAt
@@ -109,17 +111,17 @@ export function noticesOf(health: HealthState): Notice[] {
   }
   for (const c of health.cameras) {
     if (!c.enabled || c.connected) continue;
-    if (c.silent) continue; // já avisado acima, e com mais informação
+    if (c.silent) continue; // already warned above, and with more information
     const whenDown = c.disconnectedAt ? ` ${since(c.disconnectedAt, now)}` : '';
     out.push({
       nivel: 'bad',
       texto: `${c.name} desconectada${whenDown}: ${c.lastError ?? 'motivo desconhecido'}`,
     });
   }
-  // Os dois avisos de configuração também vêm do /api/health, e não da lista
-  // de câmeras, que a tela Diagnóstico nunca relê: o go2rtc.yaml editado e o
-  // go2rtc reiniciado por fora apareceriam só depois de passar pela tela
-  // Câmeras.
+  // The two configuration notices also come from /api/health, and not from the
+  // camera list, which the Diagnostics screen never rereads: the edited
+  // go2rtc.yaml and the go2rtc restarted from outside would only show up after
+  // going through the Cameras screen.
   for (const c of health.cameras) {
     if (c.transcoding) {
       out.push({
@@ -129,8 +131,8 @@ export function noticesOf(health: HealthState): Notice[] {
     }
   }
   for (const c of health.cameras) {
-    // O audio só vem de câmera com recorder: a desabilitada não tem trilha a
-    // cobrar.
+    // Audio only comes from a camera with a recorder: a disabled one has no
+    // track to check.
     if (c.audio && c.audio !== 'none' && !c.hasAudio) {
       out.push({
         nivel: 'warn',
@@ -141,18 +143,18 @@ export function noticesOf(health: HealthState): Notice[] {
       out.push({ nivel: 'warn', texto: reconnections(c, health, now) });
     }
   }
-  // Vem do /api/health, relido a cada poucos segundos, e não do
-  // cameras.go2rtcError, que a tela Diagnóstico nunca relê: o go2rtc caindo
-  // com ela aberta tem que aparecer, e sumir quando ele volta.
+  // It comes from /api/health, reread every few seconds, and not from
+  // cameras.go2rtcError, which the Diagnostics screen never rereads: go2rtc
+  // going down with it open has to show up, and disappear when it comes back.
   if (health.go2rtc) {
     out.push({
       nivel: 'bad',
       texto: `go2rtc inacessível ${since(health.go2rtc.since, now)}: ${health.go2rtc.error}`,
     });
   }
-  // Com o detector de objetos fora, a gravação e as marcas de movimento
-  // seguem normais: sem este aviso, a falta das marcas de objeto só se nota
-  // depois, na timeline, e as marcas desse intervalo não voltam.
+  // With the object detector down, recording and the motion marks continue
+  // normally: without this notice, the missing object marks are only noticed
+  // later, on the timeline, and the marks from that interval don't come back.
   if (health.detector?.foraDoAr) {
     const f = health.detector.foraDoAr;
     out.push({
@@ -160,17 +162,17 @@ export function noticesOf(health: HealthState): Notice[] {
       texto: `Detector de objetos inacessível ${since(f.desde, now)}: ${f.erro}. As câmeras seguem gravando e marcando movimento, mas nenhuma marca de objeto é criada enquanto isso.`,
     });
   }
-  // A seção smtp recusada no boot desliga o e-mail até alguém corrigir o
-  // dwnvr.yaml e reiniciar: sem este aviso, só o log diria. Amarelo, porque a
-  // gravação e a detecção seguem normais.
+  // The smtp section rejected at boot turns email off until someone fixes
+  // dwnvr.yaml and restarts: without this notice, only the log would say.
+  // Yellow, because recording and detection continue normally.
   if (health.smtp) {
     out.push({
       nivel: 'warn',
       texto: `E-mail desligado: ${health.smtp.error}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
     });
   }
-  // O usuarios.json editado à mão. Ilegível é vermelho: só o dono entra. A
-  // entrada que não vale é amarela, uma linha por problema.
+  // The usuarios.json edited by hand. Unreadable is red: only the owner gets
+  // in. An entry that isn't valid is yellow, one line per problem.
   if (health.users?.error) {
     out.push({
       nivel: 'bad',
@@ -183,26 +185,28 @@ export function noticesOf(health: HealthState): Notice[] {
       texto: `Cadastro de usuários: ${w}. Corrija o usuarios.json e reinicie o dwnvr.`,
     });
   }
-  // A seção alerts do dwnvr.yaml: o endereço que ficou de fora da lista, ou a
-  // lista sem a seção smtp. Amarelo, como a smtp recusada: o alerta segue
-  // gravado na detecção.
+  // The alerts section of dwnvr.yaml: the address that was left out of the
+  // list, or the list without the smtp section. Yellow, like the rejected smtp:
+  // the alert is still recorded in the detection.
   for (const w of health.alerts?.warnings ?? []) {
     out.push({
       nivel: 'warn',
       texto: `Alertas por e-mail: ${w}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
     });
   }
-  // O meio do alerta falhando: vermelho, porque ninguém está sendo avisado, e
-  // a gravação seguir não muda isso. Some no primeiro envio que der certo.
+  // The alert notifier failing: red, because nobody is being notified, and
+  // recording continuing doesn't change that. It goes away on the first
+  // delivery that works.
   for (const f of health.alerts?.failing ?? []) {
     out.push({
       nivel: 'bad',
       texto: `Alertas ${alertNotifier(f.name)} falhando ${since(f.since, now)}: ${f.error}. As detecções seguem gravadas, mas ninguém está sendo avisado.`,
     });
   }
-  // Os alertas que não saíram pelos meios, por teto ou fila cheia. Amarelo:
-  // eles estão gravados na detecção. Some uma hora depois do último descarte,
-  // e não no envio seguinte: o descarte é um evento, e não um estado.
+  // The alerts that didn't go out through the notifiers, because of the ceiling
+  // or a full queue. Yellow: they are recorded in the detection. It goes away
+  // one hour after the last drop, and not on the next delivery: a drop is an
+  // event, not a state.
   if (health.alerts?.dropped) {
     out.push({ nivel: 'warn', texto: droppedAlerts(health.alerts.dropped, now) });
   }
@@ -210,8 +214,8 @@ export function noticesOf(health: HealthState): Notice[] {
 }
 
 // "12 alertas não foram enviados desde 14:02:10 (5min), o último às 14:07:31:
-// passaram do teto de 15 por hora." Com os dois motivos, cada um com a conta;
-// com um alerta só, no singular e sem o "desde".
+// passaram do teto de 15 por hora." With both reasons, each with its own count;
+// with a single alert, in the singular and without the "desde".
 function droppedAlerts(d: AlertsDropped, now: number) {
   const total = d.queueFull + d.overLimit;
   const one = (n: number, singular: string, plural: string) => (n === 1 ? singular : plural);
@@ -231,8 +235,9 @@ function droppedAlerts(d: AlertsDropped, now: number) {
   return `${oQue}: ${reason}. ${where} em Detecções, no filtro só alertas.`;
 }
 
-// O que o sino precisa: quantos, e a cor do pior. Um vermelho basta para o
-// sino ficar vermelho; só amarelos, ele fica amarelo e mais discreto.
+// What the bell needs: how many, and the color of the worst. One red is enough
+// for the bell to turn red; with only yellows, it turns yellow and more
+// discreet.
 export function noticesSummary(notices: Notice[]): { total: number; nivel: NoticeLevel | null } {
   return {
     total: notices.length,

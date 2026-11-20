@@ -1,17 +1,17 @@
-// A foto da Minha conta, reduzida aqui no navegador: a original, de qualquer
-// tamanho, não sai do aparelho. Vai ao servidor só o quadrado do centro, em
-// JPEG, de até `sidePx` pixels. O canvas não copia o EXIF, e com ele fica para
-// trás o GPS da foto.
+// The photo for My account, shrunk here in the browser: the original, of any
+// size, never leaves the device. Only the center square goes to the server, as
+// a JPEG of up to `sidePx` pixels. The canvas doesn't copy the EXIF, so the
+// photo's GPS stays behind.
 //
-// Os números (`sidePx`, `maxBytes`, `quality`) vêm do GET /api/conta: moram no
-// servidor, que recusa o que passar deles.
+// The numbers (`sidePx`, `maxBytes`, `quality`) come from GET /api/conta: they
+// live on the server, which rejects whatever exceeds them.
 
 import type { AvatarRule } from './api.ts';
 import { context2d } from './canvas.ts';
 
-// Abaixo desta qualidade a foto já fica feia; se nem assim couber no teto, é
-// melhor dizer que não deu do que mandar uma foto estragada. Na prática não
-// acontece: ruído puro, o pior caso, coube na qualidade 80.
+// Below this quality the photo already looks bad; if it doesn't fit under the
+// ceiling even then, it is better to say it failed than to send a ruined photo.
+// In practice it doesn't happen: pure noise, the worst case, fit at quality 80.
 const MIN_QUALITY = 50;
 
 function canvas(side: number) {
@@ -26,30 +26,31 @@ function jpeg(c: HTMLCanvasElement, quality: number) {
   });
 }
 
-// reduzirFoto devolve o JPEG pronto para o PUT, ou lança um Error com a
-// mensagem para a tela.
+// shrinkPhoto returns the JPEG ready for the PUT, or throws an Error with the
+// message for the screen.
 export async function shrinkPhoto(
   file: Blob,
   { sidePx: side, maxBytes: ceilingBytes, quality: quality }: AvatarRule,
 ): Promise<Blob> {
   let img: ImageBitmap;
   try {
-    // Já vem girada pela orientação do EXIF: é o padrão do createImageBitmap.
+    // It already comes rotated by the EXIF orientation: that is
+    // createImageBitmap's default.
     img = await createImageBitmap(file);
   } catch {
     throw new Error('este aparelho não abriu a imagem escolhida');
   }
 
-  // O quadrado do centro, sem tela de recorte.
+  // The center square, with no crop screen.
   const q = Math.min(img.width, img.height);
   let source: CanvasImageSource = img;
   let x = (img.width - q) / 2;
   let y = (img.height - q) / 2;
   let l = q;
 
-  // Em passos de metade: reduzir de uma vez só, de 4000 para 256, deixa o
-  // resultado serrilhado no canvas de todo navegador. O primeiro passo também
-  // é o que larga o resto da foto, fora do quadrado.
+  // In half steps: shrinking in one go, from 4000 to 256, leaves the result
+  // jagged on every browser's canvas. The first step is also the one that drops
+  // the rest of the photo, outside the square.
   while (l / 2 >= side) {
     const n = Math.floor(l / 2);
     const c = canvas(n);
@@ -60,10 +61,12 @@ export async function shrinkPhoto(
     x = y = 0;
     l = n;
   }
-  // Foto menor que o lado fica do tamanho dela: ampliar não traz nitidez.
+  // A photo smaller than the side keeps its size: enlarging doesn't bring
+  // sharpness.
   const final = canvas(Math.min(side, l));
   const ctx = context2d(final);
-  // O JPEG não tem transparência: o fundo de um PNG recortado sairia preto.
+  // JPEG has no transparency: the background of a cropped PNG would come out
+  // black.
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, final.width, final.height);
   ctx.imageSmoothingQuality = 'high';

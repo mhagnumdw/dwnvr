@@ -1,9 +1,9 @@
-// As famílias de objeto e os ícones que as desenham na timeline.
+// The object families and the icons that draw them on the timeline.
 //
-// Os desenhos são path de canvas, e não
-// emoji nem fonte de ícone: o emoji muda de desenho a cada sistema e não aceita
-// cor, e uma fonte seria um arquivo a mais num projeto que entrega um binário
-// só. A 14px o que decide a leitura é a silhueta, e aqui a silhueta é nossa.
+// The drawings are canvas paths, and not emoji or an icon font: emoji change
+// shape on every system and don't accept color, and a font would be one more
+// file in a project that ships a single binary. At 14px what decides legibility
+// is the silhouette, and here the silhouette is ours.
 
 import { context2d } from './canvas.ts';
 
@@ -15,42 +15,44 @@ export interface Family {
 
 export type FamilyName = 'pessoa' | 'veiculo' | 'animal';
 
-// As três famílias, na ordem de prioridade: `pessoa` é o que a detecção existe
-// para achar, `animal` é o que menos importa. A prioridade decide quem fica por
-// cima quando duas marcas se sobrepõem e quem ganha o lugar de ícone quando
-// não cabem todos. O nome da família é o que o servidor manda em `familia`.
+// The three families, in priority order: `pessoa` is what detection exists to
+// find, `animal` is what matters least. The priority decides who stays on top
+// when two marks overlap and who gets the icon slot when not all fit. The
+// family name is what the server sends in `familia`.
 export const FAMILIES: Readonly<Record<FamilyName, Family>> = {
   pessoa: { nome: 'pessoa', color: '#3fb950', priority: 0 },
   veiculo: { nome: 'veículo', color: '#a371f7', priority: 1 },
   animal: { nome: 'animal', color: '#db61a2', priority: 2 },
 };
 
-// Família que o servidor mandar e esta tela não conhecer ainda desenha em
-// cinza e fica atrás das outras: aparecer é melhor que sumir.
+// A family the server sends and this screen doesn't know yet is drawn in gray
+// and stays behind the others: showing up is better than disappearing.
 export const UNKNOWN_FAMILY: Family = { nome: '?', color: '#8b949e', priority: 9 };
 
-// As famílias na ordem em que a tela as lista.
+// The families in the order the screen lists them.
 export const FAMILY_NAMES: readonly FamilyName[] = ['pessoa', 'veiculo', 'animal'];
 
-// hasOwn, e não `in`: `constructor` está em todo objeto, e não é família.
+// hasOwn, and not `in`: `constructor` is on every object, and it isn't a
+// family.
 export const isFamily = (name: string): name is FamilyName => Object.hasOwn(FAMILIES, name);
 
 export const family = (name: string): Family => (isFamily(name) ? FAMILIES[name] : UNKNOWN_FAMILY);
 
-// As famílias, sem repetição, na ordem de prioridade.
+// The families, without repeats, in priority order.
 export const byPriority = (families: readonly string[]) =>
   [...families].sort((a, b) => family(a).priority - family(b).priority);
 
-// As famílias por extenso, para o nome que o leitor de tela lê numa
-// miniatura: "pessoa, animal".
+// The families spelled out, for the name the screen reader reads on a
+// thumbnail: "pessoa, animal".
 export const familyNames = (families: readonly string[]) =>
   byPriority(families)
     .map((f) => family(f).nome)
     .join(', ');
 
-// As classes do modelo (nomes do COCO, como o detector devolve) em português,
-// para a dica do ponteiro. Espelha o `ClassFamilies` de
-// internal/detect/params.go; classe fora dele aparece com o nome cru.
+// The model's classes (COCO names, as the detector returns them) in Portuguese,
+// for the pointer hint. It mirrors `ClassFamilies` in
+// internal/detect/params.go; a class missing from it shows up with its raw
+// name.
 export const CLASS_NAME: Readonly<Record<string, string>> = {
   person: 'pessoa',
   bicycle: 'bicicleta',
@@ -66,24 +68,25 @@ export const CLASS_NAME: Readonly<Record<string, string>> = {
   cow: 'vaca',
 };
 
-// Todo ícone é desenhado num quadrado 0..1 e escalado por `desenhaIcone`, para
-// o mesmo desenho servir a 14px e a 20px.
+// Every icon is drawn in a 0..1 square and scaled by `drawIcon`, so the same
+// drawing serves at 14px and at 20px.
 type Drawing = (g: CanvasRenderingContext2D) => void;
 
 // Cada linha é um traço do desenho, com o comentário dizendo qual.
 // prettier-ignore
 const DRAWINGS = {
   pessoa(g: CanvasRenderingContext2D) {
-    g.beginPath(); g.arc(0.5, 0.18, 0.16, 0, 7); g.fill();       // cabeça
+    g.beginPath(); g.arc(0.5, 0.18, 0.16, 0, 7); g.fill();       // head
     g.beginPath();
     g.moveTo(0.5, 0.36); g.lineTo(0.5, 0.68);                    // tronco
-    g.moveTo(0.22, 0.48); g.lineTo(0.78, 0.48);                  // braços
+    g.moveTo(0.22, 0.48); g.lineTo(0.78, 0.48);                  // arms
     g.moveTo(0.5, 0.68); g.lineTo(0.28, 1);                      // pernas
     g.moveTo(0.5, 0.68); g.lineTo(0.72, 1);
     g.stroke();
   },
-  // As rodas SAEM por baixo da linha do corpo e a cabine é um trapézio à
-  // parte: com rodas encostadas no corpo, a 14px o carro lia como bicho.
+  // The wheels STICK OUT below the body line and the cabin is a separate
+  // trapezoid: with wheels touching the body, at 14px the car read as an
+  // animal.
   car(g: CanvasRenderingContext2D) {
     g.beginPath();
     g.moveTo(0.3, 0.34); g.lineTo(0.38, 0.16); g.lineTo(0.66, 0.16); g.lineTo(0.72, 0.34);
@@ -92,15 +95,15 @@ const DRAWINGS = {
     g.beginPath(); g.arc(0.27, 0.72, 0.15, 0, 7); g.fill();
     g.beginPath(); g.arc(0.73, 0.72, 0.15, 0, 7); g.fill();
   },
-  // Moto e bicicleta se separam pelo PESO, porque nenhum detalhe sobrevive a
-  // 14px: a moto é maciça, a bicicleta é vazada.
+  // Motorcycle and bicycle are told apart by WEIGHT, because no detail survives
+  // at 14px: the motorcycle is solid, the bicycle is hollow.
   motorcycle(g: CanvasRenderingContext2D) {
     g.beginPath(); g.arc(0.21, 0.7, 0.21, 0, 7); g.fill();
     g.beginPath(); g.arc(0.79, 0.7, 0.21, 0, 7); g.fill();
     g.beginPath();
     g.moveTo(0.18, 0.62); g.lineTo(0.42, 0.34); g.lineTo(0.74, 0.34); g.lineTo(0.84, 0.62);
     g.closePath(); g.fill();
-    g.beginPath(); g.rect(0.3, 0.14, 0.22, 0.09); g.fill();      // guidão
+    g.beginPath(); g.rect(0.3, 0.14, 0.22, 0.09); g.fill();      // handlebar
   },
   bicycle(g: CanvasRenderingContext2D) {
     g.beginPath(); g.arc(0.19, 0.68, 0.19, 0, 7); g.stroke();
@@ -119,7 +122,7 @@ const DRAWINGS = {
     });
   },
   truck(g: CanvasRenderingContext2D) {
-    g.beginPath(); g.rect(0.04, 0.28, 0.48, 0.44); g.fill();     // baú
+    g.beginPath(); g.rect(0.04, 0.28, 0.48, 0.44); g.fill();     // trunk
     g.beginPath();
     g.moveTo(0.56, 0.44); g.lineTo(0.78, 0.44); g.lineTo(0.94, 0.6);
     g.lineTo(0.94, 0.72); g.lineTo(0.56, 0.72); g.closePath(); g.fill();
@@ -128,19 +131,20 @@ const DRAWINGS = {
   },
   train(g: CanvasRenderingContext2D) {
     g.beginPath(); g.rect(0.14, 0.16, 0.72, 0.52); g.fill();
-    hollow(g, () => { g.rect(0.24, 0.26, 0.52, 0.2); });         // janela
+    hollow(g, () => { g.rect(0.24, 0.26, 0.52, 0.2); });         // window
     g.beginPath(); g.arc(0.3, 0.82, 0.11, 0, 7); g.fill();
     g.beginPath(); g.arc(0.7, 0.82, 0.11, 0, 7); g.fill();
   },
-  // Cachorro e gato se separam pela silhueta inteira, porque orelha some a
-  // 14px: o gato tem o rabo erguido, o cachorro tem rabo curto e focinho longo.
+  // Dog and cat are told apart by the whole silhouette, because ears vanish at
+  // 14px: the cat has its tail raised, the dog has a short tail and a long
+  // snout.
   dog(g: CanvasRenderingContext2D) {
     g.beginPath(); g.rect(0.16, 0.52, 0.48, 0.22); g.fill();     // corpo
     g.beginPath();
     g.moveTo(0.24, 0.74); g.lineTo(0.24, 0.94);
     g.moveTo(0.56, 0.74); g.lineTo(0.56, 0.94);
     g.stroke();
-    g.beginPath(); g.arc(0.72, 0.46, 0.15, 0, 7); g.fill();      // cabeça
+    g.beginPath(); g.arc(0.72, 0.46, 0.15, 0, 7); g.fill();      // head
     g.beginPath(); g.rect(0.8, 0.46, 0.18, 0.1); g.fill();       // focinho
     g.beginPath(); g.moveTo(0.16, 0.56); g.lineTo(0.02, 0.48); g.stroke();
   },
@@ -158,8 +162,8 @@ const DRAWINGS = {
     g.beginPath();                                               // rabo erguido
     g.moveTo(0.2, 0.66); g.quadraticCurveTo(0.02, 0.58, 0.08, 0.16); g.stroke();
   },
-  // O animal da família é um quadrúpede sem orelha de propósito: quando ainda
-  // não dá para distinguir, ele não pode sugerir cachorro nem gato.
+  // The family's animal is a quadruped with no ears on purpose: when it can't
+  // be told apart yet, it must not suggest dog or cat.
   animal(g: CanvasRenderingContext2D) {
     g.beginPath();
     g.moveTo(0.12, 0.84); g.lineTo(0.12, 0.54); g.lineTo(0.62, 0.54);
@@ -172,7 +176,7 @@ const DRAWINGS = {
 
 export type IconName = keyof typeof DRAWINGS | 'veiculo';
 
-// O veículo da família é o carro, a classe mais comum dela.
+// The family's vehicle is the car, its most common class.
 const ICONS: Readonly<Record<IconName, Drawing>> = {
   ...DRAWINGS,
   veiculo: (g) => {
@@ -182,8 +186,8 @@ const ICONS: Readonly<Record<IconName, Drawing>> = {
 
 const isIcon = (name: string): name is IconName => Object.hasOwn(ICONS, name);
 
-// Recorta o desenho, em vez de pintar por cima com a cor do fundo: o ícone
-// fica sobre a página, e o furo mostra a página, seja qual for a cor dela.
+// Cut out of the drawing, instead of painting over it in the background color:
+// the icon sits on the page, and the hole shows the page, whatever its color.
 function hollow(g: CanvasRenderingContext2D, path: () => void) {
   g.save();
   g.globalCompositeOperation = 'destination-out';
@@ -193,8 +197,8 @@ function hollow(g: CanvasRenderingContext2D, path: () => void) {
   g.restore();
 }
 
-// A classe do modelo -> o ícone próprio dela. Classe sem ícone (cavalo,
-// ovelha, vaca) desenha o da família.
+// The model class -> its own icon. A class with no icon (horse, sheep, cow)
+// draws the family's.
 const CLASS_ICON: Readonly<Record<string, IconName>> = {
   person: 'pessoa',
   bicycle: 'bicycle',
@@ -207,11 +211,11 @@ const CLASS_ICON: Readonly<Record<string, IconName>> = {
   dog: 'dog',
 };
 
-// O ícone de uma família, pelo nome que o servidor manda. Família que esta tela
-// não conhece não tem ícone.
+// A family's icon, by the name the server sends. A family this screen doesn't
+// know has no icon.
 export const familyIcon = (name: string): IconName | null => (isIcon(name) ? name : null);
 
-// O nome do ícone de uma marca no nível de detalhe pedido.
+// The icon name for a mark at the requested level of detail.
 export function iconOf(
   mark: { classe: string; familia: string },
   byClass: boolean,
@@ -220,7 +224,7 @@ export function iconOf(
   return isIcon(name) ? name : null;
 }
 
-// Desenha um ícone com o canto superior esquerdo em (x, y) e `lado` px.
+// Draws an icon with the top-left corner at (x, y) and `lado` px.
 export function drawIcon(
   g: CanvasRenderingContext2D,
   name: IconName,
@@ -242,10 +246,10 @@ export function drawIcon(
   g.restore();
 }
 
-// O mesmo ícone como imagem, para quem desenha em HTML e não em canvas: a
-// grade de Detecções põe o ícone em cada miniatura, e um <canvas> por ícone
-// seria um contexto 2D por miniatura. Cada combinação é desenhada uma vez só,
-// na densidade da tela, e reaproveitada por todas.
+// The same icon as an image, for whoever draws in HTML and not on a canvas: the
+// Detections grid puts the icon on each thumbnail, and one <canvas> per icon
+// would be one 2D context per thumbnail. Each combination is drawn once, at the
+// screen density, and reused by all.
 const images = new Map<string, string>();
 
 export function iconURL(name: IconName, side: number, color: string) {

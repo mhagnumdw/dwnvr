@@ -1,13 +1,14 @@
-// A área: um polígono desenhado sobre a imagem de uma câmera, com X e Y em
-// fração do quadro, de 0 a 1, como a caixa do objeto. Ela vale sobre o quadro
-// da detecção e sobre o keyframe do segmento, em qualquer resolução.
+// The area: a polygon drawn over a camera's image, with X and Y as a fraction
+// of the frame, from 0 to 1, like the object's box. It applies to the detection
+// frame and to the segment's keyframe, at any resolution.
 //
-// Quem decide se um objeto está dentro é o servidor (internal/area): a tela
-// só desenha a área e a manda na query.
+// The server decides whether an object is inside (internal/area): the screen
+// only draws the area and sends it in the query.
 
 export type Point = [x: number, y: number];
 
-// As regras, com o valor do JSON e da query (en-US), o nome e o ícone na tela.
+// The rules, with the JSON and query value (en-US), the name and the icon on
+// the screen.
 export const RULES = {
   foot: {
     nome: 'pisa',
@@ -22,20 +23,19 @@ export const RULES = {
 } as const;
 export type Rule = keyof typeof RULES;
 
-// A padrão, a mesma do area.DefaultRule do servidor.
+// The default, the same as the server's area.DefaultRule.
 export const DEFAULT_RULE: Rule = 'foot';
 
-// Os mesmos limites do internal/area/params.go (MAX_AREAS é o
-// MaxAreasPerCamera).
+// The same limits as internal/area/params.go (MAX_AREAS is MaxAreasPerCamera).
 export const MIN_POINTS = 3;
 export const MAX_POINTS = 20;
 export const MAX_AREAS = 8;
 
-// O zoom da miniatura da área pequena. É pequena a área cujo retângulo tem
-// menos de AREA_PEQUENA do quadro na largura e na altura: só com as duas o
-// zoom vale a pena, porque a área inteira tem de caber nele (uma faixa
-// comprida e fina não deixa ampliar). O enquadramento é o retângulo com
-// ZOOM_MARGEM de folga em volta, e amplia no máximo ZOOM_TETO vezes.
+// The zoom of the small area's thumbnail. An area is small when its rectangle
+// is smaller than SMALL_AREA of the frame in both width and height: only with
+// both is the zoom worth it, because the whole area has to fit in it (a long,
+// thin strip can't be enlarged). The framing is the rectangle with ZOOM_MARGIN
+// of slack around it, and it zooms in at most ZOOM_CEILING times.
 export const SMALL_AREA = 0.2;
 export const ZOOM_MARGIN = 1.6;
 export const ZOOM_CEILING = 4;
@@ -48,15 +48,15 @@ export interface FilterArea {
 
 const isRule = (v: string | null): v is Rule => v !== null && Object.hasOwn(RULES, v);
 
-// O `area=` da query: `<cam>:<x>,<y>,...`, em milésimos do quadro. Milésimo
-// sobra para o dedo e deixa a URL curta.
+// The `area=` of the query: `<cam>:<x>,<y>,...`, in thousandths of the frame. A
+// thousandth is more than a finger needs and keeps the URL short.
 export function areaInQuery(a: FilterArea) {
   const n = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 1000);
   return `${a.cam}:${a.points.map(([x, y]) => `${n(x)},${n(y)}`).join(',')}`;
 }
 
-// A volta: nulo quando o link não traz uma área válida, e aí a tela abre sem
-// filtro de área, em vez de mostrar um erro do servidor.
+// The way back: null when the link doesn't carry a valid area, and then the
+// screen opens without an area filter, instead of showing a server error.
 export function queryArea(area: string | null, rule: string | null): FilterArea | null {
   if (!area) return null;
   const i = area.lastIndexOf(':');
@@ -74,17 +74,17 @@ export function queryArea(area: string | null, rule: string | null): FilterArea 
   return { cam: area.slice(0, i), points, rule: isRule(rule) ? rule : DEFAULT_RULE };
 }
 
-// Os pontos como vão para o cameras.json: 4 casas bastam ao dedo (um décimo
-// de pixel num quadro de 1080p) e deixam o arquivo legível.
+// The points as they go into cameras.json: 4 decimals are plenty for a finger
+// (a tenth of a pixel on a 1080p frame) and keep the file readable.
 export const registryPoints = (points: readonly Point[]) =>
   points.map(([x, y]): Point => [Math.round(x * 1e4) / 1e4, Math.round(y * 1e4) / 1e4]);
 
-// Os pontos no `points` de um <polygon> com viewBox 0 0 1 1.
+// The points for the `points` of a <polygon> with viewBox 0 0 1 1.
 export const svgPoints = (points: readonly Point[]) =>
   points.map(([x, y]) => `${x},${y}`).join(' ');
 
-// O caminho do polígono num canvas já transladado para a imagem, de largura
-// `w` e altura `h`.
+// The polygon's path on a canvas already translated to the image, with width
+// `w` and height `h`.
 function path(g: CanvasRenderingContext2D, points: readonly Point[], w: number, h: number) {
   g.beginPath();
   for (const [i, [x, y]] of points.entries()) {
@@ -96,8 +96,8 @@ function path(g: CanvasRenderingContext2D, points: readonly Point[], w: number, 
 
 const blue = () => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
 
-// O contorno da área num canvas que já está transladado para a imagem, de
-// largura `w` e altura `h`: fino e tracejado, como nas miniaturas.
+// The area's outline on a canvas already translated to the image, with width
+// `w` and height `h`: thin and dashed, like in the thumbnails.
 export function drawOutline(
   g: CanvasRenderingContext2D,
   points: readonly Point[],
@@ -114,9 +114,10 @@ export function drawOutline(
   g.restore();
 }
 
-// A área cheia: o azul translúcido e o traço contínuo da lista da aba Áreas.
-// É o desenho de uma área só, na miniatura dela e realçada no quadro da
-// detecção, onde o tracejado fino se perde na imagem.
+// The filled area: the translucent blue and the solid stroke of the list in the
+// Áreas tab. It is the drawing of a single area, in its thumbnail and
+// highlighted on the detection frame, where the thin dashed line gets lost in
+// the image.
 export function fillArea(
   g: CanvasRenderingContext2D,
   points: readonly Point[],
@@ -134,7 +135,7 @@ export function fillArea(
   g.restore();
 }
 
-// Um pedaço do quadro, em frações dele.
+// A region of the frame, as fractions of it.
 export interface Vista {
   x: number;
   y: number;
@@ -144,9 +145,9 @@ export interface Vista {
 
 export const WHOLE_FRAME: Vista = { x: 0, y: 0, w: 1, h: 1 };
 
-// O pedaço do quadro que enquadra a área pequena, ou nulo se ela não é
-// pequena. Largura e altura saem na mesma fração, para a vista manter a
-// proporção do quadro; o centro é o da área, puxado para dentro dele.
+// The region of the frame that frames the small area, or null if it isn't
+// small. Width and height use the same fraction, so the view keeps the frame's
+// aspect ratio; the center is the area's, pulled inside the frame.
 export function areaView(points: readonly Point[]): Vista | null {
   if (points.length < MIN_POINTS) return null;
   const xs = points.map(([x]) => x);
@@ -158,6 +159,6 @@ export function areaView(points: readonly Point[]): Vista | null {
   return { x: isInside((x0 + x1) / 2), y: isInside((y0 + y1) / 2), w: side, h: side };
 }
 
-// Os pontos da área na vista: frações da vista, e não do quadro.
+// The area's points in the view: fractions of the view, not of the frame.
 export const viewPoints = (points: readonly Point[], v: Vista): Point[] =>
   points.map(([x, y]) => [(x - v.x) / v.w, (y - v.y) / v.h]);

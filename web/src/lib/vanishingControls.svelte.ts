@@ -1,16 +1,17 @@
-// Controles por cima do vídeo, na tela cheia, que somem sozinhos depois de um
-// tempo sem toque nem movimento do mouse, e voltam com o próximo. Quem usa
-// chama `mostrar` a cada toque e diz, pelo `podeSumir`, se naquele instante
-// eles podem sumir: o vídeo pausado das gravações e o menu aberto do Ao vivo
-// seguram os controles à vista. A pergunta é feita na hora do sumiço, e não
-// na do toque.
+// Controls over the video, in fullscreen, that disappear on their own after a
+// while with no touch or mouse movement, and come back with the next one.
+// Whoever uses it calls `show` on every touch and says, through `canVanish`,
+// whether at that moment they may vanish: the paused recordings video and the
+// open Live menu hold the controls in view. The question is asked at vanish
+// time, not at touch time.
 //
-// No celular o toque simples na imagem também os esconde, como no YouTube, e
-// aí vale mesmo com o vídeo pausado: quem toca para ver a imagem limpa quer
-// ela limpa. O `pointerdown` já os mostrou quando o toque simples se confirma,
-// por isso a pergunta é se estavam à vista ANTES dele (`tocou`).
+// On the phone a single tap on the image also hides them, like YouTube, and
+// then it applies even with the video paused: whoever taps to see a clean image
+// wants it clean. `pointerdown` already showed them by the time the single tap
+// is confirmed, so the question is whether they were visible BEFORE it
+// (`touched`).
 
-// Quanto os controles ficam à vista depois do último toque.
+// How long the controls stay in view after the last touch.
 export const CONTROLS_VANISH_MS = 3000;
 
 export function vanishingControls(canVanish: () => boolean) {
@@ -22,7 +23,7 @@ export function vanishingControls(canVanish: () => boolean) {
     get visibleOnes() {
       return visibleOnes;
     },
-    // Mostra e rearma o sumiço.
+    // Shows and rearms the vanishing.
     show() {
       visibleOnes = true;
       clearTimeout(timer);
@@ -30,19 +31,19 @@ export function vanishingControls(canVanish: () => boolean) {
         if (canVanish()) visibleOnes = false;
       }, CONTROLS_VANISH_MS);
     },
-    // No `pointerdown` de um toque, no lugar do `mostrar`.
+    // On a touch's `pointerdown`, in place of `show`.
     touched() {
       visibleOnTouch = visibleOnes;
       this.show();
     },
-    // O toque simples se confirmou: some o que já estava à vista antes dele, e
-    // o que estava escondido fica à vista, como o `tocou` deixou.
+    // The single tap was confirmed: what was already visible before it
+    // disappears, and what was hidden stays in view, as `touched` left it.
     singleTouch() {
       if (!visibleOnTouch) return;
       clearTimeout(timer);
       visibleOnes = false;
     },
-    // Para quem sai da tela: o sumiço pendente não dispara mais.
+    // For whoever leaves the screen: the pending vanish no longer fires.
     stop() {
       clearTimeout(timer);
     },

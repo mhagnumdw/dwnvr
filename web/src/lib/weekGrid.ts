@@ -1,13 +1,14 @@
-// A grade da semana dos horários do alerta, sem DOM: só a aba Alerta usa, e
-// vem no chunk dela.
+// The week grid of the alert schedules, with no DOM: only the Alerta tab uses
+// it, and it comes in its chunk.
 //
-// A grade trabalha sobre a "cobertura": um byte por minuto da semana (10080),
-// domingo 00:00 primeiro. Horário vira cobertura sem perda; a volta gera a
-// lista canônica, que é o que a tela mostra depois de pintar.
+// The grid works over the "coverage": one byte per minute of the week (10080),
+// Sunday 00:00 first. A schedule becomes coverage losslessly; the way back
+// generates the canonical list, which is what the screen shows after painting.
 import { DAY, newSchedule, valid } from './schedules.ts';
 import type { Schedule } from './schedules.ts';
-// Os nomes dos dias e os resumos moram em horarios.ts, porque o card da
-// câmera também os mostra; seguem saindo daqui para quem já os pedia.
+// The day names and the summaries live in schedules.ts, because the camera card
+// also shows them; they keep being re-exported from here for whoever already
+// asked for them.
 export { DIAS, LONG_DAYS, dayName, hoursSummary, daysSummary } from './schedules.ts';
 
 const WEEK = 7 * DAY;
@@ -23,8 +24,8 @@ export function coverage(hs: Schedule[]): Coverage {
   return c;
 }
 
-// As sequências marcadas entre dois minutos da semana, [a, b] relativos ao
-// início, com as duas pontas incluídas.
+// The checked runs between two minutes of the week, [a, b] relative to the
+// start, with both ends included.
 function sequences(c: Coverage, start: number, size: number): [number, number][] {
   const rs: [number, number][] = [];
   let a = -1;
@@ -40,10 +41,10 @@ function sequences(c: Coverage, start: number, size: number): [number, number][]
   return rs;
 }
 
-// A lista canônica: cada sequência marcada de um dia é um horário, e os dias
-// com o mesmo horário viram um horário só. A sequência de um minuto só (o `to`
-// igual ao `from`) não é horário válido e fica de fora. Ela sobra quando
-// "12:30 até 13:00" perde a hora 12 na grade: o minuto 13:00 fica sozinho.
+// The canonical list: each checked run of a day is a schedule, and days with
+// the same schedule become a single schedule. A one-minute run (`to` equal to
+// `from`) is not a valid schedule and is left out. It is left over when "12:30
+// until 13:00" loses hour 12 in the grid: minute 13:00 stays alone.
 export function schedulesOf(c: Coverage): Schedule[] {
   const groups = new Map<string, Schedule>();
   for (let d = 0; d < 7; d++)
@@ -54,14 +55,14 @@ export function schedulesOf(c: Coverage): Schedule[] {
       g.days.push(d);
       groups.set(k, g);
     }
-  // Na ordem do primeiro dia, e no mesmo dia, da hora.
+  // In the order of the first day, and on the same day, of the hour.
   return [...groups.values()].sort(
     (x, y) => (x.days[0] ?? 0) - (y.days[0] ?? 0) || (x.from ?? 0) - (y.from ?? 0),
   );
 }
 
-// Marca (ou desmarca) as horas inteiras do retângulo entre dois dias e duas
-// horas, em qualquer ordem.
+// Checks (or unchecks) the whole hours of the rectangle between two days and
+// two hours, in any order.
 export function paintHours(
   c: Coverage,
   d0: number,
@@ -77,11 +78,11 @@ export function paintHours(
   return n;
 }
 
-// Os pedaços marcados de uma hora, em minutos 0..59 com as duas pontas.
+// The checked clips of an hour, in minutes 0..59 with both ends.
 export const clipsOfHour = (c: Coverage, d: number, h: number) =>
   sequences(c, d * DAY + h * 60, 60);
 
-// A hora inteira marcada é um pedaço só, do minuto 0 ao 59.
+// The whole hour checked is a single clip, from minute 0 to 59.
 export const whole = (ps: [number, number][]) =>
   ps.length === 1 && ps[0]?.[0] === 0 && ps[0][1] === 59;
 

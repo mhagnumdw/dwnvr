@@ -1,44 +1,44 @@
-// Decodificação das miniaturas da timeline.
+// Decoding of the timeline thumbnails.
 //
-// Cada miniatura é um MP4 de UM frame - o init mais o primeiro fragmento do
-// segmento, recortados do que já está gravado. O servidor não decodifica nada:
-// quem transforma isso em imagem é o navegador, com aceleração de hardware.
+// Each thumbnail is a ONE-frame MP4 - the init plus the first fragment of the
+// segment, cut from what is already recorded. The server decodes nothing: what
+// turns it into an image is the browser, with hardware acceleration.
 //
-// O caminho preferido é WebCodecs, que decodifica o keyframe direto. Onde ele
-// não existir, um <video> escondido faz o mesmo trabalho.
+// The preferred path is WebCodecs, which decodes the keyframe directly. Where
+// it does not exist, a hidden <video> does the same job.
 
 import { api, mediaURL } from './api.ts';
 
 const cache = new Map<string, Promise<ImageBitmap | null>>();
-const MAX_CACHE = 240; // ~algumas telas de tira; acima disso a RAM do celular sofre
-const MAX_PARALLEL = 3; // decodificações ao mesmo tempo; o download não espera
-// As miniaturas maiores (o `escala` do `thumbnail`): a da área pequena, e a
-// do ladrilho do card da câmera, mais largo que o quadrinho. Uma ou duas por
-// câmera com área, com folga para a troca de segmento. O despejo daqui não
-// fecha o bitmap (veja `thumbnail`).
+const MAX_CACHE = 240; // ~a few strip screens; above that the phone's RAM suffers
+const MAX_PARALLEL = 3; // decodes at the same time; the download does not wait
+// The larger thumbnails (the `scale` of `thumbnail`): the small area's, and the
+// camera card's tile, wider than the strip tile. One or two per camera with an
+// area, with slack for the segment swap. Eviction here does not close the
+// bitmap (see `thumbnail`).
 const MAX_ENLARGED = 12;
 const enlarged = new Map<string, Promise<ImageBitmap | null>>();
 
-// Largura do quadrinho maior da tira, em px de CSS: o `.tile` do
-// ThumbStrip.svelte. O de tela estreita é menor, mas o celular girado passa a
-// usar este, e guardar no menor deixaria a miniatura borrada.
+// Width of the strip's larger tile, in CSS px: the `.tile` of
+// ThumbStrip.svelte. The narrow-screen one is smaller, but the rotated phone
+// starts using this one, and caching at the smaller would leave the thumbnail
+// blurry.
 const FRAMELET_WIDTH = 108;
 
-// A `escala` do `thumbnail` para desenhar a miniatura com `largura` px de CSS
-// sem borrar: o ladrilho da área no card da câmera é mais largo que o
-// quadrinho da tira.
+// The `scale` of `thumbnail` to draw the thumbnail at `width` CSS px without
+// blur: the area tile on the camera card is wider than the strip tile.
 export const scaleToWidth = (width: number) => Math.max(1, Math.ceil(width / FRAMELET_WIDTH));
 
-// O cache guarda o bitmap pronto, sem compressão: 4 bytes por pixel. Na
-// resolução da câmera, uma miniatura 640×360 ocupa ~0,9 MB, e uma 1080p,
-// ~8 MB. Reduzida à largura do quadrinho na densidade da tela, fica em
-// ~0,23 MB num celular de densidade 3, qualquer que seja a câmera. Medido num
-// Chrome 155 em 14/10/2026: reduzir custa de 0,1 a 0,5 ms por miniatura com
-// GPU, contra 4 a 13 ms da decodificação.
+// The cache stores the ready bitmap, uncompressed: 4 bytes per pixel. At the
+// camera's resolution, a 640×360 thumbnail takes ~0.9 MB, and a 1080p one ~8
+// MB. Shrunk to the strip tile's width at the screen's density, it comes to
+// ~0.23 MB on a density-3 phone, whatever the camera. Measured on Chrome 155 on
+// 14/10/2026: shrinking costs 0.1 to 0.5 ms per thumbnail with a GPU, against 4
+// to 13 ms for decoding.
 function shrunk(sourceWidth: number, density: number): ImageBitmapOptions | undefined {
   const target = Math.ceil(FRAMELET_WIDTH * density);
-  // Só a largura: a altura segue a proporção da câmera. Ampliar não ganha
-  // nitidez e gasta mais memória que a própria fonte.
+  // Width only: the height follows the camera's aspect ratio. Enlarging gains
+  // no sharpness and uses more memory than the source itself.
   return sourceWidth > target ? { resizeWidth: target, resizeQuality: 'medium' } : undefined;
 }
 
@@ -74,22 +74,22 @@ function drain() {
 }
 
 /**
- * Devolve um ImageBitmap do keyframe de um segmento, ou null se não der.
- * O resultado é memorizado: rolar a tira para frente e para trás não deve
- * rebuscar nem redecodificar nada.
+ * Returns an ImageBitmap of a segment's keyframe, or null if it cannot. The
+ * result is memoized: scrolling the strip forward and back should not refetch
+ * or redecode anything.
  */
-//
-// `escala` guarda o bitmap maior que o quadrinho, tantas vezes: é a miniatura
-// da área pequena, que amplia até ZOOM_TETO vezes e borraria na do quadrinho.
-// Essas ficam num cache à parte e curto (MAX_AMPLIADAS): cada uma pesa até
-// escala² vezes a do quadrinho, e o MAX_CACHE da tira não as seguraria.
+// `scale` keeps the bitmap larger than the strip tile, that many times: it is
+// the small area's thumbnail, which enlarges up to ZOOM_CEILING times and would
+// blur at the strip tile's size. Those go in a separate, short cache
+// (MAX_ENLARGED): each weighs up to scale² times the strip tile's, and the
+// strip's MAX_CACHE would not hold them.
 export function thumbnail(cam: string, t: number, scale = 1): Promise<ImageBitmap | null> {
-  // A densidade da tela entra na chave porque o bitmap guardado foi reduzido
-  // para ela (veja `reduzida`): depois de um zoom do navegador, ou de levar a
-  // janela para outro monitor, ele sairia esticado no quadrinho novo. As
-  // entradas da densidade antiga saem pelo MAX_CACHE, como qualquer outra. É
-  // lida uma vez só: um zoom entre o pedido e a decodificação guardaria, sob
-  // esta chave, um bitmap reduzido para outra densidade.
+  // The screen density goes into the key because the stored bitmap was shrunk
+  // for it (see `shrunk`): after a browser zoom, or moving the window to
+  // another monitor, it would come out stretched on the new tile. The entries
+  // of the old density leave through MAX_CACHE, like any other. It is read only
+  // once: a zoom between the request and the decoding would store, under this
+  // key, a bitmap shrunk for another density.
   const density = (window.devicePixelRatio || 1) * scale;
   const key = `${cam}@${t}@${density}`;
   const where = scale === 1 ? cache : enlarged;
@@ -102,14 +102,15 @@ export function thumbnail(cam: string, t: number, scale = 1): Promise<ImageBitma
   where.set(key, p);
 
   if (where.size > (scale === 1 ? MAX_CACHE : MAX_ENLARGED)) {
-    // Map preserva a ordem de inserção, então a chave mais antiga sai primeiro.
+    // Map preserves insertion order, so the oldest key leaves first.
     const oldest = where.keys().next().value;
     if (oldest !== undefined) {
-      // Fechar libera a memória já, e a tira, com centenas, precisa disso. A
-      // ampliada não: o card com mais câmeras com área do que MAX_AMPLIADAS
-      // mostra todas ao mesmo tempo, e fechar a que ainda está na tela a faria
-      // pedir de novo, despejando outra, sem fim. Despejada sem fechar, ela sai
-      // da memória quando a última miniatura que a desenha a solta.
+      // Closing frees the memory right away, and the strip, with hundreds,
+      // needs that. The enlarged one does not: a card with more cameras with
+      // areas than MAX_ENLARGED shows them all at the same time, and closing
+      // one still on screen would make it ask again, evicting another, without
+      // end. Evicted without closing, it leaves memory when the last thumbnail
+      // that draws it lets go.
       if (where === cache) void where.get(oldest)?.then((b) => b?.close());
       where.delete(oldest);
     }
@@ -117,9 +118,9 @@ export function thumbnail(cam: string, t: number, scale = 1): Promise<ImageBitma
   return p;
 }
 
-// O começo do último segmento gravado da câmera, ou null se ela não tem
-// gravação. É o quadro mais recente que o servidor tem pronto: o keyframe do
-// segmento.
+// The start of the camera's last recorded segment, or null if it has no
+// recording. It is the most recent frame the server has ready: the segment's
+// keyframe.
 export async function lastSegment(cam: string): Promise<number | null> {
   const dias = await api.days(cam);
   const day = dias.days.at(-1)?.day;
@@ -128,11 +129,11 @@ export async function lastSegment(cam: string): Promise<number | null> {
   return t.segments.at(-1)?.[0] ?? null;
 }
 
-// O ultimoSegmento de cada câmera, guardado por um tempo. As miniaturas das
-// áreas pedem o quadro da câmera uma por área - o popover de Detecções monta
-// até 8 por câmera -, e cada pedido custaria o /days e a timeline de novo. O
-// bitmap não fica aqui: o `thumbnail` o guarda, e o devolve outra vez se o
-// cache dele o despejou.
+// Each camera's lastSegment, stored for a while. The area thumbnails ask for
+// the camera's frame one per area - the Detections popover mounts up to 8 per
+// camera -, and each request would cost /days and the timeline again. The
+// bitmap is not kept here: `thumbnail` stores it, and returns it again if its
+// cache evicted it.
 const LAST_SEGMENT_VALID_MS = 5 * 60_000;
 const ultimos = new Map<string, { to: number; t: Promise<number | null> }>();
 
@@ -143,8 +144,8 @@ export function storedLastSegment(cam: string): Promise<number | null> {
   const t = lastSegment(cam);
   const entry = { to: now + LAST_SEGMENT_VALID_MS, t };
   ultimos.set(cam, entry);
-  // A falha e o "sem gravação" não ficam guardados: o próximo pedido tenta
-  // de novo, e a câmera que acabou de começar a gravar aparece.
+  // The failure and the "no recording" are not stored: the next request tries
+  // again, and a camera that just started recording shows up.
   const forget = () => {
     if (ultimos.get(cam) === entry) ultimos.delete(cam);
   };
@@ -154,15 +155,16 @@ export function storedLastSegment(cam: string): Promise<number | null> {
   return t;
 }
 
-// Esquece o último segmento guardado da câmera: as gravações dela foram
-// apagadas, e ele não existe mais.
+// Forgets the camera's stored last segment: its recordings were deleted, and it
+// no longer exists.
 export function forgetLastSegment(cam: string) {
   ultimos.delete(cam);
 }
 
-// O keyframe de um segmento na resolução da câmera, para desenhar em cima
-// (o editor de área). Fora do cache e da fila da tira: é um quadro só, pedido
-// por quem o espera. A densidade infinita faz o `reduzida` não reduzir.
+// A segment's keyframe at the camera's resolution, to draw on top of (the area
+// editor). Outside the cache and the strip's queue: it is a single frame,
+// requested by whoever is waiting for it. The infinite density makes `shrunk`
+// not shrink.
 export async function fullFrame(cam: string, t: number): Promise<ImageBitmap> {
   return decode(await download(mediaURL.thumb(cam, t)), Infinity);
 }
@@ -175,14 +177,14 @@ export function clearThumbnails() {
   ultimos.clear();
 }
 
-// O download fica fora da fila: esperar a rede não ocupa o decodificador, e as
-// miniaturas que a tira pede juntas - as que entraram na vista - viajam juntas.
-// A prioridade baixa deixa os segmentos do player passarem na frente quando a
-// conexão é HTTP/1.1, com seis por vez.
+// The download stays outside the queue: waiting on the network does not occupy
+// the decoder, and the thumbnails the strip requests together - the ones that
+// entered the view - travel together. The low priority lets the player's
+// segments go ahead when the connection is HTTP/1.1, with six at a time.
 async function download(url: string) {
   const res = await fetch(url, { priority: 'low' });
-  // O corpo de um erro é o JSON da API: tentar decodificá-lo como vídeo só
-  // gasta um <video> para chegar à mesma miniatura vazia.
+  // The body of an error is the API's JSON: trying to decode it as video only
+  // spends a <video> to reach the same empty thumbnail.
   if (!res.ok) throw new Error(`miniatura: HTTP ${res.status}`);
   return new Uint8Array(await res.arrayBuffer());
 }
@@ -192,8 +194,8 @@ async function decode(buf: Uint8Array<ArrayBuffer>, density: number) {
     try {
       return await decodeWithWebCodecs(buf, density);
     } catch {
-      // Cai para o <video>: alguns navegadores anunciam WebCodecs mas recusam
-      // a configuração destas câmeras.
+      // Falls back to the <video>: some browsers announce WebCodecs but reject
+      // the configuration of these cameras.
     }
   }
   return decodeWithVideoElement(buf, density);
@@ -213,8 +215,8 @@ function fourcc(buf: Uint8Array, o: number) {
 async function decodeWithWebCodecs(buf: Uint8Array, density: number): Promise<ImageBitmap> {
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
-  // A caixa de configuração fica aninhada dentro do moov; varrer por assinatura
-  // evita descer a árvore inteira só para achar 100 bytes.
+  // The configuration box is nested inside the moov; scanning by signature
+  // avoids descending the whole tree just to find 100 bytes.
   let description: Uint8Array | null = null;
   let codec: string | null = null;
   for (let i = 0; i + 8 <= buf.length && !description; i++) {
@@ -228,7 +230,7 @@ async function decodeWithWebCodecs(buf: Uint8Array, density: number): Promise<Im
   }
   if (!description || !codec) throw new Error('sem configuração de codec');
 
-  // O mdat é caixa de topo, então basta percorrer o nível raiz.
+  // The mdat is a top-level box, so walking the root level is enough.
   let sample: Uint8Array | null = null;
   for (let o = 0; o + 8 <= buf.length;) {
     const size = dv.getUint32(o);
@@ -267,18 +269,19 @@ async function decodeWithWebCodecs(buf: Uint8Array, density: number): Promise<Im
     dec.configure({ codec, description, optimizeForLatency: true });
     dec.decode(new EncodedVideoChunk({ type: 'key', timestamp: 0, data: sample }));
     dec.flush().catch(() => {
-      // o erro, se houver, já chegou pelo `error` do decoder
+      // the error, if any, already arrived through the decoder's `error`
     });
   });
 }
 
-// --- alternativa com <video> ------------------------------------------------
+// --- fallback with <video> ------------------------------------------------
 
-// No Android o `loadeddata` pode chegar antes de o quadro estar pronto para ser
-// copiado, e o createImageBitmap o recusa com "The image source is not usable".
-// Num Chrome 155 por http (13/10/2026), 9 de 220 miniaturas viravam "-" na
-// tira; tentando de novo, 0 de 276, e a segunda chamada, 50 ms depois, bastou
-// em todas. As esperas seguintes são folga, e a última recusa vale como falha.
+// On Android `loadeddata` may arrive before the frame is ready to be copied,
+// and createImageBitmap rejects it with "The image source is not usable". On a
+// Chrome 155 over http (13/10/2026), 9 of 220 thumbnails became "-" in the
+// strip; trying again, 0 of 276, and the second call, 50 ms later, was enough
+// for all of them. The following waits are slack, and the last rejection counts
+// as a failure.
 const FRAME_WAITS_MS = [50, 100, 200, 400];
 
 async function decodeWithVideoElement(buf: Uint8Array<ArrayBuffer>, density: number) {

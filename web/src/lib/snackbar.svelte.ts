@@ -1,20 +1,21 @@
-// A snackbar: a mensagem curta que aparece embaixo da tela e some sozinha,
-// dizendo o que um toque acabou de fazer - às vezes com uma ação para voltar
-// atrás, como o "desfazer". O nome é o do Material Design.
+// The snackbar: the short message that appears at the bottom of the screen and
+// disappears on its own, saying what a tap just did - sometimes with an action
+// to go back, like "desfazer". The name is Material Design's.
 //
-// Uma de cada vez, como lá: a nova substitui a que estiver à vista. O estado é
-// do app inteiro, e o `<Snackbar>` que o desenha fica montado uma vez só, no
-// App; quem avisa só chama `avisar`.
+// One at a time, as there: the new one replaces whichever is visible. The state
+// belongs to the whole app, and the `<Snackbar>` that draws it is mounted only
+// once, in App; whoever notifies just calls `notify`.
 
-// O tempo padrão, para um aviso que só se lê. Com uma ação, quem avisa costuma
-// dar mais tempo, o de achar o botão.
+// The default duration, for a notice that is only read. With an action, whoever
+// notifies usually gives more time, enough to find the button.
 const DURATION_MS = 2500;
 
 export interface Notice {
-  // Um número por aviso: a tela que sai fecha o seu, e não o de outra.
+  // One number per notice: the screen that leaves closes its own, and not
+  // another's.
   id: number;
-  // O trecho em negrito na frente do texto, como o nome da câmera em
-  // "Frente oculta".
+  // The bold part in front of the text, like the camera name in "Frente
+  // oculta".
   forte?: string;
   texto: string;
   action?: { label: string; fazer: () => void };
@@ -35,7 +36,7 @@ export function notify(notice: Omit<Notice, 'id'>, durationMs = DURATION_MS) {
   return id;
 }
 
-// Sem `id`, fecha o que estiver à vista.
+// Without `id`, it closes whichever is visible.
 export function closeNotice(id?: number) {
   if (!snackbar.current || (id !== undefined && snackbar.current.id !== id)) return;
   clearTimeout(timer);

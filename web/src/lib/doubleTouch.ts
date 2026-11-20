@@ -1,22 +1,23 @@
-// Duplo toque no vídeo, como no YouTube do celular. O vídeo é dividido em três
-// terços: nas laterais o duplo toque pula para trás ou para a frente, e cada
-// toque a mais no mesmo lado, logo em seguida, pula de novo; no meio ele
-// alterna a tela cheia. Sem `pular`, o vídeo é um terço só, o do meio.
+// Double tap on the video, like YouTube on the phone. The video is split into
+// three thirds: on the sides the double tap jumps back or forward, and each
+// extra tap on the same side, right after, jumps again; in the middle it
+// toggles fullscreen. Without `jump`, the video is a single third, the middle
+// one.
 //
-// O toque simples só se confirma depois de DUPLO_MS sem outro toque: até lá
-// ele pode ser o primeiro de um duplo. O toque que entra na sequência de pulos
-// não é simples. Qualquer toque que comece antes disso, até num botão, o
-// cancela: quem usa chama `cancelar` no `pointerdown` de tudo.
+// A single tap is only confirmed after DOUBLE_MS without another tap: until
+// then it might be the first of a double. A tap that joins the jump sequence is
+// not a single tap. Any tap that starts before that, even on a button, cancels
+// it: whoever uses it calls `cancel` on the `pointerdown` of everything.
 //
-// O detector é próprio, e não o `dblclick` do navegador: o Chrome do Android
-// gera um `dblclick` por par de toques, mas não os toques seguidos da
-// sequência. Por isso ele só ouve o toque; o mouse continua no `dblclick`.
+// The detector is its own, and not the browser's `dblclick`: Android's Chrome
+// generates one `dblclick` per pair of taps, but not the follow-up taps of the
+// sequence. So it only listens to touch; the mouse stays on `dblclick`.
 
-// Dois toques mais próximos que isso, no tempo e na tela, formam um duplo toque.
+// Two taps closer than this, in time and on screen, make a double tap.
 const DOUBLE_MS = 300;
 const DOUBLE_PX = 48;
-// Por quanto tempo, depois de um pulo, mais um toque no mesmo lado soma outro.
-// A meia-lua que mostra a soma fica à vista por esse mesmo tempo.
+// For how long, after a jump, one more tap on the same side adds another. The
+// half-moon that shows the sum stays visible for that same time.
 export const SEQUENCE_MS = 700;
 
 export type Side = -1 | 1;
@@ -32,7 +33,7 @@ export function doubleTouch(actions: {
 
   const onRelease = (e: PointerEvent) => {
     if (e.pointerType !== 'touch') return;
-    // O toque num botão por cima do vídeo é do botão.
+    // A tap on a button over the video belongs to the button.
     if (e.target instanceof Element && e.target.closest('button')) return;
     if (!(e.currentTarget instanceof HTMLElement)) return;
 
