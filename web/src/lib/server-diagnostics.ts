@@ -319,6 +319,6 @@ export function collectedAt(c: Server['collectedAt']) {
 
 // logLine formats like docker logs would show, with the reader's local time.
 export function logLine(l: LogLine) {
-  const hour = new Date(l.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
+  const hour = new Date(l.at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
   return `${hour} ${l.level} ${l.text}`;
 }

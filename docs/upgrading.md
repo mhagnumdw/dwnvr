@@ -13,8 +13,12 @@ The backup is also the way back to the previous version.
 
 ```sh
 docker compose down
-cp -a ~/dwnvr/config ~/dwnvr/config.bak
+backup=~/dwnvr/config.bak-$(date +%Y%m%d-%H%M%S)
+test ! -e "$backup" && cp -a ~/dwnvr/config "$backup"
 ```
+
+The backup goes to a new, dated folder, so a backup from an earlier update is
+never reused or overwritten.
 
 Keep the `storage` folder as it is. The sections below say when something in it
 changes.

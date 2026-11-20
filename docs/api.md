@@ -604,7 +604,7 @@ sem cgroup, fora do Linux).
 - `limitBytes` é o teto de memória do container, e some quando não há teto.
 - `readOnly` vale para a montagem ou para o superbloco: um cartão SD com
   defeito é remontado somente leitura pelo kernel sem avisar ninguém.
-- `write.erro` só traz causa conhecida (somente leitura, sem permissão, disco
+- `write.error` só traz causa conhecida (somente leitura, sem permissão, disco
   cheio, diretório inexistente, disco que não respondeu em 5 s). Qualquer outra
   falha vai genérica, com o detalhe no log. Enquanto um teste anterior continuar
   preso num disco travado, a resposta diz isso e não abre outro teste.
@@ -703,13 +703,13 @@ rola.
 corrente ganha detecção nova a todo momento, e "página 3" mudaria de conteúdo
 entre um pedido e outro.
 
-- `antes=<ms>`: as detecções anteriores a este instante, para rolar para baixo.
+- `before=<ms>`: as detecções anteriores a este instante, para rolar para baixo.
   Sem cursor nenhum, vêm as mais novas.
-- `depois=<ms>`: as posteriores, para rolar para cima depois de um "ir para".
+- `after=<ms>`: as posteriores, para rolar para cima depois de um "ir para".
   São as mais próximas do cursor, mas a resposta vem na mesma ordem das outras:
   da mais nova para a mais velha.
 - `limit`: quantas, de 1 a 200. Padrão 60.
-- `cams=cam_a,cam_b` e `familias=pessoa,veiculo`: só essas. Sem eles, todas.
+- `cams=cam_a,cam_b` e `families=pessoa,veiculo`: só essas. Sem eles, todas.
   Câmera não cadastrada ou família desconhecida é erro.
 - `area=<cam>:<x>,<y>,<x>,<y>,...`: na câmera `<cam>`, só os objetos dentro
   de uma área desenhada sobre a imagem dela, como
@@ -731,7 +731,7 @@ entre um pedido e outro.
 
 - `alert=1`: só as detecções em que algum objeto alertou (ver abaixo). O
   filtro é por detecção: o objeto que não alertou fica nela. Ele vale sobre o
-  que sobra dos outros filtros: com `familias=veiculo`, a detecção que alertou
+  que sobra dos outros filtros: com `families=veiculo`, a detecção que alertou
   só pela pessoa sai, porque a pessoa sai. Outro valor é erro.
 
 As áreas de uma câmera **somam**, a de `area` junto: o objeto fica se está em

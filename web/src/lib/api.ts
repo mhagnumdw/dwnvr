@@ -739,7 +739,7 @@ export interface ServerProcess {
 }
 
 export interface LogLine {
-  em: string;
+  at: string;
   level: string;
   text: string;
 }

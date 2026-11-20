@@ -620,6 +620,7 @@ por e-mail (ver
 | [`docs/deteccao.md`](docs/deteccao.md) | a detecção de movimento e de objetos: o fluxo, o custo e os limites |
 | [`docs/resiliencia.md`](docs/resiliencia.md) | queda de energia e o go2rtc que emudece sem avisar |
 | [`docs/api.md`](docs/api.md) | referência dos endpoints HTTP |
+| [`docs/upgrading.md`](docs/upgrading.md) | o guia da atualização para a 1.0.0, em inglês |
 | [`web/README.md`](web/README.md) | desenvolver a interface |
 | [`docs/github.md`](docs/github.md) | o que está ligado no GitHub e o PR do Dependabot |
 | [`docs/README.md`](docs/README.md) | índice completo, incluindo as medições datadas |
