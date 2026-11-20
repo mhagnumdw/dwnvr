@@ -160,7 +160,7 @@
     const id = currentParams().get('editar');
     if (!cameras.list.length) await loadCameras();
     if (!id) return;
-    write({ edit: null });
+    write({ editar: null });
     const cam = cameras.list.find((c) => c.id === id);
     // With another form already open (the list may have arrived by another path
     // while this one was waiting), the open request does not replace it.

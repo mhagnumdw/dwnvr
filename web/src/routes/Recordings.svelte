@@ -626,8 +626,8 @@
       // Thumbnails moved from the URL to localStorage: an old link no longer
       // carries `thumbs=0` forward.
       thumbs: null,
-      boxes: showBoxes ? null : '0',
-      labels: showLabels ? null : '0',
+      caixas: showBoxes ? null : '0',
+      rotulos: showLabels ? null : '0',
     });
   });
 
