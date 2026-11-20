@@ -29,7 +29,7 @@ sidecar devolve ao olhar um pedaço, e esse caminho passa pela fila e custa de
   oficial já traz o ffmpeg. Sem ffmpeg (um go2rtc externo) ou com a câmera fora
   do ar, o e-mail sai sem anexo e diz o motivo. Falta conferir se o 1.9.14
   aceita reduzir para 480 px pelo parâmetro. Era a recomendada.
-- **(b) O último quadro olhado da câmera**, em `quadros/`. Não pede nada novo,
+- **(b) O último quadro olhado da câmera**, em `frames/`. Não pede nada novo,
   mas pode ter dias, e a câmera sem detecção fica sem imagem.
 
 ## O desenho, com a (a)

@@ -26,10 +26,10 @@ cat /mnt/storage/dwnvr/config/dwnvr/cameras.json
 tail -f /mnt/storage/dwnvr/recordings/cam_iota/index/$(date +%F).ndjson
 
 # as marcas de movimento, se a câmera estiver com a detecção ligada
-tail -f /mnt/storage/dwnvr/recordings/cam_iota/eventos/$(date +%F).ndjson
+tail -f /mnt/storage/dwnvr/recordings/cam_iota/events/$(date +%F).ndjson
 
 # os quadros das detecções do dia, um .jpg por detecção, nomeado pelo instante
-ls -l /mnt/storage/dwnvr/recordings/cam_iota/quadros/$(date +%F)/
+ls -l /mnt/storage/dwnvr/recordings/cam_iota/frames/$(date +%F)/
 ```
 
 Para descobrir os caminhos de uma instalação qualquer:

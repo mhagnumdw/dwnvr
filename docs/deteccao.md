@@ -110,7 +110,7 @@ flowchart TD
 
     subgraph disco
         gravacao["gravação (sempre)"]
-        eventos["eventos/{dia}.ndjson"]
+        eventos["events/{dia}.ndjson"]
     end
 
     gravador --> gravacao
@@ -147,7 +147,7 @@ flowchart TD
 3. **O onset.** Quando o destaque passa do limiar do nível, o mecanismo
    dispara. Uma histerese (um limiar para abrir, outro mais baixo para fechar)
    impede que uma pessoa atravessando a cena vire vinte marcas. O onset vai
-   para `eventos/{dia}.ndjson` como marca de movimento, **com ou sem olhada**.
+   para `events/{dia}.ndjson` como marca de movimento, **com ou sem olhada**.
 4. **O pico e o pedaço.** O mecanismo espera até 3 s pelo quadro de maior
    destaque, e o dwnvr corta o pedaço do frame I até ele, a partir do GOP que
    guarda em memória para cada câmera com detecção.
@@ -205,7 +205,7 @@ GET  /health              o HEALTHCHECK do Docker e o card "Este servidor"
   vê. É a miniatura da tela de Detecções. Ele sai daqui porque aqui ele já está
   decodificado, e a caixa, sendo fração, cai no lugar certo sobre ele em
   qualquer tamanho. Medido em quadros reais: 13,8 KB a 480 px com qualidade
-  75, e ~11 ms para encodar. O dwnvr o grava em `quadros/{dia}/{instanteMs}.jpg`, ver
+  75, e ~11 ms para encodar. O dwnvr o grava em `frames/{dia}/{atMs}.jpg`, ver
   [`arquitetura.md`](arquitetura.md).
 - **O `minScore`** é a menor confiança que ele devolve, de qualquer classe. O dwnvr
   manda 0,20, bem abaixo do corte de 0,40, porque o rastreio aprende também com
@@ -288,12 +288,12 @@ envio aos meios, fica numa goroutine própria, com uma espera de
 registro.
 
 **O registro** é a marca na linha de cada objeto que passou, no
-`eventos/{dia}.ndjson`, e uma linha `INFO` no log. A marca é `"alert":true` e,
+`events/{dia}.ndjson`, e uma linha `INFO` no log. A marca é `"alert":true` e,
 com áreas no alerta, `"alertAreas"` com o id das áreas em que o objeto caiu; o
 objeto que não passou fica sem nada:
 
 ```json
-{"instanteMs":1792525050142,"familia":"pessoa","classe":"person","score":0.566,"quadroMs":1792525050171,"caixa":[0.2276,0.3703,0.2784,0.4249],"temQuadro":true,"alert":true,"alertAreas":["calcad"]}
+{"atMs":1792525050142,"family":"pessoa","class":"person","score":0.566,"frameMs":1792525050171,"box":[0.2276,0.3703,0.2784,0.4249],"hasFrame":true,"alert":true,"alertAreas":["calcad"]}
 ```
 
 ```text
@@ -521,7 +521,7 @@ e [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO/TODO_recalibrar-modelo
 | `internal/area/area.go` | "o objeto está dentro da área?": as regras `foot` e `touch` |
 | `internal/alert/rule.go` | quando as marcas de uma olhada viram alerta |
 | `internal/alert/dispatcher.go` | o registro e a entrega aos meios |
-| `internal/store/store.go` | `eventos/{dia}.ndjson` |
+| `internal/store/store.go` | `events/{dia}.ndjson` |
 | `dwnvr-detect/server.py` | decodificar e rodar o modelo |
 | `web/src/components/Timeline.svelte` | a faixa de calor e as marcas de objeto |
 | `web/src/components/Boxes.svelte` | as caixas sobre o vídeo |

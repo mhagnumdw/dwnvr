@@ -33,9 +33,9 @@ type objectsMemo struct {
 }
 
 // objectMarker is what tells an object line from an onset line without
-// decoding the JSON: the onset line only has `instanteMs`. In a day there are
+// decoding the JSON: the onset line only has `atMs`. In a day there are
 // thousands of onsets for dozens of objects, and Unmarshal is what costs.
-var objectMarker = []byte(`"familia"`)
+var objectMarker = []byte(`"family"`)
 
 // DayObjects returns a day's object marks, in instant order. It's what the
 // Detections screen pages through.

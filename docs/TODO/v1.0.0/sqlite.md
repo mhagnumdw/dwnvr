@@ -18,8 +18,8 @@ no disco".
 | --- | --- | --- |
 | `cameras.json`, `users.json`, `access.json`, em `/etc/dwnvr` | dezenas de registros, lidos na subida e mantidos em memória; gravados por arquivo temporário e rename | Não. A gravação já é atômica, e não há volume que peça índice |
 | `index/{dia}.ndjson`, por câmera | uma linha por segmento (~2.700 por dia com os 30 s do padrão), acrescentada a cada segmento; a timeline lê o dia inteiro, em sequência | Não. Append e leitura sequencial são o melhor caso do arquivo, e o segmento de vídeo continua sendo arquivo |
-| `eventos/{dia}.ndjson`, por câmera | milhares de onsets e dezenas de objetos por dia; Detecções e o calendário cruzam todas as câmeras e todos os dias, com filtro | Em parte, ver [As consultas](#as-consultas) |
-| `quadros/`, `init/`, `avatars/` | imagens e o init do MP4 | Não. Binário fica melhor em arquivo |
+| `events/{dia}.ndjson`, por câmera | milhares de onsets e dezenas de objetos por dia; Detecções e o calendário cruzam todas as câmeras e todos os dias, com filtro | Em parte, ver [As consultas](#as-consultas) |
+| `frames/`, `init/`, `avatars/` | imagens e o init do MP4 | Não. Binário fica melhor em arquivo |
 
 ## As consultas
 

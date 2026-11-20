@@ -11,7 +11,8 @@
 //	{root}/{cam}/init/{gen}.mp4             init segment per codec generation
 //	{root}/{cam}/2026-08-08/{startMs}.mp4   segments, name = start in ms
 //	{root}/{cam}/index/2026-08-08.ndjson    the day's index
-//	{root}/{cam}/eventos/2026-08-08.ndjson  the day's motion onsets
+//	{root}/{cam}/events/2026-08-08.ndjson   the day's motion onsets
+//	{root}/{cam}/frames/2026-08-08/{atMs}.jpg  the frame of each detection
 package store
 
 import (
@@ -74,40 +75,40 @@ func (e Entry) Day() string { return time.UnixMilli(e.StartMs).Format(DayLayout)
 // worth the trade.
 //
 // The same line serves the OBJECT MARK the object detector returns later, with
-// `familia` filled in: {"instanteMs":...,"familia":"pessoa",
-// "classe":"person","score":0.87,"quadroMs":...,"caixa":[0.51,0.26,0.67,0.98]}.
+// `family` filled in: {"atMs":...,"family":"pessoa",
+// "class":"person","score":0.87,"frameMs":...,"box":[0.51,0.26,0.67,0.98]}.
 // The instant is that of the ONSET that originated it - that's what matches
 // the arrival -, even if the answer came seconds later. Living in the same
 // file gets the same retention for free: the mark goes away together with the
 // video it points to.
 type Event struct {
-	AtMs int64 `json:"instanteMs"`
+	AtMs int64 `json:"atMs"`
 
 	// An empty Family is a motion onset; filled in, it's an object mark.
-	Family string  `json:"familia,omitempty"`
-	Class  string  `json:"classe,omitempty"`
+	Family string  `json:"family,omitempty"`
+	Class  string  `json:"class,omitempty"`
 	Score  float64 `json:"score,omitempty"`
 
 	// FrameMs is the instant of the frame the object detector inferred, which
 	// may come up to PeakWindowMs after the onset. It's on that frame, not on the
 	// onset, that the Box is in the right place: drawn at the mark's instant, it
 	// would arrive up to 3 s before the object.
-	FrameMs int64 `json:"quadroMs,omitempty"`
+	FrameMs int64 `json:"frameMs,omitempty"`
 	// Box is X1, Y1, X2, Y2 as a fraction of the frame, from 0 to 1. A
 	// pointer, not an array, because of omitempty: an array is never "empty" to
 	// JSON, and every onset line of the day would come out with
-	// "caixa":[0,0,0,0].
-	Box *[4]float64 `json:"caixa,omitempty"`
+	// "box":[0,0,0,0].
+	Box *[4]float64 `json:"box,omitempty"`
 
 	// HasFrame says the JPEG of the inferred frame was written, in
-	// quadros/{day}/{atMs}.jpg. False is a mark without an image: older than this
+	// frames/{day}/{atMs}.jpg. False is a mark without an image: older than this
 	// version, or an inference where the frame didn't come back from the object
 	// detector.
 	//
 	// The path isn't stored because it can be derived from the instant, just as
 	// the segment's isn't stored in the index. Two marks of different families at
 	// the same instant point to the SAME file: there's only one frame.
-	HasFrame bool `json:"temQuadro,omitempty"`
+	HasFrame bool `json:"hasFrame,omitempty"`
 
 	// Alert says this object passed the camera's alert rule, at the time it was
 	// inferred. AlertAreas are the ids of the alert areas it fell in, not the
@@ -282,7 +283,7 @@ func (c *Camera) IndexDir() string       { return filepath.Join(c.root, "index")
 func (c *Camera) InitDir() string        { return filepath.Join(c.root, "init") }
 func (c *Camera) DayDir(d string) string { return filepath.Join(c.root, d) }
 
-func (c *Camera) EventsDir() string { return filepath.Join(c.root, "eventos") }
+func (c *Camera) EventsDir() string { return filepath.Join(c.root, "events") }
 
 func (c *Camera) EventsPath(day string) string {
 	return filepath.Join(c.EventsDir(), day+".ndjson")
@@ -291,7 +292,7 @@ func (c *Camera) EventsPath(day string) string {
 // FramesDir is the day's folder with the detection frames, one .jpg per
 // detection, named by its instant - as a segment is named by its start.
 func (c *Camera) FramesDir(day string) string {
-	return filepath.Join(c.root, "quadros", day)
+	return filepath.Join(c.root, "frames", day)
 }
 
 // FramePath is the JPEG of the frame the object detector inferred for that
@@ -350,7 +351,7 @@ func (c *Camera) SegmentPath(startMs int64) string {
 // EnsureDirs creates the directory structure needed to record on the given
 // day.
 //
-// eventos/ isn't included: it's born on the first AppendEvent, and a camera
+// events/ isn't included: it's born on the first AppendEvent, and a camera
 // without detection on doesn't get an empty directory.
 func (c *Camera) EnsureDirs(day string) error {
 	for _, d := range []string{c.IndexDir(), c.InitDir(), c.DayDir(day)} {

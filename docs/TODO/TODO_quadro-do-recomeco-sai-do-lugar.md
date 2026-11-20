@@ -85,7 +85,7 @@ No `layout`, a primeira detecção abaixo de `alvo` começa uma linha nova, como
 já acontece na troca de hora:
 
 ```ts
-const iRecomeco = alvo === null ? -1 : lista.findIndex((d) => d.instanteMs < alvo);
+const iRecomeco = alvo === null ? -1 : lista.findIndex((d) => d.atMs < alvo);
 ...
 if (!atual || atual.itens.length === colunas || i === iRecomeco) {
 ```

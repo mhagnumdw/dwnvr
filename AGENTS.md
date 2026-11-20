@@ -29,13 +29,13 @@ reactive, responsive UI that works well on mobile and desktop (browser).
   promises, and a name -> constructor map, so swapping the implementation is a
   one-line change. Every tunable number (threshold, duration, budget, class
   map) lives in a `params.go`, never in a stray constant.
-- **Readable JSON.** Keys spelled out (`instanteMs`, not `t`), even if longer.
+- **Readable JSON.** Keys spelled out (`frameMs`, not `t`), even if longer.
   Exception: `index/{dia}.ndjson`, abbreviated because of its volume.
 - **Keys and values in en-US**, in JSON (API, `cameras.json`, `users.json`,
-  `eventos/`) and in YAML (`dwnvr.yaml`, compose): `rule`, not `regra`;
+  `events/`) and in YAML (`dwnvr.yaml`, compose): `rule`, not `regra`;
   `"touch"`, not `"encosta"`. This covers enum values, not text the user types
-  (an area name). The Portuguese keys and values still in place (`instanteMs`,
-  `familia`, `"pessoa"`, `eventos/`) are renamed in step 6 of the
+  (an area name). The Portuguese values still in place (`"pessoa"`,
+  `"veiculo"`, `"periodico"`) are renamed in step 6 of the
   [conversion](docs/TODO/v1.0.0/conversao-en-us.md), together with the upgrade
   guide, and never on their own: renaming one breaks the stored file and
   whoever reads the API.

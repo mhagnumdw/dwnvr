@@ -66,7 +66,7 @@ dentro dela.
 **Medido em 22/10/2026**, sobre 15 a 19/10/2026 da instalação de teste, no
 nível 4, antes de o padrão virar 5: `pessoa` nas 9 câmeras, na imagem inteira,
 o dia todo. Uma olhada é o conjunto das marcas de objeto de um mesmo
-`instanteMs` no `eventos/{dia}.ndjson`, e o teste de área é o do
+`atMs` no `events/{dia}.ndjson`, e o teste de área é o do
 `internal/area`.
 
 | Silêncio                      | Alertas por dia, somadas as 9 câmeras |
