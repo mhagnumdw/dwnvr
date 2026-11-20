@@ -4,12 +4,12 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (14/11/2026):** a Etapa 2 (conversão para en-US) está no passo 4, a
-interface, na branch `en-us-web`, ainda só local. O Go já está em en-US na
-`main` (PR #86). Na branch, os nomes já mudaram: identificadores, arquivos,
-props, ícones e classes CSS (`c895067`). O próximo commit são os comentários do
-`web/`, em commits por grupo (`lib/`, componentes, telas). Depois: o
-`make deploy-wip`, a volta pelas telas na instalação de teste e o PR.
+**Agora (20/11/2026):** a Etapa 2 (conversão para en-US) está no passo 4, a
+interface, na branch `en-us-web`. O Go já está em en-US na `main` (PR #86). Na
+branch, os nomes (`c895067`), os comentários do `web/` e os nomes que sobraram
+(`14fc985`) estão em en-US; o bundle dos comentários sai idêntico. A instalação
+de teste já roda a branch (`make deploy-wip`, volta pelas telas feita em
+20/11/2026) e o PR está aberto, esperando a revisão.
 
 ## Andamento
 
@@ -33,8 +33,8 @@ próxima, em andamento ou concluída, com a data.
   - [x] Go, pacote a pacote, sem mudar comportamento: PR #86, em 11/11/2026
   - [ ] A interface, sem os textos da tela
     - [x] Os nomes: identificadores, arquivos, props, ícones e classes CSS (`c895067`)
-    - [ ] Os comentários
-    - [ ] A instalação de teste (`make deploy-wip`) e o PR
+    - [x] Os comentários (`edb25d8`, `1a5888d`, `32d2a46`, `6ace4a3`) e os nomes que sobraram (`14fc985`)
+    - [x] A instalação de teste (`make deploy-wip`) e o PR aberto; falta a revisão e o squash
   - [ ] O `dwnvr-detect`
   - [ ] Os contratos (API, o que o dwnvr grava, `dwnvr.yaml`, env), em partes, cada uma com a sua seção do guia de atualização aplicada na instalação de teste
   - [ ] Os `docs/TODO/` abertos revistos com o mantenedor
