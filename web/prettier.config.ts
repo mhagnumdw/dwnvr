@@ -1,14 +1,16 @@
-// Prettier do web/: a formatação do TypeScript, dos componentes Svelte, do CSS
-// e do index.html. Roda pelo prek (.pre-commit-config.yaml); à mão:
-// `npx prettier --write .`
+// Prettier for web/: the formatting of the TypeScript, the Svelte components,
+// the CSS and index.html. It runs through prek (.pre-commit-config.yaml); by
+// hand: `npx prettier --write .`
 //
-// Indentação, fim de linha e newline no fim ele lê do .editorconfig da raiz.
-// Aqui fica só o que o código já fazia: aspas simples e linha de até 100.
+// Indentation, line endings and the final newline come from the .editorconfig
+// at the root. Only what the code already did stays here: single quotes and
+// lines up to 100.
 import type { Config } from 'prettier';
 
 export default {
-  // O caminho resolvido a partir daqui, e não só o nome: o Prettier procura o
-  // plugin pela pasta de onde foi chamado, e o hook o chama da raiz.
+  // The path resolved from here, and not just the name: Prettier looks for the
+  // plugin from the folder it was called from, and the hook calls it from the
+  // root.
   plugins: [import.meta.resolve('prettier-plugin-svelte')],
   singleQuote: true,
   printWidth: 100,
