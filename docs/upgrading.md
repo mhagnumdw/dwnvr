@@ -366,11 +366,19 @@ The method of a camera, and the families of its alert:
 
 ```sh
 f=~/dwnvr/config/dwnvr/cameras.json
-jq 'map(
-      (if .detectMethod == "periodico" then .detectMethod = "periodic" else . end)
-    | (if .alert.families then .alert.families |= map({"pessoa": "person", "veiculo": "vehicle"}[.] // .) else . end))' \
-  "$f" > "$f.new" && cat "$f.new" > "$f" && rm "$f.new"
+if test ! -e "$f.new"; then
+  jq 'map(
+        (if .detectMethod == "periodico" then .detectMethod = "periodic" else . end)
+      | (if .alert.families then .alert.families |= map({"pessoa": "person", "veiculo": "vehicle"}[.] // .) else . end))' \
+    "$f" > "$f.tmp" && mv "$f.tmp" "$f.new"
+fi
+test -e "$f.new" && cat "$f.new" > "$f" && rm "$f.new"
 ```
+
+The converted file is only named `cameras.json.new` once it is whole. If the
+last line fails (a full disk, for example), fix the cause and run the same
+lines again: they finish from `cameras.json.new` instead of reading the file
+the failure cut.
 
 ### The marks in `events/`
 
@@ -381,20 +389,22 @@ that still has it:
 ```sh
 sh -s ~/dwnvr/storage <<'EOF'
 for f in "$1"/*/events/*.ndjson; do
-  test -e "$f" && grep -a -q -E '"family":"(pessoa|veiculo)"' "$f" || continue
-  if sed -e 's/"family":"pessoa"/"family":"person"/' -e 's/"family":"veiculo"/"family":"vehicle"/' \
-    "$f" > "$f.new"; then
-    cat "$f.new" > "$f" && rm "$f.new" || echo "$f: not rewritten; the converted file is $f.new"
-  else
-    rm -f "$f.new"; echo "$f: not converted"
+  test -e "$f" || continue
+  rm -f "$f.tmp"
+  if test ! -e "$f.new"; then
+    grep -a -q -E '"family":"(pessoa|veiculo)"' "$f" || continue
+    sed -e 's/"family":"pessoa"/"family":"person"/' -e 's/"family":"veiculo"/"family":"vehicle"/' \
+      "$f" > "$f.tmp" && mv "$f.tmp" "$f.new" || { rm -f "$f.tmp"; echo "$f: not converted"; continue; }
   fi
+  cat "$f.new" > "$f" && rm "$f.new" || echo "$f: not rewritten"
 done
 EOF
 ```
 
 The new value has the same length as the old one, so each file keeps its
 size. A file that fails prints why; fix the cause (a full disk, for example)
-and run the same command again. To check, this must print nothing:
+and run the same command again. As with `cameras.json`, a converted file is
+only named `.new` once it is whole, and a new run finishes from it. To check, this must print nothing:
 
 ```sh
 grep -a -l -E '"family":"(pessoa|veiculo)"' ~/dwnvr/storage/*/events/*.ndjson
