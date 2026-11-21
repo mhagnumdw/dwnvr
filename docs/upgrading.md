@@ -366,19 +366,18 @@ The method of a camera, and the families of its alert:
 
 ```sh
 f=~/dwnvr/config/dwnvr/cameras.json
-if test ! -e "$f.new"; then
-  jq 'map(
-        (if .detectMethod == "periodico" then .detectMethod = "periodic" else . end)
-      | (if .alert.families then .alert.families |= map({"pessoa": "person", "veiculo": "vehicle"}[.] // .) else . end))' \
-    "$f" > "$f.tmp" && mv "$f.tmp" "$f.new"
-fi
-test -e "$f.new" && cat "$f.new" > "$f" && rm "$f.new"
+src=$f; test -e "$f.new" && src=$f.new
+jq 'map(
+      (if .detectMethod == "periodico" then .detectMethod = "periodic" else . end)
+    | (if .alert.families then .alert.families |= map({"pessoa": "person", "veiculo": "vehicle"}[.] // .) else . end))' \
+  "$src" > "$f.tmp" && mv "$f.tmp" "$f.new" && cat "$f.new" > "$f" && rm "$f.new"
 ```
 
 The converted file is only named `cameras.json.new` once it is whole. If the
-last line fails (a full disk, for example), fix the cause and run the same
-lines again: they finish from `cameras.json.new` instead of reading the file
-the failure cut.
+`cat` fails (a full disk, for example), fix the cause and run the same lines
+again: they read `cameras.json.new` instead of the file the failure cut. A
+`cameras.json.new` left by a failed section 2 is read and converted the same
+way.
 
 ### The marks in `events/`
 
