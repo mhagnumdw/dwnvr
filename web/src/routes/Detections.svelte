@@ -1569,7 +1569,7 @@
           <strong class="mono">{l.label}</strong>
           <span class="muted small">{l.day}</span>
         </div>
-      {:else if l.tipo === 'grade'}
+      {:else}
         <div
           class="row"
           class:compact={columns >= (desktop ? 7 : 4)}
