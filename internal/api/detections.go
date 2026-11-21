@@ -387,7 +387,7 @@ func (f *objectFilter) add(cam string, a areaWithRule) {
 //
 // `alert=1` keeps only the detections in which some object that passed the
 // other filters alerted, by the mark recorded at the time: changing the
-// camera's alert doesn't change the past. With `families=veiculo`, the
+// camera's alert doesn't change the past. With `families=vehicle`, the
 // detection that alerted only because of the person goes, because the person
 // goes.
 func (s *Server) filterFromQuery(q url.Values) ([]*store.Camera, objectFilter, error) {
@@ -518,7 +518,7 @@ func (s *Server) filterCameras(list string) ([]*store.Camera, error) {
 	return out, nil
 }
 
-// filterFamilies resolves `families=pessoa,veiculo`. Empty returns nil, which
+// filterFamilies resolves `families=person,vehicle`. Empty returns nil, which
 // means "all" - including a family that a future object detector may mark.
 func filterFamilies(list string) (map[string]bool, error) {
 	if list == "" {

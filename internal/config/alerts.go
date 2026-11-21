@@ -19,7 +19,7 @@ type CameraAlert struct {
 	// Enabled off keeps the rest, to turn it back on without redoing it.
 	Enabled bool `json:"enabled"`
 
-	// Families are the families that alert, like "pessoa". With the alert on,
+	// Families are the families that alert, like "person". With the alert on,
 	// at least one.
 	Families []detect.Family `json:"families,omitempty"`
 

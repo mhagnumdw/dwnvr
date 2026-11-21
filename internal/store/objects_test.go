@@ -30,11 +30,11 @@ func TestDayObjectsOnlyMarksInOrder(t *testing.T) {
 	if err := c.AppendEvent(Event{AtMs: base}); err != nil {
 		t.Fatal(err)
 	}
-	appendObject(t, c, base+2000, "pessoa")
+	appendObject(t, c, base+2000, "person")
 	if err := c.AppendEvent(Event{AtMs: base + 3000}); err != nil {
 		t.Fatal(err)
 	}
-	appendObject(t, c, base+1000, "veiculo")
+	appendObject(t, c, base+1000, "vehicle")
 
 	got, err := c.DayObjects(day)
 	if err != nil {
@@ -56,7 +56,7 @@ func TestDayObjectsFollowsTheGrowingFile(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime().UnixMilli()
 	day := baseTime().Format(DayLayout)
-	appendObject(t, c, base+2000, "pessoa")
+	appendObject(t, c, base+2000, "person")
 
 	before, _ := c.DayObjects(day)
 	appendObject(t, c, base+1000, "animal")
@@ -82,14 +82,14 @@ func TestDayObjectsWaitsForTheLineToEnd(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime().UnixMilli()
 	day := baseTime().Format(DayLayout)
-	appendObject(t, c, base, "pessoa")
+	appendObject(t, c, base, "person")
 
 	f, err := os.OpenFile(c.EventsPath(day), os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	if _, err := f.WriteString(`{"atMs":1786201260000,"family":"vei`); err != nil {
+	if _, err := f.WriteString(`{"atMs":1786201260000,"family":"veh`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -98,11 +98,11 @@ func TestDayObjectsWaitsForTheLineToEnd(t *testing.T) {
 		t.Fatalf("the half line went in: %v", instants(got))
 	}
 
-	if _, err := f.WriteString(`culo","class":"car","score":0.8}` + "\n"); err != nil {
+	if _, err := f.WriteString(`icle","class":"car","score":0.8}` + "\n"); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = c.DayObjects(day)
-	if len(got) != 2 || got[1].Family != "veiculo" {
+	if len(got) != 2 || got[1].Family != "vehicle" {
 		t.Errorf("the finished line didn't go in whole: %+v", got)
 	}
 }
@@ -113,8 +113,8 @@ func TestDayObjectsNoticesTheRewrite(t *testing.T) {
 	c := newTestCamera(t)
 	base := baseTime().UnixMilli()
 	day := baseTime().Format(DayLayout)
-	appendObject(t, c, base, "pessoa")
-	appendObject(t, c, base+60_000, "pessoa")
+	appendObject(t, c, base, "person")
+	appendObject(t, c, base+60_000, "person")
 	if _, err := c.DayObjects(day); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestDayObjectsReleasesTheDeletedDay(t *testing.T) {
 		if err := c.Append(e); err != nil {
 			t.Fatal(err)
 		}
-		appendObject(t, c, d.UnixMilli(), "pessoa")
+		appendObject(t, c, d.UnixMilli(), "person")
 		if _, err := c.DayObjects(d.Format(DayLayout)); err != nil {
 			t.Fatal(err)
 		}

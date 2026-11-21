@@ -18,7 +18,7 @@ func silent() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil
 // alerts is an alert from the camera with a person at the Portão, at the given instant.
 func alertOf(atMs int64) Alert {
 	return Alert{Camera: "cam_a", CameraName: "Frente", AtMs: atMs, Frame: []byte("jpeg"),
-		Objects: []Object{{Family: "pessoa", Class: "person", Score: 0.87, Areas: []string{"Portão"}}}}
+		Objects: []Object{{Family: "person", Class: "person", Score: 0.87, Areas: []string{"Portão"}}}}
 }
 
 // TestRecordWithoutNotifier: without a notifier, the alert is counted and
@@ -32,7 +32,7 @@ func TestRecordWithoutNotifier(t *testing.T) {
 
 	c.Receive(alertOf(1))
 	c.Receive(alertOf(2))
-	if !strings.Contains(log.String(), "msg=alert cam=cam_a families=pessoa objects=1 areas=Portão") {
+	if !strings.Contains(log.String(), "msg=alert cam=cam_a families=person objects=1 areas=Portão") {
 		t.Errorf("log: %s", log.String())
 	}
 	if c.Total() != 2 {

@@ -116,6 +116,9 @@ depois disso, e a release só sai no fim da etapa, com o guia inteiro.
    lista sai do glossário, e o `README.pt-BR.md` fica de fora) acha o que
    sobrou, e os commits de rename entram no `.git-blame-ignore-revs`, como o do
    Prettier, para o `git blame` continuar apontando a mudança de verdade.
+   Dois restos já conhecidos, que o passo 4 deixou na interface e não são
+   contrato: `session.pessoa` e a chave `nome` (da família, da regra da área e
+   do ícone na timeline).
 
 ## Riscos
 

@@ -75,7 +75,7 @@ func (e Entry) Day() string { return time.UnixMilli(e.StartMs).Format(DayLayout)
 // worth the trade.
 //
 // The same line serves the OBJECT MARK the object detector returns later, with
-// `family` filled in: {"atMs":...,"family":"pessoa",
+// `family` filled in: {"atMs":...,"family":"person",
 // "class":"person","score":0.87,"frameMs":...,"box":[0.51,0.26,0.67,0.98]}.
 // The instant is that of the ONSET that originated it - that's what matches
 // the arrival -, even if the answer came seconds later. Living in the same

@@ -117,7 +117,7 @@ export function place<M extends ObjectDetectorMark>(
   g.font = FONT;
   const boxes = items.map((it) => it.box);
   const placements: Rect[] = [];
-  // By family priority: `pessoa` picks its place first, as already happens with
+  // By family priority: `person` picks its place first, as already happens with
   // the timeline icons.
   for (const it of [...items].sort((a, b) => a.priority - b.priority)) {
     const text = textFor(it.mark);
@@ -277,7 +277,7 @@ export function draw<M extends ObjectDetectorMark>(
   alpha: (it: PlacedBox<M>) => number = () => 1,
 ) {
   g.save();
-  // The lowest-priority family first: `pessoa` ends up on top.
+  // The lowest-priority family first: `person` ends up on top.
   const order = [...items].sort((a, b) => b.priority - a.priority);
 
   for (const it of order) {

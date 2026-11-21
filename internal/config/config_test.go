@@ -110,7 +110,7 @@ func TestBadCameraValueStartsWithDefault(t *testing.T) {
 		{"id":"cam_ruim","quotaMB":5,"segmentSeconds":600,"maxDays":-1,"stallSeconds":99999,
 		 "audio":"mp3","detectMethod":"magico","detectSensitivity":9},
 		{"id":"cam_boa","quotaMB":100,"segmentSeconds":300,"maxDays":7,"stallSeconds":30,
-		 "audio":"flac","detectMethod":"periodico","detectSensitivity":1}]`)
+		 "audio":"flac","detectMethod":"periodic","detectSensitivity":1}]`)
 	if err != nil {
 		t.Fatalf("boot failed: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestBadCameraValueStartsWithDefault(t *testing.T) {
 	}
 	if b := cams[1]; b.QuotaMB != 100 || b.SegmentSeconds != 300 || b.MaxDays != 7 ||
 		b.StallSeconds != 30 || b.Audio != AudioFLAC ||
-		b.DetectMethod != "periodico" || b.DetectSensitivity != 1 {
+		b.DetectMethod != "periodic" || b.DetectSensitivity != 1 {
 		t.Errorf("cam_boa was changed: %+v", b)
 	}
 }

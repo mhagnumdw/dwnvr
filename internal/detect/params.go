@@ -57,7 +57,7 @@ const (
 //
 // It's the yardstick SHARED by both methods, and that's what makes them
 // comparable: at the same level 4 both spend 50 detections per hour, and
-// `kleinberg-p` catches 41.5% of arrivals where `periodico` catches 15.1%.
+// `kleinberg-p` catches 41.5% of arrivals where `periodic` catches 15.1%.
 var OnsetsPerHour = [MaxLevel + 1]float64{0, 6, 12, 25, 50, 100}
 
 // KleinbergPThreshold is the opening threshold that makes `kleinberg-p` cost
@@ -103,7 +103,7 @@ const GapMs = 2000
 // own.
 //
 // Measured: at level 4, inferring at the peak instead of the onset takes
-// `pessoa` from 9.0% to 12.2% of arrivals and `veiculo` from 30.8% to 38.6%,
+// `person` from 9.0% to 12.2% of arrivals and `vehicle` from 30.8% to 38.6%,
 // without one extra detection. The 2 s and 3 s windows tie within the noise;
 // waiting a FIXED time after the onset, instead of the peak, is worse - the
 // object has already left.
@@ -233,8 +233,8 @@ const FrameQuality = 75
 
 // FamilyCutoff is the confidence from which a box can become a mark.
 //
-// 0.40, not 0.35: measured against hand-made labels, it wins on `pessoa` and
-// `veiculo` and only loses on `animal`, the lowest-priority family.
+// 0.40, not 0.35: measured against hand-made labels, it wins on `person` and
+// `vehicle` and only loses on `animal`, the lowest-priority family.
 var FamilyCutoff = map[Family]float64{
 	Person:  0.40,
 	Vehicle: 0.40,
@@ -245,7 +245,7 @@ var FamilyCutoff = map[Family]float64{
 // occupied place are enough to release it. It's the negative evidence that
 // lets the next car, in the same street spot, arrive at a free place.
 //
-// 5 and 12 tie on `pessoa`; 12 loses `veiculo` arrivals on a camera facing the
+// 5 and 12 tie on `person`; 12 loses `vehicle` arrivals on a camera facing the
 // street.
 const MissesToRelease = 5
 
@@ -254,11 +254,11 @@ const MissesToRelease = 5
 //
 // 0.7, not 0.5: with 0.5 a camera facing the street loses vehicle arrivals
 // (one car behind the other in the same lane) in exchange for 1 fewer false
-// `pessoa` per camera per day.
+// `person` per camera per day.
 const SamePlaceIoU = 0.7
 
 // DefaultMarker is what decides what becomes a mark on a newly added camera.
-const DefaultMarker = "rastreio"
+const DefaultMarker = "tracker"
 
 // --- the queue to the object detector ---------------------------------------
 //
@@ -279,8 +279,8 @@ const DefaultMarker = "rastreio"
 // clip is up to MaxGOPBytes, in practice ~230 KB on common cameras.
 //
 // Why 2, measured at 3.6 s per inference (two cores of an Orange Pi Zero 3):
-// with 1 per camera, 3.8% dropped and some `pessoa` arrivals lost; with 2,
-// 1.9% dropped, no `pessoa` lost, and p90 latency of 16 s against 13 s. With 3
+// with 1 per camera, 3.8% dropped and some `person` arrivals lost; with 2,
+// 1.9% dropped, no `person` lost, and p90 latency of 16 s against 13 s. With 3
 // or 4 nothing more is gained, only latency: p99 of 40 s and 50 s against
 // 30 s.
 const ClipsPerCamera = 2
@@ -306,7 +306,7 @@ const InferencesInAverage = 20
 const PauseAfterFailureMs = 30_000
 
 // There is NO REFRACTORY period. Measured in the same replay: a 10 s
-// refractory period per camera loses 1% of `pessoa` arrivals at 6.5 s per
+// refractory period per camera loses 1% of `person` arrivals at 6.5 s per
 // inference and 11% at 3.4 s; 30 s loses a third. It drops exactly the second
 // inference of a busy scene. What keeps the same event from firing twenty
 // times is the Method's hysteresis.

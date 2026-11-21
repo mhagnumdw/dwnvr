@@ -27,7 +27,7 @@ func marked(m Marker, detections ...Detection) []string {
 }
 
 func TestTrackerDoesNotRemarkTheParkedCar(t *testing.T) {
-	m := NewMarker("rastreio")
+	m := NewMarker("tracker")
 	if got := marked(m, detection("car", 0.9, streetSpot)); len(got) != 1 {
 		t.Fatalf("the arrival should mark: %v", got)
 	}
@@ -41,7 +41,7 @@ func TestTrackerDoesNotRemarkTheParkedCar(t *testing.T) {
 // TestTrackerFreesThePlaceWhenTheCarLeaves is what a time window can't do: the
 // next car, in the same spot, is an arrival.
 func TestTrackerFreesThePlaceWhenTheCarLeaves(t *testing.T) {
-	m := NewMarker("rastreio")
+	m := NewMarker("tracker")
 	marked(m, detection("car", 0.9, streetSpot))
 
 	// Four inferences without it: the place stays occupied.
@@ -65,7 +65,7 @@ func TestTrackerFreesThePlaceWhenTheCarLeaves(t *testing.T) {
 // sometimes at 0.45. If the tracker only learned from what passes the cutoff,
 // the first appearance above it would become a false person.
 func TestTrackerLearnsBelowTheCutoff(t *testing.T) {
-	m := NewMarker("rastreio")
+	m := NewMarker("tracker")
 	if got := marked(m, detection("person", 0.30, scarecrow)); len(got) != 0 {
 		t.Fatal("a box below the cutoff must not mark")
 	}
@@ -82,7 +82,7 @@ func TestTrackerLearnsBelowTheCutoff(t *testing.T) {
 }
 
 func TestTrackerSeparatesPlacesAndFamilies(t *testing.T) {
-	m := NewMarker("rastreio")
+	m := NewMarker("tracker")
 	got := marked(m,
 		detection("car", 0.9, streetSpot),
 		detection("car", 0.8, otherSpot),
@@ -98,7 +98,7 @@ func TestTrackerSeparatesPlacesAndFamilies(t *testing.T) {
 }
 
 func TestNoMemoryMarksEverythingAboveCutoff(t *testing.T) {
-	m := NewMarker("nenhum")
+	m := NewMarker("none")
 	for range 3 {
 		got := marked(m,
 			detection("car", 0.9, streetSpot),

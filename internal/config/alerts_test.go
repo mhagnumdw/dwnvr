@@ -19,7 +19,7 @@ var gate = Area{ID: "k3f9a2", Name: "Portão", Points: square}
 func TestAlertHoldsAtBoot(t *testing.T) {
 	_, cams, warnings, err := loadWithWarnings(t, "", `[{"id":"cam_a",
 		"areas":[{"id":"k3f9a2","name":"Portão","points":[[0.1,0.1],[0.5,0.1],[0.5,0.5]]}],
-		"alert":{"enabled":true,"families":["pessoa","veiculo"],"areas":["k3f9a2"]}}]`)
+		"alert":{"enabled":true,"families":["person","vehicle"],"areas":["k3f9a2"]}}]`)
 	if err != nil || len(warnings) > 0 {
 		t.Fatalf("error %v, warnings %+v", err, warnings)
 	}
@@ -43,7 +43,7 @@ func TestBadAlertComesOutWithWarning(t *testing.T) {
 	}{
 		"família desconhecida": {
 			CameraAlert{Enabled: true, Families: []detect.Family{detect.Person, "gente"}},
-			"alert.families[1]", "pessoa, veiculo, animal", []detect.Family{detect.Person}, nil,
+			"alert.families[1]", "person, vehicle, animal", []detect.Family{detect.Person}, nil,
 		},
 		"família repetida": {
 			CameraAlert{Enabled: true, Families: []detect.Family{detect.Person, detect.Person}},
@@ -155,7 +155,7 @@ func TestNoAlertNoWarning(t *testing.T) {
 // docs/configuracao.md.
 func TestSchedulesHoldAtBoot(t *testing.T) {
 	_, cams, warnings, err := loadWithWarnings(t, "", `[{"id":"cam_a",
-		"alert":{"enabled":true,"families":["pessoa"],"schedules":[
+		"alert":{"enabled":true,"families":["person"],"schedules":[
 			{"days":[3],"from":"00:00","to":"05:15"},
 			{"days":[3],"from":"12:00","to":"13:00"},
 			{"days":[3],"from":"18:30","to":"23:59"},

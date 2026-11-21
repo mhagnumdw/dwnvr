@@ -10,12 +10,12 @@ import (
 type Family string
 
 const (
-	Person  Family = "pessoa"
-	Vehicle Family = "veiculo"
+	Person  Family = "person"
+	Vehicle Family = "vehicle"
 	Animal  Family = "animal"
 )
 
-// Families are the three, in priority order: `pessoa` is the one that matters
+// Families are the three, in priority order: `person` is the one that matters
 // most.
 var Families = []Family{Person, Vehicle, Animal}
 
@@ -23,9 +23,9 @@ var Families = []Family{Person, Vehicle, Animal}
 // the object detector's findings become a MARK on the timeline.
 //
 // It exists because the timeline marks ARRIVAL, not presence. Without it, a
-// parked car would light up `veiculo` on every onset - hundreds of times a day
+// parked car would light up `vehicle` on every onset - hundreds of times a day
 // in a parking lot - and a scarecrow the model mistakes for a person would be
-// a false `pessoa` on every movement in the scene. What sets them apart from
+// a false `person` on every movement in the scene. What sets them apart from
 // an arrival is the box in the SAME PLACE, and only something that remembers
 // the previous inferences can see that.
 //
@@ -50,8 +50,8 @@ type Marker interface {
 
 // Markers is the constructor map, twin of the other three.
 var Markers = map[string]func() Marker{
-	"nenhum":   func() Marker { return noMemory{} },
-	"rastreio": func() Marker { return newTracker(MissesToRelease, SamePlaceIoU) },
+	"none":    func() Marker { return noMemory{} },
+	"tracker": func() Marker { return newTracker(MissesToRelease, SamePlaceIoU) },
 }
 
 // NewMarker returns a camera's marker. An unknown name falls back to the
@@ -77,7 +77,7 @@ func markable(a Detection) (Family, bool) {
 // against.
 type noMemory struct{}
 
-func (noMemory) Name() string { return "nenhum" }
+func (noMemory) Name() string { return "none" }
 
 func (noMemory) Mark(detections []Detection) []Detection {
 	var marks []Detection
@@ -117,7 +117,7 @@ func newTracker(misses int, minIoU float64) *tracker {
 	return &tracker{misses: misses, minIoU: minIoU}
 }
 
-func (r *tracker) Name() string { return "rastreio" }
+func (r *tracker) Name() string { return "tracker" }
 
 func (r *tracker) Mark(detections []Detection) []Detection {
 	type entry struct {

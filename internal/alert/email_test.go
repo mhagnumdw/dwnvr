@@ -73,9 +73,9 @@ func TestAlertMessage(t *testing.T) {
 	at := time.Date(2026, 10, 27, 14, 32, 5, 0, time.Local)
 	a := Alert{Camera: "cam garagem", CameraName: "Garagem", AtMs: at.UnixMilli(),
 		Frame: []byte("jpeg"), Objects: []Object{
-			{Family: "pessoa", Class: "person", Score: 0.87, Areas: []string{"Portão"}},
-			{Family: "pessoa", Class: "person", Score: 0.551, Areas: []string{"Portão", "Calçada", "Rampa"}},
-			{Family: "veiculo", Class: "car", Score: 0.7},
+			{Family: "person", Class: "person", Score: 0.87, Areas: []string{"Portão"}},
+			{Family: "person", Class: "person", Score: 0.551, Areas: []string{"Portão", "Calçada", "Rampa"}},
+			{Family: "vehicle", Class: "car", Score: 0.7},
 		}}
 	f := &fakeSender{}
 	e := &Email{sender: f, to: []string{"fulano@exemplo.com", "ciclana@exemplo.com"},

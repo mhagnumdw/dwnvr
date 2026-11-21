@@ -321,7 +321,7 @@ func TestDetectChangeMidFlightDoesNotRace(t *testing.T) {
 		case 0:
 			c.Detect = &off
 		case 1:
-			c.DetectMethod, c.DetectSensitivity = "periodico", 1+i%5
+			c.DetectMethod, c.DetectSensitivity = "periodic", 1+i%5
 		default:
 			c.DetectSensitivity = 1 + i%5
 		}
@@ -564,7 +564,7 @@ func TestFromOnsetToObjectMark(t *testing.T) {
 	box := got.Box
 	got.Box = nil
 	jpeg := []byte("\xff\xd8test-jpeg\xff\xd9")
-	want := store.Event{AtMs: onsets[0], Family: "pessoa", Class: "person", Score: 0.877,
+	want := store.Event{AtMs: onsets[0], Family: "person", Class: "person", Score: 0.877,
 		FrameMs: frames[0], HasFrame: true}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("mark %+v, want %+v", got, want)
@@ -622,9 +622,9 @@ func TestOneLinePerObject(t *testing.T) {
 		box           [4]float64
 	}
 	want := []row{
-		{"pessoa", "person", 0.87, [4]float64{0.41, 0.32, 0.47, 0.62}},
-		{"pessoa", "person", 0.55, [4]float64{0.18, 0.30, 0.24, 0.64}},
-		{"veiculo", "motorcycle", 0.71, [4]float64{0.60, 0.40, 0.72, 0.66}},
+		{"person", "person", 0.87, [4]float64{0.41, 0.32, 0.47, 0.62}},
+		{"person", "person", 0.55, [4]float64{0.18, 0.30, 0.24, 0.64}},
+		{"vehicle", "motorcycle", 0.71, [4]float64{0.60, 0.40, 0.72, 0.66}},
 	}
 	if len(evs) != len(want) {
 		t.Fatalf("%d lines, want %d: %+v", len(evs), len(want), evs)

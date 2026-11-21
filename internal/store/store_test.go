@@ -989,7 +989,7 @@ func TestOnDiskNames(t *testing.T) {
 	box := [4]float64{0.5, 0.25, 0.75, 1}
 	for _, ev := range []Event{
 		{AtMs: at},
-		{AtMs: at, Family: "pessoa", Class: "person", Score: 0.87, FrameMs: at + 100,
+		{AtMs: at, Family: "person", Class: "person", Score: 0.87, FrameMs: at + 100,
 			Box: &box, HasFrame: true, Alert: true, AlertAreas: []string{"a1"}},
 	} {
 		if err := c.AppendEvent(ev); err != nil {
@@ -1001,7 +1001,7 @@ func TestOnDiskNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := fmt.Sprintf(`{"atMs":%d}
-{"atMs":%d,"family":"pessoa","class":"person","score":0.87,"frameMs":%d,"box":[0.5,0.25,0.75,1],"hasFrame":true,"alert":true,"alertAreas":["a1"]}
+{"atMs":%d,"family":"person","class":"person","score":0.87,"frameMs":%d,"box":[0.5,0.25,0.75,1],"hasFrame":true,"alert":true,"alertAreas":["a1"]}
 `, at, at, at+100)
 	if string(got) != want {
 		t.Errorf("events file:\n%s\nexpected:\n%s", got, want)
