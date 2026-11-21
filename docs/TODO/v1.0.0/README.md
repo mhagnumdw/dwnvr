@@ -56,8 +56,8 @@ próxima, em andamento ou concluída, com a data.
       - [x] O PR mergeado por squash: PR #95, em 20/11/2026
     - [ ] Parte 5, os valores das enumerações (`pessoa`, `veiculo`, `periodico` viram `person`, `vehicle`, `periodic`), que são a mesma constante na API, no `cameras.json`, no yaml e nos eventos
       - [x] O Go, a interface e os docs, na branch `en-us-enums`; a seção 5 do guia
-      - [ ] A seção 5 testada numa cópia da instalação de teste
-      - [ ] A seção 5 aplicada na instalação de teste e o deploy da branch lá
+      - [x] A seção 5 testada numa cópia da instalação de teste: as mesmas linhas, só com a família trocada; rodar de novo não muda nada; a falha no meio e a nova rodada
+      - [x] A seção 5 aplicada na instalação de teste e o deploy da branch lá
       - [ ] O PR mergeado por squash
   - [ ] Os `docs/TODO/` abertos revistos com o mantenedor
   - [ ] A documentação, os exemplos, os workflows e o resto
