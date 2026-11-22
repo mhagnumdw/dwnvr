@@ -39,7 +39,7 @@ body = """
 {% if loop.first %}
     ### Action required on upgrade
 {% endif %}
-        - {{ commit.breaking_description | split(pat="\n") | join(sep=" ") | trim | upper_first }} ([{{ commit.id | truncate(length=8, end="") }}](<REPO>/commit/{{ commit.id }}))
+        - {{ commit.breaking_description | split(pat="\n") | join(sep=" ") | trim }} ([{{ commit.id | truncate(length=8, end="") }}](<REPO>/commit/{{ commit.id }}))
 {% endfor %}\
 {% for group, commits in commits | group_by(attribute="group") %}
     ### {{ group | striptags | trim | upper_first }}

@@ -1,10 +1,10 @@
 # dwnvr release: Actions > release > Run workflow, with the version (X.Y.Z).
 #
 # Three jobs, in this order:
-#   preparar   checks that a release is possible; writes CHANGELOG.md and the
+#   prepare    checks that a release is possible; writes CHANGELOG.md and the
 #              default in docker-compose.yml; commit, tag vX.Y.Z and push of both
-#   imagens    imagens.yml from the tag: vX.Y.Z, latest, main and sha-*
-#   publicar   the release page on GitHub, with the git-cliff notes
+#   images     images.yml from the tag: vX.Y.Z, latest, main and sha-*
+#   publish    the release page on GitHub, with the git-cliff notes
 #
 # The page comes last because it is the announcement: it is what lights up the
 # new-version notice in the UI of those already running dwnvr, and it can only
@@ -13,7 +13,7 @@
 #
 # The images are called from in here, and not by ci.yml listening for the tag:
 # a push made with GITHUB_TOKEN does not trigger another workflow (see
-# imagens.yml).
+# images.yml).
 
 name: release
 
@@ -33,7 +33,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  preparar:
+  prepare:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # push of the release commit and the tag
@@ -140,9 +140,9 @@ jobs:
       - name: push
         run: git push --atomic origin HEAD:main "v$VERSION"
 
-  imagens:
-    needs: preparar
-    uses: ./.github/workflows/imagens.yml
+  images:
+    needs: prepare
+    uses: ./.github/workflows/images.yml
     with:
       ref: v${{ inputs.version }}
       release: true
@@ -150,8 +150,8 @@ jobs:
       contents: read
       packages: write
 
-  publicar:
-    needs: imagens
+  publish:
+    needs: images
     runs-on: ubuntu-latest
     permissions:
       contents: write  # create the release

@@ -1,13 +1,13 @@
-# Regras do zizmor, que audita a segurança dos workflows.
+# Rules for zizmor, which audits the workflows' security.
 rules:
   unpinned-uses:
     config:
-      # Uma tag pode ser movida para outro código; o SHA não. Toda action vai
-      # por SHA, com a versão num comentário, que o Dependabot atualiza junto.
+      # A tag can be moved to other code; a SHA can't. Every action is pinned
+      # by SHA, with the version in a comment that Dependabot updates with it.
       policies:
         "*": hash-pin
-  # O `uses: $/...` não passa no actionlint, que ainda não o conhece
-  # (rhysd/actionlint#711). E aqui o `./` só chama o imagens.yml no nível do
-  # job, onde não há checkout que possa trocar o arquivo antes.
+  # `uses: $/...` doesn't pass actionlint, which doesn't know it yet
+  # (rhysd/actionlint#711). And here `./` only calls images.yml at the job
+  # level, where there is no checkout that could swap the file first.
   self-repository:
     disable: true

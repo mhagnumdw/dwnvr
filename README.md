@@ -859,7 +859,7 @@ cobrem o que quebra em silêncio: a leitura de caixas fMP4, a reescrita do
 endpoints HTTP.
 
 A cobertura dos testes é o badge no topo deste README. Quem a mede é o
-`.github/workflows/cobertura.yml`, a cada push na main e em pull request, onde
+`.github/workflows/coverage.yml`, a cada push na main e em pull request, onde
 o Codecov comenta o que o PR muda nela. O relatório linha a linha fica no
 [Codecov](https://app.codecov.io/gh/mhagnumdw/dwnvr). A mesma medida, local:
 
@@ -874,7 +874,7 @@ O total local sai por instrução, e o do Codecov por linha, então os dois
 diferem um pouco.
 
 O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push na
-main e em pull request. As imagens saem do `.github/workflows/imagens.yml`,
+main e em pull request. As imagens saem do `.github/workflows/images.yml`,
 que ele chama depois dos testes: na main, com a tag `main`; em pull request,
 só para conferir que as duas imagens constroem, sem publicar. A release também
 o chama, com a versão (ver [Release](#release)).
@@ -909,7 +909,7 @@ em três jobs:
 | Job | O que faz |
 | --- | --- |
 | `preparar` | confere que a versão é nova e maior que a última, que há commit desde ela e que a CI do commit terminou verde; escreve o `CHANGELOG.md` e troca a versão do `image:` no `docker-compose.yml`; faz o commit `chore(release): vX.Y.Z`, a tag e o push das duas |
-| `imagens` | o `imagens.yml` a partir da tag: `vX.Y.Z`, `latest`, `main` e `sha-*` das duas imagens |
+| `imagens` | o `images.yml` a partir da tag: `vX.Y.Z`, `latest`, `main` e `sha-*` das duas imagens |
 | `publicar` | a página da release, com as notas do git-cliff e, no fim, o link para o [Atualizar](#atualizar) |
 
 A página vem por último porque ela é o anúncio: só existe quando as imagens

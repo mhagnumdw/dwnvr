@@ -17,7 +17,7 @@
 # does not publish, calls with `contents: read` only. Whoever publishes also
 # passes `packages: write`.
 
-name: imagens
+name: images
 
 on:
   workflow_call:

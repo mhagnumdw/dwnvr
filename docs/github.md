@@ -252,7 +252,7 @@ file.
 Every action in the workflows goes by SHA, with the version in a comment
 (`@<sha>  # v5.1.0`), and Dependabot updates both together. A tag can be moved
 to other code; the SHA can't. The Docker actions receive the token with
-`packages: write` in `imagens.yml`, and were the reason to drop the exception
+`packages: write` in `images.yml`, and were the reason to drop the exception
 that `.github/zizmor.yml` opened for `actions/*` and `docker/*`.
 
 The repository's `sha_pinning_required` option refuses to run a workflow with
@@ -390,7 +390,7 @@ trivy image --image-src remote --platform linux/arm64 --scanners vuln \
 
 The README's coverage badge comes from [Codecov](https://app.codecov.io/gh/mhagnumdw/dwnvr),
 which receives the report from
-[`.github/workflows/cobertura.yml`](../.github/workflows/cobertura.yml) on
+[`.github/workflows/coverage.yml`](../.github/workflows/coverage.yml) on
 every push to `main` and on every pull request, except Dependabot's. What it
 does with the report is in [`.github/codecov.yml`](../.github/codecov.yml).
 
@@ -408,8 +408,8 @@ The access is reviewed at <https://github.com/settings/installations>.
 
 ```sh
 curl -s https://api.codecov.io/api/v2/github/mhagnumdw/repos/dwnvr/ | jq '{activated, totals: .totals.coverage}'
-gh workflow run cobertura.yml   # send again, without waiting for a push
+gh workflow run coverage.yml   # send again, without waiting for a push
 ```
 
-If Codecov goes down, `cobertura` goes red and the badge stays at the last
+If Codecov goes down, `coverage` goes red and the badge stays at the last
 number; CI, the images and the release don't depend on it.

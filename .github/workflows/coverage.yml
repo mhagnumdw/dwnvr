@@ -13,7 +13,7 @@
 # and the action falls back by itself to the tokenless upload, which Codecov
 # accepts from forks.
 
-name: cobertura
+name: coverage
 
 on:
   push:

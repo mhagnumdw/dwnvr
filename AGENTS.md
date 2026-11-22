@@ -194,7 +194,7 @@ the file.
 | range in `internal/config/params.go` | a field with an input on screen goes into `CameraRanges`, where `Cameras.svelte` reads `min`/`max` · the Aceito column of §Política por câmera in `docs/configuration.md` · the field's comment in `dwnvr.example.yaml` · `faixas` in `docs/api.md` |
 | path or `DayLayout` in `internal/store/store.go` | `docs/architecture.md` · `docs/operations.md` · §Conferir por fora da interface of `README.md` |
 | field in `store.Entry` | append-only index: reading tolerates zero in an old line · `internal/retention/retention.go` · `internal/api/recordings.go` |
-| variable in `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/imagens.yml` (`build-args`) · `GET /api/version` |
+| variable in `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/images.yml` (`build-args`) · `GET /api/version` |
 | dwnvr or dwnvr-detect `image:` in `docker-compose.yml` | keep `${DWNVR_VERSION:-vX.Y.Z}` on a single line: the compose step in `.github/workflows/release.yml` rewrites the default and fails if it doesn't find both lines |
 | lychee version | `rev` and `entry` (the image tag) of the `lychee-docker` hook in `.pre-commit-config.yaml`, together: `rev` only brings the hook definition, and Dependabot bumps neither |
 | go2rtc `image:` in `docker-compose.yml` | keep `${GO2RTC_VERSION:-X.Y.Z}` with a tested tag, never untagged (without it, `--pull always` brings any version) · §Atualizar of `README.md` · §Trocar de versão of `docs/operations.md` |

@@ -1,10 +1,10 @@
 # dwnvr CI.
 #
 # The `test` job runs on every push to main and on every pull request. Outside a
-# pull request, `imagens` runs after it and publishes to GHCR the multi-arch
+# pull request, `images` runs after it and publishes to GHCR the multi-arch
 # images of dwnvr and of the object detector (optional), with the `main` tag.
-# On a pull request, `imagens-pr` builds the same images without publishing.
-# The ones that build them are in imagens.yml, which the release also calls; the
+# On a pull request, `images-pr` builds the same images without publishing.
+# The ones that build them are in images.yml, which the release also calls; the
 # version tag and `latest` only come out of the release.
 
 name: ci
@@ -66,10 +66,10 @@ jobs:
             exit 1
           fi
 
-  imagens:
+  images:
     needs: test
     if: github.event_name != 'pull_request'
-    uses: ./.github/workflows/imagens.yml
+    uses: ./.github/workflows/images.yml
     with:
       ref: ${{ github.sha }}
     permissions:
@@ -80,10 +80,10 @@ jobs:
   # Dockerfile, would pass green without this, and the failure would only show
   # up on the push to main. Without `packages: write`, this job's token cannot
   # publish, not even by accident.
-  imagens-pr:
+  images-pr:
     needs: test
     if: github.event_name == 'pull_request'
-    uses: ./.github/workflows/imagens.yml
+    uses: ./.github/workflows/images.yml
     with:
       ref: ${{ github.sha }}
       push: false
