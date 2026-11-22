@@ -62,6 +62,9 @@ reactive, responsive UI that works well on mobile and desktop (browser).
   the repository is still in Portuguese. New code is written in en-US anyway,
   with the glossary names; existing names change in the conversion's own
   commits, not alongside an unrelated change.
+- The `docs/TODO/` files written before the conversion, the 1.0.0 plan
+  included, stay in pt-BR: the conversion doesn't translate them, and the
+  maintainer will do it later. A new TODO file is written in en-US.
 - Use `-` (hyphen) instead of the em dash (U+2014) in any text (code, comments,
   docs, commits, chat), including when rewriting a line that already had one.
 - The repository is public: in a file, comment, commit or PR, never the machine

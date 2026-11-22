@@ -4,12 +4,11 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (20/11/2026):** a Etapa 2 (conversão para en-US) está no passo 6, os
-contratos, na parte 5, a última (os valores das enumerações), na branch
-`en-us-enums`. Já estão em en-US na `main` o Go (PR 86), a interface (PR 88),
-o `dwnvr-detect` (PR 89), a API (PR 90), o `dwnvr.yaml`, a env e o contrato
-com o `dwnvr-detect` (PR 91), os arquivos das pessoas (PR 92) e os eventos e
-os quadros gravados (PR 95).
+**Agora (22/11/2026):** a Etapa 2 (conversão para en-US) está no passo 7, a
+documentação, os exemplos, os workflows e o resto, na branch `en-us-docs`. Os
+contratos (passo 6) fecharam com a parte 5 (PR 96): o Go, a interface, o
+`dwnvr-detect`, a API, o `dwnvr.yaml`, a env, os arquivos das pessoas, os
+eventos e os valores das enumerações já estão em en-US na `main`.
 O guia de atualização nasce junto, em
 [docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
@@ -38,7 +37,7 @@ próxima, em andamento ou concluída, com a data.
     - [x] Os nomes e os comentários do `server.py`, `check_pyc.py`, `sitecustomize.py` e `model/export.py`; os arquivos renomeados (`server.py`, `check_pyc.py`, `model/`, `export.py`)
     - [x] A mesma resposta da imagem de antes para o mesmo clipe (57 achados, o quadro em base64 inclusive), e a imagem na instalação de teste
     - [x] O PR mergeado por squash
-  - [ ] Os contratos (API, o que o dwnvr grava, `dwnvr.yaml`, env), em partes, cada uma com a sua seção do guia de atualização aplicada na instalação de teste. Sem aviso para quem não seguiu o guia, sem número de versão nos arquivos e sem compatibilidade nenhuma com o formato antigo (decidido em 20/11/2026)
+  - [x] Os contratos (API, o que o dwnvr grava, `dwnvr.yaml`, env), em partes, cada uma com a sua seção do guia de atualização aplicada na instalação de teste. Sem aviso para quem não seguiu o guia, sem número de versão nos arquivos e sem compatibilidade nenhuma com o formato antigo (decidido em 20/11/2026)
     - [x] Parte 1, a API e a interface: as rotas, os parâmetros, as chaves do JSON, as rotas do hash, as chaves da URL, as chaves do `localStorage` e os ids de coluna do Diagnóstico: PR #90, em 20/11/2026
     - [x] Parte 2, o `dwnvr.yaml`, a env e o contrato com o `dwnvr-detect` (`DETECT_MODEL` e `DETECT_PORT`, os parâmetros e as chaves do `POST /detect` e do `/health`, e `detectMethod` e `detectSensitivity`, que são a mesma chave no yaml, no `cameras.json` e na API): PR #91, em 20/11/2026
       - [x] As duas pontas e os docs, na branch `en-us-config`; a seção 2 do guia
@@ -54,12 +53,12 @@ próxima, em andamento ou concluída, com a data.
       - [x] A seção 4 testada numa cópia dos eventos da instalação de teste: as mesmas linhas, chave e valor; rodar de novo não muda nada; a versão nova que rodou antes, a rodada interrompida e a falha do `jq`
       - [x] A seção 4 aplicada na instalação de teste e o deploy da branch lá
       - [x] O PR mergeado por squash: PR #95, em 20/11/2026
-    - [ ] Parte 5, os valores das enumerações (`pessoa`, `veiculo`, `periodico` viram `person`, `vehicle`, `periodic`), que são a mesma constante na API, no `cameras.json`, no yaml e nos eventos
+    - [x] Parte 5, os valores das enumerações (`pessoa`, `veiculo`, `periodico` viram `person`, `vehicle`, `periodic`), que são a mesma constante na API, no `cameras.json`, no yaml e nos eventos
       - [x] O Go, a interface e os docs, na branch `en-us-enums`; a seção 5 do guia
       - [x] A seção 5 testada numa cópia da instalação de teste: as mesmas linhas, só com a família trocada; rodar de novo não muda nada; a falha no meio e a nova rodada
       - [x] A seção 5 aplicada na instalação de teste e o deploy da branch lá
-      - [ ] O PR mergeado por squash
-  - [ ] Os `docs/TODO/` abertos revistos com o mantenedor
+      - [x] O PR mergeado por squash: PR #96, em 20/11/2026
+  - [x] Os `docs/TODO/` abertos revistos com o mantenedor, em 22/11/2026: quatro apagados (já feitos ou desistidos); os outros ficam em pt-BR, sem tradução na conversão. O mantenedor os traduz depois, sem pressa, e TODO novo já nasce em en-US
   - [ ] A documentação, os exemplos, os workflows e o resto
   - [ ] O `README.md` em en-US e o `README.pt-BR.md`
   - [ ] A varredura final e o `.git-blame-ignore-revs`
