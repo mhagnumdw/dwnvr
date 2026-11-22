@@ -1,21 +1,22 @@
-# Regras do betterleaks (https://github.com/betterleaks/betterleaks): segredo
-# no commit. O hook está no .pre-commit-config.yaml e olha só o staged.
+# betterleaks rules (https://github.com/betterleaks/betterleaks): secrets in
+# the commit. The hook is in .pre-commit-config.yaml and looks only at what is
+# staged.
 #
-# As regras padrão cobrem token e chave de provedor. A de baixo cobre o
-# vazamento mais provável aqui: a senha de câmera dentro da URL rtsp://.
+# The default rules cover provider tokens and keys. The one below covers the
+# most likely leak here: the camera password inside the rtsp:// URL.
 #
-# Falso positivo pontual: comentário `betterleaks:allow` no fim da linha.
+# One-off false positive: a `betterleaks:allow` comment at the end of the line.
 
 title = "dwnvr"
 
-# As senhas de exemplo do repositório, que não são segredo: "senha" nas URLs
-# rtsp:// do go2rtc.example.yaml e nos testes, "troque-me" no
-# dwnvr.example.yaml. O resto só nos testes. O "admin" porque
-# `Username, Password = "admin", "senha"` confunde a regra genérica: fora
-# deles, usuário admin com senha admin é o de fábrica de muita câmera, e tem
-# que barrar. As outras são as do convite e da troca de senha, no corpo
-# `{"password": ...}`, que precisam ser diferentes entre si e de tamanhos
-# diferentes ("curta" existe para ser recusada).
+# The repository's example passwords, which are not secrets: "senha" in the
+# rtsp:// URLs of go2rtc.example.yaml and in the tests, "troque-me" in
+# dwnvr.example.yaml. The rest only in the tests. "admin" because
+# `Username, Password = "admin", "senha"` confuses the generic rule: outside
+# them, user admin with password admin is the factory default of many cameras,
+# and has to be blocked. The others are the ones for the invite and the
+# password change, in the `{"password": ...}` body, which must differ from one
+# another and have different lengths ("curta" exists to be rejected).
 filter = '''
 finding["secret"] in ["senha", "troque-me"] ||
 (attributes["path"] endsWith "_test.go" &&
@@ -27,6 +28,6 @@ useDefault = true
 
 [[rules]]
 id = "rtsp-url-com-senha"
-description = "URL rtsp:// com usuário e senha"
+description = "rtsp:// URL with user and password"
 keywords = ["rtsp"]
 regex = '''(?i)rtsps?://[^\s:/@'"]+:([^\s@'"]+)@'''

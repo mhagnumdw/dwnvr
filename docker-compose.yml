@@ -1,139 +1,146 @@
-# Instalação do dwnvr, com o go2rtc junto para você subir tudo de uma vez.
+# dwnvr installation, with go2rtc alongside so you can bring everything up at
+# once.
 #
-# É o mesmo arquivo para experimentar e para instalar de verdade, e você não
-# precisa editá-lo: tudo que muda de uma instalação para outra - os caminhos
-# no disco, o UID, o fuso - vem do .env ao lado dele. Sem .env, ele sobe com os
-# valores do teste rápido: lê de ./config e grava em ./storage.
+# It is the same file for trying it out and for a real installation, and you
+# do not need to edit it: everything that changes from one installation to
+# another - the disk paths, the UID, the time zone - comes from the .env next
+# to it. Without a .env, it comes up with the quick-test values: reads from
+# ./config and writes to ./storage.
 #
-# As imagens vêm prontas do ghcr.io, publicadas pela CI; nada é compilado na
-# sua máquina. Para subir a partir do código, veja docker-compose.build.yml.
+# The images come ready from ghcr.io, published by CI; nothing is built on your
+# machine. To bring it up from the source code, see docker-compose.build.yml.
 #
-# O go2rtc está aqui por conveniência, mas continua fora do escopo do dwnvr: o
-# conteúdo do go2rtc.yaml - câmeras, URLs RTSP, codecs - é responsabilidade de
-# quem instala. Se você já tem um go2rtc rodando em outro lugar, apague o
-# serviço lá embaixo e veja a nota em extra_hosts.
+# go2rtc is here for convenience, but it stays out of dwnvr's scope: the
+# contents of go2rtc.yaml - cameras, RTSP URLs, codecs - are the
+# installer's responsibility. If you already have a go2rtc running somewhere
+# else, delete the service below and see the note on extra_hosts.
 
 services:
   dwnvr:
-    # A tag das imagens vem de DWNVR_VERSION no .env: `main` segue cada
-    # commit da main. Sem ela, vale o que está depois do `:-`, que cada
-    # release reescreve com a versão dela - o release.yml procura esta linha
-    # e a do dwnvr-detect neste formato exato.
+    # The image tag comes from DWNVR_VERSION in the .env: `main` follows every
+    # commit on main. Without it, what comes after the `:-` applies, which each
+    # release rewrites with its own version - release.yml looks for this line
+    # and the dwnvr-detect one in this exact format.
     image: ghcr.io/mhagnumdw/dwnvr:${DWNVR_VERSION:-v0.15.0}
     container_name: dwnvr
     restart: unless-stopped
     depends_on: [go2rtc]
 
-    # O container grava com este UID. Deixar como root faria os arquivos
-    # nascerem de root no disco - que é justamente o que impede você de
-    # inspecioná-los ou apagá-los depois sem sudo.
+    # The container writes with this UID. Leaving it as root would make files
+    # be born as root on disk - which is exactly what stops you from
+    # inspecting or deleting them later without sudo.
     #
-    # 1000 é o primeiro usuário na maioria das máquinas Linux, e por isso é o
-    # padrão. Se o seu for outro (descubra com: id -u; id -g), crie um .env ao
-    # lado deste arquivo com DWNVR_UID e DWNVR_GID - sem isso o dwnvr sobe, mas
-    # a tela de cadastro falha ao gravar o cameras.json.
+    # 1000 is the first user on most Linux machines, and that is why it is the
+    # default. If yours is different (find out with: id -u; id -g), create a
+    # .env next to this file with DWNVR_UID and DWNVR_GID - without it dwnvr
+    # starts, but the camera form fails to write cameras.json.
     user: "${DWNVR_UID:-1000}:${DWNVR_GID:-1000}"
 
     ports:
       - "8080:8080"
 
     environment:
-      # Sem isto todos os dias são calculados em UTC, e a virada de dia da
-      # timeline cai no horário errado. Defina TZ no .env.
+      # Without this every day is computed in UTC, and the timeline's day
+      # rollover lands at the wrong time. Set TZ in the .env.
       - TZ=${TZ:-America/Fortaleza}
 
-    # Crie os dois diretórios antes de subir. Se o Docker precisar criá-los,
-    # eles nascem de root, e aí o container - que roda com o UID acima - não
-    # consegue escrever dentro deles.
+    # Create both directories before starting. If Docker has to create them,
+    # they are born as root, and then the container - which runs with the UID
+    # above - cannot write inside them.
     #
-    # O `:z` no fim de cada volume é para quem tem SELinux ligado (Fedora, RHEL)
-    # e sobe com Podman: ele troca o label do diretório para um que o container
-    # pode ler. Sem isso, até o dwnvr.yaml dá `permission denied`. Onde não há
-    # SELinux, ou no Docker, que por padrão não o aplica, ele não faz nada.
+    # The `:z` at the end of each volume is for those with SELinux on (Fedora,
+    # RHEL) who run Podman: it relabels the directory to one the container can
+    # read. Without it, even dwnvr.yaml gives `permission denied`. Where there
+    # is no SELinux, or on Docker, which does not apply it by default, it does
+    # nothing.
     volumes:
-      # Só o lado esquerdo muda, e pelo .env: DWNVR_CONFIG_DIR e
-      # DWNVR_STORAGE_DIR apontam para o disco onde as gravações cabem. O lado
-      # direito é o que o container enxerga por dentro, e /storage é o que o
-      # dwnvr.yaml chama de `storage.root`.
+      # Only the left side changes, and through the .env: DWNVR_CONFIG_DIR and
+      # DWNVR_STORAGE_DIR point to the disk where the recordings fit. The right
+      # side is what the container sees inside, and /storage is what
+      # dwnvr.yaml calls `storage.root`.
 
-      # dwnvr.yaml, cameras.json e o segredo de sessão.
+      # dwnvr.yaml, cameras.json and the session secret.
       - ${DWNVR_CONFIG_DIR:-./config/dwnvr}:/etc/dwnvr:z
 
-      # As gravações das câmeras. O default é para você experimentar sem
-      # preparar disco nenhum.
+      # The camera recordings. The default is for you to try it out without
+      # preparing any disk.
       - ${DWNVR_STORAGE_DIR:-./storage}:/storage:z
 
-    # Com o go2rtc neste mesmo compose, o dwnvr o alcança pelo nome do serviço:
-    # basta que o dwnvr.yaml tenha go2rtc.url: http://go2rtc:1984
+    # With go2rtc in this same compose, dwnvr reaches it by the service name:
+    # dwnvr.yaml only needs go2rtc.url: http://go2rtc:1984
     #
-    # Se o go2rtc estiver fora daqui - outro compose, ou direto no host -,
-    # apague o serviço abaixo, descomente estas linhas e aponte a url para
+    # If go2rtc is outside here - another compose, or straight on the host -,
+    # delete the service below, uncomment these lines and point the url to
     # http://host.docker.internal:1984
     # extra_hosts:
     #   - "host.docker.internal:host-gateway"
 
-    # Teto de memória como rede de segurança. O consumo medido com 9 câmeras é
-    # de ~20 MB; 128M é folga larga e ainda protege o resto do sistema.
+    # Memory ceiling as a safety net. The consumption measured with 9 cameras
+    # is ~20 MB; 128M is ample headroom and still protects the rest of the
+    # system.
     deploy:
       resources:
         limits:
           memory: 128M
 
-  # Fonte dos streams. O dwnvr só consome o que este serviço já produz.
+  # Source of the streams. dwnvr only consumes what this service already
+  # produces.
   go2rtc:
-    # Versão fixa, a que foi testada com esta versão do dwnvr: sem tag, o
-    # --pull always da atualização traria o go2rtc mais novo, que ninguém
-    # testou com ela. Para outra, ponha GO2RTC_VERSION no .env.
+    # Pinned version, the one tested with this version of dwnvr: with no tag,
+    # the update's --pull always would bring the newest go2rtc, which nobody
+    # tested with it. For another one, set GO2RTC_VERSION in the .env.
     image: alexxit/go2rtc:${GO2RTC_VERSION:-1.9.14}
     container_name: go2rtc
     restart: unless-stopped
     shm_size: 128mb
 
-    # As suas câmeras moram no go2rtc.yaml desta pasta. Ele é seu; o dwnvr
-    # não o escreve.
+    # Your cameras live in the go2rtc.yaml of this folder. It is yours; dwnvr
+    # does not write it.
     #
-    # A pasta vem de GO2RTC_CONFIG_DIR no .env. Ela é irmã da do dwnvr, e não
-    # a mesma, de propósito: cada container enxerga só a própria configuração.
-    # As URLs RTSP, com usuário e senha, ficam aqui; o segredo de sessão e a
-    # senha de login do dwnvr ficam lá.
+    # The folder comes from GO2RTC_CONFIG_DIR in the .env. It is a sibling of
+    # dwnvr's, not the same one, on purpose: each container sees only its own
+    # configuration. The RTSP URLs, with user and password, stay here; dwnvr's
+    # session secret and login password stay there.
     volumes:
       - ${GO2RTC_CONFIG_DIR:-./config/go2rtc}:/config:z
 
-    # A API e o RTSP abrem só no próprio servidor: o dwnvr fala com o go2rtc
-    # pela rede do compose, e nenhum dos dois pede senha por padrão. Para
-    # abrir à rede, ponha senha no go2rtc.yaml e GO2RTC_API_PORT=1984 ou
-    # GO2RTC_RTSP_PORT=8554 no .env - ver "Abrir o go2rtc para a rede" no
-    # README.
+    # The API and RTSP open only on the server itself: dwnvr talks to go2rtc
+    # over the compose network, and neither asks for a password by default. To
+    # open them to the network, set a password in go2rtc.yaml and
+    # GO2RTC_API_PORT=1984 or GO2RTC_RTSP_PORT=8554 in the .env - see "Abrir o
+    # go2rtc para a rede" in the README.
     ports:
-      - "${GO2RTC_API_PORT:-127.0.0.1:1984}:1984"   # API e interface web do go2rtc
-      - "${GO2RTC_RTSP_PORT:-127.0.0.1:8554}:8554"  # servidor RTSP
-      - "8555:8555/tcp"  # WebRTC, usado pelo player ao vivo
+      - "${GO2RTC_API_PORT:-127.0.0.1:1984}:1984"   # go2rtc API and web interface
+      - "${GO2RTC_RTSP_PORT:-127.0.0.1:8554}:8554"  # RTSP server
+      - "8555:8555/tcp"  # WebRTC, used by the live player
       - "8555:8555/udp"
 
-  # O detector de objetos, opcional: diz se o movimento marcado era pessoa,
-  # veículo ou animal. Ver dwnvr-detect/README.md.
+  # The object detector, optional: tells whether the marked motion was a
+  # person, a vehicle or an animal. See dwnvr-detect/README.md.
   #
-  # Ele só sobe com o profile `detect`, e quem só grava não baixa nem a imagem.
-  # Para ligar, ponha COMPOSE_PROFILES=detect no .env, e no dwnvr.yaml:
+  # It only starts with the `detect` profile, and whoever only records does not
+  # even download the image. To turn it on, set COMPOSE_PROFILES=detect in the
+  # .env, and in dwnvr.yaml:
   #   detector:
   #     url: http://dwnvr-detect:8480
   dwnvr-detect:
     profiles: [detect]
-    # A mesma DWNVR_VERSION do dwnvr: as duas imagens saem juntas, com as
-    # mesmas tags.
+    # The same DWNVR_VERSION as dwnvr: both images ship together, with the
+    # same tags.
     image: ghcr.io/mhagnumdw/dwnvr-detect:${DWNVR_VERSION:-v0.15.0}
     container_name: dwnvr-detect
     restart: unless-stopped
 
-    # Sem porta publicada: só o dwnvr fala com ele, pela rede do compose.
+    # No published port: only dwnvr talks to it, over the compose network.
 
     environment:
-      # Sem DETECT_THREADS no .env, o detector de objetos usa metade dos
-      # núcleos da máquina, até 4 threads. Para outro número, ponha no .env,
-      # como por exemplo DETECT_THREADS=2.
+      # Without DETECT_THREADS in the .env, the object detector uses half of
+      # the machine's cores, up to 4 threads. For another number, set it in the
+      # .env, for example DETECT_THREADS=2.
       - DETECT_THREADS=${DETECT_THREADS:-auto}
 
-    # O teto de memória cobre o pico de uma olhada (~250 MB) com folga.
+    # The memory ceiling covers the peak of a look (~250 MB) with room to
+    # spare.
     deploy:
       resources:
         limits:

@@ -1,21 +1,21 @@
-# As imagens multi-arch do dwnvr e do detector de objetos, publicadas no GHCR.
+# The multi-arch images of dwnvr and of the object detector, published to GHCR.
 #
-# É um workflow reutilizável (workflow_call), chamado como uma função: pelo
-# ci.yml a cada push na main e pela release, que publica uma versão. Não pode
-# morar dentro do ci.yml acordando com `on: push: tags`, porque a release faz
-# o push da tag com o GITHUB_TOKEN, e o GitHub não deixa o que essa chave faz
-# disparar outro workflow - é a trava dele contra laço infinito. A tag chegaria
-# e ninguém construiria a imagem.
+# It is a reusable workflow (workflow_call), called like a function: by ci.yml
+# on every push to main and by the release, which publishes a version. It cannot
+# live inside ci.yml waking up on `on: push: tags`, because the release pushes
+# the tag with GITHUB_TOKEN, and GitHub does not let what that key does trigger
+# another workflow - that is its guard against infinite loops. The tag would
+# arrive and nobody would build the image.
 #
-# Tags de cada chamada:
-#   push na main   main, sha-xxxxxxx
+# Tags of each call:
+#   push to main   main, sha-xxxxxxx
 #   release        vX.Y.Z, latest, main, sha-xxxxxxx
-#   pull request   nenhuma: constrói as duas imagens e não publica
+#   pull request   none: builds both images and does not publish
 #
-# Os jobs não declaram `permissions`: herdam as de quem chama. Um workflow
-# chamado não pode pedir mais do que recebeu, e o pull request, que não
-# publica, chama com `contents: read` só. Quem publica passa também
-# `packages: write`.
+# The jobs do not declare `permissions`: they inherit the caller's. A called
+# workflow cannot ask for more than it received, and the pull request, which
+# does not publish, calls with `contents: read` only. Whoever publishes also
+# passes `packages: write`.
 
 name: imagens
 
@@ -23,15 +23,15 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: o commit ou a tag a construir
+        description: the commit or the tag to build
         type: string
         required: true
       release:
-        description: acrescenta as tags latest e vX.Y.Z (o próprio ref)
+        description: adds the latest and vX.Y.Z tags (the ref itself)
         type: boolean
         default: false
       push:
-        description: publica no GHCR; false só confere que as imagens constroem
+        description: publishes to GHCR; false only checks that the images build
         type: boolean
         default: true
 
@@ -46,9 +46,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-          # O git describe abaixo precisa das tags e do caminho até elas.
+          # The git describe below needs the tags and the path to them.
           fetch-depth: 0
-          persist-credentials: false  # nada aqui faz push
+          persist-credentials: false  # nothing here pushes
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
 
       - if: inputs.push
@@ -58,13 +58,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # A mesma versão que o Makefile carimba: `git describe` dá a tag num
-      # commit de release, `v0.1.0-3-gabc1234` nos commits depois dela e o
-      # hash curto enquanto não houver tag nenhuma. Precisa ser calculada aqui
-      # porque o build da imagem não vê o .git.
+      # The same version the Makefile stamps: `git describe` gives the tag on a
+      # release commit, `v0.1.0-3-gabc1234` on the commits after it and the
+      # short hash while there is no tag at all. It must be computed here
+      # because the image build does not see .git.
       #
-      # O commit também sai do checkout, e não do github.sha: numa release, o
-      # github.sha é o commit de antes do CHANGELOG, e não o que vira imagem.
+      # The commit also comes from the checkout, not from github.sha: in a
+      # release, github.sha is the commit from before the CHANGELOG, not the one
+      # that becomes the image.
       - id: versao
         run: |
           {
@@ -73,13 +74,15 @@ jobs:
             echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } >> "$GITHUB_OUTPUT"
 
-      # context: git tira o sha e as labels do checkout, pelo mesmo motivo do
-      # commit acima. O latest só nasce de release: com o default da action
-      # (latest=auto) ele apareceria sozinho em qualquer tag semver.
+      # context: git takes the sha and the labels from the checkout, for the same
+      # reason as the commit above. latest is only born from a release: with the
+      # action's default (latest=auto) it would show up by itself on any semver
+      # tag.
       #
-      # Sem publicar, tag e label não servem, e o pull request nem teria como
-      # calcular: o checkout é do merge commit, com o HEAD solto, e o
-      # `context: git` falha com "Cannot infer ref from detached HEAD".
+      # Without publishing, tag and label are no use, and the pull request would
+      # not even be able to compute them: the checkout is of the merge commit,
+      # with a detached HEAD, and `context: git` fails with "Cannot infer ref
+      # from detached HEAD".
       - id: meta
         if: inputs.push
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
@@ -100,35 +103,35 @@ jobs:
             VERSION=${{ steps.versao.outputs.version }}
             COMMIT=${{ steps.versao.outputs.commit }}
             DATE=${{ steps.versao.outputs.date }}
-          # Duas arquiteturas por enquanto: aarch64 (Orange Pi, Raspberry Pi) e
-          # x86_64. Outras entram quando houver quem as use.
+          # Two architectures for now: aarch64 (Orange Pi, Raspberry Pi) and
+          # x86_64. Others come in when there is someone who uses them.
           platforms: linux/amd64,linux/arm64
           push: ${{ inputs.push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # O pull request lê o cache da main e não grava: o dele só serviria
-          # a ele mesmo e empurraria o da main para fora da cota.
+          # The pull request reads the main cache and does not write: its own
+          # would only serve itself and push main's out of the quota.
           cache-from: type=gha,scope=dwnvr-recorder
           cache-to: ${{ inputs.push && 'type=gha,scope=dwnvr-recorder,mode=max' || '' }}
 
-  # O detector de objetos, em dwnvr-detect/. Mesmo molde do
-  # `image-dwnvr-recorder`: o Dockerfile dele também não executa nada da
-  # arquitetura de destino, então o arm64 sai daqui sem emulação. Cada job tem
-  # o próprio escopo de cache para um não disputar espaço com o outro. As tags
-  # são as mesmas do dwnvr, e é isso que deixa um DWNVR_VERSION só no .env
-  # escolher as duas imagens.
+  # The object detector, in dwnvr-detect/. Same mold as
+  # `image-dwnvr-recorder`: its Dockerfile does not run anything of the target
+  # architecture either, so arm64 comes out of here without emulation. Each job
+  # has its own cache scope so one does not compete with the other for space.
+  # The tags are the same as dwnvr's, and that is what lets a single
+  # DWNVR_VERSION in the .env pick both images.
   image-dwnvr-detect:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-          # Aqui não há git describe, mas o `context: git` do metadata-action
-          # precisa de uma branch ou tag apontando para o HEAD. No clone raso
-          # o HEAD fica solto e ele falha com "Cannot infer ref from detached
+          # There is no git describe here, but the metadata-action's `context: git`
+          # needs a branch or tag pointing at HEAD. In the shallow clone HEAD is
+          # detached and it fails with "Cannot infer ref from detached
           # HEAD".
           fetch-depth: 0
-          persist-credentials: false  # nada aqui faz push
+          persist-credentials: false  # nothing here pushes
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
 
       - if: inputs.push
@@ -138,7 +141,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Pulado sem publicar, como no image-dwnvr-recorder.
+      # Skipped without publishing, as in image-dwnvr-recorder.
       - id: meta
         if: inputs.push
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0

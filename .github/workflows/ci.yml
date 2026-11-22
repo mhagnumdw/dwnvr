@@ -1,11 +1,11 @@
-# CI do dwnvr.
+# dwnvr CI.
 #
-# O job `test` roda em todo push na main e em todo pull request. Fora de pull
-# request, o `imagens` roda depois dele e publica no GHCR as imagens
-# multi-arch do dwnvr e do detector de objetos, opcional, com a tag `main`.
-# Em pull request, o `imagens-pr` constrói as mesmas imagens sem publicar.
-# Quem as constrói é o imagens.yml, que a release também chama; a tag de
-# versão e o `latest` só saem da release.
+# The `test` job runs on every push to main and on every pull request. Outside a
+# pull request, `imagens` runs after it and publishes to GHCR the multi-arch
+# images of dwnvr and of the object detector (optional), with the `main` tag.
+# On a pull request, `imagens-pr` builds the same images without publishing.
+# The ones that build them are in imagens.yml, which the release also calls; the
+# version tag and `latest` only come out of the release.
 
 name: ci
 
@@ -15,30 +15,30 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Nenhum job recebe token com permissão, a não ser que peça.
+# No job gets a token with permissions unless it asks for one.
 permissions: {}
 
 jobs:
   test:
     runs-on: ubuntu-latest
     permissions:
-      contents: read  # ler o código
+      contents: read  # read the code
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          persist-credentials: false  # nada aqui faz push
+          persist-credentials: false  # nothing here pushes
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version: '1.27'
           cache-dependency-path: go.sum
 
-      # O vet e a formatação ficam no lint.yml, pelo golangci-lint.
+      # vet and formatting are in lint.yml, through golangci-lint.
       #
-      # O -race é o que dá valor aos testes de concorrência (os `*NaoCorre`): sem
-      # ele, uma corrida de dados passa verde. Ele exige CGO, mas só aqui,
-      # para compilar os testes; o binário que vai para a imagem continua
-      # estático, sem C.
+      # -race is what gives the concurrency tests (the `*NaoCorre` ones) their
+      # value: without it, a data race passes green. It requires CGO, but only
+      # here, to compile the tests; the binary that goes into the image stays
+      # static, with no C.
       - run: go test ./... -count=1 -race
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
@@ -47,21 +47,21 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      # A interface versionada em internal/api/dist precisa corresponder ao
-      # código em web/. Esquecer o build produz um binário que compila e sobe
-      # normalmente, mas serve a tela antiga - falha silenciosa que só
-      # apareceria em produção.
+      # The versioned UI in internal/api/dist must match the code in web/.
+      # Forgetting the build produces a binary that compiles and starts
+      # normally, but serves the old screen - a silent failure that would only
+      # show up in production.
       #
-      # Este passo reprova o PR do Dependabot em web/ sempre que a dependência
-      # entra no bundle, porque ele não refaz o build. Por isso a falha sai
-      # como anotação, que aparece no resumo do PR, e aponta para o
-      # docs/github.md.
-      - name: interface está atualizada?
+      # This step fails a Dependabot PR in web/ whenever the dependency ends up
+      # in the bundle, because Dependabot does not redo the build. That is why
+      # the failure comes out as an annotation, which shows in the PR summary,
+      # and points to docs/github.md.
+      - name: is the UI up to date?
         run: |
           (cd web && npm ci --no-audit --no-fund && npm run build)
           if ! git diff --quiet internal/api/dist; then
             doc="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/main/docs/github.md#dependabot-pr-in-web"
-            echo "::error title=internal/api/dist desatualizado::Rode 'make web' e faça commit do internal/api/dist. Em PR do Dependabot, veja $doc"
+            echo "::error title=internal/api/dist is stale::Run 'make web' and commit internal/api/dist. For a Dependabot PR, see $doc"
             git diff --stat internal/api/dist
             exit 1
           fi
@@ -76,9 +76,10 @@ jobs:
       contents: read
       packages: write
 
-  # O PR que sobe a imagem base, ou que quebra o build dentro do Dockerfile,
-  # passaria verde sem isto, e a falha só apareceria no push na main. Sem
-  # `packages: write`, o token deste job não publica nem por engano.
+  # The PR that bumps the base image, or that breaks the build inside the
+  # Dockerfile, would pass green without this, and the failure would only show
+  # up on the push to main. Without `packages: write`, this job's token cannot
+  # publish, not even by accident.
   imagens-pr:
     needs: test
     if: github.event_name == 'pull_request'

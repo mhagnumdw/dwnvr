@@ -1,107 +1,112 @@
-# Atalhos de build do dwnvr.
+# dwnvr build shortcuts.
 #
-# A regra que importa: a interface precisa ser construída ANTES do binário,
-# porque o Go a embute com embed.FS. Esquecer disso produz um binário que
-# compila e sobe normalmente, mas serve a tela antiga - um erro silencioso que
-# este arquivo existe para evitar.
+# The rule that matters: the UI must be built BEFORE the binary, because Go
+# embeds it with embed.FS. Forgetting that produces a binary that compiles and
+# starts normally but serves the old screen - a silent error this file exists
+# to prevent.
 
-# Configuração da máquina de quem desenvolve (DEPLOY_HOST, DEPLOY_DIR, ...).
-# O hífen do -include faz o make seguir em silêncio quando o arquivo não
-# existe, que é o caso de um clone recém-feito. Como as variáveis abaixo usam
-# ?=, o que vier daqui vence o default, e o que for passado na linha de comando
-# vence os dois. Veja local.mk.example.
+# The developer's machine configuration (DEPLOY_HOST, DEPLOY_DIR, ...). The
+# hyphen in -include makes make carry on silently when the file does not
+# exist, which is the case in a fresh clone. Since the variables below use ?=,
+# what comes from here beats the default, and what is passed on the command
+# line beats both. See local.mk.example.
 -include local.mk
 
 IMAGE    ?= ghcr.io/mhagnumdw/dwnvr
-# git describe dá o hash curto enquanto não houver tag e passa a dar a tag
-# sozinho quando houver - nada aqui muda no dia do primeiro release.
+# git describe gives the short hash while there is no tag and starts giving the
+# tag by itself once there is one - nothing here changes on the day of the
+# first release.
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT   ?= $(shell git rev-parse HEAD 2>/dev/null || echo desconhecido)
 DATE     ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# Sem isto o binário não sabe dizer que código ele é.
+# Without this the binary cannot say which code it is.
 BUILDPKG  = github.com/mhagnumdw/dwnvr/internal/buildinfo
 LDFLAGS   = -s -w \
 	-X $(BUILDPKG).Version=$(VERSION) \
 	-X $(BUILDPKG).Commit=$(COMMIT) \
 	-X $(BUILDPKG).Date=$(DATE)
 
-# O build da imagem não enxerga o .git (o .dockerignore o exclui), então os
-# mesmos valores precisam atravessar a fronteira como argumentos.
+# The image build cannot see .git (.dockerignore excludes it), so the same
+# values have to cross the boundary as arguments.
 BUILDARGS = --build-arg VERSION=$(VERSION) \
 	--build-arg COMMIT=$(COMMIT) \
 	--build-arg DATE=$(DATE)
 
 .PHONY: all web build test check image image-arm64 image-amd64 deploy deploy-wip help
 
-# Guarda usada pelos dois deploys.
-EXIGE_HOST = @test -n "$(DEPLOY_HOST)" || { echo "defina DEPLOY_HOST no local.mk (veja local.mk.example) ou passe na linha de comando: make deploy DEPLOY_HOST=usuario@servidor"; exit 1; }
+# Guard used by both deploys.
+EXIGE_HOST = @test -n "$(DEPLOY_HOST)" || { echo "set DEPLOY_HOST in local.mk (see local.mk.example) or pass it on the command line: make deploy DEPLOY_HOST=user@server"; exit 1; }
 
 all: web build
 
-## web: constrói a interface para internal/api/dist
+## web: builds the UI into internal/api/dist
 web:
 	cd web && npm ci --no-audit --no-fund && npm run build
 
-## build: binário para a máquina local
+## build: binary for the local machine
 build:
 	go build -trimpath -ldflags="$(LDFLAGS)" -o dwnvr ./cmd/dwnvr
 
-## image-arm64: imagem docker arm64, carregada no docker local
+## image-arm64: arm64 docker image, loaded into the local docker
 #
-# Compila cruzado na máquina de quem desenvolve (qualquer arquitetura): o Go
-# cruza GOARCH pelo TARGETARCH e os estágios que executam - node e go - rodam no
-# BUILDPLATFORM, então não emula nada. --load deixa a imagem pronta no docker
-# local, sem passar por registry.
+# Cross-compiles on the developer's machine (any architecture): Go crosses
+# GOARCH through TARGETARCH and the stages that execute - node and go - run on
+# BUILDPLATFORM, so nothing is emulated. --load leaves the image ready in the
+# local docker, without going through a registry.
 #
-# A tag é local de propósito, sem o ghcr.io de $(IMAGE): um `docker push`
-# distraído publicaria no registry público uma imagem que nunca passou pela CI.
+# The tag is local on purpose, without the ghcr.io of $(IMAGE): an absent-minded
+# `docker push` would publish to the public registry an image that never went
+# through CI.
 #
-# --provenance/--sbom desligados não são frescura nem sobra do deploy-wip: com
-# eles o buildx exporta uma manifest list mesmo para uma plataforma só, e o
-# `--load` de um docker sem containerd image store a recusa. Aqui pode
-# funcionar sem as flags e quebrar na máquina de outra pessoa.
+# --provenance/--sbom turned off are neither fussiness nor a leftover from
+# deploy-wip: with them buildx exports a manifest list even for a single
+# platform, and `--load` on a docker without the containerd image store
+# refuses it. Here it may work without the flags and break on someone else's
+# machine.
 image-arm64:
 	docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
 		$(BUILDARGS) -t dwnvr:$(VERSION)-arm64 --load .
 
-## image-amd64: imagem docker amd64, carregada no docker local
+## image-amd64: amd64 docker image, loaded into the local docker
 image-amd64:
 	docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
 		$(BUILDARGS) -t dwnvr:$(VERSION)-amd64 --load .
 
-## image: imagem multi-arch (amd64 + arm64), como a que a CI publica
+## image: multi-arch image (amd64 + arm64), like the one CI publishes
 #
-# Os dois alvos acima geram imagens separadas; este gera a manifest list única,
-# que é o que de fato vai para o GHCR - a única forma de conferir localmente o
-# artefato que a CI produz, sem publicar versão intermediária.
+# The two targets above produce separate images; this one produces the single
+# manifest list, which is what actually goes to GHCR - the only way to check
+# locally the artifact CI produces, without publishing an intermediate
+# version.
 #
-# Sem --provenance/--sbom aqui: uma manifest list é o resultado esperado, e as
-# attestations aproximam o que a CI publica. Em compensação este alvo exige o
-# containerd image store no docker local (`docker info | grep containerd`); o
-# store clássico não carrega manifest list e o --load falha na hora.
+# No --provenance/--sbom here: a manifest list is the expected result, and the
+# attestations approximate what CI publishes. In exchange this target requires
+# the containerd image store in the local docker (`docker info | grep
+# containerd`); the classic store does not load a manifest list and --load
+# fails right away.
 image:
 	docker buildx build --platform linux/amd64,linux/arm64 \
 		$(BUILDARGS) -t dwnvr:$(VERSION) --load .
 
-## test: testes de unidade, com o detector de corrida (precisa de um compilador C)
+## test: unit tests, with the race detector (needs a C compiler)
 test:
 	go test ./... -count=1 -race
 
-## check: o que a CI roda
+## check: what CI runs
 check: test
 	prek run --all-files
 
-## deploy: atualiza o servidor remoto com a imagem que a CI publicou
+## deploy: updates the remote server with the image CI published
 #
-# Nada é construído aqui: o servidor baixa do GHCR a imagem que a CI publicou.
-# Para receber cada push na main, e não só as releases, o .env de lá precisa
-# de DWNVR_VERSION=main. Sem `git pull` de propósito - o docker-compose.yml de
-# lá costuma estar editado. Recriar o container custa alguns segundos de
-# gravação.
+# Nothing is built here: the server pulls from GHCR the image CI published. To
+# receive every push to main, and not only the releases, the .env over there
+# needs DWNVR_VERSION=main. No `git pull` on purpose - the docker-compose.yml
+# over there is usually edited. Recreating the container costs a few seconds
+# of recording.
 #
-# DEPLOY_HOST não tem default porque qualquer valor aqui seria o servidor de
-# outra pessoa. Defina no local.mk.
+# DEPLOY_HOST has no default because any value here would be someone else's
+# server. Set it in local.mk.
 DEPLOY_HOST ?=
 DEPLOY_DIR  ?= ~/dwnvr
 deploy:
@@ -109,32 +114,35 @@ deploy:
 	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_DIR) && docker compose up -d --pull always'
 	@sleep 20
 	@ssh $(DEPLOY_HOST) 'docker ps --filter name=dwnvr --format "{{.Status}}"'
-	# A prova de que o deploy pegou - este alvo já falhou em silêncio uma vez.
-	# Se não bater, ou a CI ainda não publicou, ou subiu a imagem antiga.
-	@echo "esperado: $(VERSION)"
-	@ssh $(DEPLOY_HOST) 'curl -sf localhost:8080/api/version' || echo "não respondeu"
+	# The proof that the deploy took - this target has failed silently once.
+	# If it does not match, either CI has not published yet, or the old image
+	# came up.
+	@echo "expected: $(VERSION)"
+	@ssh $(DEPLOY_HOST) 'curl -sf localhost:8080/api/version' || echo "no response"
 
-## deploy-wip: leva o código NÃO commitado para o servidor, só para experimentar
+## deploy-wip: ships UNcommitted code to the server, just to try it out
 #
-# Compila arm64 aqui e empurra a imagem pelo ssh, sem passar pelo registry - é o
-# único jeito de testar no hardware antes do commit. Depois disto o servidor roda
-# algo que não existe em commit nenhum; `make deploy` desfaz.
+# Builds arm64 here and pushes the image over ssh, without going through the
+# registry - it is the only way to test on the hardware before the commit.
+# After this the server runs something that exists in no commit; `make deploy`
+# undoes it.
 #
-# Entra com a tag `main`, a que o compose de lá usa com DWNVR_VERSION=main, e
-# sobe sem --pull always, que baixaria a imagem da CI por cima.
+# It goes in with the `main` tag, the one the compose over there uses with
+# DWNVR_VERSION=main, and starts without --pull always, which would pull the CI
+# image over it.
 deploy-wip:
 	$(EXIGE_HOST)
-	# --provenance/--sbom desligados: com eles o buildx exporta uma manifest
-	# list, e o `docker load` do outro lado não engole manifest list.
+	# --provenance/--sbom turned off: with them buildx exports a manifest list,
+	# and `docker load` on the other side does not take a manifest list.
 	docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
 		$(BUILDARGS) -t dwnvr:wip-arm64 --load .
 	docker save dwnvr:wip-arm64 | gzip | ssh $(DEPLOY_HOST) \
 		'gunzip | docker load && docker tag dwnvr:wip-arm64 $(IMAGE):main'
 	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_DIR) && docker compose up -d'
 	@sleep 20
-	@echo "esperado: $(VERSION)"
-	@ssh $(DEPLOY_HOST) 'curl -sf localhost:8080/api/version' || echo "não respondeu"
+	@echo "expected: $(VERSION)"
+	@ssh $(DEPLOY_HOST) 'curl -sf localhost:8080/api/version' || echo "no response"
 
-## help: lista os alvos
+## help: lists the targets
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## /  /'

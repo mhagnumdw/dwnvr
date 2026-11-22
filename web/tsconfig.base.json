@@ -1,7 +1,7 @@
-// O rigor, igual para o app e para as configs. É o conjunto do
-// @tsconfig/strictest, mais o que o TypeScript moderno pede para código que
-// só tem os tipos apagados no build: o Vite não usa o tsc para compilar, e o
-// Svelte também só apaga os tipos do <script lang="ts">.
+// The strictness, the same for the app and for the configs. It is the
+// @tsconfig/strictest set, plus what modern TypeScript asks for code that only
+// has its types erased at build: Vite does not use tsc to compile, and Svelte
+// also only erases the types of <script lang="ts">.
 {
   "compilerOptions": {
     "strict": true,
@@ -16,17 +16,17 @@
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
 
-    // Só sintaxe que se apaga: nada de enum, namespace ou parâmetro de
-    // construtor com modificador, que o Svelte não sabe compilar sem
-    // preprocess e o Node não roda sem transformar.
+    // Only syntax that gets erased: no enum, namespace or constructor
+    // parameter with a modifier, which Svelte cannot compile without a
+    // preprocess and Node cannot run without transforming.
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "moduleDetection": "force",
     "noUncheckedSideEffectImports": true,
 
-    // O build é do Vite: o tsc só confere. Por isso o import pode dizer o
-    // arquivo como ele é, `./api.ts`.
+    // The build is Vite's: tsc only checks. That is why the import can name the
+    // file as it is, `./api.ts`.
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "module": "esnext",

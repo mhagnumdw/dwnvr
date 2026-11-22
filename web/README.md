@@ -1,185 +1,192 @@
-# Interface do dwnvr
+# dwnvr UI
 
-Quatro telas, em Svelte 5 + TypeScript + Vite, embutidas no binário: **ao vivo**,
-**gravações**, **câmeras** e **diagnóstico**. O aplicativo inteiro pesa
-**44,3 kB gzipped**, incluindo o player de live do go2rtc.
+Four screens, in Svelte 5 + TypeScript + Vite, embedded in the binary: **Ao vivo**
+(live), **Gravações** (recordings), **Câmeras** (cameras) and **Diagnóstico**
+(diagnostics). The whole app weighs **44.3 kB gzipped**, including go2rtc's live
+player.
 
-O build sai para `../internal/api/dist`, que o Go embute com `embed.FS` - é
-isso que mantém a promessa de um binário único.
+The build goes to `../internal/api/dist`, which Go embeds with `embed.FS` - that
+is what keeps the single-binary promise.
 
 ```sh
 npm install
-npm run build       # gera internal/api/dist, depois: go build ./cmd/dwnvr
-npm run dev         # desenvolvimento com recarga instantânea
-npm run check       # confere os tipos; o lint do commit roda o mesmo
+npm run build       # generates internal/api/dist, then: go build ./cmd/dwnvr
+npm run dev         # development with instant reload
+npm run check       # checks the types; the commit lint runs the same
 ```
 
-No modo `dev` o Vite faz proxy de `/api` para um dwnvr de verdade, então a tela
-é construída contra dados reais desde o primeiro minuto. O default é
-`http://localhost:8080`; para apontar a tela para outra instalação:
+In `dev` mode Vite proxies `/api` to a real dwnvr, so the screen is built
+against real data from the first minute. The default is `http://localhost:8080`;
+to point the screen at another installation:
 
 ```sh
 DWNVR_API=http://servidor:8080 npm run dev
 ```
 
-O endereço em uso aparece no arranque do Vite - vale conferir antes de concluir
-que algo está quebrado, porque a tela apontada para o servidor errado tem a
-mesma aparência de uma tela funcionando.
+The address in use shows up at Vite startup - worth checking before concluding
+that something is broken, because a screen pointed at the wrong server looks
+exactly like a working one.
 
-## Por que `internal/api/dist` é versionado
+## Why `internal/api/dist` is versioned
 
-`go:embed` exige que os arquivos existam em tempo de compilação. Versionar o
-build faz `go build ./...` funcionar num clone limpo, sem Node instalado - o que
-importa porque o alvo é um dispositivo onde ninguém quer instalar toolchain de
-frontend.
+`go:embed` requires the files to exist at compile time. Versioning the build
+makes `go build ./...` work on a clean clone, without Node installed - which
+matters because the target is a device where nobody wants to install a frontend
+toolchain.
 
-Ao alterar algo em `web/`, rode `npm run build` **antes** de commitar. Sem
-isso, o hook `interface-atualizada` do prek recusa o commit.
+When you change something in `web/`, run `npm run build` **before** committing.
+Without it, prek's `interface-atualizada` hook refuses the commit.
 
-## Estrutura
+## Structure
 
 ```text
-src/lib/         api e os tipos do JSON dela, estado (runes), rota e
-                 estado na URL, formatadores, a máscara do horário
-                 digitado,
-                 player MSE, miniaturas, captura de quadro, ícones das
-                 famílias de objeto (canvas), os ícones da interface (o
-                 mapa nome -> desenho do `<Icon>`), disposição e desenho
-                 das caixas,
-                 diagnóstico do navegador de quem está olhando e do
-                 servidor que grava, avisos do diagnóstico (o card e o
-                 sino do header), a redução da foto da Minha conta, o
-                 contexto 2D do canvas, a tela cheia (simulada por CSS onde
-                 o navegador não a faz, como no iPhone), os controles que
-                 somem sozinhos sobre o vídeo nela, o aviso de que a tela
-                 aberta ficou para trás de uma atualização, a snackbar (o
-                 aviso curto embaixo da tela), a dica que o toque longo
-                 abre num botão (e o aviso do toque longo a quem o pede),
-                 a altura que um elemento tem até o fim da janela, os
-                 números do deslize para o lado que troca de câmera
-                 (comuns ao Ao vivo e às Gravações) e a
-                 área desenhada sobre a imagem (a ida e a volta da query,
-                 o contorno, a área cheia e o enquadramento da área
-                 pequena para o zoom), e a conferência dos campos de um
-                 formulário de pessoa pelo servidor, quando se sai deles
-src/routes/      as telas, o login e a de definir a senha pelo link de
-                 convite; Detecções, Usuários, Minha conta e a do convite
-                 são chunk à parte. Detecções só aparece com o detector de
-                 objetos configurado, Câmeras e Usuários só para o admin, e
-                 a Minha conta não tem aba: abre pelo avatar do header
-src/components/  timeline em canvas, tira de miniaturas, relógio que aceita
-                 horário digitado, o campo de horário e o intervalo de
-                 horário de Detecções (o botão, o chip e os campos De e
-                 Até), modal e confirmação, a fileira de abas de um
-                 formulário,
-                 o estado de "nenhuma câmera cadastrada", seletor de dia e as
-                 setas de dia anterior e próximo,
-                 caixas do detector sobre o vídeo (chunk à parte), a folha
-                 que abre uma detecção com o quadro e o trecho gravado,
-                 o card fechável de diagnóstico com o "copiar", o teste
-                 de e-mail do Diagnóstico (chunk à parte), o rodapé de
-                 Câmeras e Diagnóstico com a hora da última leitura da
-                 saúde, que avisa quando ela falha,
-                 o campo de senha com o olho, o avatar (a foto ou as
-                 iniciais), o botão que abre a lista de câmeras (marcadas
-                 do total), o botão de entrar e sair da tela cheia, o
-                 `<Icon>` que desenha qualquer ícone da interface pelo nome,
-                 a snackbar, o selo das famílias de objeto no canto de uma
-                 miniatura (com o sino, na detecção que alertou), o editor de área (o polígono sobre o quadro,
-                 chunk à parte), a miniatura das áreas de uma câmera (com
-                 o zoom na área pequena), o chip, o ladrilho e o rótulo de
-                 uma área (a miniatura dela, o nome e a regra) e a aba
-                 Alerta do cadastro da câmera (chunk à parte)
-src/vendor/      player de live do go2rtc (MIT), em JavaScript, com os tipos
-                 dele escritos à mão - ver vendor/README.md
+src/lib/         the api and the types of its JSON, state (runes), route and
+                 URL state, formatters, the mask for the typed time,
+                 MSE player, thumbnails, frame capture, icons of the
+                 object families (canvas), the UI icons (the
+                 name -> drawing map of `<Icon>`), layout and drawing
+                 of the boxes,
+                 diagnostics of the browser of whoever is looking and of the
+                 recording server, diagnostics notices (the card and the
+                 header bell), the downscaling of the My account photo, the
+                 canvas 2D context, fullscreen (simulated with CSS where
+                 the browser does not do it, as on the iPhone), the controls
+                 that fade away by themselves over the video in it, the
+                 notice that the open screen fell behind an update, the
+                 snackbar (the short notice at the bottom of the screen), the
+                 hint that a long press opens on a button (and the long-press
+                 notice for whoever asks for it), the height an element has
+                 down to the end of the window, the numbers of the sideways
+                 swipe that switches camera (shared by Ao vivo and
+                 Gravações) and the
+                 area drawn over the image (the round trip of the query,
+                 the outline, the full area and the framing of the small
+                 area for the zoom), and the server's check of the fields
+                 of a person form, when leaving them
+src/routes/      the screens, the login and the one for setting the password
+                 from the invitation link; Detecções, Usuários, Minha conta
+                 and the invitation one are a separate chunk. Detecções only
+                 shows up with the object detector configured, Câmeras and
+                 Usuários only for the admin, and Minha conta has no tab: it
+                 opens from the header avatar
+src/components/  canvas timeline, thumbnail strip, clock that accepts a typed
+                 time, the time field and the Detecções time range (the
+                 button, the chip and the De and Até fields), modal and
+                 confirmation, the tab row of a form,
+                 the "no camera registered" state, day picker and the
+                 previous and next day arrows,
+                 object detector boxes over the video (separate chunk), the
+                 sheet that opens a detection with the frame and the recorded
+                 clip,
+                 the dismissible diagnostics card with the "copy", the
+                 Diagnóstico e-mail test (separate chunk), the footer of
+                 Câmeras and Diagnóstico with the time of the last health
+                 read, which warns when it fails,
+                 the password field with the eye, the avatar (the photo or the
+                 initials), the button that opens the camera list (checked
+                 out of the total), the button to enter and leave fullscreen,
+                 the `<Icon>` that draws any UI icon by name,
+                 the snackbar, the badge of the object families in the corner
+                 of a thumbnail (with the bell, on the detection that
+                 alerted), the area editor (the polygon over the frame,
+                 separate chunk), the thumbnail of a camera's areas (with
+                 the zoom on the small area), the chip, the tile and the
+                 label of an area (its thumbnail, the name and the rule) and
+                 the Alerta tab of the camera form (separate chunk)
+src/vendor/      go2rtc's live player (MIT), in JavaScript, with its types
+                 written by hand - see vendor/README.md
 ```
 
-## Decisões
+## Decisions
 
-**TypeScript no rigor máximo.** O `tsconfig.base.json` liga o conjunto do
-`@tsconfig/strictest`: `strict`, `noUncheckedIndexedAccess` (todo `lista[i]`
-pode ser `undefined`), `exactOptionalPropertyTypes` (campo opcional não aceita
-`undefined` escrito) e o resto. O `erasableSyntaxOnly` deixa de fora o que não
-é só tipo apagável - `enum`, `namespace` -, porque o Svelte só apaga os tipos do
-`<script lang="ts">`, sem preprocess. Por isso não há `svelte.config`.
+**TypeScript at maximum strictness.** `tsconfig.base.json` turns on the
+`@tsconfig/strictest` set: `strict`, `noUncheckedIndexedAccess` (every `list[i]`
+can be `undefined`), `exactOptionalPropertyTypes` (an optional field does not
+accept a written `undefined`) and the rest. `erasableSyntaxOnly` leaves out
+whatever is not just erasable types - `enum`, `namespace` -, because Svelte only
+erases the types of `<script lang="ts">`, without a preprocess. That is why there
+is no `svelte.config`.
 
-São dois projetos, como no template `svelte-ts` do Vite: o
-`tsconfig.app.json` para a tela, conferido pelo svelte-check, e o
-`tsconfig.node.json` para as configs, que rodam no Node, conferido pelo `tsc`.
-O ESLint usa as regras que leem os tipos (`strictTypeChecked` e
-`stylisticTypeChecked` do typescript-eslint), e o `svelte/block-lang` recusa
-componente sem `lang="ts"`. As exceções estão no `eslint.config.ts`, cada uma
-com o motivo.
+There are two projects, as in Vite's `svelte-ts` template: `tsconfig.app.json`
+for the screen, checked by svelte-check, and `tsconfig.node.json` for the
+configs, which run on Node, checked by `tsc`. ESLint uses the rules that read
+the types (typescript-eslint's `strictTypeChecked` and `stylisticTypeChecked`),
+and `svelte/block-lang` refuses a component without `lang="ts"`. The exceptions
+are in `eslint.config.ts`, each one with its reason.
 
-A formatação é do Prettier, com o plugin do Svelte, no `prettier.config.ts`:
-aspas simples e linha de até 100, que era o que o código já fazia. Trecho
-arrumado à mão de propósito, como os desenhos dos ícones, leva um
-`// prettier-ignore` em cima.
+Formatting is Prettier's, with the Svelte plugin, in `prettier.config.ts`:
+single quotes and lines of up to 100, which is what the code already did. A
+snippet arranged by hand on purpose, like the icon drawings, gets a
+`// prettier-ignore` above it.
 
-O contrato com o servidor fica no fim do `src/lib/api.ts`: o JSON de cada
-resposta, escrito a partir das structs Go de `internal/api`. O TypeScript não
-confere o que chega pela rede, então mudar o JSON de um lado pede mudar o tipo
-do outro.
+The contract with the server is at the end of `src/lib/api.ts`: the JSON of
+each response, written from the Go structs in `internal/api`. TypeScript does
+not check what arrives over the network, so changing the JSON on one side
+means changing the type on the other.
 
-O TypeScript é o 6, e não o 7: o svelte-check ainda só usa o 7 ao lado do 6,
-com a flag `--tsgo`, e o Dependabot ignora o major até isso mudar (ver
+TypeScript is 6, not 7: svelte-check still only uses 7 alongside 6, with the
+`--tsgo` flag, and Dependabot ignores the major until that changes (see
 `.github/dependabot.yml`).
 
-**Mobile-first.** Navegação inferior no celular e superior no desktop. A grade
-ao vivo aceita 1, 2 ou 3 colunas ou "encaixar tudo na tela" - escolha do
-usuário, salva no `localStorage`. O padrão inicial depende da largura da tela
-(2 colunas acima de 640 px, 1 abaixo), mas nada trava: no celular também dá
-para pedir 3 colunas.
+**Mobile-first.** Bottom navigation on the phone and top navigation on the
+desktop. The live grid accepts 1, 2 or 3 columns or "fit everything on the
+screen" - the user's choice, saved in `localStorage`. The initial default
+depends on the screen width (2 columns above 640 px, 1 below), but nothing is
+locked: on the phone you can also ask for 3 columns.
 
-No modo "encaixar", a quantidade de colunas não é escolhida - é calculada. Para
-cada número possível, mede-se o maior tile 16:9 que caberia considerando também
-a altura das linhas resultantes, e vence o que produzir o tile maior. Como a
-altura entra na conta, a grade nunca transborda a janela.
+In "fit" mode, the number of columns is not chosen - it is computed. For each
+possible number, it measures the largest 16:9 tile that would fit, taking into
+account the height of the resulting rows too, and the one that produces the
+larger tile wins. Because the height enters the calculation, the grid never
+overflows the window.
 
-**Estado da tela na URL.** O hash não diz só em que tela você está, mas o que
-você está vendo dentro dela: `#live?cams=garagem&cams=entrada&view=2`,
-`#rec?cam=garagem&day=2026-08-19&t=14:32:07&rate=4&paused=1`. Copiar a barra de
-endereços e colar em outra aba reproduz a mesma cena. Segue sendo hash, e não
-caminho de verdade, porque o fragmento nunca sai do navegador - assim o
-`internal/api/web.go`, que só serve arquivo, não precisa de rota nova.
+**Screen state in the URL.** The hash does not only say which screen you are on,
+but what you are looking at inside it: `#live?cams=garagem&cams=entrada&view=2`,
+`#rec?cam=garagem&day=2026-08-19&t=14:32:07&rate=4&paused=1`. Copying the
+address bar and pasting it in another tab reproduces the same scene. It is still
+a hash, and not a real path, because the fragment never leaves the browser - so
+`internal/api/web.go`, which only serves files, does not need a new route.
 
-Quem cuida disso é o `src/lib/route.svelte.ts`. Cada tela lê a URL uma vez, ao
-montar, e um `$effect` escreve de volta o que o estado real diz - `paused` sai
-de `player.playing`, e não de um sinalizador paralelo, para o endereço nunca
-prometer uma reprodução que o navegador bloqueou. As escritas usam
-`replaceState` com piso de um segundo, porque o instante do player muda várias
-vezes por segundo e o Safari recusa mais de 100 em 30s. Onde a URL e o
-`localStorage` falam da mesma coisa - seleção e layout do Ao vivo -, a URL
-manda; e só clique do usuário grava no `localStorage`, para o link de outra
-pessoa não virar a sua preferência.
+`src/lib/route.svelte.ts` takes care of this. Each screen reads the URL once,
+on mount, and an `$effect` writes back what the real state says - `paused` comes
+from `player.playing`, and not from a parallel flag, so the address never
+promises a playback that the browser blocked. Writes use `replaceState` with a
+one-second floor, because the player's instant changes several times per second
+and Safari refuses more than 100 in 30 s. Where the URL and `localStorage` talk
+about the same thing - selection and layout of Ao vivo -, the URL wins; and only
+a user click writes to `localStorage`, so that someone else's link does not
+become your preference.
 
-**Timeline com Pointer Events**, que cobre mouse, dedo e caneta com o mesmo
-código. Arrastar desliza a janela visível, tocar navega, pinçar e roda do mouse
-dão zoom, duplo toque aproxima e toque com dois dedos afasta. Um arraste nunca
-vira navegação: o gesto é descartado se o ponteiro andou além do limiar - que é
-maior no dedo (8 px) do que no mouse (2 px), porque dedo treme.
+**Timeline with Pointer Events**, which covers mouse, finger and pen with the
+same code. Dragging slides the visible window, tapping navigates, pinching and
+the mouse wheel zoom, a double tap zooms in and a two-finger tap zooms out. A
+drag never becomes navigation: the gesture is discarded if the pointer moved
+past the threshold - which is larger for a finger (8 px) than for a mouse
+(2 px), because fingers shake.
 
-**Player MSE escrito à mão, em vez de hls.js.** É o que segura o tamanho: só a
-biblioteca custaria ~110 kB gzip, mais do que o aplicativo inteiro. Em troca,
-ganhamos controle exato sobre a janela de buffer e sobre os buracos de
-gravação, que o índice já conhece.
+**MSE player written by hand, instead of hls.js.** This is what holds the size
+down: the library alone would cost ~110 kB gzip, more than the whole app. In
+exchange, we get exact control over the buffer window and over the recording
+gaps, which the index already knows.
 
-**Instalável como app, sem service worker.** O `public/manifest.json` e os
-ícones fazem o Chrome oferecer "Instalar app" e o iPhone abrir o atalho da tela
-de início sem barra de endereço. Para isso o endereço precisa ser `https://`;
-em `http://` o Android só cria um atalho que abre numa aba. Não há service
-worker: instalar não exige um, e ele traria o risco de servir a versão velha da
-tela depois de uma atualização. Para quem não instala, o custo é o manifest,
-menos de 1 kB; os ícones só baixam na instalação.
+**Installable as an app, without a service worker.** `public/manifest.json` and
+the icons make Chrome offer "Install app" and make the iPhone open the home
+screen shortcut without an address bar. For that the address must be `https://`;
+on `http://` Android only creates a shortcut that opens in a tab. There is no
+service worker: installing does not require one, and it would bring the risk of
+serving the old version of the screen after an update. For those who do not
+install, the cost is the manifest, under 1 kB; the icons are only downloaded on
+install.
 
-Os PNGs saem do `favicon.svg`. Os de uso geral (`icon-192`, `icon-512`) são o
-desenho como está, com a placa arredondada. O maskable e o `apple-touch-icon`
-levam a placa até a borda, porque quem recorta é o sistema (círculo, gota ou o
-canto do iPhone); a lente ocupa 64% da largura e cabe na zona segura de 80%.
-Para regerar, com ImageMagick, pngquant e oxipng (a densidade é 96 dpi vezes o
-tamanho desejado sobre os 64 px do SVG). O pngquant troca as cores RGBA
-completas por uma paleta: corta ~70% do tamanho, e a diferença fica em torno
-de 68 dB de PSNR, invisível mesmo ampliada.
+The PNGs come from `favicon.svg`. The general-purpose ones (`icon-192`,
+`icon-512`) are the drawing as is, with the rounded plate. The maskable and the
+`apple-touch-icon` take the plate to the edge, because the system does the
+cropping (circle, teardrop or the iPhone corner); the lens takes up 64% of the
+width and fits in the 80% safe zone. To regenerate them, with ImageMagick,
+pngquant and oxipng (the density is 96 dpi times the desired size over the SVG's
+64 px). pngquant swaps the full RGBA colors for a palette: it cuts ~70% of the
+size, and the difference stays around 68 dB of PSNR, invisible even when
+enlarged.
 
 ```sh
 cd web/public
@@ -192,6 +199,6 @@ pngquant --quality=90-100 --speed 1 --strip --ext .png --force icon-*.png apple-
 oxipng -q -o max -Z --strip all icon-*.png apple-touch-icon.png
 ```
 
-**Player de live copiado do go2rtc**, não escrito. No live o formato é do
-go2rtc e o problema já está resolvido - inclusive para H265, que é o caso
-difícil desta instalação. Ver [`src/vendor/README.md`](src/vendor/README.md).
+**Live player copied from go2rtc**, not written. In live the format is go2rtc's
+and the problem is already solved - including for H265, which is the hard case
+of this installation. See [`src/vendor/README.md`](src/vendor/README.md).

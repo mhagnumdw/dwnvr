@@ -1,172 +1,177 @@
-# Configuração de infraestrutura do dwnvr.
+# dwnvr infrastructure configuration.
 #
-# Este arquivo é editado à mão e NUNCA é reescrito pela aplicação - seus
-# comentários estão seguros. A lista de câmeras fica em cameras.json, ao lado
-# deste arquivo, porque é ela que a tela de cadastro precisa gravar.
+# This file is edited by hand and NEVER rewritten by the application, so your
+# comments are safe. The camera list lives in cameras.json, next to this file,
+# because it is what the camera form needs to write.
 
 server:
   listen: ":8080"
-  # Com os dois vazios a autenticação fica desligada, o que é proposital para
-  # não travar o primeiro uso - e o dwnvr avisa disso no log. Preencha numa
-  # instalação definitiva: sem definir, quem abre a interface enxerga as
-  # gravações de todas as câmeras.
+  # With both empty, authentication is off. That is on purpose, so the first
+  # run is not blocked, and dwnvr warns about it in the log. Fill them in on a
+  # permanent installation: without them, anyone who opens the UI sees the
+  # recordings of every camera.
   #
-  # É a conta-dona: sempre administradora, e a senha só se troca aqui. As
-  # outras pessoas você cria na aba Usuários da interface, que as grava no
-  # users.json, ao lado deste arquivo.
+  # This is the owner account: always an administrator, and its password can
+  # only be changed here. You create the other people in the "Usuários" tab of
+  # the UI, which saves them to users.json, next to this file.
   # username: admin
   # password: troque-me
 
-  # Limite de tentativas de login por endereço: 5 seguidas e, depois, este
-  # tanto por minuto. 0 desliga; o aceito vai de 0 a 12. Ver
-  # docs/configuration.md, "Limite de tentativas no login".
+  # Login attempt limit per address: 5 in a row and, after that, this many per
+  # minute. 0 turns it off; the accepted range is 0 to 12. See
+  # docs/configuration.md, "Login attempt limit".
   # loginAttemptsPerMinute: 2
 
-  # Os proxies cujo X-Forwarded-For diz o endereço de verdade de quem tenta o
-  # login. O padrão cobre o `tailscale serve` e o Caddy do compose; mude só se
-  # o seu proxy chega ao dwnvr por outra rede. [] não confia em ninguém.
+  # The proxies whose X-Forwarded-For carries the real address of whoever is
+  # trying to log in. The default covers `tailscale serve` and the compose
+  # Caddy; change it only if your proxy reaches dwnvr through another network.
+  # [] trusts nobody.
   # trustedProxies: [127.0.0.0/8, "::1/128", 172.16.0.0/12]
 
-  # Opcional. O endereço pelo qual se abre o dwnvr, como na barra do
-  # navegador. Com ele, o e-mail de alerta traz o botão que abre a gravação no
-  # instante. Sem ele, nada deixa de funcionar: o e-mail sai sem o botão e
-  # pede ao administrador que o defina. Ver docs/configuration.md, "Endereço do
-  # dwnvr".
+  # Optional. The address you open dwnvr at, as in the browser bar. With it,
+  # the alert e-mail carries the button that opens the recording at the right
+  # moment. Without it, nothing stops working: the e-mail goes out without the
+  # button and asks the administrator to set it. See docs/configuration.md,
+  # "The dwnvr address".
   # publicUrl: https://dwnvr.exemplo.ts.net
 
 go2rtc:
-  # O dwnvr apenas consome o go2rtc; configurá-lo continua sendo tarefa sua.
+  # dwnvr only consumes go2rtc; configuring it is still your job.
   #
-  # "go2rtc" é o nome do serviço no docker-compose.yml, e o Docker o resolve
-  # para o container vizinho. Rodando o binário solto, fora do compose, troque
-  # pelo endereço do seu go2rtc, exemplo: http://localhost:1984.
+  # "go2rtc" is the service name in docker-compose.yml, and Docker resolves it
+  # to the neighboring container. Running the bare binary, outside compose,
+  # change it to the address of your go2rtc, for example http://localhost:1984.
   url: http://go2rtc:1984
-  # Preencha se a API do go2rtc estiver protegida. A credencial fica no
-  # servidor: o navegador fala com o dwnvr, que faz o proxy.
+  # Fill in if the go2rtc API is protected. The credential stays on the
+  # server: the browser talks to dwnvr, which proxies.
   # username: admin
   # password: troque-me
 
-# O detector de objetos, opcional: o container dwnvr-detect, que diz se o
-# movimento marcado era pessoa, veículo ou animal. Sem ele, as câmeras com
-# `detect` ligado marcam só movimento.
+# The object detector, optional: the dwnvr-detect container, which tells
+# whether the marked motion was a person, a vehicle or an animal. Without it,
+# cameras with `detect` on mark motion only.
 #
-# Ele custa CPU e RAM de verdade - ~6,5 s de um núcleo e ~210 MB por olhada no
-# Orange Pi Zero 3 -, e só olha as câmeras com `detect` ligado. Ver
+# It costs real CPU and RAM - ~6.5 s of one core and ~210 MB per look on the
+# Orange Pi Zero 3 - and it only looks at cameras with `detect` on. See
 # docs/configuration.md.
 # detector:
 #   url: http://dwnvr-detect:8480
 
-# O servidor de e-mail, opcional: é por ele que o link de definir a senha vai
-# direto para a pessoa, pela tela Usuários. Serve qualquer provedor que fale
-# SMTP; sem esta seção, o dwnvr não envia e-mail nenhum. Uma seção com
-# problema não impede o dwnvr de subir: o e-mail fica desligado, e o motivo vai
-# para o log e para os avisos da tela de Diagnóstico. O teste fica no card
-# "Este servidor" de lá. Ver docs/configuration.md, "E-mail", com o passo a
-# passo do Gmail.
+# The mail server, optional: it is how the set-password link goes straight to
+# the person, from the "Usuários" screen. Any provider that speaks SMTP will
+# do; without this section, dwnvr sends no e-mail at all. A broken section
+# does not stop dwnvr from starting: e-mail stays off, and the reason goes to
+# the log and to the warnings on the "Diagnóstico" screen. The test lives in
+# the "Este servidor" card there. See docs/configuration.md, "E-mail", with
+# the Gmail walkthrough.
 # smtp:
 #   host: smtp.gmail.com
-#   # starttls (o padrão, porta 587), tls (porta 465) ou none (porta 25, sem
-#   # TLS: com login, só para um servidor na própria máquina).
+#   # starttls (the default, port 587), tls (port 465) or none (port 25, no
+#   # TLS: with login, only for a server on the same machine).
 #   security: starttls
 #   # port: 587
-#   # A conta que envia; os dois juntos, ou nenhum se o servidor não pede
-#   # login. No Gmail, a senha é uma senha de app, e não a da conta.
+#   # The account that sends; both together, or neither if the server does not
+#   # ask for login. On Gmail, the password is an app password, not the
+#   # account one.
 #   username: dwnvr.exemplo@gmail.com
 #   password: troque-me
-#   # O remetente. Vazio usa o username.
+#   # The sender. Empty uses the username.
 #   # from: "dwnvr <dwnvr.exemplo@gmail.com>"
 
-# Quem recebe por e-mail o alerta de detecção de toda câmera com alerta ligado
-# (aba Alerta do cadastro da câmera), numa mensagem só para todos. Opcional, e
-# só serve com a seção smtp acima. Só o endereço, sem nome na frente: o que não
-# for endereço fica de fora da lista e vira aviso no Diagnóstico. Um endereço
-# só também serve sem os colchetes (to: fulano@exemplo.com). Ver
-# docs/configuration.md, "Alerta por e-mail".
+# Who receives by e-mail the detection alert of every camera with alerts on
+# ("Alerta" tab of the camera form), in a single message for everyone.
+# Optional, and only useful with the smtp section above. Address only, no name
+# in front: anything that is not an address is left out of the list and becomes
+# a warning in "Diagnóstico". A single address also works without the brackets
+# (to: fulano@exemplo.com). See docs/configuration.md, "E-mail alerts".
 # alerts:
 #   email:
 #     to: [fulano@exemplo.com, ciclana@exemplo.com]
 
 storage:
-  # Onde o dwnvr escreve - o caminho que o processo enxerga. Em container é um
-  # caminho de dentro dele, e quem escolhe o disco do host é o volume do
+  # Where dwnvr writes - the path the process sees. In a container it is a
+  # path inside it, and the host disk is chosen by the volume in
   # docker-compose.yml.
   #
-  # É o único campo que impede o dwnvr de subir quando vazio. Um número fora da
-  # faixa, aqui ou em `defaults`, volta ao padrão e vira aviso no log e na tela
-  # de Diagnóstico, com o que é aceito.
+  # It is the only field that stops dwnvr from starting when empty. A number
+  # out of range, here or in `defaults`, falls back to the default and becomes
+  # a warning in the log and on the "Diagnóstico" screen, with what is
+  # accepted.
   root: /storage
 
-  # Rede de segurança global. Quando o disco livre cai abaixo disto, o dwnvr
-  # evicta as gravações mais antigas de TODAS as câmeras, ignorando as cotas
-  # individuais. Existe porque a soma das cotas erra fácil - cada câmera tem
-  # uma taxa diferente - e encher o disco é pior que perder gravação antiga.
+  # Global safety net. When free disk drops below this, dwnvr evicts the
+  # oldest recordings of ALL cameras, ignoring the individual quotas. It
+  # exists because the sum of the quotas is easy to get wrong - each camera has
+  # a different bitrate - and filling the disk is worse than losing old
+  # recordings.
   minFreeMB: 2048
 
-# Aplicados a qualquer câmera que não defina o campo.
+# Applied to any camera that does not set the field.
 defaults:
-  # Duração alvo do segmento. O corte real acontece no primeiro keyframe depois
-  # deste tempo, então com GOP de 4s um alvo de 30s vira ~30-34s na prática.
+  # Target segment duration. The actual cut happens at the first keyframe after
+  # this time, so with a 4s GOP a 30s target becomes ~30-34s in practice.
   #
-  # Segmento aberto ainda não está no índice: este número é o teto do que se
-  # perde numa queda de energia. Também é o tamanho do arquivo que o player
-  # baixa inteiro a cada seek. Aumentar troca essas duas coisas por menos
-  # arquivos em disco. Aceito: de 10 a 300.
+  # An open segment is not in the index yet: this number is the ceiling of what
+  # is lost in a power outage. It is also the size of the file the player
+  # downloads whole on every seek. Raising it trades those two things for fewer
+  # files on disk. Accepted: 10 to 300.
   segmentSeconds: 30
 
-  # Cota em disco por câmera. Ao estourar, os segmentos mais antigos daquela
-  # câmera são apagados (ring buffer). A tela de cadastro traduz este número
-  # em "≈ N dias" usando a taxa medida de cada câmera. Mínimo: 100.
+  # Per-camera disk quota. When exceeded, that camera's oldest segments are
+  # deleted (ring buffer). The camera form translates this number into
+  # "≈ N dias" using each camera's measured bitrate. Minimum: 100.
   quotaMB: 10240
 
-  # Idade máxima em dias, opcional. 0 = sem limite, quem manda é a cota.
+  # Maximum age in days, optional. 0 = no limit, the quota rules.
   maxDays: 0
 
-  # none  descarta o áudio na origem, custo zero
-  # flac  go2rtc converte pcm_alaw→FLAC em Go puro, sem disparar ffmpeg (~1-2% de core)
-  # aac   exige uma fonte "ffmpeg:cam#audio=aac" no go2rtc.yaml (~10% de core)
+  # none  drops the audio at the source, zero cost
+  # flac  go2rtc converts pcm_alaw→FLAC in pure Go, no ffmpeg spawned (~1-2% of a core)
+  # aac   requires an "ffmpeg:cam#audio=aac" source in go2rtc.yaml (~10% of a core)
   audio: none
 
-  # Segundos sem receber um único byte antes de considerar o stream morto,
-  # derrubar a conexão e reconectar.
+  # Seconds without receiving a single byte before the stream is considered
+  # dead, the connection is dropped and it reconnects.
   #
-  # Não é firula: quando um produtor RTSP do go2rtc morre, ele para de escrever
-  # SEM fechar a resposta HTTP. Sem este limiar a câmera para de gravar em
-  # silêncio, sem erro e sem log, até alguém reparar. Fechar a conexão também é
-  # o que recupera - o go2rtc derruba o produtor morto quando o último
-  # consumidor sai e abre uma sessão RTSP nova na reconexão.
+  # This is not fussiness: when a go2rtc RTSP producer dies, it stops writing
+  # WITHOUT closing the HTTP response. Without this threshold the camera
+  # silently stops recording, with no error and no log, until someone notices.
+  # Closing the connection is also what recovers it - go2rtc drops the dead
+  # producer when the last consumer leaves and opens a new RTSP session on
+  # reconnect.
   #
-  # Aumente num enlace ruim; aceito de 1 a 3600. Zero não desliga a proteção:
-  # volta ao padrão.
+  # Raise it on a bad link; accepted 1 to 3600. Zero does not turn the
+  # protection off: it falls back to the default.
   stallSeconds: 15
 
-  # --- marcação de movimento na timeline ---
+  # --- motion marking on the timeline ---
   #
-  # Liga o gatilho que acha os instantes em que a imagem mudou o bastante para
-  # valer uma olhada. Ele é BARATO: o sinal é o tamanho de cada quadro, que o
-  # gravador já tem na mão, e nenhum pixel é decodificado.
+  # Turns on the trigger that finds the moments when the image changed enough
+  # to be worth a look. It is CHEAP: the signal is the size of each frame,
+  # which the recorder already has at hand, and no pixel is decoded.
   #
-  # Com ele ligado a timeline ganha a faixa de calor, que mostra QUANDO houve
-  # movimento. Dizer O QUE era - pessoa, veículo, animal - é do detector de
-  # objetos, a seção `detector` lá em cima, e ele é opcional. Vem desligado:
-  # quem não pediu não paga.
+  # With it on, the timeline gets the heat strip, which shows WHEN there was
+  # motion. Saying WHAT it was - person, vehicle, animal - is the job of the
+  # object detector, the `detector` section above, and it is optional. It
+  # comes off: whoever did not ask for it does not pay.
   detect: false
 
-  # kleinberg-p  estatístico: dispara quando o quadro destoa do normal DAQUELA
-  #              câmera. Foi medido contra 23 concorrentes em gravações reais
-  #              e ganhou de todos - pega 2 a 3 vezes mais que o periódico
-  #              pelo mesmo custo.
-  # periodic     dispara em intervalo fixo, ignorando a imagem. Custo idêntico
-  #              e perfeitamente previsível; pega bem menos.
+  # kleinberg-p  statistical: fires when the frame deviates from THAT camera's
+  #              normal. Measured against 23 competitors on real recordings
+  #              and beat them all - catches 2 to 3 times more than periodic
+  #              at the same cost.
+  # periodic     fires at a fixed interval, ignoring the image. Same cost and
+  #              perfectly predictable; catches far less.
   detectMethod: kleinberg-p
 
-  # De 1 a 5, e o que ele controla é o CUSTO - quantas vezes por hora, POR
-  # CÂMERA, o dwnvr para para olhar. Multiplique pelo número de câmeras.
+  # From 1 to 5, and what it controls is the COST - how many times per hour,
+  # PER CAMERA, dwnvr stops to look. Multiply by the number of cameras.
   #
-  #   1 muito baixa    6 marcas/hora   pega  2,8% do que passa
-  #   2 baixa         12 marcas/hora   pega  9,2%
-  #   3 média         25 marcas/hora   pega 22,3%
-  #   4 alta          50 marcas/hora   pega 41,5%
-  #   5 muito alta   100 marcas/hora   pega 57,4%   <- padrão
+  #   1 very low     6 marks/hour   catches  2.8% of what passes
+  #   2 low         12 marks/hour   catches  9.2%
+  #   3 medium      25 marks/hour   catches 22.3%
+  #   4 high        50 marks/hour   catches 41.5%
+  #   5 very high  100 marks/hour   catches 57.4%   <- default
   #
-  # As duas colunas são medidas, não estimadas: ver docs/configuration.md.
+  # Both columns are measured, not estimated: see docs/configuration.md.
   detectSensitivity: 5

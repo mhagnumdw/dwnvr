@@ -1,153 +1,161 @@
-# Configuração do go2rtc - a fonte dos streams que o dwnvr grava.
+# go2rtc configuration - the source of the streams dwnvr records.
 #
-# Este arquivo é SEU. O dwnvr nunca o escreve: ele só lê a lista de streams
-# pela API do go2rtc e grava o que você tiver publicado aqui.
+# This file is YOURS. dwnvr never writes it: it only reads the stream list
+# through the go2rtc API and records what you have published here.
 #
-# Copie para config/go2rtc/go2rtc.yaml: o docker-compose.yml monta a pasta
-# config/go2rtc/ em /config, e o go2rtc lê /config/go2rtc.yaml. O go2rtc.yaml é ignorado pelo
-# git, e é por isso que as URLs RTSP com usuário e senha não têm como ir parar
-# num commit.
+# Copy it to config/go2rtc/go2rtc.yaml: docker-compose.yml mounts the
+# config/go2rtc/ folder at /config, and go2rtc reads /config/go2rtc.yaml.
+# go2rtc.yaml is ignored by git, which is why RTSP URLs with user and password
+# cannot end up in a commit.
 
 streams:
-  # O nome de cada stream aqui é o ID da câmera no dwnvr: tudo que estiver
-  # publicado nesta seção aparece sozinho na tela de Câmeras, pronto para
-  # cadastrar. O dwnvr não guarda URL nem senha de câmera - só este nome.
+  # The name of each stream here is the camera ID in dwnvr: everything
+  # published in this section shows up by itself on the "Câmeras" screen, ready
+  # to be registered. dwnvr stores no camera URL or password - only this name.
 
-  # Fontes sintéticas, para experimentar o dwnvr sem ter câmera nenhuma.
-  # O ffmpeg desenha o quadro e o go2rtc o entrega como H264 - do ponto de vista
-  # do dwnvr elas são indistinguíveis de câmeras de verdade.
-  # Verificado: todas em 640x360, 15 fps, keyframe a cada 3,3s (o go2rtc fixa o
-  # GOP em 50 quadros e não dá para mudar por stream).
-  # O ffmpeg já vem na imagem alexxit/go2rtc; não é preciso instalar nada.
+  # Synthetic sources, to try dwnvr without any camera.
+  # ffmpeg draws the frame and go2rtc delivers it as H264 - from dwnvr's point
+  # of view they are indistinguishable from real cameras.
+  # Verified: all at 640x360, 15 fps, keyframe every 3.3s (go2rtc fixes the
+  # GOP at 50 frames and it cannot be changed per stream).
+  # ffmpeg already ships in the alexxit/go2rtc image; nothing to install.
   #
-  # São cinco porque cada desenho custa uma taxa diferente - a de cada uma foi
-  # medida gravando 20s do stream -, e é essa diferença que deixa a
-  # tela de Câmeras parecida com uma instalação de verdade: a cota some rápido
-  # numa e demora na outra.
+  # There are five because each pattern costs a different bitrate - each one's
+  # was measured by recording 20s of the stream - and that difference is what
+  # makes the "Câmeras" screen look like a real installation: the quota
+  # disappears fast on one and lasts on another.
   #
-  # Numa instalação de verdade elas não servem para nada: apague estas linhas e
-  # ponha as suas câmeras no lugar.
+  # On a real installation they are useless: delete these lines and put your
+  # cameras in their place.
 
-  # Carta de teste clássica, com um contador de segundos no meio. ~100 kbps.
+  # Classic test card, with a seconds counter in the middle. ~100 kbps.
   cam_teste1: ffmpeg:virtual?video=testsrc&size=640x360&rate=15#video=h264
 
-  # Barras coloridas com formas se movendo e ruído por cima: é o teto da
-  # taxa, e a que mais come CPU para codificar. ~870 kbps.
+  # Colored bars with moving shapes and noise on top: it is the bitrate
+  # ceiling, and the one that eats the most CPU to encode. ~870 kbps.
   cam_teste2: ffmpeg:virtual?video=testsrc2&size=640x360&rate=15#video=h264
 
-  # Barras SMPTE, cena praticamente parada: é o piso da taxa. ~16 kbps.
+  # SMPTE bars, a practically still scene: it is the bitrate floor. ~16 kbps.
   cam_teste3: ffmpeg:virtual?video=smptehdbars&size=640x360&rate=15#video=h264
 
-  # Fractal de Sierpinski, preto e branco, redesenhado quadro a quadro. ~550 kbps.
+  # Sierpinski fractal, black and white, redrawn frame by frame. ~550 kbps.
   cam_teste4: ffmpeg:virtual?video=sierpinski&size=640x360&rate=15#video=h264
 
-  # A única com áudio: carta de sincronismo A/V - um risco que anda na régua e um
-  # bipe junto, dá para ver na hora se som e imagem estão casados. O som sai em
-  # pcm_alaw 16 kHz mono, o mesmo formato das câmeras baratas, então ela exercita
-  # os modos "flac" e "aac" do dwnvr sem precisar de câmera com microfone.
-  # ~67 kbps de vídeo + 128 kbps de áudio - aqui o som custa o dobro da imagem.
+  # The only one with audio: A/V sync test card - a bar that moves along the
+  # ruler and a beep with it, so you can see right away whether sound and image
+  # are matched. The sound comes out as pcm_alaw 16 kHz mono, the same format as
+  # cheap cameras, so it exercises dwnvr's "flac" and "aac" modes without
+  # needing a camera with a microphone.
+  # ~67 kbps of video + 128 kbps of audio - here the sound costs twice the image.
   #
-  # Para escolher o áudio dela na tela de cadastro: cadastre primeiro com áudio
-  # "nenhum" e reabra o formulário. O dwnvr só enxerga a trilha de áudio com a
-  # câmera já gravando, e antes disso deixa "flac" e "aac" desabilitados.
+  # To pick its audio in the camera form: register it first with audio
+  # "nenhum" and reopen the form. dwnvr only sees the audio track once the
+  # camera is already recording, and before that it leaves "flac" and "aac"
+  # disabled.
   #
-  # É a única que não usa o atalho "ffmpeg:virtual?...": ele só monta filtro de
-  # uma saída só, e este tem duas (vídeo e áudio). Daí o comando inteiro na mão -
-  # as opções de codec são as mesmas que o go2rtc usaria.
+  # It is the only one that does not use the "ffmpeg:virtual?..." shortcut: it
+  # only builds a single-output filter, and this one has two (video and audio).
+  # Hence the whole command by hand - the codec options are the same ones
+  # go2rtc would use.
   cam_teste5: exec:ffmpeg -hide_banner -re -f lavfi -i avsynctest=size=640x360:framerate=15[out0][out1] -c:v libx264 -g 50 -profile:v high -level:v 4.1 -preset:v superfast -tune:v zerolatency -pix_fmt:v yuv420p -c:a pcm_alaw -ar:a 16000 -ac:a 1 -rtsp_transport tcp -f rtsp {output}
 
-  # Streams RTSP públicos na internet, com imagem de verdade: carro, moto e
-  # gente passando - o que as sintéticas nunca mostram. São eles que dão ao
-  # detector de objetos alguma coisa para achar. Não são ao vivo: cada um repete
-  # um vídeo gravado, em loop.
-  # Verificado: todos H264 em 1280x720, sem áudio, keyframe a cada 2s.
+  # Public RTSP streams on the internet, with real imagery: cars, motorcycles
+  # and people passing by - which the synthetic ones never show. They are what
+  # gives the object detector something to find. They are not live: each one
+  # repeats a recorded video, in a loop.
+  # Verified: all H264 at 1280x720, no audio, keyframe every 2s.
   #
-  # Dependem de internet e de um servidor de terceiros (samples.rts.videodb.io),
-  # que pode sair do ar ou mudar sem aviso. Se um deles parar, as sintéticas
-  # acima continuam gravando. Numa instalação de verdade, apague estas linhas
-  # também.
+  # They depend on the internet and on a third-party server
+  # (samples.rts.videodb.io), which may go offline or change without notice. If
+  # one stops, the synthetic ones above keep recording. On a real installation,
+  # delete these lines too.
 
-  # Avenida movimentada à noite, em timelapse. 25 fps, ~1,8 Mbps.
+  # Busy avenue at night, in timelapse. 25 fps, ~1.8 Mbps.
   traffic: rtsp://samples.rts.videodb.io:8554/traffic
 
-  # Câmera no guidão de uma moto, na rua, com pedestres, carros e riquixás.
-  # 20 fps, ~1,7 Mbps.
+  # Camera on a motorcycle handlebar, on the street, with pedestrians, cars and
+  # rickshaws. 20 fps, ~1.7 Mbps.
   roadcam: rtsp://samples.rts.videodb.io:8554/roadcam
 
-  # Câmera de segurança numa praça de pedágio, tirada de um telejornal: entre
-  # uma volta e outra do loop aparece o aviso de conteúdo sensível da emissora.
-  # 20 fps, ~1,3 Mbps.
+  # Security camera at a toll plaza, taken from a newscast: between one pass
+  # of the loop and the next, the broadcaster's sensitive-content notice
+  # appears. 20 fps, ~1.3 Mbps.
   accident: rtsp://samples.rts.videodb.io:8554/accident
 
   # ---------------------------------------------------------------------------
-  # ALGUNS EXEMPLOS DE CONFIGURAÇÃO, para as suas câmeras. Estão todos
-  # comentados: descomente o que servir, troque IP, usuário, senha e caminho -
-  # e reinicie só o go2rtc: `docker compose restart go2rtc`. A câmera nova
-  # aparece sozinha na tela de Câmeras do dwnvr, sem reiniciá-lo.
+  # SOME CONFIGURATION EXAMPLES, for your cameras. They are all commented out:
+  # uncomment what fits, change the IP, user, password and path - and restart
+  # only go2rtc: `docker compose restart go2rtc`. The new camera shows up by
+  # itself on dwnvr's "Câmeras" screen, without restarting it.
   # ---------------------------------------------------------------------------
 
-  # Exemplo 1. Câmera comum, alta e baixa resolução. Duas linhas porque quase
-  #    toda câmera publica dois streams, e é isso que permite escolher a
-  #    resolução POR CÂMERA na tela de cadastro do dwnvr: alta para gravar o
-  #    portão, baixa para o corredor - o que muda direto a conta de disco.
+  # Example 1. Regular camera, high and low resolution. Two lines because
+  #    almost every camera publishes two streams, and that is what lets you
+  #    choose the resolution PER CAMERA in dwnvr's camera form: high to record
+  #    the gate, low for the hallway - which directly changes the disk math.
   #
   # cam_iota:       rtsp://usuario:senha@192.168.0.50:554/onvif1
   # cam_iota_baixa: rtsp://usuario:senha@192.168.0.50:554/onvif2
 
-  # Exemplo 2. O caminho depois do IP muda de fabricante para fabricante, e às
-  #    vezes de firmware para firmware. Descubra o seu no manual da câmera, na
-  #    interface dela, por ONVIF, ou pelas listas de URLs RTSP que circulam por
-  #    modelo. A forma geral é sempre esta:
+  # Example 2. The path after the IP changes from manufacturer to manufacturer,
+  #    and sometimes from firmware to firmware. Find yours in the camera
+  #    manual, in its interface, through ONVIF, or in the RTSP URL lists that
+  #    circulate per model. The general form is always this:
   #
-  # cam_delta: rtsp://usuario:senha@IP:554/CAMINHO
+  # cam_delta: rtsp://usuario:senha@IP:554/PATH
   #
-  #    Se a senha tiver @, : ou /, escape-a em percent-encoding (@ vira %40).
+  #    If the password has @, : or /, escape it with percent-encoding (@
+  #    becomes %40).
 
-  # Exemplo 3. Áudio em AAC. O modo "aac" do dwnvr não converte nada sozinho:
-  #    ele espera que exista uma segunda fonte, aqui, com o áudio já
-  #    convertido. A lista faz o go2rtc juntar as duas no mesmo stream.
+  # Example 3. AAC audio. dwnvr's "aac" mode does not convert anything by
+  #    itself: it expects a second source to exist, here, with the audio
+  #    already converted. The list makes go2rtc join the two in the same
+  #    stream.
   #
   # cam_sala:
   #   - rtsp://usuario:senha@192.168.0.51:554/onvif1
   #   - ffmpeg:cam_sala#audio=aac
   #
-  #    Já o modo "flac" não pede nada aqui - a conversão acontece dentro do
-  #    go2rtc, em Go puro. O custo de cada modo em CPU e disco está em
-  #    docs/configuration.md.
+  #    The "flac" mode, on the other hand, asks for nothing here - the
+  #    conversion happens inside go2rtc, in pure Go. The CPU and disk cost of
+  #    each mode is in docs/configuration.md.
 
-  # ATENÇÃO ao áudio: NÃO acrescente "#media=video" à fonte se quiser gravar
-  # som. Esse filtro descarta o áudio já na origem, e nenhuma configuração do
-  # dwnvr o traz de volta. Ver docs/configuration.md.
+  # WARNING about audio: do NOT append "#media=video" to the source if you want
+  # to record sound. That filter drops the audio at the source, and no dwnvr
+  # setting brings it back. See docs/configuration.md.
 
-  # Tudo que dá para escrever nesta seção - ONVIF, HTTP, USB, backchannel,
-  # opções de transporte - está documentado no go2rtc, que é quem manda aqui:
+  # Everything that can be written in this section - ONVIF, HTTP, USB,
+  # backchannel, transport options - is documented in go2rtc, which is the one
+  # in charge here:
   # https://github.com/AlexxIT/go2rtc#module-streams
   # https://github.com/AlexxIT/go2rtc/wiki
 
-# As três portas abaixo são as mesmas publicadas pelo serviço go2rtc no
-# docker-compose.yml. Mudar uma aqui sem mudar lá derruba o que depende dela.
+# The three ports below are the same ones published by the go2rtc service in
+# docker-compose.yml. Changing one here without changing it there breaks what
+# depends on it.
 
 api:
-  # De onde o dwnvr lê a lista de streams e por onde ele consome o fMP4.
+  # Where dwnvr reads the stream list from and where it consumes the fMP4.
   listen: ":1984"
-  # O compose a publica só para o próprio servidor. Se você a abrir para a
-  # rede, para usar a interface web do go2rtc de outra máquina, ponha senha
-  # aqui e a mesma em go2rtc.username e go2rtc.password do dwnvr.yaml, senão
-  # o dwnvr deixa de alcançar o go2rtc. Ver "Abrir o go2rtc para a rede" no
-  # README.
+  # The compose publishes it only to the server itself. If you open it to the
+  # network, to use go2rtc's web interface from another machine, set a password
+  # here and the same one in go2rtc.username and go2rtc.password of
+  # dwnvr.yaml, or dwnvr stops reaching go2rtc. See "Abrir o go2rtc para a
+  # rede" in the README.
   # username: admin
   # password: troque-me
 
 rtsp:
-  # Servidor RTSP do go2rtc. O dwnvr não usa; fica para outros clientes, como
-  # o VLC. Também publicado só para o próprio servidor; se você o abrir para a
-  # rede, ponha senha. Os exec:ffmpeg acima publicam aqui de dentro do
-  # container e não precisam dela.
+  # go2rtc's RTSP server. dwnvr does not use it; it is there for other clients,
+  # such as VLC. Also published only to the server itself; if you open it to
+  # the network, set a password. The exec:ffmpeg sources above publish here
+  # from inside the container and do not need it.
   listen: ":8554"
   # username: admin
   # password: troque-me
 
 webrtc:
-  # No "Ao vivo" só a sinalização passa pelo dwnvr - a mídia WebRTC vai direto
-  # do navegador para cá, e é por isso que esta porta precisa estar publicada.
+  # In "Ao vivo" only the signaling goes through dwnvr - the WebRTC media goes
+  # straight from the browser to here, which is why this port must be
+  # published.
   listen: ":8555"

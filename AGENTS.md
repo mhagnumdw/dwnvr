@@ -112,7 +112,7 @@ reactive, responsive UI that works well on mobile and desktop (browser).
 - Breaking change (someone who only updates, with `git pull` and
   `docker compose up`, loses something that worked or has to act): `!` in the
   type (`fix(compose)!:`) and the `BREAKING CHANGE:` footer, which becomes the
-  "Pede ação ao atualizar" section of the release notes (`cliff.toml`).
+  "Action required on upgrade" section of the release notes (`cliff.toml`).
   - The footer says what to do (the subject already says what changed),
     written for the end user, in a single paragraph. It goes at the end of the
     message, after part 2, in its own paragraph, separated from
