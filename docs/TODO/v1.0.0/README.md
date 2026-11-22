@@ -4,11 +4,9 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (22/11/2026):** a Etapa 2 (conversão para en-US) está no passo 7, a
-documentação, os exemplos, os workflows e o resto, na branch `en-us-docs`. Os
-contratos (passo 6) fecharam com a parte 5 (PR 96): o Go, a interface, o
-`dwnvr-detect`, a API, o `dwnvr.yaml`, a env, os arquivos das pessoas, os
-eventos e os valores das enumerações já estão em en-US na `main`.
+**Agora (22/11/2026):** a Etapa 2 (conversão para en-US) está no passo 7, na
+branch `en-us-docs`: os `docs/`, os exemplos, o build e os workflows já estão em
+en-US; falta o `README.md` em en-US e o `README.pt-BR.md`, e depois o PR.
 O guia de atualização nasce junto, em
 [docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
@@ -59,7 +57,7 @@ próxima, em andamento ou concluída, com a data.
       - [x] A seção 5 aplicada na instalação de teste e o deploy da branch lá
       - [x] O PR mergeado por squash: PR #96, em 20/11/2026
   - [x] Os `docs/TODO/` abertos revistos com o mantenedor, em 22/11/2026: quatro apagados (já feitos ou desistidos); os outros ficam em pt-BR, sem tradução na conversão. O mantenedor os traduz depois, sem pressa, e TODO novo já nasce em en-US
-  - [ ] A documentação, os exemplos, os workflows e o resto
+  - [x] A documentação, os exemplos, os workflows e o resto, na branch `en-us-docs`, em 22/11/2026: os `docs/` com nomes e texto em en-US, os exemplos, o build, os workflows (`images.yml`, `coverage.yml`) e as notas de release ("Action required on upgrade")
   - [ ] O `README.md` em en-US e o `README.pt-BR.md`
   - [ ] A varredura final e o `.git-blame-ignore-revs`
 - [ ] **Etapa 3 - temas**: não começou ([temas.md](temas.md))
