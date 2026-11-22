@@ -107,8 +107,7 @@ depois disso, e a release só sai no fim da etapa, com o guia inteiro.
    de versão, para a versão seguinte reconhecer um formato antigo em vez de
    lê-lo errado.
 7. **A documentação, os exemplos, os workflows e o resto**: os `docs/`, os
-   `fase*-resultados.md`, os `docs/TODO/` que o mantenedor mantiver
-   (decisão 5), os exemplos de yaml, o compose, o `Makefile`, o `cliff.toml`. E
+   `fase*-resultados.md`, os exemplos de yaml, o compose, o `Makefile`, o `cliff.toml`. E
    o README: o de hoje vira o `README.pt-BR.md`, e o `README.md` se reescreve
    em en-US. Vem depois dos contratos para cada doc ser traduzido uma vez só, já
    com os nomes finais.
@@ -118,7 +117,8 @@ depois disso, e a release só sai no fim da etapa, com o guia inteiro.
    Prettier, para o `git blame` continuar apontando a mudança de verdade.
    Dois restos já conhecidos, que o passo 4 deixou na interface e não são
    contrato: `session.pessoa` e a chave `nome` (da família, da regra da área e
-   do ícone na timeline).
+   do ícone na timeline). E um do passo 3: o log `dwnvr no ar`, em
+   `cmd/dwnvr/main.go`, que os dois READMEs citam como sinal de que subiu.
 
 ## Riscos
 
@@ -146,6 +146,10 @@ Tomadas pelo mantenedor em 10/11/2026:
 5. **Os `docs/TODO/` em aberto passam antes pelo mantenedor**, e só os que
    seguem valendo se traduzem. O da tela global, por exemplo, está desatualizado
    (ver [configuracao-global.md](configuracao-global.md)).
+   **Revisto em 22/11/2026:** a revisão apagou quatro, e nenhum `docs/TODO/`
+   se traduz na conversão. Os que ficaram seguem em pt-BR, e o mantenedor os
+   traduz depois, sem pressa; TODO novo já nasce em en-US. A pasta `v1.0.0/`
+   (este plano) também fica em pt-BR e sai do repositório com a 1.0.0.
 6. **Os `docs/fase*-resultados.md` se traduzem.**
 7. **Sem compatibilidade com a versão anterior**: nem nome antigo aceito, nem
    alias na API. Quem atualiza segue o guia (ver

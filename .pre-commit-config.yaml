@@ -1,53 +1,53 @@
-# Hooks do prek (https://prek.j178.dev), que lê o formato do pre-commit. Rodam
-# a cada commit, nos arquivos do commit, e corrigem o que dá para corrigir.
-# Quando um hook corrige algo, o commit é interrompido: confira, dê `git add` e
-# commite de novo.
+# prek hooks (https://prek.j178.dev), which reads the pre-commit format. They
+# run on every commit, on the commit's files, and fix what can be fixed. When a
+# hook fixes something, the commit is interrupted: check it, `git add` and
+# commit again.
 #
-# Uma vez por máquina: `uv tool install prek`. Uma vez por clone:
-# `prek install`. Rodar em tudo, como a CI: `prek run --all-files`
+# Once per machine: `uv tool install prek`. Once per clone: `prek install`.
+# Run on everything, like CI: `prek run --all-files`
 #
-# A CI roda este mesmo arquivo (.github/workflows/lint.yml) e não corrige
-# nada: se um hook mudaria algum arquivo, o job falha e mostra o diff.
+# CI runs this same file (.github/workflows/lint.yml) and fixes nothing: if a
+# hook would change any file, the job fails and shows the diff.
 #
-# O arquivo é só do prek: o pre-commit recusa o `default_language_version` em
-# forma de mapa, e não conhece o `priority`, o `priorities` e o
-# `minimum_prek_version`.
+# The file is prek-only: pre-commit rejects `default_language_version` in map
+# form, and does not know `priority`, `priorities` or `minimum_prek_version`.
 
 default_install_hook_types: [pre-commit]
 default_stages: [pre-commit]
 
-# A versão que a CI instala. Um prek mais velho que ela se recusa a rodar.
+# The version CI installs. A prek older than it refuses to run.
 minimum_prek_version: '0.5.3'
 
-# O Go dos hooks em Go (golangci-lint e betterleaks), que o prek baixa e guarda
-# no cache dele, e não o Go do PATH. Com o asdf, o do PATH é um shim que, na
-# pasta do hook, cai no Go global, e cada chamada ao `go` fica mais lenta. É o
-# Go do go.mod: compilado com um mais velho, o golangci-lint se recusa a rodar.
-# Mudou aqui, o prek monta o ambiente de novo sozinho.
+# The Go for the Go hooks (golangci-lint and betterleaks), which prek downloads
+# and keeps in its own cache, not the Go on PATH. With asdf, the one on PATH is
+# a shim that, in the hook's folder, falls back to the global Go, and every
+# call to `go` gets slower. It is the go.mod Go: built with an older one,
+# golangci-lint refuses to run. Change it here and prek rebuilds the
+# environment by itself.
 default_language_version:
   golang:
     request: '1.27.1'
     preference: only-managed
 
-# A ordem dos hooks. Os de mesmo `priority` rodam juntos, e o valor seguinte
-# só começa quando o anterior termina. Primeiro os fixers de texto, de 0 a 3,
-# um por vez, porque mexem nos mesmos arquivos. Depois os formatadores, juntos,
-# cada um no seu tipo de arquivo. Depois o que lê o que eles acabaram de
-# escrever. Por fim, juntos, todos os que só conferem. Todo hook tem o seu, e
-# hook novo entra numa dessas ondas.
+# The hook order. Hooks with the same `priority` run together, and the next
+# value only starts when the previous one finishes. First the text fixers, 0 to
+# 3, one at a time, because they touch the same files. Then the formatters,
+# together, each on its own file type. Then whatever reads what they just
+# wrote. Last, together, all the ones that only check. Every hook has its own,
+# and a new hook goes into one of these waves.
 priorities:
   formatar: 10
   formatar-depois: 11
   conferir: 20
 
-# O que é gerado, e por isso nunca editado à mão, fica fora de todo hook. O
-# internal/api/dist/ sai do `npm run build`, e o ci.yml e o hook
-# interface-atualizada, abaixo, o comparam com um build novo; o CHANGELOG.md é
-# escrito pela release. Um hook que os "consertasse" quebraria as duas coisas.
+# What is generated, and therefore never edited by hand, stays out of every
+# hook. internal/api/dist/ comes from `npm run build`, and ci.yml and the
+# interface-atualizada hook, below, compare it with a fresh build; CHANGELOG.md
+# is written by the release. A hook that "fixed" them would break both.
 exclude: ^(internal/api/dist/|CHANGELOG\.md$)
 
 repos:
-  # Higiene de qualquer arquivo texto. Binário fica de fora sozinho.
+  # Hygiene for any text file. Binaries are left out on their own.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -68,16 +68,16 @@ repos:
         priority: conferir
       - id: check-json
         priority: conferir
-        # JSONC: o VS Code e o TypeScript aceitam comentário
+        # JSONC: VS Code and TypeScript accept comments
         exclude: ^(\.vscode/|web/tsconfig[^/]*\.json$)
       - id: check-toml
         priority: conferir
-      # Arquivo acima de 500 KB interrompe o commit: modelo, vídeo ou quadro
-      # de câmera entrando sem querer. Quando for de propósito:
-      # SKIP=check-added-large-files git commit ... e o arquivo entra no
-      # exclude. O --enforce-all confere todo arquivo que o hook recebe, e não
-      # só o novo no staged: sem ele, na CI, que não tem staged, o hook não
-      # confere nada.
+      # A file above 500 KB interrupts the commit: a model, video or camera
+      # frame sneaking in by accident. When it is on purpose:
+      # SKIP=check-added-large-files git commit ... and the file goes into the
+      # exclude. --enforce-all checks every file the hook receives, not only
+      # the new one in staged: without it, in CI, which has no staged, the hook
+      # checks nothing.
       - id: check-added-large-files
         priority: conferir
         args: [--enforce-all]
@@ -85,9 +85,9 @@ repos:
       - id: detect-private-key
         priority: conferir
 
-  # Markdown. As regras estão no .markdownlint-cli2.yaml. O --no-globs faz o
-  # hook olhar só os arquivos do commit, e não o `globs` da config, que é o
-  # repositório inteiro.
+  # Markdown. The rules are in .markdownlint-cli2.yaml. --no-globs makes the
+  # hook look only at the commit's files, not the config's `globs`, which is
+  # the whole repository.
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.24.1
     hooks:
@@ -95,11 +95,11 @@ repos:
         priority: formatar
         args: [--no-globs, --fix]
 
-  # Link e âncora do Markdown, sem rede. As regras estão no lychee.toml. Roda
-  # pela imagem oficial, então precisa de Docker. O hook `lychee` evitaria o
-  # Docker, mas instala o binário rodando no bash um script baixado do branch
-  # main de outro repositório, que pode mudar a qualquer hora. O `entry` fixa
-  # a tag da imagem, que o hook traz atrasada.
+  # Markdown links and anchors, without network. The rules are in lychee.toml.
+  # It runs from the official image, so it needs Docker. The `lychee` hook
+  # would avoid Docker, but it installs the binary by running in bash a script
+  # downloaded from another repository's main branch, which may change at any
+  # time. The `entry` pins the image tag, which the hook brings out of date.
   - repo: https://github.com/lycheeverse/lychee
     rev: lychee-v0.24.2
     hooks:
@@ -108,8 +108,8 @@ repos:
         entry: docker.io/lycheeverse/lychee:0.24.2-alpine
         types: [markdown]
 
-  # YAML: workflows, compose e configs. As regras estão no .yamllint.yaml, e o
-  # --strict faz aviso também interromper o commit.
+  # YAML: workflows, compose and configs. The rules are in .yamllint.yaml, and
+  # --strict makes a warning interrupt the commit too.
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.38.0
     hooks:
@@ -117,9 +117,9 @@ repos:
         priority: conferir
         args: [--strict]
 
-  # Dockerfiles, com o shellcheck nos RUN. Roda pela imagem oficial, então
-  # precisa de Docker. O `entry` repete o do hook para fixar a tag: o original
-  # usa a imagem sem tag, que muda sozinha.
+  # Dockerfiles, with shellcheck on the RUNs. It runs from the official image,
+  # so it needs Docker. The `entry` repeats the hook's to pin the tag: the
+  # original uses the untagged image, which changes by itself.
   - repo: https://github.com/hadolint/hadolint
     rev: v2.15.1
     hooks:
@@ -127,33 +127,36 @@ repos:
         priority: conferir
         entry: ghcr.io/hadolint/hadolint:v2.15.1 hadolint
 
-  # Workflows do GitHub Actions: sintaxe, expressões e o shellcheck nos `run:`.
-  # Roda pela imagem oficial, que já traz o shellcheck e vem com a tag fixada.
+  # GitHub Actions workflows: syntax, expressions and shellcheck on the `run:`
+  # steps. It runs from the official image, which already ships shellcheck and
+  # comes with the tag pinned.
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
     hooks:
       - id: actionlint-docker
         priority: conferir
 
-  # Segurança dos workflows: action sem SHA, permissão ampla, credencial
-  # exposta. As regras estão no .github/zizmor.yml. No clone roda offline; a
-  # CI lhe passa um token, que liga os audits que consultam o GitHub.
+  # Workflow security: action without a SHA, broad permission, exposed
+  # credential. The rules are in .github/zizmor.yml. In the clone it runs
+  # offline; CI hands it a token, which turns on the audits that query GitHub.
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
     rev: v1.32.0
     hooks:
       - id: zizmor
         priority: conferir
 
-  # Segredo no commit: token, chave e senha de câmera na URL rtsp://. As
-  # regras estão no .betterleaks.toml. O binário é compilado com o Go do
-  # default_language_version, acima.
+  # Secrets in the commit: tokens, keys and camera passwords in the rtsp://
+  # URL. The rules are in .betterleaks.toml. The binary is built with the Go
+  # from default_language_version, above.
   #
-  # O primeiro olha só o staged, e a CI o pula (o SKIP do lint.yml). O
-  # segundo, só na CI, olha o histórico inteiro: pega o que entrou sem passar
-  # pelo hook (editor do GitHub, clone sem `prek install`). À mão:
+  # The first looks only at staged, and CI skips it (the SKIP in lint.yml). The
+  # second, CI only, looks at the whole history: it catches what got in without
+  # going through the hook (GitHub editor, a clone without `prek install`). By
+  # hand:
   # prek run betterleaks-historico --stage manual --all-files
-  # O --config é obrigatório desde a 1.10: sem ele, o betterleaks ignora o
-  # .betterleaks.toml e acusa as senhas de exemplo que o filter de lá libera.
+  # --config is mandatory since 1.10: without it, betterleaks ignores
+  # .betterleaks.toml and flags the example passwords that the filter there
+  # allows.
   - repo: https://github.com/betterleaks/betterleaks
     rev: v1.10.1
     hooks:
@@ -163,15 +166,16 @@ repos:
       - id: betterleaks
         priority: conferir
         alias: betterleaks-historico
-        name: betterleaks no histórico
+        name: betterleaks on the history
         entry: betterleaks git --redact --verbose
         args: [--config, .betterleaks.toml]
         stages: [manual]
 
-  # Go: bug (errcheck, govet, staticcheck, unused...) e formatação (gofmt e
-  # goimports). As regras estão no .golangci.yml. O -full olha o módulo
-  # inteiro: o hook comum só olha o que mudou desde o HEAD, e na CI não acharia
-  # nada. Ele é compilado com o Go do default_language_version, acima.
+  # Go: bugs (errcheck, govet, staticcheck, unused...) and formatting (gofmt
+  # and goimports). The rules are in .golangci.yml. -full looks at the whole
+  # module: the plain hook only looks at what changed since HEAD, and in CI it
+  # would find nothing. It is built with the Go from default_language_version,
+  # above.
   - repo: https://github.com/golangci/golangci-lint
     rev: v2.15.0
     hooks:
@@ -182,8 +186,8 @@ repos:
       - id: golangci-lint-config-verify
         priority: conferir
 
-  # go.mod e go.sum de acordo com os imports: dependência que falta entra, a
-  # que sobra sai.
+  # go.mod and go.sum in line with the imports: a missing dependency gets in,
+  # a leftover one goes out.
   - repo: local
     hooks:
       - id: go-mod-tidy
@@ -194,13 +198,14 @@ repos:
         files: (\.go|^go\.mod|^go\.sum)$
         pass_filenames: false
 
-  # TypeScript e Svelte: os tipos e os warnings do compilador (acessibilidade,
-  # CSS sem uso). O svelte-check confere a tela pelo web/tsconfig.app.json, e
-  # o tsc as configs das ferramentas pelo web/tsconfig.node.json: o tsc
-  # sozinho não lê .svelte. É o `npm run check` do web/, em dois hooks. Rodam
-  # no web/ inteiro, porque mudar um tipo quebra quem o usa em outro arquivo,
-  # e vêm das devDependencies do web/, como o ESLint abaixo: em clone novo,
-  # antes rode `npm ci` no web/.
+  # TypeScript and Svelte: the types and the compiler warnings (accessibility,
+  # unused CSS). svelte-check checks the screen through
+  # web/tsconfig.app.json, and tsc checks the tool configs through
+  # web/tsconfig.node.json: tsc alone does not read .svelte. It is web/'s
+  # `npm run check`, in two hooks. They run on all of web/, because changing a
+  # type breaks whoever uses it in another file, and they come from web/'s
+  # devDependencies, like ESLint below: in a fresh clone, run `npm ci` in web/
+  # first.
   - repo: local
     hooks:
       - id: svelte-check
@@ -212,26 +217,27 @@ repos:
         pass_filenames: false
       - id: tsc-configs
         priority: conferir
-        name: tsc das configs do web/
+        name: tsc of the web/ configs
         language: system
         entry: web/node_modules/.bin/tsc -p web/tsconfig.node.json
         files: ^web/([^/]+\.ts|tsconfig[^/]*\.json|package\.json)$
         pass_filenames: false
 
-  # O internal/api/dist/ do commit corresponde ao web/ do commit? É o passo
-  # "interface está atualizada?" do ci.yml, aqui antes do push: o commit da
-  # tela sem o build refeito sobe um binário que serve a tela antiga. O build
-  # vai para uma pasta temporária, e o resultado se compara com o staged, sem
-  # tocar no dist do clone: o hook só reprova. Os arquivos novos contam, porque
-  # cada build troca os nomes com hash. O Vite roda de dentro do web/, como no
-  # `npm run build`: rodado da raiz, os hashes saem outros. Vem do
-  # web/node_modules, então o build só bate com o da CI se o node_modules
-  # estiver de acordo com o package-lock.json: em dúvida, `npm ci` no web/.
+  # Does the commit's internal/api/dist/ match the commit's web/? It is the
+  # "is the UI up to date?" step of ci.yml, here before the push: a screen
+  # commit without the rebuilt output ships a binary that serves the old
+  # screen. The build goes to a temporary folder, and the result is compared
+  # with staged, without touching the clone's dist: the hook only rejects. New
+  # files count, because every build changes the hashed names. Vite runs from
+  # inside web/, as in `npm run build`: run from the root, the hashes come out
+  # different. It comes from web/node_modules, so the build only matches CI's
+  # if node_modules agrees with package-lock.json: when in doubt, `npm ci` in
+  # web/.
   - repo: local
     hooks:
       - id: interface-atualizada
         priority: conferir
-        name: interface está atualizada?
+        name: is the UI up to date?
         language: system
         entry: |
           bash -c '
@@ -240,14 +246,14 @@ repos:
             trap "rm -rf $tmp" EXIT
             (cd web && node_modules/.bin/vite build --outDir "$tmp/internal/api/dist" --emptyOutDir --logLevel warn)
             cp "${GIT_INDEX_FILE:-$(git rev-parse --git-path index)}" "$tmp/index"
-            # Só a segunda coluna, a do build contra o staged. A primeira é a
-            # do staged contra o HEAD, que num commit da tela muda mesmo.
+            # Only the second column, the build against staged. The first is
+            # staged against HEAD, which does change in a screen commit.
             difere=$(GIT_INDEX_FILE="$tmp/index" git --work-tree="$tmp" status --porcelain --no-renames --untracked-files=all -- internal/api/dist | grep -v "^. " || true)
             if [ -n "$difere" ]; then
-              echo "internal/api/dist não corresponde ao web/ do commit. Refaça o build e adicione o resultado:"
+              echo "internal/api/dist does not match web/ in the commit. Rebuild and add the result:"
               echo "  (cd web && npm run build) && git add internal/api/dist"
               echo
-              echo "Como fica o dist staged depois do build (D sai, ?? entra, M muda):"
+              echo "How the staged dist looks after the build (D goes out, ?? comes in, M changes):"
               echo "$difere"
               exit 1
             fi
@@ -255,12 +261,12 @@ repos:
         files: ^web/(src/|public/|index\.html$|package(-lock)?\.json$|vite\.config\.ts$)
         pass_filenames: false
 
-  # TypeScript e Svelte: bug e má prática, com as regras que leem os tipos. As
-  # regras estão no web/eslint.config.ts, e o ESLint vem das devDependencies
-  # do web/: em clone novo, antes rode `npm ci` no web/. O --no-warn-ignored
-  # cala o aviso sobre o src/vendor/, que a config deixa de fora. O
-  # --max-warnings=0 faz warning interromper o commit: no recommended, o
-  # `$inspect` e o `{@debug}` esquecidos são só warning.
+  # TypeScript and Svelte: bugs and bad practice, with the rules that read the
+  # types. The rules are in web/eslint.config.ts, and ESLint comes from web/'s
+  # devDependencies: in a fresh clone, run `npm ci` in web/ first.
+  # --no-warn-ignored silences the warning about src/vendor/, which the config
+  # leaves out. --max-warnings=0 makes a warning interrupt the commit: in
+  # recommended, a forgotten `$inspect` or `{@debug}` is only a warning.
   - repo: local
     hooks:
       - id: eslint
@@ -271,12 +277,12 @@ repos:
         args: [--fix, --no-warn-ignored, --max-warnings=0]
         files: ^web/(src/.*\.(ts|svelte)|[^/]+\.ts)$
 
-  # TypeScript, Svelte, CSS e o index.html do web/: a formatação. As regras
-  # estão no web/prettier.config.ts. Vem depois do ESLint, porque o --fix dele
-  # pode deixar linha fora do formato, e assim o Prettier tem a última palavra.
-  # O --ignore-path aponta o .prettierignore do web/, que o Prettier só procura
-  # na pasta de onde é chamado, e aqui é a raiz. O Prettier vem das
-  # devDependencies do web/: em clone novo, antes rode `npm ci` no web/.
+  # TypeScript, Svelte, CSS and web/'s index.html: formatting. The rules are in
+  # web/prettier.config.ts. It comes after ESLint, because its --fix may leave
+  # a line out of format, so Prettier has the last word. --ignore-path points
+  # at web/'s .prettierignore, which Prettier only looks for in the folder it
+  # is called from, and here that is the root. Prettier comes from web/'s
+  # devDependencies: in a fresh clone, run `npm ci` in web/ first.
   - repo: local
     hooks:
       - id: prettier
@@ -287,8 +293,8 @@ repos:
         args: [--write, --ignore-path, web/.prettierignore]
         files: ^web/(src/.*\.(ts|svelte|css)|index\.html|[^/]+\.ts)$
 
-  # Python do dwnvr-detect: lint e formatação, o flake8 e o black numa
-  # ferramenta só. As regras estão no dwnvr-detect/ruff.toml.
+  # dwnvr-detect Python: lint and formatting, flake8 and black in a single
+  # tool. The rules are in dwnvr-detect/ruff.toml.
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.5
     hooks:

@@ -62,6 +62,9 @@ reactive, responsive UI that works well on mobile and desktop (browser).
   the repository is still in Portuguese. New code is written in en-US anyway,
   with the glossary names; existing names change in the conversion's own
   commits, not alongside an unrelated change.
+- The `docs/TODO/` files written before the conversion, the 1.0.0 plan
+  included, stay in pt-BR: the conversion doesn't translate them, and the
+  maintainer will do it later. A new TODO file is written in en-US.
 - Use `-` (hyphen) instead of the em dash (U+2014) in any text (code, comments,
   docs, commits, chat), including when rewriting a line that already had one.
 - The repository is public: in a file, comment, commit or PR, never the machine
@@ -109,7 +112,7 @@ reactive, responsive UI that works well on mobile and desktop (browser).
 - Breaking change (someone who only updates, with `git pull` and
   `docker compose up`, loses something that worked or has to act): `!` in the
   type (`fix(compose)!:`) and the `BREAKING CHANGE:` footer, which becomes the
-  "Pede ação ao atualizar" section of the release notes (`cliff.toml`).
+  "Action required on upgrade" section of the release notes (`cliff.toml`).
   - The footer says what to do (the subject already says what changed),
     written for the end user, in a single paragraph. It goes at the end of the
     message, after part 2, in its own paragraph, separated from
@@ -181,33 +184,33 @@ the file.
 | Touched | Check |
 | --- | --- |
 | `web/src/`, `web/index.html`, `web/public/` | `make web`, then commit all of `internal/api/dist/`, including the removal of old assets (the `interface-atualizada` hook and CI check it) |
-| file in `web/src/{lib,routes,components,vendor}` | §Estrutura of `web/README.md` |
+| file in `web/src/{lib,routes,components,vendor}` | §Structure of `web/README.md` |
 | route in `internal/api/server.go`, including entering/leaving `requireAuth` | `docs/api.md` · `web/src/lib/api.ts` (JSON types at the end; `api` for JSON, `mediaURL` for a built URL) |
 | format of a JSON response or error | the screen in `web/src/routes/` |
-| new `.go` in `internal/api/` | the §Estrutura do projeto tree in `README.md` |
-| field in `internal/config/config.go` | `dwnvr.example.yaml` (with a comment) · `docs/configuracao.md` · §Configuração of `README.md` |
-| default in `config.defaults()` | the number is repeated by hand in `dwnvr.example.yaml` · `docs/configuracao.md` · `web/src/routes/Cameras.svelte` (`audio`, `quotaMB`, `segmentSeconds`, `maxDays`, and in the `padrao` fallback: `detect`, `detectMethod`, `detectSensitivity`) |
-| field in `config.Camera` | `config.Resolve` and, with a default, its way back in `config.DropNewDefaults` · `config.CheckCamera` (the validation shared by the API and boot) · `Cameras.svelte` · §Política por câmera of `docs/configuracao.md` |
-| range in `internal/config/params.go` | a field with an input on screen goes into `CameraRanges`, where `Cameras.svelte` reads `min`/`max` · the Aceito column of §Política por câmera in `docs/configuracao.md` · the field's comment in `dwnvr.example.yaml` · `faixas` in `docs/api.md` |
-| path or `DayLayout` in `internal/store/store.go` | `docs/arquitetura.md` · `docs/operacao.md` · §Conferir por fora da interface of `README.md` |
+| new `.go` in `internal/api/` | the §Project structure tree in `README.md` |
+| field in `internal/config/config.go` | `dwnvr.example.yaml` (with a comment) · `docs/configuration.md` · §Configuration of `README.md` |
+| default in `config.defaults()` | the number is repeated by hand in `dwnvr.example.yaml` · `docs/configuration.md` · `web/src/routes/Cameras.svelte` (`audio`, `quotaMB`, `segmentSeconds`, `maxDays`, and in the `padrao` fallback: `detect`, `detectMethod`, `detectSensitivity`) |
+| field in `config.Camera` | `config.Resolve` and, with a default, its way back in `config.DropNewDefaults` · `config.CheckCamera` (the validation shared by the API and boot) · `Cameras.svelte` · §Per-camera policy of `docs/configuration.md` |
+| range in `internal/config/params.go` | a field with an input on screen goes into `CameraRanges`, where `Cameras.svelte` reads `min`/`max` · the Accepted column of §Per-camera policy in `docs/configuration.md` · the field's comment in `dwnvr.example.yaml` · `ranges` in `docs/api.md` |
+| path or `DayLayout` in `internal/store/store.go` | `docs/architecture.md` · `docs/operations.md` · §Checking the recordings outside the UI of `README.md` |
 | field in `store.Entry` | append-only index: reading tolerates zero in an old line · `internal/retention/retention.go` · `internal/api/recordings.go` |
-| variable in `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/imagens.yml` (`build-args`) · `GET /api/version` |
+| variable in `internal/buildinfo` | `Makefile` (`LDFLAGS`, `BUILDARGS`) · `Dockerfile` (`ARG`, `-ldflags`) · `.github/workflows/images.yml` (`build-args`) · `GET /api/version` |
 | dwnvr or dwnvr-detect `image:` in `docker-compose.yml` | keep `${DWNVR_VERSION:-vX.Y.Z}` on a single line: the compose step in `.github/workflows/release.yml` rewrites the default and fails if it doesn't find both lines |
 | lychee version | `rev` and `entry` (the image tag) of the `lychee-docker` hook in `.pre-commit-config.yaml`, together: `rev` only brings the hook definition, and Dependabot bumps neither |
-| go2rtc `image:` in `docker-compose.yml` | keep `${GO2RTC_VERSION:-X.Y.Z}` with a tested tag, never untagged (without it, `--pull always` brings any version) · §Atualizar of `README.md` · §Trocar de versão of `docs/operacao.md` |
-| update command | §Atualizar of `README.md` (every release page points to it) · §Trocar de versão of `docs/operacao.md` |
+| go2rtc `image:` in `docker-compose.yml` | keep `${GO2RTC_VERSION:-X.Y.Z}` with a tested tag, never untagged (without it, `--pull always` brings any version) · §Updating of `README.md` · §Changing version of `docs/operations.md` |
+| update command | §Updating of `README.md` (every release page points to it) · §Changing version of `docs/operations.md` |
 | target or variable in the `Makefile` | the `## target:` comment (`make help` reads it) · §Build of `README.md` · `local.mk.example` |
-| Go or Node version | `go.mod` · `.tool-versions` (local asdf) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` and `lint.yml` (`setup-go`/`setup-node`) · major of `@types/node` in `web/package.json` (Node only) · §Tecnologias of `README.md` · `default_language_version` in `.pre-commit-config.yaml` (golangci-lint built with an old Go refuses to run) |
+| Go or Node version | `go.mod` · `.tool-versions` (local asdf) · `Dockerfile` (`golang:`/`node:`) · `ci.yml` and `lint.yml` (`setup-go`/`setup-node`) · major of `@types/node` in `web/package.json` (Node only) · §Technologies of `README.md` · `default_language_version` in `.pre-commit-config.yaml` (golangci-lint built with an old Go refuses to run) |
 | new file or directory at the root | `.gitignore` if it is local. `.dockerignore` is an inverted allowlist (`**` + `!`): whatever the build needs requires an explicit `!`, or it disappears from the context |
 | generated file, not edited by hand | `exclude` in `.pre-commit-config.yaml` (today `internal/api/dist/` and `CHANGELOG.md`): without it a hook rewrites it and CI lint fails |
-| volume, port, env var or service in `docker-compose.yml` | §Experimentar em poucos minutos, §Instalar de verdade and §Detecção de movimento e de objetos of `README.md` · `docker-compose.build.yml` (if the service has its own image) · `docs/operacao.md` · `go2rtc.url` in `dwnvr.example.yaml` (depends on the service name) |
+| volume, port, env var or service in `docker-compose.yml` | §Try it in a few minutes, §Installing for real and §Motion and object detection of `README.md` · `docker-compose.build.yml` (if the service has its own image) · `docs/operations.md` · `go2rtc.url` in `dwnvr.example.yaml` (depends on the service name) |
 | internal path (`/etc/dwnvr`, `/storage`) | `Dockerfile` (`VOLUME`, `CMD`, `HEALTHCHECK`) · `docker-compose.yml` · `storage.root` in `dwnvr.example.yaml` · `README.md` |
-| binary path in the image (`/dwnvr`) | `Dockerfile` (`ENTRYPOINT`, `HEALTHCHECK`) · `docker cp` in `.github/workflows/govulncheck.yml` · §govulncheck semanal of `docs/github.md` |
-| flag in `cmd/dwnvr/main.go` | `CMD` and `HEALTHCHECK` in the `Dockerfile` (`-config`, `-healthcheck`) · `docs/operacao.md` |
-| new doc in `docs/` | the `docs/README.md` index · §Documentação of `README.md`. `docs/TODO/` has no per-file index |
+| binary path in the image (`/dwnvr`) | `Dockerfile` (`ENTRYPOINT`, `HEALTHCHECK`) · `docker cp` in `.github/workflows/govulncheck.yml` · §Weekly govulncheck of `docs/github.md` |
+| flag in `cmd/dwnvr/main.go` | `CMD` and `HEALTHCHECK` in the `Dockerfile` (`-config`, `-healthcheck`) · `docs/operations.md` |
+| new doc in `docs/` | the `docs/README.md` index · §Documentation of `README.md`. `docs/TODO/` has no per-file index |
 | `README.md` or `README.pt-BR.md` | the other one, so both say the same thing |
 | new or renamed domain term | the [glossary](docs/TODO/v1.0.0/glossario.md) |
-| renaming or moving a file or identifier | relative links in the `.md` files · `README.md` and `docs/` cite `.go`/`.svelte` by path · the §Estrutura do projeto tree · this file, which cites files and identifiers by name |
+| renaming or moving a file or identifier | relative links in the `.md` files · `README.md` and `docs/` cite `.go`/`.svelte` by path · the §Project structure tree · this file, which cites files and identifiers by name |
 
 ## Final sweep
 

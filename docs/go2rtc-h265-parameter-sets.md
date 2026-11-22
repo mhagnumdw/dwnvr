@@ -1,12 +1,12 @@
-# H265: o go2rtc grava parameter sets falsos no container
+# H265: go2rtc writes fake parameter sets into the container
 
-Descoberto em 08/08/2026 ao trocar a `cam_iota` de `onvif1` (1080p) para
-`onvif2` (640x360). **Isto corrige uma conclusão anterior desta documentação**,
-que tratava o assunto como um erro cosmético de leitura de SPS.
+Discovered on 2026-08-08 when switching `cam_iota` from `onvif1` (1080p) to
+`onvif2` (640x360). **This corrects an earlier conclusion in this
+documentation**, which treated the matter as a cosmetic SPS-reading error.
 
-## O que acontece
+## What happens
 
-Para trilhas H265, o `pkg/mp4/muxer.go` do go2rtc faz:
+For H265 tracks, go2rtc's `pkg/mp4/muxer.go` does:
 
 ```go
 vps, sps, pps := h265.GetParameterSet(codec.FmtpLine)
@@ -15,85 +15,85 @@ if len(sps) == 0 {
 }
 ```
 
-Nas câmeras Yoosee o `FmtpLine` **não** traz os parameter sets, então
-`GetParameterSet` devolve vazio e o go2rtc escreve o **SPS embutido no próprio
-código** dentro do `hvcC`. Esse SPS descreve 2560x1440 - daí a resolução errada
-que aparece no `ffprobe`.
+On Yoosee cameras the `FmtpLine` does **not** carry the parameter sets, so
+`GetParameterSet` returns empty and go2rtc writes the **SPS embedded in its own
+code** into the `hvcC`. That SPS describes 2560x1440 - hence the wrong
+resolution that shows up in `ffprobe`.
 
-Confirmado byte a byte: a sequência hardcoded do go2rtc está presente,
-literalmente, no init segment gravado pelo dwnvr.
+Confirmed byte by byte: go2rtc's hardcoded sequence is present, literally, in
+the init segment recorded by dwnvr.
 
-Os parameter sets verdadeiros chegam **in-band**, dentro dos samples. É por isso
-que a decodificação sai certa apesar do container mentir.
+The true parameter sets arrive **in-band**, inside the samples. That is why
+decoding comes out right even though the container lies.
 
-> **Desde 12/10/2026 o dwnvr corrige o init na gravação**, trocando os
-> parameter sets dele pelos in-band (ver §Parameter sets do init em
-> [arquitetura.md](arquitetura.md#parameter-sets-do-init-o-dwnvr-corrige)). O
-> motivo foi uma vítima real: no Chrome 154 de um Android 10, o decodificador
-> de hardware se guiava pelo init e as gravações de 640x360 apareciam com 1/4
-> do tamanho, no canto do quadro, no player e nas miniaturas. O ao vivo, que
-> não passa pelo init, aparecia certo. O que segue descreve as gravações
-> anteriores à correção.
+> **Since 2026-10-12 dwnvr fixes the init at recording time**, replacing its
+> parameter sets with the in-band ones (see §Init parameter sets in
+> [architecture.md](architecture.md#init-parameter-sets-dwnvr-fixes-them)).
+> The reason was a real victim: on Chrome 154 on an Android 10, the hardware
+> decoder was guided by the init and the 640x360 recordings showed up at 1/4 of
+> the size, in the corner of the frame, in the player and in the thumbnails.
+> Live, which doesn't go through the init, showed up right. What follows
+> describes the recordings from before the fix.
 
-## Evidência
+## Evidence
 
-`cam_iota` depois de trocar para `onvif2`:
+`cam_iota` after switching to `onvif2`:
 
-| | Valor |
+| | Value |
 | --- | --- |
-| Resolução no container | 2560x1440 |
-| **Resolução decodificada de verdade** | **640x360** |
-| Taxa | 46-55 kbps (contra ~928 kbps em `onvif1`) |
-| Framerate | 10 fps (o `onvif1` é 15 fps) |
+| Resolution in the container | 2560x1440 |
+| **Resolution actually decoded** | **640x360** |
+| Bitrate | 46-55 kbps (against ~928 kbps on `onvif1`) |
+| Framerate | 10 fps (`onvif1` is 15 fps) |
 
-E o teste que fecha o caso: mudar a resolução da câmera **não mudou o hash do
-init** - porque o init nunca conteve o SPS real, só o dummy, que é o mesmo
-sempre.
+And the test that closes the case: changing the camera's resolution **did not
+change the init hash** - because the init never contained the real SPS, only
+the dummy, which is always the same.
 
-## Consequência 1 - `hev1` é obrigatório, não cosmético
+## Consequence 1 - `hev1` is mandatory, not cosmetic
 
-O 4CC da sample entry é `hev1`, que permite parameter sets in-band. `hvc1`
-afirma o oposto: que eles estão **apenas** na sample entry.
+The sample entry's 4CC is `hev1`, which allows in-band parameter sets. `hvc1`
+asserts the opposite: that they are **only** in the sample entry.
 
-Como aqui a sample entry contém dummies, **converter `hev1` para `hvc1`
-quebraria a reprodução**. A ideia de trocar esse 4CC para agradar o Safari - que
-aceita `hvc1` e não `hev1` - está descartada para estas câmeras. Quem precisar
-de Safari terá que resolver por outro caminho.
+Since here the sample entry contains dummies, **converting `hev1` to `hvc1`
+would break playback**. The idea of changing that 4CC to please Safari - which
+accepts `hvc1` and not `hev1` - is dropped for these cameras. Anyone who needs
+Safari will have to solve it another way.
 
-## Consequência 2 - o hash do init não detecta troca de codec em H265
+## Consequence 2 - the init hash doesn't detect a codec change in H265
 
-O `Gen` do índice é o hash do init. Para H264 isso funciona: a `cam_epsilon`
-trocou de `onvif1` para `onvif2` e abriu uma geração nova (`ead03cc7ac5a` →
-`27dcb8115adf`), com os dois inits convivendo no disco, exatamente como
-projetado.
+The index's `Gen` is the init hash. For H264 this works: `cam_epsilon` switched
+from `onvif1` to `onvif2` and opened a new generation (`ead03cc7ac5a` →
+`27dcb8115adf`), with both inits living on disk, exactly as designed.
 
-Para H265 o mecanismo é cego: como o init é sempre o mesmo dummy, a
-`cam_iota` manteve `4edbc50d8e70` ao mudar de 1080p para 640x360.
+For H265 the mechanism is blind: since the init is always the same dummy,
+`cam_iota` kept `4edbc50d8e70` when going from 1080p to 640x360.
 
-**Isso não quebra a reprodução**, porque o decoder usa os parameter sets
-in-band - verificado decodificando de verdade um segmento de 640x360 gravado
-com o init dummy. O efeito é que, para H265, `Gen` não significa "mesma
-configuração de codec"; significa apenas "mesmo conjunto de trilhas".
+**This doesn't break playback**, because the decoder uses the in-band parameter
+sets - verified by actually decoding a 640x360 segment recorded with the dummy
+init. The effect is that, for H265, `Gen` doesn't mean "same codec
+configuration"; it only means "same set of tracks".
 
-Onde isso pode incomodar: uma exportação que atravesse uma troca de resolução
-gera um MP4 cujo container descreve uma resolução e cujo bitstream muda no meio.
-Players seguem o in-band e costumam lidar bem, mas é um caso a testar quando a
-exportação for implementada. (Nem todo player: ver o aviso no começo.)
+Where this can be a nuisance: an export that spans a resolution change produces
+an MP4 whose container describes one resolution and whose bitstream changes
+midway. Players follow the in-band data and usually cope well, but it is a case
+to test when export is implemented. (Not every player: see the notice at the
+top.)
 
-Detectar a troca de verdade exigiria comparar os parameter sets in-band, ou
-seja, percorrer NAL units dentro dos samples - trabalho real que não se paga
-agora, já que a reprodução não é afetada.
+Detecting the change for real would require comparing the in-band parameter
+sets, that is, walking NAL units inside the samples - real work that doesn't
+pay off now, since playback isn't affected.
 
-## Não confundir com perda de dados
+## Don't confuse it with data loss
 
-O `ffmpeg` emite `Could not find ref with POC N` esporadicamente nestas
-gravações. Não é o dwnvr perdendo dados: a taxa de frames dos segmentos gravados
-é idêntica à da captura feita direto do go2rtc.
+`ffmpeg` sporadically emits `Could not find ref with POC N` on these
+recordings. It is not dwnvr losing data: the frame rate of the recorded
+segments is identical to that of the capture taken straight from go2rtc.
 
-| Origem | fps |
+| Source | fps |
 | --- | --- |
-| Direto do go2rtc | 10,02 |
-| Segmentos do dwnvr | 9,94 · 9,96 · 10,00 · 9,99 |
+| Straight from go2rtc | 10.02 |
+| dwnvr segments | 9.94 · 9.96 · 10.00 · 9.99 |
 
-A causa é perda de pacote UDP no enlace com a câmera (as fontes usam
-`#transport=udp`), que atravessa os dois caminhos igualmente.
+The cause is UDP packet loss on the link to the camera (the sources use
+`#transport=udp`), which crosses both paths equally.

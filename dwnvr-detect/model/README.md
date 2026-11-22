@@ -1,50 +1,51 @@
-# O modelo do dwnvr-detect
+# The dwnvr-detect model
 
-`rfdetr-n_512x288_int8.onnx` é o modelo que vai dentro da imagem do
-`dwnvr-detect`. Esta pasta é de quem desenvolve o dwnvr: quem só usa recebe o
-arquivo pronto e nunca roda nada daqui.
+`rfdetr-n_512x288_int8.onnx` is the model that goes inside the `dwnvr-detect`
+image. This folder is for whoever develops dwnvr: whoever just uses it gets the
+finished file and never runs anything from here.
 
-- `rfdetr-n_512x288_int8.onnx` - o modelo publicado (~30 MB)
-- `export.py` - gera o `.onnx` de novo, a partir dos pesos públicos
-- `requirements.txt` - as versões que refazem o publicado
-- `LICENSE-RF-DETR` - a licença dos pesos
+- `rfdetr-n_512x288_int8.onnx` - the published model (~30 MB)
+- `export.py` - generates the `.onnx` again, from the public weights
+- `requirements.txt` - the versions that rebuild the published one
+- `LICENSE-RF-DETR` - the weights' license
 
-## De onde ele vem
+## Where it comes from
 
-1. **Os pesos** são os do RF-DETR Nano treinado no COCO, da Roboflow, sob
-   Apache-2.0 (ver `LICENSE-RF-DETR`). É deles o que o modelo sabe reconhecer;
-   o dwnvr não treina nada.
-2. **O `export.py` exporta** os pesos para ONNX com a entrada fixa em
+1. **The weights** are those of RF-DETR Nano trained on COCO, from Roboflow,
+   under Apache-2.0 (see `LICENSE-RF-DETR`). What the model can recognize is
+   theirs; dwnvr trains nothing.
+2. **`export.py` exports** the weights to ONNX with the input fixed at
    512x288.
-3. **E quantiza para int8**, calibrando nas imagens de uma pasta.
+3. **And quantizes to int8**, calibrating on the images of a folder.
 
-Contra o fp32 do mesmo modelo, o int8 perde 2 pontos de acerto e roda 1,4x
-mais rápido num Orange Pi Zero 3. O tamanho cai de ~108 MB para ~30 MB.
+Against the fp32 of the same model, int8 loses 2 points of accuracy and runs 1.4x
+faster on an Orange Pi Zero 3. The size drops from ~108 MB to ~30 MB.
 
-## A calibração
+## Calibration
 
-Quantizar é escolher, para cada tensor da rede, a faixa numérica que ele vai
-representar. Quem escolhe são as imagens de calibração. Elas não ensinam nada
-ao modelo, mas imagem errada dá faixa errada: calibrado só com foto diurna, o
-int8 trata o ruído do infravermelho como estouro de escala e perde objeto
-justamente à noite, que é metade das horas de um NVR.
+Quantizing is choosing, for each tensor of the network, the numeric range it
+will represent. The calibration images are what choose it. They teach the model
+nothing, but a wrong image gives a wrong range: calibrated only with daytime
+photos, int8 treats infrared noise as a scale overflow and misses objects
+precisely at night, which is half the hours of an NVR.
 
-Por isso a amostra é montada assim:
+That is why the sample is built like this:
 
-- **dividida entre as câmeras**, em partes iguais, porque o modelo é um só
-  para todas
-- **metade de dia e metade de noite**, porque à noite a imagem muda de
-  natureza: infravermelho, preto e branco, granulada
-- **metade com objeto e metade sem**. Cena parada é entrada real do detector:
-  boa parte dos movimentos que ele olha é sombra, chuva ou folha
+- **split among the cameras**, in equal parts, because the model is one for all
+  of them
+- **half day and half night**, because at night the image changes nature:
+  infrared, black and white, grainy
+- **half with an object and half without**. A still scene is real input for the
+  object detector: a good part of the motions it looks at is shadow, rain or
+  leaf
 
-O `.onnx` publicado foi calibrado com 163 quadros das câmeras do autor, no
-tamanho nativo delas (640x360). Esses quadros não estão no repositório.
+The published `.onnx` was calibrated with 163 frames from the author's cameras,
+at their native size (640x360). Those frames are not in the repository.
 
-## Gerar de novo
+## Generating it again
 
-Numa máquina qualquer, sem GPU. O `rfdetr` baixa os pesos na primeira vez, e
-o processo chega a ~3 GB de RAM:
+On any machine, without a GPU. `rfdetr` downloads the weights the first time,
+and the process reaches ~3 GB of RAM:
 
 ```sh
 cd dwnvr-detect/model
@@ -53,33 +54,34 @@ python3.12 -m venv .venv
 .venv/bin/python export.py --images ~/calibration
 ```
 
-A pasta `--images` tem `.jpg` ou `.png`, de qualquer resolução. O script
-grava o fp32 e o int8 nesta pasta, por cima do publicado. O fp32 fica fora do
-git e do build da imagem.
+The `--images` folder has `.jpg` or `.png`, of any resolution. The script writes
+the fp32 and the int8 in this folder, over the published one. The fp32 stays out
+of git and of the image build.
 
-Com os quadros da calibração do publicado, o int8 sai idêntico a ele byte a
-byte:
+With the calibration frames of the published one, the int8 comes out
+byte-for-byte identical to it:
 
 ```text
 926bc9a61fe63ea8624e18859300a7c5a1768108d556c9bad9492620d3913e29  rfdetr-n_512x288_int8.onnx
 ```
 
-Isso exige o `torch` do PyPI, que é o build de CUDA (~5 GB de pacotes), mesmo
-sem GPU. O de CPU (`--extra-index-url https://download.pytorch.org/whl/cpu`) é
-bem menor e dá um int8 de mesma qualidade, mas outro arquivo: o fp32 dele
-difere no último bit de um tensor, e a quantização amplifica isso em ~17% dos
-achados trocados no piso 0,20. Contra o fp32, os dois int8 empatam (ver
+That requires the PyPI `torch`, which is the CUDA build (~5 GB of packages),
+even without a GPU. The CPU one (`--extra-index-url https://download.pytorch.org/whl/cpu`)
+is much smaller and gives an int8 of the same quality, but a different file: its
+fp32 differs in the last bit of one tensor, and quantization amplifies that
+into ~17% of the findings swapped at the 0.20 floor. Against the fp32, the two
+int8s tie (see
 [`TODO_recalibrar-modelo-com-imagens-publicas.md`](../../docs/TODO/TODO_recalibrar-modelo-com-imagens-publicas.md)).
 
-O preparo das imagens, que estica até 512x288 e normaliza pelo ImageNet, não é
-uma cópia: o `export.py` importa o `prepare` do `server.py`. Assim a
-calibração usa por construção o mesmo preparo que roda em produção.
+The image preparation, which stretches to 512x288 and normalizes by ImageNet, is
+not a copy: `export.py` imports `prepare` from `server.py`. That way the
+calibration uses, by construction, the same preparation that runs in production.
 
-## Usar o fp32 no lugar do int8
+## Using the fp32 instead of the int8
 
-O fp32 não passa por calibração nenhuma, então serve de comparação quando o
-int8 parecer errar numa câmera. Ele entra sem rebuild da imagem, por volume e
-`DETECT_MODEL`:
+The fp32 goes through no calibration at all, so it serves as a comparison when
+the int8 seems to be wrong on a camera. It goes in without rebuilding the image,
+through a volume and `DETECT_MODEL`:
 
 ```yaml
     volumes:
@@ -88,5 +90,5 @@ int8 parecer errar numa câmera. Ele entra sem rebuild da imagem, por volume e
       - DETECT_MODEL=/models/fp32.onnx
 ```
 
-Qualquer `.onnx` com a mesma saída do RF-DETR funciona: o servidor lê o
-tamanho da entrada do próprio arquivo.
+Any `.onnx` with the same output as RF-DETR works: the server reads the input
+size from the file itself.

@@ -1,13 +1,15 @@
-# Atualização de versão pelo Dependabot: um PR por mês e por ecossistema.
+# Version updates by Dependabot: one PR per month and per ecosystem.
 #
-# O security update não depende deste arquivo e chega fora do calendário,
-# quando sai uma correção. O que fazer com cada PR está no docs/github.md.
+# The security update does not depend on this file and arrives off the
+# calendar, when a fix is released. What to do with each PR is in
+# docs/github.md.
 #
-# O cooldown espera a versão ter 7 dias antes de propor: release comprometida
-# costuma ser retirada antes disso. Não atrasa o security update.
+# The cooldown waits for the version to be 7 days old before proposing it: a
+# compromised release is usually pulled before that. It does not delay the
+# security update.
 #
-# `build(deps):` é o prefixo que o cliff.toml põe em CI/Build nas notas da
-# release; sem ele, o "Bump ..." padrão cai em Other.
+# `build(deps):` is the prefix cliff.toml puts under CI/Build in the release
+# notes; without it, the default "Bump ..." lands in Other.
 
 version: 2
 
@@ -48,24 +50,24 @@ updates:
       prefix: build
       include: scope
     ignore:
-      # O svelte-check só aceita TypeScript 5 e 6 (peerDependencies). Tirar
-      # quando uma versão dele aceitar o 7.
+      # svelte-check only accepts TypeScript 5 and 6 (peerDependencies). Remove
+      # when a version of it accepts 7.
       - dependency-name: typescript
         update-types: [version-update:semver-major]
-      # O major do @types/node é o do Node que roda (node:24-alpine e o
-      # node-version da CI); acima dele, o tsc aceita API que o Node não tem.
-      # Sobe junto com o Node, pela linha "Go or Node version" da
-      # §Ripple effects do AGENTS.md.
+      # The @types/node major is that of the Node that runs (node:24-alpine and
+      # CI's node-version); above it, tsc accepts APIs Node does not have. It
+      # goes up together with Node, per the "Go or Node version" line in
+      # AGENTS.md §Ripple effects.
       - dependency-name: "@types/node"
         update-types: [version-update:semver-major]
     groups:
       npm:
         patterns: ["*"]
 
-  # Só security update. As versões do requirements.in são as que exportaram o
-  # .onnx e mediram a entrega, e trocar uma exige conferir de novo. E o
-  # Dependabot troca a linha do requirements.txt em vez de recompilar com o
-  # uv, o que quebra o arquivo; o PR dele serve de aviso.
+  # Security updates only. The versions in requirements.in are the ones that
+  # exported the .onnx and measured the delivery, and changing one requires
+  # checking again. And Dependabot swaps the requirements.txt line instead of
+  # recompiling with uv, which breaks the file; its PR serves as a warning.
   - package-ecosystem: pip
     directory: /dwnvr-detect
     schedule:
@@ -87,12 +89,13 @@ updates:
       prefix: build
       include: scope
     ignore:
-      # Só patch: o requirements.txt é compilado para o Python 3.12.
+      # Patch only: requirements.txt is compiled for Python 3.12.
       - dependency-name: python
         update-types: [version-update:semver-minor, version-update:semver-major]
-      # A tag já flutua no patch (1.27-alpine, 24-alpine). Subir de versão é
-      # trocar em todos os lugares da linha "Go or Node version" da
-      # §Ripple effects do AGENTS.md, e o Dependabot só mexeria no Dockerfile.
+      # The tag already floats on the patch (1.27-alpine, 24-alpine). Bumping the
+      # version means changing every place in the "Go or Node version" line of
+      # AGENTS.md §Ripple effects, and Dependabot would only touch the
+      # Dockerfile.
       - dependency-name: golang
         update-types: [version-update:semver-minor, version-update:semver-major]
       - dependency-name: node
@@ -101,10 +104,10 @@ updates:
       docker:
         patterns: ["*"]
 
-  # Os `rev` do .pre-commit-config.yaml, que é o config do prek.
+  # The `rev`s of .pre-commit-config.yaml, which is prek's config.
   #
-  # Sem docker-compose: o Dependabot não lê imagem com `${VAR:-...}` na tag, e
-  # o go2rtc do docker-compose.yml sobe à mão.
+  # No docker-compose: Dependabot does not read an image with `${VAR:-...}` in
+  # the tag, and the go2rtc in docker-compose.yml is bumped by hand.
   - package-ecosystem: pre-commit
     directory: /
     schedule:
@@ -115,11 +118,11 @@ updates:
       prefix: build
       include: scope
     ignore:
-      # O lychee que roda é a imagem fixada no `entry` do hook, que o
-      # Dependabot não lê; o `rev` só traz a definição do hook. E o `rev` com
-      # prefixo (lychee-v0.24.2) derruba o run: o Dependabot só tira o `v` do
-      # começo e compara a versão nova com nil. O lychee sobe à mão, no `rev`
-      # e no `entry` juntos.
+      # The lychee that runs is the image pinned in the hook's `entry`, which
+      # Dependabot does not read; the `rev` only brings the hook definition. And
+      # the prefixed `rev` (lychee-v0.24.2) breaks the run: Dependabot only
+      # strips a leading `v` and compares the new version with nil. lychee is
+      # bumped by hand, in the `rev` and the `entry` together.
       - dependency-name: https://github.com/lycheeverse/lychee
     groups:
       pre-commit:

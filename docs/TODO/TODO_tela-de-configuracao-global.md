@@ -65,7 +65,7 @@ O código já faz isso: o `config.Resolve` preenche o campo vazio com o valor do
   `stallSeconds` e os três campos da detecção.
 
 Salva pela tela, a câmera não acompanha mais o global. O que o
-`docs/configuracao.md` diz ("Os valores de `defaults` no `dwnvr.yaml` valem para
+`docs/configuration.md` diz ("Os valores de `defaults` no `dwnvr.yaml` valem para
 qualquer câmera que não defina o campo") é verdade no código e quase nunca na
 prática: toda câmera que passou pela tela ignora uma mudança de
 `defaults.detectSensitivity` no `dwnvr.yaml`.

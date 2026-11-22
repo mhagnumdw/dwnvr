@@ -4,7 +4,7 @@ Achado em 05/10/2026, lendo o código durante o estudo do acesso remoto e do
 app instalável. **Não foi testado num iPhone.**
 
 **Status: não corrigido.** O acesso remoto e o app instalável, que vieram
-antes, estão em [`acesso-remoto.md`](../acesso-remoto.md).
+antes, estão em [`remote-access.md`](../remote-access.md).
 
 ## O que foi confirmado, pelo código
 

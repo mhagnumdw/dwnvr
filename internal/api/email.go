@@ -23,7 +23,7 @@ func (s *Server) noEmail(w http.ResponseWriter) bool {
 	if s.sending != nil {
 		return false
 	}
-	msg := "o e-mail está desligado: configure a seção smtp do dwnvr.yaml (ver docs/configuracao.md)"
+	msg := "o e-mail está desligado: configure a seção smtp do dwnvr.yaml (ver docs/configuration.md)"
 	if s.cfg.SMTP.Problem != "" {
 		msg = "o e-mail está desligado: " + s.cfg.SMTP.Problem
 	}

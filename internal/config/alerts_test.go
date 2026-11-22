@@ -152,7 +152,7 @@ func TestNoAlertNoWarning(t *testing.T) {
 // TestSchedulesHoldAtBoot: schedules written by hand start as they are, and
 // the overlapping ones (12:00 to 13:00 and 12:30 to 14:00 on Wednesday) apply
 // as their union, with no warning. The first three are the example in
-// docs/configuracao.md.
+// docs/configuration.md.
 func TestSchedulesHoldAtBoot(t *testing.T) {
 	_, cams, warnings, err := loadWithWarnings(t, "", `[{"id":"cam_a",
 		"alert":{"enabled":true,"families":["person"],"schedules":[

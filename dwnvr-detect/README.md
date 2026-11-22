@@ -1,40 +1,40 @@
 # dwnvr-detect
 
-O detector de objetos do dwnvr, num container à parte. O dwnvr manda o pedaço
-de vídeo de cada marca de movimento, e ele responde o que havia no último
-quadro: pessoa, veículo, animal ou nada.
+dwnvr's object detector, in a separate container. dwnvr sends the video clip of
+each motion mark, and it answers what was in the last frame: person, vehicle,
+animal or nothing.
 
-É opcional. Sem ele, o dwnvr marca só movimento. Ele fica fora do binário do
-dwnvr porque decodificar vídeo e rodar um modelo exigem código nativo, e o
-dwnvr é Go puro numa imagem de 8 MB.
+It is optional. Without it, dwnvr only marks motion. It stays outside the dwnvr
+binary because decoding video and running a model require native code, and dwnvr
+is pure Go in an 8 MB image.
 
-## O que tem dentro
+## What is inside
 
-- `server.py` - o servidor HTTP: decodifica o pedaço com o PyAV e roda o
-  modelo no onnxruntime. Um pedido por vez; quem enfileira é o dwnvr.
-- `requirements.in` - as dependências diretas: `onnxruntime`, `numpy` e `av`.
-- `requirements.txt` - gerado a partir do `.in`: as diretas e as indiretas, com
-  versão exata e o hash de cada wheel, para amd64 e arm64.
-- `model/` - o `.onnx` que vai na imagem, e como gerá-lo de novo (ver
-  [`model/README.md`](model/README.md)).
-- `sitecustomize.py` - a trava que impede o Python do container de compilar
-  módulo do fonte em runtime (ver [O bytecode](#o-bytecode)).
-- `check_pyc.py` - a conferência do `.pyc` da imagem, que roda no build.
-- `Dockerfile` - faz o build de amd64 e arm64 em qualquer máquina, sem emulação.
+- `server.py` - the HTTP server: decodes the clip with PyAV and runs the model
+  on onnxruntime. One request at a time; dwnvr does the queueing.
+- `requirements.in` - the direct dependencies: `onnxruntime`, `numpy` and `av`.
+- `requirements.txt` - generated from the `.in`: the direct and indirect ones,
+  with exact version and the hash of each wheel, for amd64 and arm64.
+- `model/` - the `.onnx` that goes in the image, and how to generate it again
+  (see [`model/README.md`](model/README.md)).
+- `sitecustomize.py` - the guard that stops the container's Python from
+  compiling modules from source at runtime (see [The bytecode](#the-bytecode)).
+- `check_pyc.py` - the check of the image's `.pyc`, which runs at build.
+- `Dockerfile` - builds amd64 and arm64 on any machine, without emulation.
 
-## As dependências
+## The dependencies
 
-A imagem não roda `pip install` na arquitetura dela. Um stage na arquitetura
-da máquina de build baixa, com o uv, os wheels (pacotes já compilados) da
-arquitetura de destino, e a imagem final só os copia. É o mesmo desenho do
-`Dockerfile` do dwnvr, que faz cross-compile do Go: nada da arquitetura de
-destino é executado no build, e por isso a imagem do Orange Pi sai de uma
-máquina x86 sem QEMU.
+The image does not run `pip install` on its own architecture. A stage on the
+build machine's architecture downloads, with uv, the wheels (already compiled
+packages) of the target architecture, and the final image only copies them. It
+is the same design as dwnvr's `Dockerfile`, which cross-compiles Go: nothing of
+the target architecture is executed at build, and that is why the Orange Pi
+image comes out of an x86 machine without QEMU.
 
-O build recusa wheel cujo hash não seja o do `requirements.txt`, e recusa
-código-fonte, que exigiria compilar.
+The build refuses a wheel whose hash is not the one in `requirements.txt`, and
+refuses source code, which would require compiling.
 
-Para trocar uma versão, edite o `requirements.in` e gere o `.txt` de novo:
+To change a version, edit `requirements.in` and generate the `.txt` again:
 
 ```sh
 cd dwnvr-detect
@@ -42,69 +42,71 @@ uv pip compile --universal --generate-hashes --python-version 3.12 \
   requirements.in -o requirements.txt
 ```
 
-As versões atuais são as que exportaram o modelo e mediram a entrega. Outro
-runtime é outro número: depois de trocar, confira que as caixas continuam as
-mesmas para os mesmos pedaços.
+The current versions are the ones that exported the model and measured the
+delivery. Another runtime is another number: after changing, check that the
+boxes stay the same for the same clips.
 
-## O bytecode
+## The bytecode
 
-Nada se compila em runtime. O build gera o bytecode (`.pyc`) do stdlib, das
-libs e do código daqui, que nem a imagem do Python nem o uv trazem. Sem ele,
-cada subida do servidor compilava do fonte o que importa: 5,7 s num Orange Pi
-Zero 3, contra 1,9 s com ele, por 22 MB a mais na imagem.
+Nothing is compiled at runtime. The build generates the bytecode (`.pyc`) of the
+stdlib, of the libs and of the code here, which neither the Python image nor uv
+brings. Without it, every server start compiled from source what matters: 5.7 s
+on an Orange Pi Zero 3, against 1.9 s with it, for 22 MB more in the image.
 
-O stdlib compilado é o da própria imagem final, copiado para o stage sem
-executar nada dele, e cada `.pyc` guarda o hash do seu `.py`, e não a data. O
-servidor sobe como módulo (`python3 -m server`), porque o script que recebe
-pelo caminho o Python sempre compila do fonte.
+The compiled stdlib is the final image's own, copied into the stage without
+executing anything from it, and each `.pyc` stores the hash of its `.py`, not
+the date. The server starts as a module (`python3 -m server`), because a script
+that Python receives by path is always compiled from source.
 
-O `.pyc` que falta ou não bate, o Python ignora calado e compila o fonte: a
-imagem ficaria lenta sem ninguém ver. Duas travas impedem isso:
+A `.pyc` that is missing or does not match, Python silently ignores and compiles
+the source: the image would be slow with nobody noticing. Two guards prevent
+that:
 
-- **No build**, o `check_pyc.py` olha os arquivos da imagem final já montada:
-  todo `.py` que o servidor pode importar tem de ter o seu `.pyc`, checked-hash
-  da mesma versão do Python e com o hash do `.py` que a imagem traz. Se não
-  tiver, o build falha e a imagem não sai.
-- **Em runtime**, o `sitecustomize.py`, que o Python carrega antes de qualquer
-  import do servidor, troca a compilação do fonte por um erro com o caminho do
-  arquivo: ou o módulo vem do `.pyc`, ou o servidor não sobe. Vale também para
-  um `docker exec ... python3`; para depurar à mão sem a trava, `python3 -S`.
+- **At build**, `check_pyc.py` looks at the files of the already assembled final
+  image: every `.py` that the server can import must have its `.pyc`,
+  checked-hash of the same Python version and with the hash of the `.py` that
+  the image carries. If it does not, the build fails and the image does not come
+  out.
+- **At runtime**, `sitecustomize.py`, which Python loads before any import of
+  the server, replaces compiling from source with an error with the file path:
+  either the module comes from the `.pyc`, or the server does not start. It also
+  applies to a `docker exec ... python3`; to debug by hand without the guard,
+  `python3 -S`.
 
-Fica de fora só o `-c` de uma linha do healthcheck, que não é módulo.
+Only the healthcheck's one-line `-c` stays out, which is not a module.
 
-## O modelo
+## The model
 
-RF-DETR Nano, treinado no COCO pela Roboflow (Apache-2.0), exportado a 512x288
-e quantizado para int8. A calibração foi feita com quadros de câmeras de
-segurança comuns, de dia e de noite. Em câmera de outra natureza (noite
-colorida, olho de peixe, térmica) ou fora de 16:9, cujo quadro chega esticado,
-ninguém mediu ainda (ver
+RF-DETR Nano, trained on COCO by Roboflow (Apache-2.0), exported at 512x288 and
+quantized to int8. The calibration was done with frames from ordinary security
+cameras, by day and by night. On a camera of another nature (color night,
+fisheye, thermal) or outside 16:9, whose frame arrives stretched, nobody has
+measured yet (see
 [`TODO_modelo-em-cameras-de-terceiros.md`](../docs/TODO/TODO_modelo-em-cameras-de-terceiros.md)).
-Detalhes em [`model/README.md`](model/README.md).
+Details in [`model/README.md`](model/README.md).
 
-## O custo
+## The cost
 
-Num Orange Pi Zero 3, uma olhada leva ~6,5 s com `DETECT_THREADS=1` e ~3,6 s
-com 2, por ~10% a mais de CPU no total. Sem a variável, ele roda lá com 2
-threads: a metade dos 4 núcleos da placa. O container ocupa ~230 MB, com picos
-de ~250 MB. Quantas olhadas por hora ele faz depende de quantas câmeras têm a
-detecção ligada e do nível de sensibilidade de cada uma: ver
-`docs/configuracao.md`.
+On an Orange Pi Zero 3, one look takes ~6.5 s with `DETECT_THREADS=1` and ~3.6 s
+with 2, for ~10% more CPU in total. Without the variable, it runs there with 2
+threads: half of the board's 4 cores. The container takes ~230 MB, with peaks of
+~250 MB. How many looks per hour it does depends on how many cameras have
+detection on and on each one's sensitivity level: see `docs/configuration.md`.
 
-## Build local
+## Local build
 
-Da raiz do repositório, uma arquitetura por vez:
+From the repository root, one architecture at a time:
 
 ```sh
 docker buildx build --platform linux/arm64 -t dwnvr-detect:arm64 --load dwnvr-detect/
 docker buildx build --platform linux/amd64 -t dwnvr-detect:amd64 --load dwnvr-detect/
 ```
 
-## O contrato
+## The contract
 
 ```text
 POST /detect?minScore=0.20&frameWidth=480&quality=75
-                                      corpo: o pedaço (.mp4), do frame I ao quadro a olhar
+                                      body: the clip (.mp4), from the I frame to the frame to look at
 GET  /health
 ```
 
@@ -130,47 +132,48 @@ GET  /health
 }
 ```
 
-Com `frameWidth=<largura>`, e havendo achado, a resposta traz também o quadro
-olhado em JPEG, reduzido àquela largura, em base64. É a miniatura da tela de
-Detecções: o quadro sai daqui porque aqui ele já está decodificado. Sem o
-parâmetro, ou sem achado, o campo não vem.
+With `frameWidth=<width>`, and when there is a finding, the response also
+carries the frame looked at as a JPEG, reduced to that width, in base64. It is
+the thumbnail of the Detecções screen: the frame comes from here because here it
+is already decoded. Without the parameter, or without a finding, the field is
+absent.
 
-A caixa vai em fração do quadro (x1, y1, x2, y2). Ele devolve TODA caixa a
-partir do `minScore`, de qualquer classe, e não decide nada: o corte por família e
-a memória de objeto parado são do dwnvr, que só lê `detections`, `frame` e `error`. Os outros campos
-são para quem chama à mão. Pedaço que não decodifica até o fim volta `422`:
-olhar o último quadro que sobrou seria olhar outro instante.
+The box is a fraction of the frame (x1, y1, x2, y2). It returns EVERY box from
+`minScore` up, of any class, and decides nothing: the cut by family and the
+memory of a still object belong to dwnvr, which only reads `detections`, `frame`
+and `error`. The other fields are for whoever calls by hand. A clip that does
+not decode to the end returns `422`: looking at the last frame left over would
+be looking at another instant.
 
-Configuração, por variável de ambiente:
+Configuration, by environment variable:
 
-| Variável | O que é | Padrão |
+| Variable | What it is | Default |
 | --- | --- | --- |
-| `DETECT_MODEL` | o `.onnx` | `/app/model.onnx` |
-| `DETECT_THREADS` | threads do modelo e do vídeo | `auto` |
-| `DETECT_PORT` | porta HTTP | `8480` |
+| `DETECT_MODEL` | the `.onnx` | `/app/model.onnx` |
+| `DETECT_THREADS` | threads of the model and of the video | `auto` |
+| `DETECT_PORT` | HTTP port | `8480` |
 
-O `auto` é metade dos núcleos que o container enxerga, até 4, e nunca acima
-do teto de CPU do container, se alguém puser um (o `docker-compose.yml` do
-dwnvr não põe). A outra metade fica para a gravação. O número escolhido, e de
-onde ele saiu, vai na primeira linha do log:
+`auto` is half of the cores the container sees, up to 4, and never above the
+container's CPU ceiling, if someone sets one (dwnvr's `docker-compose.yml` does
+not). The other half stays for recording. The chosen number, and where it came
+from, goes in the first line of the log:
 
 ```text
 dwnvr-detect: model.onnx, input 512x288, 2 thread(s) (auto: half of 4 cores), port 8480
 ```
 
-Um número a partir de 1 passa por cima do `auto`, e vale como veio. Não o
-ponha acima do teto de CPU do container: com `cpus: 2`, 4 threads deixam a
-olhada tão lenta quanto 1, gastando o dobro. O `0` é recusado, porque é o
-automático do onnxruntime, que conta os núcleos da máquina e não os do
-container.
+A number from 1 up overrides `auto`, and holds as given. Do not set it above the
+container's CPU ceiling: with `cpus: 2`, 4 threads make the look as slow as 1,
+spending double. `0` is refused, because it is onnxruntime's automatic, which
+counts the machine's cores and not the container's.
 
-Com o `docker-compose.yml` do dwnvr, o número vai no `.env` ao lado dele, como
-por exemplo `DETECT_THREADS=2`, e vale no próximo `docker compose up -d`.
+With dwnvr's `docker-compose.yml`, the number goes in the `.env` next to it, for
+example `DETECT_THREADS=2`, and takes effect on the next `docker compose up -d`.
 
-A porta não é a 8555 porque essa é a do WebRTC do go2rtc.
+The port is not 8555 because that one is go2rtc's WebRTC.
 
-## Licença
+## License
 
-O modelo é derivado dos pesos do RF-DETR, Copyright 2025 Roboflow, Inc., sob a
-Apache License 2.0. A cópia da licença está em
+The model is derived from the RF-DETR weights, Copyright 2025 Roboflow, Inc.,
+under the Apache License 2.0. The copy of the license is in
 [`model/LICENSE-RF-DETR`](model/LICENSE-RF-DETR).

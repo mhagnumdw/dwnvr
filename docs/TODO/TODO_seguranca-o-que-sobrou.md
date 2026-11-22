@@ -7,7 +7,7 @@ depende de um passo ou de uma decisão.
 
 - [ ] Ligar `sha_pinning_required` no repositório, depois que as actions
   pinadas por SHA estiverem na `main` (o comando está no
-  [`github.md`](../github.md#pin-por-sha))
+  [`github.md`](../github.md#sha-pinning))
 - [ ] Confirmar no primeiro PR do Dependabot em `github-actions` que ele troca
   o SHA e o comentário de versão juntos
 - [ ] Pinar os `rev:` do `.pre-commit-config.yaml` por SHA
@@ -29,7 +29,7 @@ versão: o lychee já derrubou o run dele pelo formato da tag.
   `http.Server` sem timeout). O CodeQL cobre boa parte disso.
 - **Trivy na imagem do dwnvr.** É `scratch` com um binário estático, e o que
   ele acharia o govulncheck acha, com menos alarme falso. A do `dwnvr-detect`
-  já tem o seu ([`github.md`](../github.md#trivy-semanal-na-imagem-do-detector)).
+  já tem o seu ([`github.md`](../github.md#weekly-trivy-on-the-object-detector-image)).
 - **`dwnvr-detect` com `pyproject.toml` e `uv.lock`.** O ecossistema `uv` do
   Dependabot recompila o lock, em vez de trocar linha, e daria ao `pip` um PR
   que funciona. Muda como o detector de objetos é empacotado, para resolver um

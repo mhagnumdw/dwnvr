@@ -1,94 +1,99 @@
-# Áudio: medição do modo FLAC
+# Audio: measuring FLAC mode
 
-Medido no Orange Pi Zero 3 em 08/08/2026, com a `cam_gama` (H265, Yoosee).
-Para o teste, o `#media=video` foi removido da fonte no `go2rtc.yaml` - sem
-isso o áudio é descartado na origem e nada chega ao dwnvr.
+Measured on the Orange Pi Zero 3 on 2026-08-08, with `cam_gama` (H265, Yoosee).
+For the test, `#media=video` was removed from the source in `go2rtc.yaml` -
+without that the audio is dropped at the source and nothing reaches dwnvr.
 
-## Resultado
+## Result
 
-| | Valor |
+| | Value |
 | --- | --- |
-| Codec de origem | `PCMA/16000` (G.711 A-law, mono) |
-| Codec gravado | `fLaC` 16 kHz mono, caixa `dfLa` com STREAMINFO de 34 bytes |
-| **Custo de CPU** | **+0,65% de um core** por câmera |
-| **Processos ffmpeg** | **zero** |
-| **Taxa do áudio** | **~260 kbps** |
-| Taxa do vídeo, mesma captura | ~770 kbps |
-| **Impacto no armazenamento** | **+34%** |
+| Source codec | `PCMA/16000` (G.711 A-law, mono) |
+| Recorded codec | `fLaC` 16 kHz mono, `dfLa` box with a 34-byte STREAMINFO |
+| **CPU cost** | **+0.65% of one core** per camera |
+| **ffmpeg processes** | **zero** |
+| **Audio bitrate** | **~260 kbps** |
+| Video bitrate, same capture | ~770 kbps |
+| **Storage impact** | **+34%** |
 
-A medição de CPU foi feita comparando o tempo acumulado em `/proc/<pid>/stat`
-do go2rtc em duas janelas de 40s, com e sem um consumidor FLAC: 13,22% contra
-13,87% de um core. Amostras instantâneas de `docker stats` sugeriam 3-6%, mas
-eram ruído.
+The CPU measurement was made by comparing go2rtc's cumulative time in
+`/proc/<pid>/stat` over two 40s windows, with and without a FLAC consumer:
+13.22% against 13.87% of one core. Instantaneous `docker stats` samples
+suggested 3-6%, but that was noise.
 
-A ausência de ffmpeg foi confirmada com `docker top go2rtc`: só existe o
-processo do próprio go2rtc. A conversão A-law→PCM→FLAC acontece em Go puro.
+The absence of ffmpeg was confirmed with `docker top go2rtc`: only go2rtc's own
+process exists. The A-law→PCM→FLAC conversion happens in pure Go.
 
-## O contra-senso do tamanho
+## The size paradox
 
-FLAC é compressão **sem perdas**, e o caminho é
-`A-law (8 bits) → PCM linear (16 bits) → FLAC`. Como o A-law já é uma compressão
-com perdas de 8 bits por amostra, expandi-lo para 16 bits dobra os dados antes
-de o FLAC ter chance de comprimir - e o resultado ficou em ~260 kbps, ou seja,
-**mais que os 128 kbps do A-law original**.
+FLAC is **lossless** compression, and the path is
+`A-law (8 bits) → linear PCM (16 bits) → FLAC`. Since A-law is already a lossy
+compression at 8 bits per sample, expanding it to 16 bits doubles the data
+before FLAC gets a chance to compress it - and the result came out at ~260
+kbps, which is **more than the 128 kbps of the original A-law**.
 
-Ou seja, gravar em FLAC ocupa o dobro do que ocuparia guardar o A-law cru. Só
-que o A-law cru não toca em navegador nenhum, e é justamente esse o problema que
-o FLAC resolve de graça em CPU.
+In other words, recording in FLAC takes twice what storing the raw A-law would.
+But raw A-law doesn't play in any browser, and that is exactly the problem FLAC
+solves for free in CPU.
 
-## Como escolher
+## How to choose
 
-A decisão é entre CPU e disco, e depende de qual dos dois é escasso:
+The decision is between CPU and disk, and depends on which of the two is
+scarce:
 
-- **`flac`** quando sobra disco e falta CPU. Não dispara ffmpeg, sobe junto com
-  a gravação e não depende de nenhuma configuração extra no go2rtc.
-- **`aac`** quando sobra CPU e falta disco. Custa ~10% de um core por câmera
-  (medição do usuário com Opus, que usa o mesmo caminho de ffmpeg), mas cabe em
-  ~64 kbps e toca em qualquer lugar, inclusive nos MP4 exportados.
-- **`none`** para a maioria das câmeras. Áudio raramente é útil em todas.
+- **`flac`** when disk is plentiful and CPU is short. It doesn't spawn ffmpeg,
+  it starts together with the recording and it doesn't depend on any extra
+  go2rtc configuration.
+- **`aac`** when CPU is plentiful and disk is short. It costs ~10% of one core
+  per camera (the user's measurement with Opus, which uses the same ffmpeg
+  path), but fits in ~64 kbps and plays anywhere, including in exported MP4s.
+- **`none`** for most cameras. Audio is rarely useful on all of them.
 
-Por isso o modo é **por câmera**, e não global: o padrão sensato é `none` em
-tudo e o áudio ligado só onde ele importa - porta e portão, tipicamente.
+That is why the mode is **per camera**, not global: the sensible default is
+`none` everywhere and audio on only where it matters - door and gate,
+typically.
 
-## Compatibilidade no navegador
+## Browser compatibility
 
 Chrome 151 / Fedora 43:
 
-- `MediaSource.isTypeSupported` com `hev1.1.6.L153.B0,flac` → **true**
-- `AudioDecoder.isConfigSupported` com `flac` + o STREAMINFO do `dfLa` → **true**
-- `ffmpeg -i segmento -f null -` decodifica as duas trilhas sem erro
+- `MediaSource.isTypeSupported` with `hev1.1.6.L153.B0,flac` → **true**
+- `AudioDecoder.isConfigSupported` with `flac` + the `dfLa` STREAMINFO → **true**
+- `ffmpeg -i segmento -f null -` decodes both tracks without error
 
-Safari continua sendo a incógnita: FLAC dentro de MP4 é pouco usual. Quem
-precisar de compatibilidade ampla nos arquivos exportados deve preferir `aac`.
+Safari remains the unknown: FLAC inside MP4 is rare. Anyone who needs broad
+compatibility in exported files should prefer `aac`.
 
-## Como o dwnvr descobre que a câmera tem áudio
+## How dwnvr finds out the camera has audio
 
-O go2rtc só lista as trilhas de um stream (`medias`, em `GET /api/streams`)
-enquanto existe alguém consumindo: sem consumidor ele nem abre a conexão com a
-câmera. Numa câmera ainda não cadastrada isso dava um ovo antes da galinha - o
-formulário de cadastro precisava saber se pode oferecer áudio justamente quando
-ninguém estava consumindo.
+go2rtc only lists a stream's tracks (`medias`, in `GET /api/streams`) while
+someone is consuming it: without a consumer it doesn't even open the connection
+to the camera. For a camera not yet registered this was a chicken-and-egg
+problem - the registration form needed to know whether it can offer audio
+precisely when nobody was consuming.
 
-Medido com a `cam_teste5` do `go2rtc.example.yaml`, que entrega `H264 + PCMA/16000`:
+Measured with `cam_teste5` from `go2rtc.example.yaml`, which delivers
+`H264 + PCMA/16000`:
 
-| estado do stream | `medias` no go2rtc |
+| stream state | `medias` in go2rtc |
 | --- | --- |
-| ocioso | ausente |
-| com consumidor ligado | `["video, recvonly, H264", "audio, recvonly, PCMA/16000"]` |
+| idle | absent |
+| with a consumer attached | `["video, recvonly, H264", "audio, recvonly, PCMA/16000"]` |
 
-Por isso o `GET /api/streams/probe` existe: num stream ocioso ele abre o
-`stream.mp4?mp4=flac` por alguns segundos, lê o `moov` e o `medias` que aparecem,
-e fecha. Em stream que já tem produtor vivo - toda câmera cadastrada e gravando -
-ele responde do `medias` sem abrir nada.
+That is why `GET /api/streams/probe` exists: on an idle stream it opens
+`stream.mp4?mp4=flac` for a few seconds, reads the `moov` and the `medias` that
+show up, and closes. On a stream that already has a live producer - every
+registered camera that is recording - it answers from `medias` without opening
+anything.
 
-O modo FLAC no pedido não é detalhe: `mp4=flac` é o único filtro que traz a
-trilha de áudio junto, então é o único que produz um `moov` capaz de responder à
-pergunta.
+The FLAC mode in the request is not a detail: `mp4=flac` is the only filter
+that brings the audio track along, so it is the only one that produces a `moov`
+able to answer the question.
 
-## Efeito colateral de ligar o áudio na origem
+## Side effect of turning audio on at the source
 
-Remover o `#media=video` faz o go2rtc puxar a trilha de áudio da câmera 24/7,
-mesmo que ninguém peça áudio: são ~129 kbps a mais no enlace com a câmera, por
-câmera. Nas instalações em 2,4 GHz - como a que motivou este projeto - isso
-disputa airtime com as próprias câmeras e não é desprezível quando multiplicado
-por várias.
+Removing `#media=video` makes go2rtc pull the camera's audio track 24/7, even
+if nobody asks for audio: that is ~129 kbps more on the link to the camera, per
+camera. On 2.4 GHz installations - like the one that motivated this project -
+that competes for airtime with the cameras themselves and is not negligible
+when multiplied by several.

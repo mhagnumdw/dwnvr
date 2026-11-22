@@ -1,0 +1,62 @@
+# Coverage of the Go tests, published to Codecov: it is the number in the
+# README badge, the line-by-line report at https://app.codecov.io/gh/mhagnumdw/dwnvr
+# and, on a pull request, the Codecov app's comment with what the PR changes in
+# coverage. What it does with the report is in .github/codecov.yml.
+#
+# It stays out of ci.yml on purpose, like lint.yml: Codecov being down would
+# turn the CI red, and the release only goes out with ci.yml green. The tests
+# run again here, without -race, which is ci.yml's job; they take seconds.
+#
+# No token: the upload authenticates through OIDC, with the run's own identity.
+# In a public repository the stored token would protect nothing beyond that, and
+# it would be one more secret to keep and rotate. On a fork PR there is no OIDC,
+# and the action falls back by itself to the tokenless upload, which Codecov
+# accepts from forks.
+
+name: coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# No job gets a token with permissions unless it asks for one.
+permissions: {}
+
+# A new push to the same PR cancels the previous run, which no longer applies.
+# On main, every push finishes its own.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  codecov:
+    # The Dependabot PR only bumps a version: the coverage comment on it would be
+    # noise, one per PR, every month. The PR author, not github.actor, which
+    # changes to whoever triggers the re-run.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read  # read the code
+      id-token: write  # the upload's OIDC, instead of the token
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false  # nothing here pushes
+
+      # The Go from go.mod, and not one more number to remember to bump.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - run: go test ./... -count=1 -coverprofile=coverage.out
+
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
+        with:
+          use_oidc: true
+          files: coverage.out
+          disable_search: true  # only the file above, without scanning the repository
+          fail_ci_if_error: true  # without this, a refused upload passes green and the badge freezes

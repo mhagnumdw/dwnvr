@@ -1,63 +1,65 @@
-# Trivy na imagem latest do detector de objetos, uma vez por semana.
+# Trivy on the latest image of the object detector, once a week.
 #
-# A imagem do dwnvr-detect tem a base Debian do python:*-slim, e o pacote do
-# Debian fica na versão do dia em que a imagem foi construída. O Dependabot não
-# avisa de falha em pacote de imagem, só sobe a tag da base quando sai versão
-# nova do Python; e a tag de um patch do Python para de ser reconstruída quando
-# sai o seguinte, então ela congela os pacotes do Debian. O Trivy lê os pacotes
-# de dentro da imagem publicada e cruza com as bases públicas de falhas.
+# The dwnvr-detect image has the Debian base of python:*-slim, and the Debian
+# package stays at the version of the day the image was built. Dependabot does
+# not warn about flaws in image packages, it only bumps the base tag when a new
+# Python version comes out; and the tag of a Python patch stops being rebuilt
+# when the next one comes out, so it freezes the Debian packages. Trivy reads the
+# packages from inside the published image and checks them against the public
+# flaw databases.
 #
-# Só a falha que já tem correção (ignore-unfixed), e só HIGH e CRITICAL: o
-# resto não tem o que fazer e viraria ruído. A correção é subir a tag do python
-# no dwnvr-detect/Dockerfile e fazer uma release, porque a latest só muda nela.
+# Only flaws that already have a fix (ignore-unfixed), and only HIGH and
+# CRITICAL: the rest has nothing to be done and would become noise. The fix is
+# to bump the python tag in dwnvr-detect/Dockerfile and make a release, because
+# latest only changes then.
 #
-# A imagem do dwnvr fica de fora: é `scratch` com um binário em Go, e o que o
-# Trivy acharia nela o govulncheck.yml acha com menos alarme falso.
+# The dwnvr image is left out: it is `scratch` with a Go binary, and what Trivy
+# would find in it govulncheck.yml finds with fewer false alarms.
 #
-# O achado vai para a aba Security, em Code scanning, onde fecha sozinho quando
-# a imagem nova não o tem mais. E o job falha: o GitHub manda e-mail quando um
-# workflow agendado falha.
+# The finding goes to the Security tab, under Code scanning, where it closes by
+# itself when the new image no longer has it. And the job fails: GitHub sends an
+# e-mail when a scheduled workflow fails.
 
 name: trivy
 
 on:
   schedule:
-    - cron: '47 9 * * 1'  # segunda, 09:47 UTC
+    - cron: '47 9 * * 1'  # Monday, 09:47 UTC
   workflow_dispatch:
-  # O PR que mexe neste arquivo roda o scan, para provar que ele funciona. O
-  # scan é da latest, e não do que o PR constrói.
+  # The PR that touches this file runs the scan, to prove it works. The scan is
+  # of latest, not of what the PR builds.
   pull_request:
     paths: [.github/workflows/trivy.yml]
 
-# Nenhum job recebe token com permissão, a não ser que peça.
+# No job gets a token with permissions unless it asks for one.
 permissions: {}
 
 env:
-  # Trocada à mão; a da action é a do dia em que ela saiu. A base de falhas vem
-  # da rede a cada run, então uma versão mais velha do Trivy ainda enxerga as
-  # falhas novas.
+  # Bumped by hand; the action's is the one from the day it came out. The flaw
+  # database comes from the network on every run, so an older Trivy version
+  # still sees the new flaws.
   TRIVY_VERSION: v0.76.0
 
 jobs:
   detect-latest:
     runs-on: ubuntu-latest
-    # A imagem é pública, e nada aqui lê o repositório.
+    # The image is public, and nothing here reads the repository.
     permissions:
-      security-events: write  # enviar o SARIF ao Code scanning
+      security-events: write  # send the SARIF to Code scanning
     strategy:
       fail-fast: false
-      # As duas arquiteturas publicadas. Os pacotes costumam ter a mesma versão
-      # nas duas, mas nada garante.
+      # The two published architectures. The packages usually have the same
+      # version on both, but nothing guarantees it.
       matrix:
         arquitetura: [amd64, arm64]
     env:
       IMAGEM: ghcr.io/${{ github.repository }}-detect:latest
       TRIVY_PLATFORM: linux/${{ matrix.arquitetura }}
     steps:
-      # A action instala o Trivy pelo setup-trivy, que ela mesma fixa por SHA.
-      # Em março de 2026 as tags das duas foram trocadas por código malicioso
-      # (GHSA-69fq-xp46-6x23); o SHA não muda de código.
-      - name: scan para o Code scanning
+      # The action installs Trivy through setup-trivy, which it pins by SHA
+      # itself. In March 2026 the tags of both were swapped for malicious code
+      # (GHSA-69fq-xp46-6x23); the SHA does not change code.
+      - name: scan for Code scanning
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           version: ${{ env.TRIVY_VERSION }}
@@ -65,24 +67,24 @@ jobs:
           scanners: vuln
           ignore-unfixed: true
           severity: HIGH,CRITICAL
-          # Sem isto o SARIF leva toda severidade, e o filtro acima só valeria
-          # para a tabela.
+          # Without this the SARIF carries every severity, and the filter above
+          # would only apply to the table.
           limit-severities-for-sarif: true
           format: sarif
           output: trivy.sarif
 
-      # PR de fork não recebe token com escrita, e o envio falharia.
+      # A fork PR does not get a token with write access, and the upload would fail.
       - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
         with:
           sarif_file: trivy.sarif
-          # Uma categoria por arquitetura: a segunda não apaga os alertas da
-          # primeira.
+          # One category per architecture: the second does not erase the first's
+          # alerts.
           category: trivy-detect-${{ matrix.arquitetura }}
 
-      # A mesma busca, agora em tabela no log e falhando o job. A base de
-      # falhas e o Trivy já estão aqui.
-      - name: falha se houver achado
+      # The same search, now as a table in the log and failing the job. The flaw
+      # database and Trivy are already here.
+      - name: fail if there is a finding
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           skip-setup-trivy: true

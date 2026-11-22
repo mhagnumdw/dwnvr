@@ -2,7 +2,7 @@
 // record and hands it to the notifiers: e-mail, and later others.
 //
 // The alert tells about what detection marked, and detection doesn't mark
-// every arrival: it's not an alarm (see docs/deteccao.md). It also never holds
+// every arrival: it's not an alarm (see docs/detection.md). It also never holds
 // up the object detector's queue: the rule and the record are in-memory math,
 // and sending, which may wait on a mail server, runs on its own goroutine.
 //

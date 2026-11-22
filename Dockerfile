@@ -1,20 +1,20 @@
 # syntax=docker/dockerfile:1
 
-# Interface. Roda na arquitetura de quem constrói (BUILDPLATFORM) porque o
-# resultado é HTML, CSS e JS - não depende da arquitetura de destino, e emular
-# Node em ARM só desperdiçaria minutos.
+# UI. Runs on the builder's architecture (BUILDPLATFORM) because the result is
+# HTML, CSS and JS - it does not depend on the target architecture, and
+# emulating Node on ARM would only waste minutes.
 FROM --platform=$BUILDPLATFORM node:24-alpine AS web
 WORKDIR /src/web
-# package.json separado do resto para que a camada de dependências só refaça
-# quando as dependências realmente mudarem.
+# package.json apart from the rest so the dependency layer is only redone when
+# the dependencies actually change.
 COPY web/package.json web/package-lock.json* ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
-# O vite.config.ts manda o build para ../internal/api/dist, onde o Go o embute.
+# vite.config.ts sends the build to ../internal/api/dist, where Go embeds it.
 RUN npm run build
 
-# Binário. Também roda no BUILDPLATFORM e faz cross-compile via GOARCH: compilar
-# Go emulado seria ordens de grandeza mais lento que compilar cruzado.
+# Binary. Also runs on BUILDPLATFORM and cross-compiles via GOARCH: compiling
+# Go under emulation would be orders of magnitude slower than cross-compiling.
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETARCH
 WORKDIR /src
@@ -23,13 +23,14 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . .
-# A interface vem do estágio anterior, e não a versionada no repositório: assim
-# a imagem sempre corresponde ao código-fonte que a gerou.
+# The UI comes from the previous stage, not the one versioned in the
+# repository: that way the image always matches the source code that produced
+# it.
 COPY --from=web /src/internal/api/dist ./internal/api/dist
 
-# Identificação do build. Vem de fora porque o .dockerignore exclui o .git/ -
-# aqui dentro nenhum comando git funcionaria. Declarados só agora, depois dos
-# COPY, para que trocar de versão não invalide as camadas de dependência.
+# Build identification. It comes from outside because .dockerignore excludes
+# .git/ - in here no git command would work. Declared only now, after the
+# COPYs, so changing version does not invalidate the dependency layers.
 ARG VERSION=dev
 ARG COMMIT=desconhecido
 ARG DATE=
@@ -42,24 +43,24 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -ldflags="-s -w -X $BUILDPKG.Version=$VERSION -X $BUILDPKG.Commit=$COMMIT -X $BUILDPKG.Date=$DATE" \
       ./cmd/dwnvr
 
-# Imagem final: só o binário.
+# Final image: just the binary.
 #
-# FROM scratch é possível porque o binário é estático, a base de fusos horários
-# vai embutida (time/tzdata) e o healthcheck é o próprio binário - não há shell
-# nem curl aqui dentro para o Docker chamar.
+# FROM scratch is possible because the binary is static, the time zone database
+# is embedded (time/tzdata) and the healthcheck is the binary itself - there is
+# no shell or curl in here for Docker to call.
 FROM scratch
 
 COPY --from=build /dwnvr /dwnvr
-# Certificados só são necessários se o go2rtc estiver atrás de HTTPS; custam
-# poucos KB e evitam um erro obscuro em quem usa proxy TLS.
+# Certificates are only needed if go2rtc is behind HTTPS; they cost a few KB
+# and avoid an obscure error for whoever uses a TLS proxy.
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 VOLUME ["/etc/dwnvr", "/storage"]
 EXPOSE 8080
 
-# Numa imagem scratch não há /usr/share/zoneinfo; a base de fusos vai embutida
-# no binário (time/tzdata) e TZ é a única forma de o dwnvr saber a que dia
-# local um segmento pertence.
+# A scratch image has no /usr/share/zoneinfo; the time zone database is
+# embedded in the binary (time/tzdata) and TZ is the only way for dwnvr to know
+# which local day a segment belongs to.
 ENV TZ=UTC
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

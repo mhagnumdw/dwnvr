@@ -115,5 +115,5 @@ incompatível:
 - a API do `docs/api.md` (rotas, parâmetros e JSON);
 - as chaves do `dwnvr.yaml`, as variáveis do compose e do `dwnvr-detect` e as
   flags do binário;
-- o layout do disco, o que o `docs/arquitetura.md` descreve;
+- o layout do disco, o que o `docs/architecture.md` descreve;
 - os nomes dos tokens de cor, que a paleta da Etapa 4 publica.
