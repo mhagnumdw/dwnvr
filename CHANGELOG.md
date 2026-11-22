@@ -1,6 +1,6 @@
 # Changelog
 
-> Gerado automaticamente na release pelo git-cliff (`.github/workflows/release.yml`); datas em UTC; não edite à mão.
+> Generated automatically on release by git-cliff (`.github/workflows/release.yml`); dates in UTC; do not edit by hand.
 
 ## [v0.15.0](https://github.com/mhagnumdw/dwnvr/compare/v0.14.0...v0.15.0) (2026-11-11)
 

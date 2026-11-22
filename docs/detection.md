@@ -486,7 +486,7 @@ marks are lost.
 - The log says **one** line when the object detector goes out and **one** when
   it comes back, and the Diagnóstico tells "the object detector didn't respond"
   apart from "corrupted video coming from the camera". While it is down, the
-  Avisos of the Diagnóstico say since when and why (the `foraDoAr` of
+  Avisos of the Diagnóstico say since when and why (the `detector.outage` of
   `/api/health`, see [`api.md`](api.md)).
 - When it comes back, the queue resumes on its own. A clip inferred late marks
   at the onset instant, so the time on the timeline comes out right.
