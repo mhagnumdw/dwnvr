@@ -13,12 +13,12 @@
 # during the build: the packages stage copies the stdlib from it to generate
 # the .pyc, and the final image starts from it. That way the .pyc comes from
 # the same .py the final image carries.
-FROM python:3.12.15-slim-trixie AS target
+FROM python:3.12.16-slim-trixie AS target
 
 # uv in a stage of its own, and not in a `COPY --from=ghcr.io/astral-sh/uv`:
 # that shortcut brings the binary of the TARGET architecture, which doesn't run
 # here.
-FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.13.7 AS uv
+FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.13.9 AS uv
 
 # Packages. Go cross-compiles; Python doesn't compile, but uv downloads the
 # wheels (already-compiled packages) of another architecture without executing
@@ -29,7 +29,7 @@ FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:0.13.7 AS uv
 # --only-binary     refuses source code, which would require compiling - and
 #                   compiling for arm64 here would mean emulating
 # --python-version  the final image's, and not this stage's
-FROM --platform=$BUILDPLATFORM python:3.12.15-slim-trixie AS packages
+FROM --platform=$BUILDPLATFORM python:3.12.16-slim-trixie AS packages
 ARG TARGETARCH
 COPY --from=uv /uv /usr/local/bin/uv
 COPY requirements.txt /tmp/
