@@ -84,7 +84,7 @@ response time doesn't reveal who exists.
 
 Each address has an attempt limit, on by default and turned off with
 `server.loginAttemptsPerMinute: 0` (see
-[Limite de tentativas no login](configuration.md#limite-de-tentativas-no-login)).
+[Login attempt limit](configuration.md#login-attempt-limit)).
 Past it, the response is `429`, before any password computation, with the
 `Retry-After` in seconds and the same number in the error, as in
 `{"error": "muitas tentativas; tente de novo em 30 s"}`. The number is what
@@ -111,7 +111,7 @@ password through **Minha conta** (My account) gets a new cookie in the same
 response and carries on; their other devices go back to the login. To drop
 everyone at once, see
 [Trocar a senha e derrubar as
-sessões](operations.md#trocar-a-senha-e-derrubar-as-sessões).
+sessões](operations.md#changing-the-password-and-ending-the-sessions).
 
 ### The invite link
 
@@ -174,7 +174,7 @@ connection drops, but doesn't open another.
 | Endpoint | Parameters | What it does |
 | --- | --- | --- |
 | `GET /api/cameras` | - | registered + go2rtc streams + orphan recordings + where the alert goes; for the viewer, only the cameras (from the `alert`, only the `enabled` when on) and the `detector` |
-| `POST /api/cameras` | JSON body | **admin only**: registers or changes (upsert by id); a field the camera didn't define that arrives equal to the default is not stored (see [Política por câmera](configuration.md#política-por-câmera)) |
+| `POST /api/cameras` | JSON body | **admin only**: registers or changes (upsert by id); a field the camera didn't define that arrives equal to the default is not stored (see [Per-camera policy](configuration.md#per-camera-policy)) |
 | `DELETE /api/cameras` | `id`, `recordings=1` | **admin only**: unregisters; with `recordings=1` deletes the recordings too |
 | `GET /api/streams/probe` | `src` | **admin only**: says whether a stream delivers audio, opening it if needed |
 | `POST /api/go2rtc/restart` | - | **admin only**: restarts go2rtc, so it rereads `go2rtc.yaml`; all cameras stop for a few seconds |
@@ -207,7 +207,7 @@ alert.schedules[0].to "06:00" fora do aceito: use uma hora depois do from 22:00;
 ```
 
 The format of `areas` and `alert` is in
-[Política por câmera](configuration.md#política-por-câmera).
+[Per-camera policy](configuration.md#per-camera-policy).
 
 The `hasAudio` of `GET /api/cameras` is only reliable on a stream someone is
 already consuming: go2rtc only fills the producer's `medias` while a consumer
@@ -435,7 +435,7 @@ The alerts themselves are stored in the detection, and are read in
 
 With any delivery channel configured, an alert that doesn't go out is dropped
 and counted: `queueFull` didn't fit in the send queue, and `overLimit` went
-past the `limitPerHour` ceiling (see [O alerta](detection.md#o-alerta)). The
+past the `limitPerHour` ceiling (see [The alert](detection.md#the-alert)). The
 `dropped` comes while the episode is valid, up to one hour after the last drop
 (`lastAt`); the next drop starts another, with the count from zero. It is where
 the yellow **Aviso** (Warning) of the **Avisos** (Warnings) card comes from.
@@ -465,7 +465,7 @@ succeeds. It is where the red Aviso of the Avisos card comes from.
 ```
 
 A `dwnvr.yaml` `alerts` section with a problem (see
-[Alerta por e-mail](configuration.md#alerta-por-e-mail)) puts the `warnings` in
+[E-mail alerts](configuration.md#e-mail-alerts)) puts the `warnings` in
 the same `alerts`, for the Avisos card and the bell, even without a camera with
 alerts, and then without the `total`. Without a problem, they don't come.
 
@@ -667,7 +667,7 @@ accepting a path there would open a directory traversal.
 
 The split between `/api/rec/init` and `/api/rec/seg` is what lets the MSE
 player download the init just once and then ask only for media. See
-[architecture.md](architecture.md#armazenamento).
+[architecture.md](architecture.md#storage).
 
 **`/api/rec/events`** returns the raw instants, in order, that the timeline's
 heat strip draws, and the object marks the object detector confirmed:

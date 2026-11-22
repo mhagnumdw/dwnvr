@@ -1,72 +1,77 @@
-# Operação
+# Operations
 
-## Onde ficam os arquivos
+## Where the files are
 
-Nada de importante vive dentro do container. Os volumes cobrem tudo. Os
-caminhos do host abaixo são os da [instalação de
-verdade](../README.md#instalar-de-verdade), definidos no `.env` por
-`DWNVR_CONFIG_DIR`, `DWNVR_STORAGE_DIR` e `GO2RTC_CONFIG_DIR`; no teste rápido
-os mesmos arquivos ficam em `./config/dwnvr`, `./storage` e `./config/go2rtc`.
+Nothing important lives inside the container. The volumes cover everything.
+The host paths below are those of the [real
+installation](../README.md#instalar-de-verdade), defined in `.env` by
+`DWNVR_CONFIG_DIR`, `DWNVR_STORAGE_DIR` and `GO2RTC_CONFIG_DIR`; in the quick
+test the same files live in `./config/dwnvr`, `./storage` and
+`./config/go2rtc`.
 
-| No host (exemplo) | No container | O que é |
+| On the host (example) | In the container | What it is |
 | --- | --- | --- |
-| `/mnt/storage/dwnvr/config/dwnvr/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuração, editada à mão |
-| `/mnt/storage/dwnvr/config/dwnvr/cameras.json` | `/etc/dwnvr/cameras.json` | câmeras, gravado pela tela de cadastro |
-| `/mnt/storage/dwnvr/config/dwnvr/.session-secret` | `/etc/dwnvr/.session-secret` | assina os cookies de sessão (0600) |
-| `/mnt/storage/dwnvr/config/dwnvr/users.json` | `/etc/dwnvr/users.json` | as pessoas além do dono, gravado pela tela Usuários e pela Minha conta (0600) |
-| `/mnt/storage/dwnvr/config/dwnvr/avatars/` | `/etc/dwnvr/avatars/` | a foto de cada pessoa, um JPEG de até 32 KB |
-| `/mnt/storage/dwnvr/config/dwnvr/access.json` | `/etc/dwnvr/access.json` | o último acesso de cada pessoa, que a tela Usuários mostra (0600) |
-| `/mnt/storage/dwnvr/config/go2rtc/go2rtc.yaml` | `/config/go2rtc.yaml`, no container do go2rtc | as câmeras, editado à mão |
-| `/mnt/storage/dwnvr/recordings/` | `/storage/` | gravações, índices, init segments, marcas de movimento e quadros das detecções |
+| `/mnt/storage/dwnvr/config/dwnvr/dwnvr.yaml` | `/etc/dwnvr/dwnvr.yaml` | configuration, edited by hand |
+| `/mnt/storage/dwnvr/config/dwnvr/cameras.json` | `/etc/dwnvr/cameras.json` | cameras, written by the registration screen |
+| `/mnt/storage/dwnvr/config/dwnvr/.session-secret` | `/etc/dwnvr/.session-secret` | signs the session cookies (0600) |
+| `/mnt/storage/dwnvr/config/dwnvr/users.json` | `/etc/dwnvr/users.json` | the people besides the owner, written by the **Usuários** (Users) screen and by **Minha conta** (My account) (0600) |
+| `/mnt/storage/dwnvr/config/dwnvr/avatars/` | `/etc/dwnvr/avatars/` | each person's photo, a JPEG of up to 32 KB |
+| `/mnt/storage/dwnvr/config/dwnvr/access.json` | `/etc/dwnvr/access.json` | each person's last access, which the Usuários screen shows (0600) |
+| `/mnt/storage/dwnvr/config/go2rtc/go2rtc.yaml` | `/config/go2rtc.yaml`, in the go2rtc container | the cameras, edited by hand |
+| `/mnt/storage/dwnvr/recordings/` | `/storage/` | recordings, indexes, init segments, motion marks and the frames of the detections |
 
-Ou seja: **edite e inspecione tudo pelo host**, sem entrar no container.
+So: **edit and inspect everything from the host**, without entering the
+container.
 
 ```sh
 cat /mnt/storage/dwnvr/config/dwnvr/cameras.json
 tail -f /mnt/storage/dwnvr/recordings/cam_iota/index/$(date +%F).ndjson
 
-# as marcas de movimento, se a câmera estiver com a detecção ligada
+# the motion marks, if the camera has detection on
 tail -f /mnt/storage/dwnvr/recordings/cam_iota/events/$(date +%F).ndjson
 
-# os quadros das detecções do dia, um .jpg por detecção, nomeado pelo instante
+# the day's detection frames, one .jpg per detection, named by the instant
 ls -l /mnt/storage/dwnvr/recordings/cam_iota/frames/$(date +%F)/
 ```
 
-Para descobrir os caminhos de uma instalação qualquer:
+To find the paths of any installation:
 
 ```sh
 docker inspect dwnvr --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{println}}{{end}}'
 ```
 
-**Alterar o `cameras.json` na mão exige reiniciar** (`docker compose restart
-dwnvr`); pela tela de cadastro a mudança vale na hora. Um valor fora da faixa
-não impede o boot: vale o padrão, e o aviso aparece na tela de Diagnóstico -
-ver [Valor fora da faixa](configuration.md#valor-fora-da-faixa).
+**Editing `cameras.json` by hand requires a restart** (`docker compose restart
+dwnvr`); through the registration screen the change takes effect immediately.
+An out-of-range value doesn't stop the boot: the default applies, and the
+warning appears on the **Diagnóstico** (Diagnostics) screen - see
+[Value out of range](configuration.md#value-out-of-range).
 
-## Copiar gravações direto do disco
+## Copying recordings straight from disk
 
-O jeito mais simples é o botão de exportar da tela de Gravações: ele entrega o
-trecho escolhido num arquivo só. Direto do disco vale para guardar dias
-inteiros, copiar várias câmeras de uma vez, ou quando a interface não está à
-mão. Copiar com o dwnvr rodando não atrapalha a gravação.
+The simplest way is the export button on the **Gravações** (Recordings)
+screen: it hands over the chosen stretch in a single file. Straight from disk
+is for keeping whole days, copying several cameras at once, or when the
+interface isn't at hand. Copying while dwnvr runs doesn't disturb recording.
 
-No disco, a gravação é uma fila de arquivos `.mp4` de ~30s, e cada um toca
-sozinho. O nome é o início em epoch ms, e a pasta do dia segue o `TZ` do
-`.env`. Os comandos abaixo usam o fuso do host, que costuma ser o mesmo; se
-não for, ponha `TZ=America/Fortaleza` (o do `.env`) na frente do `date`.
+On disk, a recording is a series of `.mp4` files of ~30s, and each one plays
+on its own. The name is the start in epoch ms, and the day's folder follows
+the `TZ` in `.env`. The commands below use the host's time zone, which is
+usually the same; if it isn't, put `TZ=America/Fortaleza` (the one in `.env`)
+in front of `date`.
 
 ```sh
 cd /mnt/storage/dwnvr/recordings/cam_iota/2026-08-08
 
-# a hora de início de cada arquivo
+# the start time of each file
 for f in *.mp4; do echo "$(date -d @${f%???.mp4} +%T)  $f"; done
 ```
 
-O último arquivo da pasta de hoje ainda está sendo gravado e corta no meio.
+The last file in today's folder is still being recorded and cuts off in the
+middle.
 
-Para copiar só um horário, o índice diz o início (`t`) e a duração (`d`) de
-cada arquivo, então acha também o que começou antes do horário pedido e o
-cobre. Precisa do `jq`:
+To copy just one time range, the index gives the start (`t`) and the duration
+(`d`) of each file, so it also finds the one that started before the requested
+time and covers it. It needs `jq`:
 
 ```sh
 cd /mnt/storage/dwnvr/recordings/cam_iota
@@ -79,87 +84,90 @@ jq -r --argjson ini "$ini" --argjson fim "$fim" \
   index/2026-08-08.ndjson | xargs -I{} cp 2026-08-08/{} ~/trecho/
 ```
 
-O índice só lista arquivo fechado, então o que ainda está sendo gravado fica
-de fora. Trecho que cruza a meia-noite precisa do índice dos dois dias.
+The index only lists closed files, so the one still being recorded is left
+out. A range that crosses midnight needs the index of both days.
 
-## Trocar a senha e derrubar as sessões
+## Changing the password and ending the sessions
 
-Quem entra uma vez continua logado: a sessão vale 30 dias e se renova com o
-uso. A assinatura do cookie de cada pessoa depende da senha dela, então trocar
-a senha de alguém tira só essa pessoa.
+Whoever signs in once stays signed in: the session lasts 30 days and renews
+with use. Each person's cookie signature depends on their password, so
+changing someone's password signs out only that person.
 
-Para as pessoas criadas na aba **Usuários**, é pela tela, sem reiniciar nada:
-**gerar link novo** apaga a senha dela, e **remover** apaga a pessoa. Nos dois
-casos ela sai na hora de todos os aparelhos, ao vivo aberto inclusive. A
-própria pessoa também troca a senha, na **Minha conta**, pedindo a atual: o
-aparelho em que ela trocou continua, e os outros saem.
+For the people created in the **Usuários** tab, it is done on the screen,
+without restarting anything: **gerar link novo** (generate new link) erases
+their password, and **remover** (remove) erases the person. In both cases they
+are signed out right away from every device, live view open included. The
+person can also change their own password, in **Minha conta**, by giving the
+current one: the device they changed it on stays signed in, and the others are
+signed out.
 
-Para o dono, e para tirar todo mundo, há dois caminhos, e os dois pedem
-reiniciar o dwnvr, que só lê esses arquivos ao subir:
+For the owner, and to sign everyone out, there are two ways, and both require
+restarting dwnvr, which only reads these files at startup:
 
-- **Trocar a senha**, ou o usuário, do dono no `dwnvr.yaml`. Todo cookie do
-  dono emitido antes deixa de valer, e só entra quem souber a senha nova. Os
-  outros usuários continuam logados.
-- **Apagar o `.session-secret`**, para tirar todo mundo, o dono e os outros
-  usuários, sem trocar senha nenhuma. O dwnvr gera outro ao subir.
+- **Change the owner's password**, or user, in `dwnvr.yaml`. Every owner
+  cookie issued before stops being valid, and only whoever knows the new
+  password gets in. The other users stay signed in.
+- **Delete `.session-secret`**, to sign everyone out, the owner and the other
+  users, without changing any password. dwnvr generates another at startup.
 
 ```sh
-# Para tirar todo mundo sem trocar a senha:
+# To sign everyone out without changing the password:
 rm /mnt/storage/dwnvr/config/dwnvr/.session-secret
 
-# Nos dois caminhos, depois:
+# In both ways, afterwards:
 docker compose restart dwnvr
 ```
 
-Nos dois casos, quem foi tirado e estava com a tela aberta volta para a tela
-de login.
+In both cases, whoever was signed out and had the page open goes back to the
+login screen.
 
-## Inspecionar um container sem shell
+## Inspecting a container without a shell
 
-A imagem é `FROM scratch` e contém literalmente isto:
+The image is `FROM scratch` and contains literally this:
 
 ```text
-/dwnvr                          o binário
+/dwnvr                          the binary
 /etc/ssl/certs/ca-certificates.crt
 ```
 
-O resto (`/dev`, `/proc`, `/etc/hosts`, `/etc/resolv.conf`) é injetado pelo
-Docker. Não há `sh`, `ls` nem `cat` - o que é o ponto: menos superfície, menos
-peso e nada para um invasor usar.
+The rest (`/dev`, `/proc`, `/etc/hosts`, `/etc/resolv.conf`) is injected by
+Docker. There is no `sh`, `ls` or `cat` - which is the point: less surface,
+less weight and nothing for an intruder to use.
 
-Isso não impede inspecionar. Quatro caminhos, do mais simples ao mais invasivo:
+That doesn't prevent inspecting. Four ways, from the simplest to the most
+invasive:
 
-### 1. Logs e estado
+### 1. Logs and state
 
 ```sh
 docker logs -f dwnvr
 docker logs dwnvr | grep -E 'level=(WARN|ERROR)'
-docker logs dwnvr | grep -E 'msg="(login aceito|tentativa de login recusada)"|msg=logout'
+docker logs dwnvr | grep -E 'msg="(login accepted|login attempt rejected)"|msg=logout'
 docker stats --no-stream dwnvr
 docker inspect dwnvr --format '{{.State.Health.Status}}'
 ```
 
-### 2. O próprio binário como ferramenta
+### 2. The binary itself as a tool
 
-`docker exec` não precisa de shell - precisa de um executável, e há um:
+`docker exec` doesn't need a shell - it needs an executable, and there is one:
 
 ```sh
 docker exec dwnvr /dwnvr -healthcheck -config /etc/dwnvr/dwnvr.yaml; echo $?
 docker exec dwnvr /dwnvr -h
 ```
 
-### 3. Copiar arquivos para fora
+### 3. Copying files out
 
-`docker cp` é implementado pelo daemon e funciona em imagem vazia:
+`docker cp` is implemented by the daemon and works on an empty image:
 
 ```sh
 docker cp dwnvr:/etc/dwnvr/cameras.json /tmp/
 ```
 
-### 4. Sidecar compartilhando os namespaces
+### 4. A sidecar sharing the namespaces
 
-Quando é preciso olhar rede ou processos de dentro, sobe-se um container
-descartável **com as ferramentas** que compartilha os namespaces do dwnvr:
+When you need to look at the network or processes from the inside, you start a
+disposable container **with the tools** that shares dwnvr's namespaces:
 
 ```sh
 docker run --rm -it \
@@ -168,83 +176,87 @@ docker run --rm -it \
   busybox sh
 ```
 
-Lá dentro:
+Inside:
 
 ```sh
-ps -o pid,args              # vê o processo do dwnvr como PID 1
-netstat -ltn                # vê as portas dele
+ps -o pid,args              # sees the dwnvr process as PID 1
+netstat -ltn                # sees its ports
 wget -qO- http://127.0.0.1:8080/api/session
 ```
 
-Para inspecionar também o *sistema de arquivos* do dwnvr, acrescente
-`--volumes-from dwnvr` - os volumes aparecem nos mesmos caminhos.
+To also inspect dwnvr's *file system*, add `--volumes-from dwnvr` - the
+volumes show up at the same paths.
 
-Nada disso muda a imagem: o sidecar é descartado ao sair.
+None of this changes the image: the sidecar is discarded on exit.
 
-## Trocar de versão
+## Changing version
 
 ```sh
 docker compose up -d --pull always
 ```
 
-A tag das duas imagens, dwnvr e dwnvr-detect, vem de `DWNVR_VERSION` no
-`.env`; sem ela, vale o default do `docker-compose.yml`, que cada release
-reescreve com a versão dela. Os valores possíveis:
+The tag of both images, dwnvr and dwnvr-detect, comes from `DWNVR_VERSION` in
+`.env`; without it, the default in `docker-compose.yml` applies, which each
+release rewrites with its own version. The possible values:
 
-| `DWNVR_VERSION` | O que roda |
+| `DWNVR_VERSION` | What runs |
 | --- | --- |
-| (ausente) | a versão do compose que está no clone: a última release, depois de um `git pull` |
-| `v0.1.0` | fica nessa versão, mesmo depois de `git pull`; é também como se volta para uma anterior |
-| `main` | cada commit da main, antes de virar versão |
-| `sha-abc1234` | um commit específico |
+| (absent) | the compose's version in the clone: the latest release, after a `git pull` |
+| `v0.1.0` | stays on that version, even after `git pull`; it is also how you go back to an earlier one |
+| `main` | every commit on main, before it becomes a version |
+| `sha-abc1234` | a specific commit |
 
-As versões e o que mudou em cada uma estão nas
+The versions and what changed in each are in the
 [releases](https://github.com/mhagnumdw/dwnvr/releases).
 
-O go2rtc segue a mesma ideia, com a própria variável: `GO2RTC_VERSION` no
-`.env` passa por cima da versão fixa no compose. A release não a reescreve;
-ela muda só por commit, depois de testada com o dwnvr.
+go2rtc follows the same idea, with its own variable: `GO2RTC_VERSION` in
+`.env` overrides the version pinned in the compose. The release doesn't
+rewrite it; it changes only by commit, after being tested with dwnvr.
 
-O encerramento é gracioso: o dwnvr fecha e indexa o segmento em aberto de cada
-câmera antes de sair. Sem isso, todo reinício perderia o último minuto gravado.
+Shutdown is graceful: dwnvr closes and indexes each camera's open segment
+before exiting. Without that, every restart would lose the last minute
+recorded.
 
-Se algo der errado, os dados sobrevivem à imagem - eles estão nos volumes. Voltar
-para a versão anterior é trocar a tag e subir de novo.
+If something goes wrong, the data survives the image - it is in the volumes.
+Going back to the previous version is changing the tag and starting again.
 
-## Problemas comuns
+## Common problems
 
-**Arquivos aparecendo como root no disco.** Falta `DWNVR_UID` e `DWNVR_GID` no
-`.env`, ou o `user:` sumiu do compose. Descubra o seu com `id -u; id -g`. Para consertar o que já foi gravado:
+**Files showing up as root on disk.** `DWNVR_UID` and `DWNVR_GID` are missing
+from `.env`, or the `user:` disappeared from the compose. Find yours with
+`id -u; id -g`. To fix what was already written:
 `sudo chown -R 1000:1000 /mnt/storage/dwnvr`.
 
-**A timeline vira o dia no horário errado, ou o alerta sai nas horas
-erradas.** Falta `TZ` no `.env`. A imagem não tem `/usr/share/zoneinfo` - a
-base de fusos vai embutida no binário, mas alguém precisa dizer qual fuso usar.
+**The timeline turns the day at the wrong time, or the alert goes out at the
+wrong hours.** `TZ` is missing from `.env`. The image has no
+`/usr/share/zoneinfo` - the time zone database is embedded in the binary, but
+someone has to say which zone to use.
 
-**O container não enxerga o go2rtc.** Dentro do container, `localhost` é o
-próprio container. Use `host.docker.internal` (com `extra_hosts:
-host-gateway`), o nome do serviço se os dois estiverem na mesma rede, ou
+**The container doesn't see go2rtc.** Inside the container, `localhost` is the
+container itself. Use `host.docker.internal` (with `extra_hosts:
+host-gateway`), the service name if both are on the same network, or
 `network_mode: host`.
 
-**A interface do go2rtc não abre de outra máquina.** É de propósito: o compose
-publica a 1984 e a 8554 só para o próprio servidor, porque o go2rtc não pede
-senha por padrão. Use um túnel ssh, ou abra com senha - ver [Abrir o go2rtc
+**The go2rtc interface doesn't open from another machine.** That is on
+purpose: the compose publishes 1984 and 8554 only to the server itself,
+because go2rtc doesn't ask for a password by default. Use an ssh tunnel, or
+open it with a password - see [Abrir o go2rtc
 para a rede](../README.md#abrir-o-go2rtc-para-a-rede-).
 
-**A tela está velha depois de atualizar.** A interface é embutida no binário, e o
-navegador cacheia os assets - que têm hash no nome justamente para isso não
-acontecer. Se persistir, é sinal de que o binário foi construído sem rodar
-`npm run build` antes.
+**The page is stale after updating.** The interface is embedded in the binary,
+and the browser caches the assets - which have a hash in the name precisely so
+that doesn't happen. If it persists, it is a sign the binary was built without
+running `npm run build` first.
 
-**Nenhuma marca de objeto aparece.** Três coisas, nesta ordem:
+**No object marks appear.** Three things, in this order:
 
-1. **O `detector.url` está vazio.** Sem ele, o dwnvr não pergunta nada a
-   ninguém. Com ele, o log do dwnvr diz `detector de objetos configurado` ao
-   subir.
-2. **O `dwnvr-detect` não subiu.** Ele só sobe com o profile `detect`
-   (`COMPOSE_PROFILES=detect` no `.env`). Confira com
+1. **`detector.url` is empty.** Without it, dwnvr doesn't ask anyone
+   anything. With it, the dwnvr log says `object detector configured` at
+   startup.
+2. **`dwnvr-detect` didn't start.** It only starts with the `detect` profile
+   (`COMPOSE_PROFILES=detect` in `.env`). Check with
    `docker inspect dwnvr-detect --format '{{.State.Health.Status}}'`.
-3. **O detector caiu.** O dwnvr avisa no log uma vez, com
-   `detector de objetos fora do ar`, e outra quando ele volta. Enquanto isso,
-   as câmeras seguem gravando e marcando movimento. As olhadas perdidas
-   aparecem como `falhas` no funil do `/api/health`.
+3. **The object detector went down.** dwnvr warns in the log once, with
+   `object detector down`, and again when it comes back. Meanwhile, the
+   cameras keep recording and marking motion. The lost inferences show up as
+   `failed` in the `/api/health` funnel.

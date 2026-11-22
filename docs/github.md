@@ -1,48 +1,48 @@
-# O repositório no GitHub <!-- omit in toc -->
+# The GitHub repository <!-- omit in toc -->
 
-A configuração do repositório que não mora em arquivo: o que está ligado no
-Settings, o comando que liga cada coisa e o que fazer com o que ela produz. O
-que ainda falta está em
+The repository configuration that doesn't live in a file: what is turned on in
+Settings, the command that turns each thing on and what to do with what it
+produces. What is still missing is in
 [`TODO/TODO_seguranca-o-que-sobrou.md`](TODO/TODO_seguranca-o-que-sobrou.md);
-quando um item de lá é feito, ele passa para cá.
+when an item there is done, it moves here.
 
-Os comandos usam o [`gh`](https://cli.github.com), autenticado com permissão de
-admin no repositório. Todos partem de:
+The commands use [`gh`](https://cli.github.com), authenticated with admin
+permission on the repository. They all start from:
 
 ```sh
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 ```
 
-Ligar de novo o que já está ligado não muda nada, então qualquer comando daqui
-pode ser rodado outra vez para conferir.
+Turning on again what is already on changes nothing, so any command here can be
+run again to check.
 
-- [Conferir o estado](#conferir-o-estado)
-- [Secret scanning e push protection](#secret-scanning-e-push-protection)
-- [Token dos workflows só com leitura](#token-dos-workflows-só-com-leitura)
-- [Dependabot alerts e security updates](#dependabot-alerts-e-security-updates)
-  - [Revisar e aceitar o PR do Dependabot](#revisar-e-aceitar-o-pr-do-dependabot)
-  - [PR do Dependabot em `web/`](#pr-do-dependabot-em-web)
-  - [PR do Dependabot em `dwnvr-detect/`](#pr-do-dependabot-em-dwnvr-detect)
-  - [Alert que não fecha depois da correção](#alert-que-não-fecha-depois-da-correção)
+- [Checking the state](#checking-the-state)
+- [Secret scanning and push protection](#secret-scanning-and-push-protection)
+- [Read-only workflow token](#read-only-workflow-token)
+- [Dependabot alerts and security updates](#dependabot-alerts-and-security-updates)
+  - [Reviewing and accepting the Dependabot PR](#reviewing-and-accepting-the-dependabot-pr)
+  - [Dependabot PR in `web/`](#dependabot-pr-in-web)
+  - [Dependabot PR in `dwnvr-detect/`](#dependabot-pr-in-dwnvr-detect)
+  - [An alert that doesn't close after the fix](#an-alert-that-doesnt-close-after-the-fix)
 - [`dependabot.yml`](#dependabotyml)
-- [Pin por SHA](#pin-por-sha)
+- [SHA pinning](#sha-pinning)
 - [CodeQL](#codeql)
 - [Private vulnerability reporting](#private-vulnerability-reporting)
-- [Ruleset na `main`](#ruleset-na-main)
-- [Merge do PR sem merge commit](#merge-do-pr-sem-merge-commit)
-- [Branch apagada depois do merge](#branch-apagada-depois-do-merge)
-- [govulncheck semanal](#govulncheck-semanal)
-- [Trivy semanal na imagem do detector](#trivy-semanal-na-imagem-do-detector)
+- [Ruleset on `main`](#ruleset-on-main)
+- [Merging a PR without a merge commit](#merging-a-pr-without-a-merge-commit)
+- [Branch deleted after merge](#branch-deleted-after-merge)
+- [Weekly govulncheck](#weekly-govulncheck)
+- [Weekly Trivy on the object detector image](#weekly-trivy-on-the-object-detector-image)
 - [Codecov](#codecov)
 
-## Conferir o estado
+## Checking the state
 
 ```sh
-gh api repos/$REPO --jq '.security_and_analysis'             # secret scanning e security updates
-gh api repos/$REPO/vulnerability-alerts -i | head -1         # 204 = Dependabot alerts ligado, 404 = desligado
-gh api repos/$REPO/actions/permissions/workflow              # token dos workflows
+gh api repos/$REPO --jq '.security_and_analysis'             # secret scanning and security updates
+gh api repos/$REPO/vulnerability-alerts -i | head -1         # 204 = Dependabot alerts on, 404 = off
+gh api repos/$REPO/actions/permissions/workflow              # workflow token
 gh api "repos/$REPO/dependabot/alerts?state=open" --jq 'length'
-gh api repos/$REPO/code-scanning/default-setup --jq '.state' # configured = CodeQL ligado
+gh api repos/$REPO/code-scanning/default-setup --jq '.state' # configured = CodeQL on
 gh api --paginate "repos/$REPO/code-scanning/alerts?state=open" --jq '.[].number' | wc -l
 gh api --paginate "repos/$REPO/code-scanning/alerts?state=open&tool_name=Trivy" --jq '.[].number' | wc -l
 gh api repos/$REPO/private-vulnerability-reporting
@@ -51,13 +51,13 @@ gh api repos/$REPO --jq '.allow_merge_commit'                # false
 gh api repos/$REPO --jq '.delete_branch_on_merge'            # true
 ```
 
-## Secret scanning e push protection
+## Secret scanning and push protection
 
-O GitHub procura segredo conhecido (token de nuvem, chave de API) em tudo que
-já foi publicado, e o push protection recusa o `git push` que traz um novo. Não
-substitui o betterleaks do commit (um hook do
-[`.pre-commit-config.yaml`](../.pre-commit-config.yaml)): ele roda antes do
-commit existir e conhece a senha de câmera, que o GitHub não conhece.
+GitHub looks for known secrets (cloud tokens, API keys) in everything already
+published, and push protection rejects a `git push` that brings in a new one.
+It doesn't replace the commit-time betterleaks (a hook in
+[`.pre-commit-config.yaml`](../.pre-commit-config.yaml)): that one runs before
+the commit exists and knows the camera password, which GitHub doesn't.
 
 ```sh
 gh api -X PATCH repos/$REPO --input - <<'EOF'
@@ -65,195 +65,199 @@ gh api -X PATCH repos/$REPO --input - <<'EOF'
 EOF
 ```
 
-## Token dos workflows só com leitura
+## Read-only workflow token
 
-Quando um workflow não declara `permissions`, o `GITHUB_TOKEN` recebe só
-leitura, e o Actions não pode aprovar pull request. Os workflows daqui
-declaram `permissions: {}` no topo e pedem o que precisam por job; este é o
-padrão para quando algum esquecer.
+When a workflow doesn't declare `permissions`, the `GITHUB_TOKEN` gets
+read-only access, and Actions can't approve a pull request. The workflows here
+declare `permissions: {}` at the top and ask for what they need per job; this is
+the default for whenever one forgets.
 
 ```sh
 gh api -X PUT repos/$REPO/actions/permissions/workflow \
   -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false
 ```
 
-## Dependabot alerts e security updates
+## Dependabot alerts and security updates
 
-Ligados em 28/09/2026. O alert aparece quando uma dependência do `go.mod`, do
-`web/package-lock.json`, do `dwnvr-detect/requirements.txt` ou dos workflows
-ganha uma vulnerabilidade publicada. O security update abre um PR com a versão
-corrigida, quando ela existe. Não depende de `dependabot.yml`, e não sobe
-versão por outro motivo.
+Turned on 2026-09-28. The alert appears when a dependency in `go.mod`,
+`web/package-lock.json`, `dwnvr-detect/requirements.txt` or the workflows gets a
+published vulnerability. The security update opens a PR with the fixed version,
+when there is one. It doesn't depend on `dependabot.yml`, and doesn't bump
+versions for any other reason.
 
-A imagem Docker não entra: o Dependabot não tem alert nem security update para
-`docker`, só atualização de versão. Quem olha a imagem é o
-[Trivy semanal](#trivy-semanal-na-imagem-do-detector).
+The Docker image doesn't count: Dependabot has no alert or security update for
+`docker`, only version updates. What watches the image is the
+[weekly Trivy](#weekly-trivy-on-the-object-detector-image).
 
 ```sh
-gh api -X PUT repos/$REPO/vulnerability-alerts       # alerts; vem primeiro
+gh api -X PUT repos/$REPO/vulnerability-alerts       # alerts; comes first
 gh api -X PUT repos/$REPO/automated-security-fixes   # security updates
 ```
 
-Para desligar, os mesmos dois com `-X DELETE`, na ordem inversa.
+To turn them off, the same two with `-X DELETE`, in reverse order.
 
-A atualização de versão, um PR por mês e por ecossistema, vem do
-[`.github/dependabot.yml`](../.github/dependabot.yml), que diz no próprio
-arquivo o porquê de cada regra. O badge do Dependabot no README fica vermelho
-quando um run dele falha, como ao não conseguir ler um arquivo.
+The version update, one PR per month and per ecosystem, comes from
+[`.github/dependabot.yml`](../.github/dependabot.yml), which says in the file
+itself the reason for each rule. The Dependabot badge in the README turns red
+when one of its runs fails, such as when it can't read a file.
 
-### Revisar e aceitar o PR do Dependabot
+### Reviewing and accepting the Dependabot PR
 
-Um PR de cada vez, nesta ordem:
+One PR at a time, in this order:
 
-1. **Security update**, que fecha um alert aberto.
-2. **O que muda a base dos outros:** `github-actions`, que é a própria CI, e
-   `pre-commit`, os linters. A CI dos PRs seguintes roda com eles.
-3. **`gomod` e `docker`.**
-4. **`npm`**, por último, porque pode pedir o commit do build
-   ([abaixo](#pr-do-dependabot-em-web)).
+1. **Security update**, which closes an open alert.
+2. **What changes the base for the others:** `github-actions`, which is the CI
+   itself, and `pre-commit`, the linters. The CI of the following PRs runs with
+   them.
+3. **`gomod` and `docker`.**
+4. **`npm`**, last, because it may ask for the build commit
+   ([below](#dependabot-pr-in-web)).
 
-O PR que precisa de decisão ou de trabalho sai da fila e não segura os demais.
-Em cada um:
+A PR that needs a decision or work leaves the queue and doesn't hold back the
+others. For each one:
 
-- **Escopo.** O diff só troca versão (e o `go.sum` ou o `package-lock.json`).
-  Commit de outra pessoa na branch muda o que revisar.
-- **Versão replicada.** A versão antiga não sobrou em outro arquivo:
-  `git grep` no head do PR, fora do lockfile. Os lugares de cada versão estão
-  na §Ripple effects do `AGENTS.md`.
-- **SHA da action.** No `github-actions`, o SHA novo é o da tag do comentário:
-  `gh api repos/<dono>/<action>/commits/<tag> --jq .sha`.
-- **Changelog.** As notas de todas as versões intermediárias, e não só a de
-  destino, filtradas pelo uso daqui: breaking change, default novo e regra
-  nova de linter pesam; feature que o dwnvr não usa, não. Em `0.x` (uv,
-  ruff), minor também quebra.
-- **Idade.** Em imagem do `ghcr.io` (hoje só o uv), o `cooldown` não vale:
-  o Dependabot não tem a data de publicação de lá e propõe a versão do dia
-  (no log do run: "No verified registry publication date source for
-  ghcr.io; skipping cooldown"). O PR #60 trouxe o uv 0.13.7 com 21 h. A data
-  sai de `gh api /orgs/astral-sh/packages/container/uv/versions`; com menos
-  de 7 dias, o PR espera. Imagem do Docker Hub o `cooldown` segura.
-- **Base atrasada.** Os PRs do mês saem do mesmo commit, e a `main` anda. Se o
-  que entrou depois é exercitado pelo bump (código novo para o linter novo, uso
-  novo da lib), a checagem roda sobre a `main` antes do merge, numa worktree da
-  `origin/main` com o arquivo do PR: `prek run --all-files` ou
+- **Scope.** The diff only changes a version (and `go.sum` or
+  `package-lock.json`). A commit from someone else on the branch changes what
+  to review.
+- **Replicated version.** The old version didn't survive in another file:
+  `git grep` on the PR's head, outside the lockfile. Where each version lives
+  is in §Ripple effects of `AGENTS.md`.
+- **Action SHA.** On `github-actions`, the new SHA is the one for the tag in
+  the comment: `gh api repos/<owner>/<action>/commits/<tag> --jq .sha`.
+- **Changelog.** The notes of all the intermediate versions, not just the
+  target one, filtered by how it is used here: a breaking change, a new default
+  and a new linter rule weigh in; a feature dwnvr doesn't use doesn't. On `0.x`
+  (uv, ruff), a minor breaks too.
+- **Age.** On a `ghcr.io` image (today only uv), the `cooldown` doesn't apply:
+  Dependabot doesn't have the publication date from there and proposes the
+  day's version (in the run's log: "No verified registry publication date
+  source for ghcr.io; skipping cooldown"). PR #60 brought uv 0.13.7 at 21 h old.
+  The date comes from `gh api /orgs/astral-sh/packages/container/uv/versions`;
+  under 7 days, the PR waits. A Docker Hub image is held by the `cooldown`.
+- **Stale base.** The month's PRs start from the same commit, and `main` moves
+  on. If what came in later is exercised by the bump (new code for the new
+  linter, new use of the lib), the check runs on `main` before the merge, in a
+  worktree of `origin/main` with the PR's file: `prek run --all-files` or
   `go test ./... -race`.
-- **Merge.** Squash, amarrado ao head revisado, para falhar se a branch mudou:
-  `gh pr merge <número> --squash --match-head-commit <sha>`. A branch sai
-  sozinha ([abaixo](#branch-apagada-depois-do-merge)).
+- **Merge.** Squash, tied to the reviewed head, so it fails if the branch
+  changed: `gh pr merge <number> --squash --match-head-commit <sha>`. The branch
+  goes away on its own ([below](#branch-deleted-after-merge)).
 
-Depois do último, os runs do push da `main` se acompanham pelo ID, com
+After the last one, the runs of the `main` push are followed by ID, with
 `gh run watch <id> --exit-status`.
 
-### PR do Dependabot em `web/`
+### Dependabot PR in `web/`
 
-O build da interface é versionado em `internal/api/dist`, e o Dependabot não o
-refaz. Se a dependência entra no bundle, o PR falha no passo "interface está
-atualizada?" do `ci.yml`, com uma anotação no resumo do PR que aponta para
-cá. O aviso é o próprio check porque o Dependabot não comenta no PR, e uma
-conversa que segura o merge só existe com um ruleset exigindo PR, o que
-acabaria com o commit direto na `main`. O PR só entra com um commit do build
-refeito.
+The interface build is versioned in `internal/api/dist`, and Dependabot doesn't
+redo it. If the dependency goes into the bundle, the PR fails the "interface
+is up to date?" step of `ci.yml`, with an annotation in the PR summary pointing
+here. The warning is the check itself because Dependabot doesn't comment on the
+PR, and a conversation that blocks the merge only exists with a ruleset
+requiring PRs, which would end direct commits to `main`. The PR only goes in
+with a commit of the rebuilt build.
 
-Se a branch está atrás da `main` e a `main` mudou o `dist`, o build feito ali
-sairia com a interface velha. A `main` entra antes, por merge, que não pede
-push forçado:
+If the branch is behind `main` and `main` changed `dist`, the build made there
+would come out with the old interface. `main` goes in first, by merge, which
+doesn't need a force push:
 
 ```sh
-gh pr checkout <número>
+gh pr checkout <number>
 git merge-base --is-ancestor origin/main HEAD || git merge origin/main
 make web
 git add internal/api/dist
-git commit -m "build(web): interface refeita com <pacote> <versão>"
+git commit -m "build(web): rebuild the interface with <package> <version>"
 git push
 ```
 
-Dependência só de desenvolvimento (ESLint, svelte-check) não muda o bundle e
-passa sem isso.
+A development-only dependency (ESLint, svelte-check) doesn't change the bundle
+and passes without this.
 
-### PR do Dependabot em `dwnvr-detect/`
+### Dependabot PR in `dwnvr-detect/`
 
-O `requirements.txt` sai do `requirements.in` pelo `uv pip compile`, com hash
-e valendo para amd64 e arm64. O Dependabot não recompila: troca a linha do
-pacote, e pode propor uma versão que o resto do arquivo não aceita. O PR dele
-serve de aviso; a correção é recompilar:
+`requirements.txt` comes from `requirements.in` through `uv pip compile`, with
+hashes and valid for amd64 and arm64. Dependabot doesn't recompile: it swaps
+the package's line, and may propose a version the rest of the file doesn't
+accept. Its PR serves as a warning; the fix is to recompile:
 
 ```sh
 cd dwnvr-detect
 uv pip compile --universal --generate-hashes --python-version 3.12 \
-  --upgrade-package <pacote> requirements.in -o requirements.txt
+  --upgrade-package <package> requirements.in -o requirements.txt
 ```
 
-Se o pacote é um dos três do `requirements.in`, o pin é trocado lá antes, e
-vale o que diz o comentário do arquivo: outro runtime é outro número, e a
-entrega precisa ser conferida de novo. O PR do Dependabot fica para fechar à
-mão.
+If the package is one of the three in `requirements.in`, the pin is changed
+there first, and what the file's comment says holds: another runtime is another
+number, and the delivery has to be checked again. Dependabot's PR is left to be
+closed by hand.
 
-### Alert que não fecha depois da correção
+### An alert that doesn't close after the fix
 
-O Dependabot manda as dependências ao dependency graph em snapshots por pasta,
-no workflow "Dependency Graph", e cada snapshot só é trocado por outro de mesmo
-correlator. A leitura de `/dwnvr-detect` desce até `model/` e leva o
-`model/requirements.txt` junto; um push que só mexe em `model/` refaz apenas
-o snapshot de `/dwnvr-detect/model`. O de `/dwnvr-detect` fica com a versão
-velha, e o alert continua aberto com o arquivo já corrigido. Foi o que
-aconteceu com o `torch` em 29/09/2026.
+Dependabot sends the dependencies to the dependency graph in per-folder
+snapshots, in the "Dependency Graph" workflow, and each snapshot is only
+replaced by another with the same correlator. The `/dwnvr-detect` read descends
+into `model/` and takes `model/requirements.txt` along; a push that only
+touches `model/` redoes only the `/dwnvr-detect/model` snapshot. The
+`/dwnvr-detect` one keeps the old version, and the alert stays open with the
+file already fixed. That is what happened with `torch` on 2026-09-29.
 
-Para conferir, o dependency graph lista duas versões do mesmo pacote no mesmo
-arquivo:
+To check, the dependency graph lists two versions of the same package in the
+same file:
 
 ```sh
 gh api repos/$REPO/dependency-graph/sbom \
-  --jq '.sbom.packages[] | select(.name == "<pacote>") | .versionInfo'
+  --jq '.sbom.packages[] | select(.name == "<package>") | .versionInfo'
 ```
 
-Com a correção na `main`, o alert é dispensado à mão como `inaccurate`, com o
-commit da correção no comentário. Commit vazio para forçar a leitura não vale
-a sujeira no histórico.
+With the fix on `main`, the alert is dismissed by hand as `inaccurate`, with
+the fix's commit in the comment. An empty commit to force the read isn't worth
+the clutter in the history.
 
 ## `dependabot.yml`
 
-Um PR por mês, agrupado por ecossistema, com `cooldown` de 7 dias (o zizmor
-exige: release comprometida costuma ser retirada antes disso). A mensagem do
-commit sai `build(deps): ...`, por `commit-message`, para não cair no grupo
-Other das notas da release (o `cliff.toml` agrupa por prefixo). Por
-ecossistema:
+One PR per month, grouped by ecosystem, with a 7-day `cooldown` (zizmor
+requires it: a compromised release is usually pulled before that). The commit
+message comes out as `build(deps): ...`, through `commit-message`, so it doesn't
+fall in the Other group of the release notes (`cliff.toml` groups by prefix).
+Per ecosystem:
 
-- **`github-actions`** e **`gomod`**: tudo. O `gomod` não mexe na versão do Go,
-  que está em vários lugares (a linha "Go or Node version" da
-  §Ripple effects do `AGENTS.md`) e sobe à mão.
-- **`npm`** (em `/web`): tudo menos o major do TypeScript, que o svelte-check
-  4.7.6 ainda não aceita (o PR #8 falhou no `npm ci`), e o major do
-  `@types/node`, que é o do Node que roda e sobe junto com ele (o PR #57
-  propôs o 26 com o Node no 24).
-- **`pip`** (em `/dwnvr-detect`): sem atualização de versão
-  (`open-pull-requests-limit: 0`, que mantém o security update). As versões do
-  `requirements.in` são as que exportaram o `.onnx` e mediram a entrega, e
-  trocar uma exige conferir de novo.
-- **`docker`** (os dois Dockerfiles): o `python:3.12.12-slim-trixie` só no
-  patch, porque o `requirements.txt` é compilado para o 3.12. O
-  `golang:1.27-alpine` e o `node:24-alpine` também só no patch: a tag deles já
-  flutua, e trocar de versão é trocar nos outros lugares junto. O
-  `ghcr.io/astral-sh/uv`, tudo.
-- **`pre-commit`**: os `rev` do `.pre-commit-config.yaml`, menos o lychee. O
-  Dependabot só tira o `v` do começo do `rev`, e com `lychee-v0.24.2` ele
-  derruba o run; e o lychee que roda é a imagem do `entry`, não o `rev`.
-- **`docker-compose`**: fora. O Dependabot não lê imagem com `${VAR:-...}` na
-  tag, então o go2rtc sobe à mão.
+- **`github-actions`** and **`gomod`**: everything. `gomod` doesn't touch the
+  Go version, which lives in several places (the "Go or Node version" line of
+  §Ripple effects in `AGENTS.md`) and is bumped by hand.
+- **`npm`** (in `/web`): everything except the TypeScript major, which
+  svelte-check 4.7.6 doesn't accept yet (PR #8 failed at `npm ci`), and the
+  `@types/node` major, which is the running Node's and goes up together with it
+  (PR #57 proposed 26 with Node at 24).
+- **`pip`** (in `/dwnvr-detect`): no version update
+  (`open-pull-requests-limit: 0`, which keeps the security update). The
+  versions in `requirements.in` are the ones that exported the `.onnx` and
+  measured the delivery, and changing one requires checking again.
+- **`docker`** (both Dockerfiles): `python:3.12.12-slim-trixie` only on the
+  patch, because `requirements.txt` is compiled for 3.12. `golang:1.27-alpine`
+  and `node:24-alpine` also only on the patch: their tag already floats, and
+  changing version means changing it in the other places too. `ghcr.io/astral-sh/uv`,
+  everything.
+- **`pre-commit`**: the `rev`s in `.pre-commit-config.yaml`, except lychee.
+  Dependabot only strips the leading `v` from the `rev`, and with
+  `lychee-v0.24.2` it knocks the run over; and the lychee that runs is the
+  `entry`'s image, not the `rev`.
+- **`docker-compose`**: out. Dependabot doesn't read an image with
+  `${VAR:-...}` in the tag, so go2rtc is bumped by hand.
 
-O Dependabot só dá security update para `github-actions`, `gomod`, `npm` e
-`pip`. Para `docker` e `pre-commit` ele só sobe versão, e depende deste
-arquivo.
+Dependabot only gives security updates for `github-actions`, `gomod`, `npm` and
+`pip`. For `docker` and `pre-commit` it only bumps versions, and depends on this
+file.
 
-## Pin por SHA
+## SHA pinning
 
-Toda action dos workflows vai por SHA, com a versão num comentário
-(`@<sha>  # v5.1.0`), e o Dependabot atualiza os dois juntos. Uma tag pode ser
-movida para outro código; o SHA não. As actions da Docker recebem o token com
-`packages: write` no `imagens.yml`, e foram o motivo de tirar a exceção que o
-`.github/zizmor.yml` abria para `actions/*` e `docker/*`.
+Every action in the workflows goes by SHA, with the version in a comment
+(`@<sha>  # v5.1.0`), and Dependabot updates both together. A tag can be moved
+to other code; the SHA can't. The Docker actions receive the token with
+`packages: write` in `imagens.yml`, and were the reason to drop the exception
+that `.github/zizmor.yml` opened for `actions/*` and `docker/*`.
 
-A opção `sha_pinning_required` do repositório recusa rodar workflow com action
-fora de SHA, e vale para todas. Ligar depois de a `main` já estar pinada:
+The repository's `sha_pinning_required` option refuses to run a workflow with
+an action not pinned by SHA, and applies to all of them. Turn it on after
+`main` is already pinned:
 
 ```sh
 gh api -X PUT repos/$REPO/actions/permissions -F enabled=true -f allowed_actions=all -F sha_pinning_required=true
@@ -262,37 +266,37 @@ gh api repos/$REPO/actions/permissions --jq '.sha_pinning_required'   # true
 
 ## CodeQL
 
-Ligado em 28/09/2026, no default setup, que dispensa workflow no repositório:
-o GitHub escolhe as linguagens (actions, go, javascript-typescript e python) e
-roda a análise a cada push na `main`, em todo PR e uma vez por semana. É
-análise de fluxo de dado, como a entrada da requisição chegando num caminho de
-arquivo ou num comando, que os linters do commit não fazem. O achado vai para
-a aba Security, em Code scanning, e não segura merge nem push.
+Turned on 2026-09-28, in default setup, which needs no workflow in the
+repository: GitHub picks the languages (actions, go, javascript-typescript and
+python) and runs the analysis on every push to `main`, on every PR and once a
+week. It is data-flow analysis, such as request input reaching a file path or a
+command, which the commit linters don't do. The finding goes to the Security
+tab, under Code scanning, and doesn't block a merge or a push.
 
 ```sh
 gh api -X PATCH repos/$REPO/code-scanning/default-setup -f state=configured
 ```
 
-Para desligar, o mesmo com `-f state=not-configured`.
+To turn it off, the same with `-f state=not-configured`.
 
 ## Private vulnerability reporting
 
-Ligado em 28/09/2026. Dá a quem achar uma falha um formulário privado na aba
-Security, em vez de uma issue pública; o [`SECURITY.md`](../SECURITY.md) aponta
-para ele.
+Turned on 2026-09-28. It gives whoever finds a flaw a private form in the
+Security tab, instead of a public issue; [`SECURITY.md`](../SECURITY.md) points
+to it.
 
 ```sh
 gh api -X PUT repos/$REPO/private-vulnerability-reporting
 ```
 
-Para desligar, o mesmo com `-X DELETE`.
+To turn it off, the same with `-X DELETE`.
 
-## Ruleset na `main`
+## Ruleset on `main`
 
-Criado em 28/09/2026. Recusa apagar a `main` e recusa o push que reescreve o
-histórico dela (`git push --force`). Não exige PR nem check: o commit direto e
-o push comum continuam, inclusive o da release, que empurra o commit da versão
-junto com a tag.
+Created 2026-09-28. It refuses deleting `main` and refuses a push that rewrites
+its history (`git push --force`). It requires neither a PR nor a check: direct
+commits and a plain push continue, including the release's, which pushes the
+version commit together with the tag.
 
 ```sh
 gh api -X POST repos/$REPO/rulesets --input - <<'EOF'
@@ -302,50 +306,50 @@ gh api -X POST repos/$REPO/rulesets --input - <<'EOF'
 EOF
 ```
 
-O `POST` cria um ruleset novo a cada vez que roda. Para mudar o que existe, o
-id sai de `gh api repos/$REPO/rulesets` e vai em
-`gh api -X PUT repos/$REPO/rulesets/<id>`, com o mesmo JSON; para apagar, em
+The `POST` creates a new ruleset every time it runs. To change the existing
+one, the id comes from `gh api repos/$REPO/rulesets` and goes in
+`gh api -X PUT repos/$REPO/rulesets/<id>`, with the same JSON; to delete it, in
 `-X DELETE`.
 
-## Merge do PR sem merge commit
+## Merging a PR without a merge commit
 
-Desligado em 01/10/2026. O botão de merge do PR oferece só squash e rebase: o
-AGENTS.md diz que a `main` não aceita merge commit, e o "Allow merge commits"
-ligado deixava a opção a um clique. O GitHub exige ao menos uma das três
-ligada.
+Turned off 2026-10-01. The PR merge button offers only squash and rebase:
+AGENTS.md says `main` doesn't accept merge commits, and "Allow merge commits"
+being on left the option one click away. GitHub requires at least one of the
+three to be on.
 
 ```sh
 gh repo edit $REPO --enable-merge-commit=false
 ```
 
-## Branch apagada depois do merge
+## Branch deleted after merge
 
-Ligado em 28/10/2026. Com o PR aceito, o GitHub apaga a branch dele no
-repositório, e a lista de branches fica só com o que ainda está aberto. A
-branch apagada volta pelo botão "Restore branch" do PR. Não vale para a
-`main`, que o ruleset protege, nem para a branch de PR vindo de fork. A cópia
-local continua, e quem a criou apaga.
+Turned on 2026-10-28. With the PR accepted, GitHub deletes its branch in the
+repository, and the branch list is left with only what is still open. The
+deleted branch comes back through the PR's "Restore branch" button. It doesn't
+apply to `main`, which the ruleset protects, nor to the branch of a PR coming
+from a fork. The local copy stays, and whoever created it deletes it.
 
 ```sh
 gh repo edit $REPO --delete-branch-on-merge
 ```
 
-## govulncheck semanal
+## Weekly govulncheck
 
-O [`.github/workflows/govulncheck.yml`](../.github/workflows/govulncheck.yml)
-roda toda segunda no binário da imagem `latest`, que é o que roda nas casas. Ele
-falha quando o binário tem falha conhecida em código que o dwnvr chama, da
-stdlib do Go ou de dependência, e o GitHub manda e-mail. O cabeçalho do arquivo
-diz por que é no binário, e não no fonte.
+[`.github/workflows/govulncheck.yml`](../.github/workflows/govulncheck.yml)
+runs every Monday on the binary of the `latest` image, which is what runs in
+people's homes. It fails when the binary has a known flaw in code dwnvr calls,
+from the Go stdlib or a dependency, and GitHub sends an e-mail. The file's
+header says why it is on the binary and not on the source.
 
 ```sh
-gh workflow run govulncheck.yml   # rodar agora, sem esperar a segunda
+gh workflow run govulncheck.yml   # run now, without waiting for Monday
 ```
 
-Em repositório público, o GitHub desliga o workflow agendado depois de 60 dias
-sem commit; `gh workflow enable govulncheck.yml` religa.
+On a public repository, GitHub turns off the scheduled workflow after 60 days
+without a commit; `gh workflow enable govulncheck.yml` turns it back on.
 
-O mesmo teste local, sem o GitHub:
+The same test locally, without GitHub:
 
 ```sh
 go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
@@ -355,27 +359,27 @@ docker cp -q "$id:/dwnvr" ./dwnvr && docker rm "$id"
 "$(go env GOPATH)/bin/govulncheck" -mode=binary ./dwnvr
 ```
 
-## Trivy semanal na imagem do detector
+## Weekly Trivy on the object detector image
 
-O [`.github/workflows/trivy.yml`](../.github/workflows/trivy.yml) roda toda
-segunda na imagem `latest` do `dwnvr-detect`, em amd64 e em arm64. Ele acusa
-falha HIGH ou CRITICAL que já tem correção, nos pacotes do Debian da base e nos
-pacotes do Python. O achado vai para a aba Security, em Code scanning (ferramenta
-Trivy, uma categoria por arquitetura), e o job falha, o que manda e-mail. O
-cabeçalho do arquivo diz por que só essa imagem.
+[`.github/workflows/trivy.yml`](../.github/workflows/trivy.yml) runs every
+Monday on the `latest` image of `dwnvr-detect`, on amd64 and on arm64. It flags
+HIGH or CRITICAL flaws that already have a fix, in the base's Debian packages
+and in the Python packages. The finding goes to the Security tab, under Code
+scanning (Trivy tool, one category per architecture), and the job fails, which
+sends an e-mail. The file's header says why only this image.
 
-A correção quase sempre é a base: subir a tag `python:3.12.X-slim-trixie` nas
-duas linhas `FROM` do `dwnvr-detect/Dockerfile` e fazer uma release. A tag de
-um patch do Python deixa de ser reconstruída quando sai o seguinte, e a imagem
-que a usa fica com os pacotes do Debian daquele dia. O alerta fecha sozinho no
-primeiro run depois da release.
+The fix is almost always the base: bump the `python:3.12.X-slim-trixie` tag on
+the two `FROM` lines of `dwnvr-detect/Dockerfile` and do a release. The tag of
+a Python patch stops being rebuilt when the next one comes out, and the image
+that uses it is left with that day's Debian packages. The alert closes on its
+own on the first run after the release.
 
 ```sh
-gh workflow run trivy.yml   # rodar agora, sem esperar a segunda
+gh workflow run trivy.yml   # run now, without waiting for Monday
 ```
 
-O mesmo teste local, sem o GitHub, com o
-[binário da release do Trivy](https://github.com/aquasecurity/trivy/releases):
+The same test locally, without GitHub, with the
+[Trivy release binary](https://github.com/aquasecurity/trivy/releases):
 
 ```sh
 trivy image --image-src remote --platform linux/arm64 --scanners vuln \
@@ -384,27 +388,28 @@ trivy image --image-src remote --platform linux/arm64 --scanners vuln \
 
 ## Codecov
 
-O badge de cobertura do README vem do [Codecov](https://app.codecov.io/gh/mhagnumdw/dwnvr),
-que recebe o relatório do [`.github/workflows/cobertura.yml`](../.github/workflows/cobertura.yml)
-a cada push na `main` e em cada pull request, menos os do Dependabot. O que ele
-faz com o relatório está no [`.github/codecov.yml`](../.github/codecov.yml).
+The README's coverage badge comes from [Codecov](https://app.codecov.io/gh/mhagnumdw/dwnvr),
+which receives the report from
+[`.github/workflows/cobertura.yml`](../.github/workflows/cobertura.yml) on
+every push to `main` and on every pull request, except Dependabot's. What it
+does with the report is in [`.github/codecov.yml`](../.github/codecov.yml).
 
-Não há token nem secret: o upload se autentica por OIDC, e o Codecov confere
-que o run é deste repositório. O primeiro upload ativa o repositório no
-Codecov; se ele for recusado, entrar com o GitHub em app.codecov.io e
-habilitar o repositório lá.
+There is no token or secret: the upload authenticates through OIDC, and Codecov
+checks that the run is from this repository. The first upload activates the
+repository on Codecov; if it is rejected, sign in with GitHub at
+app.codecov.io and enable the repository there.
 
-O comentário no PR e o status com o número em cada commit são do app do
-Codecov, instalado em 01/10/2026 em <https://github.com/apps/codecov>, com
-acesso só ao dwnvr (Only select repositories). Ele pede escrita em status,
-checks e pull requests, que é por onde comenta. Sem o app, o upload e o badge
-continuam, e só o comentário e o status somem. O acesso se revê em
-<https://github.com/settings/installations>.
+The PR comment and the status with the number on each commit come from the
+Codecov app, installed 2026-10-01 at <https://github.com/apps/codecov>, with
+access only to dwnvr (Only select repositories). It asks for write access to
+statuses, checks and pull requests, which is how it comments. Without the app,
+the upload and the badge continue, and only the comment and the status go away.
+The access is reviewed at <https://github.com/settings/installations>.
 
 ```sh
 curl -s https://api.codecov.io/api/v2/github/mhagnumdw/repos/dwnvr/ | jq '{activated, totals: .totals.coverage}'
-gh workflow run cobertura.yml   # mandar de novo, sem esperar um push
+gh workflow run cobertura.yml   # send again, without waiting for a push
 ```
 
-Se o Codecov sair do ar, o `cobertura` fica vermelho e o badge para no último
-número; a CI, as imagens e a release não dependem dele.
+If Codecov goes down, `cobertura` goes red and the badge stays at the last
+number; CI, the images and the release don't depend on it.

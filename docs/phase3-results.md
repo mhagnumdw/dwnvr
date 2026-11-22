@@ -1,104 +1,107 @@
-# Fase 3 - interface
+# Phase 3 - the UI
 
-SPA em Svelte 5 + Vite, embutida no binário. Validada contra o Orange Pi Zero 3
-com as 9 câmeras gravando, 08/08/2026.
+SPA in Svelte 5 + Vite, embedded in the binary. Validated against the Orange Pi
+Zero 3 with the 9 cameras recording, 2026-08-08.
 
-## Tamanho
+## Size
 
-| | cru | gzip |
+| | raw | gzip |
 | --- | --- | --- |
-| JS (inclui o player de live do go2rtc) | 88,2 kB | **32,6 kB** |
-| CSS | 9,9 kB | 2,7 kB |
-| HTML | 0,5 kB | 0,3 kB |
+| JS (includes go2rtc's live player) | 88.2 kB | **32.6 kB** |
+| CSS | 9.9 kB | 2.7 kB |
+| HTML | 0.5 kB | 0.3 kB |
 
-O binário ARM64 com tudo embutido: 6,8 MB. Servir o bundle do Pi levou 17 ms.
+The ARM64 binary with everything embedded: 6.8 MB. Serving the bundle from the
+Pi took 17 ms.
 
-Escrever o player MSE em vez de usar hls.js é o que segura esse número: só a
-biblioteca já custaria ~110 kB gzip, mais que triplicando o aplicativo inteiro.
+Writing the MSE player instead of using hls.js is what holds this number down:
+the library alone would cost ~110 kB gzip, more than tripling the whole app.
 
-## As quatro telas
+## The four screens
 
-**Ao vivo** - grade de 1 a 3 colunas (sempre 1 no celular), seleção persistida
-em localStorage. Usa o `<video-stream>` do próprio go2rtc, que negocia
-WebRTC/MSE sozinho. Confirmado no Pi: os dois tiles conectaram em modo MSE
-através do proxy do dwnvr, decodificando 1920x1080.
+**Ao vivo** (Live) - a grid of 1 to 3 columns (always 1 on a phone), selection
+persisted in localStorage. It uses go2rtc's own `<video-stream>`, which
+negotiates WebRTC/MSE by itself. Confirmed on the Pi: both tiles connected in
+MSE mode through dwnvr's proxy, decoding 1920x1080.
 
-**Gravações** - timeline de 24h em canvas, tira de miniaturas e player MSE.
-Verificado: o relógio da interface mostrou 19:58:52 no mesmo instante em que o
-OSD gravado pela câmera mostrava 19:58:52, o que valida o mapeamento de relógio
-de parede ponta a ponta.
+**Gravações** (Recordings) - a 24 h timeline on a canvas, a thumbnail strip and
+the MSE player. Verified: the UI clock showed 19:58:52 at the same instant the
+OSD recorded by the camera showed 19:58:52, which validates the wall-clock
+mapping end to end.
 
-**Câmeras** - cadastro a partir dos streams que o go2rtc já serve, com o modo de
-áudio desabilitado nas câmeras que não entregam trilha de áudio. A cota aparece
-sempre acompanhada da retenção estimada na taxa medida.
+**Câmeras** (Cameras) - registration from the streams go2rtc already serves,
+with the audio mode disabled on cameras that don't deliver an audio track. The
+quota always appears alongside the retention estimated at the measured rate.
 
-**Diagnóstico** - medidor de disco separando o que é do dwnvr do que é de
-terceiros, totais (9 conectadas, 4,52 Mbps, 45,5 GB/dia) e uma lista de avisos
-que explica problemas antes de virarem mistério.
+**Diagnóstico** (Diagnostics) - a disk gauge separating what belongs to dwnvr
+from what belongs to others, totals (9 connected, 4.52 Mbps, 45.5 GB/day) and a
+list of warnings that explains problems before they turn into a mystery.
 
-## Miniaturas sem custo no Pi
+## Thumbnails at no cost on the Pi
 
-Cada miniatura é o init mais o primeiro fragmento do segmento - um MP4 de um
-frame recortado do que já está gravado. Quem decodifica é o navegador, via
-WebCodecs, com `<video>` oculto como alternativa.
+Each thumbnail is the init plus the first fragment of the segment - a one-frame
+MP4 cut out of what is already recorded. The browser does the decoding, via
+WebCodecs, with a hidden `<video>` as a fallback.
 
-O Pi só recorta bytes. Confirmado na tela: a tira mostra frames reais a cada
-~30 s de gravação.
+The Pi only cuts bytes. Confirmed on screen: the strip shows real frames every
+~30 s of recording.
 
-## Cadastro aplica em quente
+## Registration applies hot
 
-Cadastrar uma câmera e ter de reiniciar o serviço para ela gravar seria um bom
-jeito de perder gravação sem perceber. O gerenciador ganhou `Set` e `Remove`,
-cada recorder com seu próprio cancelamento.
+Registering a camera and having to restart the service for it to record would be
+a good way to lose recording without noticing. The manager gained `Set` and
+`Remove`, each recorder with its own cancellation.
 
-Duas decisões dentro disso:
+Two decisions within that:
 
-- **Reiniciar só quando muda o que o recorder usa.** Trocar o nome de exibição
-  ou a cota não derruba a conexão; mudar áudio ou duração de segmento sim.
-- **A retenção passou a ler a lista viva** em vez de uma cópia feita na subida.
-  Uma cota alterada pela tela precisa valer na passada seguinte.
+- **Restart only when what the recorder uses changes.** Changing the display
+  name or the quota doesn't drop the connection; changing the audio or the
+  segment duration does.
+- **Retention now reads the live list** instead of a copy made at startup. A
+  quota changed from the screen has to take effect on the next pass.
 
-E remover uma câmera **não apaga as gravações**: apagar horas de vídeo como
-efeito colateral de um clique seria destrutivo demais para ser implícito. A API
-responde com o caminho onde elas ficaram.
+And removing a camera **does not delete the recordings**: deleting hours of
+video as a side effect of a click would be too destructive to be implicit. The
+API responds with the path where they were left.
 
-## Responsividade
+## Responsiveness
 
-Mobile-first: as regras base valem para o celular e as media queries acrescentam
-o que a tela grande permite.
+Mobile-first: the base rules apply to the phone and the media queries add what
+the big screen allows.
 
-- navegação inferior no celular (alcance do polegar), superior no desktop
-- alvos de toque de no mínimo 44 px
-- grade ao vivo travada em uma coluna abaixo de 640 px - dois vídeos lado a lado
-  num telefone não mostram nada útil de nenhum dos dois
-- formulário de cadastro sobe como folha a partir da base, respeitando
+- bottom navigation on the phone (thumb reach), top on the desktop
+- touch targets of at least 44 px
+- live grid locked to one column below 640 px - two videos side by side on a
+  phone show nothing useful of either
+- the registration form slides up as a sheet from the bottom, respecting
   `env(safe-area-inset-bottom)`
-- timeline com Pointer Events: arrastar navega, pinçar dá zoom, e
-  `touch-action: none` impede a página de rolar junto
+- timeline with Pointer Events: dragging navigates, pinching zooms, and
+  `touch-action: none` keeps the page from scrolling along
 
-Medido a 500 px de largura: **sem rolagem horizontal**, navegação inferior
-ativa, superior oculta.
+Measured at 500 px wide: **no horizontal scroll**, bottom navigation active, top
+one hidden.
 
-## Três correções encontradas olhando a tela pronta
+## Three fixes found by looking at the finished screen
 
-**O relógio ficava em `--:--:--` com o vídeo já visível.** `currentMs` só era
-atualizado em `timeupdate`, que não dispara quando o autoplay é bloqueado. Passou
-a ouvir `seeked` e `loadeddata` e a refletir a posição logo após o seek.
+**The clock stayed at `--:--:--` with the video already visible.** `currentMs`
+was only updated on `timeupdate`, which doesn't fire when autoplay is blocked.
+It now listens to `seeked` and `loadeddata` and reflects the position right
+after the seek.
 
-**A retenção estimada aparecia como "0h".** Cotas pequenas dão frações de hora, e
-arredondar tudo para horas não informava nada. Agora mostra minutos abaixo de
-uma hora.
+**The estimated retention showed as "0h".** Small quotas give fractions of an
+hour, and rounding everything to hours told nothing. It now shows minutes below
+an hour.
 
-**O live mostrava barra de progresso.** O componente do go2rtc cria o `<video>`
-com `controls=true`, o que numa grade ao vivo exibe uma linha do tempo que não
-existe - e ainda aparecia em umas câmeras e não em outras, conforme o modo
-negociado. Desligado, com duplo clique para tela cheia no lugar.
+**Live showed a progress bar.** go2rtc's component creates the `<video>` with
+`controls=true`, which on a live grid shows a timeline that doesn't exist - and
+it even showed up on some cameras and not others, depending on the negotiated
+mode. Turned off, with double-click for full screen instead.
 
-## Nota sobre o build versionado
+## Note on the versioned build
 
-`go:embed` exige que os arquivos existam em tempo de compilação, então
-`internal/api/dist` é versionado. Isso faz `go build ./...` funcionar num clone
-limpo sem Node instalado - o que importa quando o alvo é um dispositivo onde
-ninguém quer instalar toolchain de frontend.
+`go:embed` requires the files to exist at compile time, so `internal/api/dist`
+is versioned. That makes `go build ./...` work on a clean clone without Node
+installed - which matters when the target is a device where nobody wants to
+install a frontend toolchain.
 
-Ao alterar `web/`, é preciso rodar `npm run build` antes de commitar.
+When changing `web/`, you must run `npm run build` before committing.

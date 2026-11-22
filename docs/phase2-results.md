@@ -1,137 +1,138 @@
-# Fase 2 - API HTTP
+# Phase 2 - HTTP API
 
-Validada no Orange Pi Zero 3 com as 9 câmeras gravando, 08/08/2026.
+Validated on the Orange Pi Zero 3 with the 9 cameras recording, 2026-08-08.
 
 ## Endpoints
 
 ```text
-POST /api/login  /api/logout       sessão por cookie assinado
-GET  /api/session                  público: diz se precisa de login
-GET  /api/cameras                  câmeras cadastradas + streams do go2rtc
-GET  /api/health                   bitrate medido, dias estimados, disco
-GET  /api/rec/days                 dias com gravação
-GET  /api/rec/timeline             faixas para desenhar + segmentos para tocar
+POST /api/login  /api/logout       session by signed cookie
+GET  /api/session                  public: says whether login is needed
+GET  /api/cameras                  registered cameras + go2rtc streams
+GET  /api/health                   measured bitrate, estimated days, disk
+GET  /api/rec/days                 days with recordings
+GET  /api/rec/timeline             ranges to draw + segments to play
 GET  /api/rec/init                 init segment, immutable
-GET  /api/rec/seg                  fragmentos (sem o init), immutable
-GET  /api/rec/thumb                MP4 de 1 frame
+GET  /api/rec/seg                  fragments (without the init), immutable
+GET  /api/rec/thumb                1-frame MP4
 GET  /api/rec/playlist.m3u8        HLS VOD
-GET  /api/rec/export               MP4 único emendado
-GET  /api/live/*                   proxy para o go2rtc
+GET  /api/rec/export               single stitched MP4
+GET  /api/live/*                   proxy to go2rtc
 ```
 
-## Verificações
+## Checks
 
-| Verificação | Resultado |
+| Check | Result |
 | --- | --- |
-| `thumb` é mesmo 1 frame | 64 KB, **1 frame**, decodifica 1920x1080 |
-| `seg` realmente pula o init | não abre sozinho (`no tfhd was found`); com o init, abre |
-| `init` cacheável | `Cache-Control: immutable`, 737 bytes |
-| playlist | 5 segmentos, `EXT-X-MAP` + `EXT-X-PROGRAM-DATE-TIME` |
-| export | duração **igual à soma dos segmentos**, DTS estritamente crescente |
-| sessão sem cookie | 401 em todos os endpoints de dados |
-| assinatura adulterada | 401 |
-| validade esticada | 401 (o HMAC cobre o prazo) |
+| `thumb` really is 1 frame | 64 KB, **1 frame**, decodes at 1920x1080 |
+| `seg` really skips the init | doesn't open on its own (`no tfhd was found`); with the init, it opens |
+| `init` is cacheable | `Cache-Control: immutable`, 737 bytes |
+| playlist | 5 segments, `EXT-X-MAP` + `EXT-X-PROGRAM-DATE-TIME` |
+| export | duration **equal to the sum of the segments**, strictly increasing DTS |
+| session without a cookie | 401 on all data endpoints |
+| tampered signature | 401 |
+| stretched expiry | 401 (the HMAC covers the deadline) |
 | `cam=../../etc` | 400 |
 | `g=../../../etc/passwd` | 400 |
-| RSS com API + gravação | 19,7 MB |
+| RSS with API + recording | 19.7 MB |
 
-## Três bugs encontrados rodando contra o hardware real
+## Three bugs found running against the real hardware
 
-### 1. `medias` do go2rtc é lista de strings, não de objetos
+### 1. go2rtc's `medias` is a list of strings, not of objects
 
-Eu havia modelado `medias` como `[]struct{Kind, Direction string}`. O go2rtc
-devolve `["video, recvonly, H265", "audio, recvonly, PCMA/16000"]` - texto no
-formato SDP. O decode falhava inteiro e a descoberta de streams ficava vazia.
+I had modeled `medias` as `[]struct{Kind, Direction string}`. go2rtc returns
+`["video, recvonly, H265", "audio, recvonly, PCMA/16000"]` - text in SDP
+format. The whole decode failed and stream discovery came back empty.
 
-A degradação graciosa salvou a tela: a lista de câmeras cadastradas continuou
-respondendo, com o erro reportado em `go2rtcError` à parte. Travado por um teste
-que usa uma resposta real do go2rtc como fixture.
+Graceful degradation saved the screen: the list of registered cameras kept
+answering, with the error reported separately in `go2rtcError`. Locked in by a
+test that uses a real go2rtc response as a fixture.
 
-### 2. A duração indexada omitia o último frame
+### 2. The indexed duration omitted the last frame
 
-`DurMs` guardava o DTS do último frame, não o fim do segmento - faltava somar a
-duração desse frame. Consequência na exportação: cada segmento era posicionado
-exatamente **em cima** do último frame do anterior.
+`DurMs` stored the last frame's DTS, not the end of the segment - the duration
+of that frame was missing from the sum. Consequence on export: each segment was
+placed exactly **on top of** the last frame of the previous one.
 
-| | Antes | Depois |
+| | Before | After |
 | --- | --- | --- |
-| Regressões de DTS no export | 4 (uma por emenda) | **0** |
-| Erros `Could not find ref` | ~110 | **0** |
-| Duração do export | 184,8s (errada) | igual à soma dos segmentos |
+| DTS regressions in the export | 4 (one per seam) | **0** |
+| `Could not find ref` errors | ~110 | **0** |
+| Export duration | 184.8 s (wrong) | equal to the sum of the segments |
 
-Isso também corrige um diagnóstico anterior: a enxurrada de erros de referência
-na exportação **era esse bug**, não perda de pacote UDP. A perda de UDP existe,
-mas rende 0-2 avisos por segmento, não centenas.
+This also corrects an earlier diagnosis: the flood of reference errors on export
+**was this bug**, not UDP packet loss. UDP loss exists, but yields 0-2 warnings
+per segment, not hundreds.
 
-### 3. Segmentos se sobrepunham no tempo de parede
+### 3. Segments overlapped in wall-clock time
 
-O início do segmento vem do relógio de parede e a duração vem do relógio de
-mídia. Os dois derivam com o jitter da rede - medido em **±1,1s num segmento de
-30s** -, e quando a mídia adiantava, o segmento novo começava *antes* de o
-anterior terminar. No MSE o trecho sobreposto é sobrescrito, ou seja, perde-se
-gravação.
+The segment start comes from the wall clock and the duration from the media
+clock. The two drift apart with network jitter - measured at **±1.1 s on a 30 s
+segment** - and when the media ran ahead, the new segment started *before* the
+previous one ended. In MSE the overlapping stretch is overwritten, meaning
+recording is lost.
 
-Agora o início é ancorado no fim do segmento anterior quando haveria
-sobreposição. Medido depois da correção: **0 sobreposições**, com folga de 0 ms
-nas emendas contínuas.
+The start is now anchored to the end of the previous segment whenever there
+would be an overlap. Measured after the fix: **0 overlaps**, with 0 ms of slack
+at continuous seams.
 
-A pergunta seguinte era se ancorar assim faria o horário derivar do relógio real.
-Medido contra os mtimes dos arquivos, que são uma referência independente:
+The next question was whether anchoring like this would make the time drift from
+the real clock. Measured against the files' mtimes, which are an independent
+reference:
 
 | | |
 | --- | --- |
-| Mídia acumulada | 316,76s |
-| Parede (mtimes) | 316,72s |
-| Diferença | **+0,01%**, ou ~10s projetados em 24h |
+| Accumulated media | 316.76 s |
+| Wall clock (mtimes) | 316.72 s |
+| Difference | **+0.01%**, or ~10 s projected over 24 h |
 
-E qualquer buraco real (reconexão, câmera fora do ar) reancora no relógio de
-parede, porque aí `agora` passa o fim do anterior e vence a comparação. Na
-prática o desvio não acumula.
+And any real gap (reconnection, camera offline) re-anchors to the wall clock,
+because then `now` passes the end of the previous one and wins the comparison. In
+practice the drift doesn't accumulate.
 
-> **Revisto em 11/09/2026: acumula.** Os 316s medidos acima eram curtos demais
-> para ver a deriva. Com um dia inteiro de gravação, 97% dos segmentos de cada
-> câmera saíam colados no anterior, ou seja, a âncora agia sempre, e a timeline
-> andava à frente do relógio real: mediana de 1,5s nas 9 câmeras, até 21,8s na
-> `cam_zeta`, cujo relógio corre 0,04% à frente. Na tela, a hora impressa
-> na imagem ficava 7s atrás da timeline. As reconexões zeravam o desvio, mas não
-> vinham com frequência suficiente.
+> **Revised on 2026-09-11: it does accumulate.** The 316 s measured above were
+> too short to see the drift. With a full day of recording, 97% of each camera's
+> segments came out glued to the previous one, meaning the anchor always acted,
+> and the timeline ran ahead of the real clock: a median of 1.5 s across the 9
+> cameras, up to 21.8 s on `cam_zeta`, whose clock runs 0.04% fast. On screen,
+> the time printed on the image was 7 s behind the timeline. Reconnections reset
+> the drift, but not often enough.
 >
-> Agora, dentro de uma conexão, o segmento parte da emenda e se aproxima meio
-> quadro por segmento de um relógio estimado. A estimativa é a menor diferença
-> entre chegada e mídia numa janela de 30-60s, que a rajada não contamina
-> porque a rajada só atrasa. Meio quadro de sobreposição ou de vão é tocado pelo
-> MSE sem perder quadro e sem parar; conferido no Chrome com gravação real. Ver
-> `internal/recorder/clock.go`.
+> Now, within a connection, the segment starts at the seam and moves half a frame
+> per segment toward an estimated clock. The estimate is the smallest difference
+> between arrival and media over a 30-60 s window, which a burst doesn't
+> contaminate because a burst only delays. Half a frame of overlap or gap is
+> played by MSE without dropping a frame and without stalling; checked in Chrome
+> with a real recording. See `internal/recorder/clock.go`.
 
-## Um susto que era comportamento correto
+## A scare that was correct behavior
 
-Logo depois de um reinício, a `cam_iota` apareceu com 12 faixas separadas e
-buracos de até 39s. Investigando o log: o go2rtc devolveu **HTTP 500** por ~40s
-para essa câmera e para a `cam_alfa`. O backoff subiu 1s→2s→4s→8s e reconectou
-sozinho.
+Right after a restart, `cam_iota` showed up with 12 separate ranges and gaps of
+up to 39 s. Looking into the log: go2rtc returned **HTTP 500** for ~40 s for
+that camera and for `cam_alfa`. The backoff rose 1s→2s→4s→8s and it reconnected
+on its own.
 
-Ou seja, os buracos eram **reais** e a timeline estava certa ao mostrá-los - que
-é exatamente para isso que ela existe. No mesmo período, `cam_alfa` e
-`cam_delta` estabilizadas mostraram uma única faixa contínua.
+So the gaps were **real** and the timeline was right to show them - which is
+exactly what it exists for. In the same period, `cam_alfa` and `cam_delta`,
+once stable, showed a single continuous range.
 
-## Decisões de projeto
+## Design decisions
 
-**A interface é servida sem autenticação, os dados não.** HTML, CSS e JS não
-contêm nada das câmeras, e protegê-los impediria o navegador de carregar a
-própria tela de login.
+**The UI is served without authentication, the data is not.** HTML, CSS and JS
+contain nothing from the cameras, and protecting them would stop the browser
+from loading the login screen itself.
 
-**A resposta da timeline é compacta.** Um dia com segmentos de 1 minuto tem 1440
-entradas; `segments` é `[[inícioMs, duraçãoMs, índiceDeGeração]]` com uma tabela
-de gerações à parte, em vez de objetos com chaves repetidas.
+**The timeline response is compact.** A day with 1-minute segments has 1,440
+entries; `segments` is `[[startMs, durationMs, generationIndex]]` with a
+generation table kept separately, instead of objects with repeated keys.
 
-**A exportação recusa atravessar troca de geração.** Um MP4 só tem um init;
-entregar algo que toca até a metade seria pior que recusar. Note a limitação
-conhecida de H265: como o init é sempre o mesmo dummy, uma troca de resolução
-nessas câmeras não é detectada por esse teste.
+**Export refuses to cross a generation change.** An MP4 has only one init;
+delivering something that plays halfway would be worse than refusing. Note the
+known H265 limitation: since the init is always the same dummy, a resolution
+change on those cameras is not detected by this test.
 
-## Nota de ambiente
+## Environment note
 
-O Pi roda `firewalld`, que bloqueia a porta 8080 vinda de fora. O go2rtc não
-sofre disso porque o Docker insere as próprias regras. Durante o desenvolvimento
-o acesso foi por túnel SSH; quando o dwnvr for empacotado em Docker na Fase 5,
-cairá no mesmo caminho do go2rtc.
+The Pi runs `firewalld`, which blocks port 8080 from outside. go2rtc doesn't
+suffer from this because Docker inserts its own rules. During development access
+was through an SSH tunnel; once dwnvr is packaged in Docker in Phase 5, it will
+take the same path as go2rtc.

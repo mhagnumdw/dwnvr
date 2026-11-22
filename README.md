@@ -360,10 +360,10 @@ em que o objeto caiu. Com a lista `alerts.email.to` e a seção `smtp` do
 `dwnvr.yaml`, ele também chega por e-mail, com o quadro já com as caixas e as
 áreas desenhadas e, com o `server.publicUrl`, um botão que abre a gravação no
 instante do alerta (ver
-[`docs/configuration.md`](docs/configuration.md#alerta-por-e-mail)); o bloco
+[`docs/configuration.md`](docs/configuration.md#e-mail-alerts)); o bloco
 **Para onde vai**, no fim da aba Alerta, diz se ele sai por e-mail e para
 quem. E ele avisa do que a detecção marcar, que não é toda chegada: não é
-alarme. Os limites estão em [`docs/detection.md`](docs/detection.md#o-alerta).
+alarme. Os limites estão em [`docs/detection.md`](docs/detection.md#the-alert).
 
 ## Atualizar
 
@@ -594,7 +594,7 @@ CPU e disco, em [`docs/configuration.md`](docs/configuration.md).
 
 O login limita as tentativas de cada endereço (`server.loginAttemptsPerMinute`,
 ligado por padrão), para ninguém testar senhas sem parar. Detalhes em
-[`docs/configuration.md`](docs/configuration.md#limite-de-tentativas-no-login).
+[`docs/configuration.md`](docs/configuration.md#login-attempt-limit).
 
 O detector de objetos é opcional: um container à parte, `dwnvr-detect`,
 apontado por `detector.url` no `dwnvr.yaml`. Sem ele, a detecção marca só
@@ -606,7 +606,7 @@ passo a passo do Gmail, em
 [`docs/configuration.md`](docs/configuration.md#e-mail). A lista
 `alerts.email.to`, também opcional, diz quem recebe o alerta de detecção
 por e-mail (ver
-[`docs/configuration.md`](docs/configuration.md#alerta-por-e-mail)).
+[`docs/configuration.md`](docs/configuration.md#e-mail-alerts)).
 
 ## Documentação
 

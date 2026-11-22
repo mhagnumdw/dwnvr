@@ -1,96 +1,97 @@
-# Fase 4 - empacotamento
+# Phase 4 - packaging
 
-Imagem Docker multi-arch para `linux/arm64` e `linux/amd64`, validada rodando no
-Orange Pi Zero 3 em 08/08/2026.
+Multi-arch Docker image for `linux/arm64` and `linux/amd64`, validated running
+on the Orange Pi Zero 3 on 2026-08-08.
 
-## A imagem
+## The image
 
-`FROM scratch` com um único arquivo dentro:
+`FROM scratch` with a single file inside:
 
 | | |
 | --- | --- |
-| Binário | 7,9 MB |
-| Certificados CA | 222 KB |
-| **Camada comprimida** | **~3 MB** |
+| Binary | 7.9 MB |
+| CA certificates | 222 KB |
+| **Compressed layer** | **~3 MB** |
 
-Três coisas precisaram existir antes para que `scratch` fosse viável:
+Three things had to exist first for `scratch` to be viable:
 
-1. **`time/tzdata` embutido.** O dwnvr usa hora local para decidir a que dia um
-   segmento pertence, e em `scratch` não existe `/usr/share/zoneinfo`. Sem isso
-   `TZ` seria silenciosamente ignorado e todos os dias virariam UTC. Confirmado
-   no Pi: os timestamps do log saem com `-03:00`, não `Z`.
-2. **Healthcheck no próprio binário.** Não há shell nem curl na imagem para o
-   `HEALTHCHECK` do Docker chamar, então `dwnvr -healthcheck` consulta a
-   instância local e devolve o código de saída. O container reportou `healthy`.
-3. **Binário estático** (`CGO_ENABLED=0`), que já era o caso.
+1. **Embedded `time/tzdata`.** dwnvr uses local time to decide which day a
+   segment belongs to, and in `scratch` there is no `/usr/share/zoneinfo`.
+   Without it `TZ` would be silently ignored and every day would become UTC.
+   Confirmed on the Pi: the log timestamps come out with `-03:00`, not `Z`.
+2. **Healthcheck in the binary itself.** There is no shell or curl in the image
+   for Docker's `HEALTHCHECK` to call, so `dwnvr -healthcheck` queries the local
+   instance and returns the exit code. The container reported `healthy`.
+3. **Static binary** (`CGO_ENABLED=0`), which was already the case.
 
 ## Build
 
-Os dois estágios de build rodam em `$BUILDPLATFORM` e o Go compila cruzado por
-`$TARGETARCH`. Emular ARM para compilar seria ordens de grandeza mais lento, e a
-interface nem depende de arquitetura - é HTML, CSS e JS.
+Both build stages run on `$BUILDPLATFORM` and Go cross-compiles for
+`$TARGETARCH`. Emulating ARM to compile would be orders of magnitude slower, and
+the UI doesn't depend on architecture at all - it's HTML, CSS and JS.
 
-A interface é construída **dentro** da imagem, e não copiada da versão
-versionada, para que a imagem sempre corresponda ao código-fonte que a gerou.
+The UI is built **inside** the image, rather than copied from the versioned
+copy, so the image always matches the source code that produced it.
 
-## Medições no Pi, em container
+## Measurements on the Pi, in a container
 
 | | CPU | RAM |
 | --- | --- | --- |
-| dwnvr (9 câmeras, container) | **2,82% de 1 core** | **14,1 MB** de 128 MB |
+| dwnvr (9 cameras, container) | **2.82% of 1 core** | **14.1 MB** of 128 MB |
 
-Ligeiramente abaixo do binário nativo (4,0% / 17,1 MB), principalmente porque os
-segmentos passaram de 30 s para 60 s - menos rotações por minuto.
+Slightly below the native binary (4.0% / 17.1 MB), mainly because segments went
+from 30 s to 60 s - fewer rotations per minute.
 
-Verificado também: interface servida em 118 ms, 9 câmeras conectadas, índice
-existente carregado sem migração, e exportação com DTS estritamente crescente.
+Also verified: UI served in 118 ms, 9 cameras connected, existing index loaded
+without migration, and export with strictly increasing DTS.
 
-## A armadilha dos arquivos de root, evitada
+## The root-owned files trap, avoided
 
-O compose define `user: "1000:1000"`. Sem isso, o container gravaria como root e
-os arquivos nasceriam de root no disco - que é **exatamente** o que já havia
-acontecido neste mesmo Pi e que impediu, no início deste projeto, até criar um
-diretório em `/mnt/storage`.
+The compose file sets `user: "1000:1000"`. Without it, the container would
+record as root and the files would be born root-owned on disk - which is
+**exactly** what had already happened on this same Pi and which, at the start of
+this project, prevented even creating a directory in `/mnt/storage`.
 
-Confirmado depois de um minuto gravando em container:
+Confirmed after a minute recording in a container:
 
 ```text
 usuario:usuario /mnt/storage/dwnvr/cam_alfa/2026-08-08/1786231487217.mp4
 arquivos de root: 0
 ```
 
-## Rede
+## Network
 
-O `firewalld` do Pi bloqueava a porta do binário nativo; o Docker publica portas
-inserindo as próprias regras e passa por fora dele - o mesmo caminho do go2rtc.
-A porta aberta manualmente durante o desenvolvimento deixa de ser necessária.
+The Pi's `firewalld` blocked the native binary's port; Docker publishes ports by
+inserting its own rules and goes around it - the same path as go2rtc. The port
+opened manually during development is no longer needed.
 
-O container alcança o go2rtc por `host.docker.internal`, mapeado via
-`extra_hosts: host-gateway`. O go2rtc **não** faz parte do compose de propósito:
-acoplar os dois recriaria a dificuldade que motivou o projeto.
+The container reaches go2rtc through `host.docker.internal`, mapped via
+`extra_hosts: host-gateway`. go2rtc is **not** part of the compose file on
+purpose: coupling the two would recreate the difficulty that motivated the
+project.
 
 ## CI
 
-O workflow vive em `.github/workflows/ci.yml` **dentro** da pasta do dwnvr e
-hoje não é executado: o GitHub só lê workflows na raiz do repositório, e o dwnvr
-ainda é uma subpasta de `cameras`.
+The workflow lives in `.github/workflows/ci.yml` **inside** the dwnvr folder and
+doesn't run today: GitHub only reads workflows at the repository root, and dwnvr
+is still a subfolder of `cameras`.
 
-A posição é deliberada. Ela desativa o workflow por **localização**, não por um
-flag que alguém pode esquecer de reverter, e o deixa exatamente no lugar certo
-para quando a pasta virar um repositório independente - momento em que ele passa
-a valer sem nenhuma edição, porque já está escrito assumindo o dwnvr como raiz.
+The placement is deliberate. It disables the workflow by **location**, not by a
+flag someone might forget to revert, and leaves it exactly in the right place
+for when the folder becomes an independent repository - at which point it takes
+effect with no edit, since it is already written assuming dwnvr as the root.
 
-Além de testes, `go vet` e `gofmt`, ele confere que **`internal/api/dist`
-corresponde ao código em `web/`**. Essa checagem existe porque esquecer o
-`npm run build` produz um binário que compila e sobe normalmente, mas serve a
-tela antiga - uma falha silenciosa que só apareceria em produção.
+Besides tests, `go vet` and `gofmt`, it checks that **`internal/api/dist`
+matches the code in `web/`**. That check exists because forgetting
+`npm run build` produces a binary that compiles and starts normally but serves
+the old screen - a silent failure that would only show up in production.
 
-A checagem foi verificada por mutação: alterar uma cor no CSS e reconstruir faz
-o `dist` divergir, e a CI reprovaria. (Um primeiro teste com um comentário CSS
-não acusou nada - corretamente, já que o minificador o remove e a saída não
-muda de fato.)
+The check was verified by mutation: changing a color in the CSS and rebuilding
+makes `dist` diverge, and CI would fail. (A first test with a CSS comment
+flagged nothing - correctly, since the minifier removes it and the output
+doesn't actually change.)
 
-## Arquiteturas
+## Architectures
 
-Só `linux/arm64` e `linux/amd64` por enquanto, que cobrem Orange Pi, Raspberry
-Pi e qualquer PC. Outras entram quando houver quem as use.
+Only `linux/arm64` and `linux/amd64` for now, which cover Orange Pi, Raspberry
+Pi and any PC. Others come in when someone uses them.

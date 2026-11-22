@@ -3,8 +3,8 @@
 **Status: sem data (03/11/2026).** O alerta de detecção por câmera, com as
 áreas, as famílias, os horários e o e-mail, entrou no PR #44. O que está aqui
 ficou de fora dele, e cada item vira plano próprio quando chegar a vez. O
-alerta como ele é hoje está em [`detection.md`](../detection.md#o-alerta) e em
-[`configuration.md`](../configuration.md#alerta-por-e-mail).
+alerta como ele é hoje está em [`detection.md`](../detection.md#the-alert) e em
+[`configuration.md`](../configuration.md#e-mail-alerts).
 
 ## O que fica para depois
 
@@ -43,7 +43,7 @@ assunto só se o alerta incomodar no uso. Fica aqui o que já se sabe, para não
 refazer.
 
 **O problema.** A marca é de chegada (ver
-[o rastreio](../detection.md#carro-parado-não-vira-marca-a-cada-olhada)): quem
+[o rastreio](../detection.md#a-parked-car-doesnt-become-a-mark-on-every-inference)): quem
 anda pela cena muda de lugar e marca de novo a cada olhada. Uma pessoa 20
 minutos no quintal, marcada a cada minuto, são uns 20 alertas sobre ela.
 
@@ -90,4 +90,4 @@ o dia todo. Uma olhada é o conjunto das marcas de objeto de um mesmo
 
 A recomendação, na época, foi o deslizante com 5 min. Sem silêncio, o único
 freio do volume de e-mails é o teto de envio (ver os limites em
-[O alerta](../detection.md#o-alerta)).
+[O alerta](../detection.md#the-alert)).

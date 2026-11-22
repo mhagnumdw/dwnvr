@@ -1,100 +1,105 @@
-# Configuração
+# Configuration
 
-O que o dwnvr lê, o que ele escreve, e o que cada política de gravação custa em
-CPU e em disco.
+What dwnvr reads, what it writes, and what each recording policy costs in CPU
+and disk.
 
-- [Os dois arquivos](#os-dois-arquivos)
-- [Política por câmera](#política-por-câmera)
-- [Valor fora da faixa](#valor-fora-da-faixa)
-- [Retenção](#retenção)
-- [Áudio](#áudio)
-- [Limite de tentativas no login](#limite-de-tentativas-no-login)
+- [The two files](#the-two-files)
+- [Per-camera policy](#per-camera-policy)
+- [Value out of range](#value-out-of-range)
+- [Retention](#retention)
+- [Audio](#audio)
+- [Login attempt limit](#login-attempt-limit)
 - [E-mail](#e-mail)
 
-## Os dois arquivos
+## The two files
 
-- **`dwnvr.yaml`** - infraestrutura, editado à mão, **nunca reescrito** pela
-  aplicação. Cada campo está comentado em
+- **`dwnvr.yaml`** - infrastructure, edited by hand, **never rewritten** by the
+  application. Every field is commented in
   [`dwnvr.example.yaml`](../dwnvr.example.yaml).
-- **`cameras.json`** - a lista de câmeras, gravada pela tela de cadastro.
+- **`cameras.json`** - the list of cameras, written by the camera registration
+  screen.
 
-Estão separados porque reescrever um YAML apaga os comentários de quem o
-escreveu, e a tela de cadastro precisa gravar câmeras a cada clique. A
-separação também garante que um erro na tela de cadastro não consiga corromper
-a sua infraestrutura: o dwnvr nunca escreve no `dwnvr.yaml`.
+They are separate because rewriting a YAML file erases the comments of whoever
+wrote it, and the registration screen has to save cameras on every click. The
+split also guarantees that a bug in the registration screen can't corrupt your
+infrastructure: dwnvr never writes to `dwnvr.yaml`.
 
-Os dois vivem no mesmo diretório - `/etc/dwnvr` na imagem Docker -, junto com o
-`.session-secret`, que assina os cookies de sessão, e com o `users.json`, as
-pessoas que entram além do dono do `dwnvr.yaml`, que a tela Usuários e a Minha
-conta gravam (ver [Quem entra](api.md#quem-entra)). O `users.json` é `0600`,
-como o `.session-secret`, porque guarda as senhas, em hash. A foto de cada
-pessoa fica ao lado, em `avatars/`, um JPEG de até 32 KB por pessoa. Se ele ficar ilegível, o
-dwnvr sobe do mesmo jeito, só o dono entra, e nada é gravado por cima dele até
-ser corrigido.
+Both live in the same directory - `/etc/dwnvr` in the Docker image - next to
+`.session-secret`, which signs the session cookies, and `users.json`, the
+people who log in besides the owner in `dwnvr.yaml`, which the Usuários
+(Users) screen and Minha conta (My account) write (see
+[Quem entra](api.md#who-signs-in)). `users.json` is `0600`, like
+`.session-secret`, because it holds the passwords, hashed. Each person's photo
+sits beside it, in `avatars/`, a JPEG of up to 32 KB per person. If it becomes
+unreadable, dwnvr still starts, only the owner can log in, and nothing is
+written over it until it is fixed.
 
-Quem edita o `users.json` à mão vê o resultado no log e nos Avisos da tela
-Diagnóstico, ao reiniciar: o arquivo ilegível, a pessoa ignorada (usuário fora
-do formato, repetido, igual ao do dono ou com papel desconhecido), o e-mail
-ilegível e o e-mail repetido. A pessoa entra pelo usuário ou pelo e-mail (ver
-[O login](api.md#o-login)), e o e-mail repetido não serve para entrar: não diz
-quem está entrando.
+Whoever edits `users.json` by hand sees the result in the log and in the Avisos
+(Warnings) of the Diagnóstico (Diagnostics) screen, on restart: the unreadable
+file, the ignored person (username in the wrong format, duplicated, the same as
+the owner's, or with an unknown role), the unreadable e-mail and the duplicated
+e-mail. A person logs in with the username or the e-mail (see
+[O login](api.md#the-login)), and a duplicated e-mail can't be used to log in: it
+doesn't say who is logging in.
 
-Também ao lado fica o `access.json`, `0600`, com o último acesso de cada
-pessoa, que a tela Usuários mostra. Ele nasce no primeiro acesso e é gravado
-em segundo plano, no máximo a cada 5 minutos e ao desligar: numa queda de
-energia, perdem-se no máximo esses minutos. Ilegível, o dwnvr sobe do mesmo
-jeito, avisa no log e recomeça os acessos do zero.
+Also beside it is `access.json`, `0600`, with each person's last access, which
+the Usuários screen shows. It is created on the first access and written in the
+background, at most every 5 minutes and on shutdown: in a power outage, you
+lose at most those minutes. If it is unreadable, dwnvr still starts, logs a
+warning and starts the accesses over from zero.
 
-Há ainda um terceiro arquivo que o dwnvr **só lê pela API, nunca abre**: o
-`go2rtc.yaml`. Ele é do go2rtc, e configurá-lo é tarefa de quem instala. Veja
-[`go2rtc.example.yaml`](../go2rtc.example.yaml).
+There is also a third file that dwnvr **only reads through the API, never
+opens**: `go2rtc.yaml`. It belongs to go2rtc, and configuring it is the
+installer's job. See [`go2rtc.example.yaml`](../go2rtc.example.yaml).
 
-## Política por câmera
+## Per-camera policy
 
-Tudo que é política de gravação é **por câmera**, não global:
+Everything that is recording policy is **per camera**, not global:
 
-| Campo | O que decide | Aceito |
+| Field | What it decides | Accepted |
 | --- | --- | --- |
-| stream do go2rtc | qual fonte gravar - a de alta ou a de baixa resolução | |
-| `audio` | o áudio gravado - ver abaixo | `none`, `flac` ou `aac` |
-| `quotaMB` | quanto disco aquela câmera pode ocupar | 100 ou mais |
-| `segmentSeconds` | duração alvo de cada segmento | de 10 a 300 |
-| `maxDays` | idade máxima, opcional | 0 (sem limite) ou mais |
-| `stallSeconds` | tolerância antes de considerar o stream morto | de 1 a 3600 |
-| `detect` | marcar movimento na timeline - ver abaixo | |
-| `detectMethod` | quem decide disparar | `kleinberg-p` ou `periodic` |
-| `detectSensitivity` | o nível, que é o custo em CPU | de 1 a 5 |
-| `areas` | as áreas desenhadas sobre a imagem - ver abaixo | até 8 |
-| `alert` | quando uma detecção vira alerta - ver abaixo | |
+| go2rtc stream | which source to record - the high or the low resolution one | |
+| `audio` | the recorded audio - see below | `none`, `flac` or `aac` |
+| `quotaMB` | how much disk that camera may use | 100 or more |
+| `segmentSeconds` | target duration of each segment | 10 to 300 |
+| `maxDays` | maximum age, optional | 0 (no limit) or more |
+| `stallSeconds` | tolerance before the stream is considered dead | 1 to 3600 |
+| `detect` | mark motion on the timeline - see below | |
+| `detectMethod` | what decides to trigger | `kleinberg-p` or `periodic` |
+| `detectSensitivity` | the level, which is the CPU cost | 1 to 5 |
+| `areas` | the areas drawn over the image - see below | up to 8 |
+| `alert` | when a detection becomes an alert - see below | |
 
-Ser por câmera não é preciosismo: numa instalação real as câmeras não são
-iguais. A do portão merece alta resolução e cota grande; a do corredor não. E o
-`stallSeconds` certo depende do enlace - o tipo de conexão - de cada câmera:
-uma câmera em wi-fi ruim precisa de mais tolerância que uma no cabo.
+Being per camera is not pedantry: in a real installation the cameras are not
+all alike. The gate camera deserves high resolution and a big quota; the
+hallway one doesn't. And the right `stallSeconds` depends on each camera's
+link - the type of connection: a camera on bad wi-fi needs more tolerance than
+one on a cable.
 
-Os valores de `defaults` no `dwnvr.yaml` valem para qualquer câmera que não
-defina o campo.
+The values in `defaults` in `dwnvr.yaml` apply to any camera that doesn't set
+the field.
 
-Salvar a câmera pela tela não a prende aos `defaults` de hoje: o campo que ela
-não definia e chega igual ao default fica fora do `cameras.json`, e continua
-seguindo o `dwnvr.yaml`. O campo que ela já definia fica, mesmo igual ao
-default. Duas consequências:
+Saving a camera through the screen doesn't pin it to today's `defaults`: a
+field it didn't set that arrives equal to the default stays out of
+`cameras.json`, and keeps following `dwnvr.yaml`. A field it already set stays,
+even if equal to the default. Two consequences:
 
-- pela tela, não dá para fixar numa câmera um valor igual ao default de hoje:
-  isso só se faz escrevendo o campo no `cameras.json`;
-- uma câmera salva por uma versão anterior pode ter todos os campos gravados,
-  com os defaults da época, e só volta a seguir o `dwnvr.yaml` quando eles
-  saem do `cameras.json`.
+- through the screen, you can't pin on a camera a value equal to today's
+  default: that is only done by writing the field in `cameras.json`;
+- a camera saved by an earlier version may have every field written, with the
+  defaults of the time, and only goes back to following `dwnvr.yaml` when they
+  are removed from `cameras.json`.
 
-Nos dois casos, pare o dwnvr antes de editar o `cameras.json` e suba de novo
-depois. O arquivo só é lido no boot, e salvar qualquer câmera pela tela com o
-dwnvr no ar regrava o arquivo inteiro com o que ele tem na memória, por cima
-da edição.
+In both cases, stop dwnvr before editing `cameras.json` and start it again
+afterwards. The file is only read at boot, and saving any camera through the
+screen while dwnvr is running rewrites the whole file with what it has in
+memory, over your edit.
 
-As `areas` não são política de gravação: são os trechos da imagem, como
-"Portão" e "Garagem", por onde Detecções filtra. Mudar uma área não reinicia a
-gravação. O admin as desenha na aba Áreas do cadastro da câmera, ou em
-Detecções, com o "salvar na câmera" do editor de área.
+The `areas` are not recording policy: they are the parts of the image, like
+"Portão" and "Garagem" (Gate and Garage), that Detecções (Detections) filters
+by. Changing an area doesn't restart the recording. The admin draws them in the
+Áreas (Areas) tab of the camera registration, or in Detecções, with the "salvar
+na câmera" (save to the camera) of the area editor.
 
 ```json
 "areas": [
@@ -103,42 +108,43 @@ Detecções, com o "salvar na câmera" do editor de área.
 ]
 ```
 
-- `points` são de 3 a 20 vértices, em fração do quadro (de 0 a 1, com o Y
-  crescendo para baixo), e valem em qualquer resolução da câmera.
-- `rule` decide quando o objeto conta como dentro: `foot`, o padrão, quando o
-  meio da base da caixa está na área; `touch`, quando a caixa encosta nela.
-- `name` não pode ficar vazio nem se repetir na câmera.
-- `id` é curto, só letras minúsculas e dígitos, e o servidor gera quando a área
-  chega sem ele. Os links apontam para ele, e renomear a área não os quebra.
-  Uma área escrita à mão sem `id` ganha um a cada boot, até a câmera ser salva
-  pela tela.
+- `points` are 3 to 20 vertices, as a fraction of the frame (0 to 1, with Y
+  growing downward), and hold at any camera resolution.
+- `rule` decides when the object counts as inside: `foot`, the default, when
+  the middle of the box's bottom edge is in the area; `touch`, when the box
+  touches it.
+- `name` can't be empty or repeated in the camera.
+- `id` is short, only lowercase letters and digits, and the server generates it
+  when the area arrives without one. Links point to it, and renaming the area
+  doesn't break them. An area written by hand without an `id` gets a new one on
+  every boot, until the camera is saved through the screen.
 
-Se a câmera for movida, a área fica no lugar errado: redesenhe.
+If the camera is moved, the area ends up in the wrong place: redraw it.
 
-O `alert` também não é política de gravação: diz quando uma detecção da câmera
-vira alerta. O admin o liga na aba Alerta do cadastro da câmera, que só
-funciona com a marcação de movimento ligada e o detector de objetos
-configurado; sem eles, a aba diz o que falta. O alerta vai para o log, fica
-marcado na detecção, que Detecções filtra, e, com a lista de
-[Alerta por e-mail](#alerta-por-e-mail), sai por e-mail (ver
-[`detection.md`](detection.md#o-alerta)). Mudar o alerta não reinicia a
-gravação.
+The `alert` isn't recording policy either: it says when a detection of the
+camera becomes an alert. The admin turns it on in the Alerta (Alert) tab of the
+camera registration, which only works with motion marking on and the object
+detector configured; without them, the tab says what is missing. The alert goes
+to the log, is flagged on the detection, which Detecções filters, and, with the
+list in [E-mail alerts](#e-mail-alerts), goes out by e-mail (see
+[`detection.md`](detection.md#the-alert)). Changing the alert doesn't restart
+the recording.
 
 ```json
 "alert": { "enabled": true, "families": ["person"], "areas": ["k3f9a2"] }
 ```
 
-- `families` são as famílias que alertam: `person`, `vehicle` ou `animal`. Com
-  o alerta ligado, pelo menos uma.
-- `areas` são os `id` das áreas da câmera em que o objeto precisa cair, cada
-  uma pela própria `rule`. Vazio ou ausente é a imagem inteira.
-- `schedules` são os horários em que o alerta sai, somados; vazio ou ausente é
-  a qualquer hora. Ver abaixo.
-- `enabled` desligado guarda as famílias, as áreas e os horários, para religar
-  sem refazer.
+- `families` are the families that alert: `person`, `vehicle` or `animal`. With
+  the alert on, at least one.
+- `areas` are the `id`s of the camera's areas the object has to fall in, each
+  by its own `rule`. Empty or absent means the whole image.
+- `schedules` are the times the alert goes out, added together; empty or absent
+  means at any time. See below.
+- `enabled` off keeps the families, the areas and the schedules, to turn it
+  back on without redoing them.
 
-Cada horário tem os dias e um De e um Até, ao minuto. A quarta com três
-horários:
+Each schedule has the days and a From and a To, to the minute. Wednesday with
+three schedules:
 
 ```json
 "schedules": [
@@ -148,34 +154,36 @@ horários:
 ]
 ```
 
-- `days` vai de 0 (domingo) a 6 (sábado). Vários horários podem ter o mesmo
-  dia, e os que se sobrepõem valem pela soma.
-- `from` e `to` são `HH:MM`, e as duas pontas entram: "até 13:00" inclui o
-  minuto 13:00, e o dia inteiro é `00:00` até `23:59`.
-- Nenhum horário atravessa a meia-noite: o `to` é maior que o `from`, nunca
-  igual. A noite são dois horários, um até `23:59` e outro a partir de `00:00`
-  do dia seguinte.
-- Vale a hora em que a detecção aconteceu, no fuso do servidor, o mesmo que
-  decide o dia das gravações. A detecção continua sendo gravada a qualquer
-  hora: o horário decide só o alerta.
-- Até 84 horários por câmera.
+- `days` goes from 0 (Sunday) to 6 (Saturday). Several schedules can have the
+  same day, and overlapping ones count as their sum.
+- `from` and `to` are `HH:MM`, and both ends are included: "until 13:00"
+  includes the minute 13:00, and the whole day is `00:00` to `23:59`.
+- No schedule crosses midnight: `to` is greater than `from`, never equal. A
+  night is two schedules, one until `23:59` and another from `00:00` on the
+  next day.
+- What counts is the time the detection happened, in the server's time zone,
+  the same one that decides the day of the recordings. The detection is still
+  recorded at any time: the schedule only decides the alert.
+- Up to 84 schedules per camera.
 
-Na tela, os horários ficam na seção Horários da aba Alerta, em duas formas que
-andam juntas: a grade da semana, em que se marca a hora inteira, e a lista, em
-que se digita ao minuto. Marcar na grade refaz a lista, com os dias de mesmo
-horário num horário só. Desmarcar "Limitar o alerta a alguns horários" apaga os
-horários ao salvar.
+On screen, the schedules are in the Horários (Schedules) section of the Alerta
+tab, in two forms that move together: the week grid, where you mark whole
+hours, and the list, where you type to the minute. Marking the grid rebuilds
+the list, with days that have the same schedule in a single schedule. Clearing
+"Limitar o alerta a alguns horários" (Limit the alert to certain times) erases
+the schedules on save.
 
-## Valor fora da faixa
+## Value out of range
 
-Um número fora da faixa **não impede o dwnvr de subir**. Gravar com o padrão é
-melhor que não gravar nada, e uma câmera com um valor ruim não pode deixar as
-outras paradas. No boot, cada valor assim:
+A number out of range **doesn't stop dwnvr from starting**. Recording with the
+default is better than not recording at all, and a camera with a bad value
+can't leave the others stopped. At boot, each such value:
 
-- passa a valer o padrão: o de `defaults` para a câmera, o do código para o
-  `dwnvr.yaml`;
-- vira um aviso no log, que aparece também na tela de Diagnóstico, com o campo,
-  o valor escrito, o que é aceito e o que ficou valendo:
+- takes the default: the one from `defaults` for the camera, the one in the code
+  for `dwnvr.yaml`;
+- becomes a warning in the log, which also shows up on the Diagnóstico screen,
+  with the field, the value written, what is accepted and what ended up
+  applying:
 
   ```text
   value out of range in the configuration; the default applies until it is fixed
@@ -183,81 +191,82 @@ outras paradas. No boot, cada valor assim:
   accepted="100 MB ou mais" using=10240
   ```
 
-No `cameras.json`, zero e campo ausente são "usar o padrão" e nunca dão aviso.
-No `dwnvr.yaml` o zero é inválido, porque ali o padrão é o próprio valor. As
-exceções são o `maxDays`, onde zero é "sem limite", e o `storage.minFreeMB` e
-o `server.loginAttemptsPerMinute`, onde zero desliga a trava global de disco e
-o limite de tentativas no login.
+In `cameras.json`, zero and an absent field mean "use the default" and never
+produce a warning. In `dwnvr.yaml` zero is invalid, because there the default is
+the value itself. The exceptions are `maxDays`, where zero means "no limit",
+and `storage.minFreeMB` and `server.loginAttemptsPerMinute`, where zero turns
+off the global disk guard and the login attempt limit.
 
-Com as `areas` é igual: a área inválida sai, com um aviso, e as outras ficam.
-No `alert`, sai com um aviso a família desconhecida, a área que a câmera não
-tem e o horário inválido: sem dia, com dia fora de 0 a 6, com hora que não é
-`HH:MM` ou com o `to` que não fica depois do `from`. O dia repetido num horário
-conta uma vez, também com aviso. O alerta ligado que fica sem nenhuma família,
-sem nenhuma das áreas que tinha ou sem nenhum dos horários que tinha é
-desligado, também com aviso: sem as áreas, ele valeria na imagem inteira, e sem
-os horários, a qualquer hora.
+With the `areas` it is the same: the invalid area is dropped, with a warning,
+and the others stay. In the `alert`, what is dropped with a warning is the
+unknown family, the area the camera doesn't have and the invalid schedule:
+without a day, with a day outside 0 to 6, with a time that isn't `HH:MM` or
+with a `to` that isn't after the `from`. A day repeated in a schedule counts
+once, also with a warning. An enabled alert left with no family, with none of
+the areas it had or with none of the schedules it had is turned off, also with
+a warning: without the areas, it would apply to the whole image, and without
+the schedules, at any time.
 
-O que continua impedindo o boot é o que não tem padrão seguro: um arquivo que
-não se consegue ler, o `storage.root` vazio e o ID de câmera que viraria um
-caminho fora do diretório de gravações ou que tem vírgula (ela separa os IDs
-no `cams=` da API).
+What still stops the boot is what has no safe default: a file that can't be
+read, an empty `storage.root` and a camera ID that would become a path outside
+the recordings directory or that has a comma (it separates the IDs in the
+API's `cams=`).
 
-A tela de Câmeras e a API usam as mesmas faixas, mas lá o valor ruim é
-**recusado** em vez de trocado, porque há alguém na frente da tela para ler a
-mensagem e corrigir na hora. As faixas moram em
+The Câmeras (Cameras) screen and the API use the same ranges, but there a bad
+value is **rejected** instead of replaced, because someone is in front of the
+screen to read the message and fix it right away. The ranges live in
 [`internal/config/params.go`](../internal/config/params.go).
 
-## Marcação de movimento
+## Motion marking
 
-Com `detect` ligado, a timeline ganha uma **faixa de calor** por baixo da barra
-azul: quanto mais forte o âmbar, mais coisas aconteceram naquele instante.
+With `detect` on, the timeline gets a **heat strip** under the blue bar: the
+stronger the amber, the more happened at that instant.
 
-O sinal é o **tamanho de cada quadro**, que o gravador já tem na mão - nenhum
-pixel é decodificado, e nada é gravado além de uma linha por marca em
-`events/{dia}.ndjson`. A faixa diz QUANDO houve movimento; dizer o que era é
-do detector de objetos, opcional - ver abaixo.
+The signal is the **size of each frame**, which the recorder already has on
+hand - no pixel is decoded, and nothing is written beyond one line per mark in
+`events/{day}.ndjson`. The strip says WHEN there was motion; saying what it was
+is the job of the object detector, optional - see below.
 
-**A sensibilidade é o custo, e ele é por câmera.** Com seis câmeras no nível 4
-são 300 marcas por hora, não 50:
+**The sensitivity is the cost, and it is per camera.** With six cameras at
+level 4 that is 300 marks per hour, not 50:
 
-| nível | marcas/hora por câmera | pega |
+| level | marks/hour per camera | catches |
 | --- | --- | --- |
-| 1 - muito baixa | 6 | 2,8% |
-| 2 - baixa | 12 | 9,2% |
-| 3 - média | 25 | 22,3% |
-| 4 - alta | 50 | 41,5% |
-| **5 - muito alta** | **100** | **57,4%** |
+| 1 - very low | 6 | 2.8% |
+| 2 - low | 12 | 9.2% |
+| 3 - medium | 25 | 22.3% |
+| 4 - high | 50 | 41.5% |
+| **5 - very high** | **100** | **57.4%** |
 
-"Pega" é a fatia das chegadas de pessoa, veículo ou animal em que o gatilho
-dispara a tempo. As duas colunas são medidas, não estimadas: centenas de horas
-de gravação real, contra chegadas marcadas à mão.
+"Catches" is the share of person, vehicle or animal arrivals where the trigger
+fires in time. Both columns are measured, not estimated: hundreds of hours of
+real recording, against arrivals marked by hand.
 
-**O mecanismo** decide como disparar. O `kleinberg-p` compara cada quadro com o
-normal da própria câmera - é por isso que o mesmo nível significa a mesma coisa
-numa câmera silenciosa e numa cheia de ruído de infravermelho. O `periodic`
-dispara em intervalo fixo, ignorando a imagem: mesmo custo, e pega de 2 a 3
-vezes menos. Ele existe por ser a régua a bater, e para quem preferir um
-comportamento sem surpresa numa câmera específica.
+**The method** decides how to trigger. `kleinberg-p` compares each frame with
+the camera's own normal - which is why the same level means the same thing on a
+quiet camera and on one full of infrared noise. `periodic` triggers at a fixed
+interval, ignoring the image: same cost, and it catches 2 to 3 times less. It
+exists as the reference to beat, and for whoever prefers unsurprising behavior
+on a specific camera.
 
-Mudar qualquer um dos três **não reabre a conexão**: o gravador troca o gatilho
-no quadro seguinte, sem abrir buraco na gravação.
+Changing any of the three **doesn't reopen the connection**: the recorder swaps
+the trigger on the next frame, without opening a gap in the recording.
 
-Como o destaque, o onset e os níveis funcionam por dentro está em
+How the score, the onset and the levels work inside is in
 [`detection.md`](detection.md).
 
-## Detector de objetos
+## Object detector
 
-A marca de movimento diz QUANDO. O detector diz O QUÊ: a cada marca, o dwnvr
-separa o pedaço de vídeo daquele instante e pergunta ao container
-`dwnvr-detect` o que havia nele. Se era pessoa, veículo ou animal, a marca de
-objeto vai para o mesmo `events/{dia}.ndjson`, e o quadro em que o objeto
-aparece vai para `frames/{dia}/{atMs}.jpg`, do lado. Os dois somem junto com o vídeo
-na retenção, e os quadros contam na cota da câmera: ~14 KB por detecção, uns
-37 MB num dia de nove câmeras movimentadas.
+The motion mark says WHEN. The object detector says WHAT: for each mark, dwnvr
+cuts the video clip of that instant and asks the `dwnvr-detect` container what
+was in it. If it was a person, vehicle or animal, the object mark goes to the
+same `events/{day}.ndjson`, and the frame where the object appears goes to
+`frames/{day}/{atMs}.jpg`, beside it. Both go away together with the video in
+retention, and the frames count against the camera's quota: ~14 KB per
+detection, about 37 MB in a day with nine busy cameras.
 
-Ele é **opcional** e mora num container à parte, porque decodificar vídeo e
-rodar um modelo exigem código nativo e o dwnvr é Go puro. Liga-se no
+It is **optional** and lives in a separate container, because decoding video
+and running a model need native code and dwnvr is pure Go. You turn it on in
 `dwnvr.yaml`:
 
 ```yaml
@@ -265,71 +274,75 @@ detector:
   url: http://dwnvr-detect:8480
 ```
 
-Sem a `url`, as câmeras com `detect` marcam só movimento, e o dwnvr não guarda
-um byte de vídeo a mais por isso.
+Without the `url`, cameras with `detect` mark only motion, and dwnvr doesn't
+store a single extra byte of video for it.
 
-**O que ele custa.** No Orange Pi Zero 3, cada olhada leva ~6,5 s de um núcleo
-e o container ocupa ~230 MB. No nível 5, o padrão, isso é ~17% de um núcleo
-por câmera, contínuo; no 4, a metade. As olhadas passam por uma **fila com
-dois lugares por câmera**: se uma câmera dispara de novo com os dois ocupados,
-a marca nova fica só como
-movimento. Isso impede a câmera mais agitada de ocupar a vez das outras, e é o
-que segura a entrega de `person` perto do teto medido. Se o
-detector cair, a gravação e a faixa de movimento seguem como se ele não
-existisse; o log avisa uma vez quando ele sai do ar, e outra quando volta.
+**What it costs.** On the Orange Pi Zero 3, each inference takes ~6.5 s of one
+core and the container takes ~230 MB. At level 5, the default, that is ~17% of
+one core per camera, continuous; at 4, half. Inferences go through a **queue
+with two spots per camera**: if a camera triggers again with both taken, the
+new mark stays as motion only. That keeps the busiest camera from taking the
+others' turn, and it is what holds the `person` delivery near the measured
+ceiling. If the object detector goes down, the recording and the motion strip
+carry on as if it didn't exist; the log warns once when it goes out, and once
+when it comes back.
 
-**Carro estacionado não vira marca a cada olhada.** O dwnvr lembra, por câmera,
-onde já há um objeto parado, e só marca a CHEGADA. Essa memória não sobrevive
-a um reinício: depois dele, cada objeto parado aparece uma vez como se tivesse
-acabado de chegar.
+**A parked car doesn't become a mark on every inference.** dwnvr remembers, per
+camera, where there is already a stationary object, and only marks the
+ARRIVAL. That memory doesn't survive a restart: after it, each stationary
+object shows up once as if it had just arrived.
 
-O caminho inteiro, do quadro à marca de objeto, o que acontece quando o
-detector cai e os limites do modelo estão em [`detection.md`](detection.md).
+The whole path, from the frame to the object mark, what happens when the object
+detector goes down and the model's limits are in
+[`detection.md`](detection.md).
 
-## Retenção
+## Retention
 
-Três limites, nesta ordem:
+Three limits, in this order:
 
-1. **cota em MB por câmera** - o principal, ring buffer apagando o mais antigo
-2. **idade máxima em dias** - opcional, para quem pensa em dias e não em GB
-3. **disco livre mínimo, global** - rede de segurança que ignora as cotas
+1. **quota in MB per camera** - the main one, a ring buffer deleting the oldest
+2. **maximum age in days** - optional, for whoever thinks in days and not in GB
+3. **minimum free disk, global** - a safety net that ignores the quotas
 
-O terceiro existe porque a soma das cotas erra fácil: cada câmera tem uma taxa
-diferente, e encher o disco é pior que perder gravação antiga.
+The third exists because the sum of the quotas is easy to get wrong: each
+camera has a different rate, and filling the disk is worse than losing old
+recordings.
 
-Gravação de câmera removida sem marcar "apagar também as gravações" não entra
-em nenhum dos três, nem no disco livre mínimo: o dwnvr não apaga sozinho o que o
-usuário preservou, mesmo que a alternativa seja apagar gravação de câmera no
-ar. Ela aparece em **Gravações de câmeras removidas**, na tela Câmeras, de onde se apaga,
-e o Diagnóstico a mostra à parte na barra do disco. Com o disco apertado, o
-aviso da retenção no log traz o total dela em `orfas_mb`.
+The recordings of a removed camera, without ticking "apagar também as
+gravações" (also delete the recordings), fall under none of the three, not even
+the minimum free disk: dwnvr doesn't delete on its own what the user preserved,
+even if the alternative is deleting the recordings of a camera that is live.
+They show up in **Gravações de câmeras removidas** (Recordings of removed
+cameras), on the Câmeras screen, where you can delete them, and the Diagnóstico
+shows them separately on the disk bar. With the disk tight, the retention
+warning in the log carries their total in `orfas_mb`.
 
-A cota é aplicada a cada minuto, então o pico real é `cota + taxa × 60s` - com
-uma câmera de 900 kbps isso são ~7 MB de folga, desprezível contra uma cota real.
+The quota is applied every minute, so the real peak is `quota + rate × 60s` -
+with a 900 kbps camera that is ~7 MB of slack, negligible against a real quota.
 
-## Áudio
+## Audio
 
-O modo de áudio é escolhido por câmera e vira um filtro de codec na URL:
+The audio mode is chosen per camera and becomes a codec filter in the URL:
 
-| Modo | CPU | Disco | Mexe no go2rtc? |
+| Mode | CPU | Disk | Touches go2rtc? |
 | --- | --- | --- | --- |
-| `none` | zero | zero | não |
-| `flac` | **+0,65% de 1 core** | **+260 kbps** (~2,8 GB/dia) | não |
-| `aac` | ~10% de 1 core | ~64 kbps (~0,7 GB/dia) | sim, exige `ffmpeg:cam#audio=aac` |
+| `none` | zero | zero | no |
+| `flac` | **+0.65% of 1 core** | **+260 kbps** (~2.8 GB/day) | no |
+| `aac` | ~10% of 1 core | ~64 kbps (~0.7 GB/day) | yes, requires `ffmpeg:cam#audio=aac` |
 
-Medido no Orange Pi Zero 3 com câmeras Yoosee (pcm_alaw 16 kHz mono). **A
-escolha é entre CPU e disco**: o FLAC é praticamente de graça em processamento
-e não dispara nenhum processo ffmpeg - a conversão acontece em Go puro dentro
-do go2rtc -, mas por ser sem perdas ele fica em ~260 kbps, o que numa câmera de
-770 kbps de vídeo significa **+34% de armazenamento**. O AAC inverte a conta.
+Measured on the Orange Pi Zero 3 with Yoosee cameras (pcm_alaw 16 kHz mono).
+**The choice is between CPU and disk**: FLAC is practically free in processing
+and doesn't start any ffmpeg process - the conversion happens in pure Go inside
+go2rtc -, but being lossless it sits at ~260 kbps, which on a camera with 770
+kbps of video means **+34% storage**. AAC reverses the trade.
 
-Requisito comum aos dois: a fonte no `go2rtc.yaml` não pode ter `#media=video`,
-que descarta o áudio já na origem. Nenhuma configuração do dwnvr traz de volta
-um áudio descartado lá.
+A requirement common to both: the source in `go2rtc.yaml` can't have
+`#media=video`, which drops the audio at the origin. No dwnvr setting brings
+back audio dropped there.
 
-A medição completa do FLAC está em [audio-flac.md](audio-flac.md).
+The full FLAC measurement is in [audio-flac.md](audio-flac.md).
 
-## Limite de tentativas no login
+## Login attempt limit
 
 ```yaml
 server:
@@ -337,61 +350,65 @@ server:
   trustedProxies: [127.0.0.0/8, "::1/128", 172.16.0.0/12]
 ```
 
-Os valores acima são os padrões, que valem sem escrever nada.
+The values above are the defaults, which apply without writing anything.
 
-Cada endereço tem **5 tentativas de login seguidas**. Depois delas, as
-seguintes passam no ritmo do `loginAttemptsPerMinute`: com o padrão, uma a cada
-30 s. Quem para de tentar recupera uma vaga a cada intervalo, até as 5. Passado
-o limite, o login responde sem conferir a senha, e a tela conta os segundos até
-a próxima tentativa. Conta toda tentativa, a certa também.
+Each address gets **5 login attempts in a row**. After them, the following ones
+go through at the pace of `loginAttemptsPerMinute`: with the default, one every
+30 s. Whoever stops trying recovers one slot per interval, up to 5. Past the
+limit, the login answers without checking the password, and the screen counts
+the seconds until the next attempt. Every attempt counts, the right one too.
 
-Quem só errou a senha duas ou três vezes não vê o limite. Ele existe para quem
-testa senhas sem parar: cada tentativa custa 0,77 s de CPU num Orange Pi Zero 3
-(ver [O login](api.md#o-login)), e sem limite isso ocupa um núcleo o tempo
-todo, e o login de quem é da casa espera atrás.
+Someone who only got the password wrong two or three times doesn't see the
+limit. It exists for whoever tests passwords nonstop: each attempt costs 0.77 s
+of CPU on an Orange Pi Zero 3 (see [O login](api.md#the-login)), and without a
+limit that keeps a core busy all the time, and the login of the household waits
+behind it.
 
-`0` desliga o limite. O aceito vai de 0 a 12 por minuto.
+`0` turns the limit off. The accepted range is 0 to 12 per minute.
 
-O limite é **por endereço**, e não por usuário: por usuário, qualquer um que
-alcance a tela travaria o login do dono só errando a senha dele de propósito.
-Como é por endereço, quem tenta de muitos endereços ao mesmo tempo não é
-contido por ele. Entrar pelo e-mail conta no mesmo limite.
+The limit is **per address**, not per user: per user, anyone who can reach the
+screen could lock the owner out of logging in just by getting their password
+wrong on purpose. Since it is per address, someone trying from many addresses
+at once isn't contained by it. Logging in by e-mail counts toward the same
+limit.
 
-### De onde vem o endereço
+### Where the address comes from
 
-Atrás de um proxy, toda conexão chega ao dwnvr com o endereço do proxy, igual
-para todo mundo. Quem chegou de verdade vem no header `X-Forwarded-For`, que o
-proxy preenche. Mas quem fala direto com a porta do dwnvr também consegue
-mandar esse header, inventando um endereço a cada tentativa. Por isso o
-`trustedProxies` lista as redes dos proxies confiáveis:
+Behind a proxy, every connection reaches dwnvr with the proxy's address, the
+same for everyone. Who really connected comes in the `X-Forwarded-For` header,
+which the proxy fills in. But whoever talks directly to dwnvr's port can also
+send that header, making up an address on each attempt. That's why
+`trustedProxies` lists the networks of the trusted proxies:
 
-- se a conexão vem de uma delas, o endereço é o do `X-Forwarded-For`, lido da
-  direita para a esquerda até o primeiro que não seja de proxy confiável;
-- se não vem, o endereço é o da conexão, e o header é ignorado.
+- if the connection comes from one of them, the address is the one in
+  `X-Forwarded-For`, read from right to left up to the first one that isn't a
+  trusted proxy;
+- if it doesn't, the address is the connection's, and the header is ignored.
 
-O padrão cobre o loopback e a faixa que o Docker usa para as redes do compose.
-É por ela que chegam os dois caminhos de HTTPS desta documentação: o
-`tailscale serve` do [acesso remoto](remote-access.md), pelo gateway da rede do
-compose, e o Caddy do [HTTPS na rede de casa](https-local-network.md), pelo IP
-do container dele. Os dois põem no header o endereço de quem conectou, no lugar
-do que o aparelho tiver mandado. Isso foi conferido em 13/10/2026 com o
-`tailscale serve` 1.102 e o Caddy 2.11.7. Quem abre direto na 8080 pela rede de
-casa chega com o próprio endereço, fora da lista.
+The default covers the loopback and the range Docker uses for the compose
+networks. That is how the two HTTPS paths in this documentation arrive: the
+`tailscale serve` of [remote access](remote-access.md), through the compose
+network's gateway, and the Caddy of [HTTPS on the home network](https-local-network.md),
+through its container's IP. Both put in the header the address of whoever
+connected, in place of whatever the device sent. This was checked on 2026-10-13
+with `tailscale serve` 1.102 and Caddy 2.11.7. Whoever opens port 8080 directly
+over the home network arrives with their own address, outside the list.
 
-Mude o `trustedProxies` só se o seu proxy chega ao dwnvr por outra rede, como
-um nginx em outra máquina. Cada item é uma rede (`10.0.0.0/8`) ou um endereço
-só (`192.168.1.20`). Um item inválido faz a lista inteira voltar ao padrão, com
-aviso no log. `[]` não confia em ninguém: atrás de um proxy, todo mundo vira
-um endereço só, e quem passa do limite trava o login de todos.
+Change `trustedProxies` only if your proxy reaches dwnvr over another network,
+like an nginx on another machine. Each item is a network (`10.0.0.0/8`) or a
+single address (`192.168.1.20`). An invalid item makes the whole list go back
+to the default, with a warning in the log. `[]` trusts no one: behind a proxy,
+everyone becomes a single address, and whoever goes over the limit locks the
+login for everyone.
 
-Dois casos fazem o padrão errar:
+Two cases make the default wrong:
 
-- **A rede de casa dentro de `172.16.0.0/12`.** Um aparelho dela, falando direto
-  com a 8080, conseguiria inventar o endereço. Tire a faixa e ponha só a rede
-  do compose, que o `docker network inspect` mostra.
-- **Docker rootless** (não testado). Pelo que diz a documentação dele, toda
-  conexão chega ao container com o endereço do gateway, que está na lista.
-  Como no caso de cima, o header passa a ser aceito de qualquer aparelho.
+- **The home network inside `172.16.0.0/12`.** A device on it, talking directly
+  to 8080, could make up the address. Remove the range and put only the compose
+  network, which `docker network inspect` shows.
+- **Rootless Docker** (untested). From what its documentation says, every
+  connection reaches the container with the gateway's address, which is in the
+  list. As in the case above, the header becomes accepted from any device.
 
 ## E-mail
 
@@ -402,76 +419,79 @@ smtp:
   password: troque-me
 ```
 
-Com esta seção, o dwnvr envia e-mail: o link de definir a senha, que o admin
-manda da tela Usuários direto para a pessoa, e o alerta de detecção, para a
-lista de [Alerta por e-mail](#alerta-por-e-mail). Sem ela, o dwnvr não abre
-conexão nenhuma, e a tela não mostra o "Enviar por e-mail" nem o teste do
-Diagnóstico. O e-mail da pessoa se cadastra do mesmo jeito, porque serve para
-entrar (ver [O login](api.md#o-login)), e a tela avisa que o link não vai por
-e-mail. Serve qualquer provedor que fale SMTP.
+With this section, dwnvr sends e-mail: the set-password link, which the admin
+sends from the Usuários screen straight to the person, and the detection alert,
+to the list in [E-mail alerts](#e-mail-alerts). Without it, dwnvr opens no
+connection at all, and the screen doesn't show the "Enviar por e-mail" (Send by
+e-mail) or the Diagnóstico test. A person's e-mail is registered the same way,
+because it is used to log in (see [O login](api.md#the-login)), and the screen
+warns that the link won't go by e-mail. Any provider that speaks SMTP works.
 
-| Campo | O que é | Sem escrever |
+| Field | What it is | Without writing |
 | --- | --- | --- |
-| `host` | o servidor de e-mail, só o nome ou o IP | obrigatório |
-| `security` | `starttls`, `tls` ou `none` | `starttls` |
-| `port` | a porta | a da `security`: 587, 465 ou 25 |
-| `username` e `password` | a conta que envia; os dois juntos, ou nenhum se o servidor não pede login | sem login |
-| `from` | o remetente, como `dwnvr <dwnvr.exemplo@gmail.com>` | o `username`, quando ele é um endereço |
+| `host` | the e-mail server, just the name or the IP | required |
+| `security` | `starttls`, `tls` or `none` | `starttls` |
+| `port` | the port | the one for the `security`: 587, 465 or 25 |
+| `username` and `password` | the account that sends; both together, or neither if the server doesn't ask for a login | no login |
+| `from` | the sender, like `dwnvr <dwnvr.exemplo@gmail.com>` | the `username`, when it is an address |
 
-- **`starttls`**: a conexão começa sem TLS e passa para TLS antes do login. Se
-  o servidor não oferecer o STARTTLS, o dwnvr não envia nada, nem a senha.
-- **`tls`**: TLS desde o primeiro byte, na porta 465.
-- **`none`**: sem TLS, para um servidor na rede de casa. Com login, só vale
-  para `localhost`, `127.0.0.1` ou `::1`, porque a senha não sai sem TLS.
+- **`starttls`**: the connection starts without TLS and switches to TLS before
+  the login. If the server doesn't offer STARTTLS, dwnvr sends nothing, not
+  even the password.
+- **`tls`**: TLS from the first byte, on port 465.
+- **`none`**: no TLS, for a server on the home network. With a login, it only
+  works for `localhost`, `127.0.0.1` or `::1`, because the password doesn't
+  leave without TLS.
 
-O certificado do servidor é sempre conferido, sem opção para desligar. O login
-é o `AUTH PLAIN`, o mais comum. A senha fica no servidor: não vai à tela nem ao
-log.
+The server's certificate is always checked, with no option to turn that off. The
+login is `AUTH PLAIN`, the most common. The password stays on the server: it
+doesn't go to the screen or the log.
 
-Uma seção com problema **não impede o dwnvr de subir**. Não há padrão que
-substitua um servidor errado, então o e-mail fica desligado até o
-`dwnvr.yaml` ser corrigido. O motivo vira aviso no card Avisos do Diagnóstico
-e no sino do header, e vai também para o log:
+A section with a problem **doesn't stop dwnvr from starting**. There is no
+default that replaces a wrong server, so e-mail stays off until `dwnvr.yaml` is
+fixed. The reason becomes a warning in the Avisos card of the Diagnóstico and
+in the bell in the header, and also goes to the log:
 
 ```text
 e-mail off: the smtp section of dwnvr.yaml is unusable until it is fixed
 file=/etc/dwnvr/dwnvr.yaml problem="smtp.security \"ssl\" fora do aceito: use starttls, tls ou none"
 ```
 
-Para conferir sem cadastrar ninguém, abra o card **Este servidor** do
-Diagnóstico: ele mostra o servidor, a segurança e o remetente que ficaram
-valendo, e o **Testar o e-mail** manda um para o endereço que você digitar,
-com a resposta do servidor do jeito que ela veio.
+To check without registering anyone, open the **Este servidor** (This server)
+card of the Diagnóstico: it shows the server, the security and the sender that
+ended up applying, and **Testar o e-mail** (Test the e-mail) sends one to the
+address you type, with the server's reply exactly as it came.
 
-### Com o Gmail
+### With Gmail
 
-1. **Crie uma conta só para o dwnvr**, e não use a sua. A senha de app dá
-   acesso à conta inteira e fica escrita no `dwnvr.yaml`: numa conta só dele,
-   é só isso que ela abre.
-2. **Ligue a verificação em duas etapas** nessa conta. Sem ela, o Google não
-   oferece a senha de app.
-3. **Gere uma senha de app**, como explica a
-   [ajuda do Google](https://support.google.com/accounts/answer/185833). Ela
-   tem 16 caracteres e é a `password`. O `username` é o endereço da conta.
+1. **Create an account just for dwnvr**, and don't use your own. The app
+   password gives access to the whole account and is written in `dwnvr.yaml`:
+   on an account just for it, that is all it opens.
+2. **Turn on 2-step verification** on that account. Without it, Google doesn't
+   offer the app password.
+3. **Generate an app password**, as explained in
+   [Google's help](https://support.google.com/accounts/answer/185833). It has
+   16 characters and is the `password`. The `username` is the account's
+   address.
 
-O `host` é `smtp.gmail.com`, e a `security` e a porta padrão (`starttls`, 587)
-já servem. Isso foi conferido em 24/10/2026, com uma conta nova e uma senha de
-app: chegaram o "Testar o e-mail" do Diagnóstico e o link de definir a senha
-mandado pelo "Enviar por e-mail" da tela Usuários.
+The `host` is `smtp.gmail.com`, and the default `security` and port (`starttls`,
+587) already work. This was checked on 2026-10-24, with a new account and an app
+password: the "Testar o e-mail" of the Diagnóstico arrived, and so did the
+set-password link sent by the "Enviar por e-mail" of the Usuários screen.
 
-Duas coisas que o Google diz e que param o envio:
+Two things Google says that stop sending:
 
-- trocar a senha da conta revoga todas as senhas de app, e o dwnvr passa a
-  receber "login recusado" até você gerar outra;
-- uma conta comum envia até 500 e-mails por dia
-  ([limites do Gmail](https://support.google.com/mail/answer/22839)).
+- changing the account password revokes all app passwords, and dwnvr starts
+  receiving "login recusado" (login refused) until you generate another;
+- a regular account sends up to 500 e-mails per day
+  ([Gmail limits](https://support.google.com/mail/answer/22839)).
 
-Nos outros provedores, o `host`, a porta e a `security` estão na ajuda de
-cada um. Os de e-mail transacional, como a Brevo, pedem um domínio seu para o
-remetente: com um endereço `@gmail.com`, a Brevo troca o remetente por um
-endereço dela.
+For other providers, the `host`, port and `security` are in each one's help.
+Transactional e-mail ones, like Brevo, ask for a domain of yours for the
+sender: with a `@gmail.com` address, Brevo replaces the sender with an address
+of its own.
 
-## Alerta por e-mail
+## E-mail alerts
 
 ```yaml
 alerts:
@@ -479,78 +499,82 @@ alerts:
     to: [fulano@exemplo.com, ciclana@exemplo.com]
 ```
 
-A lista de quem recebe o alerta de detecção de toda câmera com alerta ligado
-(ver o `alert` em [Política por câmera](#política-por-câmera)), numa mensagem
-só para todos: cinco endereços são um envio. O alerta sai pela seção `smtp`,
-a mesma do link de definir a senha; aqui fica só quem recebe. A mensagem, com
-o quadro e o botão que abre a gravação, está em [O alerta](detection.md#o-alerta);
-o botão precisa do [endereço do dwnvr](#endereço-do-dwnvr).
+The list of who receives the detection alert from every camera with the alert
+on (see the `alert` in [Per-camera policy](#per-camera-policy)), in a single
+message for everyone: five addresses are one send. The alert goes out through
+the `smtp` section, the same one as the set-password link; here is only who
+receives it. The message, with the frame and the button that opens the
+recording, is in [The alert](detection.md#the-alert); the button needs the
+[dwnvr address](#the-dwnvr-address).
 
-| Campo | O que é | Sem escrever |
+| Field | What it is | Without writing |
 | --- | --- | --- |
-| `alerts.email.to` | quem recebe; só o endereço, sem nome na frente. Um endereço só também serve sem os colchetes: `to: fulano@exemplo.com` | o alerta fica só no log e marcado na detecção |
+| `alerts.email.to` | who receives; just the address, no name in front. A single address also works without the brackets: `to: fulano@exemplo.com` | the alert stays only in the log and flagged on the detection |
 
-Nada aqui impede o dwnvr de subir. Viram aviso no card Avisos do Diagnóstico e
-no sino do header, e vão também para o log:
+Nothing here stops dwnvr from starting. They become a warning in the Avisos
+card of the Diagnóstico and in the bell in the header, and also go to the log:
 
-- **a seção ou a lista fora do formato**, como `email: fulano@exemplo.com`
-  sem o `to:`. O que não dá para ler fica de fora, e sem lista nenhum e-mail de
-  alerta sai;
-- **o que não é endereço**, como `Fulano <fulano@exemplo.com>`, que sai da
-  lista enquanto os outros seguem. O endereço repetido sai calado;
-- **a lista sem a seção `smtp`**, que não tem por onde sair. Com a seção
-  recusada, o aviso é o dela, que diz o motivo.
+- **the section or the list in the wrong format**, like
+  `email: fulano@exemplo.com` without the `to:`. What can't be read is left
+  out, and with no list no alert e-mail goes out;
+- **what isn't an address**, like `Fulano <fulano@exemplo.com>`, which is
+  dropped from the list while the others carry on. A repeated address is
+  dropped silently;
+- **the list without the `smtp` section**, which has nowhere to go out through.
+  With the section rejected, the warning is its own, which says the reason.
 
 ```text
 e-mail alerts: alerts.email.to "Fulano <fulano@exemplo.com>" não é um endereço de e-mail e ficou de fora da lista file=/etc/dwnvr/dwnvr.yaml
 ```
 
-O `dwnvr.yaml` só é lido quando o dwnvr sobe: a lista nova vale depois de
-reiniciá-lo.
+`dwnvr.yaml` is only read when dwnvr starts: the new list applies after
+restarting it.
 
-Para conferir, o bloco **Para onde vai**, no fim da aba Alerta da câmera,
-diz se o alerta sai por e-mail e para quem, ou, se não sai, o que falta no
-`dwnvr.yaml`. Não há um teste do alerta: o **Testar o e-mail** do card Este
-servidor confere a seção `smtp`. Depois que alguma câmera liga o alerta:
+To check, the **Para onde vai** (Where it goes) block, at the end of the
+camera's Alerta tab, says whether the alert goes out by e-mail and to whom, or,
+if it doesn't, what is missing in `dwnvr.yaml`. There is no alert test: the
+**Testar o e-mail** of the Este servidor card checks the `smtp` section. After
+some camera turns the alert on:
 
-- **o envio que falha** vira um Aviso vermelho, com desde quando e o erro do
-  servidor, no card Avisos e no sino, e aparece também no "Para onde vai".
-  Ele some no primeiro envio que der certo;
-- **o alerta que não saiu**, acima do teto de envio ou com a fila de envio
-  cheia, vira um Aviso amarelo, que diz quantos e por quê, e some uma hora
-  depois do último. Ele continua gravado em Detecções. O teto protege a conta
-  de e-mail do limite diário do provedor (ver
-  os limites em [O alerta](detection.md#o-alerta));
-- **os números do envio** (enviados, falhas e o último resultado) ficam no
-  grupo **Alertas por e-mail** do card Este servidor.
+- **a send that fails** becomes a red warning, with since when and the server's
+  error, in the Avisos card and in the bell, and also shows up in "Para onde
+  vai". It goes away on the first send that works;
+- **an alert that didn't go out**, over the send ceiling or with the send queue
+  full, becomes a yellow warning, which says how many and why, and goes away an
+  hour after the last one. It stays recorded in Detecções. The ceiling protects
+  the e-mail account from the provider's daily limit (see the limits in
+  [The alert](detection.md#the-alert));
+- **the send numbers** (sent, failures and the last result) are in the group
+  **Alertas por e-mail** (E-mail alerts) of the Este servidor card.
 
-## Endereço do dwnvr
+## The dwnvr address
 
 ```yaml
 server:
   publicUrl: https://dwnvr.exemplo.ts.net
 ```
 
-O endereço pelo qual se abre o dwnvr, como está na barra do navegador. O
-servidor não tem como sabê-lo, porque cada um chega por um caminho. Hoje só o
-[alerta por e-mail](#alerta-por-e-mail) o usa: com ele, o e-mail traz o botão
-**Ver na gravação**, que abre a tela Gravações na câmera e no instante do
-alerta.
+The address dwnvr is opened at, as it appears in the browser's address bar. The
+server has no way to know it, because each person arrives by a different path.
+Today only the [e-mail alert](#e-mail-alerts) uses it: with it, the e-mail
+carries the **Ver na gravação** (View in the recording) button, which opens the
+Gravações screen on the camera and at the instant of the alert.
 
-| Campo | O que é | Sem escrever |
+| Field | What it is | Without writing |
 | --- | --- | --- |
-| `server.publicUrl` | opcional; o endereço do dwnvr, como `https://dwnvr.exemplo.ts.net` | nada deixa de funcionar: o e-mail de alerta sai sem o botão e pede, no lugar, que o administrador o defina |
+| `server.publicUrl` | optional; the dwnvr address, like `https://dwnvr.exemplo.ts.net` | nothing stops working: the alert e-mail goes out without the button and asks, in its place, that the administrator set it |
 
-Escolha o endereço que abre de onde a pessoa estiver quando ler o e-mail: com o
-[acesso remoto](remote-access.md), o `https://….ts.net`. Um caminho no fim
-serve para o dwnvr atrás de um proxy num subcaminho
-(`https://exemplo.com/dwnvr`), e a `/` do fim é ignorada. O que não for um
-endereço `http://` ou `https://`, ou tiver `?`, `#` ou usuário e senha, vira
-aviso no log e no Diagnóstico, e conta como não escrito: o dwnvr sobe do mesmo jeito.
+Pick the address that opens from wherever the person is when reading the
+e-mail: with [remote access](remote-access.md), the `https://….ts.net`. A path
+at the end works for dwnvr behind a proxy on a subpath
+(`https://exemplo.com/dwnvr`), and a trailing `/` is ignored. Anything that
+isn't an `http://` or `https://` address, or has `?`, `#` or a username and
+password, becomes a warning in the log and in the Diagnóstico, and counts as
+not written: dwnvr still starts.
 
 ```text
 level=WARN msg="value out of range in the configuration; the default applies until it is fixed" file=/etc/dwnvr/dwnvr.yaml field=server.publicUrl value=dwnvr.exemplo.ts.net accepted="o endereço do dwnvr, como https://dwnvr.exemplo.ts.net" using="nenhum: o e-mail de alerta sai sem o botão"
 ```
 
-O `dwnvr.yaml` só é lido quando o dwnvr sobe: o endereço novo vale depois de
-reiniciá-lo.
+`dwnvr.yaml` is only read when dwnvr starts: the new address applies after
+restarting it.

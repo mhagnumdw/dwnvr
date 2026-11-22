@@ -1,76 +1,77 @@
-# A detecção de movimento e de objetos <!-- omit in toc -->
+# Motion and object detection <!-- omit in toc -->
 
-A detecção põe na timeline duas coisas que a gravação sozinha não diz: **quando**
-houve movimento e, com o detector de objetos, **o que** era (pessoa, veículo ou
-animal). Ela é opcional e vem desligada. Quem só grava não paga nada por ela.
+Detection puts two things on the timeline that recording alone doesn't say:
+**when** there was motion and, with the object detector, **what** it was
+(person, vehicle or animal). It is optional and ships turned off. Whoever only
+records pays nothing for it.
 
-Como ligar e configurar está em [`configuration.md`](configuration.md). Aqui fica
-como ela funciona por dentro, e por quê.
+How to turn it on and configure it is in [`configuration.md`](configuration.md).
+Here is how it works inside, and why.
 
-- [O que ela faz, e o que não faz](#o-que-ela-faz-e-o-que-não-faz)
-- [O vocabulário](#o-vocabulário)
-- [O caminho de um quadro até a marca](#o-caminho-de-um-quadro-até-a-marca)
-- [O dwnvr-detect](#o-dwnvr-detect)
-- [Carro parado não vira marca a cada olhada](#carro-parado-não-vira-marca-a-cada-olhada)
-- [O alerta](#o-alerta)
-- [Os parâmetros, e onde eles moram](#os-parâmetros-e-onde-eles-moram)
-- [O custo](#o-custo)
-- [Quando o dwnvr-detect cai](#quando-o-dwnvr-detect-cai)
-- [Os limites do modelo](#os-limites-do-modelo)
-- [Onde está no código](#onde-está-no-código)
+- [What it does, and what it doesn't](#what-it-does-and-what-it-doesnt)
+- [The vocabulary](#the-vocabulary)
+- [The path from a frame to the mark](#the-path-from-a-frame-to-the-mark)
+- [dwnvr-detect](#dwnvr-detect)
+- [A parked car doesn't become a mark on every inference](#a-parked-car-doesnt-become-a-mark-on-every-inference)
+- [The alert](#the-alert)
+- [The parameters, and where they live](#the-parameters-and-where-they-live)
+- [The cost](#the-cost)
+- [When dwnvr-detect goes down](#when-dwnvr-detect-goes-down)
+- [The model's limits](#the-models-limits)
+- [Where it is in the code](#where-it-is-in-the-code)
 
-## O que ela faz, e o que não faz
+## What it does, and what it doesn't
 
-**Faz:**
+**It does:**
 
-- marca na timeline os instantes de movimento, numa faixa de calor âmbar
-- com o `dwnvr-detect`, marca a **chegada** de pessoa, veículo ou animal, com
-  ícone na timeline e caixa sobre o vídeo
-- mostra no Diagnóstico o que aconteceu com cada movimento marcado (o funil) e
-  como está a fila do detector
-- com o alerta ligado na câmera, registra cada olhada que traz uma das
-  famílias escolhidas, na imagem inteira ou nas áreas marcadas (ver
-  [O alerta](#o-alerta))
+- mark the instants of motion on the timeline, in an amber heat strip
+- with `dwnvr-detect`, mark the **arrival** of a person, vehicle or animal,
+  with an icon on the timeline and a box over the video
+- show on the Diagnóstico (Diagnostics) screen what happened to each marked
+  motion (the funnel) and the state of the object detector's queue
+- with the alert on for the camera, record every inference that brings one of
+  the chosen families, in the whole image or in the marked areas (see
+  [The alert](#the-alert))
 
-**Não faz:**
+**It doesn't:**
 
-- **não grava por movimento.** A gravação continua contínua; a detecção só
-  anota por cima dela
-- **não decodifica vídeo no dwnvr.** O movimento sai do tamanho dos quadros, e
-  quem decodifica é o `dwnvr-detect`, num container à parte
-- **não olha todo quadro.** O detector de objetos olha um quadro por movimento
-  marcado, não um fluxo contínuo
-- **não é alarme.** O alerta avisa do que a detecção marcou, e ela não marca
-  toda chegada. E o e-mail dele chega de segundos a meio minuto depois da
-  cena
-- **não reconhece rosto nem placa**, e não aprende com a sua casa. O modelo é
-  um só, com as 80 classes do COCO, e o dwnvr usa 12 delas
+- **record on motion.** Recording stays continuous; detection only annotates
+  on top of it
+- **decode video in dwnvr.** The motion comes from the frame sizes, and
+  whoever decodes is `dwnvr-detect`, in a separate container
+- **look at every frame.** The object detector looks at one frame per marked
+  motion, not a continuous stream
+- **act as an alarm.** The alert warns about what detection marked, and it
+  doesn't mark every arrival. And its e-mail arrives from seconds to half a
+  minute after the scene
+- **recognize faces or license plates**, or learn from your home. The model is
+  a single one, with the 80 COCO classes, and dwnvr uses 12 of them
 
-## O vocabulário
+## The vocabulary
 
-| Termo | O que é |
+| Term | What it is |
 | --- | --- |
-| **destaque** (score) | o quanto um quadro destoa do normal DA PRÓPRIA câmera, em unidades do ruído dela. Sai do tamanho do quadro, sem decodificar |
-| **mecanismo** | quem decide QUANDO disparar, olhando o destaque. `kleinberg-p` (estatístico, o padrão) ou `periodic` (intervalo fixo) |
-| **onset** | o instante em que o mecanismo dispara. Vira uma marca de movimento, e é o instante que a timeline mostra |
-| **sensibilidade** | o nível de 1 a 5. É o **custo**: quantos onsets por hora cada câmera gera |
-| **pico** | o quadro de maior destaque nos 3 s depois do onset. É ele que o detector olha, porque no onset o objeto ainda está entrando pela metade |
-| **pedaço** | o trecho de vídeo que vai ao detector: do frame I do GOP até o quadro do pico |
-| **olhada** | uma ida ao `dwnvr-detect` com um pedaço, e a resposta dele |
-| **família** | `person`, `vehicle` ou `animal`: o agrupamento das classes do modelo que a timeline colore. A prioridade é nessa ordem |
-| **chegada** | um objeto aparecendo onde antes não havia. É o que a marca de objeto registra - não a presença |
-| **rastreio** | a memória, por câmera, dos lugares já ocupados por objeto parado |
-| **funil** | o destino de cada onset: descartado, olhado sem novidade, com objeto, ainda em andamento ou sem resposta |
-| **área** | um polígono desenhado sobre a imagem de uma câmera, com nome. Não muda o que é olhado nem o que vira marca: serve de filtro em Detecções e decide o alerta |
-| **alerta** | o aviso de que uma olhada trouxe marca que passa na regra de alerta da câmera |
-| **meio** | por onde o alerta sai: o e-mail, depois outros |
-| **registro** | a linha do alerta no log e a marca `alert` na linha do objeto. Todo alerta tem, com meio configurado ou não |
+| **score** | how much a frame stands out from the normal OF THE CAMERA ITSELF, in units of its noise. It comes from the frame size, without decoding |
+| **method** | what decides WHEN to trigger, looking at the score. `kleinberg-p` (statistical, the default) or `periodic` (fixed interval) |
+| **onset** | the instant the method triggers. It becomes a motion mark, and is the instant the timeline shows |
+| **sensitivity** | the level from 1 to 5. It is the **cost**: how many onsets per hour each camera generates |
+| **peak** | the frame with the highest score in the 3 s after the onset. It is the one the object detector looks at, because at the onset the object is still half entering |
+| **clip** | the stretch of video that goes to the object detector: from the GOP's I-frame to the peak frame |
+| **inference** | a trip to `dwnvr-detect` with a clip, and its response |
+| **family** | `person`, `vehicle` or `animal`: the grouping of the model's classes that the timeline colors. Priority is in that order |
+| **arrival** | an object appearing where there wasn't one before. It is what the object mark records - not presence |
+| **tracker** | the memory, per camera, of the spots already occupied by a stationary object |
+| **funnel** | the destination of each onset: dropped, inferred with nothing new, with an object, still in progress or with no response |
+| **area** | a named polygon drawn over a camera's image. It doesn't change what is looked at or what becomes a mark: it serves as a filter in Detecções (Detections) and decides the alert |
+| **alert** | the notice that an inference brought a mark that passes the camera's alert rule |
+| **channel** | how the alert goes out: e-mail, then others |
+| **record** | the alert's line in the log and the `alert` flag on the object's line. Every alert has one, with a channel configured or not |
 
-## O caminho de um quadro até a marca
+## The path from a frame to the mark
 
 ```mermaid
 flowchart TD
-    subgraph cameras["câmeras"]
+    subgraph cameras["cameras"]
         cam1((1))
         cam2((2))
         cam3((3))
@@ -80,100 +81,104 @@ flowchart TD
         cam7((7))
         cam8((8))
         cam9((9))
-        camMais["..."]:::reticencias
+        camMore["..."]:::ellipsis
         camN((N))
     end
     cam1 & cam2 & cam3 & cam4 & cam5 & cam6 & cam7 & cam8 & cam9 & camN --> go2rtc
-    camMais ~~~ go2rtc
-    classDef reticencias fill:none,stroke:none
-    go2rtc -->|fMP4| gravador
+    camMore ~~~ go2rtc
+    classDef ellipsis fill:none,stroke:none
+    go2rtc -->|fMP4| recorder
 
     subgraph dwnvr
-        gravador
-        destaque
-        mecanismo
-        movimento["marca de MOVIMENTO"]
-        corte["corte por família"]
-        objeto["marca de OBJETO"]
+        recorder
+        score
+        method
+        motion["MOTION mark"]
+        cut["family cut"]
+        object["OBJECT mark"]
 
-        subgraph ram["memória RAM"]
-            gop["GOP guardado"]
-            pedaco["pedaço fMP4"]
-            fila["fila (2 lugares por câmera)"]
-            rastreio["rastreio (lugares já ocupados)"]
+        subgraph ram["RAM"]
+            gop["stored GOP"]
+            clip["fMP4 clip"]
+            queue["queue (2 spots per camera)"]
+            tracker["tracker (spots already occupied)"]
         end
     end
 
     subgraph sidecar["dwnvr-detect"]
-        modelo["decodifica o pedaço e roda o modelo"]
+        model["decodes the clip and runs the model"]
     end
 
-    subgraph disco
-        gravacao["gravação (sempre)"]
-        eventos["events/{dia}.ndjson"]
+    subgraph disk
+        recording["recording (always)"]
+        events["events/{day}.ndjson"]
     end
 
-    gravador --> gravacao
-    gravador -->|tamanho de cada quadro de vídeo| destaque
-    destaque --> mecanismo
-    mecanismo -->|onset| movimento
-    mecanismo -->|"quadro do pico (até 3 s depois)"| gop
-    gop --> pedaco
-    pedaco --> fila
-    fila -->|"HTTP: POST /detect?minScore=0.2"| modelo
-    modelo -->|caixas| corte
-    corte --> rastreio
-    rastreio --> objeto
-    movimento --> eventos
-    objeto --> eventos
+    recorder --> recording
+    recorder -->|size of each video frame| score
+    score --> method
+    method -->|onset| motion
+    method -->|"peak frame (up to 3 s later)"| gop
+    gop --> clip
+    clip --> queue
+    queue -->|"HTTP: POST /detect?minScore=0.2"| model
+    model -->|boxes| cut
+    cut --> tracker
+    tracker --> object
+    motion --> events
+    object --> events
 
-    notaDestaque["o quanto o quadro destoa do normal<br>DA PRÓPRIA câmera, em unidades do ruído dela.<br>Sai do tamanho do quadro, sem decodificar"]:::nota
-    destaque -.- notaDestaque
-    notaMecanismo["quem decide, olhando o destaque, QUANDO marcar movimento<br>e mandar um quadro ao detector de objetos.<br>kleinberg-p (estatístico, o padrão)<br>ou periodic (intervalo fixo)"]:::nota
-    mecanismo -.- notaMecanismo
-    notaCorte["das caixas da resposta HTTP, joga fora<br>a classe que não é pessoa, veículo ou animal.<br>Caixa abaixo de 0,40 de confiança não vira marca,<br>mas segue para o rastreio, que aprende com ela"]:::nota
-    corte -.- notaCorte
-    classDef nota fill:#fff8c5,stroke:#d4a72c,color:#000
+    noteScore["how much the frame stands out from the normal<br>OF THE CAMERA ITSELF, in units of its noise.<br>It comes from the frame size, without decoding"]:::note
+    score -.- noteScore
+    noteMethod["what decides, looking at the score, WHEN to mark motion<br>and send a frame to the object detector.<br>kleinberg-p (statistical, the default)<br>or periodic (fixed interval)"]:::note
+    method -.- noteMethod
+    noteCut["from the boxes in the HTTP response, throws away<br>any class that isn't person, vehicle or animal.<br>A box below 0.40 confidence doesn't become a mark,<br>but goes on to the tracker, which learns from it"]:::note
+    cut -.- noteCut
+    classDef note fill:#fff8c5,stroke:#d4a72c,color:#000
 ```
 
-1. **O tamanho do quadro.** O gravador já tem na mão o tamanho de cada quadro
-   de vídeo, que é o que ele escreve em disco. Nenhum pixel é decodificado.
-   Quadro que carrega mais informação que o normal é quadro em que algo mudou.
-2. **O destaque.** O `kleinberg-p` compara esse tamanho com a média e o desvio
-   recentes da própria câmera, e esconde o frame I, que é dezenas de vezes
-   maior que os outros e afogaria o sinal. É por comparar cada câmera com ela
-   mesma que o mesmo nível de sensibilidade vale igual numa câmera quieta e
-   numa cheia de ruído de infravermelho.
-3. **O onset.** Quando o destaque passa do limiar do nível, o mecanismo
-   dispara. Uma histerese (um limiar para abrir, outro mais baixo para fechar)
-   impede que uma pessoa atravessando a cena vire vinte marcas. O onset vai
-   para `events/{dia}.ndjson` como marca de movimento, **com ou sem olhada**.
-4. **O pico e o pedaço.** O mecanismo espera até 3 s pelo quadro de maior
-   destaque, e o dwnvr corta o pedaço do frame I até ele, a partir do GOP que
-   guarda em memória para cada câmera com detecção.
-5. **A fila.** Uma só para todas as câmeras, com dois lugares por câmera. Se a
-   câmera já tem dois pedaços esperando, o novo é **descartado**: fica só como
-   movimento. É o que impede a câmera mais agitada de tomar a vez das outras.
-6. **A olhada.** O `dwnvr-detect` decodifica o pedaço, roda o modelo no último
-   quadro e devolve as caixas.
-7. **A marca de objeto.** O dwnvr descarta classe fora das famílias, aplica o
-   corte de confiança e o rastreio, e grava uma marca por objeto que passou,
-   todas no instante do onset. Duas pessoas chegando juntas são duas marcas;
-   a timeline junta as duas numa chegada de `person`.
+1. **The frame size.** The recorder already has on hand the size of each video
+   frame, which is what it writes to disk. No pixel is decoded. A frame that
+   carries more information than normal is a frame where something changed.
+2. **The score.** `kleinberg-p` compares that size with the camera's own recent
+   mean and deviation, and hides the I-frame, which is dozens of times bigger
+   than the others and would drown the signal. Because each camera is compared
+   with itself, the same sensitivity level means the same on a quiet camera and
+   on one full of infrared noise.
+3. **The onset.** When the score passes the level's threshold, the method
+   triggers. A hysteresis (one threshold to open, another lower one to close)
+   keeps a person crossing the scene from becoming twenty marks. The onset goes
+   to `events/{day}.ndjson` as a motion mark, **with or without an
+   inference**.
+4. **The peak and the clip.** The method waits up to 3 s for the frame with the
+   highest score, and dwnvr cuts the clip from the I-frame up to it, from the
+   GOP it keeps in memory for each camera with detection.
+5. **The queue.** A single one for all cameras, with two spots per camera. If
+   the camera already has two clips waiting, the new one is **dropped**: it
+   stays only as motion. That is what keeps the busiest camera from taking the
+   others' turn.
+6. **The inference.** `dwnvr-detect` decodes the clip, runs the model on the
+   last frame and returns the boxes.
+7. **The object mark.** dwnvr drops classes outside the families, applies the
+   confidence cut and the tracker, and writes one mark per object that got
+   through, all at the onset instant. Two people arriving together are two
+   marks; the timeline merges the two into one `person` arrival.
 
-Todo objeto tem um movimento embaixo, mas nem todo movimento tem objeto.
+Every object has motion underneath, but not every motion has an object.
 
-## O dwnvr-detect
+## dwnvr-detect
 
-Um endpoint HTTP **sem estado**: recebe um pedaço, devolve as caixas do último
-quadro. Não tem fila, não tem memória e não decide o que vira marca. Detalhes
-de build, modelo e licença em [`dwnvr-detect/README.md`](../dwnvr-detect/README.md).
+A **stateless** HTTP endpoint: it receives a clip, returns the boxes of the last
+frame. It has no queue, no memory and doesn't decide what becomes a mark.
+Details on build, model and license in
+[`dwnvr-detect/README.md`](../dwnvr-detect/README.md).
 
 ```text
 POST /detect?minScore=0.2&frameWidth=480&quality=75
-                          Content-Type: video/mp4, corpo: o pedaço
-GET  /health              o HEALTHCHECK do Docker e o card "Este servidor"
-                          do Diagnóstico; a fila não usa
+                          Content-Type: video/mp4, body: the clip
+GET  /health              Docker's HEALTHCHECK and the "Este servidor" (This
+                          server) card of the Diagnóstico; the queue doesn't
+                          use it
 ```
 
 ```json
@@ -198,99 +203,103 @@ GET  /health              o HEALTHCHECK do Docker e o card "Este servidor"
 }
 ```
 
-- **`box` é `[x1, y1, x2, y2]` em fração do quadro**, e não em pixels: é a
-  única forma que continua valendo quando a resolução da câmera muda.
-- **`frame` é o quadro olhado em JPEG**, na largura que o `frameWidth=`
-  pediu, e só vem quando houve achado - quadro de onset sem objeto ninguém
-  vê. É a miniatura da tela de Detecções. Ele sai daqui porque aqui ele já está
-  decodificado, e a caixa, sendo fração, cai no lugar certo sobre ele em
-  qualquer tamanho. Medido em quadros reais: 13,8 KB a 480 px com qualidade
-  75, e ~11 ms para encodar. O dwnvr o grava em `frames/{dia}/{atMs}.jpg`, ver
+- **`box` is `[x1, y1, x2, y2]` as a fraction of the frame**, not in pixels: it
+  is the only form that stays valid when the camera's resolution changes.
+- **`frame` is the inferred frame as a JPEG**, at the width `frameWidth=`
+  asked for, and only comes when there was a raw detection - nobody sees an
+  onset frame with no object. It is the thumbnail of the Detecções screen. It
+  comes from here because here it is already decoded, and the box, being a
+  fraction, lands in the right place over it at any size. Measured on real
+  frames: 13.8 KB at 480 px with quality 75, and ~11 ms to encode. dwnvr
+  writes it to `frames/{day}/{atMs}.jpg`, see
   [`architecture.md`](architecture.md).
-- **O `minScore`** é a menor confiança que ele devolve, de qualquer classe. O dwnvr
-  manda 0,20, bem abaixo do corte de 0,40, porque o rastreio aprende também com
-  caixa fraca.
-- **Um pedido por vez**, de propósito: numa placa de 4 núcleos que também
-  grava, duas olhadas em paralelo seriam o dobro da RAM de pico sem uma
-  resposta a mais por segundo. Quem enfileira é o dwnvr.
-- **Pedaço que não decodifica até o fim volta `422`**: olhar o último quadro
-  que sobrou seria olhar outro instante.
+- **`minScore`** is the lowest confidence it returns, for any class. dwnvr
+  sends 0.20, well below the 0.40 cut, because the tracker also learns from
+  weak boxes.
+- **One request at a time**, on purpose: on a 4-core board that also records,
+  two inferences in parallel would be double the peak RAM without one more
+  response per second. dwnvr does the queueing.
+- **A clip that doesn't decode to the end returns `422`**: looking at the last
+  frame left over would be looking at another instant.
 
-**Por que a divisão é exatamente aí:**
+**Why the split is exactly there:**
 
-| Tarefa | Quem |
+| Task | Who |
 | --- | --- |
-| gravar, calcular o destaque, disparar o onset, achar o pico | dwnvr |
-| guardar o GOP e cortar o pedaço | dwnvr |
-| a fila: ordem, limite por câmera, descarte, timeout, pausa | dwnvr |
-| **decodificar o pedaço e rodar o modelo** | dwnvr-detect |
-| corte por família, rastreio, gravar a marca | dwnvr |
+| record, compute the score, trigger the onset, find the peak | dwnvr |
+| store the GOP and cut the clip | dwnvr |
+| the queue: order, per-camera limit, dropping, timeout, pause | dwnvr |
+| **decode the clip and run the model** | dwnvr-detect |
+| family cut, tracker, write the mark | dwnvr |
 
-1. **O sidecar tem só o que exige código nativo** - decodificador de vídeo e
-   runtime do modelo. O dwnvr continua Go puro, numa imagem de 8 MB.
-2. **Todo estado fica no dwnvr.** O sidecar pode reiniciar a qualquer momento
-   sem produzir marca falsa.
-3. **Por que Python, e não Go.** Quem roda o modelo é o onnxruntime, em C++, e
-   a RAM é do modelo, não da linguagem: em Go e em Python a olhada levou o
-   mesmo tempo. Em Python o sidecar usa as mesmas bibliotecas que exportaram o
-   modelo, e dá as mesmas caixas por construção.
+1. **The sidecar has only what needs native code** - the video decoder and the
+   model runtime. dwnvr stays pure Go, in an 8 MB image.
+2. **All state stays in dwnvr.** The sidecar can restart at any moment without
+   producing a false mark.
+3. **Why Python, and not Go.** What runs the model is onnxruntime, in C++, and
+   the RAM is the model's, not the language's: in Go and in Python the
+   inference took the same time. In Python the sidecar uses the same libraries
+   that exported the model, and gives the same boxes by construction.
 
-## Carro parado não vira marca a cada olhada
+## A parked car doesn't become a mark on every inference
 
-O detector não sabe o que é "novo": o carro estacionado aparece em toda olhada
-daquela câmera, e marcaria dezenas de vezes por dia. O **rastreio**
-(`internal/detect/marker.go`) lembra, por câmera e por família, onde já há
-objeto. Para cada caixa, a cada olhada:
+The object detector doesn't know what "new" is: the parked car shows up in
+every inference of that camera, and would be marked dozens of times a day. The
+**tracker** (`internal/detect/marker.go`) remembers, per camera and per family,
+where there is already an object. For each box, on every inference:
 
-| A caixa | O que acontece |
+| The box | What happens |
 | --- | --- |
-| cai num lugar **já ocupado** (mesma família, sobreposição IoU de pelo menos 0,7) | **não marca**, só confirma o lugar |
-| cai num lugar **livre**, com confiança de pelo menos 0,40 | **marca**, e passa a ocupar o lugar |
-| cai num lugar livre, com confiança entre 0,20 e 0,40 | não marca, mas **ocupa** o lugar |
-| um lugar fica **5 olhadas seguidas** sem aparecer | o lugar é **liberado** |
+| falls on an **already occupied** spot (same family, IoU overlap of at least 0.7) | **doesn't mark**, only confirms the spot |
+| falls on a **free** spot, with confidence of at least 0.40 | **marks**, and starts occupying the spot |
+| falls on a free spot, with confidence between 0.20 and 0.40 | doesn't mark, but **occupies** the spot |
+| a spot goes **5 inferences in a row** without showing up | the spot is **released** |
 
-O carro chega e marca uma vez. Fica parado sem marcar. Sai, e o lugar é
-liberado depois de 5 olhadas. Volta, e marca de novo.
+The car arrives and marks once. It stays parked without marking. It leaves, and
+the spot is released after 5 inferences. It comes back, and marks again.
 
-- **Por que caixa fraca ocupa lugar:** o detector "pisca". Um objeto parado
-  passa do corte em alguns quadros e não em outros; se só o que passa do corte
-  ocupasse o lugar, cada piscada viraria uma chegada nova.
-- **Olhada que falhou não conta como falta.** Falta é "olhei e não vi"; falha é
-  "não olhei". Senão, uns minutos com o sidecar fora liberariam todos os
-  lugares, e o carro parado seria marcado de novo quando ele voltasse.
-- **O preço:** se o carro sai e volta com menos de 5 olhadas no meio, a volta
-  não marca (ver
+- **Why a weak box occupies a spot:** the object detector "blinks". A
+  stationary object passes the cut in some frames and not in others; if only
+  what passes the cut occupied the spot, each blink would become a new
+  arrival.
+- **A failed inference doesn't count as a miss.** A miss is "I looked and
+  didn't see"; a failure is "I didn't look". Otherwise, a few minutes with the
+  sidecar down would release all the spots, and the parked car would be marked
+  again when it came back.
+- **The price:** if the car leaves and comes back with fewer than 5 inferences
+  in between, the return doesn't mark (see
   [`TODO_olhada-forcada-sem-onset.md`](TODO/TODO_olhada-forcada-sem-onset.md)).
-  E a memória não sobrevive a um reinício: depois dele, cada objeto parado
-  aparece uma vez como se tivesse acabado de chegar.
+  And the memory doesn't survive a restart: after it, each stationary object
+  shows up once as if it had just arrived.
 
-## O alerta
+## The alert
 
-O alerta é o campo `alert` da câmera (ver
-[`configuration.md`](configuration.md#política-por-câmera)): as famílias que
-avisam e, se houver, as áreas em que o objeto precisa cair, cada uma pela
-própria regra, e os horários em que ele sai. Sem áreas, vale a imagem
-inteira; sem horários, a qualquer hora.
+The alert is the camera's `alert` field (see
+[`configuration.md`](configuration.md#per-camera-policy)): the families that
+warn and, if any, the areas the object has to fall in, each by its own rule,
+and the times it goes out. Without areas, the whole image counts; without
+schedules, any time.
 
-**Quando sai.** A cada olhada, logo antes de as marcas serem gravadas, e com
-os mesmos números delas. Com horários, o onset precisa cair num deles, ao
-minuto e no fuso do servidor; fora, nenhum objeto passa, e a detecção é
-gravada sem a marca. Dentro, passa cada marca de uma família do alerta que cai
-na imagem inteira ou numa das áreas. Todas as que passam vão num alerta só, com
-o instante do onset, que é a hora da cena: duas pessoas chegando juntas são um
-alerta com as duas. Como a marca é de chegada, o carro parado avisa uma vez, e
-quem anda pela cena avisa a cada olhada que o marca de novo.
+**When it goes out.** On every inference, right before the marks are written,
+and with the same numbers as they have. With schedules, the onset has to fall
+in one of them, to the minute and in the server's time zone; outside, no object
+passes, and the detection is written without the flag. Inside, every mark of an
+alert family that falls in the whole image or in one of the areas passes. All
+those that pass go in a single alert, with the onset instant, which is the
+scene's time: two people arriving together are one alert with both. Since the
+mark is of an arrival, the parked car warns once, and whoever walks around the
+scene warns on every inference that marks them again.
 
-**Ele nunca segura a fila do detector de objetos.** A avaliação roda na
-goroutine da fila, e por isso só faz contas em memória. O que pode esperar, o
-envio aos meios, fica numa goroutine própria, com uma espera de
-`QueuedAlerts`: com ela cheia, o alerta é descartado e contado, e já está no
-registro.
+**It never holds up the object detector's queue.** The evaluation runs in the
+queue's goroutine, and so only does in-memory math. What can wait, the send to
+the channels, lives in a goroutine of its own, with a wait queue of
+`QueuedAlerts`: with it full, the alert is dropped and counted, and is already
+in the record.
 
-**O registro** é a marca na linha de cada objeto que passou, no
-`events/{dia}.ndjson`, e uma linha `INFO` no log. A marca é `"alert":true` e,
-com áreas no alerta, `"alertAreas"` com o id das áreas em que o objeto caiu; o
-objeto que não passou fica sem nada:
+**The record** is the flag on the line of each object that got through, in
+`events/{day}.ndjson`, and an `INFO` line in the log. The flag is
+`"alert":true` and, with areas in the alert, `"alertAreas"` with the id of the
+areas the object fell in; an object that didn't get through has nothing:
 
 ```json
 {"atMs":1792525050142,"family":"person","class":"person","score":0.566,"frameMs":1792525050171,"box":[0.2276,0.3703,0.2784,0.4249],"hasFrame":true,"alert":true,"alertAreas":["calcad"]}
@@ -300,232 +309,240 @@ objeto que não passou fica sem nada:
 level=INFO msg=alert cam=portao families=person objects=2 areas=Portão
 ```
 
-A marca é o que valia na hora: mudar o alerta da câmera não muda o passado. Ela
-fica onde a detecção já fica, com a retenção do vídeo, e se vê em Detecções,
-com o filtro "só alertas" (`alert=1` no `/api/detections`, ver
-[`api.md`](api.md)). O `/api/health` leva o total desde que o dwnvr subiu e,
-com um meio configurado, o que alimenta os Avisos: o meio falhando e os alertas
-que não saíram.
+The flag is what held at the time: changing the camera's alert doesn't change
+the past. It sits where the detection already sits, with the video's retention,
+and shows in Detecções, with the "só alertas" (alerts only) filter (`alert=1`
+in `/api/detections`, see [`api.md`](api.md)). `/api/health` carries the total
+since dwnvr started and, with a channel configured, what feeds the Avisos
+(Warnings): the channel failing and the alerts that didn't go out.
 
-**Por e-mail**, com a lista `alerts.email.to` e a seção `smtp` do
-`dwnvr.yaml` (ver
-[`configuration.md`](configuration.md#alerta-por-e-mail)): uma mensagem só para
-a lista inteira, em HTML e com o texto puro junto, para o leitor de e-mail que
-não mostra HTML. O assunto diz a câmera, as áreas em que algum objeto caiu,
-entre parênteses, as famílias e a hora do onset, como
-"[Alerta] Garagem(Portão): pessoa e veículo às 14:32"; sem área, quando o
-alerta vale na imagem inteira, sai sem os parênteses. O corpo, a marca do
-dwnvr no topo, o quadro olhado, quando há, o dia, cada objeto, com a confiança,
-e as áreas em que caiu. O quadro vai dentro do corpo, em JPEG, com a caixa de
-cada objeto que alertou, na cor da família, e o contorno tracejado das áreas do
-alerta, como Detecções mostra com o filtro "só alertas". Ele é desenhado uma
-vez por alerta, na goroutine de envio, e todo meio recebe o mesmo; se o desenho
-falhar, ele vai como foi olhado. Com o `server.publicUrl` (ver
-[`configuration.md`](configuration.md#endereço-do-dwnvr)), o botão **Ver na
-gravação** abre a tela Gravações na câmera e no instante do onset; sem ele, o
-servidor não sabe o endereço pelo qual é acessado, e no lugar do botão o
-e-mail pede ao administrador que o defina. O dia e a hora do link são os do
-servidor, e a tela os lê no fuso do navegador: quem abre de outro fuso cai
-deslocado. O envio que falha vai ao log e vira um Aviso vermelho, que some no
-primeiro envio que der certo, e o alerta segue no registro. Como conferir a
-lista e o envio está em
-[`configuration.md`](configuration.md#alerta-por-e-mail).
+**By e-mail**, with the `alerts.email.to` list and the `smtp` section of
+`dwnvr.yaml` (see [`configuration.md`](configuration.md#e-mail-alerts)): a
+single message for the whole list, in HTML and with the plain text along with
+it, for the e-mail reader that doesn't show HTML. The subject says the camera,
+the areas some object fell in, in parentheses, the families and the onset time,
+like "[Alerta] Garagem(Portão): pessoa e veículo às 14:32" ("[Alert] Garage
+(Gate): person and vehicle at 14:32"); without an area, when the alert applies
+to the whole image, it goes out without the parentheses. The body has the
+dwnvr mark at the top, the inferred frame, when there is one, the day, each
+object, with its confidence, and the areas it fell in. The frame goes inside
+the body, as a JPEG, with the box of each object that alerted, in the family's
+color, and the dashed outline of the alert's areas, as Detecções shows with the
+"só alertas" filter. It is drawn once per alert, in the send goroutine, and
+every channel receives the same one; if the drawing fails, it goes as it was
+inferred. With `server.publicUrl` (see
+[`configuration.md`](configuration.md#the-dwnvr-address)), the **Ver na
+gravação** (View in the recording) button opens the Gravações (Recordings)
+screen on the camera and at the onset instant; without it, the server doesn't
+know the address it is reached at, and in place of the button the e-mail asks
+the administrator to set it. The day and time in the link are the server's, and
+the screen reads them in the browser's time zone: whoever opens from another
+time zone lands offset. A send that fails goes to the log and becomes a red
+warning, which goes away on the first send that works, and the alert stays in
+the record. How to check the list and the send is in
+[`configuration.md`](configuration.md#e-mail-alerts).
 
-**Desligado, nada.** Se nenhuma câmera ligou o alerta desde que o dwnvr subiu,
-nada do alerta existe; a olhada de uma câmera sem alerta custa um `if`. Sem
-meio configurado, nem a espera nem a goroutine de envio nascem. Depois que a
-última câmera desliga o alerta, a central dos alertas fica até o dwnvr parar,
-para o total do `/api/health` não voltar a zero; com meio configurado, a
-espera e a goroutine de envio ficam com ela, paradas.
+**Off, nothing.** If no camera has turned the alert on since dwnvr started,
+nothing of the alert exists; the inference of a camera without an alert costs
+an `if`. Without a channel configured, neither the wait queue nor the send
+goroutine is born. After the last camera turns the alert off, the alert hub
+stays until dwnvr stops, so the `/api/health` total doesn't go back to zero;
+with a channel configured, the wait queue and the send goroutine stay with it,
+idle.
 
-### Os limites do alerta <!-- omit in toc -->
+### Alert limits <!-- omit in toc -->
 
-- **Um alerta por olhada.** Não há silêncio: quem fica andando pela cena gera
-  vários alertas seguidos, um a cada olhada que o marcar de novo.
-- **Não é alarme.** Ele avisa do que a detecção marcou, e ela não marca toda
-  chegada. Subir a sensibilidade pega mais, e custa mais CPU.
-- **Chega atrasado:** em geral de segundos a meio minuto depois da cena, que é
-  o tempo da janela do pico, da fila e da olhada. Com a fila cheia ou o
-  detector de objetos lento, passa disso: a olhada espera a resposta por até
-  um minuto, e o pedaço pode esperar a vez na fila antes.
-- **A fila descarta:** numa câmera agitada, o pedaço que não cabe na fila vira
-  só movimento, e não alerta.
-- **O envio tem teto:** depois de 20 alertas seguidos, passa um a cada 4
-  minutos (15 por hora), para a instalação inteira; o que vem antes disso não
-  é enviado, e um Aviso amarelo diz quantos e por quê. Protege a conta de
-  e-mail: o Gmail para de enviar depois de 500 mensagens num dia, e o pior dia
-  com o teto é 380. O teto não sobrevive a um reinício: cada vez que o dwnvr
-  sobe, a rajada de 20 volta inteira. A fila de envio cheia, com o envio
-  lento ou travado, também descarta e entra no mesmo Aviso. O alerta que não
-  saiu fica gravado na detecção, como todos. Os números estão no
-  `internal/alert/params.go`.
-- **Com o disco falhando, o alerta sai do mesmo jeito:** a falha ao gravar a
-  marca vai ao log, e a detecção pode faltar em Detecções e no "só alertas",
-  mas o e-mail não depende do disco.
-- **Ao desligar o dwnvr**, o alerta que ainda esperava o envio não sai, e uma
-  linha `WARN` no log diz quantos ficaram. Ele fica gravado na detecção, como
-  todos.
-- **Falso positivo vira alerta falso:** o que o modelo confunde com gente, num
-  lugar novo, avisa. A área e as famílias são o freio.
-- **Depois de um reinício**, o objeto parado aparece uma vez como se tivesse
-  acabado de chegar (ver [o rastreio](#carro-parado-não-vira-marca-a-cada-olhada)),
-  e avisa se for de uma família e de uma área do alerta.
-- **Com o detector de objetos fora do ar, nenhum alerta sai.** O aviso que já
-  existe diz desde quando.
-- **Câmera movida, área errada:** é preciso redesenhar.
-- **O horário é o do servidor.** Com o fuso errado nele, o alerta sai nas
-  horas erradas, como a timeline vira o dia na hora errada (ver
-  [`operations.md`](operations.md#problemas-comuns)). A seção Horários da aba
-  Alerta mostra qual fuso vale.
-- **O objeto parado que chegou fora do horário** não avisa quando o horário
-  começa: a marca é de chegada (ver
-  [o rastreio](#carro-parado-não-vira-marca-a-cada-olhada)), e ele já foi
-  visto.
+- **One alert per inference.** There is no silence: whoever keeps walking
+  around the scene generates several alerts in a row, one for every inference
+  that marks them again.
+- **It isn't an alarm.** It warns about what detection marked, and it doesn't
+  mark every arrival. Raising the sensitivity catches more, and costs more CPU.
+- **It arrives late:** usually from seconds to half a minute after the scene,
+  which is the time of the peak window, the queue and the inference. With the
+  queue full or the object detector slow, it goes beyond that: the inference
+  waits for the response for up to a minute, and the clip may wait its turn in
+  the queue before that.
+- **The queue drops:** on a busy camera, a clip that doesn't fit in the queue
+  becomes only motion, and doesn't alert.
+- **The send has a ceiling:** after 20 alerts in a row, one goes out every 4
+  minutes (15 per hour), for the whole installation; what comes before that is
+  not sent, and a yellow warning says how many and why. It protects the e-mail
+  account: Gmail stops sending after 500 messages in a day, and the worst day
+  with the ceiling is 380. The ceiling doesn't survive a restart: every time
+  dwnvr starts, the burst of 20 comes back whole. A full send queue, with the
+  send slow or stuck, also drops and goes into the same warning. An alert that
+  didn't go out stays recorded on the detection, like all of them. The numbers
+  are in `internal/alert/params.go`.
+- **With the disk failing, the alert goes out all the same:** the failure to
+  write the flag goes to the log, and the detection may be missing from
+  Detecções and from "só alertas", but the e-mail doesn't depend on the disk.
+- **On dwnvr shutdown**, an alert still waiting to be sent doesn't go out, and
+  a `WARN` line in the log says how many were left. It stays recorded on the
+  detection, like all of them.
+- **A false positive becomes a false alert:** what the model confuses with a
+  person, in a new place, warns. The area and the families are the brake.
+- **After a restart**, a stationary object shows up once as if it had just
+  arrived (see [the tracker](#a-parked-car-doesnt-become-a-mark-on-every-inference)),
+  and warns if it is of an alert family and in an alert area.
+- **With the object detector down, no alert goes out.** The warning that
+  already exists says since when.
+- **Camera moved, wrong area:** it needs to be redrawn.
+- **The time is the server's.** With the wrong time zone on it, the alert goes
+  out at the wrong hours, the way the timeline turns the day at the wrong time
+  (see [`operations.md`](operations.md#common-problems)). The Horários
+  (Schedules) section of the Alerta (Alert) tab shows which time zone applies.
+- **An object that arrived outside the schedule** doesn't warn when the
+  schedule starts: the mark is of an arrival (see
+  [the tracker](#a-parked-car-doesnt-become-a-mark-on-every-inference)), and it
+  has already been seen.
 
-## Os parâmetros, e onde eles moram
+## The parameters, and where they live
 
-**O que o usuário escolhe** - ver [`configuration.md`](configuration.md):
+**What the user chooses** - see [`configuration.md`](configuration.md):
 
-| Onde | O quê |
+| Where | What |
 | --- | --- |
-| `cameras.json`, pela tela de Câmeras | `detect`, `detectMethod`, `detectSensitivity`, `areas` e `alert` |
-| `dwnvr.yaml` | `defaults` desses três, e `detector.url` |
-| env do `dwnvr-detect` | `DETECT_THREADS`, `DETECT_MODEL`, `DETECT_PORT` |
+| `cameras.json`, through the Câmeras (Cameras) screen | `detect`, `detectMethod`, `detectSensitivity`, `areas` and `alert` |
+| `dwnvr.yaml` | `defaults` for the first three, and `detector.url` |
+| `dwnvr-detect` env | `DETECT_THREADS`, `DETECT_MODEL`, `DETECT_PORT` |
 
-**O que é medido**, fixo em
-[`internal/detect/params.go`](../internal/detect/params.go). Cada
-número tem ao lado o porquê dele. Não são preferência, e mudar um sem medir de
-novo faz a medição deixar de valer em silêncio:
+**What is measured**, fixed in
+[`internal/detect/params.go`](../internal/detect/params.go). Each number has
+its why beside it. They are not preference, and changing one without measuring
+again makes the measurement silently stop holding:
 
-| Número | Valor | O que é |
+| Number | Value | What it is |
 | --- | --- | --- |
-| `OnsetsPerHour` | 6, 12, 25, 50, 100 | o custo de cada nível, por câmera |
-| `KleinbergPThreshold` | um por nível | o limiar que faz o `kleinberg-p` custar exatamente o que o nível manda |
-| `PeakWindowMs` | 3 s | onde procurar o quadro a olhar depois do onset |
-| `FamilyCutoff` | 0,40 | a confiança a partir da qual uma caixa pode virar marca |
-| `MinScore` | 0,20 | a menor confiança que o sidecar devolve |
-| `SamePlaceIoU` | 0,7 | a sobreposição que faz duas caixas serem o mesmo lugar |
-| `MissesToRelease` | 5 | olhadas sem ver que liberam um lugar |
-| `ClipsPerCamera` | 2 | os lugares de cada câmera na fila |
-| `InferenceTimeoutMs` | 60 s | quanto a fila espera uma resposta |
-| `PauseAfterFailureMs` | 30 s | a pausa da fila depois de uma olhada que falhou |
-| `MaxGOPBytes` | 4 MB | o maior GOP guardado por câmera; freio de RAM |
-| `ClassFamilies` | 12 classes | quais classes do COCO viram `person`, `vehicle` ou `animal` |
+| `OnsetsPerHour` | 6, 12, 25, 50, 100 | the cost of each level, per camera |
+| `KleinbergPThreshold` | one per level | the threshold that makes `kleinberg-p` cost exactly what the level says |
+| `PeakWindowMs` | 3 s | where to look for the frame to inspect after the onset |
+| `FamilyCutoff` | 0.40 | the confidence from which a box can become a mark |
+| `MinScore` | 0.20 | the lowest confidence the sidecar returns |
+| `SamePlaceIoU` | 0.7 | the overlap that makes two boxes the same spot |
+| `MissesToRelease` | 5 | inferences without seeing that release a spot |
+| `ClipsPerCamera` | 2 | each camera's spots in the queue |
+| `InferenceTimeoutMs` | 60 s | how long the queue waits for a response |
+| `PauseAfterFailureMs` | 30 s | the queue's pause after a failed inference |
+| `MaxGOPBytes` | 4 MB | the largest GOP stored per camera; a RAM brake |
+| `ClassFamilies` | 12 classes | which COCO classes become `person`, `vehicle` or `animal` |
 
-Os números do alerta, que são escolha de desenho e não medida, ficam em
+The alert's numbers, which are a design choice and not a measurement, live in
 [`internal/alert/params.go`](../internal/alert/params.go):
 
-| Número | Valor | O que é |
+| Number | Value | What it is |
 | --- | --- | --- |
-| `QueuedAlerts` | 32 | quantos esperam a vez de sair pelos meios |
-| `SendTimeout` | 30 s | quanto um envio pode levar antes de contar como falha |
-| `AlertBurst` | 20 | quantos saem seguidos antes de o teto valer |
-| `AlertsPerHour` | 15 | o ritmo depois da rajada, um a cada 4 min, para a instalação inteira |
-| `DropWarningLasts` | 1 h | quanto o Aviso do alerta que não saiu fica depois do último descarte |
+| `QueuedAlerts` | 32 | how many wait their turn to go out through the channels |
+| `SendTimeout` | 30 s | how long a send can take before counting as a failure |
+| `AlertBurst` | 20 | how many go out in a row before the ceiling applies |
+| `AlertsPerHour` | 15 | the pace after the burst, one every 4 min, for the whole installation |
+| `DropWarningLasts` | 1 h | how long the warning for the alert that didn't go out stays after the last drop |
 
-## O custo
+## The cost
 
-**Desligada, quase nada.** Numa câmera com `detect` desligado, o mecanismo não
-existe, o GOP não é guardado e nenhum pedido sai: sobra, por quadro, uma troca
-atômica e um `if`. Sem `detector.url`, a fila nem nasce. O `docker-compose.yml`
-só sobe o `dwnvr-detect` com o profile `detect`, e quem não o liga não baixa
-nem a imagem. Na interface, a timeline não pede marcas de câmera sem detecção,
-e o código das caixas vem num arquivo à parte, que só baixa quando o dia tem
-objeto.
+**Off, almost nothing.** On a camera with `detect` off, the method doesn't
+exist, the GOP isn't stored and no request goes out: what is left, per frame,
+is an atomic swap and an `if`. Without `detector.url`, the queue isn't even
+born. `docker-compose.yml` only starts `dwnvr-detect` with the `detect`
+profile, and whoever doesn't turn it on doesn't even download the image. In the
+interface, the timeline doesn't ask for marks from cameras without detection,
+and the boxes' code comes in a separate file, which only downloads when the day
+has an object.
 
-**Ligada, o custo é o nível de sensibilidade, e ele é POR CÂMERA.** Com dez
-câmeras no nível 4 são 500 olhadas por hora, não 50. Tomando o Orange Pi Zero
-3 como referência:
+**On, the cost is the sensitivity level, and it is PER CAMERA.** With ten
+cameras at level 4 that is 500 inferences per hour, not 50. Taking the Orange
+Pi Zero 3 as reference:
 
-| | Custo |
+| | Cost |
 | --- | --- |
-| marca de movimento (sem detector) | desprezível: uma conta O(1) por quadro, sem alocar |
-| GOP guardado, por câmera com detecção | dois buffers, na prática ~230 KB; no máximo 8 MB |
-| uma olhada | ~6,5 s de um núcleo com `DETECT_THREADS=1`, ~3,6 s com 2 (por ~10% a mais de CPU no total). Sem a variável, ele usa 2 numa placa de 4 núcleos |
-| nível 5, o padrão, por câmera | ~17% de um núcleo, contínuo |
-| nível 4, por câmera | ~9% de um núcleo, contínuo |
-| o container `dwnvr-detect` | ~230 MB, com picos de ~250 MB durante as olhadas, e o modelo carregado mesmo sem câmera nenhuma |
+| motion mark (without the object detector) | negligible: an O(1) computation per frame, without allocating |
+| stored GOP, per camera with detection | two buffers, in practice ~230 KB; at most 8 MB |
+| one inference | ~6.5 s of one core with `DETECT_THREADS=1`, ~3.6 s with 2 (for ~10% more CPU in total). Without the variable, it uses 2 on a 4-core board |
+| level 5, the default, per camera | ~17% of one core, continuous |
+| level 4, per camera | ~9% of one core, continuous |
+| the `dwnvr-detect` container | ~230 MB, with peaks of ~250 MB during inferences, and the model loaded even with no camera at all |
 
-O nível 5 dobra o custo do 4. Medido com 9 câmeras nele, o `dwnvr-detect`
-fica em 157% de um núcleo, 39% da placa de quatro, ao lado da gravação - e é
-por isso que o padrão é o 5. Com mais câmeras, ou numa placa menor, desça para
-o 4, que custa a metade. E o `dwnvr-detect` usa no máximo metade dos núcleos
-da máquina, até 4 threads, com teto de 400 MB no compose: o detector de
-objetos nunca toma a máquina de quem grava.
+Level 5 doubles the cost of 4. Measured with 9 cameras on it, `dwnvr-detect`
+sits at 157% of one core, 39% of the four-core board, alongside recording - and
+that is why the default is 5. With more cameras, or on a smaller board, go down
+to 4, which costs half. And `dwnvr-detect` uses at most half of the machine's
+cores, up to 4 threads, with a 400 MB ceiling in compose: the object detector
+never takes over the machine of whoever records.
 
-## Quando o dwnvr-detect cai
+## When dwnvr-detect goes down
 
-**A gravação não sente nada, e o movimento continua sendo marcado.** Só as
-marcas de objeto se perdem.
+**Recording feels nothing, and motion keeps being marked.** Only the object
+marks are lost.
 
-| Caso | Como o dwnvr percebe | O que faz |
+| Case | How dwnvr notices | What it does |
 | --- | --- | --- |
-| **caiu** (container parado, conexão recusada, HTTP 5xx) | a olhada falha na hora | conta como falha e pausa a fila por 30 s |
-| **travou** (aceita a conexão e não responde) | espera o timeout de 60 s | conta como falha e pausa 30 s |
-| **recusou o pedaço** (HTTP 4xx, ex.: vídeo corrompido) | a resposta | conta como recusado, sem pausa: o sidecar está bem |
+| **went down** (container stopped, connection refused, HTTP 5xx) | the inference fails right away | counts as a failure and pauses the queue for 30 s |
+| **hung** (accepts the connection and doesn't respond) | waits for the 60 s timeout | counts as a failure and pauses 30 s |
+| **rejected the clip** (HTTP 4xx, e.g. corrupted video) | the response | counts as rejected, no pause: the sidecar is fine |
 
-- A câmera entrega o pedaço à fila **sem nunca esperar**: a gravação não
-  depende dela.
-- Nenhum pedaço volta para uma segunda tentativa. O que não cabe é
-  descartado, e fica como movimento.
-- O log diz **uma** linha quando o detector sai do ar e **uma** quando volta, e
-  o Diagnóstico separa "o detector não respondeu" de "vídeo corrompido vindo da
-  câmera". Enquanto ele está fora, os Avisos do Diagnóstico dizem desde quando
-  e por quê (o `foraDoAr` do `/api/health`, ver [`api.md`](api.md)).
-- Quando ele volta, a fila retoma sozinha. Pedaço olhado com atraso marca no
-  instante do onset, então a hora na timeline sai certa.
+- The camera hands the clip to the queue **without ever waiting**: recording
+  doesn't depend on it.
+- No clip goes back for a second try. What doesn't fit is dropped, and stays as
+  motion.
+- The log says **one** line when the object detector goes out and **one** when
+  it comes back, and the Diagnóstico tells "the object detector didn't respond"
+  apart from "corrupted video coming from the camera". While it is down, the
+  Avisos of the Diagnóstico say since when and why (the `foraDoAr` of
+  `/api/health`, see [`api.md`](api.md)).
+- When it comes back, the queue resumes on its own. A clip inferred late marks
+  at the onset instant, so the time on the timeline comes out right.
 
-O Docker só reinicia um container cujo processo terminou, e uma inferência
-presa deixaria o processo vivo e o `/health` respondendo. Por isso o próprio
-dwnvr-detect sai com erro quando uma olhada passa de 50 s, e o
-`restart: unless-stopped` do compose o sobe de novo: do lado do dwnvr, isso é
-um detector que caiu aos 50 s, antes do timeout de 60 s.
+Docker only restarts a container whose process has ended, and a stuck inference
+would leave the process alive and `/health` answering. So dwnvr-detect itself
+exits with an error when an inference goes past 50 s, and compose's
+`restart: unless-stopped` brings it back up: from dwnvr's side, that is an
+object detector that went down at 50 s, before the 60 s timeout.
 
-## Os limites do modelo
+## The model's limits
 
-O modelo é o RF-DETR Nano, treinado no COCO, exportado com entrada fixa em
-512x288 e quantizado para int8 (ver
-[`dwnvr-detect/model/README.md`](../dwnvr-detect/model/README.md)). Ele
-aceita qualquer resolução: o `server.py` estica o quadro até 512x288, e a
-caixa volta em fração. Aceitar não é detectar bem:
+The model is RF-DETR Nano, trained on COCO, exported with a fixed 512x288 input
+and quantized to int8 (see
+[`dwnvr-detect/model/README.md`](../dwnvr-detect/model/README.md)). It accepts
+any resolution: `server.py` stretches the frame to 512x288, and the box comes
+back as a fraction. Accepting is not detecting well:
 
-| Requisito | Por quê |
+| Requirement | Why |
 | --- | --- |
-| codec H.264 ou H.265 | é o que o dwnvr lê do go2rtc |
-| proporção 16:9 | outra proporção chega deformada; uma câmera 4:3 nunca foi medida |
-| objeto grande o bastante no quadro | o que conta é a FRAÇÃO da altura do quadro, não os pixels da câmera. Pessoa ao longe, com ~10% da altura, é onde ele mais perde |
-| imagem comum de câmera de segurança | a calibração do int8 usou dia e noite em infravermelho; noite colorida, olho de peixe e térmica nunca foram medidos |
-| GOP abaixo de 4 MB | acima do teto o onset vira só movimento |
+| H.264 or H.265 codec | it is what dwnvr reads from go2rtc |
+| 16:9 aspect ratio | another ratio arrives deformed; a 4:3 camera was never measured |
+| an object big enough in the frame | what counts is the FRACTION of the frame's height, not the camera's pixels. A person far away, at ~10% of the height, is where it loses the most |
+| an ordinary security camera image | the int8 calibration used day and infrared night; color night, fisheye and thermal were never measured |
+| GOP below 4 MB | above the ceiling the onset becomes only motion |
 
-**Resolução maior não ajuda.** Uma câmera 4K encolhe 7,5x até 512x288: a
-pessoa ao longe some do mesmo jeito, e a decodificação e a RAM do pedaço
-crescem. A recomendação para câmera de terceiros é gravar o **substream**
-(640x360 ou parecido, 16:9), que é a condição medida e a mais barata.
+**A higher resolution doesn't help.** A 4K camera shrinks 7.5x down to 512x288:
+the person far away disappears just the same, and the decoding and the clip's
+RAM grow. The recommendation for third-party cameras is to record the
+**substream** (640x360 or similar, 16:9), which is the measured condition and
+the cheapest.
 
-O que falta medir em câmera de outra pessoa está em
+What is still to be measured on someone else's camera is in
 [`TODO_modelo-em-cameras-de-terceiros.md`](TODO/TODO_modelo-em-cameras-de-terceiros.md)
-e [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO/TODO_recalibrar-modelo-com-imagens-publicas.md).
+and [`TODO_recalibrar-modelo-com-imagens-publicas.md`](TODO/TODO_recalibrar-modelo-com-imagens-publicas.md).
 
-## Onde está no código
+## Where it is in the code
 
-| Arquivo | O quê |
+| File | What |
 | --- | --- |
-| `internal/detect/score.go` | o destaque de cada quadro |
-| `internal/detect/method.go` | o onset e o pico: `kleinberg-p` e `periodic` |
-| `internal/detect/clipper.go` | o GOP guardado e o pedaço fMP4 |
-| `internal/detect/queue.go` | a fila única, o limite por câmera, a pausa depois de falha |
-| `internal/detect/sidecar.go` | o cliente HTTP do `dwnvr-detect` |
-| `internal/detect/marker.go` | o corte por família e o rastreio |
-| `internal/detect/params.go` | todos os números, com o porquê de cada um |
-| `internal/recorder/recorder.go` | o gancho no gravador e o funil |
-| `internal/area/area.go` | "o objeto está dentro da área?": as regras `foot` e `touch` |
-| `internal/alert/rule.go` | quando as marcas de uma olhada viram alerta |
-| `internal/alert/dispatcher.go` | o registro e a entrega aos meios |
-| `internal/store/store.go` | `events/{dia}.ndjson` |
-| `dwnvr-detect/server.py` | decodificar e rodar o modelo |
-| `web/src/components/Timeline.svelte` | a faixa de calor e as marcas de objeto |
-| `web/src/components/Boxes.svelte` | as caixas sobre o vídeo |
-| `web/src/routes/Diagnostics.svelte` | o funil e a fila no Diagnóstico |
+| `internal/detect/score.go` | each frame's score |
+| `internal/detect/method.go` | the onset and the peak: `kleinberg-p` and `periodic` |
+| `internal/detect/clipper.go` | the stored GOP and the fMP4 clip |
+| `internal/detect/queue.go` | the single queue, the per-camera limit, the pause after a failure |
+| `internal/detect/sidecar.go` | the `dwnvr-detect` HTTP client |
+| `internal/detect/marker.go` | the family cut and the tracker |
+| `internal/detect/params.go` | all the numbers, with the why of each |
+| `internal/recorder/recorder.go` | the hook in the recorder and the funnel |
+| `internal/area/area.go` | "is the object inside the area?": the `foot` and `touch` rules |
+| `internal/alert/rule.go` | when the marks of an inference become an alert |
+| `internal/alert/dispatcher.go` | the record and the delivery to the channels |
+| `internal/store/store.go` | `events/{day}.ndjson` |
+| `dwnvr-detect/server.py` | decode and run the model |
+| `web/src/components/Timeline.svelte` | the heat strip and the object marks |
+| `web/src/components/Boxes.svelte` | the boxes over the video |
+| `web/src/routes/Diagnostics.svelte` | the funnel and the queue in the Diagnóstico |
 
-A API das marcas (`GET /api/rec/events`) e o funil no `/api/health` estão em
+The marks API (`GET /api/rec/events`) and the funnel in `/api/health` are in
 [`api.md`](api.md).

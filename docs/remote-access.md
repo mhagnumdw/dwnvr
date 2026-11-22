@@ -1,333 +1,332 @@
-# Acesso remoto: o dwnvr no celular, em casa e fora <!-- omit in toc -->
+# Remote access: dwnvr on your phone, at home and away <!-- omit in toc -->
 
-Este guia leva o dwnvr do `http://<ip-da-máquina>:8080` da rede de casa para
-um endereço **`https://`** que abre de qualquer lugar, **com o navegador oferecendo
-instalar a tela como app**. Também mostra como dar acesso a outras pessoas, como
-a família, **sem abrir o servidor para a internet**.
+This guide takes dwnvr from `http://<machine-ip>:8080` on the home network to
+an **`https://`** address that opens from anywhere, **with the browser offering
+to install the page as an app**. It also shows how to give other people, such
+as your family, access **without exposing the server to the internet**.
 
-O caminho é o [Tailscale](https://tailscale.com): uma VPN que liga os seus
-dispositivos ao servidor sem abrir porta no roteador, e que emite o certificado
-do `https://`. No dwnvr não há nada para configurar.
+The way there is [Tailscale](https://tailscale.com): a VPN that connects your
+devices to the server without opening a port on the router, and that issues
+the `https://` certificate. There is nothing to configure in dwnvr.
 
-> Para o `https://` só dentro de casa, sem o Tailscale, ver [https-local-network.md](https-local-network.md).
+> For `https://` only inside the home, without Tailscale, see [https-local-network.md](https-local-network.md).
 
-- [Por que HTTPS](#por-que-https)
-- [Por que não expor o servidor na internet](#por-que-não-expor-o-servidor-na-internet)
-- [O servidor: Tailscale e `tailscale serve`](#o-servidor-tailscale-e-tailscale-serve)
-  - [1. O Tailscale no servidor](#1-o-tailscale-no-servidor)
-  - [2. O `serve`](#2-o-serve)
-  - [3. O custo](#3-o-custo)
-- [Dar acesso a outras pessoas](#dar-acesso-a-outras-pessoas)
-  - [1. A policy, antes do convite](#1-a-policy-antes-do-convite)
-  - [2. O convite](#2-o-convite)
-  - [3. Conferir, do dispositivo da pessoa](#3-conferir-do-dispositivo-da-pessoa)
-- [Os dispositivos de quem acessa](#os-dispositivos-de-quem-acessa)
-  - [Em todos, instalar e configurar o Tailscale](#em-todos-instalar-e-configurar-o-tailscale)
+- [Why HTTPS](#why-https)
+- [Why not expose the server to the internet](#why-not-expose-the-server-to-the-internet)
+- [The server: Tailscale and `tailscale serve`](#the-server-tailscale-and-tailscale-serve)
+  - [1. Tailscale on the server](#1-tailscale-on-the-server)
+  - [2. The `serve`](#2-the-serve)
+  - [3. The cost](#3-the-cost)
+- [Giving access to other people](#giving-access-to-other-people)
+  - [1. The policy, before the invite](#1-the-policy-before-the-invite)
+  - [2. The invite](#2-the-invite)
+  - [3. Check from the person's device](#3-check-from-the-persons-device)
+- [The devices of the people who connect](#the-devices-of-the-people-who-connect)
+  - [On all of them, install and set up Tailscale](#on-all-of-them-install-and-set-up-tailscale)
   - [Android](#android)
   - [iPhone](#iphone)
   - [Desktop](#desktop)
-- [O ao vivo e a porta 8555](#o-ao-vivo-e-a-porta-8555)
-- [Em casa sem o Tailscale](#em-casa-sem-o-tailscale)
-- [Problemas comuns](#problemas-comuns)
+- [Live view and port 8555](#live-view-and-port-8555)
+- [At home without Tailscale](#at-home-without-tailscale)
+- [Common problems](#common-problems)
 
-## Por que HTTPS
+## Why HTTPS
 
-Em `http://`, o navegador trata a página como insegura e esconde dela uma
-parte dos recursos. No dwnvr, isso aparece em três lugares:
+On `http://`, the browser treats the page as insecure and hides some of its
+features from it. In dwnvr, this shows up in three places:
 
-- **Instalar como app.** O Chrome só instala uma página servida em `https://`.
-  Em `http://`, o Android cria um atalho que abre numa aba comum.
-- **Compartilhar a imagem.** No celular, o `⤓ imagem` das gravações abre a
-  folha de compartilhar do sistema, que leva a imagem direto para a galeria ou
-  para uma conversa. Em `http://` essa folha não existe, e a imagem só é
-  baixada.
-- **Miniaturas da timeline.** Em `https://` elas são decodificadas por
-  WebCodecs. Em `http://`, por um `<video>` escondido, um pouco mais lento.
+- **Installing as an app.** Chrome only installs a page served over `https://`.
+  On `http://`, Android creates a shortcut that opens in a regular tab.
+- **Sharing the image.** On a phone, the `⤓ imagem` (image) button in the
+  recordings opens the system share sheet, which sends the image straight to
+  the gallery or to a chat. On `http://` that sheet doesn't exist, and the
+  image is just downloaded.
+- **Timeline thumbnails.** On `https://` they are decoded with WebCodecs. On
+  `http://`, by a hidden `<video>`, a little slower.
 
-**E a senha do dwnvr deixa de passar em claro pela rede.**
+**And the dwnvr password stops crossing the network in the clear.**
 
-A aba **diagnóstico** da tela mostra "endereço seguro (https)" e, depois de
-instalar, "app instalado (PWA)".
+The **diagnóstico** (diagnostics) tab of the page shows "endereço seguro
+(https)" (secure address) and, once installed, "app instalado (PWA)"
+(installed app).
 
-## Por que não expor o servidor na internet
+## Why not expose the server to the internet
 
-Abrir uma porta no roteador, ou publicar o dwnvr por um túnel público (como o
-Tailscale Funnel ou o Cloudflare Tunnel), deixa a tela de login à vista de
-qualquer um. O login do dwnvr passa a ser a única proteção das câmeras, e ele
-não foi feito para isso: o
-[limite de tentativas](configuration.md#limite-de-tentativas-no-login) é por
-endereço, e quem tenta de muitos endereços ao mesmo tempo não é contido por
-ele.
+Opening a port on the router, or publishing dwnvr through a public tunnel
+(such as Tailscale Funnel or Cloudflare Tunnel), leaves the login page in
+plain view of anyone. The dwnvr login becomes the only protection of the
+cameras, and it wasn't built for that: the
+[attempt limit](configuration.md#login-attempt-limit) is per
+address, and someone trying from many addresses at once isn't held back by it.
 
-Com o Tailscale, o servidor só responde a dispositivos que entraram na VPN. Do
-resto da internet, não há o que encontrar.
+With Tailscale, the server only answers devices that joined the VPN. From the
+rest of the internet, there is nothing to find.
 
-## O servidor: Tailscale e `tailscale serve`
+## The server: Tailscale and `tailscale serve`
 
-### 1. O Tailscale no servidor
+### 1. Tailscale on the server
 
-Instale o Tailscale na máquina do dwnvr, pela
-[página de download](https://tailscale.com/download), e entre com a sua conta.
-A rede de dispositivos da sua conta é o seu **tailnet**.
+Install Tailscale on the dwnvr machine, from the
+[download page](https://tailscale.com/download), and sign in with your account.
+The network of devices on your account is your **tailnet**.
 
-No [admin do Tailscale](https://login.tailscale.com/admin/dns), deixe ligados
-o **MagicDNS** e o **HTTPS Certificates**. O MagicDNS dá a cada dispositivo um
-nome do tipo `servidor.tail1234.ts.net`, e o HTTPS Certificates deixa o
-Tailscale emitir um certificado para esse nome.
+In the [Tailscale admin](https://login.tailscale.com/admin/dns), leave
+**MagicDNS** and **HTTPS Certificates** on. MagicDNS gives each device a name
+like `servidor.tail1234.ts.net`, and HTTPS Certificates lets Tailscale issue a
+certificate for that name.
 
-**Escolha o nome antes de instalar o app em algum dispositivo.** O endereço
-`https://servidor.tail1234.ts.net` é formado pelo nome da máquina e pelo nome
-do tailnet, e é a identidade do app instalado: trocar qualquer um dos dois
-depois exige instalar o app de novo em cada dispositivo.
+**Pick the name before installing the app on any device.** The address
+`https://servidor.tail1234.ts.net` is made of the machine name and the tailnet
+name, and it is the identity of the installed app: changing either one later
+means installing the app again on every device.
 
-### 2. O `serve`
+### 2. The `serve`
 
-No servidor:
+On the server:
 
 ```sh
-# 8080 é a porta em que o dwnvr atende no servidor, a do docker-compose.yml
+# 8080 is the port dwnvr listens on on the server, the one in docker-compose.yml
 sudo tailscale serve --bg 8080
 ```
 
-O `serve` atende em `https://<máquina>.<tailnet>.ts.net`, na porta 443, com
-certificado do Let's Encrypt, e repassa para o dwnvr em
-`http://127.0.0.1:8080`. O `--bg` deixa a configuração gravada: ela volta
-sozinha depois de reiniciar o servidor. O `sudo` deixa de ser preciso depois de
-um `sudo tailscale set --operator=$USER`.
+The `serve` listens on `https://<machine>.<tailnet>.ts.net`, on port 443, with
+a Let's Encrypt certificate, and forwards to dwnvr at `http://127.0.0.1:8080`.
+`--bg` saves the configuration: it comes back on its own after the server
+restarts. `sudo` is no longer needed after a
+`sudo tailscale set --operator=$USER`.
 
-Para conferir e para desfazer:
+To check and to undo:
 
 ```sh
 tailscale serve status   # https://servidor.tail1234.ts.net -> http://127.0.0.1:8080
 sudo tailscale serve reset
 ```
 
-O primeiro acesso pode levar alguns segundos, enquanto o certificado é emitido.
-O nome da máquina fica registrado nos logs públicos de Certificate
-Transparency, como acontece com todo certificado do Let's Encrypt.
+The first access can take a few seconds, while the certificate is issued. The
+machine name is recorded in the public Certificate Transparency logs, as
+happens with every Let's Encrypt certificate.
 
-Do lado do dwnvr, nada muda. As URLs da tela são relativas, e o WebSocket do
-ao vivo passa a `wss://` sozinho. O `serve` avisa que a conexão chegou por
-HTTPS (`X-Forwarded-Proto`), e com isso o cookie de sessão sai `Secure`. Ele
-também diz o endereço do tailnet de quem abriu a tela (`X-Forwarded-For`), e é
-por ele que o login conta as tentativas de cada dispositivo (ver
-[Limite de tentativas no login](configuration.md#limite-de-tentativas-no-login)).
-O `serve` descarta o header que o dispositivo mandar, então ninguém escapa do
-limite inventando um endereço.
+On the dwnvr side, nothing changes. The page's URLs are relative, and the live
+view WebSocket switches to `wss://` on its own. The `serve` reports that the
+connection arrived over HTTPS (`X-Forwarded-Proto`), and with that the session
+cookie is issued `Secure`. It also reports the tailnet address of whoever
+opened the page (`X-Forwarded-For`), and that is what the login uses to count
+the attempts of each device (see
+[Login attempt limit](configuration.md#login-attempt-limit)).
+The `serve` discards the header the device sends, so nobody escapes the limit
+by making up an address.
 
-O `http://<ip-da-máquina>:8080` continua funcionando na rede de casa. Para o
-navegador, é outra origem: login separado, e sem os recursos de HTTPS.
+`http://<machine-ip>:8080` keeps working on the home network. For the browser
+it is another origin: separate login, and none of the HTTPS features.
 
-### 3. O custo
+### 3. The cost
 
-O TLS do `serve` gasta CPU no servidor. Medido num Orange Pi Zero 3: perto de
-2,7× a CPU por byte de uma conexão sem TLS. Na prática, a grade do ao vivo
-cheia pelo MSE (ver [O ao vivo e a porta 8555](#o-ao-vivo-e-a-porta-8555))
-custaria perto de 6% de um núcleo, e uma exportação de 100 MB leva perto de
-80 s.
+The `serve` TLS spends CPU on the server. Measured on an Orange Pi Zero 3:
+about 2.7x the CPU per byte of a connection without TLS. In practice, the live
+view grid full over MSE (see [Live view and port 8555](#live-view-and-port-8555))
+would cost about 6% of one core, and a 100 MB export takes about 80 s.
 
-## Dar acesso a outras pessoas
+## Giving access to other people
 
-Cada pessoa usa a própria conta do Tailscale, e você **compartilha a máquina
-do dwnvr** com ela. **Não convide a pessoa para o seu tailnet**: como membro, ela
-enxergaria todos os seus dispositivos, e, se o servidor anuncia uma subnet route,
-o tráfego da rede dela poderia passar pela sua. No compartilhamento ela vê só
-a máquina compartilhada, e as subnet routes não vão junto.
+Each person uses their own Tailscale account, and you **share the dwnvr
+machine** with them. **Don't invite the person to your tailnet**: as a member,
+they would see all your devices, and, if the server advertises a subnet route,
+traffic from their network could go through yours. With sharing they see only
+the shared machine, and subnet routes don't come along.
 
-Quem acessa o quê é decidido em dois lugares:
+Who reaches what is decided in two places:
 
-- **O compartilhamento** decide *qual máquina* a pessoa enxerga.
-- **A policy do seu tailnet** decide *quais portas* dessa máquina ela alcança.
+- **The sharing** decides *which machine* the person sees.
+- **Your tailnet's policy** decides *which ports* of that machine they reach.
 
-### 1. A policy, antes do convite
+### 1. The policy, before the invite
 
-A policy padrão libera tudo para todos (`"src": ["*"]`), e o `*` inclui quem
-recebeu um compartilhamento. Sem mudar a policy, a pessoa alcança todas as
-portas do servidor: o dwnvr sem HTTPS na 8080, o ssh e o que mais estiver
-escutando.
+The default policy allows everything for everyone (`"src": ["*"]`), and the `*`
+includes whoever received a share. Without changing the policy, the person
+reaches every port on the server: dwnvr without HTTPS on 8080, ssh and
+whatever else is listening.
 
-Em [Access controls](https://login.tailscale.com/admin/acls/file), no JSON
+In [Access controls](https://login.tailscale.com/admin/acls/file), in the JSON
 editor:
 
-Partindo da policy padrão de um tailnet novo, a mudança é esta (`-` sai, `+`
-entra):
+Starting from the default policy of a new tailnet, the change is this (`-`
+goes out, `+` comes in):
 
 ```diff
  {
-+    // O IP do servidor no tailnet: `tailscale ip -4`, rodado nele.
++    // The server's IP on the tailnet: `tailscale ip -4`, run on it.
 +    "hosts": {
 +        "servidor": "100.x.y.z",
 +    },
 +
      "grants": [
 -        {"src": ["*"], "dst": ["*"], "ip": ["*"]},
-+        // Os seus dispositivos: tudo, como antes.
++        // Your devices: everything, as before.
 +        {"src": ["autogroup:member"], "dst": ["*"], "ip": ["*"]},
 +
-+        // Quem recebeu o compartilhamento: só o `tailscale serve`.
++        // Whoever received the share: only the `tailscale serve`.
 +        {"src": ["autogroup:shared"], "dst": ["servidor"], "ip": ["tcp:443"]},
      ],
  }
 ```
 
-Ou seja:
+That is:
 
-- o nome `servidor` passa a valer o IP do servidor no tailnet;
-- o `"*"` da regra que libera tudo vira `"autogroup:member"`, só os seus
-  dispositivos;
-- entra a regra do `autogroup:shared`, quem recebeu o compartilhamento.
+- the name `servidor` becomes the server's IP on the tailnet;
+- the `"*"` of the allow-everything rule becomes `"autogroup:member"`, only
+  your devices;
+- the `autogroup:shared` rule comes in, for whoever received the share.
 
-O resto da policy (`ssh`, `nodeAttrs`, os comentários) fica como está.
+The rest of the policy (`ssh`, `nodeAttrs`, the comments) stays as it is.
 
-Se a sua policy usa `acls` em vez de `grants`, a regra equivalente é
+If your policy uses `acls` instead of `grants`, the equivalent rule is
 `{"action": "accept", "src": ["autogroup:shared"], "proto": "tcp", "dst": ["servidor:443"]}`.
 
-Antes de salvar, a aba **Preview rules** mostra o que o seu usuário alcança.
-Ele tem de continuar alcançando tudo. Dispositivo com tag não entra em
-`autogroup:member`: se algum dos seus tiver tag, ele precisa de regra própria.
+Before saving, the **Preview rules** tab shows what your user reaches. It must
+still reach everything. A device with a tag doesn't fall under
+`autogroup:member`: if any of yours has a tag, it needs a rule of its own.
 
-### 2. O convite
+### 2. The invite
 
-Em [Machines](https://login.tailscale.com/admin/machines), na linha do
-servidor: **⋯ > Share...**, por e-mail ou por link. O link tem de ser aberto
-com a mesma conta que a pessoa usa no app do Tailscale. Um convite por pessoa.
+In [Machines](https://login.tailscale.com/admin/machines), on the server's
+row: **⋯ > Share...**, by e-mail or by link. The link has to be opened with
+the same account the person uses in the Tailscale app. One invite per person.
 
-Quem recebe chega ao servidor só pelo nome completo,
-`https://servidor.tail1234.ts.net`. O nome curto, `servidor` sozinho, funciona
-apenas nos dispositivos que entram no Tailscale com a sua conta, e não nos de
-quem recebeu o compartilhamento.
+Whoever receives it reaches the server only by the full name,
+`https://servidor.tail1234.ts.net`. The short name, `servidor` alone, works
+only on the devices that join Tailscale with your account, not on those of
+whoever received the share.
 
-### 3. Conferir, do dispositivo da pessoa
+### 3. Check from the person's device
 
-- `https://servidor.tail1234.ts.net` abre o login do dwnvr;
-- `http://servidor.tail1234.ts.net:8080` **não abre**. Se abrir, a policy não
-  pegou.
+- `https://servidor.tail1234.ts.net` opens the dwnvr login;
+- `http://servidor.tail1234.ts.net:8080` **does not open**. If it does, the
+  policy didn't take.
 
-Cada pessoa entra com o próprio usuário: crie-a na aba **Usuários** do dwnvr e
-mande o link que aparece, para ela definir a senha. O link vale 10 minutos,
-então mande quando ela já estiver com o Tailscale ligado e puder abri-lo na
-hora.
+Each person signs in with their own user: create it in the **Usuários**
+(Users) tab of dwnvr and send the link that appears, so they set the password.
+The link is valid for 10 minutes, so send it when they already have Tailscale
+on and can open it right away.
 
-## Os dispositivos de quem acessa
+## The devices of the people who connect
 
-O celular ou o computador de cada pessoa que vai usar o dwnvr, inclusive os
-seus: primeiro o Tailscale, depois o dwnvr pelo navegador.
+The phone or computer of each person who will use dwnvr, yours included: first
+Tailscale, then dwnvr through the browser.
 
-A sessão do dwnvr vale 30 dias e se renova com o uso: quem abre o app de vez
-em quando não precisa entrar de novo.
+The dwnvr session lasts 30 days and renews with use: whoever opens the app
+now and then doesn't need to sign in again.
 
-### Em todos, instalar e configurar o Tailscale
+### On all of them, install and set up Tailscale
 
-1. O app do Tailscale, com a conta da pessoa. Para quem nunca usou, o login
-   cria o tailnet dela.
-2. Aceitar o compartilhamento, pelo convite.
-3. **Desligar o key expiry do dispositivo.** Por padrão, cada dispositivo
-   precisa entrar de novo no Tailscale a cada 180 dias, e até lá o app do
-   dwnvr simplesmente para de abrir. Quem desliga é o dono do dispositivo, no
-   admin do tailnet dele: [Machines](https://login.tailscale.com/admin/machines)
-   > o dispositivo > **⋯ > Disable key expiry**.
+1. The Tailscale app, with the person's account. For someone who never used
+   it, signing in creates their tailnet.
+2. Accept the share, through the invite.
+3. **Turn off the device's key expiry.** By default, each device has to sign
+   in to Tailscale again every 180 days, and until then the dwnvr app simply
+   stops opening. The device's owner turns it off, in the admin of their own
+   tailnet: [Machines](https://login.tailscale.com/admin/machines)
+   > the device > **⋯ > Disable key expiry**.
 
 ### Android
 
-- **Abrir e entrar:** no Chrome, `https://servidor.tail1234.ts.net`, com o
-  próprio usuário e senha no dwnvr.
-- **Instalar:** na mesma página, menu ⋮ > **Instalar app**.
-- **Tailscale sempre ligado:** Configurações > VPN > a engrenagem do Tailscale
-  > **VPN sempre ativa** (Always-on VPN). Deixe desligado o "bloquear conexões
-  sem VPN": ligado, uma falha do Tailscale deixa o celular sem internet
-  nenhuma.
-- **DNS particular** em **Automático** (ou desativado). Com um provedor fixo,
-  como o `dns.google`, o nome `.ts.net` costuma parar de resolver.
+- **Open and sign in:** in Chrome, `https://servidor.tail1234.ts.net`, with
+  your own user and password in dwnvr.
+- **Install:** on the same page, ⋮ menu > **Instalar app** (Install app).
+- **Tailscale always on:** Settings > VPN > Tailscale's gear > **VPN sempre
+  ativa** (Always-on VPN). Leave "block connections without VPN" off: with it
+  on, a Tailscale failure leaves the phone with no internet at all.
+- **Private DNS** on **Automatic** (or off). With a fixed provider, such as
+  `dns.google`, the `.ts.net` name usually stops resolving.
 
-O Android não tem regra para ligar o Tailscale só fora de casa. Ele fica
-sempre ligado, em casa e fora, e é por ele que o app abre nos dois lugares.
+Android has no rule to turn Tailscale on only when away from home. It stays on
+all the time, at home and away, and that is how the app opens in both places.
 
 ### iPhone
 
-> Esta seção ainda não foi testada num iPhone.
+> This section hasn't been tested on an iPhone yet.
 
-- **Abrir e entrar:** no Safari, `https://servidor.tail1234.ts.net`, com o
-  próprio usuário e senha no dwnvr.
-- **Instalar:** na mesma página, compartilhar > **Adicionar à Tela de
-  Início**. Do iOS 26 em diante, "Abrir como app" já vem ligado.
-- **Tailscale sempre ligado:** no app do Tailscale, **VPN On Demand**, ligado
-  no Wi-Fi e nos dados móveis.
-- **Gravações:** pelo código, não tocam no iPhone; o ao vivo, sim. Ver
-  [`TODO_gravacoes-no-iphone.md`](TODO/TODO_gravacoes-no-iphone.md).
+- **Open and sign in:** in Safari, `https://servidor.tail1234.ts.net`, with
+  your own user and password in dwnvr.
+- **Install:** on the same page, share > **Adicionar à Tela de Início** (Add
+  to Home Screen). From iOS 26 on, "Open as app" is already on.
+- **Tailscale always on:** in the Tailscale app, **VPN On Demand**, on for
+  Wi-Fi and mobile data.
+- **Recordings:** by the code, they don't play on the iPhone; live view does.
+  See [`TODO_gravacoes-no-iphone.md`](TODO/TODO_gravacoes-no-iphone.md).
 
 ### Desktop
 
-Abra `https://servidor.tail1234.ts.net` no Chrome e entre; o ícone de
-instalar aparece na barra de endereço. No Linux, o Tailscale liga e desliga
-pelo `tailscale up` e `tailscale down`.
+Open `https://servidor.tail1234.ts.net` in Chrome and sign in; the install
+icon appears in the address bar. On Linux, Tailscale is turned on and off with
+`tailscale up` and `tailscale down`.
 
-## O ao vivo e a porta 8555
+## Live view and port 8555
 
-O ao vivo tenta primeiro o WebRTC, de menor latência, e cai para o MSE quando
-o WebRTC não conecta. A conversa inicial passa pelo dwnvr, e portanto pelo
-`serve`. A mídia do WebRTC, não: ela vai direto do navegador para a porta 8555
-do go2rtc. Já o MSE vem pelo próprio WebSocket do dwnvr.
+Live view tries WebRTC first, for lower latency, and falls back to MSE when
+WebRTC doesn't connect. The initial exchange goes through dwnvr, and therefore
+through the `serve`. WebRTC media does not: it goes straight from the browser
+to go2rtc's port 8555. MSE, on the other hand, comes over dwnvr's own
+WebSocket.
 
-Com a policy acima, quem recebeu o compartilhamento não alcança a 8555 pelo
-Tailscale. Mesmo assim, fora de casa o WebRTC pode conectar pela internet,
-atravessando o NAT de casa, sem porta aberta (hole punching). Quando a rede da
-operadora não deixa, o ao vivo cai no MSE e toca do mesmo jeito, com um pouco
-mais de atraso. O WebRTC é uma otimização, não um requisito.
+With the policy above, whoever received the share can't reach 8555 over
+Tailscale. Even so, away from home WebRTC can connect over the internet,
+crossing the home NAT, with no open port (hole punching). When the carrier's
+network doesn't allow it, live view falls back to MSE and plays all the same,
+with a little more delay. WebRTC is an optimization, not a requirement.
 
-> A exceção possível é o iPhone com câmera em H265, que pode depender do
-> WebRTC para tocar o ao vivo. Ainda não foi testado.
+> The possible exception is the iPhone with an H265 camera, which may depend
+> on WebRTC to play live view. Not tested yet.
 
-Para o WebRTC passar sempre pelo Tailscale, o go2rtc precisaria anunciar o
-endereço do tailnet (`webrtc.candidates` no `go2rtc.yaml`), e a policy
-precisaria liberar a 8555, em udp e tcp, para `autogroup:shared`. Também não
-foi testado.
+For WebRTC to always go through Tailscale, go2rtc would need to advertise the
+tailnet address (`webrtc.candidates` in `go2rtc.yaml`), and the policy would
+need to allow 8555, over udp and tcp, for `autogroup:shared`. Also not tested.
 
-## Em casa sem o Tailscale
+## At home without Tailscale
 
-> Este caminho não foi testado.
+> This path hasn't been tested.
 
-O mesmo app instalado pode abrir em casa com o Tailscale desligado, mas são
-precisas duas peças na rede de casa:
+The same installed app can open at home with Tailscale off, but two pieces are
+needed on the home network:
 
-1. Um DNS local que responda `servidor.tail1234.ts.net` com o IP do servidor
-   na rede de casa. Muitos roteadores não têm esse recurso; pôr o próprio
-   servidor como DNS da casa resolve, mas faz a internet da casa inteira
-   depender dele.
-2. HTTPS na porta 443 da rede de casa, com o mesmo certificado (o
-   `tailscale cert` o emite em arquivo), renovado de forma automática. Tem de
-   ser a 443: outra porta é outra origem, e o app instalado não a reconhece.
+1. A local DNS that answers `servidor.tail1234.ts.net` with the server's IP on
+   the home network. Many routers don't have this feature; making the server
+   itself the home's DNS works, but makes the internet of the whole house
+   depend on it.
+2. HTTPS on port 443 of the home network, with the same certificate (the
+   `tailscale cert` issues it as a file), renewed automatically. It has to be
+   443: another port is another origin, and the installed app doesn't
+   recognize it.
 
-Na maioria das casas não compensa. O Android deixa o Tailscale sempre ligado de
-qualquer jeito. Quem ganha é o iPhone, que pode desligar o Tailscale na Wi-Fi
-de casa pelo VPN On Demand. O endereço é o mesmo nos dois caminhos, então
-decidir depois não gera retrabalho.
+In most homes it isn't worth it. Android keeps Tailscale always on anyway. The
+one who gains is the iPhone, which can turn Tailscale off on the home Wi-Fi
+through VPN On Demand. The address is the same on both paths, so deciding
+later causes no rework.
 
-Sem o Tailscale em lugar nenhum, nem no servidor, o caminho é outro:
-[https-local-network.md](https-local-network.md).
+With no Tailscale anywhere, not even on the server, the path is a different
+one: [https-local-network.md](https-local-network.md).
 
-## Problemas comuns
+## Common problems
 
-**O app abre a tela de "sem conexão" do navegador.** O Tailscale está
-desligado no dispositivo. Ligue, ou deixe sempre ligado (Always-on VPN no
-Android, VPN On Demand no iPhone).
+**The app opens the browser's "no connection" page.** Tailscale is off on the
+device. Turn it on, or leave it always on (Always-on VPN on Android, VPN On
+Demand on the iPhone).
 
-**Funcionava, e depois de meses parou.** O key expiry do dispositivo venceu: o
-app do Tailscale pede para entrar de novo. Entre, e desligue o key expiry
-(ver [Em todos, instalar e configurar o Tailscale](#em-todos-instalar-e-configurar-o-tailscale)).
+**It worked, and after months it stopped.** The device's key expiry ran out:
+the Tailscale app asks to sign in again. Sign in, and turn off the key expiry
+(see [On all of them, install and set up Tailscale](#on-all-of-them-install-and-set-up-tailscale)).
 
-**O nome `.ts.net` não resolve no Android.** O DNS particular está fixo num
-provedor. Ponha em Automático.
+**The `.ts.net` name doesn't resolve on Android.** Private DNS is fixed to a
+provider. Set it to Automatic.
 
-**O nome curto não funciona.** Para quem recebeu o compartilhamento,
-`servidor` sozinho não resolve; só o nome completo,
-`servidor.tail1234.ts.net`.
+**The short name doesn't work.** For whoever received the share, `servidor`
+alone doesn't resolve; only the full name, `servidor.tail1234.ts.net`.
 
-**O `servidor.local` deixou de resolver com o Tailscale ligado.** No Android,
-os nomes `.local` não resolvem com a VPN ligada nem nos dados móveis. Use o
-endereço `https://`.
+**`servidor.local` stopped resolving with Tailscale on.** On Android, `.local`
+names don't resolve with the VPN on, not even on mobile data. Use the
+`https://` address.
 
-**O primeiro acesso demorou.** É a emissão do certificado. Os seguintes são
-imediatos.
+**The first access was slow.** It is the certificate being issued. The next
+ones are immediate.
 
-**O botão de instalar não aparece.** Confira se o endereço é `https://`. Em
-`http://`, inclusive pelo IP da rede de casa, o navegador não instala.
+**The install button doesn't appear.** Check that the address is `https://`.
+On `http://`, even by the home network IP, the browser doesn't install.

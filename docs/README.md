@@ -1,62 +1,63 @@
-# Documentação do dwnvr
+# dwnvr documentation
 
-O [README da raiz](../README.md) responde "o que é, com o quê, como rodo".
-Aqui ficam as respostas longas.
+The [root README](../README.md) answers "what is it, what does it need, how do
+I run it". The long answers live here.
 
-## Para operar
+## Operating
 
-- [operations.md](operations.md) - o dia a dia: onde ficam os arquivos, como
-  copiar um trecho da gravação, como ler logs, como inspecionar um container
-  sem shell
-- [configuration.md](configuration.md) - os dois arquivos de configuração, a
-  política por câmera, retenção e o custo de cada modo de áudio
-- [remote-access.md](remote-access.md) - o dwnvr em `https://` de qualquer
-  lugar e instalável como app, pelo Tailscale, sem expor o servidor; dar
-  acesso a outras pessoas
-- [https-local-network.md](https-local-network.md) - o dwnvr em `https://` só
-  na rede de casa, sem o Tailscale: o Caddy na frente e a CA dele em cada
-  aparelho
+- [operations.md](operations.md) - day to day: where the files are, how to copy
+  a stretch of a recording, how to read the logs, how to inspect a container
+  without a shell
+- [configuration.md](configuration.md) - the two configuration files, the
+  per-camera policy, retention and the cost of each audio mode
+- [remote-access.md](remote-access.md) - dwnvr on `https://` from anywhere and
+  installable as an app, through Tailscale, without exposing the server; giving
+  other people access
+- [https-local-network.md](https-local-network.md) - dwnvr on `https://` on the
+  home network only, without Tailscale: Caddy in front and its CA on each
+  device
 
-## Para atualizar
+## Upgrading
 
-- [upgrading.md](upgrading.md) - o guia da atualização para a 1.0.0, em inglês:
-  o que renomear antes de subir a versão nova
+- [upgrading.md](upgrading.md) - the upgrade guide to 1.0.0: what to rename
+  before bringing the new version up
 
-## Para entender
+## Understanding
 
-- [architecture.md](architecture.md) - o formato em disco: por que consumir o
-  fMP4 do go2rtc, o índice NDJSON, o init identificado por hash
-- [detection.md](detection.md) - a detecção de movimento e de objetos: o fluxo
-  de um quadro até a marca, o `dwnvr-detect`, o custo e os limites do modelo
-- [resilience.md](resilience.md) - os dois modos de falha reais: queda de
-  energia e go2rtc que emudece sem avisar
-- [api.md](api.md) - referência dos endpoints HTTP
+- [architecture.md](architecture.md) - the on-disk format: why it consumes the
+  go2rtc fMP4, the NDJSON index, the init segment identified by hash
+- [detection.md](detection.md) - motion and object detection: the flow from a
+  frame to the mark, `dwnvr-detect`, the cost and the limits of the model
+- [resilience.md](resilience.md) - the two real failure modes: power loss and a
+  go2rtc that goes silent without warning
+- [api.md](api.md) - HTTP endpoint reference
 
-## Para manter o repositório
+## Maintaining the repository
 
-- [github.md](github.md) - o que está ligado no GitHub (Dependabot, CodeQL,
-  secret scanning, ruleset na `main`), o comando de cada coisa e o que fazer
-  com o PR do Dependabot
+- [github.md](github.md) - what is turned on in GitHub (Dependabot, CodeQL,
+  secret scanning, the ruleset on `main`), the command for each thing and what
+  to do with a Dependabot PR
 
-## Medições e investigações
+## Measurements and investigations
 
-Documentos datados, que registram como cada premissa foi verificada. Não são
-mantidos atualizados: valem como evidência do que foi medido, quando.
+Dated documents that record how each assumption was verified. They are not kept
+up to date: they stand as evidence of what was measured, and when.
 
-- [phase0-results.md](phase0-results.md) - os testes de viabilidade que
-  validaram gravação e playback antes de existir projeto
-- [phase1-results.md](phase1-results.md) - recorder, índice e retenção
-- [phase2-results.md](phase2-results.md) - API HTTP
-- [phase3-results.md](phase3-results.md) - a interface
-- [phase4-results.md](phase4-results.md) - empacotamento Docker multi-arch
-- [audio-flac.md](audio-flac.md) - a medição do modo FLAC
-- [go2rtc-h265-parameter-sets.md](go2rtc-h265-parameter-sets.md) - o go2rtc
-  grava parameter sets falsos no container H265, e por que isso não quebra a
-  reprodução
+- [phase0-results.md](phase0-results.md) - the feasibility tests that validated
+  recording and playback before the project existed
+- [phase1-results.md](phase1-results.md) - recorder, index and retention
+- [phase2-results.md](phase2-results.md) - HTTP API
+- [phase3-results.md](phase3-results.md) - the UI
+- [phase4-results.md](phase4-results.md) - multi-arch Docker packaging
+- [audio-flac.md](audio-flac.md) - the measurement of FLAC mode
+- [go2rtc-h265-parameter-sets.md](go2rtc-h265-parameter-sets.md) - go2rtc
+  writes fake parameter sets into the H265 container, and why that doesn't
+  break playback
 
-## Defeitos conhecidos
+## Known defects
 
-[TODO/](TODO/) - um arquivo por defeito ou pendência encontrada fora do escopo
-da tarefa em que apareceu, para não se perder nem alargar aquela tarefa.
+[TODO/](TODO/) - one file per defect or pending item found outside the scope of
+the task where it showed up, so it is neither lost nor allowed to widen that
+task.
 
-A interface tem documentação própria em [`web/README.md`](../web/README.md).
+The UI has its own documentation in [`web/README.md`](../web/README.md).

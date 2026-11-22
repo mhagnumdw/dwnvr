@@ -60,7 +60,7 @@ jobs:
         run: |
           (cd web && npm ci --no-audit --no-fund && npm run build)
           if ! git diff --quiet internal/api/dist; then
-            doc="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/main/docs/github.md#pr-do-dependabot-em-web"
+            doc="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/main/docs/github.md#dependabot-pr-in-web"
             echo "::error title=internal/api/dist desatualizado::Rode 'make web' e faça commit do internal/api/dist. Em PR do Dependabot, veja $doc"
             git diff --stat internal/api/dist
             exit 1
