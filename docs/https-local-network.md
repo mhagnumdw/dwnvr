@@ -9,7 +9,7 @@ aparelho que abre o dwnvr passa a confiar nessa CA, uma vez, e daí em diante o
 navegador trata o endereço como seguro e **oferece instalar a tela como app**.
 
 Só vale dentro de casa. Para abrir também fora dela, o caminho é o
-[acesso remoto](acesso-remoto.md), pelo Tailscale, que resolve o `https://`
+[acesso remoto](remote-access.md), pelo Tailscale, que resolve o `https://`
 nos dois lugares.
 
 - [Por que HTTPS](#por-que-https)
@@ -39,7 +39,7 @@ aparelho comprometido na mesma rede lê os dois, e com o cookie entra sem saber
 a senha.
 
 O `https://` também libera no navegador o que a
-[§Por que HTTPS](acesso-remoto.md#por-que-https) do acesso remoto lista:
+[§Por que HTTPS](remote-access.md#por-que-https) do acesso remoto lista:
 instalar como app, compartilhar a imagem e as miniaturas por WebCodecs.
 
 ## O que muda e o que custa
@@ -55,7 +55,7 @@ instalar como app, compartilhar a imagem e as miniaturas por WebCodecs.
   uma CA nova, e cada aparelho tem de instalar a nova.
 - **O endereço é o IP do servidor**, que por isso precisa ser fixo.
 - **O TLS gasta CPU no servidor.** O do `tailscale serve` foi medido (ver
-  [§O custo](acesso-remoto.md#3-o-custo)); o do Caddy, não. Em memória, o
+  [§O custo](remote-access.md#3-o-custo)); o do Caddy, não. Em memória, o
   Caddy ocupou perto de 15 MB, medido num PC.
 
 ## O servidor
@@ -130,7 +130,7 @@ mão.
 ```sh
 cat > docker-compose.override.yml <<'EOF'
 # O Caddy na frente do dwnvr, com HTTPS na rede de casa.
-# Ver docs/https-na-rede-local.md.
+# Ver docs/https-local-network.md.
 services:
   dwnvr:
     # A 8080 abre só no próprio servidor: a rede de casa entra pelo Caddy.
@@ -327,7 +327,7 @@ Nada muda. As URLs da tela são relativas, e o WebSocket do ao vivo passa a
 O Caddy também diz ao dwnvr o endereço de quem abriu a tela
 (`X-Forwarded-For`), e é por ele que o login conta as tentativas de cada
 aparelho (ver
-[Limite de tentativas no login](configuracao.md#limite-de-tentativas-no-login)).
+[Limite de tentativas no login](configuration.md#limite-de-tentativas-no-login)).
 O dwnvr aceita esse header porque o Caddy chega pela rede do compose, que está
 no `trustedProxies` padrão. O Caddy descarta o header que o aparelho mandar
 (conferido com o 2.11.7), então ninguém escapa do limite inventando um
@@ -335,7 +335,7 @@ endereço.
 
 A mídia do WebRTC continua indo direto do navegador para a porta 8555 do
 go2rtc, fora do Caddy, como antes (ver
-[§O ao vivo e a porta 8555](acesso-remoto.md#o-ao-vivo-e-a-porta-8555)).
+[§O ao vivo e a porta 8555](remote-access.md#o-ao-vivo-e-a-porta-8555)).
 
 ## Validade e renovação
 

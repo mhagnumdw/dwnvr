@@ -121,7 +121,7 @@ funciona com a marcação de movimento ligada e o detector de objetos
 configurado; sem eles, a aba diz o que falta. O alerta vai para o log, fica
 marcado na detecção, que Detecções filtra, e, com a lista de
 [Alerta por e-mail](#alerta-por-e-mail), sai por e-mail (ver
-[`deteccao.md`](deteccao.md#o-alerta)). Mudar o alerta não reinicia a
+[`detection.md`](detection.md#o-alerta)). Mudar o alerta não reinicia a
 gravação.
 
 ```json
@@ -244,7 +244,7 @@ Mudar qualquer um dos três **não reabre a conexão**: o gravador troca o gatil
 no quadro seguinte, sem abrir buraco na gravação.
 
 Como o destaque, o onset e os níveis funcionam por dentro está em
-[`deteccao.md`](deteccao.md).
+[`detection.md`](detection.md).
 
 ## Detector de objetos
 
@@ -284,7 +284,7 @@ a um reinício: depois dele, cada objeto parado aparece uma vez como se tivesse
 acabado de chegar.
 
 O caminho inteiro, do quadro à marca de objeto, o que acontece quando o
-detector cai e os limites do modelo estão em [`deteccao.md`](deteccao.md).
+detector cai e os limites do modelo estão em [`detection.md`](detection.md).
 
 ## Retenção
 
@@ -371,8 +371,8 @@ mandar esse header, inventando um endereço a cada tentativa. Por isso o
 
 O padrão cobre o loopback e a faixa que o Docker usa para as redes do compose.
 É por ela que chegam os dois caminhos de HTTPS desta documentação: o
-`tailscale serve` do [acesso remoto](acesso-remoto.md), pelo gateway da rede do
-compose, e o Caddy do [HTTPS na rede de casa](https-na-rede-local.md), pelo IP
+`tailscale serve` do [acesso remoto](remote-access.md), pelo gateway da rede do
+compose, e o Caddy do [HTTPS na rede de casa](https-local-network.md), pelo IP
 do container dele. Os dois põem no header o endereço de quem conectou, no lugar
 do que o aparelho tiver mandado. Isso foi conferido em 13/10/2026 com o
 `tailscale serve` 1.102 e o Caddy 2.11.7. Quem abre direto na 8080 pela rede de
@@ -483,7 +483,7 @@ A lista de quem recebe o alerta de detecção de toda câmera com alerta ligado
 (ver o `alert` em [Política por câmera](#política-por-câmera)), numa mensagem
 só para todos: cinco endereços são um envio. O alerta sai pela seção `smtp`,
 a mesma do link de definir a senha; aqui fica só quem recebe. A mensagem, com
-o quadro e o botão que abre a gravação, está em [O alerta](deteccao.md#o-alerta);
+o quadro e o botão que abre a gravação, está em [O alerta](detection.md#o-alerta);
 o botão precisa do [endereço do dwnvr](#endereço-do-dwnvr).
 
 | Campo | O que é | Sem escrever |
@@ -520,7 +520,7 @@ servidor confere a seção `smtp`. Depois que alguma câmera liga o alerta:
   cheia, vira um Aviso amarelo, que diz quantos e por quê, e some uma hora
   depois do último. Ele continua gravado em Detecções. O teto protege a conta
   de e-mail do limite diário do provedor (ver
-  os limites em [O alerta](deteccao.md#o-alerta));
+  os limites em [O alerta](detection.md#o-alerta));
 - **os números do envio** (enviados, falhas e o último resultado) ficam no
   grupo **Alertas por e-mail** do card Este servidor.
 
@@ -542,7 +542,7 @@ alerta.
 | `server.publicUrl` | opcional; o endereço do dwnvr, como `https://dwnvr.exemplo.ts.net` | nada deixa de funcionar: o e-mail de alerta sai sem o botão e pede, no lugar, que o administrador o defina |
 
 Escolha o endereço que abre de onde a pessoa estiver quando ler o e-mail: com o
-[acesso remoto](acesso-remoto.md), o `https://….ts.net`. Um caminho no fim
+[acesso remoto](remote-access.md), o `https://….ts.net`. Um caminho no fim
 serve para o dwnvr atrás de um proxy num subcaminho
 (`https://exemplo.com/dwnvr`), e a `/` do fim é ignorada. O que não for um
 endereço `http://` ou `https://`, ou tiver `?`, `#` ou usuário e senha, vira

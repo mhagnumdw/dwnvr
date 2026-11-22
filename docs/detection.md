@@ -4,7 +4,7 @@ A detecção põe na timeline duas coisas que a gravação sozinha não diz: **q
 houve movimento e, com o detector de objetos, **o que** era (pessoa, veículo ou
 animal). Ela é opcional e vem desligada. Quem só grava não paga nada por ela.
 
-Como ligar e configurar está em [`configuracao.md`](configuracao.md). Aqui fica
+Como ligar e configurar está em [`configuration.md`](configuration.md). Aqui fica
 como ela funciona por dentro, e por quê.
 
 - [O que ela faz, e o que não faz](#o-que-ela-faz-e-o-que-não-faz)
@@ -206,7 +206,7 @@ GET  /health              o HEALTHCHECK do Docker e o card "Este servidor"
   decodificado, e a caixa, sendo fração, cai no lugar certo sobre ele em
   qualquer tamanho. Medido em quadros reais: 13,8 KB a 480 px com qualidade
   75, e ~11 ms para encodar. O dwnvr o grava em `frames/{dia}/{atMs}.jpg`, ver
-  [`arquitetura.md`](arquitetura.md).
+  [`architecture.md`](architecture.md).
 - **O `minScore`** é a menor confiança que ele devolve, de qualquer classe. O dwnvr
   manda 0,20, bem abaixo do corte de 0,40, porque o rastreio aprende também com
   caixa fraca.
@@ -267,7 +267,7 @@ liberado depois de 5 olhadas. Volta, e marca de novo.
 ## O alerta
 
 O alerta é o campo `alert` da câmera (ver
-[`configuracao.md`](configuracao.md#política-por-câmera)): as famílias que
+[`configuration.md`](configuration.md#política-por-câmera)): as famílias que
 avisam e, se houver, as áreas em que o objeto precisa cair, cada uma pela
 própria regra, e os horários em que ele sai. Sem áreas, vale a imagem
 inteira; sem horários, a qualquer hora.
@@ -309,7 +309,7 @@ que não saíram.
 
 **Por e-mail**, com a lista `alerts.email.to` e a seção `smtp` do
 `dwnvr.yaml` (ver
-[`configuracao.md`](configuracao.md#alerta-por-e-mail)): uma mensagem só para
+[`configuration.md`](configuration.md#alerta-por-e-mail)): uma mensagem só para
 a lista inteira, em HTML e com o texto puro junto, para o leitor de e-mail que
 não mostra HTML. O assunto diz a câmera, as áreas em que algum objeto caiu,
 entre parênteses, as famílias e a hora do onset, como
@@ -321,7 +321,7 @@ cada objeto que alertou, na cor da família, e o contorno tracejado das áreas d
 alerta, como Detecções mostra com o filtro "só alertas". Ele é desenhado uma
 vez por alerta, na goroutine de envio, e todo meio recebe o mesmo; se o desenho
 falhar, ele vai como foi olhado. Com o `server.publicUrl` (ver
-[`configuracao.md`](configuracao.md#endereço-do-dwnvr)), o botão **Ver na
+[`configuration.md`](configuration.md#endereço-do-dwnvr)), o botão **Ver na
 gravação** abre a tela Gravações na câmera e no instante do onset; sem ele, o
 servidor não sabe o endereço pelo qual é acessado, e no lugar do botão o
 e-mail pede ao administrador que o defina. O dia e a hora do link são os do
@@ -329,7 +329,7 @@ servidor, e a tela os lê no fuso do navegador: quem abre de outro fuso cai
 deslocado. O envio que falha vai ao log e vira um Aviso vermelho, que some no
 primeiro envio que der certo, e o alerta segue no registro. Como conferir a
 lista e o envio está em
-[`configuracao.md`](configuracao.md#alerta-por-e-mail).
+[`configuration.md`](configuration.md#alerta-por-e-mail).
 
 **Desligado, nada.** Se nenhuma câmera ligou o alerta desde que o dwnvr subiu,
 nada do alerta existe; a olhada de uma câmera sem alerta custa um `if`. Sem
@@ -375,7 +375,7 @@ espera e a goroutine de envio ficam com ela, paradas.
 - **Câmera movida, área errada:** é preciso redesenhar.
 - **O horário é o do servidor.** Com o fuso errado nele, o alerta sai nas
   horas erradas, como a timeline vira o dia na hora errada (ver
-  [`operacao.md`](operacao.md#problemas-comuns)). A seção Horários da aba
+  [`operations.md`](operations.md#problemas-comuns)). A seção Horários da aba
   Alerta mostra qual fuso vale.
 - **O objeto parado que chegou fora do horário** não avisa quando o horário
   começa: a marca é de chegada (ver
@@ -384,7 +384,7 @@ espera e a goroutine de envio ficam com ela, paradas.
 
 ## Os parâmetros, e onde eles moram
 
-**O que o usuário escolhe** - ver [`configuracao.md`](configuracao.md):
+**O que o usuário escolhe** - ver [`configuration.md`](configuration.md):
 
 | Onde | O quê |
 | --- | --- |

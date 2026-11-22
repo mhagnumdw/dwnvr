@@ -28,7 +28,7 @@ que a decodificação sai certa apesar do container mentir.
 
 > **Desde 12/10/2026 o dwnvr corrige o init na gravação**, trocando os
 > parameter sets dele pelos in-band (ver §Parameter sets do init em
-> [arquitetura.md](arquitetura.md#parameter-sets-do-init-o-dwnvr-corrige)). O
+> [architecture.md](architecture.md#parameter-sets-do-init-o-dwnvr-corrige)). O
 > motivo foi uma vítima real: no Chrome 154 de um Android 10, o decodificador
 > de hardware se guiava pelo init e as gravações de 640x360 apareciam com 1/4
 > do tamanho, no canto do quadro, no player e nas miniaturas. O ao vivo, que

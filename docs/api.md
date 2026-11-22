@@ -79,7 +79,7 @@ existe.
 
 Cada endereço tem um limite de tentativas, ligado por padrão e desligado com
 `server.loginAttemptsPerMinute: 0` (ver
-[Limite de tentativas no login](configuracao.md#limite-de-tentativas-no-login)).
+[Limite de tentativas no login](configuration.md#limite-de-tentativas-no-login)).
 Passado dele, a resposta é `429`, antes de qualquer conta de senha, com o
 `Retry-After` em segundos e o mesmo número no erro, como em
 `{"error": "muitas tentativas; tente de novo em 30 s"}`. O número é o que
@@ -105,7 +105,7 @@ troca a própria senha pela Minha conta recebe um cookie novo na mesma resposta
 e continua; os outros aparelhos dela voltam para o login. Para derrubar todo
 mundo de uma vez, ver
 [Trocar a senha e derrubar as
-sessões](operacao.md#trocar-a-senha-e-derrubar-as-sessões).
+sessões](operations.md#trocar-a-senha-e-derrubar-as-sessões).
 
 ### O link de convite
 
@@ -167,7 +167,7 @@ cair, mas não abre outra.
 | Endpoint | Parâmetros | O que faz |
 | --- | --- | --- |
 | `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs + para onde vai o alerta; para o viewer, só as câmeras (do `alert`, só o `enabled` quando ligado) e o `detector` |
-| `POST /api/cameras` | corpo JSON | **só admin**: cadastra ou altera (upsert por id); o campo que a câmera não definia e chega igual ao default não é gravado (ver [Política por câmera](configuracao.md#política-por-câmera)) |
+| `POST /api/cameras` | corpo JSON | **só admin**: cadastra ou altera (upsert por id); o campo que a câmera não definia e chega igual ao default não é gravado (ver [Política por câmera](configuration.md#política-por-câmera)) |
 | `DELETE /api/cameras` | `id`, `recordings=1` | **só admin**: descadastra; com `recordings=1` apaga as gravações junto |
 | `GET /api/streams/probe` | `src` | **só admin**: diz se um stream entrega áudio, abrindo-o se preciso |
 | `POST /api/go2rtc/restart` | - | **só admin**: reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
@@ -199,7 +199,7 @@ alert.schedules[0].to "06:00" fora do aceito: use uma hora depois do from 22:00;
 ```
 
 O formato das `areas` e do `alert` está em
-[Política por câmera](configuracao.md#política-por-câmera).
+[Política por câmera](configuration.md#política-por-câmera).
 
 O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
 consumindo: o go2rtc só preenche o `medias` do produtor enquanto existe
@@ -418,7 +418,7 @@ Os alertas em si ficam gravados na detecção, e se leem no `GET /api/detections
 
 Com algum meio de envio configurado, o alerta que não sai é descartado e
 contado: `queueFull` não coube na fila de envio, e `overLimit` passou do teto
-de `limitPerHour` (ver [O alerta](deteccao.md#o-alerta)). O `dropped` vem
+de `limitPerHour` (ver [O alerta](detection.md#o-alerta)). O `dropped` vem
 enquanto o episódio vale, até uma hora depois do último descarte (`lastAt`);
 o descarte seguinte começa outro, com a contagem do zero. É dele que sai o
 Aviso amarelo do card Avisos.
@@ -448,7 +448,7 @@ Aviso vermelho do card Avisos.
 ```
 
 A seção `alerts` do `dwnvr.yaml` com problema (ver
-[Alerta por e-mail](configuracao.md#alerta-por-e-mail)) põe os `warnings` no
+[Alerta por e-mail](configuration.md#alerta-por-e-mail)) põe os `warnings` no
 mesmo `alerts`, para o card Avisos e o sino, mesmo sem câmera com alerta, e
 então sem o `total`. Sem problema, eles não vêm.
 
@@ -463,7 +463,7 @@ apagar deixa gravações órfãs, e sem esse endpoint não haveria como recupera
 espaço pela interface.
 
 A seção `smtp` do `dwnvr.yaml` com problema deixa o e-mail desligado (ver
-[E-mail](configuracao.md#e-mail)), e o `/api/health` traz o motivo, para o card
+[E-mail](configuration.md#e-mail)), e o `/api/health` traz o motivo, para o card
 Avisos e o sino. Sem problema, o campo não vem.
 
 ```json
@@ -642,7 +642,7 @@ ali abriria travessia de diretório.
 
 A separação entre `/api/rec/init` e `/api/rec/seg` é o que permite ao player
 MSE baixar o init uma vez só e depois pedir apenas mídia. Ver
-[arquitetura.md](arquitetura.md#armazenamento).
+[architecture.md](architecture.md#armazenamento).
 
 **`/api/rec/events`** devolve os instantes crus, em ordem, que a faixa de calor
 da timeline desenha, e as marcas de objeto que o detector confirmou:

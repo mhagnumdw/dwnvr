@@ -35,7 +35,7 @@ E não resolve:
   no yaml (`chaveDaSessao`, em `internal/api/auth.go`).
 - **Quem tem root na máquina.**
 - **Tentar senhas pela tela de login.** Isso é o
-  [limite de tentativas](../configuracao.md#limite-de-tentativas-no-login). O
+  [limite de tentativas](../configuration.md#limite-de-tentativas-no-login). O
   hash deixa cada tentativa mais cara, mas não limita.
 
 Só o `server.password` pode virar hash. O `go2rtc.password` é a credencial que
@@ -178,7 +178,7 @@ Argon2id deixa de custar a dependência.
    derruba as sessões, como hoje. Gerar outro hash da mesma senha também
    derruba, porque o salt muda.
 7. **Uma verificação por vez**: cada uma custa 0,77 s de um núcleo no Orange
-   Pi. O [limite de tentativas](../configuracao.md#limite-de-tentativas-no-login)
+   Pi. O [limite de tentativas](../configuration.md#limite-de-tentativas-no-login)
    segura quem insiste de um endereço, mas não quem tenta de vários.
 8. **A flag `-hash-password`** no `cmd/dwnvr/main.go`, como a `-healthcheck`:
    pede a senha duas vezes, sem mostrar na tela, imprime o valor para o
@@ -216,7 +216,7 @@ Argon2id deixa de custar a dependência.
 - **README**, passo 5 (o login): como gerar o hash e onde colar. A frase da
   dependência única só muda se a escolha for o Argon2id.
 - **`dwnvr.example.yaml`**: o comentário do `server.password`.
-- **`docs/operacao.md`**, "Trocar a senha e derrubar as sessões": gerar o hash
+- **`docs/operations.md`**, "Trocar a senha e derrubar as sessões": gerar o hash
   da senha nova, e o aviso de que gerar outro da mesma senha também derruba.
 - **`docs/api.md`**, §Sessão: a chave sai do valor guardado, hash ou texto.
 - **Testes**: senha certa e errada com hash; o texto puro continua valendo;

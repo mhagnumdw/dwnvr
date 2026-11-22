@@ -360,10 +360,10 @@ em que o objeto caiu. Com a lista `alerts.email.to` e a seção `smtp` do
 `dwnvr.yaml`, ele também chega por e-mail, com o quadro já com as caixas e as
 áreas desenhadas e, com o `server.publicUrl`, um botão que abre a gravação no
 instante do alerta (ver
-[`docs/configuracao.md`](docs/configuracao.md#alerta-por-e-mail)); o bloco
+[`docs/configuration.md`](docs/configuration.md#alerta-por-e-mail)); o bloco
 **Para onde vai**, no fim da aba Alerta, diz se ele sai por e-mail e para
 quem. E ele avisa do que a detecção marcar, que não é toda chegada: não é
-alarme. Os limites estão em [`docs/deteccao.md`](docs/deteccao.md#o-alerta).
+alarme. Os limites estão em [`docs/detection.md`](docs/detection.md#o-alerta).
 
 ## Atualizar
 
@@ -417,16 +417,16 @@ quebra dá ao dwnvr um endereço `https://` com certificado válido. Dá também
 para dar acesso à família, cada pessoa com a própria conta e só ao dwnvr.
 
 No dwnvr não há nada para configurar. O passo a passo, do servidor a cada
-dispositivo, está em [`docs/acesso-remoto.md`](docs/acesso-remoto.md).
+dispositivo, está em [`docs/remote-access.md`](docs/remote-access.md).
 
 ## HTTPS
 
 O dwnvr serve só `http://`. Para o `https://`, há dois caminhos:
 
 - **em casa e fora dela**, pelo Tailscale:
-  [`docs/acesso-remoto.md`](docs/acesso-remoto.md);
+  [`docs/remote-access.md`](docs/remote-access.md);
 - **só em casa**, sem o Tailscale:
-  [`docs/https-na-rede-local.md`](docs/https-na-rede-local.md).
+  [`docs/https-local-network.md`](docs/https-local-network.md).
 
 ## A tela como app, no celular e no computador
 
@@ -531,7 +531,7 @@ ffplay "$(find storage/cam_teste1/2* -name '*.mp4' | head -1)"
 ```
 
 Como copiar um trecho da gravação, e o resto do dia a dia - logs, container
-sem shell -, está em [`docs/operacao.md`](docs/operacao.md).
+sem shell -, está em [`docs/operations.md`](docs/operations.md).
 
 ## Como funciona
 
@@ -562,13 +562,13 @@ recomenda configuração.
 do go2rtc, mas por enquanto não.
 
 O porquê de cada decisão de formato está em
-[`docs/arquitetura.md`](docs/arquitetura.md).
+[`docs/architecture.md`](docs/architecture.md).
 
 **A detecção é opcional**, e vem desligada. Ligada numa câmera, ela marca na
 timeline os instantes de movimento, calculados do tamanho dos quadros - de novo
 sem decodificar nada. Com o container `dwnvr-detect`, ela diz também se era
 pessoa, veículo ou animal. Como funciona e quanto custa, em
-[`docs/deteccao.md`](docs/deteccao.md).
+[`docs/detection.md`](docs/detection.md).
 
 ## Configuração
 
@@ -590,11 +590,11 @@ Tudo que é política de gravação é **por câmera**: qual stream do go2rtc us
 (alta ou baixa resolução), áudio, cota, tamanho do segmento, o limiar de
 inatividade e a detecção - ligada ou não, o mecanismo e o nível de
 sensibilidade, de 1 a 5. Detalhes, incluindo o custo de cada modo de áudio em
-CPU e disco, em [`docs/configuracao.md`](docs/configuracao.md).
+CPU e disco, em [`docs/configuration.md`](docs/configuration.md).
 
 O login limita as tentativas de cada endereço (`server.loginAttemptsPerMinute`,
 ligado por padrão), para ninguém testar senhas sem parar. Detalhes em
-[`docs/configuracao.md`](docs/configuracao.md#limite-de-tentativas-no-login).
+[`docs/configuration.md`](docs/configuration.md#limite-de-tentativas-no-login).
 
 O detector de objetos é opcional: um container à parte, `dwnvr-detect`,
 apontado por `detector.url` no `dwnvr.yaml`. Sem ele, a detecção marca só
@@ -603,22 +603,22 @@ movimento.
 O e-mail também é opcional: com a seção `smtp` do `dwnvr.yaml`, de qualquer
 provedor, o link de definir a senha vai direto para a pessoa. Detalhes, com o
 passo a passo do Gmail, em
-[`docs/configuracao.md`](docs/configuracao.md#e-mail). A lista
+[`docs/configuration.md`](docs/configuration.md#e-mail). A lista
 `alerts.email.to`, também opcional, diz quem recebe o alerta de detecção
 por e-mail (ver
-[`docs/configuracao.md`](docs/configuracao.md#alerta-por-e-mail)).
+[`docs/configuration.md`](docs/configuration.md#alerta-por-e-mail)).
 
 ## Documentação
 
 | Documento | Para quê |
 | --- | --- |
-| [`docs/operacao.md`](docs/operacao.md) | o dia a dia: arquivos, copiar um trecho da gravação, logs, container sem shell |
-| [`docs/configuracao.md`](docs/configuracao.md) | os dois arquivos, política por câmera, retenção, áudio |
-| [`docs/acesso-remoto.md`](docs/acesso-remoto.md) | `https://` de qualquer lugar, app instalável e acesso da família, sem expor o servidor |
-| [`docs/https-na-rede-local.md`](docs/https-na-rede-local.md) | `https://` só na rede de casa, sem o Tailscale: o Caddy e a CA em cada aparelho |
-| [`docs/arquitetura.md`](docs/arquitetura.md) | o formato em disco e por que ele é assim |
-| [`docs/deteccao.md`](docs/deteccao.md) | a detecção de movimento e de objetos: o fluxo, o custo e os limites |
-| [`docs/resiliencia.md`](docs/resiliencia.md) | queda de energia e o go2rtc que emudece sem avisar |
+| [`docs/operations.md`](docs/operations.md) | o dia a dia: arquivos, copiar um trecho da gravação, logs, container sem shell |
+| [`docs/configuration.md`](docs/configuration.md) | os dois arquivos, política por câmera, retenção, áudio |
+| [`docs/remote-access.md`](docs/remote-access.md) | `https://` de qualquer lugar, app instalável e acesso da família, sem expor o servidor |
+| [`docs/https-local-network.md`](docs/https-local-network.md) | `https://` só na rede de casa, sem o Tailscale: o Caddy e a CA em cada aparelho |
+| [`docs/architecture.md`](docs/architecture.md) | o formato em disco e por que ele é assim |
+| [`docs/detection.md`](docs/detection.md) | a detecção de movimento e de objetos: o fluxo, o custo e os limites |
+| [`docs/resilience.md`](docs/resilience.md) | queda de energia e o go2rtc que emudece sem avisar |
 | [`docs/api.md`](docs/api.md) | referência dos endpoints HTTP |
 | [`docs/upgrading.md`](docs/upgrading.md) | o guia da atualização para a 1.0.0, em inglês |
 | [`web/README.md`](web/README.md) | desenvolver a interface |

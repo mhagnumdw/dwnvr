@@ -85,7 +85,7 @@ Medido em 10/11/2026 no notebook, com o Go 1.27.1. O método está em
   `doc.go` e no CHANGELOG deles): um PR do Dependabot que suba só o `libc`
   quebra o build.
 - **Duas fontes da verdade.** Hoje o índice mora ao lado do vídeo, e o
-  [`docs/arquitetura.md`](../../arquitetura.md#armazenamento) não guarda o
+  [`docs/architecture.md`](../../architecture.md#armazenamento) não guarda o
   caminho do segmento porque "guardar os dois abriria espaço para divergirem".
   Com o índice no banco, a retenção que cai entre apagar a pasta e apagar as
   linhas, ou alguém que apaga ou restaura uma pasta à mão, deixam o banco

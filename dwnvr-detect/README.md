@@ -89,7 +89,7 @@ com 2, por ~10% a mais de CPU no total. Sem a variável, ele roda lá com 2
 threads: a metade dos 4 núcleos da placa. O container ocupa ~230 MB, com picos
 de ~250 MB. Quantas olhadas por hora ele faz depende de quantas câmeras têm a
 detecção ligada e do nível de sensibilidade de cada uma: ver
-`docs/configuracao.md`.
+`docs/configuration.md`.
 
 ## Build local
 

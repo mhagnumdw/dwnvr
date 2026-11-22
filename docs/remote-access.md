@@ -9,7 +9,7 @@ O caminho é o [Tailscale](https://tailscale.com): uma VPN que liga os seus
 dispositivos ao servidor sem abrir porta no roteador, e que emite o certificado
 do `https://`. No dwnvr não há nada para configurar.
 
-> Para o `https://` só dentro de casa, sem o Tailscale, ver [https-na-rede-local.md](https-na-rede-local.md).
+> Para o `https://` só dentro de casa, sem o Tailscale, ver [https-local-network.md](https-local-network.md).
 
 - [Por que HTTPS](#por-que-https)
 - [Por que não expor o servidor na internet](#por-que-não-expor-o-servidor-na-internet)
@@ -55,7 +55,7 @@ Abrir uma porta no roteador, ou publicar o dwnvr por um túnel público (como o
 Tailscale Funnel ou o Cloudflare Tunnel), deixa a tela de login à vista de
 qualquer um. O login do dwnvr passa a ser a única proteção das câmeras, e ele
 não foi feito para isso: o
-[limite de tentativas](configuracao.md#limite-de-tentativas-no-login) é por
+[limite de tentativas](configuration.md#limite-de-tentativas-no-login) é por
 endereço, e quem tenta de muitos endereços ao mesmo tempo não é contido por
 ele.
 
@@ -111,7 +111,7 @@ ao vivo passa a `wss://` sozinho. O `serve` avisa que a conexão chegou por
 HTTPS (`X-Forwarded-Proto`), e com isso o cookie de sessão sai `Secure`. Ele
 também diz o endereço do tailnet de quem abriu a tela (`X-Forwarded-For`), e é
 por ele que o login conta as tentativas de cada dispositivo (ver
-[Limite de tentativas no login](configuracao.md#limite-de-tentativas-no-login)).
+[Limite de tentativas no login](configuration.md#limite-de-tentativas-no-login)).
 O `serve` descarta o header que o dispositivo mandar, então ninguém escapa do
 limite inventando um endereço.
 
@@ -303,7 +303,7 @@ de casa pelo VPN On Demand. O endereço é o mesmo nos dois caminhos, então
 decidir depois não gera retrabalho.
 
 Sem o Tailscale em lugar nenhum, nem no servidor, o caminho é outro:
-[https-na-rede-local.md](https-na-rede-local.md).
+[https-local-network.md](https-local-network.md).
 
 ## Problemas comuns
 

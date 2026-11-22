@@ -138,7 +138,7 @@ juntas são duas linhas de `person` no mesmo instante, cada uma com a sua caixa:
 ```
 
 O arquivo do dia sai junto com o vídeo do dia na retenção. O que cada campo
-quer dizer está em [`deteccao.md`](deteccao.md).
+quer dizer está em [`detection.md`](detection.md).
 
 ### `frames/`: a imagem da detecção
 

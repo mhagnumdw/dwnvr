@@ -58,5 +58,5 @@ estabelecer a sessão RTSP com a câmera - legitimamente mais lento que entregar
 próximo fragmento de um stream que já está correndo.
 
 O limiar é ajustável por câmera: veja `stallSeconds` em
-[configuracao.md](configuracao.md). A implementação está em
+[configuration.md](configuration.md). A implementação está em
 [`internal/go2rtc/client.go`](../internal/go2rtc/client.go).

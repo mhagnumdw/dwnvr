@@ -113,11 +113,11 @@ streams:
   #
   #    Já o modo "flac" não pede nada aqui - a conversão acontece dentro do
   #    go2rtc, em Go puro. O custo de cada modo em CPU e disco está em
-  #    docs/configuracao.md.
+  #    docs/configuration.md.
 
   # ATENÇÃO ao áudio: NÃO acrescente "#media=video" à fonte se quiser gravar
   # som. Esse filtro descarta o áudio já na origem, e nenhuma configuração do
-  # dwnvr o traz de volta. Ver docs/configuracao.md.
+  # dwnvr o traz de volta. Ver docs/configuration.md.
 
   # Tudo que dá para escrever nesta seção - ONVIF, HTTP, USB, backchannel,
   # opções de transporte - está documentado no go2rtc, que é quem manda aqui:

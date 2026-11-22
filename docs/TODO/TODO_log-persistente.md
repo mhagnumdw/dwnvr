@@ -31,7 +31,7 @@ instalação de teste (Orange Pi Zero 3 com Armbian, cartão SD).
 - **Arquivo próprio no dwnvr-detect.** Ele quase não escreve, e o arquivo
   exigiria um volume novo para uma imagem que roda como UID 65534: a pasta
   criada pelo Docker nasceria de root e ele não conseguiria escrever.
-- **Documentar agora os drivers do Docker no `docs/operacao.md`.** Fica para
+- **Documentar agora os drivers do Docker no `docs/operations.md`.** Fica para
   depois (ver o fim).
 
 ## O problema
@@ -111,8 +111,8 @@ que ser reservado nos dois lugares: o `Orphans` ignora a pasta, e o
    ele. O log não pode derrubar a gravação.
 5. Escrever direto, sem buffer próprio: numa queda de energia se perdem só as
    últimas linhas, que ainda estavam no cache do sistema.
-6. O resto (campo no `config.go`, `dwnvr.example.yaml`, `docs/configuracao.md`,
-   `docs/operacao.md`) está na tabela de repercussões do `AGENTS.md`. Não é
+6. O resto (campo no `config.go`, `dwnvr.example.yaml`, `docs/configuration.md`,
+   `docs/operations.md`) está na tabela de repercussões do `AGENTS.md`. Não é
    mudança incompatível: quem atualiza ganha o arquivo sem precisar agir.
 
 Extensão possível, só se fizer falta: o Diagnóstico ler o arquivo para mostrar
@@ -120,7 +120,7 @@ também os avisos de antes do último reinício, que hoje se perdem com a memór
 
 ## Fica para depois
 
-- **Documentar os drivers do Docker no `docs/operacao.md`:** o `daemon.json` do
+- **Documentar os drivers do Docker no `docs/operations.md`:** o `daemon.json` do
   host com `json-file` mais `max-size`, ou o `journald`. Resolveria o
   crescimento sem limite do go2rtc e do dwnvr-detect sem tocar no compose.
 - **Mudar o nível de log em tempo de execução.** Hoje o nível só se escolhe na

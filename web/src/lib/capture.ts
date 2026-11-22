@@ -55,7 +55,7 @@ export async function downloadFrame(
   // places than it seems: the Web Share API is [SecureContext], so on a dwnvr
   // served over http:// not even `navigator.canShare` gets defined, and the
   // phone downloads just like the desktop. It is not a defect, it is the
-  // address; see docs/acesso-remoto.md.
+  // address; see docs/remote-access.md.
   if ('canShare' in navigator && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });

@@ -24,7 +24,7 @@
 // camera, on hardware the size of an Orange Pi Zero 3.
 //
 // Everything here was measured on real recordings before it was written. What
-// detection does, and why, is in docs/deteccao.md.
+// detection does, and why, is in docs/detection.md.
 package detect
 
 // This file holds ALL of the package's numbers. A number loose in the middle

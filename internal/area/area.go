@@ -4,7 +4,7 @@
 //
 // The area doesn't change what the detection records. It is a filter in
 // Detections and, later, decides whether the alert goes out (see "O alerta" in
-// docs/deteccao.md).
+// docs/detection.md).
 //
 // Everything is a fraction of the frame, from 0 to 1, like the box: the area
 // applies to the detection frame and to the segment keyframe, at any

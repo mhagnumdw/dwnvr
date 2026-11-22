@@ -19,7 +19,7 @@ server:
 
   # Limite de tentativas de login por endereço: 5 seguidas e, depois, este
   # tanto por minuto. 0 desliga; o aceito vai de 0 a 12. Ver
-  # docs/configuracao.md, "Limite de tentativas no login".
+  # docs/configuration.md, "Limite de tentativas no login".
   # loginAttemptsPerMinute: 2
 
   # Os proxies cujo X-Forwarded-For diz o endereço de verdade de quem tenta o
@@ -30,7 +30,7 @@ server:
   # Opcional. O endereço pelo qual se abre o dwnvr, como na barra do
   # navegador. Com ele, o e-mail de alerta traz o botão que abre a gravação no
   # instante. Sem ele, nada deixa de funcionar: o e-mail sai sem o botão e
-  # pede ao administrador que o defina. Ver docs/configuracao.md, "Endereço do
+  # pede ao administrador que o defina. Ver docs/configuration.md, "Endereço do
   # dwnvr".
   # publicUrl: https://dwnvr.exemplo.ts.net
 
@@ -52,7 +52,7 @@ go2rtc:
 #
 # Ele custa CPU e RAM de verdade - ~6,5 s de um núcleo e ~210 MB por olhada no
 # Orange Pi Zero 3 -, e só olha as câmeras com `detect` ligado. Ver
-# docs/configuracao.md.
+# docs/configuration.md.
 # detector:
 #   url: http://dwnvr-detect:8480
 
@@ -61,7 +61,7 @@ go2rtc:
 # SMTP; sem esta seção, o dwnvr não envia e-mail nenhum. Uma seção com
 # problema não impede o dwnvr de subir: o e-mail fica desligado, e o motivo vai
 # para o log e para os avisos da tela de Diagnóstico. O teste fica no card
-# "Este servidor" de lá. Ver docs/configuracao.md, "E-mail", com o passo a
+# "Este servidor" de lá. Ver docs/configuration.md, "E-mail", com o passo a
 # passo do Gmail.
 # smtp:
 #   host: smtp.gmail.com
@@ -81,7 +81,7 @@ go2rtc:
 # só serve com a seção smtp acima. Só o endereço, sem nome na frente: o que não
 # for endereço fica de fora da lista e vira aviso no Diagnóstico. Um endereço
 # só também serve sem os colchetes (to: fulano@exemplo.com). Ver
-# docs/configuracao.md, "Alerta por e-mail".
+# docs/configuration.md, "Alerta por e-mail".
 # alerts:
 #   email:
 #     to: [fulano@exemplo.com, ciclana@exemplo.com]
@@ -168,5 +168,5 @@ defaults:
   #   4 alta          50 marcas/hora   pega 41,5%
   #   5 muito alta   100 marcas/hora   pega 57,4%   <- padrão
   #
-  # As duas colunas são medidas, não estimadas: ver docs/configuracao.md.
+  # As duas colunas são medidas, não estimadas: ver docs/configuration.md.
   detectSensitivity: 5

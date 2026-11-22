@@ -5,15 +5,15 @@ Aqui ficam as respostas longas.
 
 ## Para operar
 
-- [operacao.md](operacao.md) - o dia a dia: onde ficam os arquivos, como
+- [operations.md](operations.md) - o dia a dia: onde ficam os arquivos, como
   copiar um trecho da gravação, como ler logs, como inspecionar um container
   sem shell
-- [configuracao.md](configuracao.md) - os dois arquivos de configuração, a
+- [configuration.md](configuration.md) - os dois arquivos de configuração, a
   política por câmera, retenção e o custo de cada modo de áudio
-- [acesso-remoto.md](acesso-remoto.md) - o dwnvr em `https://` de qualquer
+- [remote-access.md](remote-access.md) - o dwnvr em `https://` de qualquer
   lugar e instalável como app, pelo Tailscale, sem expor o servidor; dar
   acesso a outras pessoas
-- [https-na-rede-local.md](https-na-rede-local.md) - o dwnvr em `https://` só
+- [https-local-network.md](https-local-network.md) - o dwnvr em `https://` só
   na rede de casa, sem o Tailscale: o Caddy na frente e a CA dele em cada
   aparelho
 
@@ -24,11 +24,11 @@ Aqui ficam as respostas longas.
 
 ## Para entender
 
-- [arquitetura.md](arquitetura.md) - o formato em disco: por que consumir o
+- [architecture.md](architecture.md) - o formato em disco: por que consumir o
   fMP4 do go2rtc, o índice NDJSON, o init identificado por hash
-- [deteccao.md](deteccao.md) - a detecção de movimento e de objetos: o fluxo
+- [detection.md](detection.md) - a detecção de movimento e de objetos: o fluxo
   de um quadro até a marca, o `dwnvr-detect`, o custo e os limites do modelo
-- [resiliencia.md](resiliencia.md) - os dois modos de falha reais: queda de
+- [resilience.md](resilience.md) - os dois modos de falha reais: queda de
   energia e go2rtc que emudece sem avisar
 - [api.md](api.md) - referência dos endpoints HTTP
 
@@ -43,12 +43,12 @@ Aqui ficam as respostas longas.
 Documentos datados, que registram como cada premissa foi verificada. Não são
 mantidos atualizados: valem como evidência do que foi medido, quando.
 
-- [fase0-resultados.md](fase0-resultados.md) - os testes de viabilidade que
+- [phase0-results.md](phase0-results.md) - os testes de viabilidade que
   validaram gravação e playback antes de existir projeto
-- [fase1-resultados.md](fase1-resultados.md) - recorder, índice e retenção
-- [fase2-resultados.md](fase2-resultados.md) - API HTTP
-- [fase3-resultados.md](fase3-resultados.md) - a interface
-- [fase4-resultados.md](fase4-resultados.md) - empacotamento Docker multi-arch
+- [phase1-results.md](phase1-results.md) - recorder, índice e retenção
+- [phase2-results.md](phase2-results.md) - API HTTP
+- [phase3-results.md](phase3-results.md) - a interface
+- [phase4-results.md](phase4-results.md) - empacotamento Docker multi-arch
 - [audio-flac.md](audio-flac.md) - a medição do modo FLAC
 - [go2rtc-h265-parameter-sets.md](go2rtc-h265-parameter-sets.md) - o go2rtc
   grava parameter sets falsos no container H265, e por que isso não quebra a
