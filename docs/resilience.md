@@ -1,62 +1,66 @@
-# Resiliência: como o dwnvr sobrevive a quedas e a streams mudos
+# Resilience: how dwnvr survives outages and silent streams
 
-Um NVR passa 24 horas por dia esperando que nada dê errado, e o que dá errado
-raramente avisa. Este documento descreve os dois modos de falha que o dwnvr
-enfrenta de verdade - o corte de energia e o go2rtc que emudece - e a defesa
-que existe contra cada um.
+An NVR spends 24 hours a day waiting for nothing to go wrong, and what does go
+wrong rarely announces itself. This document describes the two failure modes
+dwnvr faces for real - a power cut and a go2rtc that goes silent - and the
+defense against each.
 
-- [Recuperação de queda](#recuperação-de-queda)
-- [Quando o go2rtc emudece](#quando-o-go2rtc-emudece)
+- [Recovering from an outage](#recovering-from-an-outage)
+- [When go2rtc goes silent](#when-go2rtc-goes-silent)
 
-## Recuperação de queda
+## Recovering from an outage
 
-O índice é escrito **depois** que o segmento é fechado. Uma queda entre as duas
-coisas deixa um arquivo órfão, que a reconciliação do boot reincorpora sondando
-o arquivo. A ordem inversa deixaria o índice apontando para algo que nunca
-existiu.
+The index is written **after** the segment is closed. An outage between the two
+leaves an orphan file, which the boot reconciliation adopts again by probing
+the file. The reverse order would leave the index pointing at something that
+never existed.
 
-Num corte de energia de verdade, a ordem não basta: a linha do índice tem
-`Sync` e o vídeo não, então o disco pode ficar com a linha e um arquivo de zero
-byte. Por isso a reconciliação apaga todo segmento de zero byte, e a linha dele
-sai do índice. Órfão sem init ou sem fragmento também não entra. Segmento sem
-vídeo vira buraco na timeline, e não um trecho que não toca. Um `Sync` por
-segmento evitaria a perda, mas seria um fsync por câmera a cada 30 s num HD
-USB, para salvar meio minuto de vídeo.
+In a real power cut, the order is not enough: the index line is `Sync`ed and
+the video is not, so the disk can end up with the line and a zero-byte file.
+That is why the reconciliation deletes every zero-byte segment, and its line
+leaves the index. An orphan without an init or without a fragment doesn't get
+in either. A segment without video becomes a gap in the timeline, and not a
+stretch that won't play. A `Sync` per segment would avoid the loss, but it
+would be one fsync per camera every 30 s on a USB HDD, to save half a minute of
+video.
 
-Só o dia mais recente é reconciliado: é onde mora o estrago de uma queda, e
-conferir só ele evita varrer centenas de milhares de arquivos a cada boot.
+Only the most recent day is reconciled: that is where the damage from an outage
+lives, and checking only it avoids scanning hundreds of thousands of files on
+every boot.
 
-Verificado no Orange Pi Zero 3: `kill -9` deixou 1 órfão de 786.432 bytes (a
-cauda bufferizada se perdeu); o reinício o reincorporou com a duração correta.
+Verified on the Orange Pi Zero 3: `kill -9` left 1 orphan of 786,432 bytes (the
+buffered tail was lost); the restart adopted it again with the correct
+duration.
 
-## Quando o go2rtc emudece
+## When go2rtc goes silent
 
-A falha mais perigosa de um NVR não é parar de gravar: é parar de gravar **sem
-avisar**. E o go2rtc produz exatamente isso.
+The most dangerous failure of an NVR is not stopping recording: it is stopping
+recording **without telling anyone**. And go2rtc produces exactly that.
 
-Os produtores RTSP dele rodam sobre UDP. Quando o fluxo da câmera para, não há
-erro de socket nenhum - o go2rtc simplesmente deixa de escrever, com a resposta
-HTTP aberta. Do lado de cá, `Read` bloqueia para sempre: sem erro, sem EOF, sem
-log, e nada aciona a reconexão.
+Its RTSP producers run over UDP. When the camera's flow stops, there is no
+socket error at all - go2rtc simply stops writing, with the HTTP response left
+open. On our side, `Read` blocks forever: no error, no EOF, no log, and nothing
+triggers the reconnection.
 
-Aconteceu em 09/08/2026: as 9 câmeras pararam às 08:18. Quatro voltaram sozinhas
-2h30 depois, quando o go2rtc recriou o produtor por conta própria. Cinco ficaram
-**3h38 paradas** reportando `connected: true` e `reconnects: 0`. Enquanto isso o
-log acumulava 380 avisos - todos sobre 404 de miniatura, nenhum sobre as câmeras.
+It happened on 2026-08-09: all 9 cameras stopped at 08:18. Four came back on
+their own 2h30 later, when go2rtc recreated the producer by itself. Five stayed
+**stopped for 3h38** reporting `connected: true` and `reconnects: 0`. Meanwhile
+the log piled up 380 warnings - all about thumbnail 404s, none about the
+cameras.
 
-Por isso todo stream aberto carrega um limiar de inatividade (`stallSeconds`,
-15s por padrão): passou disso sem receber um byte, a conexão cai e o backoff que
-já existe reconecta.
+That is why every open stream carries an inactivity threshold (`stallSeconds`,
+15s by default): past it without receiving a byte, the connection drops and the
+backoff that already exists reconnects.
 
-Fechar a conexão é também o que **recupera**. Como o dwnvr é o único consumidor
-do stream, sair faz o go2rtc derrubar o produtor morto, e a reabertura força uma
-sessão RTSP nova. Medido numa câmera parada havia 3h37: voltou a gravar em menos
-de 1 segundo.
+Closing the connection is also what **recovers**. Since dwnvr is the only
+consumer of the stream, leaving makes go2rtc drop the dead producer, and the
+reopening forces a new RTSP session. Measured on a camera that had been stopped
+for 3h37: it was recording again in under 1 second.
 
-A primeira leitura ganha o dobro do prazo, porque abrir o stream faz o go2rtc
-estabelecer a sessão RTSP com a câmera - legitimamente mais lento que entregar o
-próximo fragmento de um stream que já está correndo.
+The first read gets double the allowance, because opening the stream makes
+go2rtc establish the RTSP session with the camera - legitimately slower than
+delivering the next fragment of a stream that is already running.
 
-O limiar é ajustável por câmera: veja `stallSeconds` em
-[configuration.md](configuration.md). A implementação está em
+The threshold is adjustable per camera: see `stallSeconds` in
+[configuration.md](configuration.md). The implementation is in
 [`internal/go2rtc/client.go`](../internal/go2rtc/client.go).

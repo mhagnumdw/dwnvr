@@ -1,50 +1,53 @@
-# API HTTP
+# HTTP API
 
-Referência dos endpoints. A implementação está em
+Endpoint reference. The implementation is in
 [`internal/api/`](../internal/api/).
 
-Convenções que valem para tudo:
+Conventions that apply to everything:
 
-- **Instantes são epoch em milissegundos.** Nunca há string de data-hora, exceto
-  no atalho `day=AAAA-MM-DD`, que é interpretado no fuso local do servidor.
-- **`cam`** é sempre o id da câmera cadastrada. Câmera desconhecida é erro, não
-  resposta vazia. O id não tem caminho (`/`, `\`, `:`) nem vírgula, que separa
-  os ids nas listas (`cams=a,b`): o `POST /api/cameras` o recusa com `400`.
-- Erros vêm como HTTP 4xx com a mensagem em texto.
+- **Instants are epoch in milliseconds.** There is never a date-time string,
+  except in the `day=YYYY-MM-DD` shortcut, which is interpreted in the server's
+  local time zone.
+- **`cam`** is always the id of a registered camera. An unknown camera is an
+  error, not an empty response. The id has no path (`/`, `\`, `:`) and no
+  comma, which separates the ids in lists (`cams=a,b`): `POST /api/cameras`
+  rejects it with `400`.
+- Errors come as HTTP 4xx with the message as text.
 
-## Sessão
+## Session
 
-| Endpoint | O que faz |
+| Endpoint | What it does |
 | --- | --- |
-| `POST /api/login` | abre sessão; devolve cookie assinado (HMAC, sem estado no servidor) e quem entrou |
-| `POST /api/logout` | encerra a sessão |
-| `GET /api/session` | **público**: diz se este dwnvr exige login e, com sessão, quem está logado |
-| `GET /api/session/ws` | o aviso de sessão: websocket mudo que o servidor fecha quando a pessoa é derrubada |
-| `GET /api/version` | **público**: versão, commit e data do build |
-| `POST /api/invite/check` | **público**: diz de quem é o link de convite e até quando vale |
-| `POST /api/invite` | **público**: define a senha pelo link de convite e já abre a sessão |
+| `POST /api/login` | opens a session; returns a signed cookie (HMAC, no state on the server) and who signed in |
+| `POST /api/logout` | ends the session |
+| `GET /api/session` | **public**: says whether this dwnvr requires login and, with a session, who is logged in |
+| `GET /api/session/ws` | the session notice: a mute websocket that the server closes when the person is dropped |
+| `GET /api/version` | **public**: version, commit and build date |
+| `POST /api/invite/check` | **public**: says whose invite link it is and until when it is valid |
+| `POST /api/invite` | **public**: sets the password through the invite link and opens the session right away |
 
-`/api/session` e `/api/version` ficam fora da autenticação pelo mesmo motivo:
-precisam ser visíveis antes de entrar. As duas do convite também, porque quem
-abre o link ainda não tem senha (ver [O link de convite](#o-link-de-convite)). O `/api/version` é também a sonda de
-deploy - um `curl` responde se o dwnvr subiu com o código novo, sem cookie.
+`/api/session` and `/api/version` are outside authentication for the same
+reason: they need to be visible before signing in. So are the two invite
+routes, because whoever opens the link has no password yet (see
+[The invite link](#the-invite-link)). `/api/version` is also the deploy probe -
+a `curl` tells whether dwnvr came up with the new code, with no cookie.
 
-Todo o resto exige sessão válida, e as rotas marcadas **só admin** exigem
-também o papel de admin.
+Everything else requires a valid session, and the routes marked **admin only**
+also require the admin role.
 
-### Quem entra
+### Who signs in
 
-- **O dono**: o `server.username` e o `server.password` do `dwnvr.yaml`.
-  Sempre admin. A senha dele só se troca no arquivo.
-- **As pessoas do `users.json`**, na pasta de config, cada uma com o papel
-  gravado: `admin` ou `viewer`.
+- **The owner**: the `server.username` and `server.password` from
+  `dwnvr.yaml`. Always admin. Their password can only be changed in the file.
+- **The people in `users.json`**, in the config folder, each with a stored
+  role: `admin` or `viewer`.
 
-O viewer vê as câmeras, as gravações e as detecções. O que é da tela
-Câmeras e do diagnóstico do servidor ele recebe como `403`, mesmo sem a aba
-na tela: esconder a aba não é segurança.
+The viewer sees the cameras, the recordings and the detections. What belongs to
+the **Câmeras** (Cameras) screen and to the server diagnostics comes back as
+`403`, even without the tab on screen: hiding the tab is not security.
 
-Sem credencial no `dwnvr.yaml` a autenticação fica desligada, as pessoas do
-`users.json` são ignoradas, e quem alcança a tela é tratado como admin.
+Without credentials in `dwnvr.yaml`, authentication is off, the people in
+`users.json` are ignored, and whoever reaches the screen is treated as admin.
 
 ```json
 {
@@ -54,158 +57,164 @@ Sem credencial no `dwnvr.yaml` a autenticação fica desligada, as pessoas do
 }
 ```
 
-O `user` só vem com `authenticated: true`; com a autenticação desligada, ele
-vem com `"role": "admin"` e `"owner": true`, sem `username` nem `name`. O
-`avatar` é o id da foto (ver [Minha conta](#minha-conta)) e só vem com foto.
-O `POST /api/login` devolve o mesmo `user`, junto com `"ok": true`.
+The `user` only comes with `authenticated: true`; with authentication off, it
+comes with `"role": "admin"` and `"owner": true`, with no `username` or `name`.
+The `avatar` is the id of the photo (see [My account](#my-account)) and only
+comes with a photo. `POST /api/login` returns the same `user`, together with
+`"ok": true`.
 
-### O login
+### The login
 
-O `username` do `POST /api/login` aceita o usuário ou o e-mail da pessoa, sem
-diferença de maiúscula e minúscula no e-mail. O usuário do cadastro não tem
-`@`, então com `@` é e-mail. Entrar pelo e-mail é entrar como a pessoa: o
-`user` da resposta, a sessão, o último acesso e o log ficam com o usuário. O
-dono não tem e-mail e entra só pelo usuário, que no `dwnvr.yaml` pode ter `@`:
-o dele vale antes de procurar um e-mail. O e-mail que não acha ninguém, inclusive o
-repetido no `users.json` editado à mão, responde como a senha errada:
-`401` com `{"error": "usuário ou senha inválidos"}`.
+The `username` of `POST /api/login` accepts the person's username or e-mail,
+case-insensitively for the e-mail. A username in the registry has no `@`, so
+with `@` it is an e-mail. Signing in by e-mail is signing in as the person: the
+`user` in the response, the session, the last access and the log all carry the
+username. The owner has no e-mail and signs in only by username, which in
+`dwnvr.yaml` may contain `@`: theirs counts before any e-mail is looked up. An
+e-mail that matches nobody, including one repeated in a hand-edited
+`users.json`, is answered like a wrong password: `401` with
+`{"error": "usuário ou senha inválidos"}`.
 
-Toda tentativa custa uma conta de senha de 0,77 s num Orange Pi Zero 3
-(PBKDF2-SHA256, 600.000 iterações), uma por vez no processo inteiro: algumas
-tentativas simultâneas não ocupam os núcleos da gravação, só esperam a vez. O
-login do dono, cuja senha está em texto no `dwnvr.yaml`, e o de um usuário que
-não existe pagam a mesma conta, para o tempo de resposta não dizer quem
-existe.
+Every attempt costs one password computation of 0.77 s on an Orange Pi Zero 3
+(PBKDF2-SHA256, 600,000 iterations), one at a time in the whole process: a few
+simultaneous attempts don't occupy the recording cores, they just wait their
+turn. The owner's login, whose password is in plain text in `dwnvr.yaml`, and
+the login of a user that doesn't exist pay the same computation, so the
+response time doesn't reveal who exists.
 
-Cada endereço tem um limite de tentativas, ligado por padrão e desligado com
-`server.loginAttemptsPerMinute: 0` (ver
+Each address has an attempt limit, on by default and turned off with
+`server.loginAttemptsPerMinute: 0` (see
 [Limite de tentativas no login](configuration.md#limite-de-tentativas-no-login)).
-Passado dele, a resposta é `429`, antes de qualquer conta de senha, com o
-`Retry-After` em segundos e o mesmo número no erro, como em
-`{"error": "muitas tentativas; tente de novo em 30 s"}`. O número é o que
-falta para a próxima tentativa passar: depende do `loginAttemptsPerMinute` e
-diminui com o tempo. A tentativa recusada assim não conta: insistir durante a
-espera não a estica.
+Past it, the response is `429`, before any password computation, with the
+`Retry-After` in seconds and the same number in the error, as in
+`{"error": "muitas tentativas; tente de novo em 30 s"}`. The number is what
+remains until the next attempt gets through: it depends on
+`loginAttemptsPerMinute` and shrinks over time. An attempt refused this way
+doesn't count: insisting during the wait doesn't stretch it.
 
-### O cookie
+### The cookie
 
-O cookie diz de quem é a sessão: `<usuário em base64>.<validade>.<hmac>`. A
-sessão vale 30 dias e se renova com o uso: quando falta menos da metade do
-prazo, qualquer resposta autenticada, e também a do `/api/session`, traz um
-cookie novo com os 30 dias inteiros. Na prática, os 30 dias contam da última
-vez que a tela falou com o dwnvr. Continua sem estado no servidor: renovar é só
-assinar outro prazo.
+The cookie says whose session it is: `<username in base64>.<expiry>.<hmac>`.
+The session lasts 30 days and renews with use: when less than half of the term
+remains, any authenticated response, including the one from `/api/session`,
+brings a new cookie with the full 30 days. In practice, the 30 days count from
+the last time the screen talked to dwnvr. It is still stateless on the server:
+renewing is just signing another term.
 
-A chave que assina o cookie de cada pessoa sai do `.session-secret` junto com
-o usuário e a senha dela: a do `dwnvr.yaml`, para o dono, ou a guardada no
-`users.json`. Trocar a senha de alguém derruba só as sessões dessa pessoa,
-e o mesmo vale para quem é removido ou ganha link novo, que apaga a senha. Para
-o dono, isso pede reiniciar, porque o `dwnvr.yaml` só é lido ao subir. Quem
-troca a própria senha pela Minha conta recebe um cookie novo na mesma resposta
-e continua; os outros aparelhos dela voltam para o login. Para derrubar todo
-mundo de uma vez, ver
+The key that signs each person's cookie comes from `.session-secret` together
+with their username and password: the one from `dwnvr.yaml`, for the owner, or
+the one stored in `users.json`. Changing someone's password drops only that
+person's sessions, and the same holds for someone who is removed or gets a new
+link, which erases the password. For the owner, this requires a restart,
+because `dwnvr.yaml` is only read at startup. Someone who changes their own
+password through **Minha conta** (My account) gets a new cookie in the same
+response and carries on; their other devices go back to the login. To drop
+everyone at once, see
 [Trocar a senha e derrubar as
 sessões](operations.md#trocar-a-senha-e-derrubar-as-sessões).
 
-### O link de convite
+### The invite link
 
-Quem entra pela primeira vez entra por um link: o admin cria a pessoa na
-tela Usuários, e ela define a própria senha. Com o e-mail ligado, o link pode
-ir direto para ela (ver [Usuários](#usuários)). O link é
-`<endereço>/#invite?token=<token>`, com 32 bytes aleatórios no token. O
-endereço é o pelo qual o admin está acessando. O token fica no fragmento da
-URL, que não sai do navegador, e vai ao servidor no corpo de um POST: não
-aparece em log do dwnvr nem de proxy nenhum. O `users.json` guarda só o
-SHA-256 dele. Mandado por e-mail, o link fica guardado na caixa de saída da
-conta que envia e na de entrada da pessoa: como vale minutos e uma vez só, o
-que sobra lá é link morto.
+Whoever signs in for the first time does so through a link: the admin creates
+the person in the **Usuários** (Users) screen, and they set their own password.
+With e-mail on, the link can go straight to them (see [Users](#users)). The
+link is `<address>/#invite?token=<token>`, with 32 random bytes in the token.
+The address is the one the admin is accessing through. The token stays in the
+URL fragment, which doesn't leave the browser, and goes to the server in the
+body of a POST: it doesn't show up in the dwnvr log or in any proxy's. The
+`users.json` keeps only its SHA-256. When sent by e-mail, the link is stored in
+the sent folder of the sending account and in the inbox of the person: since it
+is valid for minutes and only once, what is left there is a dead link.
 
-O link vale 10 minutos (`users.InviteValidity`) e uma vez só. Cada pessoa
-tem um link por vez: gerar outro invalida o anterior. Vencido, usado,
-substituído ou inventado, a resposta é a mesma, `410`.
+The link is valid for 10 minutes (`users.InviteValidity`) and only once. Each
+person has one link at a time: generating another invalidates the previous one.
+Expired, used, replaced or made up, the response is the same, `410`.
 
 ```json
 // POST /api/invite/check   {"token": "..."}
 { "username": "maria", "name": "Maria", "inviteExpiresAtMs": 1791587903000, "minPasswordLength": 8, "maxPasswordLength": 128 }
 ```
 
-O `POST /api/invite` recebe `{"token", "password"}` e devolve o mesmo
-`{"ok": true, "user": {...}}` do login, com o cookie. A senha vai de 8 a 128
-caracteres, sem regra de composição (NIST SP 800-63B); fora disso, `400` com o
-motivo, e o link continua valendo. A conta da senha espera a mesma fila do
-login.
+`POST /api/invite` receives `{"token", "password"}` and returns the same
+`{"ok": true, "user": {...}}` as the login, with the cookie. The password is 8
+to 128 characters, with no composition rule (NIST SP 800-63B); outside that,
+`400` with the reason, and the link stays valid. The password computation waits
+in the same queue as the login.
 
-### A queda de quem é derrubado
+### When someone is dropped
 
-Remover a pessoa, gerar link novo para ela ou ela trocar a própria senha muda
-a credencial que assina os cookies dela, e toda requisição seguinte é
-recusada. As conexões que já estão
-abertas, e não voltam a apresentar o cookie, o servidor fecha na hora: o
-websocket do ao vivo e o aviso de sessão (`GET /api/session/ws`).
+Removing the person, generating a new link for them, or them changing their own
+password changes the credential that signs their cookies, and every following
+request is refused. The connections that are already open, and don't present
+the cookie again, the server closes right away: the live websocket and the
+session notice (`GET /api/session/ws`).
 
-Fechar o websocket do ao vivo corta o vídeo do MSE, que vem por dentro dele. O
-do WebRTC não: o player fecha o websocket da negociação assim que o vídeo toca,
-e a mídia segue direto do go2rtc ao navegador pela UDP, sem passar pelo dwnvr.
-O go2rtc 1.9 não tem rota para derrubar um consumidor; só reiniciá-lo, o que
-pararia todas as câmeras e a gravação. Quem fecha o WebRTC é a tela Ao vivo:
+Closing the live websocket cuts the MSE video, which comes through it. The
+WebRTC one it doesn't: the player closes the negotiation websocket as soon as
+the video plays, and the media goes straight from go2rtc to the browser over
+UDP, without passing through dwnvr. go2rtc 1.9 has no route to drop a consumer;
+only restarting it, which would stop all cameras and the recording. What closes
+the WebRTC is the **Ao vivo** (Live) screen:
 
-- ao ver o aviso de sessão fechar, ela confere a sessão na hora, e, se não
-  valer, fecha o vídeo e vai para o login;
-- com o vídeo à vista, ela confere a sessão a cada 60 s, a rede de segurança se
-  o aviso se perder;
-- se o dwnvr não responder à conferência, o vídeo para até a sessão se
-  confirmar. Isso vale também quando o dwnvr reinicia: o ao vivo para por
-  alguns segundos, mesmo com o go2rtc no ar.
+- on seeing the session notice close, it checks the session right away, and, if
+  it isn't valid, closes the video and goes to the login;
+- with the video in view, it checks the session every 60 s, the safety net if
+  the notice gets lost;
+- if dwnvr doesn't answer the check, the video stops until the session is
+  confirmed. This also holds when dwnvr restarts: the live view stops for a few
+  seconds, even with go2rtc up.
 
-Medido com o go2rtc 1.9.14 e o Chrome: o consumidor WebRTC sai do go2rtc uns
-40 ms depois de o admin remover a pessoa. Uma tela modificada por quem foi
-removido, que ignore o aviso, segue recebendo o vídeo já aberto até a conexão
-cair, mas não abre outra.
+Measured with go2rtc 1.9.14 and Chrome: the WebRTC consumer leaves go2rtc about
+40 ms after the admin removes the person. A screen modified by whoever was
+removed, ignoring the notice, keeps receiving the already open video until the
+connection drops, but doesn't open another.
 
-## Câmeras e diagnóstico
+## Cameras and diagnostics
 
-| Endpoint | Parâmetros | O que faz |
+| Endpoint | Parameters | What it does |
 | --- | --- | --- |
-| `GET /api/cameras` | - | cadastradas + streams do go2rtc + gravações órfãs + para onde vai o alerta; para o viewer, só as câmeras (do `alert`, só o `enabled` quando ligado) e o `detector` |
-| `POST /api/cameras` | corpo JSON | **só admin**: cadastra ou altera (upsert por id); o campo que a câmera não definia e chega igual ao default não é gravado (ver [Política por câmera](configuration.md#política-por-câmera)) |
-| `DELETE /api/cameras` | `id`, `recordings=1` | **só admin**: descadastra; com `recordings=1` apaga as gravações junto |
-| `GET /api/streams/probe` | `src` | **só admin**: diz se um stream entrega áudio, abrindo-o se preciso |
-| `POST /api/go2rtc/restart` | - | **só admin**: reinicia o go2rtc, para ele reler o `go2rtc.yaml`; todas as câmeras param por alguns segundos |
-| `GET /api/health` | - | **só admin**: bitrate medido, dias estimados, áudio e transcodificação por câmera, estado do disco, uptimes, relógio, o problema da seção `smtp` e, com alerta ligado, o total de alertas |
-| `POST /api/reconnects/reset` | - | **só admin**: zera a contagem de reconexões de todas as câmeras; nenhuma conexão cai |
-| `GET /api/health/server` | - | **só admin**: a máquina que grava e o processo do dwnvr: temperatura, memória, pressão, storage, go2rtc, detector de objetos, servidor de e-mail, envios do alerta e últimos avisos do log |
-| `POST /api/email/test` | `{"to"}` | **só admin**: manda um e-mail de teste para o endereço, pela seção `smtp` |
-| `DELETE /api/rec` | `cam` | **só admin**: apaga as gravações; serve também câmera já removida |
+| `GET /api/cameras` | - | registered + go2rtc streams + orphan recordings + where the alert goes; for the viewer, only the cameras (from the `alert`, only the `enabled` when on) and the `detector` |
+| `POST /api/cameras` | JSON body | **admin only**: registers or changes (upsert by id); a field the camera didn't define that arrives equal to the default is not stored (see [Política por câmera](configuration.md#política-por-câmera)) |
+| `DELETE /api/cameras` | `id`, `recordings=1` | **admin only**: unregisters; with `recordings=1` deletes the recordings too |
+| `GET /api/streams/probe` | `src` | **admin only**: says whether a stream delivers audio, opening it if needed |
+| `POST /api/go2rtc/restart` | - | **admin only**: restarts go2rtc, so it rereads `go2rtc.yaml`; all cameras stop for a few seconds |
+| `GET /api/health` | - | **admin only**: measured bitrate, estimated days, audio and transcoding per camera, disk state, uptimes, clock, the problem of the `smtp` section and, with alerts on, the total of alerts |
+| `POST /api/reconnects/reset` | - | **admin only**: zeroes the reconnect count of all cameras; no connection drops |
+| `GET /api/health/server` | - | **admin only**: the machine that records and the dwnvr process: temperature, memory, pressure, storage, go2rtc, object detector, e-mail server, alert deliveries and latest log warnings |
+| `POST /api/email/test` | `{"to"}` | **admin only**: sends a test e-mail to the address, through the `smtp` section |
+| `DELETE /api/rec` | `cam` | **admin only**: deletes the recordings; also works for an already removed camera |
 
-No `POST /api/cameras`, cada área sem `id` ganha um gerado pelo servidor, e a
-resposta traz a câmera com eles. Uma área inválida recusa o save inteiro com
-`400` e o motivo, como os outros campos:
+In `POST /api/cameras`, each area without an `id` gets one generated by the
+server, and the response brings the camera with them. An invalid area rejects
+the whole save with `400` and the reason, like the other fields:
 
 ```text
 areas[1] "Garagem" fora do aceito: use de 3 a 20 pontos, com as coordenadas de 0 a 1
 ```
 
-O `alert` aponta para as áreas pelo `id`, e o que a câmera não tem também
-recusa o save. Por isso a tela tira a área do alerta antes de apagá-la:
+The `alert` points to the areas by `id`, and one the camera doesn't have also
+rejects the save. That is why the screen takes the area out of the alert before
+deleting it:
 
 ```text
 alert.areas[0] "sumiu" fora do aceito: use o id de uma área desta câmera
 ```
 
-O horário do alerta que atravessa a meia-noite recusa do mesmo jeito:
+An alert schedule that crosses midnight is rejected the same way:
 
 ```text
 alert.schedules[0].to "06:00" fora do aceito: use uma hora depois do from 22:00; a noite são dois horários, até 23:59 e a partir de 00:00
 ```
 
-O formato das `areas` e do `alert` está em
+The format of `areas` and `alert` is in
 [Política por câmera](configuration.md#política-por-câmera).
 
-O `hasAudio` do `GET /api/cameras` só é confiável em stream que alguém já está
-consumindo: o go2rtc só preenche o `medias` do produtor enquanto existe
-consumidor, e num stream ocioso ele nem abre a conexão com a câmera. É por isso
-que `GET /api/streams/probe` é um endpoint à parte, e não mais um campo da
-listagem - a resposta dele pode custar alguns segundos e uma conexão nova.
+The `hasAudio` of `GET /api/cameras` is only reliable on a stream someone is
+already consuming: go2rtc only fills the producer's `medias` while a consumer
+exists, and on an idle stream it doesn't even open the connection to the
+camera. That is why `GET /api/streams/probe` is a separate endpoint, and no
+longer a field of the listing - its response can cost a few seconds and a new
+connection.
 
 ```json
 {
@@ -216,17 +225,18 @@ listagem - a resposta dele pode custar alguns segundos e uma conexão nova.
 }
 ```
 
-`probed` diz se a resposta custou uma conexão: `false` quando ela veio do
-`medias` de um produtor que já estava vivo, ou do cache da sonda anterior. Se a
-sonda falhar - câmera fora do ar, por exemplo -, a resposta ainda é `200`, com o
-motivo em `error` e `hasAudio: false`; quem chama deve tratar isso como "não sei",
-e não como "não tem áudio".
+`probed` says whether the response cost a connection: `false` when it came from
+the `medias` of a producer that was already alive, or from the cache of the
+previous probe. If the probe fails - a camera that is down, for instance -, the
+response is still `200`, with the reason in `error` and `hasAudio: false`; the
+caller should treat this as "I don't know", and not as "it has no audio".
 
-O `GET /api/cameras` traz também o `defaults`: uma câmera vazia com os `defaults`
-do `dwnvr.yaml` aplicados. É dele que o formulário de câmera nova parte, e não
-de números repetidos na interface. Traz as `ranges` dos campos numéricos da
-câmera, a mesma régua com que o `POST /api/cameras` recusa, de onde saem o
-`min` e o `max` dos inputs; sem teto, o `max` não vem:
+`GET /api/cameras` also brings the `defaults`: an empty camera with the
+`defaults` of `dwnvr.yaml` applied. The new-camera form starts from it, and not
+from numbers repeated in the interface. It brings the `ranges` of the camera's
+numeric fields, the same validation with which `POST /api/cameras` rejects,
+where the `min` and `max` of the inputs come from; without a ceiling, the `max`
+doesn't come:
 
 ```json
 "ranges": {
@@ -238,13 +248,14 @@ câmera, a mesma régua com que o `POST /api/cameras` recusa, de onde saem o
 }
 ```
 
-E traz o `detector`: `true` quando o detector de objetos está configurado. Sem
-ele, a interface esconde a aba Detecções.
+And it brings the `detector`: `true` when the object detector is configured.
+Without it, the interface hides the **Detecções** (Detections) tab.
 
-Traz também o `alertEmail`, para onde vai o alerta, que a aba Alerta da câmera
-mostra. Com o meio de e-mail (a seção `smtp` ligada e a lista
-`alerts.email.to`), vem a lista; com o meio falhando, também o desde quando e o
-erro da falha mais recente, que somem no primeiro envio que der certo:
+It also brings the `alertEmail`, where the alert goes, which the camera's
+**Alerta** (Alert) tab shows. With the e-mail channel (the `smtp` section on
+and the `alerts.email.to` list), the list comes; with the channel failing, also
+since when and the error of the most recent failure, which go away on the first
+send that succeeds:
 
 ```json
 "alertEmail": {
@@ -254,17 +265,17 @@ erro da falha mais recente, que somem no primeiro envio que der certo:
 }
 ```
 
-Sem o meio, `missing` diz as seções do `dwnvr.yaml` que faltam, de
-`alerts.email.to` e `smtp`, e `smtpError`, o motivo da seção `smtp` recusada no
-boot:
+Without the channel, `missing` says which `dwnvr.yaml` sections are missing,
+from `alerts.email.to` and `smtp`, and `smtpError`, the reason the `smtp`
+section was rejected at boot:
 
 ```json
 "alertEmail": { "missing": ["smtp"], "smtpError": "smtp.from vazio" }
 ```
 
-O go2rtc só lê o `go2rtc.yaml` quando sobe. Quando o arquivo diz uma coisa e o
-go2rtc em execução faz outra, o `GET /api/cameras` traz `go2rtcConfigFile`, e a
-tela oferece o `POST /api/go2rtc/restart`:
+go2rtc only reads `go2rtc.yaml` when it starts. When the file says one thing
+and the running go2rtc does another, `GET /api/cameras` brings
+`go2rtcConfigFile`, and the screen offers `POST /api/go2rtc/restart`:
 
 ```json
 "go2rtcConfigFile": {
@@ -274,33 +285,34 @@ tela oferece o `POST /api/go2rtc/restart`:
 }
 ```
 
-`added` estão no arquivo e não foram carregadas; `notInFile` estão rodando
-e saíram do arquivo; `changed` existem nos dois lados com fonte diferente.
-Listas vazias são omitidas, e o campo inteiro some quando os dois lados batem
-ou quando o go2rtc não deixa ler o arquivo (`GET /api/config` dele). A
-comparação é só da seção `streams`. `changed` não é completa: enquanto uma
-fonte `ffmpeg:` ou `exec:` está em uso, o go2rtc não mostra a fonte original, e
-essa câmera fica de fora. RTSP em uso mostra, e entra. O arquivo, que tem as
-URLs com usuário e senha, é lido no servidor e não vai ao navegador - só os
-nomes.
+`added` are in the file and were not loaded; `notInFile` are running and left
+the file; `changed` exist on both sides with a different source. Empty lists
+are omitted, and the whole field goes away when both sides match or when go2rtc
+doesn't let the file be read (its `GET /api/config`). The comparison covers the
+`streams` section only. `changed` is not complete: while an `ffmpeg:` or
+`exec:` source is in use, go2rtc doesn't show the original source, and that
+camera is left out. RTSP in use does show, and is included. The file, which has
+the URLs with username and password, is read on the server and doesn't go to
+the browser - only the names.
 
-Cada câmera do `/api/health` diz se a marcação de movimento está ligada
-(`detect`) e quantos onsets ela marcou desde que o dwnvr subiu (`onsets`).
+Each camera in `/api/health` says whether motion marking is on (`detect`) and
+how many onsets it has marked since dwnvr came up (`onsets`).
 
-Cada câmera com recorder traz também o `audio` configurado, ao lado do
-`hasAudio` que a conexão achou, e o `transcoding`: se o go2rtc passa a fonte
-dela por um ffmpeg. O `transcoding` é consultado ao go2rtc uma vez por conexão,
-e não a cada leitura da saúde: a fonte só muda com o go2rtc reiniciando, o que
-reconecta todas as câmeras. Câmera desabilitada vem sem `audio`.
+Each camera with a recorder also brings the configured `audio`, next to the
+`hasAudio` that the connection found, and the `transcoding`: whether go2rtc
+passes its source through an ffmpeg. The `transcoding` is queried from go2rtc
+once per connection, and not on every health read: the source only changes when
+go2rtc restarts, which reconnects all cameras. A disabled camera comes without
+`audio`.
 
-As reconexões de cada câmera do `/api/health` contam desde `reconnectsSince`:
-a subida do recorder, que é a do dwnvr ou a última vez em que a câmera foi
-reiniciada por mudança de configuração, ou o último
-`POST /api/reconnects/reset`. `reconnectsInWindow` são as que caíram dentro das
-últimas `reconnectsWindowHours` horas, que vem na raiz da resposta e mora em
-`recorder.ReconnectWindow` (`internal/recorder/params.go`).
-`lastReconnectAt` é a mais recente, e `disconnectedAt`, que só vem com
-`connected: false`, é quando a conexão caiu:
+The reconnects of each camera in `/api/health` count from `reconnectsSince`:
+the recorder start, which is dwnvr's or the last time the camera was restarted
+by a configuration change, or the last `POST /api/reconnects/reset`.
+`reconnectsInWindow` are those that fell within the last
+`reconnectsWindowHours` hours, which comes at the root of the response and
+lives in `recorder.ReconnectWindow` (`internal/recorder/params.go`).
+`lastReconnectAt` is the most recent, and `disconnectedAt`, which only comes
+with `connected: false`, is when the connection dropped:
 
 ```json
 "reconnects": 24,
@@ -309,15 +321,16 @@ reiniciada por mudança de configuração, ou o último
 "lastReconnectAt": "2026-09-28T13:58:12-03:00"
 ```
 
-O `disk.dwnvrBytes` soma só as câmeras cadastradas. O que sobrou em disco de
-câmeras removidas vem à parte, em `disk.orphanBytes`, porque nenhum limite da
-retenção o alcança: somado ao primeiro, sumiria do aviso; fora dos dois, a tela
-o creditaria a outros programas.
+`disk.dwnvrBytes` sums only the registered cameras. What is left on disk from
+removed cameras comes separately, in `disk.orphanBytes`, because no retention
+limit reaches it: added to the first, it would vanish from the warning; outside
+both, the screen would credit it to other programs.
 
-Os avisos da tela com "desde quando" saem também do `disk.belowMinSince`, que a
-retenção marca na primeira passada com o disco abaixo do mínimo, e do `go2rtc`,
-que só aparece enquanto o go2rtc não responde ao dwnvr. Ele é marcado na
-primeira falha de transporte, e qualquer resposta HTTP, mesmo um erro, o apaga:
+The screen warnings with "since when" also come from `disk.belowMinSince`,
+which the retention marks on the first pass with the disk below the minimum,
+and from `go2rtc`, which only appears while go2rtc doesn't answer dwnvr. It is
+marked on the first transport failure, and any HTTP response, even an error,
+erases it:
 
 ```json
 "go2rtc": {
@@ -326,9 +339,9 @@ primeira falha de transporte, e qualquer resposta HTTP, mesmo um erro, o apaga:
 }
 ```
 
-Com o detector de objetos configurado, cada câmera do `/api/health` traz também
-o **funil**: o destino de cada onset, desde que o dwnvr subiu. As fatias fecham
-a conta com o `onsets` da câmera -
+With the object detector configured, each camera in `/api/health` also brings
+the **funnel**: the destination of each onset, since dwnvr came up. The slices
+add up to the camera's `onsets` -
 `onsets = noVideo + dropped + failed + rejected + noObject + withObject + queued`:
 
 ```json
@@ -344,21 +357,23 @@ a conta com o `onsets` da câmera -
 }
 ```
 
-`clips` não é fatia: é quantos onsets tiveram o vídeo cortado e oferecido à
-fila. `noVideo` são onsets que terminaram sem pedaço - logo depois de
-conectar, antes do primeiro frame I. `queued` é o que ainda não tem desfecho:
-esperando o pico da janela para ser cortado, esperando a vez, ou sendo olhado.
+`clips` is not a slice: it is how many onsets had the video cut and offered to
+the queue. `noVideo` are onsets that ended without a clip - right after
+connecting, before the first I-frame. `queued` is what has no outcome yet:
+waiting for the window's peak to be cut, waiting for its turn, or being
+inferred.
 
-`failed` é detector fora do ar ou travado; `rejected` é detector no ar que não
-conseguiu olhar, quase sempre vídeo que a câmera mandou corrompido.
+`failed` is an object detector that is down or hung; `rejected` is an object
+detector that is up and couldn't run the inference, almost always a video the
+camera sent corrupted.
 
-`dropped` são os que a fila recusou porque a câmera já tinha `perCamera`
-pedaços esperando a vez (ver `detector` abaixo): não vão ao detector nem
-depois, e ficam só como movimento. `noObject` inclui o carro que já estava
-estacionado - olhado, mas não CHEGOU agora.
+`dropped` are those the queue refused because the camera already had
+`perCamera` clips waiting for their turn (see `detector` below): they don't go
+to the object detector, not even later, and stay only as motion. `noObject`
+includes the car that was already parked - inferred, but it didn't ARRIVE now.
 
-A fila é uma só para todas as câmeras, e vem fora da lista delas, em
-`detector`:
+The queue is a single one for all cameras, and comes outside the list of them,
+in `detector`:
 
 ```json
 "detector": {
@@ -381,22 +396,23 @@ A fila é uma só para todas as câmeras, e vem fora da lista delas, em
 }
 ```
 
-`length` são os pedaços esperando a vez, sem contar o que está sendo olhado, e
-`peak` o maior `length` desde que o dwnvr subiu. A fila não tem total fixo: cada
-câmera pode ter `perCamera` pedaços esperando a vez, e `cap` é isso vezes as
-câmeras com detecção ligada agora - cresce e diminui com elas. O pedaço que o
-detector está processando já saiu da fila: `waiting` nunca passa de
-`perCamera`, e `busy` diz, à parte, de qual câmera é a imagem em
-processamento. `cameras` traz só as câmeras com algo numa coisa ou na outra. Os tempos são
-a média das últimas 20 olhadas: `inferenceMs` é quanto o detector leva para
-responder - só as que ele respondeu -, e `waitMs` quanto o pedaço esperou a
-vez antes. Zero antes da primeira olhada. Sem detector configurado, o campo
-não vem.
+`length` are the clips waiting for their turn, not counting the one being
+inferred, and `peak` is the largest `length` since dwnvr came up. The queue has
+no fixed total: each camera can have `perCamera` clips waiting for their turn,
+and `cap` is that times the cameras with detection on right now - it grows and
+shrinks with them. The clip the object detector is processing has already left
+the queue: `waiting` never goes past `perCamera`, and `busy` says, separately,
+which camera the image being processed is from. `cameras` brings only the
+cameras with something in one or the other. The times are the average of the
+last 20 inferences: `inferenceMs` is how long the object detector takes to
+respond - only counting the ones it answered -, and `waitMs` how long the clip
+waited for its turn before. Zero before the first inference. Without an object
+detector configured, the field doesn't come.
 
-Enquanto o detector não responde, o `detector` traz também `outage`, com a
-primeira olhada seguida que falhou e o motivo da mais recente. A primeira
-olhada que ele responde o apaga. Pedaço recusado (vídeo corrompido) não conta:
-é o detector no ar dizendo não.
+While the object detector doesn't respond, the `detector` also brings `outage`,
+with the first consecutive inference that failed and the reason of the most
+recent one. The first inference it answers erases it. A rejected clip (corrupt
+video) doesn't count: it is the object detector being up and saying no.
 
 ```json
 "outage": {
@@ -405,23 +421,24 @@ olhada que ele responde o apaga. Pedaço recusado (vídeo corrompido) não conta
 }
 ```
 
-Depois que alguma câmera liga o alerta, o `/api/health` traz o total de
-alertas desde que o dwnvr subiu. O campo fica até o dwnvr reiniciar, mesmo que
-o alerta seja desligado, e não vem antes:
+After any camera turns the alert on, `/api/health` brings the total of alerts
+since dwnvr came up. The field stays until dwnvr restarts, even if the alert is
+turned off, and doesn't come before:
 
 ```json
 "alerts": { "total": 12 }
 ```
 
-Os alertas em si ficam gravados na detecção, e se leem no `GET /api/detections`
-(`alert` e `alertAreas` em cada objeto, e o filtro `alert=1`).
+The alerts themselves are stored in the detection, and are read in
+`GET /api/detections` (`alert` and `alertAreas` in each object, and the
+`alert=1` filter).
 
-Com algum meio de envio configurado, o alerta que não sai é descartado e
-contado: `queueFull` não coube na fila de envio, e `overLimit` passou do teto
-de `limitPerHour` (ver [O alerta](detection.md#o-alerta)). O `dropped` vem
-enquanto o episódio vale, até uma hora depois do último descarte (`lastAt`);
-o descarte seguinte começa outro, com a contagem do zero. É dele que sai o
-Aviso amarelo do card Avisos.
+With any delivery channel configured, an alert that doesn't go out is dropped
+and counted: `queueFull` didn't fit in the send queue, and `overLimit` went
+past the `limitPerHour` ceiling (see [O alerta](detection.md#o-alerta)). The
+`dropped` comes while the episode is valid, up to one hour after the last drop
+(`lastAt`); the next drop starts another, with the count from zero. It is where
+the yellow **Aviso** (Warning) of the **Avisos** (Warnings) card comes from.
 
 ```json
 "alerts": {
@@ -433,10 +450,10 @@ Aviso amarelo do card Avisos.
 }
 ```
 
-Com um meio falhando, o `failing` traz um item por meio, com o `name`, o
-`since` (a primeira falha desde o último envio que deu certo) e o `error` da
-falha mais recente. Some no primeiro envio que der certo. É dele que sai o
-Aviso vermelho do card Avisos.
+With a channel failing, the `failing` brings one item per channel, with the
+`name`, the `since` (the first failure since the last send that succeeded) and
+the `error` of the most recent failure. It goes away on the first send that
+succeeds. It is where the red Aviso of the Avisos card comes from.
 
 ```json
 "alerts": {
@@ -447,10 +464,10 @@ Aviso vermelho do card Avisos.
 }
 ```
 
-A seção `alerts` do `dwnvr.yaml` com problema (ver
-[Alerta por e-mail](configuration.md#alerta-por-e-mail)) põe os `warnings` no
-mesmo `alerts`, para o card Avisos e o sino, mesmo sem câmera com alerta, e
-então sem o `total`. Sem problema, eles não vêm.
+A `dwnvr.yaml` `alerts` section with a problem (see
+[Alerta por e-mail](configuration.md#alerta-por-e-mail)) puts the `warnings` in
+the same `alerts`, for the Avisos card and the bell, even without a camera with
+alerts, and then without the `total`. Without a problem, they don't come.
 
 ```json
 "alerts": {
@@ -458,24 +475,25 @@ então sem o `total`. Sem problema, eles não vêm.
 }
 ```
 
-`DELETE /api/rec` aceitar câmera já removida é deliberado: descadastrar sem
-apagar deixa gravações órfãs, e sem esse endpoint não haveria como recuperar o
-espaço pela interface.
+`DELETE /api/rec` accepting an already removed camera is deliberate:
+unregistering without deleting leaves orphan recordings, and without this
+endpoint there would be no way to recover the space through the interface.
 
-A seção `smtp` do `dwnvr.yaml` com problema deixa o e-mail desligado (ver
-[E-mail](configuration.md#e-mail)), e o `/api/health` traz o motivo, para o card
-Avisos e o sino. Sem problema, o campo não vem.
+A `dwnvr.yaml` `smtp` section with a problem leaves e-mail off (see
+[E-mail](configuration.md#e-mail)), and `/api/health` brings the reason, for
+the Avisos card and the bell. Without a problem, the field doesn't come.
 
 ```json
 "smtp": { "error": "smtp.security \"ssl\" fora do aceito: use starttls, tls ou none" }
 ```
 
-O `users.json` com problema também vira aviso, só com a autenticação ligada.
-O `error` é o arquivo ilegível no boot: só o dono entra até ele ser corrigido.
-Os `warnings` são as entradas que não valem: a pessoa ignorada, o e-mail
-ilegível e o e-mail repetido, que não serve para entrar. Corrigir pela tela de
-Usuários tira o aviso na hora; corrigir no arquivo pede reiniciar o dwnvr. Sem
-problema, o campo não vem.
+A `users.json` with a problem also becomes a warning, only with authentication
+on. The `error` is the file unreadable at boot: only the owner signs in until
+it is fixed. The `warnings` are the entries that aren't valid: the ignored
+person, the unreadable e-mail and the repeated e-mail, which can't be used to
+sign in. Fixing it through the Users screen removes the warning right away;
+fixing it in the file requires restarting dwnvr. Without a problem, the field
+doesn't come.
 
 ```json
 "users": {
@@ -483,18 +501,19 @@ problema, o campo não vem.
 }
 ```
 
-O `POST /api/email/test` devolve `{"sentTo": "..."}`. Endereço vazio, com nome
-ou mais de um é `400`; com o e-mail desligado, `409` com o motivo. Se o
-servidor de e-mail recusar, é `502`, com a resposta dele do jeito que veio, como
+`POST /api/email/test` returns `{"sentTo": "..."}`. An empty address, one with a
+name, or more than one is `400`; with e-mail off, `409` with the reason. If the
+e-mail server refuses, it is `502`, with its response as it came, such as
 `o e-mail não foi: o servidor recusou o login: 535 5.7.8 Username and Password
-not accepted`. Entregue ao servidor não é entregue na caixa: spam e caixa
-cheia o dwnvr não vê.
+not accepted`. Delivered to the server is not delivered to the inbox: spam and
+a full inbox dwnvr doesn't see.
 
-O `uptime` do `/api/health` vai em **segundos** (`appSeconds`, `machineSeconds`)
-e o `clock` vai em **instante**. A diferença é proposital: duração não tem como
-ser mal interpretada por um navegador de fuso ou de relógio diferente, enquanto
-o `clock` existe justamente para mostrar a hora de lá - é com ele que se
-descobre TZ ou NTP errado na máquina que grava.
+The `uptime` of `/api/health` is in **seconds** (`appSeconds`,
+`machineSeconds`) and the `clock` is an **instant**. The difference is on
+purpose: a duration can't be misinterpreted by a browser in a different time
+zone or with a different clock, whereas the `clock` exists precisely to show
+the time over there - it is what reveals a wrong TZ or NTP on the machine that
+records.
 
 ```json
 "clock": {
@@ -505,19 +524,20 @@ descobre TZ ou NTP errado na máquina que grava.
 }
 ```
 
-`now` já traz o offset do servidor embutido, e a interface o exibe sem
-reconverter. `zone` é o nome IANA e some quando o servidor não consegue
-descobri-lo (nem `TZ`, nem `/etc/timezone`, nem o link de `/etc/localtime`); aí
-resta a `abbr`, que sozinha não identifica região - `-03` vale para São Paulo,
-Buenos Aires e outros.
+`now` already carries the server's offset embedded, and the interface displays
+it without reconverting. `zone` is the IANA name and goes away when the server
+can't find it out (neither `TZ`, nor `/etc/timezone`, nor the `/etc/localtime`
+link); then only the `abbr` remains, which alone doesn't identify a region -
+`-03` holds for São Paulo, Buenos Aires and others.
 
-O `GET /api/health/server` é o card "Este servidor" do Diagnóstico. Fica fora
-do `/api/health` porque custa mais: a cada chamada ele grava, sincroniza com
-`fsync` e apaga 4 KB no `storage.root`, pergunta a versão ao go2rtc e, com
-`detector.url` configurado, chama o `GET /health` do detector de objetos. A
-tela só o chama com o card aberto, de 15 em 15 segundos. Tudo sai de `/proc` e
-`/sys`, e cada campo some quando a fonte não existe (kernel sem PSI, sistema
-sem cgroup, fora do Linux).
+`GET /api/health/server` is the **Este servidor** (This server) card of the
+**Diagnóstico** (Diagnostics) screen. It lives outside `/api/health` because it
+costs more: on every call it writes, syncs with `fsync` and deletes 4 KB in
+`storage.root`, asks go2rtc for its version and, with `detector.url`
+configured, calls the object detector's `GET /health`. The screen only calls it
+with the card open, every 15 seconds. Everything comes from `/proc` and `/sys`,
+and each field goes away when the source doesn't exist (kernel without PSI,
+system without cgroup, outside Linux).
 
 ```json
 {
@@ -570,82 +590,87 @@ sem cgroup, fora do Linux).
 }
 ```
 
-- `collectedAt` é o instante da leitura no relógio do servidor, com o fuso dele,
-  como o `clock` do `/api/health`: a tela o mostra na hora de lá, sem converter.
-  `zone` some quando o servidor não sabe o nome IANA.
-- `board` vem do device tree e só existe em ARM; `processor` vem do
-  `/proc/cpuinfo` e só tem nome no x86. `kernel` é o do host, mesmo dentro do
-  container.
-- `allowedCores` é o teto de CPU do container, em núcleos (`--cpus 1.5`), e
-  some quando não há teto.
-- `process` é o próprio dwnvr. `cpuMs` é o tempo de CPU gasto desde que ele
-  subiu, e `aliveMs`, há quanto tempo está no ar: a porcentagem sai da diferença
-  entre duas leituras, e quem guarda a leitura anterior é a tela, não o
-  servidor. `memoryBytes` é a memória física do processo (`VmRSS`), que é o
-  que bate contra o `limitBytes`. O `memory.current` do cgroup não serve para
-  isso: soma o cache dos vídeos gravados, que o kernel devolve quando precisa.
-- `detector` só vem com `detector.url` configurado. Responde mesmo sem
-  movimento em câmera nenhuma, ao contrário do `outage` do `/api/health`, que
-  só aparece depois de uma olhada falhar.
-- As `url` vêm sem usuário e senha.
-- `smtp` só vem com a seção `smtp` no `dwnvr.yaml`, sem o login e sem a senha.
-  Não há sonda: conferir o servidor de e-mail é mandar um, e para isso existe o
-  `POST /api/email/test`. Com a seção recusada, traz o `error`.
-- `alerts` são os envios de cada meio do alerta desde que o dwnvr subiu, e só
-  vêm com meio configurado e alguma câmera com o alerta ligado. `last` é a
-  tentativa mais recente e some antes da primeira; `error` vem só se ela falhou.
-- `pressure` é o PSI do kernel: a porcentagem do tempo em que alguma tarefa
-  (`some`) ou todas (`full`) ficaram paradas esperando CPU, memória ou disco,
-  em média de 10, 60 e 300 segundos.
-- `oomKills` conta os processos que o kernel matou por falta de memória desde
-  que a **máquina** ligou, e não só os do container. Quando a vítima é o próprio
-  dwnvr, o Docker sobe um container novo e o contador do cgroup antigo some
-  junto; o da máquina continua lá.
-- `limitBytes` é o teto de memória do container, e some quando não há teto.
-- `readOnly` vale para a montagem ou para o superbloco: um cartão SD com
-  defeito é remontado somente leitura pelo kernel sem avisar ninguém.
-- `write.error` só traz causa conhecida (somente leitura, sem permissão, disco
-  cheio, diretório inexistente, disco que não respondeu em 5 s). Qualquer outra
-  falha vai genérica, com o detalhe no log. Enquanto um teste anterior continuar
-  preso num disco travado, a resposta diz isso e não abre outro teste.
-- `log` traz os últimos 50 avisos e erros, do mais novo para o mais velho, e
-  `total` diz quantos houve desde que o dwnvr subiu.
+- `collectedAt` is the instant of the read on the server's clock, with its time
+  zone, like the `clock` of `/api/health`: the screen shows it at the time over
+  there, without converting. `zone` goes away when the server doesn't know the
+  IANA name.
+- `board` comes from the device tree and only exists on ARM; `processor` comes
+  from `/proc/cpuinfo` and only has a name on x86. `kernel` is the host's, even
+  inside the container.
+- `allowedCores` is the container's CPU ceiling, in cores (`--cpus 1.5`), and
+  goes away when there is no ceiling.
+- `process` is dwnvr itself. `cpuMs` is the CPU time spent since it came up,
+  and `aliveMs`, how long it has been up: the percentage comes from the
+  difference between two reads, and the one who keeps the previous read is the
+  screen, not the server. `memoryBytes` is the process's physical memory
+  (`VmRSS`), which is what counts against the `limitBytes`. The cgroup's
+  `memory.current` doesn't serve for that: it sums the cache of the recorded
+  videos, which the kernel gives back when it needs to.
+- `detector` only comes with `detector.url` configured. It responds even with
+  no motion on any camera, unlike the `outage` of `/api/health`, which only
+  appears after an inference fails.
+- The `url`s come without username and password.
+- `smtp` only comes with the `smtp` section in `dwnvr.yaml`, without the login
+  and without the password. There is no probe: checking the e-mail server means
+  sending one, and `POST /api/email/test` exists for that. With the section
+  rejected, it brings the `error`.
+- `alerts` are the sends of each alert channel since dwnvr came up, and only
+  come with a channel configured and some camera with the alert on. `last` is
+  the most recent attempt and goes away before the first; `error` only comes if
+  it failed.
+- `pressure` is the kernel's PSI: the percentage of time some task (`some`) or
+  all of them (`full`) were stalled waiting for CPU, memory or disk, averaged
+  over 10, 60 and 300 seconds.
+- `oomKills` counts the processes the kernel killed for lack of memory since the
+  **machine** powered on, and not only the container's. When the victim is dwnvr
+  itself, Docker brings up a new container and the old cgroup's counter goes
+  away with it; the machine's is still there.
+- `limitBytes` is the container's memory ceiling, and goes away when there is no
+  ceiling.
+- `readOnly` holds for the mount or for the superblock: a faulty SD card is
+  remounted read-only by the kernel without telling anyone.
+- `write.error` only brings a known cause (read-only, no permission, disk full,
+  nonexistent directory, a disk that didn't respond in 5 s). Any other failure
+  goes generic, with the detail in the log. While a previous test remains stuck
+  on a hung disk, the response says so and doesn't start another test.
+- `log` brings the last 50 warnings and errors, newest to oldest, and `total`
+  says how many there have been since dwnvr came up.
 
-## Gravações
+## Recordings
 
-| Endpoint | Parâmetros | Devolve |
+| Endpoint | Parameters | Returns |
 | --- | --- | --- |
-| `GET /api/rec/days` | `cam` | dias que têm gravação |
-| `GET /api/rec/timeline` | `cam` + intervalo | faixas contíguas (para desenhar) + segmentos (para tocar) |
-| `GET /api/rec/events` | `cam` + intervalo | os instantes em que houve movimento |
-| `GET /api/rec/init` | `cam`, `g` | o init segment daquela geração, `immutable` |
-| `GET /api/rec/seg` | `cam`, `t` | os fragmentos do segmento, **sem** o init, `immutable` |
-| `GET /api/rec/thumb` | `cam`, `t` | MP4 de 1 frame - o servidor não decodifica nada |
-| `GET /api/rec/playlist.m3u8` | `cam` + intervalo | HLS VOD, para VLC/ffplay/Safari |
-| `GET /api/rec/export` | `cam` + intervalo | MP4 único emendado, sem transcodificação |
+| `GET /api/rec/days` | `cam` | days that have recordings |
+| `GET /api/rec/timeline` | `cam` + range | contiguous bands (to draw) + segments (to play) |
+| `GET /api/rec/events` | `cam` + range | the instants when there was motion |
+| `GET /api/rec/init` | `cam`, `g` | the init segment of that generation, `immutable` |
+| `GET /api/rec/seg` | `cam`, `t` | the segment's fragments, **without** the init, `immutable` |
+| `GET /api/rec/thumb` | `cam`, `t` | 1-frame MP4 - the server decodes nothing |
+| `GET /api/rec/playlist.m3u8` | `cam` + range | HLS VOD, for VLC/ffplay/Safari |
+| `GET /api/rec/export` | `cam` + range | a single stitched MP4, without transcoding |
 
-**Intervalo** é `from`+`to` em epoch ms, ou o atalho `day=AAAA-MM-DD`, que
-equivale ao dia inteiro em hora local. `to` precisa ser maior que `from`.
+**Range** is `from`+`to` in epoch ms, or the `day=YYYY-MM-DD` shortcut, which
+is the whole day in local time. `to` must be greater than `from`.
 
-**`/api/rec/export`** aceita no máximo 10 min de intervalo, o mesmo teto da tela
-de Gravações; acima disso responde 400. Por isso o atalho `day=` não serve
-para ele.
+**`/api/rec/export`** accepts at most a 10 min range, the same ceiling as the
+**Gravações** (Recordings) screen; above that it responds 400. That is why the
+`day=` shortcut doesn't work for it.
 
-**`t`** é o instante inicial do segmento, exatamente como veio da timeline. Ele
-não é convertido em caminho de arquivo por conta própria: é procurado no
-índice, que é quem sabe onde terminam `ftyp`+`moov` (`io`) e qual o tamanho do
-primeiro fragmento (`f0`). Segmento que o dwnvr não gravou não é servido.
+**`t`** is the segment's start instant, exactly as it came from the timeline.
+It is not converted into a file path on its own: it is looked up in the index,
+which is what knows where `ftyp`+`moov` end (`io`) and the size of the first
+fragment (`f0`). A segment dwnvr didn't record is not served.
 
-**`g`** é a geração do init - o hash truncado. Só hexadecimal de até 32
-caracteres é aceito, porque esse valor vira nome de arquivo e aceitar caminho
-ali abriria travessia de diretório.
+**`g`** is the init's generation - the truncated hash. Only hexadecimal of up
+to 32 characters is accepted, because this value becomes a file name and
+accepting a path there would open a directory traversal.
 
-A separação entre `/api/rec/init` e `/api/rec/seg` é o que permite ao player
-MSE baixar o init uma vez só e depois pedir apenas mídia. Ver
+The split between `/api/rec/init` and `/api/rec/seg` is what lets the MSE
+player download the init just once and then ask only for media. See
 [architecture.md](architecture.md#armazenamento).
 
-**`/api/rec/events`** devolve os instantes crus, em ordem, que a faixa de calor
-da timeline desenha, e as marcas de objeto que o detector confirmou:
+**`/api/rec/events`** returns the raw instants, in order, that the timeline's
+heat strip draws, and the object marks the object detector confirmed:
 
 ```json
 {
@@ -666,76 +691,83 @@ da timeline desenha, e as marcas de objeto que o detector confirmou:
 }
 ```
 
-Os `onsets` são números soltos, e não objetos, pela mesma razão que a timeline
-é compacta: um dia no nível mais sensível tem ~2.400 marcas, e a forma verbosa
-dobraria a resposta para dizer o mesmo. Os `objects` são dezenas por dia, e vão
-com chave por extenso; o instante de cada um é o do onset que o originou. É um
-por objeto: duas pessoas no mesmo quadro são dois itens de `person` com o mesmo
-`atMs`, e a timeline junta os dois numa chegada.
+The `onsets` are bare numbers, and not objects, for the same reason the
+timeline is compact: a day at the most sensitive level has ~2,400 marks, and
+the verbose form would double the response to say the same thing. The
+`objects` are dozens per day, and go with full-word keys; each one's instant is
+that of the onset that originated it. It is one per object: two people in the
+same frame are two `person` items with the same `atMs`, and the timeline merges
+the two into one arrival.
 
-`frameMs` e `box` dizem onde desenhar o objeto sobre o vídeo: `box` é
-X1, Y1, X2, Y2 em fração da imagem, de 0 a 1, e vale para o quadro de
-`frameMs` - o que o detector olhou, até 3 s depois do onset -, e não para o
-instante da marca. Marca sem as duas chaves não ganha caixa na tela.
+`frameMs` and `box` say where to draw the object over the video: `box` is
+X1, Y1, X2, Y2 as a fraction of the image, from 0 to 1, and holds for the frame
+at `frameMs` - what the object detector looked at, up to 3 s after the onset -,
+and not for the instant of the mark. A mark without both keys gets no box on
+screen.
 
-Câmera com a detecção desligada, ou sem detector configurado, responde lista
-vazia - não é erro, é o caso comum.
+A camera with detection off, or without an object detector configured,
+responds with an empty list - it is not an error, it is the common case.
 
-O intervalo livre é o que dá o **caminho de cauda**: no dia corrente a tela
-pergunta de novo a cada dez segundos e pede só o pedaço recente, em vez de
-rebaixar o dia inteiro a cada rodada. A marca de objeto chega **atrasada** - ela
-leva o instante do onset, mas só é gravada depois que o detector olha -, então
-a cauda volta 30 min antes do último onset e descarta o que já tinha. Pedir a
-partir do último onset perderia para sempre o objeto de um onset anterior.
+The free range is what gives the **tail path**: on the current day the screen
+asks again every ten seconds and asks only for the recent piece, instead of
+re-downloading the whole day on every round. The object mark arrives **late** -
+it carries the onset's instant, but is only recorded after the object detector
+runs the inference -, so the tail goes back 30 min before the last onset and
+discards what it already had. Asking from the last onset on would lose forever
+the object of an earlier onset.
 
-## Detecções
+## Detections
 
-As detecções de objeto de todas as câmeras juntas: é o que a tela de Detecções
-rola.
+The object detections from all cameras together: it is what the Detections
+screen scrolls.
 
-| Endpoint | Parâmetros | Devolve |
+| Endpoint | Parameters | Returns |
 | --- | --- | --- |
-| `GET /api/detections` | `before` ou `after`, `limit`, `cams`, `families`, `area`, `rule`, `areas`, `alert` | uma página de detecções, da mais nova para a mais velha |
-| `GET /api/detections/frame` | `cam`, `t` | o JPEG do quadro que o detector olhou, `immutable` |
-| `GET /api/detections/days` | `cams`, `families`, `area`, `rule`, `areas`, `alert` | os dias com pelo menos uma detecção, em ordem crescente, e quantas cada um tem |
+| `GET /api/detections` | `before` or `after`, `limit`, `cams`, `families`, `area`, `rule`, `areas`, `alert` | a page of detections, newest to oldest |
+| `GET /api/detections/frame` | `cam`, `t` | the JPEG of the frame the object detector looked at, `immutable` |
+| `GET /api/detections/days` | `cams`, `families`, `area`, `rule`, `areas`, `alert` | the days with at least one detection, in ascending order, and how many each one has |
 
-**`/api/detections`** pagina por cursor, e não por número de página: o dia
-corrente ganha detecção nova a todo momento, e "página 3" mudaria de conteúdo
-entre um pedido e outro.
+**`/api/detections`** paginates by cursor, and not by page number: the current
+day gets a new detection all the time, and "page 3" would change content
+between one request and another.
 
-- `before=<ms>`: as detecções anteriores a este instante, para rolar para baixo.
-  Sem cursor nenhum, vêm as mais novas.
-- `after=<ms>`: as posteriores, para rolar para cima depois de um "ir para".
-  São as mais próximas do cursor, mas a resposta vem na mesma ordem das outras:
-  da mais nova para a mais velha.
-- `limit`: quantas, de 1 a 200. Padrão 60.
-- `cams=cam_a,cam_b` e `families=person,vehicle`: só essas. Sem eles, todas.
-  Câmera não cadastrada ou família desconhecida é erro.
-- `area=<cam>:<x>,<y>,<x>,<y>,...`: na câmera `<cam>`, só os objetos dentro
-  de uma área desenhada sobre a imagem dela, como
-  `area=cam_teste1:400,500,600,500,600,700`. X e Y vão em milésimos do quadro,
-  inteiros de 0 a 1000, para a URL ficar curta; são de 3 a 20 pontos, e a área
-  pode ser côncava. A área restringe só a câmera dela: as outras câmeras de
-  `cams` vêm inteiras, e a câmera da área fora de `cams` não aparece.
-- `rule=touch` ou `rule=foot`: quando um objeto conta como dentro da área. Com
-  `touch`, basta a caixa ter algum ponto em comum com ela. Com `foot`, o
-  padrão, conta o meio da borda de baixo da caixa, onde ficam os pés e as
-  rodas: a área se desenha no chão, e quem passa na frente dela, perto da
-  câmera, não conta. `rule` sem `area` é erro.
-- `areas=<cam>/<id>`: o mesmo, com uma área cadastrada na câmera (o campo
-  `areas` de `POST /api/cameras`) e a regra do cadastro, como
-  `areas=cam_teste1/k3f9a2`. Várias vão separadas por vírgula, como as
-  câmeras de `cams` (`areas=cam_a/k3f9a2,cam_b/p0rt40`). O servidor resolve
-  pelo cadastro de agora: editar a área muda o filtro dali em diante, inclusive
-  sobre o passado. Área que a câmera não tem mais é erro.
+- `before=<ms>`: the detections before this instant, to scroll down. With no
+  cursor at all, the newest come.
+- `after=<ms>`: the ones after, to scroll up after a "go to". They are the
+  closest to the cursor, but the response comes in the same order as the
+  others: newest to oldest.
+- `limit`: how many, from 1 to 200. Default 60.
+- `cams=cam_a,cam_b` and `families=person,vehicle`: only those. Without them,
+  all. An unregistered camera or unknown family is an error.
+- `area=<cam>:<x>,<y>,<x>,<y>,...`: on camera `<cam>`, only the objects inside
+  an area drawn over its image, such as
+  `area=cam_teste1:400,500,600,500,600,700`. X and Y go in thousandths of the
+  frame, integers from 0 to 1000, to keep the URL short; it is 3 to 20 points,
+  and the area can be concave. The area restricts only its own camera: the
+  other cameras in `cams` come whole, and the area's camera outside `cams`
+  doesn't appear.
+- `rule=touch` or `rule=foot`: when an object counts as inside the area. With
+  `touch`, it is enough for the box to have any point in common with it. With
+  `foot`, the default, the middle of the bottom edge of the box counts, where
+  the feet and the wheels are: the area is drawn on the ground, and whoever
+  passes in front of it, close to the camera, doesn't count. `rule` without
+  `area` is an error.
+- `areas=<cam>/<id>`: the same, with an area registered on the camera (the
+  `areas` field of `POST /api/cameras`) and the rule from the registration, such
+  as `areas=cam_teste1/k3f9a2`. Several go separated by comma, like the cameras
+  in `cams` (`areas=cam_a/k3f9a2,cam_b/p0rt40`). The server resolves it by the
+  registration as of now: editing the area changes the filter from then on,
+  including over the past. An area the camera no longer has is an error.
 
-- `alert=1`: só as detecções em que algum objeto alertou (ver abaixo). O
-  filtro é por detecção: o objeto que não alertou fica nela. Ele vale sobre o
-  que sobra dos outros filtros: com `families=vehicle`, a detecção que alertou
-  só pela pessoa sai, porque a pessoa sai. Outro valor é erro.
+- `alert=1`: only the detections in which some object alerted (see below). The
+  filter is per detection: the object that didn't alert stays in it. It applies
+  over what is left of the other filters: with `families=vehicle`, a detection
+  that alerted only because of the person drops out, because the person drops
+  out. Any other value is an error.
 
-As áreas de uma câmera **somam**, a de `area` junto: o objeto fica se está em
-qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
+The areas of a camera **add up**, the one from `area` included: the object
+stays if it is in any of them. A camera with no area at all in the filter comes
+whole.
 
 ```json
 {
@@ -756,43 +788,49 @@ qualquer uma delas. A câmera sem área nenhuma no filtro vem inteira.
 }
 ```
 
-Uma **detecção** é uma olhada do detector numa câmera: o instante do onset e
-tudo o que ele achou naquele quadro. Duas pessoas e um carro no mesmo quadro
-são três marcas no `events/{dia}.ndjson`, mas uma detecção só, com três
-objetos. O filtro de família e o de área tiram objetos, e a detecção que fica
-sem nenhum sai da página. Com área, a marca sem caixa, gravada antes de a
-caixa existir, fica de fora: não há como saber onde ela estava.
-`box` e `frameMs` são os mesmos de `/api/rec/events`.
+A **detection** is an inference by the object detector on one camera: the
+onset's instant and everything it found in that frame. Two people and a car in
+the same frame are three marks in `events/{day}.ndjson`, but only one
+detection, with three objects. The family filter and the area filter take
+objects out, and a detection left with none leaves the page. With an area, a
+mark without a box, recorded before the box existed, is left out: there is no
+way to know where it was. `box` and `frameMs` are the same as in
+`/api/rec/events`.
 
-`alert` diz que o objeto passou na regra de alerta da câmera na hora em que foi
-olhado, e `alertAreas`, os ids das áreas do alerta em que ele caiu; sem áreas
-no alerta, ou sem alerta, o campo não vem. É o que foi gravado: mudar o alerta
-da câmera não muda o passado, e o id de uma área apagada continua vindo. O
-viewer também os recebe.
+`alert` says the object passed the camera's alert rule at the time it was
+inferred, and `alertAreas`, the ids of the alert areas it fell in; without
+areas in the alert, or without an alert, the field doesn't come. It is what
+was recorded: changing the camera's alert doesn't change the past, and the id
+of a deleted area keeps coming. The viewer receives them too.
 
-O próximo cursor é o `atMs` da última detecção da página. A página **não
-parte um instante ao meio**: se a última empata, no mesmo milissegundo, com a de
-outra câmera, as duas vêm e a página passa um pouco do limite - senão o cursor
-pularia a que ficou de fora. `end` diz que não há mais nada na direção pedida;
-ele pode vir falso na página que por acaso pegou a última detecção, e a próxima
-vem vazia e com `end` verdadeiro.
+The next cursor is the `atMs` of the last detection on the page. The page
+**doesn't split an instant in half**: if the last one ties, in the same
+millisecond, with one from another camera, both come and the page goes a little
+past the limit - otherwise the cursor would skip the one left out. `end` says
+there is nothing more in the requested direction; it can come false on the page
+that happened to catch the last detection, and the next one comes empty and
+with `end` true.
 
-A marca de objeto chega **atrasada**, como em `/api/rec/events`: ela leva o
-instante do onset, mas só é gravada depois que o detector olha. Uma detecção
-nova pode, então, cair abaixo do topo que a tela já mostrou.
+The object mark arrives **late**, as in `/api/rec/events`: it carries the
+onset's instant, but is only recorded after the object detector runs the
+inference. A new detection can, then, land below the top the screen already
+showed.
 
-O servidor memoriza as marcas de objeto de cada dia já lido, sem os onsets:
-dia passado é lido do disco uma vez só, e do dia corrente só o pedaço que o
-arquivo cresceu. Medido com 11 dias de uma instalação real, nove câmeras e 7.987
-detecções: 0,85 MB em memória, e uma página de 60 em 0,2 ms depois da primeira
-leitura. O dia sai da memória quando a retenção o apaga.
+The server memoizes the object marks of each day already read, without the
+onsets: a past day is read from disk just once, and for the current day only
+the piece the file has grown. Measured with 11 days of a real installation,
+nine cameras and 7,987 detections: 0.85 MB in memory, and a page of 60 in
+0.2 ms after the first read. The day leaves memory when the retention deletes
+it.
 
-**`/api/detections/days`** é o que o calendário da tela de Detecções deixa
-escolher, com o número que ele mostra em cada dia. `cams`, `families`, `area`,
-`rule`, `areas` e `alert` são os mesmos de `/api/detections`, e o dia entra se tiver ao menos uma detecção do
-filtro. `detectionsPerDay` conta detecções, não marcas, como `/api/detections`
-as monta: pessoa e carro no mesmo quadro contam uma vez. Dia sem gravação fica
-de fora mesmo com marca, porque a rolagem também não chega nele.
+**`/api/detections/days`** is what the Detections screen's calendar lets you
+pick, with the number it shows on each day. `cams`, `families`, `area`, `rule`,
+`areas` and `alert` are the same as in `/api/detections`, and the day is
+included if it has at least one detection matching the filter.
+`detectionsPerDay` counts detections, not marks, as `/api/detections` builds
+them: a person and a car in the same frame count once. A day without a
+recording is left out even with a mark, because scrolling doesn't reach it
+either.
 
 ```json
 {
@@ -801,34 +839,35 @@ de fora mesmo com marca, porque a rolagem também não chega nele.
 }
 ```
 
-Ele usa a mesma memória da rolagem, e contar obriga a ler todas as câmeras de
-cada dia. Medido no Orange Pi Zero 3 com 28 dias, nove câmeras, 13 MB de
-eventos e 18.772 detecções, com o cache de disco frio: a primeira chamada levou
-1,2 s e 1,3 s, e as seguintes saem da memória em ~5 ms. Parar na primeira
-câmera com marca, sem contar, levava 0,4 s. A tela relê a lista a cada abertura
-do calendário, porque o dia corrente cresce com ela aberta.
+It uses the same memory as the scrolling, and counting forces reading all
+cameras of each day. Measured on the Orange Pi Zero 3 with 28 days, nine
+cameras, 13 MB of events and 18,772 detections, with a cold disk cache: the
+first call took 1.2 s and 1.3 s, and the following ones come from memory in
+~5 ms. Stopping at the first camera with a mark, without counting, took 0.4 s.
+The screen rereads the list on every calendar open, because the current day
+grows while it is open.
 
-**`/api/detections/frame`** serve o arquivo como ele está no disco, sem
-redimensionar nem reencodar: `t` é o `atMs` da detecção. Ele nunca muda
-depois de gravado, então vai com `immutable` e rolar de volta não pede nada ao
-servidor. Detecção com `hasFrame` falso responde 404.
+**`/api/detections/frame`** serves the file as it is on disk, without resizing
+or re-encoding: `t` is the detection's `atMs`. It never changes once recorded,
+so it goes with `immutable` and scrolling back asks nothing from the server. A
+detection with `hasFrame` false responds 404.
 
-## Usuários
+## Users
 
-Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem com
-`"authRequired": false` e o resto responde `409`.
+All **admin only**. Without authentication on there is no registry: the listing
+comes with `"authRequired": false` and the rest responds `409`.
 
-| Endpoint | O que faz |
+| Endpoint | What it does |
 | --- | --- |
-| `GET /api/users` | as pessoas, com a situação de cada uma, e o dono à parte |
-| `POST /api/users` | cria um viewer, `{"username", "name", "email"}`, e devolve o token do link; o e-mail é opcional |
-| `POST /api/users/check` | o que o `POST /api/users` recusaria com o mesmo corpo, sem criar ninguém |
-| `POST /api/users/link` | link novo, `{"username"}`: apaga a senha atual e derruba a pessoa na hora |
-| `POST /api/users/link/email` | manda o link por e-mail, `{"username", "url"}`, para o e-mail da pessoa |
-| `POST /api/users/email` | troca o e-mail de alguém, `{"username", "email"}`; vazio apaga |
-| `POST /api/users/email/check` | o que o `POST /api/users/email` recusaria com o mesmo corpo, sem trocar nada |
-| `DELETE /api/users?username=` | remove a pessoa, e a foto dela, e a derruba na hora |
-| `DELETE /api/users/avatar?username=` | tira a foto de alguém; trocar, só a própria pessoa |
+| `GET /api/users` | the people, with each one's status, and the owner separately |
+| `POST /api/users` | creates a viewer, `{"username", "name", "email"}`, and returns the link's token; the e-mail is optional |
+| `POST /api/users/check` | what `POST /api/users` would reject with the same body, without creating anyone |
+| `POST /api/users/link` | new link, `{"username"}`: erases the current password and drops the person right away |
+| `POST /api/users/link/email` | sends the link by e-mail, `{"username", "url"}`, to the person's e-mail |
+| `POST /api/users/email` | changes someone's e-mail, `{"username", "email"}`; empty erases |
+| `POST /api/users/email/check` | what `POST /api/users/email` would reject with the same body, without changing anything |
+| `DELETE /api/users?username=` | removes the person, and their photo, and drops them right away |
+| `DELETE /api/users/avatar?username=` | removes someone's photo; replacing it, only the person themselves |
 
 ```json
 // GET /api/users
@@ -848,27 +887,29 @@ Tudo **só admin**. Sem autenticação ligada não há cadastro: a listagem vem 
 }
 ```
 
-O `status` é `active` (tem senha), `invitePending` (pode definir a senha pelo
-link) ou `inviteExpired` (precisa de outro link). Quem está `active` traz também
-`activeSinceMs`, quando definiu a senha pelo link; trocar a própria senha não o
-muda, e o link novo o apaga.
+The `status` is `active` (has a password), `invitePending` (can set the
+password through the link) or `inviteExpired` (needs another link). Whoever is
+`active` also brings `activeSinceMs`, when they set the password through the
+link; changing their own password doesn't change it, and the new link erases
+it.
 
-O `lastAccessMs` é a última requisição da pessoa com sessão válida, e não o
-último login, que diz pouco com a sessão se renovando sozinha. Anda de minuto
-em minuto (`users.LastAccessStep`) e vem em qualquer `status`: quem
-ganhou link novo continua com o acesso de antes. Some de quem não usou o
-dwnvr desde que o campo existe, e de quem é removido ou criado de novo com o
-mesmo usuário. A requisição só anota na memória; o `access.json`, na pasta de
-config, é gravado em segundo plano, no máximo a cada 5 minutos
-(`users.AccessFlushDelay`) e ao desligar.
+The `lastAccessMs` is the person's last request with a valid session, and not
+the last login, which says little with the session renewing itself. It moves
+minute by minute (`users.LastAccessStep`) and comes in any `status`: whoever
+got a new link keeps the access from before. It goes away for whoever hasn't
+used dwnvr since the field existed, and for whoever is removed or created again
+with the same username. The request only notes it in memory; the `access.json`,
+in the config folder, is written in the background, at most every 5 minutes
+(`users.AccessFlushDelay`) and on shutdown.
 
-Criar e o link novo devolvem
-`{"user": {...}, "token": "..."}`: o token só existe nessa resposta, e a
-tela monta o link com ele. Usuário fora do formato, repetido ou igual ao do
-dono, e nome vazio, são `400` com o motivo; pessoa que não existe é `404`.
+Create and the new link return
+`{"user": {...}, "token": "..."}`: the token only exists in this response, and
+the screen builds the link with it. A username in the wrong format, repeated or
+equal to the owner's, and an empty name, are `400` with the reason; a person
+who doesn't exist is `404`.
 
-A recusa do criar e a do trocar e-mail vêm campo a campo em `fields`, com a
-primeira, na ordem da tela, também no `error` de sempre:
+The rejection from create and from change e-mail comes field by field in
+`fields`, with the first one, in screen order, also in the usual `error`:
 
 ```json
 // POST /api/users -> 400
@@ -878,46 +919,49 @@ primeira, na ordem da tela, também no `error` de sempre:
 }
 ```
 
-As duas rotas `/conferir` são a mesma régua sem gravar nada: a tela confere
-cada campo quando o admin sai dele. Respondem `200` com `{"fields": {...}}`,
-só com os campos recusados, e `{"fields": {}}` quando está tudo certo. A régua
-conta também a entrada ignorada do `users.json` (o login e o e-mail dela
-não ficam livres), que a listagem não traz: por isso a tela não confere sozinha.
-Com o `users.json` ilegível, o cadastro em memória está vazio, e elas
-respondem `500` em vez de dizer que está tudo certo.
+The two `/check` routes are the same validation without storing anything: the
+screen checks each field when the admin leaves it. They respond `200` with
+`{"fields": {...}}`, with only the rejected fields, and `{"fields": {}}` when
+everything is fine. The validation also counts the ignored entry of
+`users.json` (its login and e-mail are not free), which the listing doesn't
+bring: that is why the screen doesn't check on its own. With an unreadable
+`users.json`, the in-memory registry is empty, and they respond `500` instead
+of saying everything is fine.
 
-O `email` é um endereço só, sem nome na frente, e é **único** entre as
-pessoas, sem diferença de maiúscula e minúscula: e-mail inválido ou de outra
-pessoa é `400`. O `POST /api/users/email` devolve `{"user": {...}}` e vale
-mesmo com o e-mail desligado, porque guardar não envia nada. Um e-mail
-escrito errado à mão no `users.json` vira aviso no log e no `/api/health`
-e não vem na listagem, mas continua no arquivo. O `emailEnabled` diz se a
-seção `smtp` está ligada; sem ela, a tela esconde o "Enviar por e-mail" e avisa,
-onde o e-mail é escrito, que o link não vai por e-mail.
+The `email` is a single address, without a name in front, and is **unique**
+among the people, case-insensitively: an invalid e-mail or one belonging to
+another person is `400`. `POST /api/users/email` returns `{"user": {...}}` and
+holds even with e-mail off, because storing sends nothing. An e-mail misspelled
+by hand in `users.json` becomes a warning in the log and in `/api/health` and
+doesn't come in the listing, but stays in the file. The `emailEnabled` says
+whether the `smtp` section is on; without it, the screen hides "Enviar por
+e-mail" (Send by e-mail) and warns, where the e-mail is typed, that the link
+won't go by e-mail.
 
-O `POST /api/users/link/email` recebe o link do jeito que a tela o mostra,
-porque o servidor não sabe por qual endereço é acessado: a tela o monta com o
-do navegador do admin. O servidor confere que é o link em aberto daquela
-pessoa (`http` ou `https`, sem usuário nem query, só o `#invite?token=`) e
-manda para o e-mail dela. Devolve `{"sentTo": "..."}`. Link de outra pessoa,
-em outra forma, ou pessoa sem e-mail, são `400`; link vencido ou usado, `410`;
-e-mail desligado, `409`; servidor de e-mail recusando, `502` com a resposta
-dele. O log diz para quem foi, nunca o link.
+`POST /api/users/link/email` receives the link the way the screen shows it,
+because the server doesn't know which address it is accessed through: the
+screen builds it with the admin's browser one. The server checks that it is
+that person's open link (`http` or `https`, with no username or query, only the
+`#invite?token=`) and sends it to their e-mail. It returns `{"sentTo": "..."}`.
+Another person's link, in another form, or a person without e-mail, are `400`;
+an expired or used link, `410`; e-mail off, `409`; the e-mail server refusing,
+`502` with its response. The log says who it went to, never the link.
 
-## Minha conta
+## My account
 
-O que cada pessoa muda de si mesma, de qualquer papel; ninguém muda o dos
-outros por aqui. Sem autenticação ligada não há de quem ser a conta, e tudo
-responde `409`.
+What each person changes about themselves, of any role; nobody changes anyone
+else's through here. Without authentication on there is no one the account
+belongs to, and everything responds `409`. In the interface this is the
+**Minha conta** screen.
 
-| Endpoint | O que faz |
+| Endpoint | What it does |
 | --- | --- |
-| `GET /api/account` | quem está logado e os números do formulário |
-| `POST /api/account/password` | troca a própria senha, `{"currentPassword", "newPassword"}`; o dono recebe `409` |
-| `POST /api/account/name` | troca o próprio nome de exibição, `{"name"}` |
-| `PUT /api/account/avatar` | guarda a própria foto: o corpo é o JPEG, já reduzido |
-| `DELETE /api/account/avatar` | tira a própria foto |
-| `GET /api/avatar?id=` | a foto: a própria, ou qualquer uma para o admin |
+| `GET /api/account` | who is logged in and the form's numbers |
+| `POST /api/account/password` | changes their own password, `{"currentPassword", "newPassword"}`; the owner gets `409` |
+| `POST /api/account/name` | changes their own display name, `{"name"}` |
+| `PUT /api/account/avatar` | stores their own photo: the body is the JPEG, already downsized |
+| `DELETE /api/account/avatar` | removes their own photo |
+| `GET /api/avatar?id=` | the photo: their own, or any for the admin |
 
 ```json
 // GET /api/account
@@ -930,43 +974,48 @@ responde `409`.
 }
 ```
 
-As rotas que mudam algo devolvem `{"ok": true, "user": {...}}` como ficou,
-para a tela atualizar o header sem perguntar de novo.
+The routes that change something return `{"ok": true, "user": {...}}` as it
+ended up, so the screen updates the header without asking again.
 
-**A senha** do dono fica no `dwnvr.yaml`, e se troca lá. Para os outros, a
-troca pede a senha atual e paga duas contas de senha, na mesma fila do login:
-uma para conferir a atual, outra para gerar a nova. Senha atual errada, ou
-nova fora de 8 a 128 caracteres, é `400` com o motivo, e nada cai. Trocada, os
-outros aparelhos da pessoa voltam para o login (ver [O cookie](#o-cookie)).
+**The password** of the owner lives in `dwnvr.yaml`, and is changed there. For
+the others, the change asks for the current password and pays two password
+computations, in the same queue as the login: one to check the current one,
+another to generate the new one. A wrong current password, or a new one outside
+8 to 128 characters, is `400` with the reason, and nothing drops. Once changed,
+the person's other devices go back to the login (see
+[The cookie](#the-cookie)).
 
-**A foto** é reduzida no navegador: a original não sai do aparelho. Ele corta
-o quadrado do centro, reduz a até `sidePx` pixels e gera um JPEG na `quality`,
-baixando a qualidade só se passar de `maxBytes`. O servidor para de ler no
-teto (`413`), decodifica a imagem inteira e recusa com `400` o que não for
-JPEG quadrado de até `sidePx` pixels. Guarda os bytes como vieram, sem
-comprimir de novo, em `avatars/<id>.jpg` na pasta de config. O id muda a cada
-troca, então o `GET /api/avatar` vai com `Cache-Control: private,
-max-age=31536000, immutable` e `nosniff`: foto nova é URL nova. A foto de
-outra pessoa, para quem não é admin, responde `404`, como a que não existe.
+**The photo** is downsized in the browser: the original doesn't leave the
+device. It crops the center square, scales down to `sidePx` pixels and
+generates a JPEG at `quality`, lowering the quality only if it goes over
+`maxBytes`. The server stops reading at the ceiling (`413`), decodes the whole
+image and rejects with `400` whatever isn't a square JPEG of up to `sidePx`
+pixels. It stores the bytes as they came, without compressing again, in
+`avatars/<id>.jpg` in the config folder. The id changes on every replacement,
+so `GET /api/avatar` goes with `Cache-Control: private,
+max-age=31536000, immutable` and `nosniff`: a new photo is a new URL. Another
+person's photo, for whoever isn't admin, responds `404`, like one that doesn't
+exist.
 
 ## Live
 
-| Endpoint | O que faz |
+| Endpoint | What it does |
 | --- | --- |
-| `GET /api/live/ws?src=` | proxy do websocket do go2rtc (`/api/ws`), com a credencial ficando no servidor |
+| `GET /api/live/ws?src=` | proxy of go2rtc's websocket (`/api/ws`), with the credential staying on the server |
 
-O navegador nunca fala com o go2rtc diretamente. Passar pelo proxy resolve duas
-coisas de uma vez: a senha da API do go2rtc não vai para o cliente, e o live
-respeita a mesma sessão do resto da interface. Quem é removido tem o websocket
-fechado na hora (ver [A queda de quem é derrubado](#a-queda-de-quem-é-derrubado)).
+The browser never talks to go2rtc directly. Going through the proxy solves two
+things at once: the go2rtc API password doesn't go to the client, and the live
+view respects the same session as the rest of the interface. Whoever is removed
+has the websocket closed right away (see
+[When someone is dropped](#when-someone-is-dropped)).
 
-Só o websocket do player passa. O resto da API do go2rtc - configuração,
-restart, streams - não é alcançável por aqui; o que o dwnvr precisa dela, ele
-pede do lado do servidor.
+Only the player's websocket passes. The rest of go2rtc's API - configuration,
+restart, streams - is not reachable through here; what dwnvr needs from it, it
+asks for on the server side.
 
-## Por que a interface não exige sessão
+## Why the UI doesn't require a session
 
-Os arquivos da SPA - HTML, CSS e JS - são servidos **sem** autenticação. É só o
-app shell, sem dado nenhum de câmera. Protegê-lo impediria o navegador de
-carregar a própria tela de login. Tudo que é dado está atrás dos endpoints
-acima.
+The SPA files - HTML, CSS and JS - are served **without** authentication. It is
+just the app shell, with no camera data at all. Protecting it would stop the
+browser from loading the login screen itself. Everything that is data is behind
+the endpoints above.
