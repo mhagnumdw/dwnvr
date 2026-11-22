@@ -117,7 +117,8 @@ depois disso, e a release só sai no fim da etapa, com o guia inteiro.
    Prettier, para o `git blame` continuar apontando a mudança de verdade.
    Dois restos já conhecidos, que o passo 4 deixou na interface e não são
    contrato: `session.pessoa` e a chave `nome` (da família, da regra da área e
-   do ícone na timeline).
+   do ícone na timeline). E um do passo 3: o log `dwnvr no ar`, em
+   `cmd/dwnvr/main.go`, que os dois READMEs citam como sinal de que subiu.
 
 ## Riscos
 

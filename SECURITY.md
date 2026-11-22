@@ -1,17 +1,17 @@
-# Segurança
+# Security
 
-## Como contar uma falha
+## How to report a vulnerability
 
-Não abra issue: ela é pública desde o primeiro minuto. Use o canal privado do
-GitHub, na aba Security do repositório, em
+Don't open an issue: it's public from the first minute. Use GitHub's private
+channel, on the repository's Security tab, under
 [Report a vulnerability](https://github.com/mhagnumdw/dwnvr/security/advisories/new).
-Só quem mantém o projeto vê o relato, e a conversa sobre a correção acontece
-ali.
+Only the maintainers see the report, and the conversation about the fix
+happens there.
 
-Ajuda dizer a versão (`docker compose images` mostra a tag), o que foi feito e
-o que aconteceu.
+It helps to include the version (`docker compose images` shows the tag), what
+was done and what happened.
 
-## Versões com correção
+## Supported versions
 
-Só a última release. A correção sai numa release nova, e atualizar é o que diz
-a seção Atualizar do [README](README.md#atualizar).
+Only the latest release. The fix ships in a new release, and updating is
+what the [Updating](README.md#updating) section of the README describes.

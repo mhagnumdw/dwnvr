@@ -18,7 +18,7 @@ para o tempo não dizer quem é o dono. Falta o que é do dono: o
 Hoje o `server.password` fica no `dwnvr.yaml` do jeito que foi escrito, e o
 login o compara, em tempo constante, com o que foi digitado (`handleLogin`, em
 `internal/api/auth.go`). O `chmod 600` do passo 2 do
-[Instalar de verdade](../../README.md#instalar-de-verdade) já impede que outros
+[Instalar de verdade](../../README.pt-BR.md#instalar-de-verdade) já impede que outros
 usuários e serviços da máquina leiam o arquivo.
 
 O hash acrescenta duas coisas:

@@ -176,7 +176,7 @@ would stay open.
 docker compose up -d
 ```
 
-> With [Podman](../README.md#com-podman-) instead of Docker:
+> With [Podman](../README.md#with-podman-) instead of Docker:
 > `PODMAN_USERNS=keep-id podman-compose --in-pod false up -d`. Not tested.
 > Rootless Podman only publishes 80 and 443 with
 > `net.ipv4.ip_unprivileged_port_start=80` in the server's `sysctl`.

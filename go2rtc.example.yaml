@@ -140,8 +140,8 @@ api:
   # The compose publishes it only to the server itself. If you open it to the
   # network, to use go2rtc's web interface from another machine, set a password
   # here and the same one in go2rtc.username and go2rtc.password of
-  # dwnvr.yaml, or dwnvr stops reaching go2rtc. See "Abrir o go2rtc para a
-  # rede" in the README.
+  # dwnvr.yaml, or dwnvr stops reaching go2rtc. See "Opening go2rtc to the
+  # network" in the README.
   # username: admin
   # password: troque-me
 

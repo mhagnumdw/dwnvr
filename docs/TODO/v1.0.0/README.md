@@ -5,8 +5,9 @@ as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
 **Agora (22/11/2026):** a Etapa 2 (conversão para en-US) está no passo 7, na
-branch `en-us-docs`: os `docs/`, os exemplos, o build e os workflows já estão em
-en-US; falta o `README.md` em en-US e o `README.pt-BR.md`, e depois o PR.
+branch `en-us-docs`: os `docs/`, os exemplos, o build, os workflows, o
+`SECURITY.md` e o `README.md` já estão em en-US, com o `README.pt-BR.md` ao
+lado; falta o PR.
 O guia de atualização nasce junto, em
 [docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
@@ -58,7 +59,7 @@ próxima, em andamento ou concluída, com a data.
       - [x] O PR mergeado por squash: PR #96, em 20/11/2026
   - [x] Os `docs/TODO/` abertos revistos com o mantenedor, em 22/11/2026: quatro apagados (já feitos ou desistidos); os outros ficam em pt-BR, sem tradução na conversão. O mantenedor os traduz depois, sem pressa, e TODO novo já nasce em en-US
   - [x] A documentação, os exemplos, os workflows e o resto, na branch `en-us-docs`, em 22/11/2026: os `docs/` com nomes e texto em en-US, os exemplos, o build, os workflows (`images.yml`, `coverage.yml`) e as notas de release ("Action required on upgrade")
-  - [ ] O `README.md` em en-US e o `README.pt-BR.md`
+  - [x] O `README.md` em en-US e o `README.pt-BR.md`, em 22/11/2026, com o `SECURITY.md` em en-US
   - [ ] A varredura final e o `.git-blame-ignore-revs`
 - [ ] **Etapa 3 - temas**: não começou ([temas.md](temas.md))
   - [ ] Toda cor da tela passa por um token

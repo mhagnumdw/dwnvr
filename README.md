@@ -1,157 +1,172 @@
 # dwnvr <!-- omit in toc -->
 
+**English** · [Português (Brasil)](README.pt-BR.md)
+
 [![CI](https://github.com/mhagnumdw/dwnvr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mhagnumdw/dwnvr/actions/workflows/ci.yml)
-[![Cobertura](https://codecov.io/gh/mhagnumdw/dwnvr/graph/badge.svg)](https://app.codecov.io/gh/mhagnumdw/dwnvr)
+[![Coverage](https://codecov.io/gh/mhagnumdw/dwnvr/graph/badge.svg)](https://app.codecov.io/gh/mhagnumdw/dwnvr)
 [![CodeQL](https://github.com/mhagnumdw/dwnvr/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/mhagnumdw/dwnvr/actions/workflows/github-code-scanning/codeql)
 [![Dependabot](https://github.com/mhagnumdw/dwnvr/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/mhagnumdw/dwnvr/actions/workflows/dependabot/dependabot-updates)
 [![Release](https://img.shields.io/github/v/release/mhagnumdw/dwnvr)](https://github.com/mhagnumdw/dwnvr/releases)
-![Plataformas](https://img.shields.io/badge/linux-amd64%20%7C%20arm64-blue)
+![Platforms](https://img.shields.io/badge/linux-amd64%20%7C%20arm64-blue)
 [![Go](https://img.shields.io/github/go-mod/go-version/mhagnumdw/dwnvr)](go.mod)
 
 ![Logo](web/public/favicon.svg)
 
-NVR de gravação contínua **projetado com foco em hardware extremamente
-limitado**. Ele não é feito para um hardware específico.
+A continuous-recording NVR **designed for extremely limited hardware**. It is
+not built for any specific device.
 
-O dwnvr vem sendo testado durante todo o seu desenvolvimento em um Orange Pi
-Zero 3 (4 cores Cortex-A53, 1,5 GB RAM), gravando 9 câmeras Yoosee 24/7.
+dwnvr has been tested throughout its development on an Orange Pi Zero 3 (4
+Cortex-A53 cores, 1.5 GB RAM), recording 9 Yoosee cameras 24/7.
 
-**Sem transcodificação de vídeo. Sem banco de dados. Sem decodificar vídeo para
-achar movimento.**
+**No video transcoding. No database. No video decoding to find motion.**
 
-Medido nesse Orange Pi Zero 3 com as 9 câmeras gravando simultaneamente:
-
-| | CPU | RAM |
-| --- | --- | --- |
-| dwnvr | **5% de 1 core** (1% dos 4) | **18 MB** |
-| go2rtc | 10% de 1 core | 89 MB |
-
-Com o [detector de objetos](#detecção-de-movimento-e-de-objetos) ligado, que é opcional, nas 9
-câmeras e no nível de sensibilidade 5, o mais alto:
+Measured on that Orange Pi Zero 3 with all 9 cameras recording at once:
 
 | | CPU | RAM |
 | --- | --- | --- |
-| dwnvr | 5% de 1 core | 29 MB |
-| go2rtc | 9% de 1 core | 80 MB |
-| dwnvr-detect | 157% de 1 core (39% dos 4) | 229 MB, com picos de 246 MB |
+| dwnvr | **5% of 1 core** (1% of the 4) | **18 MB** |
+| go2rtc | 10% of 1 core | 89 MB |
 
-Com a detecção desligada, o dwnvr custa o mesmo que uma versão sem ela.
+With the [object detector](#motion-and-object-detection) on, which is
+optional, on all 9 cameras at sensitivity level 5, the highest:
 
-> **ATENÇÃO:** esse projeto é totalmente vibe codado e é meu primeiro projeto assim. Além de querer resolver uma necessidade minha, que eu acho que é de várias outras pessoas, eu queria saber como seria a experiência de desenvolver totalmente nesse estilo.
+| | CPU | RAM |
+| --- | --- | --- |
+| dwnvr | 5% of 1 core | 29 MB |
+| go2rtc | 9% of 1 core | 80 MB |
+| dwnvr-detect | 157% of 1 core (39% of the 4) | 229 MB, peaking at 246 MB |
+
+With detection off, dwnvr costs the same as a build without it.
+
+> **HEADS UP:** this project is entirely vibe coded, and it's my first project
+> built that way. Besides solving a need of my own, which I believe many other
+> people share, I wanted to find out what developing fully in this style would
+> be like.
 >
-> Embora seja vibe codado, o projeto já nasceu desde o início com foco em extrema performance, baixíssimo consumo de CPU e memória, tempo de resposta ultra rápido, uma UI super rápida, leve, reativa e responsiva com excelente usabilidade para mobile (browser) e desktop (browser). Parte disso era uma necessidade em razão do hardware real que usei e uso, que é um Orange Pi Zero 3 e tudo isso se constata nos testes que faço e no meu uso no dia a dia. Testei diversas outras opções e nenhuma passou perto dos resultados que tenho, fora outros problemas/chatices diversas.
+> Vibe coded as it is, the project was born focused on extreme performance,
+> very low CPU and memory use, ultra-fast response times, and a UI that is
+> fast, light, reactive and responsive, with great usability on mobile
+> (browser) and desktop (browser). Part of that was a necessity, given the
+> real hardware I used and still use, an Orange Pi Zero 3, and all of it shows
+> in my tests and in my daily use. I tried several other options, and none
+> came close to these results, not to mention a range of other problems and
+> annoyances.
 
-- [O que você precisa](#o-que-você-precisa)
-- [Experimentar em poucos minutos](#experimentar-em-poucos-minutos)
-- [Instalar de verdade](#instalar-de-verdade)
-- [Detecção de movimento e de objetos](#detecção-de-movimento-e-de-objetos)
-- [Atualizar](#atualizar)
-- [Acesso remoto](#acesso-remoto)
+- [What you need](#what-you-need)
+- [Try it in a few minutes](#try-it-in-a-few-minutes)
+- [Installing for real](#installing-for-real)
+- [Motion and object detection](#motion-and-object-detection)
+- [Updating](#updating)
+- [Remote access](#remote-access)
 - [HTTPS](#https)
-- [A tela como app, no celular e no computador](#a-tela-como-app-no-celular-e-no-computador)
-- [Casos específicos](#casos-específicos)
-- [Como funciona](#como-funciona)
-- [Configuração](#configuração)
-- [Documentação](#documentação)
-- [Desenvolvimento](#desenvolvimento)
-  - [Subir a partir do código](#subir-a-partir-do-código)
-  - [Tecnologias](#tecnologias)
-  - [Estrutura do projeto](#estrutura-do-projeto)
+- [The UI as an app, on phone and computer](#the-ui-as-an-app-on-phone-and-computer)
+- [Special cases](#special-cases)
+- [How it works](#how-it-works)
+- [Configuration](#configuration)
+- [Documentation](#documentation)
+- [Development](#development)
+  - [Running from source](#running-from-source)
+  - [Technologies](#technologies)
+  - [Project structure](#project-structure)
   - [Build](#build)
-  - [Testes](#testes)
+  - [Tests](#tests)
   - [Lint](#lint)
   - [Release](#release)
 
-## O que você precisa
+## What you need
 
-- Linux em **amd64** ou **arm64** (Orange Pi, Raspberry Pi, um PC qualquer);
-- **Docker com Compose v2**, ou Podman.
+- Linux on **amd64** or **arm64** (Orange Pi, Raspberry Pi, any PC);
+- **Docker with Compose v2**, or Podman.
 
-Só isso. Nada é compilado nem instalado na sua máquina: o dwnvr já vem pronto
-para rodar. E nem câmera é preciso para experimentar, porque o teste rápido
-traz oito câmeras de teste.
+That's all. Nothing is compiled or installed on your machine: dwnvr comes
+ready to run. You don't even need a camera to try it, because the quick test
+brings eight test cameras.
 
-## Experimentar em poucos minutos
+## Try it in a few minutes
 
-> Se você já quer instalar para valer, com as suas câmeras, pule para
-[instalar de verdade](#instalar-de-verdade).
+> If you already want to install it for good, with your own cameras, skip to
+[installing for real](#installing-for-real).
 
-Sobe o dwnvr com oito câmeras de teste: cinco sintéticas, desenhadas pelo
-ffmpeg, e três streams públicos da internet, com imagem de rua de verdade. Tudo
-fica dentro do diretório do clone, e apagá-lo desfaz tudo.
+Starts dwnvr with eight test cameras: five synthetic ones, drawn by ffmpeg,
+and three public streams from the internet, with real street footage.
+Everything stays inside the clone's directory, and deleting it undoes it all.
 
 ```sh
 git clone https://github.com/mhagnumdw/dwnvr && cd dwnvr
 
-# Precisam existir antes: se o Docker os criar, eles nascem de root e o
-# container - que não roda como root - não consegue escrever dentro deles.
+# These must exist first: if Docker creates them, they're owned by root and
+# the container - which doesn't run as root - can't write inside them.
 mkdir -p config/dwnvr config/go2rtc storage
 
-# A configuração do dwnvr e a do go2rtc, com as câmeras de teste.
+# The dwnvr and go2rtc configuration, with the test cameras.
 cp dwnvr.example.yaml  config/dwnvr/dwnvr.yaml
 cp go2rtc.example.yaml config/go2rtc/go2rtc.yaml
 
-# O container grava com o seu usuário, para os arquivos serem seus no disco,
-# e no fuso da sua máquina, para a timeline virar o dia na hora certa.
+# The container records as your user, so the files on disk are yours, and in
+# your machine's time zone, so the timeline turns the day at the right hour.
 printf 'DWNVR_UID=%s\nDWNVR_GID=%s\nTZ=%s\n' \
   "$(id -u)" "$(id -g)" "$(timedatectl show -p Timezone --value)" > .env
 
 docker compose up
 ```
 
-> Com [Podman](#com-podman-) no lugar do Docker, o último comando é
+> With [Podman](#with-podman-) instead of Docker, the last command is
 `PODMAN_USERNS=keep-id podman-compose --in-pod false up`.
 
-Quando o log disser `dwnvr no ar`, abra <http://localhost:8080>:
+When the log says `dwnvr no ar`, open <http://localhost:8080>:
 
-1. na aba **Câmeras**, clique na `cam_teste1`, que aparece em *Disponíveis no
-   go2rtc* junto com as outras sete - a `cam_teste5` tem áudio, e a
-   `traffic`, a `roadcam` e a `accident` são imagem de rua de verdade;
-2. a aba **Ao vivo** já mostra a câmera;
-3. em ~30s o primeiro trecho fecha e aparece na aba **Gravações**.
+1. on the **Câmeras** (Cameras) tab, click `cam_teste1`, listed under
+   *Disponíveis no go2rtc* (Available in go2rtc) along with the other seven -
+   `cam_teste5` has audio, and `traffic`, `roadcam` and `accident` are real
+   street footage;
+2. the **Ao vivo** (Live) tab already shows the camera;
+3. in ~30s the first stretch closes and shows up on the **Gravações**
+   (Recordings) tab.
 
-Não há tela de login: ela fica desligada até você definir usuário e senha. Isso
-é proposital, para o teste rápido não travar numa senha, e vale só para ele: na
-[instalação de verdade](#instalar-de-verdade), ligar o login é um dos passos.
-Enquanto ele estiver desligado, o dwnvr avisa no log.
+There's no login screen: it stays off until you set a username and password.
+That's on purpose, so the quick test doesn't get stuck on a password, and it
+applies only to the quick test: in the [real installation](#installing-for-real),
+turning the login on is one of the steps. While it's off, dwnvr warns about it
+in the log.
 
-> Não há aba **Detecções** porque o teste rápido não sobe o detector de objetos,
-> e é ele que traz essa aba. Para ligar a detecção, veja
-> [detecção de movimento e de objetos](#detecção-de-movimento-e-de-objetos).
+> There's no **Detecções** (Detections) tab because the quick test doesn't
+> start the object detector, and that's what brings the tab. To turn
+> detection on, see [motion and object detection](#motion-and-object-detection).
 
-Para desfazer tudo:
+To undo everything:
 
 ```sh
 docker compose down
 rm -rf config storage .env
 ```
 
-> Com [Podman](#com-podman-) no lugar do Docker, o primeiro comando é
+> With [Podman](#with-podman-) instead of Docker, the first command is
 `podman-compose --in-pod false down`.
 
-## Instalar de verdade
+## Installing for real
 
-É o mesmo `docker-compose.yml` do teste rápido, sem editar uma linha dele: o que
-muda é o `.env`, que diz onde as coisas moram no disco. Por isso o `git pull`
-da atualização nunca conflita com a sua instalação.
+It's the same `docker-compose.yml` as the quick test, without editing a single
+line of it: what changes is the `.env`, which says where things live on disk.
+That's why the update's `git pull` never conflicts with your installation.
 
-### 1. O código <!-- omit in toc -->
+### 1. The code <!-- omit in toc -->
 
 ```sh
 git clone https://github.com/mhagnumdw/dwnvr && cd dwnvr
 ```
 
-O clone pode ficar onde você quiser: ele guarda só o `docker-compose.yml` e o
-`.env`. A configuração e as gravações moram no diretório do próximo passo. Se
-você já clonou para o teste rápido, desfaça o teste e use o mesmo clone.
+The clone can live wherever you like: it only holds `docker-compose.yml` and
+`.env`. The configuration and the recordings live in the directory from the
+next step. If you already cloned for the quick test, undo the test and reuse
+the same clone.
 
-### 2. Os diretórios <!-- omit in toc -->
+### 2. The directories <!-- omit in toc -->
 
-Supondo um disco em `/mnt/storage` - troque pelo seu na primeira linha do bloco
-de comandos, rodado dentro do clone:
+Assuming a disk at `/mnt/storage` - replace it with yours on the first line of
+the command block, run inside the clone:
 
 ```sh
-# O diretório da instalação, no seu disco
+# The installation directory, on your disk
 DWNVR_DIR=/mnt/storage/dwnvr
 
 sudo mkdir -p "$DWNVR_DIR"/{config/dwnvr,config/go2rtc,recordings}
@@ -160,774 +175,790 @@ sudo chown -R "$(id -u):$(id -g)" "$DWNVR_DIR"
 cp dwnvr.example.yaml  "$DWNVR_DIR/config/dwnvr/dwnvr.yaml"
 cp go2rtc.example.yaml "$DWNVR_DIR/config/go2rtc/go2rtc.yaml"
 
-# A senha de login do dwnvr e as senhas das câmeras vão ficar nestes arquivos
-# do jeito que você as escrever: só o seu usuário lê e escreve neles, nem o
-# seu grupo nem os outros.
+# The dwnvr login password and the camera passwords will sit in these files
+# exactly as you write them: only your user reads and writes them, not your
+# group and not anyone else.
 chmod 600 "$DWNVR_DIR/config/dwnvr/dwnvr.yaml"
 chmod 600 "$DWNVR_DIR/config/go2rtc/go2rtc.yaml"
 ```
 
-Ficará assim:
+It ends up like this:
 
 ```text
-No Host                                                            No Container
+On the host                                                        In the container
 /mnt/storage/dwnvr/
 ├── config/
 │   ├── dwnvr/       dwnvr.yaml, cameras.json, .session-secret  →  /etc/dwnvr
-│   └── go2rtc/      go2rtc.yaml: as suas câmeras, com senha    →  /config
-└── recordings/      as gravações                               →  /storage
+│   └── go2rtc/      go2rtc.yaml: your cameras, with passwords  →  /config
+└── recordings/      the recordings                             →  /storage
 ```
 
-Crie-os **antes** de subir, pelo mesmo motivo do teste rápido. Cada serviço
-tem a sua subpasta em `config/` de propósito: cada container enxerga só a
-própria. As URLs RTSP, com usuário e senha, não ficam visíveis para o dwnvr, e
-o segredo de sessão e a senha de login do dwnvr não ficam visíveis para o
-go2rtc.
+Create them **before** starting, for the same reason as in the quick test.
+Each service has its own subfolder under `config/` on purpose: each container
+sees only its own. The RTSP URLs, with username and password, aren't visible
+to dwnvr, and the session secret and the dwnvr login password aren't visible
+to go2rtc.
 
-O `chmod 600` não tira o acesso dos containers: o dwnvr roda com o seu
-usuário, o do `DWNVR_UID` do passo 3, e o go2rtc roda como root no Docker e
-com o seu usuário no Podman. Quando a interface web do go2rtc salva o
-`go2rtc.yaml`, a permissão continua a mesma. Se você instalou antes de estes
-`chmod` entrarem aqui, rode os dois agora.
+The `chmod 600` doesn't take access away from the containers: dwnvr runs as
+your user, the `DWNVR_UID` from step 3, and go2rtc runs as root under Docker
+and as your user under Podman. When go2rtc's web interface saves
+`go2rtc.yaml`, the permission stays the same. If you installed before these
+`chmod` lines were added here, run both now.
 
-### 3. O `.env` <!-- omit in toc -->
+### 3. The `.env` <!-- omit in toc -->
 
-Ao lado do `docker-compose.yml`, no mesmo terminal do passo anterior, que já
-tem o `DWNVR_DIR`:
+Next to `docker-compose.yml`, in the same terminal as the previous step, which
+already has `DWNVR_DIR`:
 
 ```sh
 cat > .env <<EOF
-# Onde as coisas moram no host
+# Where things live on the host
 DWNVR_CONFIG_DIR=$DWNVR_DIR/config/dwnvr
 DWNVR_STORAGE_DIR=$DWNVR_DIR/recordings
 GO2RTC_CONFIG_DIR=$DWNVR_DIR/config/go2rtc
 
-# O usuário com que o container grava
+# The user the container records as
 DWNVR_UID=$(id -u)
 DWNVR_GID=$(id -g)
 
-# O fuso da sua máquina, como America/Fortaleza
+# Your machine's time zone, such as America/Fortaleza
 TZ=$(timedatectl show -p Timezone --value)
 EOF
 
-# Confira como ficou
+# Check the result
 cat .env
 ```
 
-`DWNVR_UID` e `DWNVR_GID` errados fazem a tela de cadastro falhar ao gravar o
-`cameras.json`. O `TZ` decide a que dia cada gravação pertence: errado, a
-virada de dia da timeline cai no horário errado.
+A wrong `DWNVR_UID` or `DWNVR_GID` makes the camera setup screen fail when it
+saves `cameras.json`. `TZ` decides which day each recording belongs to: if
+it's wrong, the timeline turns the day at the wrong hour.
 
-### 4. As suas câmeras <!-- omit in toc -->
+### 4. Your cameras <!-- omit in toc -->
 
-> **Antes:** o dwnvr lê o stream direto da câmera, e muita câmera vem com isso
-> desligado. Ative o RTSP (ou ONVIF) na interface web ou no app da câmera.
-> Ele costuma ter usuário e senha próprios. Se a sua câmera não tiver RTSP, o
-> go2rtc aceita [outras fontes](https://github.com/AlexxIT/go2rtc#module-streams),
-> como RTMP, HTTP e protocolos de fabricante.
+> **First:** dwnvr reads the stream straight from the camera, and many cameras
+> ship with that turned off. Enable RTSP (or ONVIF) in the camera's web
+> interface or app. It usually has its own username and password. If your
+> camera has no RTSP, go2rtc accepts
+> [other sources](https://github.com/AlexxIT/go2rtc#module-streams), such as
+> RTMP, HTTP and vendor protocols.
 
-No `go2rtc.yaml`, apague todas as câmeras de teste e coloque as suas. O bloco
-comentado do arquivo traz exemplos: alta e baixa resolução, áudio, o formato
-geral da URL RTSP. Depois de subir, elas aparecem sozinhas na aba **Câmeras**,
-prontas para cadastrar.
+In `go2rtc.yaml`, delete all the test cameras and add yours. The commented
+block in the file has examples: high and low resolution, audio, the general
+shape of an RTSP URL. Once started, they show up on their own on the
+**Câmeras** tab, ready to add.
 
-Mexeu no arquivo com tudo já no ar - câmera nova, câmera removida ou só uma
-URL trocada? O go2rtc só lê o `go2rtc.yaml` quando sobe, então ele precisa
-reiniciar para a mudança valer. A aba **Câmeras** avisa quando percebe a
-diferença e tem o botão para reiniciar; `docker compose restart go2rtc` faz o
-mesmo. Enquanto isso, as câmeras param de gravar por alguns segundos.
+Changed the file with everything already running - a new camera, a removed
+one, or just a different URL? go2rtc reads `go2rtc.yaml` only when it starts,
+so it has to restart for the change to apply. The **Câmeras** tab warns when
+it notices the difference and has a button to restart it;
+`docker compose restart go2rtc` does the same. Meanwhile, the cameras stop
+recording for a few seconds.
 
-### 5. O login <!-- omit in toc -->
+### 5. The login <!-- omit in toc -->
 
-Preencha `server.username` e `server.password` no `dwnvr.yaml`. Enquanto os
-dois estiverem vazios, quem abrir a interface enxerga as gravações de todas as
-câmeras.
+Fill in `server.username` and `server.password` in `dwnvr.yaml`. While both
+are empty, anyone who opens the interface sees the recordings of every camera.
 
-Essa é a sua conta, a de administrador. As outras pessoas da casa você cria na
-aba **Usuários**: o dwnvr gera um link que vale 10 minutos, e cada uma define a
-própria senha por ele. Quem entra assim vê o ao vivo, as gravações e as
-detecções; o cadastro de câmeras, os usuários e o diagnóstico do servidor
-ficam só com você. Esqueceu a senha ou perdeu o celular: gere um link novo para
-a pessoa, e a senha antiga para de valer na hora. Pelo avatar, no canto do
-topo, cada um abre a **Minha conta**, onde troca o nome, a foto e, menos você,
-a senha.
+That's your account, the admin one. Everyone else in the house you create on
+the **Usuários** (Users) tab: dwnvr generates a link valid for 10 minutes, and
+each person sets their own password through it. Those who sign in this way see
+the live view, the recordings and the detections; camera setup, users and the
+server diagnostics stay with you alone. Forgot the password or lost the
+phone: generate a new link for that person, and the old password stops
+working right away. From the avatar, in the top corner, each person opens
+**Minha conta** (My account), where they change their name, photo and, except
+for you, password.
 
-### 6. Subir <!-- omit in toc -->
+### 6. Start it <!-- omit in toc -->
 
 ```sh
 docker compose up -d
 ```
 
-> Com [Podman](#com-podman-) no lugar do Docker:
+> With [Podman](#with-podman-) instead of Docker:
 `PODMAN_USERNS=keep-id podman-compose --in-pod false up -d`.
 
-Quando o `docker compose logs dwnvr` disser `dwnvr no ar`, abra
-`http://<ip-da-máquina>:8080` no navegador:
+When `docker compose logs dwnvr` says `dwnvr no ar`, open
+`http://<machine-ip>:8080` in the browser:
 
-1. entre com o usuário e a senha do passo 5;
-2. na aba **Câmeras**, clique numa câmera em *Disponíveis no go2rtc*;
-3. ajuste nome, cota e o que mais quiser, e clique em **salvar** - ela começa a
-   gravar na hora.
+1. sign in with the username and password from step 5;
+2. on the **Câmeras** tab, click a camera under *Disponíveis no go2rtc*;
+3. set the name, the quota and anything else you want, and click **salvar**
+   (save) - it starts recording right away.
 
-Repita o passo 2 para cada câmera.
+Repeat step 2 for each camera.
 
-## Detecção de movimento e de objetos
+## Motion and object detection
 
-Opcional, e desligada por padrão. Os passos abaixo partem de uma
-[instalação de verdade](#instalar-de-verdade) já no ar. São duas camadas:
+Optional, and off by default. The steps below assume an
+[installation for real](#installing-for-real) already running. There are two
+layers:
 
-- **Movimento** marca na timeline os instantes em que algo mexeu. Não precisa
-  de nada além do dwnvr: ligue por câmera, na aba **Câmeras**. Quase não custa
-  CPU, porque não decodifica vídeo.
-- **Objetos** diz se aquele movimento era pessoa, veículo ou animal. Precisa do
-  container `dwnvr-detect`, e custa CPU e RAM de verdade - veja a segunda
-  tabela lá no topo.
+- **Motion** marks on the timeline the moments when something moved. It needs
+  nothing besides dwnvr: turn it on per camera, on the **Câmeras** tab. It
+  costs almost no CPU, because it doesn't decode video.
+- **Objects** tells whether that motion was a person, a vehicle or an animal.
+  It needs the `dwnvr-detect` container, and it costs real CPU and RAM - see
+  the second table at the top.
 
-> **O que esperar da precisão.** O dwnvr foi feito para hardware modesto, e
-> toda a detecção roda na CPU, sem acelerador dedicado. Por isso ela não tem a
-> precisão de um sistema com hardware especializado: a detecção de movimento,
-> em especial, pode marcar o que não interessa e deixar passar algum evento.
-> Mesmo assim, a detecção de objetos acerta muito, e impressiona pelo que
-> entrega num hardware tão limitado. Usar hardware especializado, como NPU ou
-> Coral, pode entrar no futuro.
+> **What to expect from accuracy.** dwnvr was built for modest hardware, and
+> all detection runs on the CPU, with no dedicated accelerator. So it doesn't
+> have the accuracy of a system with specialized hardware: motion detection in
+> particular may mark what doesn't matter and miss an event. Even so, object
+> detection gets it right a lot, and it's impressive for what it delivers on
+> such limited hardware. Specialized hardware, such as an NPU or a Coral, may
+> come in the future.
 
-### Ligar a detecção de movimento <!-- omit in toc -->
+### Turning on motion detection <!-- omit in toc -->
 
-Ela é ligada câmera a câmera, e é requisito para o detector de objetos: ele só
-olha as câmeras com a detecção de movimento ligada.
+It's turned on camera by camera, and it's a requirement for the object
+detector: the detector only looks at cameras with motion detection on.
 
-1. na aba **Câmeras**, clique em **editar** na câmera - ou ligue já no
-   cadastro dela;
-2. na aba **Detecção** do formulário, marque **Marcar movimento na timeline**;
-3. escolha a **Sensibilidade**: quanto maior, mais movimento ela pega e mais
-   marcas por hora ela gera - a tela mostra quantas. O padrão é o 5;
-4. deixe o **Mecanismo** em *estatístico (recomendado)* e clique em **salvar**.
+1. on the **Câmeras** tab, click **editar** (edit) on the camera - or turn it
+   on when adding it;
+2. on the form's **Detecção** (Detection) tab, check **Marcar movimento na
+   timeline** (Mark motion on the timeline);
+3. pick the **Sensibilidade** (Sensitivity): the higher it is, the more motion
+   it catches and the more marks per hour it makes - the screen shows how
+   many. The default is 5;
+4. leave **Mecanismo** (Method) at *estatístico (recomendado)* (statistical,
+   recommended) and click **salvar**.
 
-O resultado aparece alguns segundos depois na aba **Gravações**: uma faixa
-âmbar na timeline marca os instantes de movimento. Com o detector de objetos,
-a timeline ganha também o ícone de pessoa, veículo ou animal, e surge a aba
-**Detecções**, com todas elas.
+The result shows up a few seconds later on the **Gravações** tab: an amber
+band on the timeline marks the moments of motion. With the object detector,
+the timeline also gets the person, vehicle or animal icon, and the
+**Detecções** tab appears, with all of them.
 
-### Ligar o detector de objetos <!-- omit in toc -->
+### Turning on the object detector <!-- omit in toc -->
 
-Na pasta do clone:
+In the clone's folder:
 
 ```sh
-# O compose passa a subir o serviço dwnvr-detect junto
+# The compose now starts the dwnvr-detect service as well
 echo "COMPOSE_PROFILES=detect" >> .env
 ```
 
-No `dwnvr.yaml`, descomente:
+In `dwnvr.yaml`, uncomment:
 
 ```yaml
 detector:
   url: http://dwnvr-detect:8480
 ```
 
-E suba de novo. O `restart` faz o dwnvr reler o `dwnvr.yaml`, caso ele já
-estivesse no ar:
+And start it again. The `restart` makes dwnvr reread `dwnvr.yaml`, in case it
+was already running:
 
 ```sh
 docker compose up -d && docker compose restart dwnvr
 ```
 
-> Com [Podman](#com-podman-) no lugar do Docker:
+> With [Podman](#with-podman-) instead of Docker:
 >
 > ```sh
 > PODMAN_USERNS=keep-id podman-compose --in-pod false up -d \
 >   && podman-compose --in-pod false restart dwnvr
 > ```
 
-O detector de objetos usa metade dos núcleos da máquina, até 4 threads, e
-deixa a outra metade para a gravação. Para outro número, ponha no `.env`, como
-por exemplo `DETECT_THREADS=2`, e rode o `up -d` de novo.
+The object detector uses half of the machine's cores, up to 4 threads, and
+leaves the other half to recording. For a different number, put it in `.env`,
+for example `DETECT_THREADS=2`, and run `up -d` again.
 
-### Ligar o alerta <!-- omit in toc -->
+### Turning on the alert <!-- omit in toc -->
 
-Com o detector de objetos ligado, cada câmera pode avisar quando
-detectar, por exemplo, uma pessoa no portão:
+With the object detector on, each camera can warn when it detects, for
+example, a person at the gate:
 
-1. na aba **Câmeras**, clique em **editar** na câmera;
-2. se quiser que o alerta valha só num pedaço da imagem, desenhe esse pedaço na
-   aba **Áreas**;
-3. na aba **Alerta**, marque **Avisar quando detectar**, escolha o que avisa
-   (pessoa, veículo, animal) e onde (a imagem inteira ou só as áreas marcadas),
-   e clique em **salvar**.
+1. on the **Câmeras** tab, click **editar** on the camera;
+2. if you want the alert to apply only to part of the image, draw that part on
+   the **Áreas** (Areas) tab;
+3. on the **Alerta** (Alert) tab, check **Avisar quando detectar** (Warn when
+   detected), choose what triggers it (person, vehicle, animal) and where (the
+   whole image or only the marked areas), and click **salvar**.
 
-O alerta vai para o log do dwnvr e fica marcado na detecção: na aba
-**Detecções**, o botão **só alertas** mostra só as que alertaram, com a área
-em que o objeto caiu. Com a lista `alerts.email.to` e a seção `smtp` do
-`dwnvr.yaml`, ele também chega por e-mail, com o quadro já com as caixas e as
-áreas desenhadas e, com o `server.publicUrl`, um botão que abre a gravação no
-instante do alerta (ver
-[`docs/configuration.md`](docs/configuration.md#e-mail-alerts)); o bloco
-**Para onde vai**, no fim da aba Alerta, diz se ele sai por e-mail e para
-quem. E ele avisa do que a detecção marcar, que não é toda chegada: não é
-alarme. Os limites estão em [`docs/detection.md`](docs/detection.md#the-alert).
+The alert goes to the dwnvr log and is flagged on the detection: on the
+**Detecções** tab, the **só alertas** (alerts only) button shows only the ones
+that alerted, with the area the object fell in. With the `alerts.email.to`
+list and the `smtp` section of `dwnvr.yaml`, it also arrives by e-mail, with
+the frame already showing the boxes and the areas and, with
+`server.publicUrl`, a button that opens the recording at the moment of the
+alert (see [`docs/configuration.md`](docs/configuration.md#e-mail-alerts));
+the **Para onde vai** (Where it goes) block, at the end of the Alerta tab,
+says whether it goes out by e-mail and to whom. And it warns about what
+detection marks, which isn't every arrival: it's not an alarm. The limits are
+in [`docs/detection.md`](docs/detection.md#the-alert).
 
-## Atualizar
+## Updating
 
-Atualiza o dwnvr para a última versão - e, junto, o `dwnvr-detect`, se
-estiver ligado, e o go2rtc. O que mudou em cada versão está nas
-[releases](https://github.com/mhagnumdw/dwnvr/releases) e no
-[`CHANGELOG.md`](CHANGELOG.md). Na mesma pasta do clone:
+Updates dwnvr to the latest version - and, along with it, `dwnvr-detect`, if
+it's on, and go2rtc. What changed in each version is in the
+[releases](https://github.com/mhagnumdw/dwnvr/releases) and in
+[`CHANGELOG.md`](CHANGELOG.md). In the clone's folder:
 
 ```sh
 git pull && docker compose up -d --pull always
 ```
 
-> Com [Podman](#com-podman-) no lugar do Docker:
+> With [Podman](#with-podman-) instead of Docker:
 >
 > ```sh
 > git pull && PODMAN_USERNS=keep-id podman-compose --in-pod false up -d --pull-always
 > ```
 
-O `git pull` traz o `docker-compose.yml` novo, que aponta para as imagens da
-versão dele; o `--pull always` baixa essas imagens e recria só os containers
-que mudaram. A configuração e as gravações ficam onde estão: o `dwnvr.yaml` e
-o `go2rtc.yaml` são seus e nenhuma atualização os reescreve. Para ver se chegou
-opção nova, compare o seu `dwnvr.yaml` com o `dwnvr.example.yaml` do clone.
+`git pull` brings the new `docker-compose.yml`, which points to the images of
+its version; `--pull always` downloads those images and recreates only the
+containers that changed. The configuration and the recordings stay where they
+are: `dwnvr.yaml` and `go2rtc.yaml` are yours, and no update rewrites them. To
+see whether a new option arrived, compare your `dwnvr.yaml` with the clone's
+`dwnvr.example.yaml`.
 
-Se o pull falhar, o comando para aí e o que está no ar continua gravando.
+If the pull fails, the command stops there and what's running keeps
+recording.
 
-Quando sai versão nova, a interface avisa com uma pílula `↑ vX.Y.Z` no topo,
-que leva às releases. Quem pergunta é o navegador, direto ao GitHub, no máximo
-uma vez a cada 12 horas: o servidor do dwnvr não sai para a internet, e numa
-rede sem ela o aviso simplesmente não aparece.
+A release that asks for action when updating says so at the top of its notes,
+in **Action required on upgrade**. For 1.0.0, the steps are in
+[`docs/upgrading.md`](docs/upgrading.md).
 
-**Fixar ou voltar uma versão.** A tag das imagens vem de `DWNVR_VERSION` no
-`.env`, que passa por cima da versão escrita no compose. Para ficar numa
-versão, ou voltar para uma anterior, ponha a tag dela no `.env`, como
-`DWNVR_VERSION=v0.1.0`, e rode o mesmo comando de cima; as gravações e a
-configuração ficam nos volumes, fora da imagem. Para voltar a seguir as
-releases, apague a linha do `.env`. Com `DWNVR_VERSION=main`, a instalação
-segue cada commit da `main`, antes de virar versão: é o canal de quem testa.
+When a new version is out, the interface shows a `↑ vX.Y.Z` pill at the top,
+which leads to the releases. The one asking is the browser, straight to
+GitHub, at most once every 12 hours: the dwnvr server never reaches out to the
+internet, and on a network without it the notice simply doesn't show up.
 
-O go2rtc também tem versão fixa no compose, a que foi testada com aquela
-versão do dwnvr, e só muda quando o compose muda. Para usar outra, ponha
-`GO2RTC_VERSION` no `.env`, como `GO2RTC_VERSION=1.9.14`, com uma das
-[tags do go2rtc](https://hub.docker.com/r/alexxit/go2rtc/tags).
+**Pinning or rolling back a version.** The image tag comes from
+`DWNVR_VERSION` in `.env`, which overrides the version written in the compose.
+To stay on a version, or go back to an earlier one, put its tag in `.env`,
+such as `DWNVR_VERSION=v0.1.0`, and run the same command above; the
+recordings and the configuration live in the volumes, outside the image. To
+follow the releases again, delete the line from `.env`. With
+`DWNVR_VERSION=main`, the installation follows every commit on `main`, before
+it becomes a version: that's the testers' channel.
 
-## Acesso remoto
+go2rtc also has a pinned version in the compose, the one tested with that
+dwnvr version, and it changes only when the compose changes. To use another
+one, put `GO2RTC_VERSION` in `.env`, such as `GO2RTC_VERSION=1.9.14`, with one
+of the [go2rtc tags](https://hub.docker.com/r/alexxit/go2rtc/tags).
 
-Para abrir o dwnvr fora de casa, pelo celular ou por outro computador, sem
-abrir porta no roteador nem expor o servidor na internet, o caminho é o
-[Tailscale](https://tailscale.com): uma VPN, gratuita para uso pessoal, que de
-quebra dá ao dwnvr um endereço `https://` com certificado válido. Dá também
-para dar acesso à família, cada pessoa com a própria conta e só ao dwnvr.
+## Remote access
 
-No dwnvr não há nada para configurar. O passo a passo, do servidor a cada
-dispositivo, está em [`docs/remote-access.md`](docs/remote-access.md).
+To open dwnvr away from home, from a phone or another computer, without
+opening a port on the router or exposing the server to the internet, the way
+is [Tailscale](https://tailscale.com): a VPN, free for personal use, which
+also gives dwnvr an `https://` address with a valid certificate. It can also
+give the family access, each person with their own account and only to dwnvr.
+
+There's nothing to configure in dwnvr. The step by step, from the server to
+each device, is in [`docs/remote-access.md`](docs/remote-access.md).
 
 ## HTTPS
 
-O dwnvr serve só `http://`. Para o `https://`, há dois caminhos:
+dwnvr serves only `http://`. For `https://`, there are two ways:
 
-- **em casa e fora dela**, pelo Tailscale:
+- **at home and away**, through Tailscale:
   [`docs/remote-access.md`](docs/remote-access.md);
-- **só em casa**, sem o Tailscale:
+- **at home only**, without Tailscale:
   [`docs/https-local-network.md`](docs/https-local-network.md).
 
-## A tela como app, no celular e no computador
+## The UI as an app, on phone and computer
 
-Isto não instala nada no servidor: é a tela do dwnvr, a que você abre no
-navegador, virando um app no dispositivo de quem assiste. Ela ganha um ícone na
-tela inicial e abre em janela própria, sem a barra de endereço do navegador. É
-o que se chama de PWA.
+This installs nothing on the server: it's the dwnvr UI, the one you open in
+the browser, becoming an app on the viewer's device. It gets an icon on the
+home screen and opens in its own window, without the browser's address bar.
+That's what's called a PWA.
 
-- **Android e computador:** no Chrome, menu ⋮ > **Instalar app**. No
-  computador, também pelo ícone de instalar na barra de endereço.
-- **iPhone:** no Safari, compartilhar > **Adicionar à Tela de Início**. Ainda
-  não testado.
+- **Android and computer:** in Chrome, the ⋮ menu > **Install app**. On the
+  computer, also through the install icon in the address bar.
+- **iPhone:** in Safari, share > **Add to Home Screen**. Not tested yet.
 
-O navegador só oferece instalar quando o endereço é `https://` (ver
-[HTTPS](#https)). Pelo `http://<ip-da-máquina>:8080` da rede de casa, o Chrome
-do Android cria só um atalho, que abre numa aba comum.
+The browser only offers to install when the address is `https://` (see
+[HTTPS](#https)). Through `http://<machine-ip>:8080` on the home network,
+Chrome on Android creates only a shortcut, which opens in a regular tab.
 
-## Casos específicos
+## Special cases
 
-### Com Podman <!-- omit in toc -->
+### With Podman <!-- omit in toc -->
 
-O mesmo compose sobe com `podman-compose`, desde que o Podman mapeie o seu
-usuário para ele mesmo dentro do container:
+The same compose runs under `podman-compose`, as long as Podman maps your
+user to itself inside the container:
 
 ```sh
 PODMAN_USERNS=keep-id podman-compose --in-pod false up
 ```
 
-Sem o `keep-id`, o Podman rootless faz o seu UID virar root dentro do
-container, e o dwnvr, que roda com o `DWNVR_UID`, não consegue ler o
-`.session-secret` nem gravar em `config/dwnvr/` e `storage/`. O `--in-pod false` é
-porque, dentro de um pod, o `PODMAN_USERNS` é ignorado. As duas opções ficam
-fora do `docker-compose.yml` porque o Docker recusa o `keep-id`.
+Without `keep-id`, rootless Podman turns your UID into root inside the
+container, and dwnvr, which runs as `DWNVR_UID`, can't read `.session-secret`
+or write to `config/dwnvr/` and `storage/`. The `--in-pod false` is because
+`PODMAN_USERNS` is ignored inside a pod. Both options stay out of
+`docker-compose.yml` because Docker rejects `keep-id`.
 
-Para derrubar, o `--in-pod false` continua necessário. Sem ele, o
-`podman-compose` procura um pod `pod_dwnvr` que nunca foi criado e termina com
-`Error: no pod with name or ID pod_dwnvr found`:
+To bring it down, `--in-pod false` is still needed. Without it,
+`podman-compose` looks for a `pod_dwnvr` pod that was never created and ends
+with `Error: no pod with name or ID pod_dwnvr found`:
 
 ```sh
 podman-compose --in-pod false down
 ```
 
-Com SELinux ligado (Fedora, RHEL), o Podman também bloqueia a leitura dos
-volumes, e o `:z` que o compose já traz em cada um é o que libera. Nesse caso,
-a primeira subida troca o label de todas as gravações que já estiverem no
-disco, e pode demorar se forem muitas.
+With SELinux on (Fedora, RHEL), Podman also blocks reading the volumes, and
+the `:z` the compose already has on each one is what allows it. In that case,
+the first start relabels every recording already on disk, which may take a
+while if there are many.
 
-### O go2rtc já roda em outro lugar <!-- omit in toc -->
+### go2rtc already runs elsewhere <!-- omit in toc -->
 
-Se o go2rtc já roda em outro compose ou direto no host, este é o único caso em
-que você edita o `docker-compose.yml`:
+If go2rtc already runs in another compose or directly on the host, this is the
+only case where you edit `docker-compose.yml`:
 
-1. apague o serviço `go2rtc` e o `depends_on: [go2rtc]` do `dwnvr`, e
-   descomente o `extra_hosts`;
-2. no `dwnvr.yaml`, troque a `go2rtc.url` para `http://host.docker.internal:1984`.
+1. delete the `go2rtc` service and the `depends_on: [go2rtc]` of `dwnvr`, and
+   uncomment `extra_hosts`;
+2. in `dwnvr.yaml`, change `go2rtc.url` to `http://host.docker.internal:1984`.
 
-Com o arquivo editado, o `git pull` da atualização pode conflitar: guarde a
-edição com `git stash` antes e devolva com `git stash pop` depois.
+With the file edited, the update's `git pull` may conflict: put the edit
+away with `git stash` before and bring it back with `git stash pop` after.
 
-### Abrir o go2rtc para a rede <!-- omit in toc -->
+### Opening go2rtc to the network <!-- omit in toc -->
 
-A interface web do go2rtc (porta 1984) e o RTSP dele (porta 8554) abrem só no
-próprio servidor: `http://localhost:1984` funciona lá, e de outra máquina não.
-O dwnvr não precisa de mais que isso, porque fala com o go2rtc pela rede do
-compose. E nenhum dos dois pede senha por padrão: aberto para a rede, qualquer
-aparelho da sua Wi-Fi leria a configuração do go2rtc, com as senhas das
-câmeras, e assistiria as câmeras sem passar pelo login do dwnvr.
+go2rtc's web interface (port 1984) and its RTSP (port 8554) are open only on
+the server itself: `http://localhost:1984` works there, and not from another
+machine. dwnvr doesn't need more than that, because it talks to go2rtc over
+the compose network. And neither asks for a password by default: open to the
+network, any device on your Wi-Fi could read go2rtc's configuration, with the
+camera passwords, and watch the cameras without going through the dwnvr
+login.
 
-Para usar a interface de outra máquina só de vez em quando, um túnel ssh
-basta, sem abrir nada:
+To use the interface from another machine only now and then, an ssh tunnel is
+enough, without opening anything:
 
 ```sh
-ssh -L 1984:localhost:1984 <usuário>@<ip-da-máquina>
-# e abra http://localhost:1984 na sua máquina
+ssh -L 1984:localhost:1984 <user>@<machine-ip>
+# and open http://localhost:1984 on your machine
 ```
 
-Para abrir de vez, como para um app de RTSP no celular, ponha a senha antes:
+To open it for good, as for an RTSP app on the phone, set the password first:
 
-1. no `go2rtc.yaml`, `username` e `password` na seção `api:`, na `rtsp:` ou
-   nas duas - os comentários do
-   [`go2rtc.example.yaml`](go2rtc.example.yaml) mostram onde;
-2. se pôs na `api:`, a mesma em `go2rtc.username` e `go2rtc.password` do
-   `dwnvr.yaml`. Sem ela, o dwnvr deixa de alcançar o go2rtc;
-3. no `.env`, `GO2RTC_API_PORT=1984`, `GO2RTC_RTSP_PORT=8554` ou as duas;
-4. `docker compose up -d`, que recria o go2rtc com as portas novas, e
-   `docker compose restart dwnvr`, para ele ler o `dwnvr.yaml`.
+1. in `go2rtc.yaml`, `username` and `password` in the `api:` section, in
+   `rtsp:` or in both - the comments of
+   [`go2rtc.example.yaml`](go2rtc.example.yaml) show where;
+2. if you set it in `api:`, the same in `go2rtc.username` and
+   `go2rtc.password` of `dwnvr.yaml`. Without it, dwnvr can no longer reach
+   go2rtc;
+3. in `.env`, `GO2RTC_API_PORT=1984`, `GO2RTC_RTSP_PORT=8554` or both;
+4. `docker compose up -d`, which recreates go2rtc with the new ports, and
+   `docker compose restart dwnvr`, so it reads `dwnvr.yaml`.
 
-O app de RTSP passa a pedir o usuário e a senha na URL:
-`rtsp://usuario:senha@<ip-da-máquina>:8554/<stream>`.
+The RTSP app then needs the username and password in the URL:
+`rtsp://usuario:senha@<machine-ip>:8554/<stream>`.
 
-### Conferir as gravações por fora da interface <!-- omit in toc -->
+### Checking the recordings outside the UI <!-- omit in toc -->
 
-As gravações ficam no diretório do `DWNVR_STORAGE_DIR` - no teste rápido,
-`./storage` -, com o seu usuário:
+The recordings live in the `DWNVR_STORAGE_DIR` directory - in the quick test,
+`./storage` -, owned by your user:
 
 ```sh
-# o init, o índice NDJSON e os segmentos
+# the init, the NDJSON index and the segments
 find storage -type f
 
-# Qualquer segmento abre sozinho, sem pré-processamento e sem o init ao lado
+# Any segment plays on its own, with no preprocessing and no init next to it
 ffplay "$(find storage/cam_teste1/2* -name '*.mp4' | head -1)"
 ```
 
-Como copiar um trecho da gravação, e o resto do dia a dia - logs, container
-sem shell -, está em [`docs/operations.md`](docs/operations.md).
+How to copy a stretch of a recording, and the rest of the day to day - logs,
+a container without a shell -, is in [`docs/operations.md`](docs/operations.md).
 
-## Como funciona
+## How it works
 
 ```mermaid
 flowchart LR
-    cam[9 câmeras] -- RTSP --> go2rtc
+    cam[9 cameras] -- RTSP --> go2rtc
     go2rtc -- HTTP fMP4 --> dwnvr
-    dwnvr --> disco[(disco)]
-    go2rtc -. "live: WebRTC/MSE, via proxy do dwnvr" .-> nav[navegador]
-    dwnvr -- gravações --> nav
+    dwnvr --> disk[(disk)]
+    go2rtc -. "live: WebRTC/MSE, through the dwnvr proxy" .-> browser
+    dwnvr -- recordings --> browser
 ```
 
-O dwnvr consome o fMP4 que o **go2rtc já produz** (`/api/stream.mp4`) e corta em
-segmentos alinhados a keyframe. Ele nunca decodifica, nunca remuxa e nunca toca
-nos bytes de mídia - só lê cabeçalhos de caixa para saber onde cortar. É daí que
-vêm os 4% de um core.
+dwnvr consumes the fMP4 that **go2rtc already produces** (`/api/stream.mp4`)
+and cuts it into keyframe-aligned segments. It never decodes, never remuxes
+and never touches the media bytes - it only reads box headers to know where to
+cut. That's where the 4% of a core comes from.
 
-> **Segmento** é um arquivo de vídeo curto - por padrão ~30s - que toca
-> sozinho. A gravação de um dia não é um arquivo gigante: é uma fila de
-> segmentos, e é por isso que apagar o mais antigo, pular para um horário
-> específico ou exportar um trecho custa quase nada.
+> A **segment** is a short video file - ~30s by default - that plays on its
+> own. A day's recording isn't one giant file: it's a queue of segments, and
+> that's why deleting the oldest one, jumping to a specific time or exporting
+> a stretch costs almost nothing.
 
-**O go2rtc fica fora do escopo.** Configurá-lo é responsabilidade de quem
-instala; o dwnvr apenas descobre os streams existentes via `/api/streams` e
-recomenda configuração.
+**go2rtc is out of scope.** Configuring it is up to whoever installs it;
+dwnvr only discovers the existing streams through `/api/streams` and
+recommends a configuration.
 
-> Talvez no futuro o dwnvr faça a configuração automática
-do go2rtc, mas por enquanto não.
+> dwnvr may configure go2rtc automatically some day, but not for now.
 
-O porquê de cada decisão de formato está em
+The reason behind each format decision is in
 [`docs/architecture.md`](docs/architecture.md).
 
-**A detecção é opcional**, e vem desligada. Ligada numa câmera, ela marca na
-timeline os instantes de movimento, calculados do tamanho dos quadros - de novo
-sem decodificar nada. Com o container `dwnvr-detect`, ela diz também se era
-pessoa, veículo ou animal. Como funciona e quanto custa, em
-[`docs/detection.md`](docs/detection.md).
+**Detection is optional**, and comes off. Turned on for a camera, it marks on
+the timeline the moments of motion, computed from the size of the frames -
+again without decoding anything. With the `dwnvr-detect` container, it also
+tells whether it was a person, a vehicle or an animal. How it works and what
+it costs, in [`docs/detection.md`](docs/detection.md).
 
-## Configuração
+## Configuration
 
-Dois arquivos, de propósito:
+Two files, on purpose:
 
-- **`dwnvr.yaml`** - infraestrutura, editado à mão, **nunca reescrito** pela
-  aplicação. Veja [`dwnvr.example.yaml`](dwnvr.example.yaml).
-- **`cameras.json`** - a lista de câmeras, gravada pela tela de cadastro.
+- **`dwnvr.yaml`** - infrastructure, edited by hand, **never rewritten** by
+  the application. See [`dwnvr.example.yaml`](dwnvr.example.yaml).
+- **`cameras.json`** - the camera list, written by the setup screen.
 
-Estão separados porque têm ciclos de vida diferentes: a infraestrutura é
-editada à mão e quase nunca muda; a lista de câmeras é gravada pela aplicação a
-cada clique. Num arquivo só, o dwnvr teria que reescrever, várias vezes por dia,
-um arquivo que alguém pode ter aberto no editor naquele instante - apagando no
-caminho os comentários que essa pessoa escreveu. Do jeito que está, um erro na
-tela de cadastro ou uma queda de energia no meio dela não alcançam a
-configuração do serviço.
+They're separate because they have different life cycles: the infrastructure
+is edited by hand and hardly ever changes; the camera list is written by the
+application on every click. In a single file, dwnvr would have to rewrite,
+several times a day, a file someone might have open in an editor at that very
+moment - wiping out along the way the comments that person wrote. The way it
+is, a bug in the setup screen or a power cut in the middle of it can't reach
+the service's configuration.
 
-Tudo que é política de gravação é **por câmera**: qual stream do go2rtc usar
-(alta ou baixa resolução), áudio, cota, tamanho do segmento, o limiar de
-inatividade e a detecção - ligada ou não, o mecanismo e o nível de
-sensibilidade, de 1 a 5. Detalhes, incluindo o custo de cada modo de áudio em
-CPU e disco, em [`docs/configuration.md`](docs/configuration.md).
+Everything that is recording policy is **per camera**: which go2rtc stream to
+use (high or low resolution), audio, quota, segment length, the inactivity
+threshold and detection - on or off, the method and the sensitivity level,
+from 1 to 5. Details, including the CPU and disk cost of each audio mode, in
+[`docs/configuration.md`](docs/configuration.md).
 
-O login limita as tentativas de cada endereço (`server.loginAttemptsPerMinute`,
-ligado por padrão), para ninguém testar senhas sem parar. Detalhes em
+The login limits the attempts from each address
+(`server.loginAttemptsPerMinute`, on by default), so nobody can try passwords
+endlessly. Details in
 [`docs/configuration.md`](docs/configuration.md#login-attempt-limit).
 
-O detector de objetos é opcional: um container à parte, `dwnvr-detect`,
-apontado por `detector.url` no `dwnvr.yaml`. Sem ele, a detecção marca só
-movimento.
+The object detector is optional: a separate container, `dwnvr-detect`, set by
+`detector.url` in `dwnvr.yaml`. Without it, detection marks only motion.
 
-O e-mail também é opcional: com a seção `smtp` do `dwnvr.yaml`, de qualquer
-provedor, o link de definir a senha vai direto para a pessoa. Detalhes, com o
-passo a passo do Gmail, em
-[`docs/configuration.md`](docs/configuration.md#e-mail). A lista
-`alerts.email.to`, também opcional, diz quem recebe o alerta de detecção
-por e-mail (ver
-[`docs/configuration.md`](docs/configuration.md#e-mail-alerts)).
+E-mail is optional too: with the `smtp` section of `dwnvr.yaml`, from any
+provider, the set-password link goes straight to the person. Details, with
+the Gmail step by step, in
+[`docs/configuration.md`](docs/configuration.md#e-mail). The
+`alerts.email.to` list, also optional, says who gets the detection alert by
+e-mail (see [`docs/configuration.md`](docs/configuration.md#e-mail-alerts)).
 
-## Documentação
+## Documentation
 
-| Documento | Para quê |
+| Document | What for |
 | --- | --- |
-| [`docs/operations.md`](docs/operations.md) | o dia a dia: arquivos, copiar um trecho da gravação, logs, container sem shell |
-| [`docs/configuration.md`](docs/configuration.md) | os dois arquivos, política por câmera, retenção, áudio |
-| [`docs/remote-access.md`](docs/remote-access.md) | `https://` de qualquer lugar, app instalável e acesso da família, sem expor o servidor |
-| [`docs/https-local-network.md`](docs/https-local-network.md) | `https://` só na rede de casa, sem o Tailscale: o Caddy e a CA em cada aparelho |
-| [`docs/architecture.md`](docs/architecture.md) | o formato em disco e por que ele é assim |
-| [`docs/detection.md`](docs/detection.md) | a detecção de movimento e de objetos: o fluxo, o custo e os limites |
-| [`docs/resilience.md`](docs/resilience.md) | queda de energia e o go2rtc que emudece sem avisar |
-| [`docs/api.md`](docs/api.md) | referência dos endpoints HTTP |
-| [`docs/upgrading.md`](docs/upgrading.md) | o guia da atualização para a 1.0.0, em inglês |
-| [`web/README.md`](web/README.md) | desenvolver a interface |
-| [`docs/github.md`](docs/github.md) | o que está ligado no GitHub e o PR do Dependabot |
-| [`docs/README.md`](docs/README.md) | índice completo, incluindo as medições datadas |
-| [`CHANGELOG.md`](CHANGELOG.md) | o que mudou em cada versão |
+| [`docs/operations.md`](docs/operations.md) | the day to day: files, copying a stretch of a recording, logs, a container without a shell |
+| [`docs/configuration.md`](docs/configuration.md) | the two files, per-camera policy, retention, audio |
+| [`docs/remote-access.md`](docs/remote-access.md) | `https://` from anywhere, the installable app and family access, without exposing the server |
+| [`docs/https-local-network.md`](docs/https-local-network.md) | `https://` on the home network only, without Tailscale: Caddy and the CA on each device |
+| [`docs/architecture.md`](docs/architecture.md) | the on-disk format and why it's that way |
+| [`docs/detection.md`](docs/detection.md) | motion and object detection: the flow, the cost and the limits |
+| [`docs/resilience.md`](docs/resilience.md) | power cuts and the go2rtc that goes silent without warning |
+| [`docs/api.md`](docs/api.md) | the HTTP endpoint reference |
+| [`docs/upgrading.md`](docs/upgrading.md) | the upgrade guide to 1.0.0 |
+| [`web/README.md`](web/README.md) | developing the UI |
+| [`docs/github.md`](docs/github.md) | what's turned on in GitHub, and the Dependabot PR |
+| [`docs/README.md`](docs/README.md) | the full index, including the dated measurements |
+| [`CHANGELOG.md`](CHANGELOG.md) | what changed in each version |
 
-## Desenvolvimento
+## Development
 
-O que vem daqui para baixo é para quem vai mexer no código. Para usar o dwnvr,
-as seções do topo bastam.
+What follows is for those who will change the code. To use dwnvr, the
+sections above are enough.
 
-### Subir a partir do código
+### Running from source
 
-O `docker-compose.yml` usa as imagens publicadas. Para subir o que está no seu
-clone, some o `docker-compose.build.yml`, que compila as duas imagens com a
-tag local `:dev`:
+`docker-compose.yml` uses the published images. To run what's in your clone,
+add `docker-compose.build.yml`, which builds both images with the local `:dev`
+tag:
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 ```
 
-A primeira compilação leva alguns minutos; as seguintes reaproveitam o cache.
+The first build takes a few minutes; the next ones reuse the cache.
 
-### Tecnologias
+### Technologies
 
-| O quê | Onde entra |
+| What | Where it fits |
 | --- | --- |
-| **Go 1.27** | Todo o servidor. Só a biblioteca padrão, **sem [cgo](https://pkg.go.dev/cmd/cgo)** - o binário é estático, de ~8 MB |
-| **go2rtc** | Fonte dos streams: fala RTSP com as câmeras e entrega fMP4, WebRTC e MJPEG |
-| **fMP4** (MP4 fragmentado) | O formato em disco. É o que o go2rtc já produz, então gravar é copiar bytes |
-| **NDJSON** | O índice das gravações, um arquivo por câmera por dia, append-only |
-| **Svelte 5 + TypeScript + Vite** | A interface, embutida no binário com `go:embed` |
-| **MSE** (Media Source Extensions) | Player das gravações, escrito à mão para não carregar [hls.js](https://github.com/video-dev/hls.js/) |
-| **Docker** | Imagem `FROM scratch` multi-arch, para `linux/arm64` e `linux/amd64` |
-| **dwnvr-detect** (opcional) | O detector de objetos: Python, PyAV e onnxruntime rodando o RF-DETR nano (Apache-2.0) a 512x288 em int8 |
+| **Go 1.27** | The whole server. Standard library only, **no [cgo](https://pkg.go.dev/cmd/cgo)** - the binary is static, ~8 MB |
+| **go2rtc** | The stream source: speaks RTSP to the cameras and delivers fMP4, WebRTC and MJPEG |
+| **fMP4** (fragmented MP4) | The on-disk format. It's what go2rtc already produces, so recording is copying bytes |
+| **NDJSON** | The recordings index, one file per camera per day, append-only |
+| **Svelte 5 + TypeScript + Vite** | The UI, embedded in the binary with `go:embed` |
+| **MSE** (Media Source Extensions) | The recordings player, written by hand so as not to load [hls.js](https://github.com/video-dev/hls.js/) |
+| **Docker** | A multi-arch `FROM scratch` image, for `linux/arm64` and `linux/amd64` |
+| **dwnvr-detect** (optional) | The object detector: Python, PyAV and onnxruntime running RF-DETR nano (Apache-2.0) at 512x288 in int8 |
 
-A única dependência Go do projeto é `go.yaml.in/yaml/v3`. Não há banco de dados,
-ORM, framework HTTP nem ffmpeg - e essa ausência é o projeto, não uma etapa que
-faltou. O que exige código nativo, decodificar vídeo e rodar um modelo de
-visão, mora fora do binário, no container opcional `dwnvr-detect`.
+The project's only Go dependency is `go.yaml.in/yaml/v3`. There's no
+database, ORM, HTTP framework or ffmpeg - and that absence is the project, not
+a missing step. What needs native code, decoding video and running a vision
+model, lives outside the binary, in the optional `dwnvr-detect` container.
 
-### Estrutura do projeto
+### Project structure
 
 ```text
 ├── cmd/
-│   └── dwnvr/              o binário: lê a config, sobe um recorder por câmera, serve HTTP
+│   └── dwnvr/              the binary: reads the config, starts one recorder per camera, serves HTTP
 ├── internal/
-│   ├── api/                servidor HTTP
-│   │   ├── server.go       rotas e o papel que cada uma exige
-│   │   ├── auth.go         login e sessão por pessoa, em cookie assinado (HMAC), sem estado no servidor
-│   │   ├── address.go      o endereço de quem fez a requisição, atrás de proxy ou não, para o limite do login
-│   │   ├── users.go        a tela Usuários e o link de convite
-│   │   ├── email.go        o e-mail de teste do Diagnóstico e as peças do link de convite por e-mail
-│   │   ├── account.go      a Minha conta: a própria senha, o nome e a foto, e o serviço das fotos
-│   │   ├── drop.go         fecha o ao vivo e o aviso de sessão de quem é removido ou ganha link novo
-│   │   ├── cameras.go      cadastro de câmeras, cruzado com os streams do go2rtc
-│   │   ├── probe.go        descobre se um stream ocioso entrega áudio, com cache
-│   │   ├── recordings.go   dias, timeline, init, segmentos, thumbnail, HLS, exportação
-│   │   ├── detections.go   as detecções de todas as câmeras, paginadas, e o quadro de cada uma
-│   │   ├── live.go         proxy do go2rtc, com a credencial ficando no servidor
-│   │   ├── diagnostics_server.go   a máquina que grava, para o Diagnóstico: temperatura, memória, storage, go2rtc, detector
-│   │   ├── diagnostics_process.go  o próprio dwnvr, para o Diagnóstico: CPU, memória, arquivos abertos, UID
-│   │   ├── web.go          serve a SPA embutida
-│   │   └── dist/           build da interface, versionado (ver web/README.md)
-│   ├── alert/              quando a detecção vira alerta, o registro e o contrato dos meios de envio
-│   ├── area/               o polígono sobre a imagem e as regras de "o objeto está dentro?"
-│   ├── buildinfo/          versão, commit e data injetados no build
-│   ├── config/             leitura do dwnvr.yaml (infra) e do cameras.json (câmeras)
-│   ├── detect/             a detecção: do tamanho dos quadros à marca de objeto
-│   ├── email/              envia e-mail pelo servidor SMTP da seção smtp, só com a biblioteca padrão
-│   ├── fmp4/               leitor de caixas MP4 - o coração do "sem decodificar"
-│   │   ├── box.go          percorre as caixas sem tocar em mídia
-│   │   ├── moov.go         lê o init segment (ftyp+moov) e suas trilhas
-│   │   ├── fragment.go     lê moof+mdat e descobre quais frames são keyframe
-│   │   ├── rebase.go       reescreve o tfdt para cada segmento começar do zero
-│   │   ├── probe.go        hash do init e sondagem de segmento órfão
-│   │   ├── sps.go          resolução real a partir do SPS de H264/H265
-│   │   └── fixinit.go      troca os parameter sets do init pelos que vêm no stream
-│   ├── go2rtc/             cliente da API do go2rtc e do stream fMP4
-│   ├── logbuf/             guarda em memória os últimos avisos e erros do log, para o Diagnóstico
-│   ├── ratelimit/          o limite de requisições por cliente (GCRA), que o login usa
-│   ├── recorder/           um recorder por câmera: corta em keyframe e grava
-│   ├── retention/          apaga o mais antigo quando cota, idade ou disco estouram
-│   ├── store/              layout em disco e índice NDJSON
-│   └── users/              o users.json, o papel e o e-mail de cada um, o link de convite, a senha em hash (PBKDF2, uma conta por vez), a foto e o último acesso
-├── dwnvr-detect/           o detector de objetos, opcional, num container à parte (ver dwnvr-detect/README.md)
-├── web/                    interface Svelte 5 + TypeScript + Vite (ver web/README.md)
-├── docs/                   documentação longa (ver docs/README.md)
-├── CHANGELOG.md            o que mudou em cada versão, gerado na release
-├── cliff.toml              o formato do CHANGELOG.md e das notas de cada release (git-cliff)
-├── docker-compose.yml      dwnvr + go2rtc (+ dwnvr-detect, opcional), o único arquivo para subir tudo
-├── Dockerfile              imagem FROM scratch, multi-arch
-├── dwnvr.example.yaml      configuração do dwnvr, campo a campo
-├── go2rtc.example.yaml     configuração do go2rtc, com as câmeras de teste
-└── Makefile                build, testes e deploy
+│   ├── api/                HTTP server
+│   │   ├── server.go       the routes and the role each one requires
+│   │   ├── auth.go         per-person login and session, in a signed cookie (HMAC), stateless on the server
+│   │   ├── address.go      the address of whoever made the request, behind a proxy or not, for the login limit
+│   │   ├── users.go        the Users screen and the invite link
+│   │   ├── email.go        the Diagnostics test e-mail and the pieces of the invite link by e-mail
+│   │   ├── account.go      My account: one's own password, name and photo, and serving the photos
+│   │   ├── drop.go         closes the live view and the session notice of someone removed or given a new link
+│   │   ├── cameras.go      camera setup, matched against the go2rtc streams
+│   │   ├── probe.go        finds out whether an idle stream carries audio, with a cache
+│   │   ├── recordings.go   days, timeline, init, segments, thumbnail, HLS, export
+│   │   ├── detections.go   the detections of every camera, paginated, and the frame of each one
+│   │   ├── live.go         the go2rtc proxy, with the credential kept on the server
+│   │   ├── diagnostics_server.go   the recording machine, for Diagnostics: temperature, memory, storage, go2rtc, detector
+│   │   ├── diagnostics_process.go  dwnvr itself, for Diagnostics: CPU, memory, open files, UID
+│   │   ├── web.go          serves the embedded SPA
+│   │   └── dist/           the UI build, versioned (see web/README.md)
+│   ├── alert/              when detection becomes an alert, the record and the contract of the delivery channels
+│   ├── area/               the polygon over the image and the rules for "is the object inside?"
+│   ├── buildinfo/          version, commit and date injected at build time
+│   ├── config/             reading dwnvr.yaml (infra) and cameras.json (cameras)
+│   ├── detect/             detection: from the size of the frames to the object mark
+│   ├── email/              sends e-mail through the SMTP server of the smtp section, standard library only
+│   ├── fmp4/               MP4 box reader - the heart of "no decoding"
+│   │   ├── box.go          walks the boxes without touching media
+│   │   ├── moov.go         reads the init segment (ftyp+moov) and its tracks
+│   │   ├── fragment.go     reads moof+mdat and finds out which frames are keyframes
+│   │   ├── rebase.go       rewrites tfdt so each segment starts from zero
+│   │   ├── probe.go        init hash and probing of orphan segments
+│   │   ├── sps.go          the real resolution from the H264/H265 SPS
+│   │   └── fixinit.go      swaps the init's parameter sets for the ones in the stream
+│   ├── go2rtc/             client for the go2rtc API and the fMP4 stream
+│   ├── logbuf/             keeps the latest log warnings and errors in memory, for Diagnostics
+│   ├── ratelimit/          the per-client request limit (GCRA) the login uses
+│   ├── recorder/           one recorder per camera: cuts at keyframes and writes
+│   ├── retention/          deletes the oldest when quota, age or disk run out
+│   ├── store/              on-disk layout and NDJSON index
+│   └── users/              users.json, each one's role and e-mail, the invite link, the password hash (PBKDF2, one account at a time), the photo and the last access
+├── dwnvr-detect/           the object detector, optional, in a separate container (see dwnvr-detect/README.md)
+├── web/                    Svelte 5 + TypeScript + Vite UI (see web/README.md)
+├── docs/                   long-form documentation (see docs/README.md)
+├── CHANGELOG.md            what changed in each version, generated at release
+├── cliff.toml              the format of CHANGELOG.md and of each release's notes (git-cliff)
+├── docker-compose.yml      dwnvr + go2rtc (+ dwnvr-detect, optional), the single file to start everything
+├── Dockerfile              FROM scratch image, multi-arch
+├── dwnvr.example.yaml      dwnvr configuration, field by field
+├── go2rtc.example.yaml     go2rtc configuration, with the test cameras
+└── Makefile                build, tests and deploy
 ```
 
 <details>
-<summary><b>Por que as pastas se chamam assim</b></summary>
+<summary><b>Why the folders have these names</b></summary>
 
-Alguns nomes acima não são escolha deste projeto. Uns são **convenção da
-comunidade Go** - você pode ignorá-los e nada quebra, só fica estranho para
-quem lê. Outros são **exigência do Go**: mudar o nome faz o build falhar.
-Resumo antes do detalhe:
+Some names above aren't this project's choice. Some are **Go community
+convention** - you can ignore them and nothing breaks, it just looks odd to
+readers. Others are **required by Go**: renaming them breaks the build.
+Summary before the details:
 
-| Caminho | O que é | Se você renomear |
+| Path | What it is | If you rename it |
 | --- | --- | --- |
-| `cmd/` | convenção da comunidade | compila igual, só surpreende quem lê |
-| `internal/` | **exigência do Go** | o pacote passa a ser importável por qualquer projeto |
-| `internal/api/dist/` | escolha nossa, **imposta pelo `go:embed`** | o build quebra |
-| `web/src/vendor/` | convenção, e do lado JavaScript | nada acontece |
-| `*_test.go` | **exigência do Go** | o arquivo passa a entrar no binário final |
+| `cmd/` | community convention | builds the same, only surprises readers |
+| `internal/` | **required by Go** | the package becomes importable by any project |
+| `internal/api/dist/` | our choice, **imposed by `go:embed`** | the build breaks |
+| `web/src/vendor/` | convention, and on the JavaScript side | nothing happens |
+| `*_test.go` | **required by Go** | the file ends up in the final binary |
 
-#### `cmd/` - convenção da comunidade <!-- omit in toc -->
+#### `cmd/` - community convention <!-- omit in toc -->
 
-Não é invenção deste projeto nem exigência do compilador: é o hábito adotado em
-praticamente todo projeto Go de porte - Kubernetes, Docker, Prometheus, o
-próprio go2rtc.
+It's neither this project's invention nor a compiler requirement: it's the
+habit of practically every sizable Go project - Kubernetes, Docker,
+Prometheus, go2rtc itself.
 
-A regra é simples: **cada subdiretório de `cmd/` vira um binário**, e é o único
-lugar onde mora `package main`. O nome do subdiretório é o nome do executável -
-`cmd/dwnvr` produz `dwnvr`. Aqui só existe uma pasta porque só existe um
-binário; um segundo executável seria uma pasta irmã, sem reorganizar mais nada.
+The rule is simple: **each subdirectory of `cmd/` becomes a binary**, and it's
+the only place `package main` lives. The subdirectory's name is the
+executable's name - `cmd/dwnvr` produces `dwnvr`. There's only one folder here
+because there's only one binary; a second executable would be a sibling
+folder, with nothing else reorganized.
 
-O que a convenção compra: `main` fica magro - lê configuração, monta as peças e
-sai da frente, com toda a lógica em pacotes testáveis sob `internal/`;
-`go build ./cmd/dwnvr` fica inequívoco, sem caçar qual arquivo tem a função
-`main`; e acrescentar um segundo binário não reorganiza nada.
+What the convention buys: `main` stays thin - it reads the configuration,
+wires the pieces and gets out of the way, with all the logic in testable
+packages under `internal/`; `go build ./cmd/dwnvr` is unambiguous, with no
+hunting for the file that has `main`; and adding a second binary reorganizes
+nothing.
 
-#### `internal/` - exigência do Go <!-- omit in toc -->
+#### `internal/` - required by Go <!-- omit in toc -->
 
-Aqui não é hábito, é regra que o próprio Go impõe. Um pacote sob `internal/` só
-pode ser importado de dentro do próprio módulo. Outro projeto que tente
-importar `github.com/mhagnumdw/dwnvr/internal/store` recebe:
+This isn't habit, it's a rule Go itself enforces. A package under `internal/`
+can only be imported from inside its own module. Another project that tries to
+import `github.com/mhagnumdw/dwnvr/internal/store` gets:
 
 ```text
 use of internal package github.com/mhagnumdw/dwnvr/internal/store not allowed
 ```
 
-É o que permite reorganizar tudo que está aqui dentro sem quebrar ninguém lá
-fora: nada disto é API pública, e o Go garante isso em vez de pedir por favor.
+That's what allows reorganizing everything in here without breaking anyone out
+there: none of this is public API, and Go guarantees it instead of asking
+nicely.
 
-#### `internal/api/dist/` - o build da interface, versionado <!-- omit in toc -->
+#### `internal/api/dist/` - the UI build, versioned <!-- omit in toc -->
 
-Commitar artefato gerado costuma ser sinal de desleixo. Aqui é deliberado, e
-duas restrições explicam o formato.
+Committing a generated artifact is usually a sign of sloppiness. Here it's
+deliberate, and two constraints explain the shape.
 
-**Por que está versionado:** `go:embed` exige que os arquivos existam em tempo
-de compilação. Com o `dist` no repositório, `go build ./cmd/dwnvr` funciona num
-clone limpo, sem Node instalado - o que importa porque o alvo é um dispositivo
-onde ninguém quer instalar toolchain de frontend.
+**Why it's versioned:** `go:embed` needs the files to exist at compile time.
+With `dist` in the repository, `go build ./cmd/dwnvr` works on a clean clone,
+with no Node installed - which matters because the target is a device where
+nobody wants to install a frontend toolchain.
 
-**Por que fica dentro de `internal/api/`, e não em `web/dist/`:** o `go:embed`
-não consegue sair do diretório do pacote. Um `//go:embed ../web/dist` não
-compila:
+**Why it lives inside `internal/api/`, and not in `web/dist/`:** `go:embed`
+can't leave the package's directory. A `//go:embed ../web/dist` doesn't
+compile:
 
 ```text
 pattern ../web/dist: invalid pattern syntax
 ```
 
-Por isso o `vite.config.ts` manda o build para `../internal/api/dist`, ao lado
-do `web.go` que o embute. Ao mexer em `web/`, rode `npm run build` **antes** de
-commitar - a CI reprova se os dois divergirem.
+That's why `vite.config.ts` sends the build to `../internal/api/dist`, next to
+the `web.go` that embeds it. When you change `web/`, run `npm run build`
+**before** committing - CI fails if the two diverge.
 
-#### `web/src/vendor/` - convenção, e do outro lado da cerca <!-- omit in toc -->
+#### `web/src/vendor/` - convention, and on the other side of the fence <!-- omit in toc -->
 
-Guarda código de terceiros: o player de live do go2rtc (MIT), copiado sem
-modificação. Ver [`web/src/vendor/README.md`](web/src/vendor/README.md).
+Holds third-party code: go2rtc's live player (MIT), copied unmodified. See
+[`web/src/vendor/README.md`](web/src/vendor/README.md).
 
-Uma armadilha de leitura: em Go, um diretório `vendor/` **na raiz do módulo** é
-especial - é onde `go mod vendor` despeja as dependências, e a partir daí o
-build passa a usá-las em vez do cache de módulos. Este `vendor/` não é aquele:
-está dentro de `web/`, é JavaScript, e para o Go não significa nada. O nome foi
-emprestado pelo costume, não pela regra.
+A reading trap: in Go, a `vendor/` directory **at the module root** is
+special - it's where `go mod vendor` drops the dependencies, and from then on
+the build uses them instead of the module cache. This `vendor/` isn't that
+one: it's inside `web/`, it's JavaScript, and to Go it means nothing. The name
+was borrowed by custom, not by rule.
 
-#### `*_test.go` - exigência do Go <!-- omit in toc -->
+#### `*_test.go` - required by Go <!-- omit in toc -->
 
-O sufixo não é estilo: **o Go só compila esses arquivos durante `go test`**.
-Eles ficam de fora do binário final, o que permite deixá-los ao lado do código
-que exercitam sem inchar o que vai para produção - e é por isso que aqui não
-existe uma pasta `tests/` separada.
+The suffix isn't style: **Go only compiles these files during `go test`**.
+They stay out of the final binary, which lets them sit next to the code they
+exercise without bloating what goes to production - and that's why there's no
+separate `tests/` folder here.
 
-A parte que é convenção: mantê-los no **mesmo pacote** do código testado, o que
-dá acesso ao que não é exportado.
+The part that's convention: keeping them in the **same package** as the code
+under test, which gives access to what isn't exported.
 
-Referências: [Organizing a Go module](https://go.dev/doc/modules/layout),
+References: [Organizing a Go module](https://go.dev/doc/modules/layout),
 [go/build - build constraints](https://pkg.go.dev/go/build#hdr-Build_Constraints)
-e [golang-standards/project-layout](https://github.com/golang-standards/project-layout).
+and [golang-standards/project-layout](https://github.com/golang-standards/project-layout).
 
 </details>
 
 ### Build
 
 ```sh
-make all         # interface + binário local, na ordem certa
-make help        # lista todos os alvos
+make all         # UI + local binary, in the right order
+make help        # lists every target
 ```
 
-**A interface precisa ser construída antes do binário**, porque o Go a embute
-com `go:embed`. Esquecer isso produz um binário que compila e sobe
-normalmente, mas serve a tela antiga - um erro silencioso. O `Makefile`
-encadeia as duas coisas, e o commit e a CI reprovam se o `internal/api/dist`
-versionado divergir de `web/`.
+**The UI has to be built before the binary**, because Go embeds it with
+`go:embed`. Forgetting this produces a binary that compiles and starts
+normally, but serves the old UI - a silent error. The `Makefile` chains the
+two, and the commit and CI fail if the versioned `internal/api/dist` diverges
+from `web/`.
 
-| Alvo | O que faz |
+| Target | What it does |
 | --- | --- |
-| `make web` | constrói a interface para `internal/api/dist` (precisa de Node) |
-| `make build` | binário para a máquina local |
-| `make image-arm64` | imagem docker arm64, carregada no docker local |
-| `make image-amd64` | imagem docker amd64, carregada no docker local |
-| `make image` | imagem multi-arch (amd64 + arm64), como a que a CI publica |
-| `make deploy` | recria o container no servidor remoto via ssh, com a imagem que a CI publicou |
-| `make deploy-wip` | leva o código **não commitado** para o servidor, só para experimentar |
+| `make web` | builds the UI into `internal/api/dist` (needs Node) |
+| `make build` | binary for the local machine |
+| `make image-arm64` | arm64 docker image, loaded into the local docker |
+| `make image-amd64` | amd64 docker image, loaded into the local docker |
+| `make image` | multi-arch image (amd64 + arm64), like the one CI publishes |
+| `make deploy` | recreates the container on the remote server over ssh, with the image CI published |
+| `make deploy-wip` | ships **uncommitted** code to the server, just to try it out |
 
-Como o `internal/api/dist` é versionado, **`go build ./cmd/dwnvr` funciona num
-clone limpo sem Node instalado**. Isso é deliberado: o alvo é um dispositivo
-onde ninguém quer instalar toolchain de frontend.
+Since `internal/api/dist` is versioned, **`go build ./cmd/dwnvr` works on a
+clean clone with no Node installed**. That's deliberate: the target is a
+device where nobody wants to install a frontend toolchain.
 
-### Testes
-
-```sh
-make test        # testes de unidade, com o detector de corrida
-make check       # testes + os lints do prek
-```
-
-O detector de corrida (`-race`) exige um compilador C na máquina que roda os
-testes. Só nela: o binário do dwnvr continua sem C.
-
-Um dos hooks do prek reconstrói a interface numa pasta temporária, para
-conferir se o `internal/api/dist` versionado ainda corresponde a `web/`. Roda
-em todo commit que mexe na tela, e no `make check`. A CI faz a mesma conferência
-no `ci.yml`.
-
-Os testes vivem ao lado do código que exercitam, em `internal/*/*_test.go`, e
-cobrem o que quebra em silêncio: a leitura de caixas fMP4, a reescrita do
-`tfdt`, o corte em keyframe, a reconciliação de órfãos, a retenção e os
-endpoints HTTP.
-
-A cobertura dos testes é o badge no topo deste README. Quem a mede é o
-`.github/workflows/coverage.yml`, a cada push na main e em pull request, onde
-o Codecov comenta o que o PR muda nela. O relatório linha a linha fica no
-[Codecov](https://app.codecov.io/gh/mhagnumdw/dwnvr). A mesma medida, local:
+### Tests
 
 ```sh
-go test ./... -count=1 -cover                        # por pacote
-go test ./... -count=1 -coverprofile=/tmp/cobertura.out
-go tool cover -func=/tmp/cobertura.out | tail -n1    # o total
-go tool cover -html=/tmp/cobertura.out               # as linhas, no navegador
+make test        # unit tests, with the race detector
+make check       # tests + the prek lints
 ```
 
-O total local sai por instrução, e o do Codecov por linha, então os dois
-diferem um pouco.
+The race detector (`-race`) needs a C compiler on the machine running the
+tests. Only there: the dwnvr binary stays free of C.
 
-O workflow de CI está em `.github/workflows/ci.yml` e roda a cada push na
-main e em pull request. As imagens saem do `.github/workflows/images.yml`,
-que ele chama depois dos testes: na main, com a tag `main`; em pull request,
-só para conferir que as duas imagens constroem, sem publicar. A release também
-o chama, com a versão (ver [Release](#release)).
+One of the prek hooks rebuilds the UI in a temporary folder, to check that the
+versioned `internal/api/dist` still matches `web/`. It runs on every commit
+that touches the UI, and in `make check`. CI does the same check in `ci.yml`.
+
+The tests live next to the code they exercise, in `internal/*/*_test.go`, and
+cover what breaks silently: reading fMP4 boxes, rewriting `tfdt`, cutting at
+keyframes, reconciling orphans, retention and the HTTP endpoints.
+
+Test coverage is the badge at the top of this README. It's measured by
+`.github/workflows/coverage.yml`, on every push to main and on pull requests,
+where Codecov comments on how the PR changes it. The line-by-line report is on
+[Codecov](https://app.codecov.io/gh/mhagnumdw/dwnvr). The same measurement,
+locally:
+
+```sh
+go test ./... -count=1 -cover                        # per package
+go test ./... -count=1 -coverprofile=/tmp/coverage.out
+go tool cover -func=/tmp/coverage.out | tail -n1     # the total
+go tool cover -html=/tmp/coverage.out                # the lines, in the browser
+```
+
+The local total is per statement, and Codecov's per line, so the two differ a
+little.
+
+The CI workflow is `.github/workflows/ci.yml` and runs on every push to main
+and on pull requests. The images come from `.github/workflows/images.yml`,
+which it calls after the tests: on main, with the `main` tag; on a pull
+request, only to check that both images build, without publishing. The
+release calls it too, with the version (see [Release](#release)).
 
 ### Lint
 
-Os lints rodam pelo [prek](https://prek.j178.dev), que lê o formato do
-pre-commit. A versão mínima está no `minimum_prek_version` do
-`.pre-commit-config.yaml`. Uma vez por máquina e uma vez por clone:
+The lints run through [prek](https://prek.j178.dev), which reads the
+pre-commit format. The minimum version is in `minimum_prek_version` in
+`.pre-commit-config.yaml`. Once per machine and once per clone:
 
 ```sh
-uv tool install prek    # instala o prek
-prek install            # liga os hooks neste clone
-prek run --all-files    # roda todos, como a CI
+uv tool install prek    # installs prek
+prek install            # turns the hooks on in this clone
+prek run --all-files    # runs all of them, like CI
 ```
 
-A cada commit, os hooks do `.pre-commit-config.yaml` conferem os arquivos do
-commit e corrigem o que dá. Quando um hook corrige algo, o commit é
-interrompido: confira a correção, dê `git add` e commite de novo.
+On each commit, the hooks in `.pre-commit-config.yaml` check the commit's files
+and fix what they can. When a hook fixes something, the commit is stopped:
+review the fix, `git add` it and commit again.
 
-A CI roda o mesmo arquivo no `.github/workflows/lint.yml`, em todos os
-arquivos, e não corrige nada: se algum hook mudaria um arquivo, o job falha e
-mostra o diff. Esse workflow é separado do `ci.yml`, então lint vermelho não
-segura a publicação das imagens.
+CI runs the same file in `.github/workflows/lint.yml`, on every file, and
+fixes nothing: if any hook would change a file, the job fails and shows the
+diff. That workflow is separate from `ci.yml`, so a red lint doesn't hold back
+publishing the images.
 
 ### Release
 
-Uma versão sai por um botão: **Actions > release > Run workflow**, na `main`,
-com o número no formato `X.Y.Z`. O `.github/workflows/release.yml` faz o resto,
-em três jobs:
+A version ships with one button: **Actions > release > Run workflow**, on
+`main`, with the number in the `X.Y.Z` format. `.github/workflows/release.yml`
+does the rest, in three jobs:
 
-| Job | O que faz |
+| Job | What it does |
 | --- | --- |
-| `preparar` | confere que a versão é nova e maior que a última, que há commit desde ela e que a CI do commit terminou verde; escreve o `CHANGELOG.md` e troca a versão do `image:` no `docker-compose.yml`; faz o commit `chore(release): vX.Y.Z`, a tag e o push das duas |
-| `imagens` | o `images.yml` a partir da tag: `vX.Y.Z`, `latest`, `main` e `sha-*` das duas imagens |
-| `publicar` | a página da release, com as notas do git-cliff e, no fim, o link para o [Atualizar](#atualizar) |
+| `prepare` | checks that the version is new and greater than the last one, that there's a commit since it and that the commit's CI finished green; writes `CHANGELOG.md` and bumps the `image:` version in `docker-compose.yml`; makes the `chore(release): vX.Y.Z` commit and the tag, and pushes both |
+| `images` | `images.yml` from the tag: `vX.Y.Z`, `latest`, `main` and `sha-*` for both images |
+| `publish` | the release page, with the git-cliff notes and, at the end, the link to [Updating](#updating) |
 
-A página vem por último porque ela é o anúncio: só existe quando as imagens
-existem. Se as imagens falharem, o commit e a tag já estão na `main`, e basta
-o **Re-run failed jobs** na execução.
+The page comes last because it's the announcement: it only exists once the
+images exist. If the images fail, the commit and the tag are already on
+`main`, and **Re-run failed jobs** on the run is enough.
 
-Antes de clicar, dá para ver as notas e a sugestão de número pelos commits
-(`feat` sobe o minor, o resto sobe o patch):
+Before clicking, you can preview the notes and the suggested number from the
+commits (`feat` bumps the minor, everything else bumps the patch):
 
 ```sh
-git cliff --unreleased --tag vX.Y.Z   # prévia do que entra no CHANGELOG.md
-git cliff --bumped-version            # a próxima versão sugerida
+git cliff --unreleased --tag vX.Y.Z   # preview of what goes into CHANGELOG.md
+git cliff --bumped-version            # the next suggested version
 ```
 
-Mudança que pede ação de quem atualiza, como uma porta que deixa de abrir, vai
-com `!` no tipo (`fix(compose)!: ...`) e um rodapé `BREAKING CHANGE:` no corpo,
-dizendo o que fazer. O texto do rodapé abre as notas da versão, numa seção
-**Pede ação ao atualizar**, antes dos grupos. O `!` sobe o minor, como o `feat`.
+A change that asks for action from whoever updates, like a port that no
+longer opens, gets a `!` in the type (`fix(compose)!: ...`) and a
+`BREAKING CHANGE:` footer in the body, saying what to do. The footer's text
+opens the version's notes, in an **Action required on upgrade** section,
+before the groups. The `!` bumps the minor, like `feat`.
 
-O formato das notas mora no `cliff.toml`. O `CHANGELOG.md` não se edita à mão:
-a release o reescreve.
+The notes' format lives in `cliff.toml`. `CHANGELOG.md` isn't edited by hand:
+the release rewrites it.

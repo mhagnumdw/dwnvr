@@ -107,8 +107,8 @@ services:
     # The API and RTSP open only on the server itself: dwnvr talks to go2rtc
     # over the compose network, and neither asks for a password by default. To
     # open them to the network, set a password in go2rtc.yaml and
-    # GO2RTC_API_PORT=1984 or GO2RTC_RTSP_PORT=8554 in the .env - see "Abrir o
-    # go2rtc para a rede" in the README.
+    # GO2RTC_API_PORT=1984 or GO2RTC_RTSP_PORT=8554 in the .env - see "Opening
+    # go2rtc to the network" in the README.
     ports:
       - "${GO2RTC_API_PORT:-127.0.0.1:1984}:1984"   # go2rtc API and web interface
       - "${GO2RTC_RTSP_PORT:-127.0.0.1:8554}:8554"  # RTSP server

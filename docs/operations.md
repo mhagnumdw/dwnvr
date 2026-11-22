@@ -4,7 +4,7 @@
 
 Nothing important lives inside the container. The volumes cover everything.
 The host paths below are those of the [real
-installation](../README.md#instalar-de-verdade), defined in `.env` by
+installation](../README.md#installing-for-real), defined in `.env` by
 `DWNVR_CONFIG_DIR`, `DWNVR_STORAGE_DIR` and `GO2RTC_CONFIG_DIR`; in the quick
 test the same files live in `./config/dwnvr`, `./storage` and
 `./config/go2rtc`.
@@ -240,8 +240,8 @@ host-gateway`), the service name if both are on the same network, or
 **The go2rtc interface doesn't open from another machine.** That is on
 purpose: the compose publishes 1984 and 8554 only to the server itself,
 because go2rtc doesn't ask for a password by default. Use an ssh tunnel, or
-open it with a password - see [Abrir o go2rtc
-para a rede](../README.md#abrir-o-go2rtc-para-a-rede-).
+open it with a password - see [Opening go2rtc
+to the network](../README.md#opening-go2rtc-to-the-network-).
 
 **The page is stale after updating.** The interface is embedded in the binary,
 and the browser caches the assets - which have a hash in the name precisely so

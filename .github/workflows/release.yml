@@ -85,7 +85,7 @@ jobs:
 
       # The release publishes exactly this commit, so its CI (tests and main
       # images) must have finished green.
-      - name: CI verde neste commit
+      - name: green CI on this commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -173,7 +173,7 @@ jobs:
       # README, and a copy of it here would age unnoticed.
       - name: how to update
         run: |
-          printf '\n---\n\n**How to update:** see [Atualizar in the README](https://github.com/mhagnumdw/dwnvr#atualizar).\n' >> "$RUNNER_TEMP/notas.md"
+          printf '\n---\n\n**How to update:** see [Updating in the README](https://github.com/mhagnumdw/dwnvr#updating).\n' >> "$RUNNER_TEMP/notas.md"
 
       # --verify-tag fails if the tag is not on GitHub, instead of creating it.
       - name: release
