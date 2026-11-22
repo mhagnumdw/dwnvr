@@ -250,7 +250,7 @@ repos:
             # staged against HEAD, which does change in a screen commit.
             difere=$(GIT_INDEX_FILE="$tmp/index" git --work-tree="$tmp" status --porcelain --no-renames --untracked-files=all -- internal/api/dist | grep -v "^. " || true)
             if [ -n "$difere" ]; then
-              echo "internal/api/dist does not match the commit's web/. Rebuild and add the result:"
+              echo "internal/api/dist does not match web/ in the commit. Rebuild and add the result:"
               echo "  (cd web && npm run build) && git add internal/api/dist"
               echo
               echo "How the staged dist looks after the build (D goes out, ?? comes in, M changes):"
