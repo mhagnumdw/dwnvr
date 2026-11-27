@@ -4,10 +4,9 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (22/11/2026):** a Etapa 2 (conversão para en-US) está no passo 7, na
-branch `en-us-docs`: os `docs/`, os exemplos, o build, os workflows, o
-`SECURITY.md` e o `README.md` já estão em en-US, com o `README.pt-BR.md` ao
-lado; falta o PR.
+**Agora (27/11/2026):** a Etapa 2 (conversão para en-US) está no passo 8, na
+branch `en-us-sweep`: a varredura do que sobrou em português e o
+`.git-blame-ignore-revs`. Depois dele, a release da etapa.
 O guia de atualização nasce junto, em
 [docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
@@ -60,7 +59,8 @@ próxima, em andamento ou concluída, com a data.
   - [x] Os `docs/TODO/` abertos revistos com o mantenedor, em 22/11/2026: quatro apagados (já feitos ou desistidos); os outros ficam em pt-BR, sem tradução na conversão. O mantenedor os traduz depois, sem pressa, e TODO novo já nasce em en-US
   - [x] A documentação, os exemplos, os workflows e o resto, na branch `en-us-docs`, em 22/11/2026: os `docs/` com nomes e texto em en-US, os exemplos, o build, os workflows (`images.yml`, `coverage.yml`) e as notas de release ("Action required on upgrade")
   - [x] O `README.md` em en-US e o `README.pt-BR.md`, em 22/11/2026, com o `SECURITY.md` em en-US
-  - [ ] A varredura final e o `.git-blame-ignore-revs`
+  - [x] O PR do passo 7 mergeado por squash: PR #98, em 22/11/2026
+  - [ ] A varredura final e o `.git-blame-ignore-revs`, na branch `en-us-sweep`
 - [ ] **Etapa 3 - temas**: não começou ([temas.md](temas.md))
   - [ ] Toda cor da tela passa por um token
   - [ ] As quatro paletas e o "sistema", com o contraste conferido
