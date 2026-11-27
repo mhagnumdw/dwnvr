@@ -5,6 +5,8 @@
 // The server decides whether an object is inside (internal/area): the screen
 // only draws the area and sends it in the query.
 
+import { tokenColor } from './theme.ts';
+
 export type Point = [x: number, y: number];
 
 // The rules, with the JSON and query value (en-US), the name and the icon on
@@ -94,7 +96,9 @@ function path(g: CanvasRenderingContext2D, points: readonly Point[], w: number, 
   g.closePath();
 }
 
-const blue = () => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+// The theme's accent, read on the canvas being painted: over the video it is the
+// dark palette's (lib/theme.ts).
+const blue = (g: CanvasRenderingContext2D) => tokenColor(g.canvas, '--accent');
 
 // The area's outline on a canvas already translated to the image, with width
 // `w` and height `h`: thin and dashed, like in the thumbnails.
@@ -109,7 +113,7 @@ export function drawOutline(
   path(g, points, w, h);
   g.setLineDash([6, 4]);
   g.lineWidth = 1.5;
-  g.strokeStyle = blue();
+  g.strokeStyle = blue(g);
   g.stroke();
   g.restore();
 }
@@ -127,10 +131,12 @@ export function fillArea(
   if (points.length < MIN_POINTS) return;
   g.save();
   path(g, points, w, h);
-  g.fillStyle = 'rgba(47, 129, 247, 0.22)';
+  g.fillStyle = blue(g);
+  g.globalAlpha = 0.22;
   g.fill();
+  g.globalAlpha = 1;
   g.lineWidth = 1.5;
-  g.strokeStyle = blue();
+  g.strokeStyle = blue(g);
   g.stroke();
   g.restore();
 }

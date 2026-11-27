@@ -1,19 +1,68 @@
 /* dwnvr theme and primitives. Mobile-first: the base rules apply to the phone
    and the media queries add what a large screen allows. */
 
-:root {
+/* The theme's tokens. Every color on screen goes through one of them, so a
+   theme is a set of values for this list.
+
+   `.over-video` is what sits on the video: the stage behind the player, the
+   thumbnail and what is drawn on them (badges, buttons, the area). The video
+   is dark in every theme, so there the palette is always this one, the dark
+   one. */
+:root,
+.over-video {
   --bg: #0d1117;
   --panel: #161b22;
   --panel-2: #1c2129;
   --line: #30363d;
+  /* A divider inside a panel, quieter than --line. */
+  --line-soft: #21262d;
   --fg: #e6edf3;
   --dim: #8b949e;
+  /* Text that is there but is not news, such as a zero in a table. Below the
+     contrast of --dim on purpose. */
+  --faint: #4a5058;
   --accent: #2f81f7;
+  /* The accent as a background under white text (--on-accent): the primary
+     button and the selected day. Darker than --accent, which has too little
+     contrast with white. */
+  --accent-fill: #1f6feb;
+  --on-accent: #fff;
   /* The background of a toggled-on button: the Live segmented control and the camera chips. */
   --active-bg: #12233d;
   --ok: #3fb950;
   --warn: #d29922;
+  --on-warn: #1b1300;
   --bad: #f85149;
+  --on-bad: #fff;
+  /* Text on a strong color that is not the accent: the numbers in the
+     Diagnostics funnel. */
+  --on-strong: #0d1117;
+  /* The empty part of a bar or a strip (timeline, Diagnostics), and the dark
+     gray piece next to it. */
+  --track: #1b1f24;
+  --track-strong: #3d444d;
+  /* The object families on the page. Over the video the color is the vivid one
+     in lib/icons.ts, the same in every theme. */
+  --person: #3fb950;
+  --vehicle: #a371f7;
+  --animal: #db61a2;
+  --shadow: rgba(0, 0, 0, 0.5);
+  /* Behind a modal. */
+  --backdrop: rgba(0, 0, 0, 0.6);
+
+  /* Derived from the ones above, so a palette doesn't have to define them. */
+  --bad-line: color-mix(in srgb, var(--bad) 35%, var(--bg));
+  --warn-line: color-mix(in srgb, var(--warn) 50%, var(--bg));
+}
+
+/* The inherited text color is the page's, already resolved: without this, a
+   light theme's dark text would reach the video. */
+.over-video {
+  color: var(--fg);
+  color-scheme: dark;
+}
+
+:root {
   --radius: 10px;
 
   /* Height of the bottom navigation, respecting the iPhone safe area. */
@@ -100,7 +149,7 @@ button {
   font-size: 13px;
   line-height: 1.35;
   pointer-events: none;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 14px var(--shadow);
 }
 .touch-hint[hidden] {
   display: none;
@@ -120,15 +169,15 @@ button:disabled {
 }
 
 button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--on-accent);
   font-weight: 600;
 }
 
 button.danger {
   color: var(--bad);
-  border-color: #5c2b2b;
+  border-color: var(--bad-line);
 }
 button.ghost {
   background: transparent;

@@ -1094,6 +1094,7 @@
     <div
       class="full"
       class:fs={inFullscreen}
+      class:over-video={inFullscreen}
       class:pinned={pinnedControls}
       class:hidden={hiddenControls}
       bind:this={full}
@@ -1112,7 +1113,7 @@
       }}
     >
       <div
-        class="stage"
+        class="stage over-video"
         class:animating
         class:switching
         class:shift={animating || drag !== 0}
@@ -1397,7 +1398,7 @@
            before it appears, and doesn't change size with every new mark. -->
         {#if objects.length}
           {#each Object.values(FAMILIES) as f (f.name)}
-            <span><i style:background={f.color}></i> {f.name}</span>
+            <span><i style:background="var({f.token})"></i> {f.name}</span>
           {/each}
         {/if}
         <button
@@ -1596,7 +1597,7 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 24px var(--shadow);
   }
   .pop.above {
     top: auto;
@@ -1798,7 +1799,7 @@
   }
   .badge.bad {
     color: var(--bad);
-    border-color: #5c2b2b;
+    border-color: var(--bad-line);
   }
 
   /* The camera in the fullscreen strip, with the top bar's arrows. On the same
@@ -1891,11 +1892,11 @@
     background: var(--accent);
   }
   .gap {
-    background: #1b1f24;
+    background: var(--track);
     border: 1px solid var(--line);
   }
-  /* The same amber as the heat strip, in HEAT_COLOR in Timeline.svelte. */
+  /* The same --warn as the heat strip in Timeline.svelte. */
   .heat {
-    background: #d29922;
+    background: var(--warn);
   }
 </style>

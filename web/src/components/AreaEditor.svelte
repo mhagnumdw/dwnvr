@@ -273,7 +273,7 @@
       <span class="muted small camera">{camera}</span>
     </div>
 
-    <div class="space" bind:clientWidth={space.w} bind:clientHeight={space.h}>
+    <div class="space over-video" bind:clientWidth={space.w} bind:clientHeight={space.h}>
       <div class="stage" style:width="{stage.w}px" style:height="{stage.h}px">
         {#if background?.kind === 'image'}
           <img
@@ -534,7 +534,7 @@
     opacity: 0.8;
   }
   .area {
-    fill: rgba(47, 129, 247, 0.28);
+    fill: color-mix(in srgb, var(--accent) 28%, transparent);
     stroke: var(--accent);
     stroke-width: 2.5;
     stroke-linejoin: round;
@@ -708,7 +708,7 @@
   .desktop {
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--backdrop);
   }
   .desktop .window {
     flex: none;

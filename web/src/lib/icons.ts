@@ -6,10 +6,18 @@
 // is the silhouette, and here the silhouette is ours.
 
 import { context2d } from './canvas.ts';
+import { tokenColor } from './theme.ts';
 
 export interface Family {
   name: string;
+  // The color over the video: vivid, and the same in every theme, because the
+  // video is dark in all of them. The boxes and the badge on the thumbnail use
+  // it.
   color: string;
+  // The CSS token with the color on the page (lists, filters, timeline), which
+  // changes with the theme: the vivid one has too little contrast on a light
+  // background.
+  token: `--${string}`;
   priority: number;
 }
 
@@ -20,14 +28,14 @@ export type FamilyName = 'person' | 'vehicle' | 'animal';
 // when two marks overlap and who gets the icon slot when not all fit. The
 // family name is what the server sends in `family`.
 export const FAMILIES: Readonly<Record<FamilyName, Family>> = {
-  person: { name: 'pessoa', color: '#3fb950', priority: 0 },
-  vehicle: { name: 'veículo', color: '#a371f7', priority: 1 },
-  animal: { name: 'animal', color: '#db61a2', priority: 2 },
+  person: { name: 'pessoa', color: '#3fb950', token: '--person', priority: 0 },
+  vehicle: { name: 'veículo', color: '#a371f7', token: '--vehicle', priority: 1 },
+  animal: { name: 'animal', color: '#db61a2', token: '--animal', priority: 2 },
 };
 
 // A family the server sends and this screen doesn't know yet is drawn in gray
 // and stays behind the others: showing up is better than disappearing.
-export const UNKNOWN_FAMILY: Family = { name: '?', color: '#8b949e', priority: 9 };
+export const UNKNOWN_FAMILY: Family = { name: '?', color: '#8b949e', token: '--dim', priority: 9 };
 
 // The families in the order the screen lists them.
 export const FAMILY_NAMES: readonly FamilyName[] = ['person', 'vehicle', 'animal'];
@@ -37,6 +45,10 @@ export const FAMILY_NAMES: readonly FamilyName[] = ['person', 'vehicle', 'animal
 export const isFamily = (name: string): name is FamilyName => Object.hasOwn(FAMILIES, name);
 
 export const family = (name: string): Family => (isFamily(name) ? FAMILIES[name] : UNKNOWN_FAMILY);
+
+// The family's color on the page, in the current theme, for whoever needs the
+// value and not a `var()`: an icon turned into an image.
+export const pageColor = (f: Family): string => tokenColor(document.documentElement, f.token);
 
 // The families, without repeats, in priority order.
 export const byPriority = (families: readonly string[]) =>

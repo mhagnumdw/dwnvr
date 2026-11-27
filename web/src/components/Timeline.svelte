@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { MarkedObject, Span } from '../lib/api.ts';
   import { context2d } from '../lib/canvas.ts';
+  import { tokenColor } from '../lib/theme.ts';
   import { hhmm, hhmmss } from '../lib/format.ts';
   import { family, iconOf, drawIcon, CLASS_NAME } from '../lib/icons.ts';
   import type { IconName } from '../lib/icons.ts';
@@ -91,7 +92,20 @@
   // same reasoning as the drag threshold further down.
   const MOUSE_TARGET_PX = 8;
   const FINGER_TARGET_PX = 16;
-  const BACKGROUND = '#1b1f24';
+
+  // The colors come from the theme's tokens (lib/theme.ts), read once per token
+  // in each drawing: a day has thousands of ticks, and the theme can change
+  // with the screen open.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- a cache of the drawing, which the screen does not read
+  const colors = new Map<string, string>();
+  function color(token: `--${string}`): string {
+    let v = colors.get(token);
+    if (v === undefined) {
+      v = canvas ? tokenColor(canvas, token) : '';
+      colors.set(token, v);
+    }
+    return v;
+  }
 
   // The intensity is ADAPTIVE: the peak of the visible window becomes the top
   // of the scale. The alternative was a fixed scale, comparable across screens
@@ -102,8 +116,7 @@
   //
   // The alpha floor exists so a column with ONE mark still shows up; the square
   // root opens up the middle of the scale, where the difference between 2 and 4
-  // marks would be lost if the ramp were linear.
-  const HEAT_COLOR = '#d29922';
+  // marks would be lost if the ramp were linear. The color is --warn.
   const HEAT_ALPHA_MIN = 0.3;
 
   // Re-anchor when the day changes; comparing the bounds avoids re-anchoring on
@@ -229,7 +242,7 @@
     const x = toX(gr.t) - TICK_PX / 2;
     const h = OBJ_PX / gr.marks.length;
     gr.marks.forEach((m, i) => {
-      g.fillStyle = family(m.family).color;
+      g.fillStyle = color(family(m.family).token);
       g.fillRect(x, objTop + i * h, TICK_PX, h);
     });
   }
@@ -258,7 +271,7 @@
         marks.forEach((m, i) => {
           const name = iconOf(m, byClass);
           if (name)
-            placements.push({ name, x: x0 + i * (side + 2), color: family(m.family).color });
+            placements.push({ name, x: x0 + i * (side + 2), color: color(family(m.family).token) });
         });
         break;
       }
@@ -267,7 +280,7 @@
   }
 
   function drawObjects(g: CanvasRenderingContext2D) {
-    g.fillStyle = BACKGROUND;
+    g.fillStyle = color('--track');
     g.fillRect(0, objTop, width, OBJ_PX);
 
     // A little beyond the edges, so the icon of a mark just outside the window
@@ -316,6 +329,7 @@
 
     const g = context2d(canvas);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    colors.clear();
 
     const barH = BAR_PX;
     const heatTop = barTop + barH + GAP_PX;
@@ -326,10 +340,10 @@
 
     if (hasObjects) drawObjects(g);
 
-    g.fillStyle = BACKGROUND;
+    g.fillStyle = color('--track');
     g.fillRect(0, barTop, width, barH);
 
-    g.fillStyle = '#2f81f7';
+    g.fillStyle = color('--accent');
     for (const [s, e] of ranges) {
       const x0 = Math.max(0, toX(s));
       const x1 = Math.min(width, toX(e));
@@ -343,9 +357,9 @@
       let ceiling = 1;
       for (const c of cols) if (c > ceiling) ceiling = c;
 
-      g.fillStyle = BACKGROUND;
+      g.fillStyle = color('--track');
       g.fillRect(0, heatTop, width, HEAT_PX);
-      g.fillStyle = HEAT_COLOR;
+      g.fillStyle = color('--warn');
       for (let x = 0; x < cols.length; x++) {
         const c = cols[x];
         if (!c) continue;
@@ -355,7 +369,7 @@
       g.globalAlpha = 1;
     }
 
-    g.fillStyle = '#8b949e';
+    g.fillStyle = color('--dim');
     g.font = '10px system-ui, sans-serif';
     g.textBaseline = 'top';
     const first = Math.ceil(viewFrom / step) * step;
@@ -367,14 +381,16 @@
 
     if (hoverMs !== null) {
       const x = toX(hoverMs);
-      g.fillStyle = 'rgba(230,237,243,.35)';
+      g.fillStyle = color('--fg');
+      g.globalAlpha = 0.35;
       g.fillRect(x, stackTop, 1, stackH);
+      g.globalAlpha = 1;
     }
 
     if (currentMs) {
       const x = toX(currentMs);
       if (x >= -2 && x <= width + 2) {
-        g.fillStyle = '#f85149';
+        g.fillStyle = color('--bad');
         g.fillRect(x - 1.5, stackTop - 3, 3, stackH + 6);
       }
     }

@@ -55,7 +55,9 @@ src/lib/         the api and the types of its JSON, state (runes), route and
                  notice that the open screen fell behind an update, the
                  snackbar (the short notice at the bottom of the screen), the
                  hint that a long press opens on a button (and the long-press
-                 notice for whoever asks for it), the height an element has
+                 notice for whoever asks for it), the theme's colors read
+                 from the CSS tokens for whoever paints on a canvas, the
+                 height an element has
                  down to the end of the window, the numbers of the sideways
                  swipe that switches camera (shared by Ao vivo and
                  Gravações) and the
@@ -118,6 +120,14 @@ Formatting is Prettier's, with the Svelte plugin, in `prettier.config.ts`:
 single quotes and lines of up to 100, which is what the code already did. A
 snippet arranged by hand on purpose, like the icon drawings, gets a
 `// prettier-ignore` above it.
+
+**Every color is a token.** The colors live in the `:root` of `src/app.css`, and
+a component writes `var(--token)` or a `color-mix()` over one, never a hex.
+Whoever paints on a canvas reads the token with `tokenColor` (`src/lib/theme.ts`)
+at drawing time. What sits on the video gets the `.over-video` class, which
+pins the dark palette there: the video is dark in every theme. The few colors
+still written out are on the video (the black stage, the shadows over the
+image, the box colors in `lib/icons.ts`) or are the avatar's.
 
 The contract with the server is at the end of `src/lib/api.ts`: the JSON of
 each response, written from the Go structs in `internal/api`. TypeScript does

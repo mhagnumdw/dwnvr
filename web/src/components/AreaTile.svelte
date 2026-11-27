@@ -48,7 +48,7 @@
   data-toque-longo
   {onclick}
 >
-  <span class="mini">
+  <span class="mini over-video">
     <AreaThumbnail {cam} areas={[area]} drawing="cheia" radius={6} {background} zoom />
     <FamilyBadge families={[]} {alert} />
   </span>

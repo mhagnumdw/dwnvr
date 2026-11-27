@@ -320,6 +320,7 @@
 </script>
 
 <canvas
+  class="over-video"
   bind:this={canvas}
   style:width={width === undefined ? '100%' : `${width}px`}
   style:aspect-ratio={ratio}

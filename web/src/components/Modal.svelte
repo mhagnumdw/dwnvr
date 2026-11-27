@@ -103,7 +103,7 @@
 
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--backdrop);
     display: grid;
     /* On a phone the sheet slides up from the bottom, where the thumb reaches. */
     align-items: end;

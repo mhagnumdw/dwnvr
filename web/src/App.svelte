@@ -531,8 +531,8 @@
     align-items: center;
     gap: 10px;
     padding: 6px 6px 6px 12px;
-    background: #14233b;
-    border-bottom: 1px solid rgba(47, 129, 247, 0.55);
+    background: var(--active-bg);
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
     font-size: 14px;
   }
 
@@ -618,14 +618,14 @@
     font-size: 13px;
     font-weight: 600;
     color: var(--accent);
-    background: rgba(47, 129, 247, 0.12);
-    border: 1px solid rgba(47, 129, 247, 0.55);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
     text-decoration: none;
     white-space: nowrap;
   }
 
   .new:hover {
-    background: rgba(47, 129, 247, 0.2);
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
   }
 
   /* A bell and not a pill: it is the smallest of the alerts, 34px like the pill
@@ -713,11 +713,11 @@
 
   .bell.bad .bubble {
     background: var(--bad);
-    color: #fff;
+    color: var(--on-bad);
   }
   .bell.warn .bubble {
     background: var(--warn);
-    color: #1b1300;
+    color: var(--on-warn);
   }
 
   /* The menu attaches to the avatar, not to the header: it opens under it. */
@@ -754,7 +754,7 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 24px var(--shadow);
   }
 
   .account-menu .who {
