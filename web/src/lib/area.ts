@@ -11,12 +11,12 @@ export type Point = [x: number, y: number];
 // the screen.
 export const RULES = {
   foot: {
-    nome: 'pisa',
+    name: 'pisa',
     icon: 'ruleStepsOn',
     hint: 'conta o pé: o meio da borda de baixo da caixa tem de estar dentro. Desenhe a área no chão.',
   },
   touch: {
-    nome: 'encosta',
+    name: 'encosta',
     icon: 'ruleTouches',
     hint: 'basta a caixa tocar a área. Pega também quem só passa na frente dela.',
   },

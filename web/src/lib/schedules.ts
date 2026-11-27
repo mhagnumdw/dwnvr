@@ -12,7 +12,7 @@ import { hourOfMinute } from './format.ts';
 
 export const DAY = 1440;
 
-// O mesmo teto do internal/config/params.go (MaxAlertSchedules).
+// The same cap as internal/config/params.go (MaxAlertSchedules).
 export const MAX_SCHEDULES = 84;
 
 // A schedule as the screen edits it: the hours are null with an empty field.
@@ -62,11 +62,11 @@ export function toServer(hs: Schedule[]): AlertSchedule[] {
   }));
 }
 
-export const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+export const DAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 export const LONG_DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 // "seg" and "Segunda", by day number.
-export const dayName = (d: number, long = false) => (long ? LONG_DAYS : DIAS)[d] ?? '';
+export const dayName = (d: number, long = false) => (long ? LONG_DAYS : DAYS)[d] ?? '';
 
 function joinWithAnd(parts: string[]) {
   return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} e ${parts.at(-1)}` : (parts[0] ?? '');

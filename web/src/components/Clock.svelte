@@ -6,7 +6,7 @@
   // and a focus() called after swapping the element arrives too late.
   //
   // The mask lives in lib/hourMask.ts, the same one as the time fields in
-  // Detections. Without the seconds (`segundos={false}`), the clock shows and
+  // Detections. Without the seconds (`seconds={false}`), the clock shows and
   // accepts only HH:MM, and `ongo` receives second zero of the typed minute.
   import { hhmm, hhmmss } from '../lib/format.ts';
   import { ghost as rest, mask, shake, secondsOfDay } from '../lib/hourMask.ts';
@@ -14,13 +14,13 @@
   interface Props {
     ms: number;
     ongo: (secondsOfDay: number) => void;
-    segundos?: boolean;
+    seconds?: boolean;
   }
 
-  let { ms, ongo, segundos = true }: Props = $props();
+  let { ms, ongo, seconds = true }: Props = $props();
 
-  const groups = $derived(segundos ? 3 : 2);
-  const format = (v: number) => (segundos ? hhmmss(v) : hhmm(v));
+  const groups = $derived(seconds ? 3 : 2);
+  const format = (v: number) => (seconds ? hhmmss(v) : hhmm(v));
 
   let input: HTMLInputElement | undefined;
   let editing = $state(false);
@@ -65,14 +65,14 @@
   }
 </script>
 
-<span class="clock" class:editing class:no-seconds={!segundos}>
+<span class="clock" class:editing class:no-seconds={!seconds}>
   {#if editing}
     <span class="mirror" aria-hidden="true">{text}<i>{ghost}</i></span>
   {/if}
   <input
     bind:this={input}
     class="mono"
-    value={editing ? text : ms ? format(ms) : segundos ? '--:--:--' : '--:--'}
+    value={editing ? text : ms ? format(ms) : seconds ? '--:--:--' : '--:--'}
     placeholder={editing ? before : ''}
     disabled={!ms}
     inputmode="decimal"

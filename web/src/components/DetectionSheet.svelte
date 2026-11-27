@@ -88,7 +88,7 @@
     // The areas where the detection alerted, by the id saved in the mark, with
     // the current name and outline; null `points` means the area has been
     // deleted since.
-    alertAreas?: readonly { id: string; nome: string; points: readonly Point[] | null }[];
+    alertAreas?: readonly { id: string; name: string; points: readonly Point[] | null }[];
     // Opens the area editor over this frame. Null without a frame.
     onarea?: (() => void) | null;
   }
@@ -145,7 +145,7 @@
 
   const width = $derived.by(() => {
     const rest = REST_PX + (alerted ? BLOCK_PX + ofAlert.length * BLOCK_ROW_PX : 0);
-    return `clamp(${MIN_WIDTH_PX}px, calc((var(--altura-max) - ${rest}px) * 16 / 9 + ${BREATHING_PX}px), ${MAX_WIDTH_PX}px)`;
+    return `clamp(${MIN_WIDTH_PX}px, calc((var(--max-height) - ${rest}px) * 16 / 9 + ${BREATHING_PX}px), ${MAX_WIDTH_PX}px)`;
   });
   // The video's boxes light up when playback passes the inspected frame, and
   // the Recordings layer finds that frame in each mark's `frameMs`.
@@ -207,7 +207,7 @@
     };
   });
 
-  // --- o trecho ---------------------------------------------------------------
+  // --- the clip -----------------------------------------------------------------
 
   const endMs = $derived(det.atMs + AFTER_MS);
   const startMs = $derived(det.atMs - BEFORE_MS);
@@ -226,7 +226,7 @@
     }
     try {
       const t = await api.timelineRange(det.cam, startMs, endMs);
-      if (!video) return; // a folha fechou durante a busca
+      if (!video) return; // the sheet closed during the lookup
       if (!t.segments.length) {
         error = 'sem gravação neste trecho';
         playingNow = false;
@@ -342,7 +342,7 @@
         onload={paintFrame}
       />
     {/if}
-    <canvas bind:this={canvas} class:escondido={videoPainted}></canvas>
+    <canvas bind:this={canvas} class:hidden={videoPainted}></canvas>
     {#if playingNow}
       <video bind:this={video} playsinline onloadeddata={() => (videoPainted = true)}></video>
       {#if Boxes && video}
@@ -401,12 +401,12 @@
                 class:on={highlighted === id}
                 aria-pressed={highlighted === id}
                 aria-label={highlighted === id
-                  ? `${a.nome}: mostrar todas as áreas`
-                  : `${a.nome}: realçar no quadro`}
-                onclick={() => toggleHighlight(id)}>{a.nome}</button
+                  ? `${a.name}: mostrar todas as áreas`
+                  : `${a.name}: realçar no quadro`}
+                onclick={() => toggleHighlight(id)}>{a.name}</button
               >
             {:else}
-              <span class="chip-area">{a?.nome ?? 'área apagada'}</span>
+              <span class="chip-area">{a?.name ?? 'área apagada'}</span>
             {/if}
           {:else}
             <span class="muted">imagem inteira</span>
@@ -523,7 +523,7 @@
     display: block;
   }
 
-  canvas.escondido {
+  canvas.hidden {
     display: none;
   }
 
@@ -682,7 +682,7 @@
   }
   button.chip-area.on {
     border-style: solid;
-    background: var(--ativo-fundo);
+    background: var(--active-bg);
   }
 
   .actions {

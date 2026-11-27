@@ -20,14 +20,14 @@
       out:fly={{ y: 8, duration: 180 }}
     >
       <span
-        >{#if notice.forte}<strong>{notice.forte}</strong>{' '}{/if}{notice.texto}</span
+        >{#if notice.strong}<strong>{notice.strong}</strong>{' '}{/if}{notice.text}</span
       >
       {#if notice.action}
         <button
           class="ghost"
           onclick={() => {
             closeNotice(notice.id);
-            notice.action?.fazer();
+            notice.action?.run();
           }}>{notice.action.label}</button
         >
       {/if}

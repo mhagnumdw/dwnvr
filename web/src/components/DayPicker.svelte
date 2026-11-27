@@ -113,7 +113,7 @@
     return key;
   }
 
-  // --- abrir, fechar, focar ---------------------------------------------------
+  // --- open, close, focus -------------------------------------------------------
 
   function goTo(key: string) {
     focusedDay = key;
@@ -174,19 +174,19 @@
 
   function changeMonth(delta: number, focusNow = false) {
     const d = parseDay(focusedDay ?? today);
-    const ano = d.getFullYear();
-    const mes = d.getMonth() + delta;
+    const year = d.getFullYear();
+    const month = d.getMonth() + delta;
     // Day 31 landing in a 30-day month: left to `Date`, it would roll over to
     // the next month - exactly the jump this button must not make.
-    const last = new Date(ano, mes + 1, 0).getDate();
-    const target = new Date(ano, mes, Math.min(d.getDate(), last));
+    const last = new Date(year, month + 1, 0).getDate();
+    const target = new Date(year, month, Math.min(d.getDate(), last));
     goTo(clamp(dayKey(target)));
     if (focusNow) focusCell();
   }
 
-  function moveFocus(dias: number) {
+  function moveFocus(days: number) {
     const d = parseDay(focusedDay ?? today);
-    d.setDate(d.getDate() + dias);
+    d.setDate(d.getDate() + days);
     goTo(clamp(dayKey(d)));
     focusCell();
   }
@@ -289,11 +289,11 @@
     return viewYear > p.getFullYear() || (viewYear === p.getFullYear() && viewMonth > p.getMonth());
   });
 
-  const mesAno = $derived(
+  const monthYear = $derived(
     viewYear === null || viewMonth === null ? '' : `${MONTHS[viewMonth] ?? ''} ${viewYear}`,
   );
 
-  // --- fechar por fora --------------------------------------------------------
+  // --- close on outside click ---------------------------------------------------
 
   function onWindowClick(e: MouseEvent) {
     // Without returning focus: whoever clicked outside has already chosen where
@@ -338,7 +338,7 @@
     <div
       class="popover card"
       bind:this={popoverEl}
-      style="--desloc: {offset}px"
+      style="--offset: {offset}px"
       role="dialog"
       aria-label="calendário: dias com {material}"
     >
@@ -352,9 +352,9 @@
           disabled={!canGoBack}
           aria-label="mês anterior"
         >
-          <Icon name="chevronEsq" size={18} />
+          <Icon name="chevronLeft" size={18} />
         </button>
-        <span class="mes-ano">{mesAno}</span>
+        <span class="month-year">{monthYear}</span>
         <button
           type="button"
           class="nav ghost"
@@ -460,7 +460,7 @@
     position: absolute;
     top: calc(100% + 6px);
     left: 50%;
-    transform: translateX(calc(-50% + var(--desloc, 0px)));
+    transform: translateX(calc(-50% + var(--offset, 0px)));
     z-index: 40;
     width: 280px;
     max-width: calc(100vw - 20px);
@@ -478,7 +478,7 @@
     margin-bottom: 8px;
   }
 
-  .mes-ano {
+  .month-year {
     font-weight: 600;
     font-size: 14px;
   }

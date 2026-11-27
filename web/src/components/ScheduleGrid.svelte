@@ -10,7 +10,7 @@
   grid only draws the coverage.
 -->
 <script lang="ts">
-  import { DIAS, fullHour, whole, dayName, clipsOfHour } from '../lib/weekGrid.ts';
+  import { DAYS, fullHour, whole, dayName, clipsOfHour } from '../lib/weekGrid.ts';
   import type { Coverage } from '../lib/weekGrid.ts';
   import { hourOfMinute } from '../lib/format.ts';
 
@@ -44,17 +44,17 @@
   function clips(ps: [number, number][]) {
     return ps
       .flatMap(([a, b]) => {
-        let ini = (a / 60) * 100;
+        let startPct = (a / 60) * 100;
         let end = ((b + 1) / 60) * 100;
-        if (end - ini < 8) {
-          const middle = (ini + end) / 2;
-          ini = Math.max(0, middle - 4);
+        if (end - startPct < 8) {
+          const middle = (startPct + end) / 2;
+          startPct = Math.max(0, middle - 4);
           end = Math.min(100, middle + 4);
         }
         return [
-          `transparent ${ini}%`,
-          `var(--cor) ${ini}%`,
-          `var(--cor) ${end}%`,
+          `transparent ${startPct}%`,
+          `var(--color) ${startPct}%`,
+          `var(--color) ${end}%`,
           `transparent ${end}%`,
         ];
       })
@@ -62,7 +62,7 @@
   }
 
   const cells = $derived(
-    DIAS.map((_, d) =>
+    DAYS.map((_, d) =>
       HOURS.map((h) => {
         const ps = clipsOfHour(coverage, d, h);
         const full = whole(ps);
@@ -99,7 +99,7 @@
 
   // The line under the grid: what to do, the hour under the mouse, what the
   // drag will mark. When null, the instruction.
-  let info = $state<{ forte: string; rest: string } | null>(null);
+  let info = $state<{ strong: string; rest: string } | null>(null);
   const instruction = () =>
     matchMedia('(pointer: coarse)').matches
       ? 'Toque numa hora para marcar ou desmarcar. O dia e a hora nas bordas marcam a coluna ou a linha inteira.'
@@ -107,7 +107,7 @@
 
   const cellInfo = (d: number, h: number) => {
     info = {
-      forte: `${dayName(d, true)}, ${hh(h)}h`,
+      strong: `${dayName(d, true)}, ${hh(h)}h`,
       rest: ` · ${condition(cells[d]?.[h]?.ps ?? [], h)}`,
     };
   };
@@ -116,14 +116,14 @@
     if (!drag) return;
     const [d0, d1] = [Math.min(drag.d0, drag.d1), Math.max(drag.d0, drag.d1)];
     const [h0, h1] = [Math.min(drag.h0, drag.h1), Math.max(drag.h0, drag.h1)];
-    const dias = d0 === d1 ? dayName(d0) : `${dayName(d0)} a ${dayName(d1)}`;
+    const days = d0 === d1 ? dayName(d0) : `${dayName(d0)} a ${dayName(d1)}`;
     const hours = h0 === h1 ? `${hh(h0)}h` : `${hh(h0)}h a ${hh(h1)}h`;
-    info = { forte: drag.mark ? 'marcando' : 'desmarcando', rest: ` ${dias} · ${hours}` };
+    info = { strong: drag.mark ? 'marcando' : 'desmarcando', rest: ` ${days} · ${hours}` };
   }
 
   function paint(d0: number, h0: number, d1: number, h1: number, mark: boolean) {
     onpaint(d0, h0, d1, h1, mark);
-    info = { forte: 'A lista foi refeita pela grade', rest: ' · cada dia com as horas dele' };
+    info = { strong: 'A lista foi refeita pela grade', rest: ' · cada dia com as horas dele' };
   }
 
   function cellOf(target: EventTarget | null) {
@@ -206,12 +206,7 @@
     if (!drag && e.pointerType === 'mouse') info = null;
   }}
 >
-  <span
-    class="canto"
-    style:--linha-h="1"
-    style:--coluna-h="1"
-    style:--linha-v="1"
-    style:--coluna-v="1"
+  <span class="canto" style:--row-h="1" style:--col-h="1" style:--row-v="1" style:--col-v="1"
   ></span>
   {#each HOURS as h (h)}
     <button
@@ -219,23 +214,23 @@
       class="rot hr"
       class:q={quarto(h)}
       class:filled={fullHourAllDay[h]}
-      style:--linha-h="1"
-      style:--coluna-h={h + 2}
-      style:--linha-v={h + 2}
-      style:--coluna-v="1"
+      style:--row-h="1"
+      style:--col-h={h + 2}
+      style:--row-v={h + 2}
+      style:--col-v="1"
       title="{hh(h)}h de todos os dias"
       onclick={() => paint(0, h, 6, h, !fullHourAllDay[h])}>{hh(h)}</button
     >
   {/each}
-  {#each DIAS as name, d (d)}
+  {#each DAYS as name, d (d)}
     <button
       type="button"
       class="rot d"
       class:filled={fullDay[d]}
-      style:--linha-h={d + 2}
-      style:--coluna-h="1"
-      style:--linha-v="1"
-      style:--coluna-v={d + 2}
+      style:--row-h={d + 2}
+      style:--col-h="1"
+      style:--row-v="1"
+      style:--col-v={d + 2}
       title="{dayName(d, true)}: o dia inteiro"
       onclick={() => paint(d, 0, d, 23, !fullDay[d])}>{name}</button
     >
@@ -248,11 +243,11 @@
         class:highlight={c.highlighted}
         class:paint={inDrag(d, h) && drag?.mark}
         class:erase={inDrag(d, h) && !drag?.mark}
-        style:--linha-h={d + 2}
-        style:--coluna-h={h + 2}
-        style:--linha-v={h + 2}
-        style:--coluna-v={d + 2}
-        style:--pedacos={c.partial ? clips(c.ps) : null}
+        style:--row-h={d + 2}
+        style:--col-h={h + 2}
+        style:--row-v={h + 2}
+        style:--col-v={d + 2}
+        style:--clips={c.partial ? clips(c.ps) : null}
         data-d={d}
         data-h={h}
         title="{dayName(d, true)}, {hh(h)}h · {condition(c.ps, h)}"
@@ -261,14 +256,14 @@
   {/each}
 </div>
 <p class="info" aria-live="polite">
-  {#if info}<b>{info.forte}</b>{info.rest}{:else}{instruction()}{/if}
+  {#if info}<b>{info.strong}</b>{info.rest}{:else}{instruction()}{/if}
 </p>
 
 <style>
   .grid {
-    --cor: var(--accent);
+    --color: var(--accent);
     --dir: to right;
-    --alt: 18px;
+    --height: 18px;
     display: grid;
     grid-template-columns: 34px repeat(24, minmax(0, 1fr));
     gap: 2px;
@@ -276,8 +271,8 @@
     -webkit-user-select: none;
   }
   .grid > * {
-    grid-row: var(--linha-h);
-    grid-column: var(--coluna-h);
+    grid-row: var(--row-h);
+    grid-column: var(--col-h);
   }
 
   .rot {
@@ -314,21 +309,21 @@
   }
 
   .cel {
-    height: var(--alt);
+    height: var(--height);
     border-radius: 3px;
     background-color: var(--panel-2);
     border: 1px solid var(--line);
     cursor: pointer;
   }
   .cel.on {
-    background-color: var(--cor);
-    border-color: var(--cor);
+    background-color: var(--color);
+    border-color: var(--color);
   }
   /* The half hour: only the marked piece is painted, at its position. */
   .cel.partial {
-    border-color: var(--cor);
+    border-color: var(--color);
     border-style: dashed;
-    background-image: linear-gradient(var(--dir), var(--pedacos));
+    background-image: linear-gradient(var(--dir), var(--clips));
   }
   .cel.highlight {
     box-shadow: inset 0 0 0 2px var(--fg);
@@ -351,12 +346,12 @@
   @media (max-width: 639px) {
     .grid {
       --dir: to bottom;
-      --alt: 22px;
+      --height: 22px;
       grid-template-columns: 42px repeat(7, minmax(0, 1fr));
     }
     .grid > * {
-      grid-row: var(--linha-v);
-      grid-column: var(--coluna-v);
+      grid-row: var(--row-v);
+      grid-column: var(--col-v);
     }
     .rot.d {
       justify-content: center;

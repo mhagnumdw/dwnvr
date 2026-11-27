@@ -1,22 +1,24 @@
-# Código de terceiros
+# Third-party code
 
-## video-rtc.js e video-stream.js
+## video-rtc.js and video-stream.js
 
-Do [go2rtc](https://github.com/AlexxIT/go2rtc) (`www/`), MIT, © 2022 Alexey Khit.
+From [go2rtc](https://github.com/AlexxIT/go2rtc) (`www/`), MIT, © 2022 Alexey Khit.
 
-Copiados sem modificação. São o player de visualização ao vivo: negociam
-WebRTC, MSE e MJPEG sozinhos, escolhendo o que o navegador aceita, e já são
-batalhados com H265 - que é justamente o caso difícil desta instalação.
+Copied without modification. They are the live-view player: they negotiate
+WebRTC, MSE and MJPEG on their own, picking what the browser accepts, and are
+already battle-tested with H265 - which is precisely the hard case of this
+installation.
 
-Reaproveitá-los em vez de escrever um player de live é deliberado: o dwnvr
-escreve o player das *gravações*, onde o formato é dele e o controle fino da
-timeline importa. No live, o formato é do go2rtc e o problema já está resolvido.
+Reusing them instead of writing a live player is deliberate: dwnvr writes the
+player for the *recordings*, where the format is its own and fine control of
+the timeline matters. In the live view, the format is go2rtc's and the problem
+is already solved.
 
-Por serem copiados, continuam em JavaScript. O que o dwnvr usa deles tem os
-tipos escritos à mão ao lado, em `video-rtc.d.ts` e `video-stream.d.ts`.
+Because they are copied, they stay in JavaScript. What dwnvr uses from them has
+its types handwritten next to them, in `video-rtc.d.ts` and `video-stream.d.ts`.
 
-Para atualizar, e depois conferir se os nomes dos `.d.ts` ainda existem no
-`.js` novo:
+To update, and then check that the names in the `.d.ts` files still exist in
+the new `.js`:
 
 ```sh
 curl -O https://raw.githubusercontent.com/AlexxIT/go2rtc/master/www/video-rtc.js

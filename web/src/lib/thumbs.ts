@@ -122,8 +122,8 @@ export function thumbnail(cam: string, t: number, scale = 1): Promise<ImageBitma
 // recording. It is the most recent frame the server has ready: the segment's
 // keyframe.
 export async function lastSegment(cam: string): Promise<number | null> {
-  const dias = await api.days(cam);
-  const day = dias.days.at(-1)?.day;
+  const listing = await api.days(cam);
+  const day = listing.days.at(-1)?.day;
   if (!day) return null;
   const t = await api.timeline(cam, day);
   return t.segments.at(-1)?.[0] ?? null;
@@ -135,19 +135,19 @@ export async function lastSegment(cam: string): Promise<number | null> {
 // bitmap is not kept here: `thumbnail` stores it, and returns it again if its
 // cache evicted it.
 const LAST_SEGMENT_VALID_MS = 5 * 60_000;
-const ultimos = new Map<string, { to: number; t: Promise<number | null> }>();
+const latest = new Map<string, { to: number; t: Promise<number | null> }>();
 
 export function storedLastSegment(cam: string): Promise<number | null> {
   const now = Date.now();
-  const stored = ultimos.get(cam);
+  const stored = latest.get(cam);
   if (stored && stored.to > now) return stored.t;
   const t = lastSegment(cam);
   const entry = { to: now + LAST_SEGMENT_VALID_MS, t };
-  ultimos.set(cam, entry);
+  latest.set(cam, entry);
   // The failure and the "no recording" are not stored: the next request tries
   // again, and a camera that just started recording shows up.
   const forget = () => {
-    if (ultimos.get(cam) === entry) ultimos.delete(cam);
+    if (latest.get(cam) === entry) latest.delete(cam);
   };
   t.then((v) => {
     if (v === null) forget();
@@ -158,7 +158,7 @@ export function storedLastSegment(cam: string): Promise<number | null> {
 // Forgets the camera's stored last segment: its recordings were deleted, and it
 // no longer exists.
 export function forgetLastSegment(cam: string) {
-  ultimos.delete(cam);
+  latest.delete(cam);
 }
 
 // A segment's keyframe at the camera's resolution, to draw on top of (the area
@@ -174,7 +174,7 @@ export function clearThumbnails() {
   cache.clear();
   for (const p of enlarged.values()) void p.then((b) => b?.close());
   enlarged.clear();
-  ultimos.clear();
+  latest.clear();
 }
 
 // The download stays outside the queue: waiting on the network does not occupy

@@ -25,11 +25,11 @@ export type Side = -1 | 1;
 export function doubleTouch(actions: {
   jump?(side: Side): void;
   middle?(): void;
-  simples?(): void;
+  single?(): void;
 }) {
   let previous: { t: number; x: number; y: number } | null = null;
   let sequence: { side: Side; t: number } | null = null;
-  let simplesTimer: number | undefined;
+  let singleTimer: number | undefined;
 
   const onRelease = (e: PointerEvent) => {
     if (e.pointerType !== 'touch') return;
@@ -37,7 +37,7 @@ export function doubleTouch(actions: {
     if (e.target instanceof Element && e.target.closest('button')) return;
     if (!(e.currentTarget instanceof HTMLElement)) return;
 
-    clearTimeout(simplesTimer);
+    clearTimeout(singleTimer);
     const r = e.currentTarget.getBoundingClientRect();
     const fraction = (e.clientX - r.left) / r.width;
     const side = !actions.jump ? 0 : fraction < 1 / 3 ? -1 : fraction > 2 / 3 ? 1 : 0;
@@ -56,7 +56,7 @@ export function doubleTouch(actions: {
       Math.hypot(e.clientX - previous.x, e.clientY - previous.y) < DOUBLE_PX;
     if (!double) {
       previous = { t, x: e.clientX, y: e.clientY };
-      if (actions.simples) simplesTimer = setTimeout(() => actions.simples?.(), DOUBLE_MS);
+      if (actions.single) singleTimer = setTimeout(() => actions.single?.(), DOUBLE_MS);
       return;
     }
 
@@ -71,7 +71,7 @@ export function doubleTouch(actions: {
 
   return Object.assign(onRelease, {
     cancel() {
-      clearTimeout(simplesTimer);
+      clearTimeout(singleTimer);
     },
   });
 }

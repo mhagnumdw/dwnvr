@@ -8,7 +8,7 @@
 import { context2d } from './canvas.ts';
 
 export interface Family {
-  nome: string;
+  name: string;
   color: string;
   priority: number;
 }
@@ -20,14 +20,14 @@ export type FamilyName = 'person' | 'vehicle' | 'animal';
 // when two marks overlap and who gets the icon slot when not all fit. The
 // family name is what the server sends in `family`.
 export const FAMILIES: Readonly<Record<FamilyName, Family>> = {
-  person: { nome: 'pessoa', color: '#3fb950', priority: 0 },
-  vehicle: { nome: 'veículo', color: '#a371f7', priority: 1 },
-  animal: { nome: 'animal', color: '#db61a2', priority: 2 },
+  person: { name: 'pessoa', color: '#3fb950', priority: 0 },
+  vehicle: { name: 'veículo', color: '#a371f7', priority: 1 },
+  animal: { name: 'animal', color: '#db61a2', priority: 2 },
 };
 
 // A family the server sends and this screen doesn't know yet is drawn in gray
 // and stays behind the others: showing up is better than disappearing.
-export const UNKNOWN_FAMILY: Family = { nome: '?', color: '#8b949e', priority: 9 };
+export const UNKNOWN_FAMILY: Family = { name: '?', color: '#8b949e', priority: 9 };
 
 // The families in the order the screen lists them.
 export const FAMILY_NAMES: readonly FamilyName[] = ['person', 'vehicle', 'animal'];
@@ -46,7 +46,7 @@ export const byPriority = (families: readonly string[]) =>
 // thumbnail: "pessoa, animal".
 export const familyNames = (families: readonly string[]) =>
   byPriority(families)
-    .map((f) => family(f).nome)
+    .map((f) => family(f).name)
     .join(', ');
 
 // The model's classes (COCO names, as the detector returns them) in Portuguese,
@@ -72,15 +72,15 @@ export const CLASS_NAME: Readonly<Record<string, string>> = {
 // drawing serves at 14px and at 20px.
 type Drawing = (g: CanvasRenderingContext2D) => void;
 
-// Cada linha é um traço do desenho, com o comentário dizendo qual.
+// Each line is a stroke of the drawing, with the comment saying which.
 // prettier-ignore
 const DRAWINGS = {
   person(g: CanvasRenderingContext2D) {
     g.beginPath(); g.arc(0.5, 0.18, 0.16, 0, 7); g.fill();       // head
     g.beginPath();
-    g.moveTo(0.5, 0.36); g.lineTo(0.5, 0.68);                    // tronco
+    g.moveTo(0.5, 0.36); g.lineTo(0.5, 0.68);                    // torso
     g.moveTo(0.22, 0.48); g.lineTo(0.78, 0.48);                  // arms
-    g.moveTo(0.5, 0.68); g.lineTo(0.28, 1);                      // pernas
+    g.moveTo(0.5, 0.68); g.lineTo(0.28, 1);                      // legs
     g.moveTo(0.5, 0.68); g.lineTo(0.72, 1);
     g.stroke();
   },
@@ -116,7 +116,7 @@ const DRAWINGS = {
   },
   bus(g: CanvasRenderingContext2D) {
     g.beginPath(); g.rect(0.08, 0.2, 0.84, 0.56); g.fill();
-    hollow(g, () => {                                            // janelas
+    hollow(g, () => {                                            // windows
       g.rect(0.16, 0.28, 0.3, 0.2);
       g.rect(0.54, 0.28, 0.3, 0.2);
     });
@@ -139,13 +139,13 @@ const DRAWINGS = {
   // 14px: the cat has its tail raised, the dog has a short tail and a long
   // snout.
   dog(g: CanvasRenderingContext2D) {
-    g.beginPath(); g.rect(0.16, 0.52, 0.48, 0.22); g.fill();     // corpo
+    g.beginPath(); g.rect(0.16, 0.52, 0.48, 0.22); g.fill();     // body
     g.beginPath();
     g.moveTo(0.24, 0.74); g.lineTo(0.24, 0.94);
     g.moveTo(0.56, 0.74); g.lineTo(0.56, 0.94);
     g.stroke();
     g.beginPath(); g.arc(0.72, 0.46, 0.15, 0, 7); g.fill();      // head
-    g.beginPath(); g.rect(0.8, 0.46, 0.18, 0.1); g.fill();       // focinho
+    g.beginPath(); g.rect(0.8, 0.46, 0.18, 0.1); g.fill();       // snout
     g.beginPath(); g.moveTo(0.16, 0.56); g.lineTo(0.02, 0.48); g.stroke();
   },
   cat(g: CanvasRenderingContext2D) {
@@ -155,11 +155,11 @@ const DRAWINGS = {
     g.moveTo(0.56, 0.76); g.lineTo(0.56, 0.94);
     g.stroke();
     g.beginPath(); g.arc(0.72, 0.5, 0.14, 0, 7); g.fill();
-    g.beginPath();                                               // orelhas
+    g.beginPath();                                               // ears
     g.moveTo(0.61, 0.4); g.lineTo(0.6, 0.24); g.lineTo(0.72, 0.38); g.closePath(); g.fill();
     g.beginPath();
     g.moveTo(0.83, 0.4); g.lineTo(0.86, 0.24); g.lineTo(0.74, 0.38); g.closePath(); g.fill();
-    g.beginPath();                                               // rabo erguido
+    g.beginPath();                                               // raised tail
     g.moveTo(0.2, 0.66); g.quadraticCurveTo(0.02, 0.58, 0.08, 0.16); g.stroke();
   },
   // The family's animal is a quadruped with no ears on purpose: when it can't
@@ -236,7 +236,7 @@ export function drawIcon(
   g.scale(side, side);
   g.fillStyle = color;
   g.strokeStyle = color;
-  g.lineWidth = 2 / side; // 2px reais, seja qual for a escala
+  g.lineWidth = 2 / side; // real 2px, whatever the scale
   g.lineJoin = 'round';
   g.lineCap = 'round';
   f(g);

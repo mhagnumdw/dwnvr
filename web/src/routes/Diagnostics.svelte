@@ -17,7 +17,7 @@
     bytes,
     mbToBytes,
     kbps,
-    dias,
+    formatDays,
     duration,
     hhmmss,
     ddmm,
@@ -45,7 +45,7 @@
     help?: string;
   }
   type Column<T> = ColumnBase &
-    ({ texto: true; value: (c: T) => string } | { texto?: false; value: (c: T) => number });
+    ({ text: true; value: (c: T) => string } | { text?: false; value: (c: T) => number });
   // Never empty: the first one is the fallback for when the URL asks for one
   // that does not exist.
   type Columns<T> = readonly [Column<T>, ...Column<T>[]];
@@ -86,7 +86,7 @@
     return {
       when: timezoneClock(lido, c.offsetSeconds),
       timezone: c.zone ?? c.abbr,
-      sigla: c.zone ? c.abbr : undefined,
+      abbreviation: c.zone ? c.abbr : undefined,
     };
   });
   // Orphans are left out of the "outros" count: they are dwnvr recordings, just
@@ -132,7 +132,7 @@
       id: 'name',
       label: 'câmera',
       value: (c) => c.name,
-      texto: true,
+      text: true,
       help: 'Nome da câmera. O ponto mostra o estado: verde gravando, vermelho parada ou desconectada. O horário ao lado é o do último segmento gravado.',
     },
     {
@@ -211,7 +211,7 @@
     const dir = order.asc ? 1 : -1;
     // Copy: the source is global state and the screen only wants a view of it.
     return [...items].sort((a, b) => {
-      const d = col.texto
+      const d = col.text
         ? collator.compare(col.value(a), col.value(b))
         : col.value(a) - col.value(b);
       return d ? d * dir : collator.compare(nameOf(a), nameOf(b));
@@ -338,7 +338,7 @@
     // forgotten open in a hidden tab would do that every 15 s forever. When the
     // tab becomes visible again, it reads right away instead of waiting for the
     // next tick.
-    const ler = async () => {
+    const read = async () => {
       if (document.hidden) return;
       try {
         const r = await api.server();
@@ -351,16 +351,16 @@
         if (isLive) serverError = messageOf(e);
       }
     };
-    const lerJa = () => {
-      void ler();
+    const readNow = () => {
+      void read();
     };
-    lerJa();
-    const id = setInterval(lerJa, SERVER_POLL_MS);
-    document.addEventListener('visibilitychange', lerJa);
+    readNow();
+    const id = setInterval(readNow, SERVER_POLL_MS);
+    document.addEventListener('visibilitychange', readNow);
     return () => {
       isLive = false;
       clearInterval(id);
-      document.removeEventListener('visibilitychange', lerJa);
+      document.removeEventListener('visibilitychange', readNow);
       server = previousServer = null;
     };
   });
@@ -530,7 +530,7 @@
   // The detector times in seconds with one decimal, and not through
   // `duration()`: the queue wait is almost always under one second, and it
   // would round it to "0s".
-  const segundos = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')}s`;
+  const seconds = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')}s`;
 
   // The sum over the cameras. The server sends per camera, and the total is
   // arithmetic the screen does: it is a sum of a few numbers per camera.
@@ -562,7 +562,7 @@
     const allItems = OUTCOMES.map((d) => ({ ...d, n: amounts[d.id] }));
     const clips = allItems.filter((d) => d.n > 0);
     const caption = allItems.filter((d) => d.n > 0 || d.always === true);
-    return { pedacos: clips, caption, total: sum.total, lostCount };
+    return { clips, caption, total: sum.total, lostCount };
   });
 
   // The breakdown of the red piece, in words. It only appears when there is
@@ -570,9 +570,9 @@
   // "não analisadas" stops being a single lump.
   const unanalyzed = $derived(
     [
-      { n: sum.noVideo, texto: 'sem vídeo inteiro para mandar, logo depois de conectar' },
-      { n: sum.rejected, texto: 'vídeo corrompido vindo da câmera' },
-      { n: sum.failed, texto: 'o detector não respondeu' },
+      { n: sum.noVideo, text: 'sem vídeo inteiro para mandar, logo depois de conectar' },
+      { n: sum.rejected, text: 'vídeo corrompido vindo da câmera' },
+      { n: sum.failed, text: 'o detector não respondeu' },
     ].filter((x) => x.n > 0),
   );
 
@@ -585,7 +585,7 @@
   // hit rate, and without a value the sorting would throw it anywhere. -1 puts
   // "sem dado" before everyone else in ascending order.
   const detColumns: Columns<DetRow> = [
-    { id: 'name', label: 'câmera', value: (c) => c.nome, texto: true },
+    { id: 'name', label: 'câmera', value: (c) => c.name, text: true },
     {
       id: 'inferences',
       label: 'olhadas',
@@ -620,7 +620,7 @@
       id: 'queue',
       label: 'na fila',
       // Whoever waits the most comes first; processing breaks ties.
-      value: (c) => c.fila.waiting * 2 + (c.fila.busy ? 1 : 0),
+      value: (c) => c.queue.waiting * 2 + (c.queue.busy ? 1 : 0),
       // A getter, and not fixed text: the number of slots comes from the
       // server, and the header rereads the hint when it arrives.
       get help() {
@@ -669,12 +669,12 @@
     const inferences = d.inferred + d.object;
     return {
       id: c.id,
-      nome: c.name || c.id,
+      name: c.name || c.id,
       ...d,
       inferences,
       lostCount: d.noVideo + d.rejected + d.failed,
       hit: inferences ? Math.round((d.object / inferences) * 100) : null,
-      fila: queueOf(c.id),
+      queue: queueOf(c.id),
       enabled: c.detect,
     };
   }
@@ -687,7 +687,7 @@
     // and the zeroed row would read as "saw nothing". It stays in the table,
     // because the numbers survive being turned off mid-day, but in a separate
     // group, at the end: the chosen sort order applies within each group.
-    const sorted = sortRows(rows, detColumns, detOrder, (c) => c.nome);
+    const sorted = sortRows(rows, detColumns, detOrder, (c) => c.name);
     return {
       enabledCams: sorted.filter((c) => c.enabled),
       disabledCams: sorted.filter((c) => !c.enabled),
@@ -762,7 +762,7 @@
         {#if clock}
           <span class="muted">·</span>
           <span class="muted">horário do servidor</span>
-          <span class="mono" title={clock.sigla}>{clock.when} {clock.timezone}</span>
+          <span class="mono" title={clock.abbreviation}>{clock.when} {clock.timezone}</span>
         {/if}
       </div>
     {/if}
@@ -857,7 +857,7 @@
         {/if}
         <!-- eslint-disable-next-line svelte/require-each-key -- text only, no per-row state; and two notices can have the same text, which would break the key -->
         {#each notices as a}
-          <p class="row {a.nivel}"><span class="dot {a.nivel}"></span>{a.texto}</p>
+          <p class="row {a.level}"><span class="dot {a.level}"></span>{a.text}</p>
         {:else}
           <p class="row ok"><span class="dot ok"></span>Nenhum problema detectado.</p>
         {/each}
@@ -967,7 +967,7 @@
               <br /><span class="muted small">{duration(c.recordedMs)} grav.</span>
             {/if}
           </span>
-          <span class="mono">{@render label(columns, order, 'fit')}{dias(c.retainDays)}</span>
+          <span class="mono">{@render label(columns, order, 'fit')}{formatDays(c.retainDays)}</span>
           <span class="mono">{@render label(columns, order, 'reconnects')}{c.reconnects}</span>
         </div>
       {/each}
@@ -1032,7 +1032,7 @@
               bind:clientWidth={funnelWidth}
               title="o que aconteceu com cada marca de movimento"
             >
-              {#each funnel.pedacos as p (p.id)}
+              {#each funnel.clips as p (p.id)}
                 <span
                   class="seg"
                   class:dark={p.dark}
@@ -1064,10 +1064,10 @@
                    would say it is instantaneous. -->
               {#if detector?.times.inferenceMs}
                 <span
-                  >analisar leva <b class="mono">{segundos(detector.times.inferenceMs)}</b> por marca</span
+                  >analisar leva <b class="mono">{seconds(detector.times.inferenceMs)}</b> por marca</span
                 >
                 <span
-                  >espera de cada marca na fila <b class="mono">{segundos(detector.times.waitMs)}</b
+                  >espera de cada marca na fila <b class="mono">{seconds(detector.times.waitMs)}</b
                   ></span
                 >
               {/if}
@@ -1076,8 +1076,8 @@
             {#if unanalyzed.length}
               <p class="small muted wrap">
                 das {funnel.lostCount} não analisadas:
-                {#each unanalyzed as m, i (m.texto)}{i ? ' · ' : ' '}<b class="mono">{m.n}</b>
-                  {m.texto}{/each}
+                {#each unanalyzed as m, i (m.text)}{i ? ' · ' : ' '}<b class="mono">{m.n}</b>
+                  {m.text}{/each}
               </p>
             {/if}
           {:else}
@@ -1115,10 +1115,10 @@
           {#snippet tableRow(c: DetRow)}
             <div class="trow detgrid row" class:disabled={!c.enabled}>
               {#if c.enabled}
-                <span class="name">{c.nome}</span>
+                <span class="name">{c.name}</span>
               {:else}
                 <span class="c-disabled row">
-                  <span class="name">{c.nome}</span>
+                  <span class="name">{c.name}</span>
                   <a class="small" href="#cams?edit={encodeURIComponent(c.id)}">ligar</a>
                 </span>
               {/if}
@@ -1149,7 +1149,7 @@
                    would say it is waiting its turn. -->
               <span class="queue-cell">
                 {#if c.enabled}
-                  {#if c.fila.busy}
+                  {#if c.queue.busy}
                     <span
                       class="processing"
                       title="o detector está processando uma imagem desta câmera agora"
@@ -1157,10 +1157,10 @@
                   {/if}
                   <span
                     class="slots"
-                    class:full={c.fila.full}
-                    title="{c.fila.waiting} de {c.fila.slots.length} lugares ocupados"
+                    class:full={c.queue.full}
+                    title="{c.queue.waiting} de {c.queue.slots.length} lugares ocupados"
                   >
-                    {#each c.fila.slots as l, i (i)}<span class="slot {l}"></span>{/each}
+                    {#each c.queue.slots as l, i (i)}<span class="slot {l}"></span>{/each}
                   </span>
                 {/if}
               </span>
@@ -1237,7 +1237,7 @@
        even without a version - an old build does not carry it, and the
        repository stays at the same address. -->
   <div class="card about">
-    <p class="row wrap versao">
+    <p class="row wrap version">
       <strong>dwnvr</strong>
       {#if build.version}
         <span class="muted small"
@@ -1335,7 +1335,7 @@
 
   /* ---- about ---- */
 
-  .about .versao {
+  .about .version {
     margin: 0;
     gap: 4px 8px;
   }

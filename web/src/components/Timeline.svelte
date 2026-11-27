@@ -70,7 +70,7 @@
   const ZONE_PX = 24;
   const OBJ_PX = 10; // the object line
   const BAR_PX = 36;
-  const VAO_PX = 3; // breathing room between the bar and each neighboring strip
+  const GAP_PX = 3; // breathing room between the bar and each neighboring strip
   const HEAT_PX = 10;
   const RULER_PX = 20; // what is left at the bottom, for the time labels
 
@@ -126,8 +126,8 @@
   const hasHeat = $derived(events.length > 0);
   const hasObjects = $derived(objects.length > 0);
   const objTop = TOP_PX + ZONE_PX;
-  const barTop = $derived(hasObjects ? objTop + OBJ_PX + VAO_PX : TOP_PX);
-  const canvasHeight = $derived(barTop + BAR_PX + (hasHeat ? VAO_PX + HEAT_PX : 0) + RULER_PX);
+  const barTop = $derived(hasObjects ? objTop + OBJ_PX + GAP_PX : TOP_PX);
+  const canvasHeight = $derived(barTop + BAR_PX + (hasHeat ? GAP_PX + HEAT_PX : 0) + RULER_PX);
 
   // The marks grouped by instant, ascending. An inference can confirm more than
   // one family in the same frame - person and motorcycle arrive together, and
@@ -245,7 +245,7 @@
   function fit(visibleOnes: Group[], side: number, byClass: boolean) {
     const order = [...visibleOnes].sort((a, b) => a.priority - b.priority || a.t - b.t);
     const occupied: [number, number][] = [];
-    const placements: { nome: IconName; x: number; color: string }[] = [];
+    const placements: { name: IconName; x: number; color: string }[] = [];
     const free = (x0: number, x1: number) =>
       occupied.every(([a, b]) => x1 + ICON_SLACK_PX <= a || x0 >= b + ICON_SLACK_PX);
     for (const gr of order) {
@@ -258,7 +258,7 @@
         marks.forEach((m, i) => {
           const name = iconOf(m, byClass);
           if (name)
-            placements.push({ nome: name, x: x0 + i * (side + 2), color: family(m.family).color });
+            placements.push({ name, x: x0 + i * (side + 2), color: family(m.family).color });
         });
         break;
       }
@@ -284,7 +284,7 @@
     const byClass = span <= CLASS_UNTIL_MS;
     const side = byClass ? CLASS_ICON_PX : FAMILY_ICON_PX;
     for (const p of fit(visibleOnes, side, byClass)) {
-      drawIcon(g, p.nome, p.x, objTop - side - 2, side, p.color);
+      drawIcon(g, p.name, p.x, objTop - side - 2, side, p.color);
     }
   }
 
@@ -318,7 +318,7 @@
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const barH = BAR_PX;
-    const heatTop = barTop + barH + VAO_PX;
+    const heatTop = barTop + barH + GAP_PX;
     // The cursor line and the pointer line cross the whole stack: they mark ONE
     // instant, and an instant is worth the same in all three layers.
     const stackTop = hasObjects ? objTop : barTop;

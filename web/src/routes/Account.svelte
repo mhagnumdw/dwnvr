@@ -17,7 +17,7 @@
   let data = $state<Account | null>(null);
   let error = $state('');
 
-  const p = $derived(session.pessoa);
+  const p = $derived(session.person);
 
   onMount(async () => {
     try {
@@ -31,54 +31,54 @@
   // Every account response carries the person as they ended up: the header
   // updates along with it, without asking again.
   function refresh(r: WithPerson) {
-    session.pessoa = r.user;
+    session.person = r.user;
   }
 
-  // ---- foto ----------------------------------------------------------------
+  // ---- photo ---------------------------------------------------------------
 
   let choose = $state<HTMLInputElement>(); // the <input type="file">, hidden behind the button
-  let photo = $state({ busy: false, erro: '' });
+  let photo = $state({ busy: false, error: '' });
 
   async function onChoose(e: Event & { currentTarget: HTMLInputElement }) {
     const file = e.currentTarget.files?.[0];
     // Cleared right away: choosing the same photo again must fire the change.
     e.currentTarget.value = '';
     if (!file || !data) return;
-    photo = { busy: true, erro: '' };
+    photo = { busy: true, error: '' };
     try {
       refresh(await api.uploadAvatar(await shrinkPhoto(file, data.avatar)));
       photo.busy = false;
     } catch (err) {
-      photo = { busy: false, erro: messageOf(err) };
+      photo = { busy: false, error: messageOf(err) };
     }
   }
 
   async function takePhoto() {
-    photo = { busy: true, erro: '' };
+    photo = { busy: true, error: '' };
     try {
       refresh(await api.removeAvatar());
       photo.busy = false;
     } catch (err) {
-      photo = { busy: false, erro: messageOf(err) };
+      photo = { busy: false, error: messageOf(err) };
     }
   }
 
   // ---- name ----------------------------------------------------------------
 
   let name = $state('');
-  let nameState = $state({ busy: false, erro: '', ok: false });
+  let nameState = $state({ busy: false, error: '', ok: false });
   const nameChanged = $derived(name.trim() !== '' && name.trim() !== p?.name);
 
   async function saveName(e: SubmitEvent) {
     e.preventDefault();
-    nameState = { busy: true, erro: '', ok: false };
+    nameState = { busy: true, error: '', ok: false };
     try {
       const r = await api.changeName(name);
       refresh(r);
       name = r.user.name ?? '';
-      nameState = { busy: false, erro: '', ok: true };
+      nameState = { busy: false, error: '', ok: true };
     } catch (err) {
-      nameState = { busy: false, erro: messageOf(err), ok: false };
+      nameState = { busy: false, error: messageOf(err), ok: false };
     }
   }
 
@@ -90,21 +90,21 @@
   // the error would only show on the next login. The check is only done here;
   // the API receives one.
   let repeated = $state('');
-  let passwordState = $state({ busy: false, erro: '', ok: false });
+  let passwordState = $state({ busy: false, error: '', ok: false });
 
   async function changePassword(e: SubmitEvent) {
     e.preventDefault();
     if (newOne !== repeated) {
-      passwordState = { busy: false, erro: 'a senha nova e a repetida não são iguais', ok: false };
+      passwordState = { busy: false, error: 'a senha nova e a repetida não são iguais', ok: false };
       return;
     }
-    passwordState = { busy: true, erro: '', ok: false };
+    passwordState = { busy: true, error: '', ok: false };
     try {
       refresh(await api.changePassword(current, newOne));
       current = newOne = repeated = '';
-      passwordState = { busy: false, erro: '', ok: true };
+      passwordState = { busy: false, error: '', ok: true };
     } catch (err) {
-      passwordState = { busy: false, erro: messageOf(err), ok: false };
+      passwordState = { busy: false, error: messageOf(err), ok: false };
     }
   }
 
@@ -133,7 +133,7 @@
             <button class="ghost" onclick={takePhoto} disabled={photo.busy}>Remover a foto</button>
           {/if}
         </div>
-        {#if photo.erro}<span class="small error">{photo.erro}</span>{/if}
+        {#if photo.error}<span class="small error">{photo.error}</span>{/if}
       </div>
       <!-- Any image the device can open. The crop and the downscale happen
            here, in the browser: the original photo never leaves the device. -->
@@ -155,7 +155,7 @@
           {nameState.busy ? 'salvando…' : 'Salvar'}
         </button>
       </div>
-      {#if nameState.erro}<span class="small error">{nameState.erro}</span>{/if}
+      {#if nameState.error}<span class="small error">{nameState.error}</span>{/if}
       {#if nameState.ok && !nameChanged}<span class="small ok">nome salvo</span>{/if}
     </form>
 
@@ -201,7 +201,7 @@
         <button class="primary" type="submit" disabled={passwordState.busy}>
           {passwordState.busy ? 'trocando…' : 'Trocar senha'}
         </button>
-        {#if passwordState.erro}<span class="small error">{passwordState.erro}</span>{/if}
+        {#if passwordState.error}<span class="small error">{passwordState.error}</span>{/if}
         {#if passwordState.ok}
           <span class="small ok"
             >Senha trocada. Os outros aparelhos em que você entrou vão pedir a nova.</span

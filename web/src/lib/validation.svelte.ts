@@ -17,91 +17,91 @@ import type { PersonField, FieldErrors } from './api.ts';
 // already shows the result.
 export const TYPING_WAIT = 300;
 
-export type FieldState = 'ok' | 'erro' | null;
+export type FieldState = 'ok' | 'error' | null;
 
 export class Validation {
   // The fields that can already show the result.
-  #mostrados = $state<PersonField[]>([]);
+  #shown = $state<PersonField[]>([]);
   // The fields the last response covered, and its rejections.
-  #conferidos = $state<PersonField[]>([]);
-  #recusas = $state<FieldErrors>({});
+  #checked = $state<PersonField[]>([]);
+  #rejections = $state<FieldErrors>({});
 
   // Only the response to the most recent request counts; typing again also
   // discards the one on its way, which is for values that are no longer there.
-  #pedido = 0;
-  #espera: ReturnType<typeof setTimeout> | undefined;
+  #sequence = 0;
+  #wait: ReturnType<typeof setTimeout> | undefined;
 
-  readonly #campos: PersonField[];
-  readonly #pedir: () => Promise<FieldErrors>;
+  readonly #fields: PersonField[];
+  readonly #ask: () => Promise<FieldErrors>;
 
   // `fields` are the form's, and `request` checks the current values on the
   // server and returns the rejections.
-  constructor(campos: PersonField[], request: () => Promise<FieldErrors>) {
-    this.#campos = campos;
-    this.#pedir = request;
+  constructor(fields: PersonField[], request: () => Promise<FieldErrors>) {
+    this.#fields = fields;
+    this.#ask = request;
   }
 
   // The field's result: null while it hasn't been checked.
   condition(field: PersonField): FieldState {
-    if (!this.#conferidos.includes(field)) return null;
-    return this.#recusas[field] ? 'erro' : 'ok';
+    if (!this.#checked.includes(field)) return null;
+    return this.#rejections[field] ? 'error' : 'ok';
   }
 
   // The field's rejection message, or empty.
   message(field: PersonField): string {
-    return this.#conferidos.includes(field) ? (this.#recusas[field] ?? '') : '';
+    return this.#checked.includes(field) ? (this.#rejections[field] ?? '') : '';
   }
 
   // The person left the field (or it was filled in for them, like the user
   // suggested from the name). Empty only gets in if the field already showed
   // the result.
   leave(field: PersonField, value: string) {
-    if (value.trim() !== '' && !this.#mostrados.includes(field)) {
-      this.#mostrados = [...this.#mostrados, field];
+    if (value.trim() !== '' && !this.#shown.includes(field)) {
+      this.#shown = [...this.#shown, field];
     }
-    if (this.#mostrados.length > 0) void this.#conferir();
+    if (this.#shown.length > 0) void this.#check();
   }
 
   // The person typed in some field. The ones that already show the result are
   // checked again after the pause.
   typeIn() {
-    this.#pedido++;
-    clearTimeout(this.#espera);
-    if (this.#mostrados.length === 0) return;
-    this.#espera = setTimeout(() => void this.#conferir(), TYPING_WAIT);
+    this.#sequence++;
+    clearTimeout(this.#wait);
+    if (this.#shown.length === 0) return;
+    this.#wait = setTimeout(() => void this.#check(), TYPING_WAIT);
   }
 
   // The save was rejected with these rejections: the server checked all the
   // fields, and all of them start showing the result.
   invalid(fieldErrors: FieldErrors) {
     this.stop();
-    this.#mostrados = [...this.#campos];
-    this.#conferidos = [...this.#campos];
-    this.#recusas = fieldErrors;
+    this.#shown = [...this.#fields];
+    this.#checked = [...this.#fields];
+    this.#rejections = fieldErrors;
   }
 
   // The form closed: nothing else goes to the server.
   stop() {
-    this.#pedido++;
-    clearTimeout(this.#espera);
+    this.#sequence++;
+    clearTimeout(this.#wait);
   }
 
-  async #conferir() {
-    clearTimeout(this.#espera);
-    const meu = ++this.#pedido;
-    const campos = [...this.#mostrados];
+  async #check() {
+    clearTimeout(this.#wait);
+    const mine = ++this.#sequence;
+    const fields = [...this.#shown];
     let fieldErrors: FieldErrors;
     try {
-      fieldErrors = await this.#pedir();
+      fieldErrors = await this.#ask();
     } catch {
       // With no response, the earlier result disappears, since it may be for a
       // value that has already changed (a green the server didn't give). The
       // save checks again.
-      if (meu === this.#pedido) this.#conferidos = [];
+      if (mine === this.#sequence) this.#checked = [];
       return;
     }
-    if (meu !== this.#pedido) return;
-    this.#conferidos = campos;
-    this.#recusas = fieldErrors;
+    if (mine !== this.#sequence) return;
+    this.#checked = fields;
+    this.#rejections = fieldErrors;
   }
 }

@@ -213,8 +213,8 @@
   async function shareScreen() {
     const url = screenLink();
     if (typeof navigator.share === 'function') {
-      const data: ShareData = scene.texto
-        ? { title: `dwnvr · ${scene.texto}`, text: `${scene.texto}\n${url}` }
+      const data: ShareData = scene.text
+        ? { title: `dwnvr · ${scene.text}`, text: `${scene.text}\n${url}` }
         : { title, url };
       try {
         await navigator.share(data);
@@ -266,7 +266,7 @@
 
   async function afterLogin(person: Person) {
     session.authenticated = true;
-    session.pessoa = person;
+    session.person = person;
     maybeNewVersion();
     await loadCameras();
   }
@@ -298,7 +298,7 @@
     accountMenu = false;
   }
 
-  const role = $derived(session.pessoa?.role === 'admin' ? 'administrador' : 'usuário');
+  const role = $derived(session.person?.role === 'admin' ? 'administrador' : 'usuário');
 </script>
 
 <svelte:head>
@@ -362,7 +362,7 @@
            color. -->
         {#if bell.total}
           <a
-            class="bell {bell.nivel}"
+            class="bell {bell.level}"
             href="#health"
             title={bellTitle}
             aria-label={bellTitle}
@@ -392,7 +392,7 @@
            belong to and no session to end, and a button that does nothing is
            worse than no button. The ring marks the open menu, and "Minha
            conta", which has no tab. -->
-        {#if session.authRequired && session.pessoa}
+        {#if session.authRequired && session.person}
           <div class="account">
             <button
               class="avbtn"
@@ -400,18 +400,18 @@
               onclick={() => (accountMenu = !accountMenu)}
               aria-haspopup="menu"
               aria-expanded={accountMenu}
-              aria-label="conta de {session.pessoa.name}"
-              title={session.pessoa.name}
+              aria-label="conta de {session.person.name}"
+              title={session.person.name}
             >
-              <Avatar person={session.pessoa} size={32} />
+              <Avatar person={session.person} size={32} />
             </button>
             {#if accountMenu}
               <div class="account-menu" role="menu">
                 <div class="who">
-                  <Avatar person={session.pessoa} size={40} />
+                  <Avatar person={session.person} size={40} />
                   <div>
-                    <strong>{session.pessoa.name}</strong>
-                    <span class="muted small">@{session.pessoa.username} · {role}</span>
+                    <strong>{session.person.name}</strong>
+                    <span class="muted small">@{session.person.username} · {role}</span>
                   </div>
                 </div>
                 <div class="sep"></div>
@@ -476,7 +476,7 @@
     {/key}
   </main>
 
-  <nav class="bottom" style:--abas={tabs.length}>
+  <nav class="bottom" style:--tabs={tabs.length}>
     {#each tabs as r (r.id)}
       <a
         href="#{r.id}"
@@ -822,7 +822,7 @@
     position: fixed;
     inset: auto 0 0 0;
     display: grid;
-    grid-template-columns: repeat(var(--abas), 1fr);
+    grid-template-columns: repeat(var(--tabs), 1fr);
     background: var(--panel);
     border-top: 1px solid var(--line);
     padding-bottom: env(safe-area-inset-bottom);

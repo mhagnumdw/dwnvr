@@ -2,7 +2,7 @@
   Password field with the eye to check what was typed. A password typed on the
   phone is easy to get wrong; the eye lets you check before sending.
 
-  <PasswordField bind:value={senha} placeholder="senha"
+  <PasswordField bind:value={password} placeholder="senha"
   autocomplete="current-password" />
 -->
 <script lang="ts">
@@ -21,13 +21,13 @@
     ...rest
   }: Props = $props();
 
-  let ver = $state(false);
+  let revealed = $state(false);
 </script>
 
 <div class="password">
   <input
     bind:value
-    type={ver ? 'text' : 'password'}
+    type={revealed ? 'text' : 'password'}
     {placeholder}
     {autocomplete}
     autocapitalize="none"
@@ -39,12 +39,12 @@
   <button
     type="button"
     class="eye"
-    onclick={() => (ver = !ver)}
-    aria-pressed={ver}
-    aria-label={ver ? 'esconder senha' : 'mostrar senha'}
-    title={ver ? 'esconder senha' : 'mostrar senha'}
+    onclick={() => (revealed = !revealed)}
+    aria-pressed={revealed}
+    aria-label={revealed ? 'esconder senha' : 'mostrar senha'}
+    title={revealed ? 'esconder senha' : 'mostrar senha'}
   >
-    <Icon name={ver ? 'eyeOff' : 'eye'} size={18} stroke={2.1} />
+    <Icon name={revealed ? 'eyeOff' : 'eye'} size={18} stroke={2.1} />
   </button>
 </div>
 
