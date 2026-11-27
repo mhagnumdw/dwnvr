@@ -36,14 +36,14 @@ default_language_version:
 # wrote. Last, together, all the ones that only check. Every hook has its own,
 # and a new hook goes into one of these waves.
 priorities:
-  formatar: 10
-  formatar-depois: 11
-  conferir: 20
+  format: 10
+  format-after: 11
+  check: 20
 
 # What is generated, and therefore never edited by hand, stays out of every
 # hook. internal/api/dist/ comes from `npm run build`, and ci.yml and the
-# interface-atualizada hook, below, compare it with a fresh build; CHANGELOG.md
-# is written by the release. A hook that "fixed" them would break both.
+# ui-up-to-date hook, below, compare it with a fresh build; CHANGELOG.md is
+# written by the release. A hook that "fixed" them would break both.
 exclude: ^(internal/api/dist/|CHANGELOG\.md$)
 
 repos:
@@ -61,17 +61,17 @@ repos:
       - id: fix-byte-order-marker
         priority: 3
       - id: check-merge-conflict
-        priority: conferir
+        priority: check
       - id: check-case-conflict
-        priority: conferir
+        priority: check
       - id: check-yaml
-        priority: conferir
+        priority: check
       - id: check-json
-        priority: conferir
+        priority: check
         # JSONC: VS Code and TypeScript accept comments
         exclude: ^(\.vscode/|web/tsconfig[^/]*\.json$)
       - id: check-toml
-        priority: conferir
+        priority: check
       # A file above 500 KB interrupts the commit: a model, video or camera
       # frame sneaking in by accident. When it is on purpose:
       # SKIP=check-added-large-files git commit ... and the file goes into the
@@ -79,11 +79,11 @@ repos:
       # the new one in staged: without it, in CI, which has no staged, the hook
       # checks nothing.
       - id: check-added-large-files
-        priority: conferir
+        priority: check
         args: [--enforce-all]
         exclude: ^dwnvr-detect/model/rfdetr-n_512x288_int8\.onnx$
       - id: detect-private-key
-        priority: conferir
+        priority: check
 
   # Markdown. The rules are in .markdownlint-cli2.yaml. --no-globs makes the
   # hook look only at the commit's files, not the config's `globs`, which is
@@ -92,7 +92,7 @@ repos:
     rev: v0.24.1
     hooks:
       - id: markdownlint-cli2
-        priority: formatar
+        priority: format
         args: [--no-globs, --fix]
 
   # Markdown links and anchors, without network. The rules are in lychee.toml.
@@ -104,7 +104,7 @@ repos:
     rev: lychee-v0.24.2
     hooks:
       - id: lychee-docker
-        priority: conferir
+        priority: check
         entry: docker.io/lycheeverse/lychee:0.24.2-alpine
         types: [markdown]
 
@@ -114,7 +114,7 @@ repos:
     rev: v1.38.0
     hooks:
       - id: yamllint
-        priority: conferir
+        priority: check
         args: [--strict]
 
   # Dockerfiles, with shellcheck on the RUNs. It runs from the official image,
@@ -124,7 +124,7 @@ repos:
     rev: v2.15.1
     hooks:
       - id: hadolint-docker
-        priority: conferir
+        priority: check
         entry: ghcr.io/hadolint/hadolint:v2.15.1 hadolint
 
   # GitHub Actions workflows: syntax, expressions and shellcheck on the `run:`
@@ -134,7 +134,7 @@ repos:
     rev: v1.7.12
     hooks:
       - id: actionlint-docker
-        priority: conferir
+        priority: check
 
   # Workflow security: action without a SHA, broad permission, exposed
   # credential. The rules are in .github/zizmor.yml. In the clone it runs
@@ -143,7 +143,7 @@ repos:
     rev: v1.32.0
     hooks:
       - id: zizmor
-        priority: conferir
+        priority: check
 
   # Secrets in the commit: tokens, keys and camera passwords in the rtsp://
   # URL. The rules are in .betterleaks.toml. The binary is built with the Go
@@ -153,7 +153,7 @@ repos:
   # second, CI only, looks at the whole history: it catches what got in without
   # going through the hook (GitHub editor, a clone without `prek install`). By
   # hand:
-  # prek run betterleaks-historico --stage manual --all-files
+  # prek run betterleaks-history --stage manual --all-files
   # --config is mandatory since 1.10: without it, betterleaks ignores
   # .betterleaks.toml and flags the example passwords that the filter there
   # allows.
@@ -161,11 +161,11 @@ repos:
     rev: v1.10.1
     hooks:
       - id: betterleaks
-        priority: conferir
+        priority: check
         args: [--config, .betterleaks.toml]
       - id: betterleaks
-        priority: conferir
-        alias: betterleaks-historico
+        priority: check
+        alias: betterleaks-history
         name: betterleaks on the history
         entry: betterleaks git --redact --verbose
         args: [--config, .betterleaks.toml]
@@ -180,18 +180,18 @@ repos:
     rev: v2.15.0
     hooks:
       - id: golangci-lint-full
-        priority: conferir
+        priority: check
       - id: golangci-lint-fmt
-        priority: formatar
+        priority: format
       - id: golangci-lint-config-verify
-        priority: conferir
+        priority: check
 
   # go.mod and go.sum in line with the imports: a missing dependency gets in,
   # a leftover one goes out.
   - repo: local
     hooks:
       - id: go-mod-tidy
-        priority: formatar-depois
+        priority: format-after
         name: go mod tidy
         language: system
         entry: go mod tidy
@@ -209,14 +209,14 @@ repos:
   - repo: local
     hooks:
       - id: svelte-check
-        priority: conferir
+        priority: check
         name: svelte-check
         language: system
         entry: web/node_modules/.bin/svelte-check --workspace web --tsconfig tsconfig.app.json --fail-on-warnings
         files: ^web/(src/|tsconfig[^/]*\.json$|package\.json$)
         pass_filenames: false
       - id: tsc-configs
-        priority: conferir
+        priority: check
         name: tsc of the web/ configs
         language: system
         entry: web/node_modules/.bin/tsc -p web/tsconfig.node.json
@@ -235,8 +235,8 @@ repos:
   # web/.
   - repo: local
     hooks:
-      - id: interface-atualizada
-        priority: conferir
+      - id: ui-up-to-date
+        priority: check
         name: is the UI up to date?
         language: system
         entry: |
@@ -248,13 +248,13 @@ repos:
             cp "${GIT_INDEX_FILE:-$(git rev-parse --git-path index)}" "$tmp/index"
             # Only the second column, the build against staged. The first is
             # staged against HEAD, which does change in a screen commit.
-            difere=$(GIT_INDEX_FILE="$tmp/index" git --work-tree="$tmp" status --porcelain --no-renames --untracked-files=all -- internal/api/dist | grep -v "^. " || true)
-            if [ -n "$difere" ]; then
+            differs=$(GIT_INDEX_FILE="$tmp/index" git --work-tree="$tmp" status --porcelain --no-renames --untracked-files=all -- internal/api/dist | grep -v "^. " || true)
+            if [ -n "$differs" ]; then
               echo "internal/api/dist does not match web/ in the commit. Rebuild and add the result:"
               echo "  (cd web && npm run build) && git add internal/api/dist"
               echo
               echo "How the staged dist looks after the build (D goes out, ?? comes in, M changes):"
-              echo "$difere"
+              echo "$differs"
               exit 1
             fi
           '
@@ -270,7 +270,7 @@ repos:
   - repo: local
     hooks:
       - id: eslint
-        priority: formatar
+        priority: format
         name: eslint
         language: system
         entry: web/node_modules/.bin/eslint
@@ -286,7 +286,7 @@ repos:
   - repo: local
     hooks:
       - id: prettier
-        priority: formatar-depois
+        priority: format-after
         name: prettier
         language: system
         entry: web/node_modules/.bin/prettier
@@ -299,7 +299,7 @@ repos:
     rev: v0.17.5
     hooks:
       - id: ruff-check
-        priority: formatar
+        priority: format
         args: [--fix]
       - id: ruff-format
-        priority: formatar-depois
+        priority: format-after

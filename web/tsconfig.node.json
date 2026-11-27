@@ -1,4 +1,4 @@
-// As configs das ferramentas, que rodam no Node 24.
+// The tool configs, which run in Node 24.
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {

@@ -1,22 +1,22 @@
-# Lógica invertida: nada entra no contexto de build, exceto o que for liberado
-# explicitamente abaixo. Assim um arquivo novo na raiz do repositório - uma
-# credencial, um dump, um binário - fica de fora por padrão, sem depender de
-# alguém lembrar de adicioná-lo aqui.
+# Inverted logic: nothing enters the build context except what is explicitly
+# allowed below. That way a new file at the repository root - a credential, a
+# dump, a binary - stays out by default, without relying on someone
+# remembering to add it here.
 **
 
-# Módulo Go: copiados sozinhos no Dockerfile para que a camada de dependências
-# só refaça quando as dependências mudarem.
+# Go module: copied on their own in the Dockerfile so the dependency layer only
+# rebuilds when the dependencies change.
 !go.mod
 !go.sum
 
-# Código Go que o build compila.
+# Go code that the build compiles.
 !cmd/**
 !internal/**
 
-# Fonte da interface. O npm ci e o npm run build acontecem dentro da imagem.
+# UI source. npm ci and npm run build happen inside the image.
 !web/**
 
-# ...mas as dependências da interface são instaladas lá dentro pelo npm ci;
-# mandar o node_modules local só engordaria o contexto (e viria com binários da
-# arquitetura errada).
+# ...but the UI dependencies are installed in there by npm ci; sending the
+# local node_modules would only bloat the context (and bring binaries of the
+# wrong architecture).
 web/node_modules/**

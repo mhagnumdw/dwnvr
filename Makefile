@@ -17,7 +17,7 @@ IMAGE    ?= ghcr.io/mhagnumdw/dwnvr
 # tag by itself once there is one - nothing here changes on the day of the
 # first release.
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-COMMIT   ?= $(shell git rev-parse HEAD 2>/dev/null || echo desconhecido)
+COMMIT   ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 DATE     ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Without this the binary cannot say which code it is.
@@ -36,7 +36,7 @@ BUILDARGS = --build-arg VERSION=$(VERSION) \
 .PHONY: all web build test check image image-arm64 image-amd64 deploy deploy-wip help
 
 # Guard used by both deploys.
-EXIGE_HOST = @test -n "$(DEPLOY_HOST)" || { echo "set DEPLOY_HOST in local.mk (see local.mk.example) or pass it on the command line: make deploy DEPLOY_HOST=user@server"; exit 1; }
+REQUIRE_HOST = @test -n "$(DEPLOY_HOST)" || { echo "set DEPLOY_HOST in local.mk (see local.mk.example) or pass it on the command line: make deploy DEPLOY_HOST=user@server"; exit 1; }
 
 all: web build
 
@@ -110,7 +110,7 @@ check: test
 DEPLOY_HOST ?=
 DEPLOY_DIR  ?= ~/dwnvr
 deploy:
-	$(EXIGE_HOST)
+	$(REQUIRE_HOST)
 	ssh $(DEPLOY_HOST) 'cd $(DEPLOY_DIR) && docker compose up -d --pull always'
 	@sleep 20
 	@ssh $(DEPLOY_HOST) 'docker ps --filter name=dwnvr --format "{{.Status}}"'
@@ -131,7 +131,7 @@ deploy:
 # DWNVR_VERSION=main, and starts without --pull always, which would pull the CI
 # image over it.
 deploy-wip:
-	$(EXIGE_HOST)
+	$(REQUIRE_HOST)
 	# --provenance/--sbom turned off: with them buildx exports a manifest list,
 	# and `docker load` on the other side does not take a manifest list.
 	docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
