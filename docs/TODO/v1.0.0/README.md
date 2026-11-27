@@ -4,9 +4,9 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (27/11/2026):** a Etapa 2 (conversão para en-US) tem os oito passos
-na `main`; falta só a release da etapa.
-O guia de atualização nasce junto, em
+**Agora (27/11/2026):** a Etapa 2 (conversão para en-US) está concluída, com a
+[v0.16.0](https://github.com/mhagnumdw/dwnvr/releases/tag/v0.16.0); a próxima é
+a Etapa 3 (temas). O guia de atualização da conversão está em
 [docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
 ## Andamento
@@ -25,7 +25,7 @@ próxima, em andamento ou concluída, com a data.
   - [x] PR #16 (e2e com Playwright, draft) e o worktree `modelo-reproduzivel`: ficam de lado, por decisão do mantenedor em 11/11/2026; o que a conversão quebrar neles se refaz depois
   - [x] Os PRs do Dependabot abertos: o #60 (uv 0.13.7) mergeado em 11/11/2026, antes da release
   - [x] Opcional: a fumaça das telas do PR #16 antes da conversão. Saiu junto com o PR #16; a interface entra na conversão só com a verificação estática (`svelte-check`, `tsc`, ESLint), que não pega uma chave de JSON renomeada de um lado só
-- [ ] **Etapa 2 - conversão para en-US**: em andamento desde 11/11/2026 ([conversao-en-us.md](conversao-en-us.md)). Um PR por passo, em commits pequenos, que roda na instalação de teste antes de ser aceito
+- [x] **Etapa 2 - conversão para en-US**: concluída em 27/11/2026 ([conversao-en-us.md](conversao-en-us.md)). Um PR por passo, em commits pequenos, que roda na instalação de teste antes de ser aceito
   - [x] O glossário do domínio ([glossario.md](glossario.md))
   - [x] O `AGENTS.md` com a regra nova de escrita
   - [x] Go, pacote a pacote, sem mudar comportamento: PR #86, em 11/11/2026
@@ -64,8 +64,8 @@ próxima, em andamento ou concluída, com a data.
     - [x] A varredura: o que o passo 4 deixou em português no `web/` (identificadores, chaves internas, variáveis e classes de CSS, ids), os comentários e nomes dos arquivos de build e de lint e os nomes de câmera dos testes Go, em 27/11/2026. Ficam em pt-BR o texto de tela e de e-mail, os rótulos de tela citados nos docs e os dados de exemplo (`cam_teste*`, `troque-me`, `usuario:senha`)
     - [x] O `.git-blame-ignore-revs` com os passos 3, 4 e 5 (#86, #88, #89), que só renomeiam; o passo 6 muda contrato e os passos 2 e 7 reescrevem texto, e ficam no blame
     - [x] O PR mergeado por squash, com o conserto das classes de CSS que o passo 4 fundiu (a tabela do reconhecimento no Diagnóstico e mais cinco)
-  - [ ] A release da etapa (0.x), com a CI da `main` verde depois do merge
-- [ ] **Etapa 3 - temas**: não começou ([temas.md](temas.md))
+  - [x] A release da etapa: a [v0.16.0](https://github.com/mhagnumdw/dwnvr/releases/tag/v0.16.0), em 27/11/2026, com a CI da `main` verde
+- [ ] **Etapa 3 - temas**: a próxima ([temas.md](temas.md))
   - [ ] Toda cor da tela passa por um token
   - [ ] As quatro paletas e o "sistema", com o contraste conferido
   - [ ] O seletor e onde a escolha fica
