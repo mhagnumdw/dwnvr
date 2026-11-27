@@ -117,8 +117,8 @@
   // list.
   const loadAvg = $derived(`${cam}@${segments[0]?.[0] ?? ''}`);
   const requestedKeys = $derived({
-    carga: loadAvg,
-    instantes: new SvelteSet<number>(),
+    load: loadAvg,
+    instants: new SvelteSet<number>(),
     // Plain Set on purpose: only `defer` triggers the release.
     postponed: new Set<number>(),
   });
@@ -134,13 +134,13 @@
     if (!strip || !visibleWindow) return;
     const io = new IntersectionObserver(
       (entries) => {
-        const novas: number[] = [];
+        const fresh: number[] = [];
         for (const e of entries) {
           const t = Number((e.target as HTMLElement).dataset['t']);
-          if (e.isIntersecting) novas.push(t);
+          if (e.isIntersecting) fresh.push(t);
           else requestedKeys.postponed.delete(t); // left the viewport before its turn
         }
-        request(novas);
+        request(fresh);
       },
       { root: strip, rootMargin: `0px ${SLACK}` },
     );
@@ -154,19 +154,19 @@
   // downloads finish, and the first that matters is the active one's. The
   // distance is to the segment, not to its start, so the active one is worth
   // zero.
-  function request(novas: number[]) {
+  function request(fresh: number[]) {
     if (defer) {
-      for (const t of novas) requestedKeys.postponed.add(t);
+      for (const t of fresh) requestedKeys.postponed.add(t);
       return;
     }
     const far = ([s, d]: Segment) =>
       currentMs < s ? s - currentMs : Math.max(0, currentMs - s - d);
     const queue = tiles
-      .filter(([t]) => novas.includes(t) && !requestedKeys.instantes.has(t))
+      .filter(([t]) => fresh.includes(t) && !requestedKeys.instants.has(t))
       .sort((a, b) => far(a) - far(b));
     for (const [t] of queue) {
       void thumbnail(cam, t);
-      requestedKeys.instantes.add(t);
+      requestedKeys.instants.add(t);
     }
   }
 
@@ -220,7 +220,7 @@
       title={hhmmss(t)}
       aria-label={[hhmmss(t), familyNames(familiesPerTile[t] ?? [])].filter(Boolean).join(', ')}
     >
-      {#if requestedKeys.instantes.has(t)}
+      {#if requestedKeys.instants.has(t)}
         {#await thumbnail(cam, t) then bitmap}
           {#if bitmap}
             <canvas

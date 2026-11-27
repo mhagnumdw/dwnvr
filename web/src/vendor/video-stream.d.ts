@@ -1,5 +1,5 @@
-// Tipos do video-stream.js, que não exporta nada: importá-lo registra o
-// elemento <video-stream>. Ver video-rtc.d.ts.
+// Types for video-stream.js, which exports nothing: importing it registers the
+// <video-stream> element. See video-rtc.d.ts.
 
 import type { HTMLAttributes } from 'svelte/elements';
 import type { VideoRTC } from './video-rtc.js';

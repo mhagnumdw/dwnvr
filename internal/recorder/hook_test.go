@@ -121,8 +121,8 @@ func recordStream(t *testing.T, body []byte) (*spy, *store.Camera) {
 	}))
 	t.Cleanup(srv.Close)
 
-	idx := store.New(t.TempDir()).Camera("cam_teste")
-	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
+	idx := store.New(t.TempDir()).Camera("cam_test")
+	cam := config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, SegmentSeconds: 30}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 
 	// The spy takes the place of the real trigger. The pending request
@@ -237,8 +237,8 @@ func TestHookWritesTheOnsetToTheDayFile(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	idx := store.New(t.TempDir()).Camera("cam_teste")
-	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
+	idx := store.New(t.TempDir()).Camera("cam_test")
+	cam := config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, SegmentSeconds: 30}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 	r.detectRequest.Store(nil)
 	r.trigger = alwaysFires{}
@@ -299,9 +299,9 @@ func TestDetectChangeMidFlightDoesNotRace(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	idx := store.New(t.TempDir()).Camera("cam_teste")
+	idx := store.New(t.TempDir()).Camera("cam_test")
 	on := true
-	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
+	cam := config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, SegmentSeconds: 30,
 		Detect: &on, DetectMethod: "kleinberg-p", DetectSensitivity: 4}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 
@@ -379,8 +379,8 @@ func TestHookCutsTheClipAsItWentToDisk(t *testing.T) {
 	defer srv.Close()
 
 	dir := t.TempDir()
-	idx := store.New(dir).Camera("cam_teste")
-	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
+	idx := store.New(dir).Camera("cam_test")
+	cam := config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, SegmentSeconds: 30}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 	r.detectRequest.Store(nil)
 	// Onset at frame 1, peak at 2, I-frame at 4 within the window, cut at 5.
@@ -406,7 +406,7 @@ func TestHookCutsTheClipAsItWentToDisk(t *testing.T) {
 	// The fragments are the ones that went to disk, byte for byte - the moof
 	// already rebased. That's what makes the clip decode the same as the
 	// recorded segment.
-	segs, _ := filepath.Glob(filepath.Join(dir, "cam_teste", "2*", "*.mp4"))
+	segs, _ := filepath.Glob(filepath.Join(dir, "cam_test", "2*", "*.mp4"))
 	if len(segs) != 1 {
 		t.Fatalf("want 1 segment on disk, found %v", segs)
 	}
@@ -462,8 +462,8 @@ func TestHookWithoutDestinationKeepsNoGOP(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	idx := store.New(t.TempDir()).Camera("cam_teste")
-	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
+	idx := store.New(t.TempDir()).Camera("cam_test")
+	cam := config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, SegmentSeconds: 30}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 	r.detectRequest.Store(nil)
 	r.trigger = alwaysFires{}
@@ -514,8 +514,8 @@ func TestFromOnsetToObjectMark(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	idx := store.New(t.TempDir()).Camera("cam_teste")
-	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
+	idx := store.New(t.TempDir()).Camera("cam_test")
+	cam := config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, SegmentSeconds: 30}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 	r.detectRequest.Store(nil)
 	// Two onsets, each with the window closing on the next frame.
@@ -594,8 +594,8 @@ func TestFromOnsetToObjectMark(t *testing.T) {
 // the one the area filter may need. The box below the cut doesn't become a
 // mark, and the frame is still just one.
 func TestOneLinePerObject(t *testing.T) {
-	idx := store.New(t.TempDir()).Camera("cam_teste")
-	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
+	idx := store.New(t.TempDir()).Camera("cam_test")
+	cam := config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, SegmentSeconds: 30}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{}), idx, discardLogger())
 
 	now := time.Now().UnixMilli()
@@ -654,9 +654,9 @@ func TestOneLinePerObject(t *testing.T) {
 // releases the buffers. What was already counted as no video isn't reset by the
 // change.
 func TestClipperLivesAndDiesWithDetection(t *testing.T) {
-	idx := store.New(t.TempDir()).Camera("cam_teste")
+	idx := store.New(t.TempDir()).Camera("cam_test")
 	off, on := false, true
-	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
+	cam := config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, SegmentSeconds: 30,
 		Detect: &off, DetectMethod: "kleinberg-p", DetectSensitivity: 4}
 	r := newRecorder(cam, nil, idx, discardLogger())
 	r.clips = func(detect.Clip) {}

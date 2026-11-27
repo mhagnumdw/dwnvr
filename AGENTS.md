@@ -183,7 +183,7 @@ the file.
 
 | Touched | Check |
 | --- | --- |
-| `web/src/`, `web/index.html`, `web/public/` | `make web`, then commit all of `internal/api/dist/`, including the removal of old assets (the `interface-atualizada` hook and CI check it) |
+| `web/src/`, `web/index.html`, `web/public/` | `make web`, then commit all of `internal/api/dist/`, including the removal of old assets (the `ui-up-to-date` hook and CI check it) |
 | file in `web/src/{lib,routes,components,vendor}` | §Structure of `web/README.md` |
 | route in `internal/api/server.go`, including entering/leaving `requireAuth` | `docs/api.md` · `web/src/lib/api.ts` (JSON types at the end; `api` for JSON, `mediaURL` for a built URL) |
 | format of a JSON response or error | the screen in `web/src/routes/` |

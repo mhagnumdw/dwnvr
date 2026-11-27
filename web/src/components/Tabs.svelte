@@ -1,11 +1,11 @@
 <!--
   The row of tabs of a form: only the buttons. The panels stay with whoever uses
-  it, who ties them by id (`{prefix}-painel-{id}`, with role="tabpanel"):
+  it, who ties them by id (`{prefix}-panel-{id}`, with role="tabpanel"):
 
-  <Tabs tabs={[{ id: 'gravacao', label: 'Gravação' }, ...]} bind:active
+  <Tabs tabs={[{ id: 'recording', label: 'Gravação' }, ...]} bind:active
   prefix="cam" />
-  <div role="tabpanel" id="cam-painel-gravacao"
-  aria-labelledby="cam-aba-gravacao">…</div>
+  <div role="tabpanel" id="cam-panel-recording"
+  aria-labelledby="cam-tab-recording">…</div>
 
   The arrows switch tabs, as the WAI-ARIA tabs pattern asks, and only the active
   tab enters the Tab order: from it on, Tab moves on to the panel.
@@ -51,9 +51,9 @@
     <button
       type="button"
       role="tab"
-      id="{prefix}-aba-{a.id}"
+      id="{prefix}-tab-{a.id}"
       aria-selected={a.id === active}
-      aria-controls="{prefix}-painel-{a.id}"
+      aria-controls="{prefix}-panel-{a.id}"
       tabindex={a.id === active ? 0 : -1}
       onclick={() => (active = a.id)}
     >

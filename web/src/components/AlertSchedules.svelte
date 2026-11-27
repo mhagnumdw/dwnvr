@@ -13,7 +13,7 @@
   import ScheduleGrid from './ScheduleGrid.svelte';
   import Icon from './Icon.svelte';
   import {
-    DIAS,
+    DAYS,
     LONG_DAYS,
     coverage,
     schedulesOf,
@@ -78,8 +78,8 @@
     change([...schedulesOf(c), ...schedules.filter((h) => !valid(h))], true);
   }
 
-  const swap = (key: number, campos: Partial<Schedule>) =>
-    change(schedules.map((h) => (h.key === key ? { ...h, ...campos } : h)));
+  const swap = (key: number, fields: Partial<Schedule>) =>
+    change(schedules.map((h) => (h.key === key ? { ...h, ...fields } : h)));
 
   function toggleDay(h: Schedule, d: number) {
     const days = h.days.includes(d)
@@ -109,18 +109,17 @@
 
   function note(h: Schedule) {
     if (valid(h))
-      return { bad: false, texto: `${daysSummary(h.days)} · ${hoursSummary(h.from, h.to)}` };
+      return { bad: false, text: `${daysSummary(h.days)} · ${hoursSummary(h.from, h.to)}` };
     if (h.from !== null && h.to !== null && h.to <= h.from)
       return {
         bad: focused !== h.key || markIncomplete,
-        texto:
-          'O "Até" precisa ser depois do "De". Para passar da meia-noite, use dois horários: um até 23:59 e outro a partir de 00:00, no dia seguinte.',
+        text: 'O "Até" precisa ser depois do "De". Para passar da meia-noite, use dois horários: um até 23:59 e outro a partir de 00:00, no dia seguinte.',
       };
     const noDay = !h.days.length;
     const noHour = h.from === null || h.to === null;
     return {
       bad: markIncomplete,
-      texto:
+      text:
         noDay && noHour
           ? 'Escolha os dias e o horário.'
           : noDay
@@ -167,8 +166,8 @@
           onfocusin={() => (focused = h.key)}
           onfocusout={() => (focused = null)}
         >
-          <div class="dias" role="group" aria-label="os dias">
-            {#each DIAS as name, d (d)}
+          <div class="days" role="group" aria-label="os dias">
+            {#each DAYS as name, d (d)}
               <button
                 type="button"
                 class="day"
@@ -199,7 +198,7 @@
               <Icon name="close" size={18} stroke={2.4} />
             </button>
           </div>
-          <div class="note" class:bad={n.bad}>{n.texto}</div>
+          <div class="note" class:bad={n.bad}>{n.text}</div>
         </div>
       {:else}
         <p class="muted small empty">Nenhum horário ainda: marque na grade, ou digite um novo.</p>
@@ -209,11 +208,11 @@
     <div class="actions">
       <button
         type="button"
-        class="mais"
+        class="more"
         disabled={schedules.length >= MAX_SCHEDULES}
         onclick={() => void add(newSchedule())}
       >
-        <Icon name="mais" size={16} stroke={2.4} />novo horário
+        <Icon name="plus" size={16} stroke={2.4} />novo horário
       </button>
       <span class="space"></span>
       <button
@@ -287,12 +286,12 @@
     gap: 8px;
   }
   .list.redone .schedule {
-    animation: refeita 0.9s ease-out;
+    animation: redone 0.9s ease-out;
   }
-  @keyframes refeita {
+  @keyframes redone {
     from {
       border-color: var(--accent);
-      background: var(--ativo-fundo);
+      background: var(--active-bg);
     }
   }
   .empty {
@@ -309,7 +308,7 @@
   .schedule.incomplete {
     border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
   }
-  .dias {
+  .days {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 4px;
@@ -323,7 +322,7 @@
   }
   .day[aria-pressed='true'] {
     color: var(--fg);
-    background: var(--ativo-fundo);
+    background: var(--active-bg);
     border-color: var(--accent);
   }
   .hours {
@@ -354,7 +353,7 @@
     gap: 6px;
     align-items: center;
   }
-  .mais {
+  .more {
     display: inline-flex;
     align-items: center;
     gap: 6px;

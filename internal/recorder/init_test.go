@@ -75,8 +75,8 @@ func TestInitWrittenWithTheInbandSPS(t *testing.T) {
 	defer srv.Close()
 
 	dir := t.TempDir()
-	idx := store.New(dir).Camera("cam_teste")
-	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30}
+	idx := store.New(dir).Camera("cam_test")
+	cam := config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, SegmentSeconds: 30}
 	r := newRecorder(cam, go2rtc.New(config.Go2RTC{URL: srv.URL}), idx, discardLogger())
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -104,7 +104,7 @@ func TestInitWrittenWithTheInbandSPS(t *testing.T) {
 		t.Errorf("status says %dx%d, want 1920x1080", st.Width, st.Height)
 	}
 
-	segs, _ := filepath.Glob(filepath.Join(dir, "cam_teste", "2*", "*.mp4"))
+	segs, _ := filepath.Glob(filepath.Join(dir, "cam_test", "2*", "*.mp4"))
 	if len(segs) != 1 {
 		t.Fatalf("want 1 segment on disk, found %v", segs)
 	}

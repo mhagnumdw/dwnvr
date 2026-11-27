@@ -68,18 +68,18 @@ jobs:
             echo "::error::The tag v$VERSION already exists."
             exit 1
           fi
-          ultima=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
-          if [ -z "$ultima" ]; then
-            echo "Primeira release."
+          latest_tag=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
+          if [ -z "$latest_tag" ]; then
+            echo "First release."
             exit 0
           fi
-          maior=$(printf '%s\n%s\n' "$ultima" "v$VERSION" | sort -V | tail -n1)
-          if [ "$maior" != "v$VERSION" ]; then
-            echo "::error::v$VERSION is not greater than the last release, $ultima."
+          highest=$(printf '%s\n%s\n' "$latest_tag" "v$VERSION" | sort -V | tail -n1)
+          if [ "$highest" != "v$VERSION" ]; then
+            echo "::error::v$VERSION is not greater than the last release, $latest_tag."
             exit 1
           fi
-          if [ "$(git rev-list --count "$ultima..HEAD")" -eq 0 ]; then
-            echo "::error::Nenhum commit desde $ultima."
+          if [ "$(git rev-list --count "$latest_tag..HEAD")" -eq 0 ]; then
+            echo "::error::No commits since $latest_tag."
             exit 1
           fi
 
@@ -89,8 +89,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          verdes=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq length)
-          if [ "$verdes" -eq 0 ]; then
+          green_runs=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq length)
+          if [ "$green_runs" -eq 0 ]; then
             echo "::error::The CI of $GITHUB_SHA did not finish green (or is still running). See Actions > ci."
             exit 1
           fi
@@ -115,16 +115,16 @@ jobs:
       # the format changed and the release stops here, before any push.
       - name: docker-compose.yml at the new version
         run: |
-          padrao='image: ghcr\.io/mhagnumdw/dwnvr(-detect)?:\$\{DWNVR_VERSION:-[^}]+\}$'
-          antes=$(grep -cE "$padrao" docker-compose.yml || true)
-          if [ "$antes" -ne 2 ]; then
-            echo "::error::Esperava 2 linhas 'image: ...:\${DWNVR_VERSION:-...}' no docker-compose.yml, achei $antes."
+          pattern='image: ghcr\.io/mhagnumdw/dwnvr(-detect)?:\$\{DWNVR_VERSION:-[^}]+\}$'
+          before=$(grep -cE "$pattern" docker-compose.yml || true)
+          if [ "$before" -ne 2 ]; then
+            echo "::error::Expected 2 'image: ...:\${DWNVR_VERSION:-...}' lines in docker-compose.yml, found $before."
             exit 1
           fi
           sed -i -E "s#^(\s*image: ghcr\.io/mhagnumdw/dwnvr(-detect)?:\\\$\{DWNVR_VERSION:-)[^}]+\}\$#\1v${VERSION}}#" docker-compose.yml
-          depois=$(grep -cF ":\${DWNVR_VERSION:-v${VERSION}}" docker-compose.yml || true)
-          if [ "$depois" -ne 2 ]; then
-            echo "::error::sed changed $depois lines, not 2."
+          after=$(grep -cF ":\${DWNVR_VERSION:-v${VERSION}}" docker-compose.yml || true)
+          if [ "$after" -ne 2 ]; then
+            echo "::error::sed changed $after lines, not 2."
             git diff docker-compose.yml
             exit 1
           fi
@@ -167,13 +167,13 @@ jobs:
         with:
           args: --latest --strip all
         env:
-          OUTPUT: ${{ runner.temp }}/notas.md
+          OUTPUT: ${{ runner.temp }}/notes.md
 
       # The fixed footer of every release. Only the link: the command lives in the
       # README, and a copy of it here would age unnoticed.
       - name: how to update
         run: |
-          printf '\n---\n\n**How to update:** see [Updating in the README](https://github.com/mhagnumdw/dwnvr#updating).\n' >> "$RUNNER_TEMP/notas.md"
+          printf '\n---\n\n**How to update:** see [Updating in the README](https://github.com/mhagnumdw/dwnvr#updating).\n' >> "$RUNNER_TEMP/notes.md"
 
       # --verify-tag fails if the tag is not on GitHub, instead of creating it.
       - name: release
@@ -183,6 +183,6 @@ jobs:
         run: >-
           gh release create "v$VERSION"
           --title "v$VERSION"
-          --notes-file "$RUNNER_TEMP/notas.md"
+          --notes-file "$RUNNER_TEMP/notes.md"
           --latest
           --verify-tag

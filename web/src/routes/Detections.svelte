@@ -45,7 +45,7 @@
   // One row of the grid: the hour header, or a row of thumbnails. `firstIndex`
   // is the index in `list` of the row's first thumbnail.
   interface HourRow {
-    tipo: 'hora';
+    kind: 'hour';
     k: string;
     y: number;
     height: number;
@@ -53,7 +53,7 @@
     day: string;
   }
   interface GridRow {
-    tipo: 'grade';
+    kind: 'grid';
     k: string;
     y: number;
     height: number;
@@ -85,8 +85,8 @@
   // already rejected as too small; 4 stays as an option for whoever wants to
   // sweep through.
   const COLUMNS = {
-    phone: { padrao: 2, min: 1, max: 4 },
-    desktop: { padrao: 5, min: 3, max: 8 },
+    phone: { defaults: 2, min: 1, max: 4 },
+    desktop: { defaults: 5, min: 3, max: 8 },
   };
   // The same breakpoint as App.svelte, where the navigation moves up to the
   // header.
@@ -108,7 +108,7 @@
   // object mark is written after the object detector looks, with the onset
   // instant, so a detection can appear BELOW the top that was already shown:
   // the fetch goes back DELAY_MS before the top to catch those too.
-  const NOVAS_MS = 20000;
+  const NEW_POLL_MS = 20000;
   const DELAY_MS = 5 * 60 * 1000;
 
   // The height of each row of the ⋮ menu - the area one, with the thumbnail, is
@@ -170,7 +170,9 @@
 
   let desktop = $state(window.innerWidth >= DESKTOP_PX);
   const strip = $derived(desktop ? COLUMNS.desktop : COLUMNS.phone);
-  const columns = $derived(Math.min(strip.max, Math.max(strip.min, chosenColumns ?? strip.padrao)));
+  const columns = $derived(
+    Math.min(strip.max, Math.max(strip.min, chosenColumns ?? strip.defaults)),
+  );
 
   $effect(() => {
     write({
@@ -259,7 +261,7 @@
     const ids = [...new Set(d.objects.flatMap((o) => o.alertAreas ?? []))];
     return ids.map((id) => {
       const a = registered.get(`${d.cam}/${id}`);
-      return { id, nome: a?.name ?? 'área apagada', points: a?.points ?? null };
+      return { id, name: a?.name ?? 'área apagada', points: a?.points ?? null };
     });
   }
 
@@ -288,7 +290,7 @@
 
   // The range in instants: `from` included, `to` excluded (the whole final
   // minute stays inside). Null without a range.
-  const limites = $derived.by(() => {
+  const limits = $derived.by(() => {
     if (!interval) return null;
     const from = parseDay(interval.day);
     from.setMinutes(interval.from);
@@ -302,8 +304,8 @@
   // out: one that went past the end says the list ended on that side, because
   // the server delivers in order.
   function isInside(ds: Detection[]) {
-    if (!limites) return { ds, wasCut: false };
-    const { from, to } = limites;
+    if (!limits) return { ds, wasCut: false };
+    const { from, to } = limits;
     const ok = ds.filter((d) => d.atMs >= from && d.atMs < to);
     return { ds: ok, wasCut: ok.length < ds.length };
   }
@@ -311,7 +313,7 @@
   // A page is what fills two screens: slightly more than that is already
   // prefetch.
   function page() {
-    const rows = Math.ceil(window.innerHeight / (grid.tileHeight + grid.vao)) + 1;
+    const rows = Math.ceil(window.innerHeight / (grid.tileHeight + grid.gap)) + 1;
     return Math.min(200, Math.max(24, rows * columns * 2));
   }
 
@@ -336,12 +338,12 @@
   // counts as the top of the list.
   async function restart(requestNo: number | null = null) {
     const g = ++generation;
-    const before = limites
-      ? Math.min(Math.max(requestNo ?? limites.to, limites.from + 60000), limites.to)
+    const before = limits
+      ? Math.min(Math.max(requestNo ?? limits.to, limits.from + 60000), limits.to)
       : requestNo;
     target = before;
     list = [];
-    endAbove = before === null || (limites !== null && before >= limites.to);
+    endAbove = before === null || (limits !== null && before >= limits.to);
     endBelow = false;
     loaded = false;
     error = '';
@@ -434,11 +436,11 @@
   // The new ones, and the late ones just below the top. Only with the top
   // loaded: outside it, scrolling up is what brings them. With a range that has
   // already ended, and past the slack for late ones, there is nothing to fetch.
-  async function novas() {
+  async function fetchNew() {
     if (!refreshing || document.hidden || !loaded || !endAbove || !filter || fetchingAbove) return;
-    if (limites && Date.now() > limites.to + DELAY_MS) return;
+    if (limits && Date.now() > limits.to + DELAY_MS) return;
     const g = generation;
-    const topPos = list[0]?.atMs ?? Math.min(Date.now(), limites?.to ?? Infinity);
+    const topPos = list[0]?.atMs ?? Math.min(Date.now(), limits?.to ?? Infinity);
     try {
       const r = await api.detections({ ...filter, after: topPos - DELAY_MS, limit: 200 });
       const { ds, wasCut } = isInside(r.detections);
@@ -446,7 +448,7 @@
       if (g !== generation || !newer) return;
       // Whoever is looking at the top sees the new item come in; whoever
       // scrolled down must not have the screen pushed by it.
-      const a = scrollRange.ini > 0 ? anchor() : null;
+      const a = scrollRange.top > 0 ? anchor() : null;
       list = join(ds, list);
       // More than 200 in the range: the newest were left out, and scrolling up
       // fetches them as it would after a "go to".
@@ -509,7 +511,7 @@
   // look like it did not take.
   function toggleRefresh() {
     refreshing = !refreshing;
-    if (refreshing) void novas();
+    if (refreshing) void fetchNew();
   }
 
   // --- the grid, computed
@@ -519,9 +521,9 @@
   let width = $state(0);
 
   const grid = $derived.by(() => {
-    const vao = desktop ? 8 : 6;
-    const tileWidth = Math.max(0, (width - vao * (columns - 1)) / columns);
-    return { vao, tileWidth, tileHeight: (tileWidth * 9) / 16 };
+    const gap = desktop ? 8 : 6;
+    const tileWidth = Math.max(0, (width - gap * (columns - 1)) / columns);
+    return { gap, tileWidth, tileHeight: (tileWidth * 9) / 16 };
   });
 
   const hourKey = (ms: number) => {
@@ -534,7 +536,7 @@
   // The rows in screen order, each with the `y` where it starts. `rowOf[i]`
   // says which row holds detection i, to find the anchor after a swap.
   const layout = $derived.by(() => {
-    const { vao, tileHeight } = grid;
+    const { gap, tileHeight } = grid;
     const rows: Row[] = [];
     const rowOf: number[] = [];
     let y = 0;
@@ -546,7 +548,7 @@
       if (h !== hour) {
         const d = new Date(ms);
         rows.push({
-          tipo: 'hora',
+          kind: 'hour',
           k: `h${h}`,
           y,
           height: HOUR_PX,
@@ -559,7 +561,7 @@
       }
       if (!current || current.items.length === columns) {
         current = {
-          tipo: 'grade',
+          kind: 'grid',
           k: `g${key(det)}`,
           y,
           height: tileHeight,
@@ -567,31 +569,31 @@
           items: [],
         };
         rows.push(current);
-        y += tileHeight + vao;
+        y += tileHeight + gap;
       }
       current.items.push(det);
       rowOf[i] = rows.length - 1;
     }
-    return { linhas: rows, rowOf, height: y };
+    return { rows, rowOf, height: y };
   });
 
-  // --- rolagem ----------------------------------------------------------------
+  // --- scroll ------------------------------------------------------------------
 
-  // The view in px of the list: `ini` is what is just below the bar, `fim` the
+  // The view in px of the list: `top` is what is just below the bar, `bottom` the
   // foot of the window. Re-read on every scroll frame.
-  let scrollRange = $state({ ini: 0, fim: 0 });
+  let scrollRange = $state({ top: 0, bottom: 0 });
   let barEl: HTMLDivElement | undefined;
   let barH = $state(0);
   // The App header stays stuck to the top on desktop; this screen's bar sticks
   // right below it.
-  let cabH = $state(0);
+  let headerH = $state(0);
 
   function measure() {
     if (!listEl) return;
     const listTop = listEl.getBoundingClientRect().top;
-    const ini = cabH + barH - listTop;
+    const top = headerH + barH - listTop;
     const end = window.innerHeight - listTop;
-    if (ini !== scrollRange.ini || end !== scrollRange.fim) scrollRange = { ini, fim: end };
+    if (top !== scrollRange.top || end !== scrollRange.bottom) scrollRange = { top, bottom: end };
   }
 
   // The anchor of the last whole view, so a width change (rotating the phone)
@@ -614,7 +616,7 @@
       requestNo = 0;
       measure();
       if (window.innerWidth === gridWindow && window.scrollY !== anchorY) {
-        viewAnchor = scrollRange.ini > 0 ? anchor() : null;
+        viewAnchor = scrollRange.top > 0 ? anchor() : null;
         anchorY = window.scrollY;
       }
       verify();
@@ -628,11 +630,11 @@
       !endBelow &&
       !fetchingBelow &&
       list.length &&
-      layout.height - scrollRange.fim < screenInfo * FETCH_SCREENS
+      layout.height - scrollRange.bottom < screenInfo * FETCH_SCREENS
     ) {
       void below();
     }
-    if (!endAbove && !fetchingAbove && scrollRange.ini < screenInfo * FETCH_SCREENS) void above();
+    if (!endAbove && !fetchingAbove && scrollRange.top < screenInfo * FETCH_SCREENS) void above();
   }
 
   // What goes to the DOM. The band moves in STEP_PX steps, not on every pixel:
@@ -641,14 +643,14 @@
   const visibleWindow = $derived.by(() => {
     const leftover = window.innerHeight * DOM_SCREENS;
     return {
-      from: Math.floor((scrollRange.ini - leftover) / STEP_PX) * STEP_PX,
-      to: Math.ceil((scrollRange.fim + leftover) / STEP_PX) * STEP_PX,
+      from: Math.floor((scrollRange.top - leftover) / STEP_PX) * STEP_PX,
+      to: Math.ceil((scrollRange.bottom + leftover) / STEP_PX) * STEP_PX,
     };
   });
 
   // First row whose end is past `y`: binary search, the rows come in order.
   function firstBelow(y: number) {
-    const l = layout.linhas;
+    const l = layout.rows;
     let lo = 0;
     let hi = l.length;
     while (lo < hi) {
@@ -663,13 +665,13 @@
   // The row where detection i of `list` lives.
   function detectionRow(i: number) {
     const li = layout.rowOf[i];
-    return li === undefined ? undefined : layout.linhas[li];
+    return li === undefined ? undefined : layout.rows[li];
   }
 
   const vistas = $derived.by(() => {
     const { from, to } = visibleWindow;
     const out: Row[] = [];
-    for (const row of layout.linhas.slice(firstBelow(from))) {
+    for (const row of layout.rows.slice(firstBelow(from))) {
       if (row.y >= to) break;
       out.push(row);
     }
@@ -679,8 +681,8 @@
   // The first row of thumbnails in view: it is what gives the bar its day and
   // hour, and the header that sticks.
   const atTop = $derived.by(() => {
-    for (const row of layout.linhas.slice(firstBelow(scrollRange.ini + 1))) {
-      if (row.tipo !== 'grade') continue;
+    for (const row of layout.rows.slice(firstBelow(scrollRange.top + 1))) {
+      if (row.kind !== 'grid') continue;
       const det = row.items[0];
       if (det) return { row, det };
     }
@@ -695,11 +697,11 @@
   // The hour header sticks while its thumbnails go by. It is a single one,
   // outside the grid, because the one inside leaves along with its row.
   const stuckHour = $derived.by(() => {
-    if (!atTop || scrollRange.ini <= 0) return null;
-    const l = layout.linhas;
+    if (!atTop || scrollRange.top <= 0) return null;
+    const l = layout.rows;
     for (let i = layout.rowOf[atTop.row.firstIndex] ?? -1; i >= 0; i--) {
       const row = l[i];
-      if (row?.tipo === 'hora') return row.y + row.height <= scrollRange.ini ? row : null;
+      if (row?.kind === 'hour') return row.y + row.height <= scrollRange.top ? row : null;
     }
     return null;
   });
@@ -710,7 +712,7 @@
   // back in the same place.
   function anchor(): Anchor | null {
     if (!atTop) return null;
-    return { k: key(atTop.det), dy: atTop.row.y - scrollRange.ini };
+    return { k: key(atTop.det), dy: atTop.row.y - scrollRange.top };
   }
 
   async function restoreAnchor(a: Anchor | null) {
@@ -721,7 +723,7 @@
     measure();
     const row = detectionRow(list.findIndex((d) => key(d) === a.k));
     if (!row) return;
-    const delta = row.y - a.dy - scrollRange.ini;
+    const delta = row.y - a.dy - scrollRange.top;
     if (Math.abs(delta) >= 1) window.scrollBy(0, delta);
     measure();
   }
@@ -805,13 +807,13 @@
   const size = (from: number, to: number) =>
     `calc(min(100%, calc(${pct(to)} + ${BOX_SLACK_PX}px)) - ${start(from)})`;
 
-  // --- a folha ----------------------------------------------------------------
+  // --- the sheet ----------------------------------------------------------------
 
   let isOpen = $state<string | null>(null);
   const openIndex = $derived(isOpen ? list.findIndex((d) => key(d) === isOpen) : -1);
   const openedDet = $derived(list[openIndex]);
 
-  // --- a barra ----------------------------------------------------------------
+  // --- the bar ------------------------------------------------------------------
 
   let openedCameras = $state(false);
   let camsEl: HTMLDivElement | undefined;
@@ -820,10 +822,8 @@
 
   function toggleCamera(id: string) {
     const currentIds = checkedCams ?? cameras.list.map((c) => c.id);
-    const novas = currentIds.includes(id)
-      ? currentIds.filter((x) => x !== id)
-      : [...currentIds, id];
-    checkedCams = novas.length === cameras.list.length ? null : novas;
+    const next = currentIds.includes(id) ? currentIds.filter((x) => x !== id) : [...currentIds, id];
+    checkedCams = next.length === cameras.list.length ? null : next;
     void restart();
   }
 
@@ -834,11 +834,9 @@
 
   function toggleFamily(id: FamilyName) {
     const currentIds = checkedFamilies ?? FAMILY_ORDER;
-    const novas = currentIds.includes(id)
-      ? currentIds.filter((x) => x !== id)
-      : [...currentIds, id];
+    const next = currentIds.includes(id) ? currentIds.filter((x) => x !== id) : [...currentIds, id];
     checkedFamilies =
-      novas.length === FAMILY_ORDER.length ? null : FAMILY_ORDER.filter((f) => novas.includes(f));
+      next.length === FAMILY_ORDER.length ? null : FAMILY_ORDER.filter((f) => next.includes(f));
     void restart();
   }
 
@@ -860,7 +858,7 @@
       menuEl &&
       clickTarget?.isConnected &&
       !menuEl.contains(clickTarget) &&
-      !clickTarget.closest('.mais')
+      !clickTarget.closest('.more')
     )
       menu = null;
   }
@@ -969,7 +967,7 @@
     for (let i = atTop.row.firstIndex; i < list.length; i++) {
       const det = list[i];
       const row = detectionRow(i);
-      if (det && row && det.cam !== cam) return { k: key(det), dy: row.y - scrollRange.ini };
+      if (det && row && det.cam !== cam) return { k: key(det), dy: row.y - scrollRange.top };
     }
     return null;
   }
@@ -986,11 +984,11 @@
 
     undoNotice = notify(
       {
-        forte: names[cam] ?? cam,
-        texto: 'oculta',
+        strong: names[cam] ?? cam,
+        text: 'oculta',
         action: {
           label: 'desfazer',
-          fazer: () => {
+          run: () => {
             undo(before);
           },
         },
@@ -1020,7 +1018,7 @@
   function undo(before: string[] | null) {
     checkedCams = before;
     const ms = atTop?.det.atMs;
-    void restart(scrollRange.ini > 0 && ms != null ? ms + 1 : null);
+    void restart(scrollRange.top > 0 && ms != null ? ms + 1 : null);
   }
 
   function keyHandler(e: KeyboardEvent) {
@@ -1045,11 +1043,11 @@
 
   // In a range that crosses midnight, the time before `from` is the next day's.
   // `restart` clamps the instant inside the range.
-  function goToHour(segundos: number) {
+  function goToHour(seconds: number) {
     const day = parseDay(interval?.day ?? topDay);
-    if (interval && interval.to < interval.from && segundos / 60 < interval.from)
+    if (interval && interval.to < interval.from && seconds / 60 < interval.from)
       day.setDate(day.getDate() + 1);
-    void restart(day.getTime() + (segundos + 60) * 1000);
+    void restart(day.getTime() + (seconds + 60) * 1000);
   }
 
   // The new range applies to the day that was in view.
@@ -1061,8 +1059,8 @@
   // Goes back to infinite scroll without leaving where it was: the fetch starts
   // from the detection at the top of the view, as in undo.
   function resetInterval() {
-    const ms = scrollRange.ini > 0 ? atTop?.det.atMs : undefined;
-    const topPos = ms != null ? ms + 1 : limites?.to;
+    const ms = scrollRange.top > 0 ? atTop?.det.atMs : undefined;
+    const topPos = ms != null ? ms + 1 : limits?.to;
     interval = null;
     void restart(topPos != null && topPos <= Date.now() ? topPos : null);
   }
@@ -1074,9 +1072,9 @@
   let AreaEditor = $state<typeof AreaEditorT | null>(null);
   let editor = $state<{
     cam: string;
-    background: { tipo: 'imagem' | 'video'; url: string } | null;
+    background: { kind: 'image' | 'video'; url: string } | null;
     boxes: { box: Box; color: string }[];
-    erro: string;
+    error: string;
     // Where the list restarts on apply: at the top, or at the frame's instant
     // when the editor came from its ⋮.
     stayAt: number | null;
@@ -1104,14 +1102,14 @@
     if (det?.hasFrame) {
       editor = {
         cam,
-        background: { tipo: 'imagem', url: mediaURL.frame(cam, det.atMs) },
+        background: { kind: 'image', url: mediaURL.frame(cam, det.atMs) },
         boxes: boxesOf(det),
-        erro: '',
+        error: '',
         stayAt,
       };
       return;
     }
-    editor = { cam, background: null, boxes: [], erro: '', stayAt };
+    editor = { cam, background: null, boxes: [], error: '', stayAt };
     // The editor may have closed, or been opened again, during the fetch. The
     // camera is not enough: reopened on the same one, from a detection's sheet,
     // it already has that detection's frame, and the old fetch would replace
@@ -1124,7 +1122,7 @@
       let ed = stillOpen();
       if (!ed) return;
       if (recent) {
-        ed.background = { tipo: 'imagem', url: mediaURL.frame(cam, recent.atMs) };
+        ed.background = { kind: 'image', url: mediaURL.frame(cam, recent.atMs) };
         ed.boxes = boxesOf(recent);
         return;
       }
@@ -1132,13 +1130,13 @@
       ed = stillOpen();
       if (!ed) return;
       if (last === null) {
-        ed.erro = 'esta câmera ainda não tem gravação para desenhar em cima';
+        ed.error = 'esta câmera ainda não tem gravação para desenhar em cima';
         return;
       }
-      ed.background = { tipo: 'video', url: mediaURL.thumb(cam, last) };
+      ed.background = { kind: 'video', url: mediaURL.thumb(cam, last) };
     } catch (e) {
       const ed = stillOpen();
-      if (ed) ed.erro = `não deu para buscar um quadro: ${messageOf(e)}`;
+      if (ed) ed.error = `não deu para buscar um quadro: ${messageOf(e)}`;
     }
   }
 
@@ -1147,8 +1145,8 @@
   // the area.
   function markCamera(cam: string) {
     if (checkedCams && !checkedCams.includes(cam)) {
-      const novas = [...checkedCams, cam];
-      checkedCams = novas.length === cameras.list.length ? null : novas;
+      const next = [...checkedCams, cam];
+      checkedCams = next.length === cameras.list.length ? null : next;
     }
   }
 
@@ -1214,7 +1212,7 @@
   // Goes back to the list without leaving where it was, like resetInterval:
   // removing a filter only adds detections.
   function restartInPlace() {
-    const ms = scrollRange.ini > 0 ? atTop?.det.atMs : undefined;
+    const ms = scrollRange.top > 0 ? atTop?.det.atMs : undefined;
     return restart(ms != null ? ms + 1 : null);
   }
 
@@ -1257,10 +1255,10 @@
   // What the chip says: the area's name when there is just one, or how many.
   const chipLabel = $derived.by(() => {
     const n = checkedAreas.length + (area ? 1 : 0);
-    if (n !== 1) return { nome: `${n} áreas`, where: '' };
-    if (area) return { nome: names[area.cam] ?? area.cam, where: 'área' };
+    if (n !== 1) return { name: `${n} áreas`, where: '' };
+    if (area) return { name: names[area.cam] ?? area.cam, where: 'área' };
     const a = registered.get(checkedAreas[0] ?? '');
-    return { nome: a?.name ?? '', where: a ? (names[a.cam] ?? a.cam) : '' };
+    return { name: a?.name ?? '', where: a ? (names[a.cam] ?? a.cam) : '' };
   });
 
   function cliqueFora(e: MouseEvent) {
@@ -1294,9 +1292,9 @@
   onMount(() => {
     // The header and the new-version strip, when it appears: both stick to the
     // top, and this screen's bar sits right under them.
-    const cab = document.querySelector<HTMLElement>('#app > .top');
+    const headerEl = document.querySelector<HTMLElement>('#app > .top');
     const measureAll = () => {
-      cabH = cab?.offsetHeight ?? 0;
+      headerH = headerEl?.offsetHeight ?? 0;
       barH = barEl?.offsetHeight ?? 0;
       const newOne = listEl?.clientWidth ?? 0;
       if (width && newOne !== width) void changeWidth(newOne);
@@ -1307,7 +1305,7 @@
     // size of the screen, and without a width its computation comes out wrong.
     measureAll();
     const ro = new ResizeObserver(measureAll);
-    if (cab) ro.observe(cab);
+    if (headerEl) ro.observe(headerEl);
     if (barEl) ro.observe(barEl);
     if (listEl) ro.observe(listEl);
 
@@ -1324,8 +1322,8 @@
     })();
 
     const t = setInterval(() => {
-      void novas();
-    }, NOVAS_MS);
+      void fetchNew();
+    }, NEW_POLL_MS);
     return () => {
       ro.disconnect();
       clearInterval(t);
@@ -1346,7 +1344,7 @@
   onkeydown={keyHandler}
 />
 
-<div class="screen" style:--cab-h="{cabH}px" style:--barra-h="{barH}px">
+<div class="screen" style:--header-h="{headerH}px" style:--bar-h="{barH}px">
   <div class="bar" bind:this={barEl}>
     <div class="when">
       <DayNav
@@ -1361,7 +1359,7 @@
           if (resolvedCameras) void loadDays(filter, true);
         }}
       />
-      <Clock ms={topMs} ongo={goToHour} segundos={false} />
+      <Clock ms={topMs} ongo={goToHour} seconds={false} />
       {#if !interval}
         <ScheduleInterval interval={null} onapply={applyInterval} onclear={resetInterval} />
       {/if}
@@ -1401,9 +1399,9 @@
                 onclick={reopenArea}
                 aria-expanded={anyRegistered ? openedArea : undefined}
                 title={area && !anyRegistered
-                  ? `mudar a área (${RULES[area.rule].nome})`
+                  ? `mudar a área (${RULES[area.rule].name})`
                   : 'mudar as áreas'}
-                aria-label="{chipLabel.nome}{chipLabel.where ? `, ${chipLabel.where}` : ''}; mudar"
+                aria-label="{chipLabel.name}{chipLabel.where ? `, ${chipLabel.where}` : ''}; mudar"
               >
                 <span class="stack">
                   {#each chipThumbnails as m, i (i)}
@@ -1412,7 +1410,7 @@
                     <Icon name="area" size={14} stroke={2.4} />
                   {/each}
                 </span>
-                <span class="area-name">{chipLabel.nome}</span>
+                <span class="area-name">{chipLabel.name}</span>
                 {#if chipLabel.where}
                   <span class="muted where-area">· {chipLabel.where}</span>
                 {/if}
@@ -1441,12 +1439,12 @@
           class="ghost family"
           class:on
           aria-pressed={on}
-          aria-label={FAMILIES[f].nome}
-          title={on ? `ocultar ${FAMILIES[f].nome}` : `mostrar ${FAMILIES[f].nome}`}
+          aria-label={FAMILIES[f].name}
+          title={on ? `ocultar ${FAMILIES[f].name}` : `mostrar ${FAMILIES[f].name}`}
           onclick={() => toggleFamily(f)}
         >
           <img src={iconURL(f, 14, FAMILIES[f].color)} alt="" width="14" height="14" />
-          <span class="label">{FAMILIES[f].nome}</span>
+          <span class="label">{FAMILIES[f].name}</span>
         </button>
       {/each}
       {#if anyAlert || onlyAlerts}
@@ -1485,7 +1483,7 @@
         aria-label="atualizar"
         title={refreshing
           ? 'parar de buscar sozinho as detecções novas'
-          : `buscar sozinho as detecções novas, a cada ${NOVAS_MS / 1000} s`}
+          : `buscar sozinho as detecções novas, a cada ${NEW_POLL_MS / 1000} s`}
         onclick={toggleRefresh}
       >
         <Icon name="refresh" size={14} stroke={2.4} />
@@ -1508,7 +1506,7 @@
         title="miniaturas maiores"
         aria-label="miniaturas maiores"
       >
-        <Icon name="mais" size={18} />
+        <Icon name="plus" size={18} />
       </button>
     </div>
 
@@ -1538,10 +1536,10 @@
     </div>
   </div>
 
-  {#if limites && interval && endAbove && loaded && list.length}
+  {#if limits && interval && endAbove && loaded && list.length}
     <div class="edge">
       <span>fim do intervalo <strong class="mono">{hourOfMinute(interval.to)}</strong></span>
-      <span>· {longDay(limites.to - 1)}</span>
+      <span>· {longDay(limits.to - 1)}</span>
       <button class="ghost" onclick={resetInterval}>limpar intervalo</button>
     </div>
   {/if}
@@ -1560,11 +1558,11 @@
     class:no-boxes={!withBoxes}
     style:height="{layout.height}px"
     style:--cols={columns}
-    style:--vao="{grid.vao}px"
+    style:--gap="{grid.gap}px"
     bind:this={listEl}
   >
     {#each vistas as l (l.k)}
-      {#if l.tipo === 'hora'}
+      {#if l.kind === 'hour'}
         <div class="hour" style:transform="translateY({l.y}px)">
           <strong class="mono">{l.label}</strong>
           <span class="muted small">{l.day}</span>
@@ -1636,7 +1634,7 @@
                   <span class="mono">{hhmmss(d.atMs)}</span>
                   <span class="name">{names[d.cam] ?? d.cam}</span>
                   {#if onlyAlerts}
-                    {@const alertNames = alertAreas(d).map((a) => a.nome)}
+                    {@const alertNames = alertAreas(d).map((a) => a.name)}
                     {#if alertNames.length}
                       <span class="alert-area">{alertNames.join(', ')}</span>
                     {/if}
@@ -1644,7 +1642,7 @@
                 </span>
               </button>
               <button
-                class="mais"
+                class="more"
                 onclick={(e: MouseEvent & { currentTarget: HTMLButtonElement }) => {
                   openMenu(d, e);
                 }}
@@ -1677,10 +1675,10 @@
     </div>
   {:else if !list.length && endBelow && endAbove}
     <p class="empty">Nenhuma detecção com esses filtros.</p>
-  {:else if endBelow && list.length && limites && interval}
+  {:else if endBelow && list.length && limits && interval}
     <div class="edge">
       <span>início do intervalo <strong class="mono">{hourOfMinute(interval.from)}</strong></span>
-      <span>· {longDay(limites.from)}</span>
+      <span>· {longDay(limits.from)}</span>
       <button class="ghost" onclick={resetInterval}>limpar intervalo</button>
     </div>
   {:else if endBelow && list.length}
@@ -1768,7 +1766,7 @@
     camera={names[editor.cam] ?? editor.cam}
     background={editor.background}
     boxes={editor.boxes}
-    error={editor.erro}
+    error={editor.error}
     initial={area?.cam === editor.cam ? area : null}
     otherAreas={fromCamera}
     namesInUse={fromCamera.map((a) => a.name)}
@@ -1792,7 +1790,7 @@
   >
     {#if m.areas}
       <button class="ghost back" role="menuitem" onclick={() => (m.areas = false)}>
-        <Icon name="chevronEsq" size={14} stroke={2.4} />
+        <Icon name="chevronLeft" size={14} stroke={2.4} />
         Filtrar por área · <strong>{names[m.cam] ?? m.cam}</strong>
       </button>
       <hr />
@@ -1870,11 +1868,11 @@
     padding: 0 10px 8px;
   }
 
-  /* --- a barra --- */
+  /* --- the bar ------------------------------------------------------------------ */
 
   .bar {
     position: sticky;
-    top: var(--cab-h);
+    top: var(--header-h);
     z-index: 10;
     display: grid;
     grid-template-columns: auto 1fr auto;
@@ -2015,7 +2013,7 @@
   .areachip.on {
     color: var(--fg);
     border-color: var(--accent);
-    background: var(--ativo-fundo);
+    background: var(--active-bg);
   }
   .areachip.on::before {
     background: var(--ok);
@@ -2036,7 +2034,7 @@
     align-items: stretch;
     border: 1px solid var(--accent);
     border-radius: 8px;
-    background: var(--ativo-fundo);
+    background: var(--active-bg);
     overflow: hidden;
   }
   .chip-area button {
@@ -2061,7 +2059,7 @@
   }
   .stack > :global(canvas + canvas) {
     margin-left: -16px;
-    box-shadow: -2px 0 0 var(--ativo-fundo);
+    box-shadow: -2px 0 0 var(--active-bg);
   }
   .area-name,
   .where-area {
@@ -2190,7 +2188,7 @@
      does not push the grid, it just lies over it. */
   .stuck {
     position: sticky;
-    top: calc(var(--cab-h) + var(--barra-h));
+    top: calc(var(--header-h) + var(--bar-h));
     z-index: 5;
     height: 0;
   }
@@ -2201,7 +2199,7 @@
     right: 0;
     display: grid;
     grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-    gap: var(--vao);
+    gap: var(--gap);
   }
 
   .cell {
@@ -2297,7 +2295,7 @@
 
   /* The ⋮ in the corner, to the right of the family icons and with the same
      pill as them. The pill is small, but the touch target is the whole corner. */
-  .mais {
+  .more {
     position: absolute;
     top: 0;
     right: 0;
@@ -2312,7 +2310,7 @@
     align-items: flex-start;
   }
 
-  .mais span {
+  .more span {
     display: block;
     width: 22px;
     height: 20px;
@@ -2322,11 +2320,11 @@
     color: var(--fg);
   }
 
-  .mais:focus-visible {
+  .more:focus-visible {
     outline: none;
   }
-  .mais:focus-visible span,
-  .mais[aria-expanded='true'] span {
+  .more:focus-visible span,
+  .more[aria-expanded='true'] span {
     outline: 2px solid var(--accent);
   }
 
@@ -2338,21 +2336,21 @@
   /* With a mouse the ⋮ shows only over the thumbnail, and stays while its menu
      is open. On touch there is no hover: it is always in view. */
   @media (hover: hover) {
-    .mais {
+    .more {
       opacity: 0;
     }
-    .cell:hover .mais,
-    .mais:focus-visible,
-    .mais[aria-expanded='true'] {
+    .cell:hover .more,
+    .more:focus-visible,
+    .more[aria-expanded='true'] {
       opacity: 1;
     }
-    .cell:hover .mais span {
+    .cell:hover .more span {
       background: rgba(13, 17, 23, 0.95);
     }
   }
 
   /* On a small thumbnail the ⋮ cannot be hit with a finger: the action stays on the sheet. */
-  .compact .mais {
+  .compact .more {
     display: none;
   }
   .compact :global(.badge) {

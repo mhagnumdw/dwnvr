@@ -26,7 +26,7 @@
     // The background frame: the JPEG of a detection, or the single-frame MP4 of
     // a segment's keyframe. Null while the screen is still looking for which
     // one.
-    background: { tipo: 'imagem' | 'video'; url: string } | null;
+    background: { kind: 'image' | 'video'; url: string } | null;
     // The boxes of the background detection, only to guide the drawing.
     boxes?: { box: Box; color: string }[];
     initial?: { points: Point[]; rule: Rule } | null;
@@ -79,10 +79,10 @@
   const DESKTOP_PX = 720;
 
   // The editor starts from the initial value and doesn't follow it afterward.
-  const ini = untrack(() => initial);
-  let points = $state<Point[]>(ini ? ini.points.map((p): Point => [p[0], p[1]]) : []);
-  let isClosed = $state(!!ini && ini.points.length >= MIN_POINTS);
-  let rule = $state<Rule>(ini?.rule ?? 'foot');
+  const init = untrack(() => initial);
+  let points = $state<Point[]>(init ? init.points.map((p): Point => [p[0], p[1]]) : []);
+  let isClosed = $state(!!init && init.points.length >= MIN_POINTS);
+  let rule = $state<Rule>(init?.rule ?? 'foot');
   // The name is a field from the start in the camera form, and only after
   // "salvar na câmera" in Detections.
   const nameFromStart = untrack(() => name !== null);
@@ -275,7 +275,7 @@
 
     <div class="space" bind:clientWidth={space.w} bind:clientHeight={space.h}>
       <div class="stage" style:width="{stage.w}px" style:height="{stage.h}px">
-        {#if background?.tipo === 'imagem'}
+        {#if background?.kind === 'image'}
           <img
             src={background.url}
             alt=""
@@ -285,7 +285,7 @@
                 ratio = el.naturalWidth / el.naturalHeight;
             }}
           />
-        {:else if background?.tipo === 'video'}
+        {:else if background?.kind === 'video'}
           <video
             src={background.url}
             muted
@@ -408,7 +408,7 @@
             onclick={() => (rule = id as Rule)}
           >
             <Icon name={r.icon} size={20} />
-            {r.nome}
+            {r.name}
           </button>
         {/each}
       </div>
@@ -607,7 +607,7 @@
     color: var(--dim);
   }
   .rules button.on {
-    background: var(--ativo-fundo);
+    background: var(--active-bg);
     color: var(--fg);
     box-shadow: inset 0 0 0 1px var(--accent);
   }

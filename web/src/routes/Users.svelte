@@ -92,7 +92,7 @@
 
   // The link by email: the same link as on screen goes to the person's email.
   // The result stays on the card, and sending again means tapping again.
-  let delivery = $state<{ ok: boolean; texto: string } | null>(null);
+  let delivery = $state<{ ok: boolean; text: string } | null>(null);
   let sending = $state(false);
 
   async function sendByEmail() {
@@ -101,9 +101,9 @@
     delivery = null;
     try {
       const r = await api.sendLink(generated.username, generated.url);
-      delivery = { ok: true, texto: `enviado para ${r.sentTo}` };
+      delivery = { ok: true, text: `enviado para ${r.sentTo}` };
     } catch (e) {
-      delivery = { ok: false, texto: messageOf(e) };
+      delivery = { ok: false, text: messageOf(e) };
     } finally {
       sending = false;
     }
@@ -138,7 +138,7 @@
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
-  // ---- criar ----------------------------------------------------------------
+  // ---- create ---------------------------------------------------------------
 
   let newItem = $state<{ username: string; name: string; email: string } | null>(null); // with the form open
   let saving = $state(false);
@@ -208,11 +208,11 @@
   // The first rejected field, in screen order, gets focus.
   function focusFieldError(
     validation: Validation,
-    campos: Partial<Record<PersonField, HTMLInputElement>>,
+    fields: Partial<Record<PersonField, HTMLInputElement>>,
     order: PersonField[],
   ) {
-    const field = order.find((c) => validation.condition(c) === 'erro');
-    if (field) campos[field]?.focus();
+    const field = order.find((c) => validation.condition(c) === 'error');
+    if (field) fields[field]?.focus();
   }
 
   // The save's rejection is about the values that were sent. It only applies to
@@ -224,13 +224,13 @@
     opened: Validation,
     fieldErrors: FieldErrors,
     changed: boolean,
-    campos: Partial<Record<PersonField, HTMLInputElement>>,
+    fields: Partial<Record<PersonField, HTMLInputElement>>,
     order: PersonField[],
   ) {
     if (validation !== opened) return;
     validation.invalid(fieldErrors);
     if (changed) validation.typeIn();
-    else focusFieldError(validation, campos, order);
+    else focusFieldError(validation, fields, order);
   }
 
   async function create(e: SubmitEvent) {
@@ -248,8 +248,8 @@
       if (validation === newValidation) closeNew();
       await load();
     } catch (err) {
-      if (err instanceof ApiError && Object.keys(err.campos).length > 0) {
-        applyFieldError(validation, newValidation, err.campos, changed(), newFields, [
+      if (err instanceof ApiError && Object.keys(err.fields).length > 0) {
+        applyFieldError(validation, newValidation, err.fields, changed(), newFields, [
           'name',
           'username',
           'email',
@@ -269,7 +269,7 @@
   let actionError = $state('');
 
   function outsideMenu(e: MouseEvent) {
-    if (menu && !(e.target instanceof Element && e.target.closest('.menu, .mais'))) menu = null;
+    if (menu && !(e.target instanceof Element && e.target.closest('.menu, .more'))) menu = null;
   }
 
   function request(action: Action, u: User) {
@@ -308,7 +308,7 @@
   let savingEmail = $state(false);
   let emailError = $state('');
   let emailValidation = $state.raw(new Validation(['email'], checkEmail));
-  const camposEmail: Partial<Record<PersonField, HTMLInputElement>> = {};
+  const emailFields: Partial<Record<PersonField, HTMLInputElement>> = {};
 
   async function checkEmail(): Promise<FieldErrors> {
     if (!editingEmail) return {};
@@ -336,8 +336,8 @@
       if (validation === emailValidation) closeEmail();
       await load();
     } catch (err) {
-      if (err instanceof ApiError && Object.keys(err.campos).length > 0) {
-        applyFieldError(validation, emailValidation, err.campos, changed(), camposEmail, ['email']);
+      if (err instanceof ApiError && Object.keys(err.fields).length > 0) {
+        applyFieldError(validation, emailValidation, err.fields, changed(), emailFields, ['email']);
       } else if (validation === emailValidation) {
         emailError = messageOf(err);
       }
@@ -361,7 +361,7 @@
     return condition;
   }
 
-  const you = $derived(session.pessoa?.username);
+  const you = $derived(session.person?.username);
   const minutes = $derived(data ? Math.round(data.inviteValidityMs / 60000) : 0);
 </script>
 
@@ -416,9 +416,9 @@
             >
           {/if}
           <span class="small muted">{copied}</span>
-          {#if delivery?.ok}<span class="small muted">{delivery.texto}</span>{/if}
+          {#if delivery?.ok}<span class="small muted">{delivery.text}</span>{/if}
         </div>
-        {#if delivery && !delivery.ok}<p class="small error">{delivery.texto}</p>{/if}
+        {#if delivery && !delivery.ok}<p class="small error">{delivery.text}</p>{/if}
       </div>
     {/if}
 
@@ -499,7 +499,7 @@
             {/if}
           </div>
           <button
-            class="ghost mais"
+            class="ghost more"
             onclick={() => (menu = menu === u.username ? null : u.username)}
             aria-label="opções de {u.name}"
             aria-haspopup="menu"
@@ -606,13 +606,13 @@
                 required
                 maxlength={data.maxNameLength}
                 placeholder="João Silva"
-                aria-invalid={sName === 'erro'}
-                aria-describedby={sName === 'erro' ? 'recusa-nome' : undefined}
+                aria-invalid={sName === 'error'}
+                aria-describedby={sName === 'error' ? 'name-error' : undefined}
               />
               {@render fieldSignal(sName)}
             </span>
           </label>
-          {@render fieldError('recusa-nome', sName === 'erro' ? newValidation.message('name') : '')}
+          {@render fieldError('name-error', sName === 'error' ? newValidation.message('name') : '')}
         </div>
         <div class="group">
           <label>
@@ -631,15 +631,15 @@
                 autocapitalize="none"
                 autocorrect="off"
                 spellcheck="false"
-                aria-invalid={sUser === 'erro'}
-                aria-describedby={sUser === 'erro' ? 'recusa-usuario' : undefined}
+                aria-invalid={sUser === 'error'}
+                aria-describedby={sUser === 'error' ? 'username-error' : undefined}
               />
               {@render fieldSignal(sUser)}
             </span>
           </label>
           {@render fieldError(
-            'recusa-usuario',
-            sUser === 'erro' ? newValidation.message('username') : '',
+            'username-error',
+            sUser === 'error' ? newValidation.message('username') : '',
           )}
         </div>
         <div class="group">
@@ -663,15 +663,15 @@
                 autocapitalize="none"
                 autocorrect="off"
                 spellcheck="false"
-                aria-invalid={sEmail === 'erro'}
-                aria-describedby={sEmail === 'erro' ? 'recusa-email' : undefined}
+                aria-invalid={sEmail === 'error'}
+                aria-describedby={sEmail === 'error' ? 'email-error' : undefined}
               />
               {@render fieldSignal(sEmail)}
             </span>
           </label>
           {@render fieldError(
-            'recusa-email',
-            sEmail === 'erro' ? newValidation.message('email') : '',
+            'email-error',
+            sEmail === 'error' ? newValidation.message('email') : '',
           )}
         </div>
       </div>
@@ -706,7 +706,7 @@
             : 'Para entrar, no lugar do usuário'}
           <span class="field">
             <input
-              bind:this={camposEmail.email}
+              bind:this={emailFields.email}
               inputmode="email"
               bind:value={editingEmail.email}
               oninput={() => {
@@ -720,15 +720,15 @@
               autocapitalize="none"
               autocorrect="off"
               spellcheck="false"
-              aria-invalid={sEmail === 'erro'}
-              aria-describedby={sEmail === 'erro' ? 'recusa-email-de' : undefined}
+              aria-invalid={sEmail === 'error'}
+              aria-describedby={sEmail === 'error' ? 'email-edit-error' : undefined}
             />
             {@render fieldSignal(sEmail)}
           </span>
         </label>
         {@render fieldError(
-          'recusa-email-de',
-          sEmail === 'erro' ? emailValidation.message('email') : '',
+          'email-edit-error',
+          sEmail === 'error' ? emailValidation.message('email') : '',
         )}
       </div>
       <p class="small muted">Vazio apaga o e-mail. A senha e o link de {target.name} não mudam.</p>
@@ -926,7 +926,7 @@
 
   /* The icon is a block svg, which the button's text-align does not center:
      without the flex, it stuck to the left, 8 px off center. */
-  .mais {
+  .more {
     flex: none;
     display: flex;
     align-items: center;

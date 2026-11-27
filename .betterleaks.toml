@@ -27,7 +27,7 @@ finding["secret"] in ["senha", "troque-me"] ||
 useDefault = true
 
 [[rules]]
-id = "rtsp-url-com-senha"
+id = "rtsp-url-with-password"
 description = "rtsp:// URL with user and password"
 keywords = ["rtsp"]
 regex = '''(?i)rtsps?://[^\s:/@'"]+:([^\s@'"]+)@'''

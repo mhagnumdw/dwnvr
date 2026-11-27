@@ -104,7 +104,7 @@ docker compose up
 > Com [Podman](#com-podman-) no lugar do Docker, o último comando é
 `PODMAN_USERNS=keep-id podman-compose --in-pod false up`.
 
-Quando o log disser `dwnvr no ar`, abra <http://localhost:8080>:
+Quando o log disser `dwnvr is up`, abra <http://localhost:8080>:
 
 1. na aba **Câmeras**, clique na `cam_teste1`, que aparece em *Disponíveis no
    go2rtc* junto com as outras sete - a `cam_teste5` tem áudio, e a
@@ -263,7 +263,7 @@ docker compose up -d
 > Com [Podman](#com-podman-) no lugar do Docker:
 `PODMAN_USERNS=keep-id podman-compose --in-pod false up -d`.
 
-Quando o `docker compose logs dwnvr` disser `dwnvr no ar`, abra
+Quando o `docker compose logs dwnvr` disser `dwnvr is up`, abra
 `http://<ip-da-máquina>:8080` no navegador:
 
 1. entre com o usuário e a senha do passo 5;

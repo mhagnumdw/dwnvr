@@ -44,7 +44,7 @@
         // The password stays: the server did not even check it, and when the
         // countdown ends it is enough to tap "Entrar" again.
         now = Date.now();
-        unlocksAt = now + err.segundos * 1000;
+        unlocksAt = now + err.seconds * 1000;
         return;
       }
       error = messageOf(err);
@@ -93,7 +93,7 @@
   <!-- Before signing in you can already tell which dwnvr this is - useful when
        there is a test one and a real one on the same network - and where it
        comes from. -->
-  <p class="small ver">
+  <p class="small version">
     {#if build.version}<span class="mono">{build.version}</span> ·{/if}
     <a href={REPO_URL} target="_blank" rel="noopener"><GitHubMark size={13} />GitHub</a>
   </p>
@@ -114,7 +114,7 @@
     padding: 20px;
   }
 
-  .ver {
+  .version {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -122,14 +122,14 @@
   }
 
   /* Discreet like the version beside it: it is a footer, not a call to action. */
-  .ver a {
+  .version a {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     color: inherit;
   }
 
-  .ver a:hover {
+  .version a:hover {
     color: var(--fg);
   }
 

@@ -76,7 +76,7 @@ export class Player {
   // eslint-disable-next-line svelte/prefer-svelte-reactivity -- internal cache, not on screen
   #mimes = new Map<string, string>(); // generation -> mime, to avoid refetching the same init
   #boundary: number | null = null; // start of the segment where the tracks change and it has to restart
-  #pulo: { start: number; target: number } | null = null; // last jump over corrupted data, in ms
+  #jump: { start: number; target: number } | null = null; // last jump over corrupted data, in ms
   // Whether whoever jumped had the video paused, while that jump's seek is in
   // flight. The <video>'s `paused` does not work here: #reset swaps the src,
   // and the video stays paused until the seek ends, whether or not it was
@@ -114,7 +114,7 @@ export class Player {
     this.#newGeneration();
     // A scheduled notice that fires after this would light up "carregando…" for
     // a player that no longer exists - and nobody would clear it.
-    this.#aviso(false);
+    this.#setBuffering(false);
     // The same goes for `playing`: the listeners are gone, so the stop just
     // below no longer fires 'pause' and the flag would stay stuck at true - and
     // whoever draws a button from it would show ⏸ for a dead video.
@@ -141,7 +141,7 @@ export class Player {
     this.#segments = segments;
     this.#mimes.clear();
     this.#boundary = null;
-    this.#pulo = null;
+    this.#jump = null;
     this.#newGeneration();
     // The new generation above prevents the `finally` of an in-flight seek from
     // running, so the gate has to be opened here: a new day with no recording
@@ -201,7 +201,7 @@ export class Player {
   }
 
   // Only path to `buffering`: lighting up is deferred, clearing is immediate.
-  #aviso(on: boolean) {
+  #setBuffering(on: boolean) {
     clearTimeout(this.#noticeTimer);
     this.#noticeTimer = undefined;
     if (!on) {
@@ -227,7 +227,7 @@ export class Player {
   };
 
   #onWaiting = () => {
-    this.#aviso(true);
+    this.#setBuffering(true);
     if (this.#crossBoundary()) return;
     this.#skipGap();
   };
@@ -250,7 +250,7 @@ export class Player {
   }
 
   #onPlaying = () => {
-    this.#aviso(false);
+    this.#setBuffering(false);
     this.playing = true;
   };
 
@@ -278,7 +278,7 @@ export class Player {
     // and the ceiling counts from where it started. Far from there it is a new
     // stretch.
     const where = this.currentMs;
-    const last = this.#pulo;
+    const last = this.#jump;
     const start = last && where < last.target + JUMP_STEP_MS ? last.start : where;
 
     let target = where + JUMP_STEP_MS;
@@ -292,7 +292,7 @@ export class Player {
     // straight into the same damaged stretch.
     if (target >= this.lastMs) return;
 
-    this.#pulo = { start, target };
+    this.#jump = { start, target };
     void this.seek(target);
   };
 
@@ -330,7 +330,7 @@ export class Player {
     this.#skipPaused = null;
     this.loading = true;
     this.error = '';
-    this.#aviso(true);
+    this.#setBuffering(true);
     // A new seek overrides any boundary that was scheduled.
     this.#boundary = null;
 
@@ -371,11 +371,11 @@ export class Player {
       // that state now belongs to the new seek, which is still fetching bytes.
       if (gen === this.#generation) {
         this.#seeking = false;
-        this.#aviso(false);
+        this.#setBuffering(false);
       }
     }
 
-    if (gen === this.#generation) void this.#encherEntaoLiberar(gen);
+    if (gen === this.#generation) void this.#fillThenRelease(gen);
   }
 
   // Moves `deltaMs` from where the video is, backward or forward.
@@ -440,7 +440,7 @@ export class Player {
   // the way when the window is full from where the video is. It stays outside
   // the seek's await, because whoever waits on it - the pause of `paused=1`,
   // the detection sheet - wants the first frame, not the full window.
-  async #encherEntaoLiberar(gen: number) {
+  async #fillThenRelease(gen: number) {
     if (!this.error) await this.#repump();
     if (gen === this.#generation) this.loading = false;
   }

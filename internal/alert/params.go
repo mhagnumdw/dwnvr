@@ -25,7 +25,7 @@ const QueuedAlerts = 32
 const SendTimeout = 30 * time.Second
 
 // BoxPaddingPx is how much the box drawn on the alert frame grows on each side
-// beyond the object detector's box, the same CAIXA_FOLGA_PX as the screen
+// beyond the object detector's box, the same BOX_SLACK_PX as the screen
 // (web/src/lib/boxes.ts): the stroke sits inside the box and, without
 // padding, would cover the edge of the object.
 const BoxPaddingPx = 5

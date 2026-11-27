@@ -29,21 +29,21 @@ export const session = $state<{
   authRequired: boolean;
   authenticated: boolean;
   checked: boolean;
-  pessoa: Person | null;
+  person: Person | null;
 }>({
   authRequired: false,
   authenticated: false,
   checked: false,
   // Who is logged in: { username, name, role, owner }. With authentication off
   // it comes as admin and owner, with no user. Null without a session.
-  pessoa: null,
+  person: null,
 });
 
 // isAdmin decides the tabs, the bell and the pill. Hiding is not security - the
 // API rejects the viewer with 403 -, it is just not showing what they cannot
 // use.
 export function isAdmin() {
-  return session.pessoa?.role === 'admin';
+  return session.person?.role === 'admin';
 }
 
 // sessionDropped leads to the login screen: the session expired, the person was
@@ -51,7 +51,7 @@ export function isAdmin() {
 // check.
 export function sessionDropped() {
   session.authenticated = false;
-  session.pessoa = null;
+  session.person = null;
   resetWhatWasLoaded();
 }
 
@@ -59,8 +59,8 @@ export const cameras = $state<{
   list: RegisteredCamera[];
   streams: Stream[];
   orphans: Orphan[];
-  padrao: Camera | null;
-  faixas: BoundsMap | null;
+  defaults: Camera | null;
+  ranges: BoundsMap | null;
   detector: boolean | null;
   go2rtcError: string | null;
   go2rtcConfigFile: Go2rtcDrift | null;
@@ -75,18 +75,18 @@ export const cameras = $state<{
   orphans: [],
   // Empty camera with the server's defaults, from which a new registration is
   // born.
-  padrao: null,
+  defaults: null,
   // { field: { min, max } } of the numeric fields: the same range the API
   // rejects with, so the inputs' min/max do not repeat numbers by hand. Without
   // a ceiling, max is not sent.
-  faixas: null,
+  ranges: null,
   // Whether the object detector is configured. Without it there is no
   // Detections tab. Null until the first response: "I don't know yet" is
   // different from "there is none".
   detector: null,
   go2rtcError: null,
-  // What is in go2rtc.yaml and go2rtc has not loaded yet: { novas, alteradas,
-  // foraDoArquivo }. Null when the two match, or when go2rtc does not let the
+  // What is in go2rtc.yaml and go2rtc has not loaded yet: { added, changed,
+  // notInFile }. Null when the two match, or when go2rtc does not let the
   // file be read.
   go2rtcConfigFile: null,
   // Where the alert goes, which the Alert tab shows. Null against a server
@@ -103,7 +103,7 @@ export const health = $state<HealthState>({
   // does not answer the field - the status strip simply does not show up.
   uptime: null,
   clock: null,
-  // { fila: { agora, cap, pico }, tempos: { analiseMs, esperaMs } }. Null
+  // { queue: { length, cap, peak, ... }, times: { inferenceMs, waitMs } }. Null
   // without a configured object detector.
   detector: null,
   // Hours of the recent reconnects window; the number lives on the server
@@ -180,7 +180,7 @@ export async function checkSession() {
     const s = await api.session();
     session.authRequired = s.authRequired;
     session.authenticated = s.authenticated;
-    session.pessoa = s.user ?? null;
+    session.person = s.user ?? null;
   } catch {
     session.authenticated = false;
   }
@@ -196,7 +196,7 @@ export async function logout() {
     // expires by itself.
   }
   session.authenticated = false;
-  session.pessoa = null;
+  session.person = null;
   resetWhatWasLoaded();
 }
 
@@ -332,8 +332,8 @@ export async function loadCameras() {
     cameras.list = data.cameras;
     cameras.streams = data.streams ?? [];
     cameras.orphans = data.orphans ?? [];
-    cameras.padrao = data.defaults ?? null;
-    cameras.faixas = data.ranges ?? null;
+    cameras.defaults = data.defaults ?? null;
+    cameras.ranges = data.ranges ?? null;
     cameras.detector = data.detector;
     cameras.go2rtcError = data.go2rtcError ?? null;
     cameras.go2rtcConfigFile = data.go2rtcConfigFile ?? null;
@@ -434,14 +434,14 @@ export const HEALTH_TIMEOUT_MS = 2 * HEALTH_POLL_MS;
 // progress, the tick is skipped: the next one goes out when it returns or hits
 // HEALTH_TIMEOUT_MS.
 export function pollHealth(intervalMs = HEALTH_POLL_MS) {
-  const ler = () => {
+  const read = () => {
     if (!document.hidden) readHealthIfFree();
   };
   const onReturn = () => {
     if (!document.hidden && Date.now() - healthRequestedAt >= intervalMs) readHealthIfFree();
   };
-  ler();
-  const id = setInterval(ler, intervalMs);
+  read();
+  const id = setInterval(read, intervalMs);
   document.addEventListener('visibilitychange', onReturn);
   return () => {
     clearInterval(id);

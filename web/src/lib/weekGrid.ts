@@ -9,7 +9,7 @@ import type { Schedule } from './schedules.ts';
 // The day names and the summaries live in schedules.ts, because the camera card
 // also shows them; they keep being re-exported from here for whoever already
 // asked for them.
-export { DIAS, LONG_DAYS, dayName, hoursSummary, daysSummary } from './schedules.ts';
+export { DAYS, LONG_DAYS, dayName, hoursSummary, daysSummary } from './schedules.ts';
 
 const WEEK = 7 * DAY;
 

@@ -39,7 +39,7 @@ export interface PlacedBox<M extends ObjectDetectorMark> {
   color: string;
   priority: number;
   box: Rect;
-  label?: Rect & { texto: string; icon: IconName | null };
+  label?: Rect & { text: string; icon: IconName | null };
   stroke?: { from: Point; to: Point };
 }
 
@@ -146,7 +146,7 @@ export function place<M extends ObjectDetectorMark>(
     const label = (free ?? reserve)?.r;
     if (!label) continue; // frame smaller than the label itself
     placements.push(label);
-    it.label = { ...label, texto: text, icon: iconOf(it.mark, true) };
+    it.label = { ...label, text: text, icon: iconOf(it.mark, true) };
   }
 
   // The stroke, with all labels placed: the shortest path to the box that does
@@ -326,7 +326,7 @@ export function draw<M extends ObjectDetectorMark>(
   for (const it of order) {
     if (!it.label) continue;
     g.globalAlpha = alpha(it);
-    const { x, y, w, h, texto: text, icon } = it.label;
+    const { x, y, w, h, text: text, icon } = it.label;
     g.beginPath();
     // Safari before 16 doesn't have roundRect.
     if (typeof g.roundRect === 'function') g.roundRect(x, y, w, h, LABEL_RADIUS_PX);

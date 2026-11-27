@@ -32,7 +32,7 @@
     <span class="name" class:bold>{area.name}</span>
     <span class="muted small rule">
       <Icon name={rule.icon} size={16} />
-      {rule.nome}
+      {rule.name}
     </span>
   </span>
 </span>

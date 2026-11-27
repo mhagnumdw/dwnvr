@@ -16,9 +16,9 @@ export interface Notice {
   id: number;
   // The bold part in front of the text, like the camera name in "Frente
   // oculta".
-  forte?: string;
-  texto: string;
-  action?: { label: string; fazer: () => void };
+  strong?: string;
+  text: string;
+  action?: { label: string; run: () => void };
 }
 
 export const snackbar = $state<{ current: Notice | null }>({ current: null });

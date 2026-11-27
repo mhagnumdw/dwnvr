@@ -44,7 +44,7 @@
     disabled={!previous}
     aria-label="dia anterior"
   >
-    <Icon name="chevronEsq" size={18} />
+    <Icon name="chevronLeft" size={18} />
   </button>
   <DayPicker {value} {days} {material} {counts} {onchange} {onopen} />
   <button

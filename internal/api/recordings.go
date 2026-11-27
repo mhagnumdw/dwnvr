@@ -22,7 +22,7 @@ const gapTolerance = 2000 * time.Millisecond
 
 // maxExportSpan caps the export window. Without a cap, a 30-day request would
 // try to splice tens of thousands of segments into a single response. The value
-// is the same cap as the Recordings screen (DURACOES in
+// is the same cap as the Recordings screen (DURATIONS in
 // web/src/routes/Recordings.svelte), so that whoever calls the API directly
 // can't ask for more than the interface offers.
 const maxExportSpan = 10 * time.Minute

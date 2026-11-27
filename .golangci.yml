@@ -1,11 +1,11 @@
-# Regras do golangci-lint, lidas pelo hook do prek (e por ele na CI) e pelo
+# golangci-lint rules, read by the prek hook (and by it in CI) and by the
 # editor.
 version: "2"
 
 linters:
   # errcheck, govet, ineffassign, staticcheck e unused.
   default: standard
-  # Go mais moderno e idiomático, quase tudo com fix automático.
+  # More modern, idiomatic Go, almost all with an automatic fix.
   enable:
     - bodyclose
     - copyloopvar
@@ -18,17 +18,17 @@ linters:
     - unconvert
     - usestdlibvars
   exclusions:
-    # Não cobra o erro de Close, Flush e afins, e cala os falsos positivos
-    # conhecidos.
+    # Does not demand the error from Close, Flush and the like, and silences
+    # the known false positives.
     presets:
       - std-error-handling
       - common-false-positives
-    # O ./... também desce aqui: o flatted, do npm, traz um pacote Go.
+    # ./... also descends here: npm's flatted ships a Go package.
     paths:
       - web/node_modules
     rules:
-      # Nos testes a requisição vai para um httptest local: context ali é
-      # ruído.
+      # In tests the request goes to a local httptest: a context there is
+      # noise.
       - path: _test\.go
         linters:
           - noctx

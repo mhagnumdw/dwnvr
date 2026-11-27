@@ -1,16 +1,16 @@
-# Configuração da máquina de quem desenvolve. Copie para local.mk, que não é
-# versionado:
+# Configuration of the developer machine. Copy it to local.mk, which is not
+# versioned:
 #
 #     cp local.mk.example local.mk
 #
-# O Makefile o inclui sozinho quando existe, então `make deploy` e
-# `make deploy-wip` funcionam sem argumentos. Passar a variável na linha de
-# comando continua valendo e tem precedência sobre o que estiver aqui.
+# The Makefile includes it on its own when it exists, so `make deploy` and
+# `make deploy-wip` work without arguments. Passing the variable on the command
+# line still works and takes precedence over what is here.
 
-# Servidor onde o dwnvr roda como container. Sem isto, os dois deploys param
-# com uma mensagem em vez de tentar um ssh para lugar nenhum.
+# Server where dwnvr runs as a container. Without this, both deploys stop with
+# a message instead of trying an ssh to nowhere.
 DEPLOY_HOST ?= usuario@servidor
 
-# O clone do dwnvr no servidor, de onde sai o docker-compose.yml. O default do
-# Makefile já é este.
+# The dwnvr clone on the server, where docker-compose.yml comes from. The
+# Makefile default is already this one.
 DEPLOY_DIR  ?= ~/dwnvr

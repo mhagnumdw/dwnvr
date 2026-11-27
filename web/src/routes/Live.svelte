@@ -171,9 +171,9 @@
   $effect(() => {
     if (!mounted) return;
     const names = cameras.list.filter((c) => selected.has(c.id)).map((c) => c.name);
-    if (!names.length) scene.texto = '';
-    else if (names.length <= NAMES_IN_TEXT) scene.texto = `Ao vivo: ${names.join(', ')}`;
-    else scene.texto = `Ao vivo: ${names.length} câmeras`;
+    if (!names.length) scene.text = '';
+    else if (names.length <= NAMES_IN_TEXT) scene.text = `Ao vivo: ${names.join(', ')}`;
+    else scene.text = `Ao vivo: ${names.length} câmeras`;
   });
 
   // The go2rtc component creates the <video> with controls=true. In a live grid
@@ -225,15 +225,15 @@
   let overControls = false;
   const controls = vanishingControls(() => inFullscreen && !menu && !overControls);
 
-  type Role = 'atual' | 'ant' | 'prox' | 'fora';
+  type Role = 'current' | 'prev' | 'next' | 'off';
 
   function role(i: number): Role {
     const n = visible.length;
-    if (i === currentIdx) return 'atual';
-    if (n === 2) return side === 1 ? 'prox' : 'ant';
-    if (i === (currentIdx + 1) % n) return 'prox';
-    if (i === (currentIdx - 1 + n) % n) return 'ant';
-    return 'fora';
+    if (i === currentIdx) return 'current';
+    if (n === 2) return side === 1 ? 'next' : 'prev';
+    if (i === (currentIdx + 1) % n) return 'next';
+    if (i === (currentIdx - 1 + n) % n) return 'prev';
+    return 'off';
   }
 
   function toggleFull(cam: string) {
@@ -250,7 +250,7 @@
 
   // The next (1) or the previous (-1), wrapping around: from the last back to
   // the first.
-  function ir(d: 1 | -1) {
+  function go(d: 1 | -1) {
     const n = visible.length;
     if (animating || n < 2 || !stage) return;
     menu = null;
@@ -303,7 +303,7 @@
     draggedAt = Date.now();
     const dx = e.clientX - x;
     if (e.type === 'pointerup' && Math.abs(dx) > swipeLimit(stage.clientWidth)) {
-      ir(dx < 0 ? 1 : -1);
+      go(dx < 0 ? 1 : -1);
       return;
     }
     // Too short: the camera goes back to its place.
@@ -318,7 +318,7 @@
   // closes the menu only closes the menu.
   let touchAt: { id: number; x: number; y: number; menu: boolean } | null = null;
   const touch = doubleTouch({
-    simples: () => {
+    single: () => {
       if (inFullscreen) controls.singleTouch();
     },
   });
@@ -395,7 +395,7 @@
     if (e.key === 'Escape') menu = null;
     if (inFullscreen && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
       e.preventDefault();
-      ir(e.key === 'ArrowRight' ? 1 : -1);
+      go(e.key === 'ArrowRight' ? 1 : -1);
     }
   }
 
@@ -410,7 +410,7 @@
   // it does not fit and there is more room above, upward; and it only scrolls
   // if it fits in neither.
   function positionMenu(el: HTMLElement) {
-    const mark = el.parentElement?.querySelector('.mais span');
+    const mark = el.parentElement?.querySelector('.more span');
     if (!mark) return;
     const r = mark.getBoundingClientRect();
     const height = el.offsetHeight;
@@ -776,10 +776,10 @@
   //
   // A plain Set, not a WeakSet, because the size matters: it decides whether
   // the "Pausar fora da tela" switch appears.
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- what the screen reads is `quantasFora`
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- what the screen reads is `offScreenCount`
   const offScreen = new Set<VideoRTC>();
   const cut = new WeakMap<VideoRTC, number>();
-  let quantasFora = $state(0);
+  let offScreenCount = $state(0);
 
   // Opt-in for whoever prefers not to wait for the keyframe when scrolling, and
   // accepts paying for it in battery. Per device, like the layout: it goes in
@@ -809,7 +809,7 @@
         if (!alwaysOn) scheduleCut(node);
       }
     }
-    quantasFora = offScreen.size;
+    offScreenCount = offScreen.size;
   });
 
   // On return from a hidden tab, the player reconnects by calling the
@@ -826,7 +826,7 @@
       clearTimeout(cut.get(node));
       observer.unobserve(node);
       offScreen.delete(node);
-      quantasFora = offScreen.size;
+      offScreenCount = offScreen.size;
     };
   }
 
@@ -931,7 +931,7 @@
     showPicker;
     inFullscreen;
     // The switch goes into the bar and can wrap onto a new row.
-    quantasFora;
+    offScreenCount;
     // The new-version strip pushes the stage down, and no resize announces it.
     newScreen.available;
     /* eslint-enable @typescript-eslint/no-unused-expressions */
@@ -981,7 +981,7 @@
 
       <!-- Only appears when there is something to pause: with everything in
            view - fit, or few cameras - there is no off-screen tile to cut. -->
-      {#if quantasFora > 0}
+      {#if offScreenCount > 0}
         <span class="sep"></span>
         <button
           class="ghost pause"
@@ -1043,8 +1043,8 @@
     class="stage"
     class:fit={mode === 'fit'}
     class:fs={inFullscreen}
-    class:escondidos={inFullscreen && !controls.visibleOnes}
-    style:--troca="{SWITCH_MS}ms"
+    class:hidden={inFullscreen && !controls.visibleOnes}
+    style:--swap="{SWITCH_MS}ms"
     bind:this={stage}
     {@attach (node: HTMLElement) => () => {
       // A de verdade o navegador desfaz sozinho quando o elemento sai da
@@ -1080,9 +1080,9 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="tile"
-          class:ant={p === 'ant'}
-          class:next={p === 'prox'}
-          class:fora={p === 'fora'}
+          class:prev={p === 'prev'}
+          class:next={p === 'next'}
+          class:off={p === 'off'}
           ondblclick={() => toggleFull(c.id)}
           title={inFullscreen ? undefined : 'duplo clique: tela cheia'}
         >
@@ -1157,7 +1157,7 @@
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="options" ondblclick={(e) => e.stopPropagation()}>
             <button
-              class="mais"
+              class="more"
               onclick={() => (menu = menu === c.id ? null : c.id)}
               aria-label="opções da câmera {c.name}"
               aria-haspopup="menu"
@@ -1194,19 +1194,19 @@
     {#if inFullscreen}
       {#if visible.length > 1}
         <button
-          class="ghost arrow esq"
+          class="ghost arrow left"
           onclick={() => {
-            ir(-1);
+            go(-1);
           }}
           aria-label="câmera anterior"
           title="câmera anterior (←)"
         >
-          <Icon name="chevronEsq" size={22} />
+          <Icon name="chevronLeft" size={22} />
         </button>
         <button
-          class="ghost arrow dir"
+          class="ghost arrow right"
           onclick={() => {
-            ir(1);
+            go(1);
           }}
           aria-label="próxima câmera"
           title="próxima câmera (→)"
@@ -1308,7 +1308,7 @@
   .modes button.on {
     color: var(--fg);
     border-color: var(--accent);
-    background: var(--ativo-fundo);
+    background: var(--active-bg);
     position: relative;
     z-index: 1;
   }
@@ -1524,7 +1524,7 @@
     display: contents;
   }
 
-  .mais {
+  .more {
     position: absolute;
     top: 0;
     right: 0;
@@ -1539,7 +1539,7 @@
     background: none;
   }
 
-  .mais span {
+  .more span {
     display: block;
     width: 22px;
     height: 20px;
@@ -1549,26 +1549,26 @@
     color: var(--fg);
   }
 
-  .mais:focus-visible {
+  .more:focus-visible {
     outline: none;
   }
-  .mais:focus-visible span,
-  .mais[aria-expanded='true'] span {
+  .more:focus-visible span,
+  .more[aria-expanded='true'] span {
     outline: 2px solid var(--accent);
   }
 
   /* With a mouse the ⋮ shows only over the tile, and stays while its menu is
      open. On touch there is no hover: it is always in view. */
   @media (hover: hover) {
-    .mais {
+    .more {
       opacity: 0;
     }
-    .tile:hover .mais,
-    .mais:focus-visible,
-    .mais[aria-expanded='true'] {
+    .tile:hover .more,
+    .more:focus-visible,
+    .more[aria-expanded='true'] {
       opacity: 1;
     }
-    .tile:hover .mais span {
+    .tile:hover .more span {
       background: rgba(13, 17, 23, 0.95);
     }
   }
@@ -1630,7 +1630,7 @@
     height: auto;
   }
   .grid.animating {
-    transition: transform var(--troca) ease-out;
+    transition: transform var(--swap) ease-out;
   }
 
   /* `left`, not `transform`, to place the neighbors at the sides: a tile with a
@@ -1645,13 +1645,13 @@
     aspect-ratio: auto;
     border-radius: 0;
   }
-  .stage.fs .tile.ant {
+  .stage.fs .tile.prev {
     left: -100%;
   }
   .stage.fs .tile.next {
     left: 100%;
   }
-  .stage.fs .tile.fora {
+  .stage.fs .tile.off {
     display: none;
   }
 
@@ -1677,12 +1677,12 @@
     width: 18px;
     height: 18px;
   }
-  .stage.fs .mais {
+  .stage.fs .more {
     width: 52px;
     height: 48px;
     padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 0 0;
   }
-  .stage.fs .mais span {
+  .stage.fs .more span {
     width: 36px;
     height: 32px;
     padding: 6px;
@@ -1707,10 +1707,10 @@
     background: rgba(0, 0, 0, 0.55);
     border-color: rgba(255, 255, 255, 0.18);
   }
-  .arrow.esq {
+  .arrow.left {
     left: max(8px, env(safe-area-inset-left));
   }
-  .arrow.dir {
+  .arrow.right {
     right: max(8px, env(safe-area-inset-right));
   }
 
@@ -1725,18 +1725,18 @@
      block to win over `.tile:hover`, which has the same weight. */
   .stage.fs .arrow,
   .stage.fs .leave,
-  .stage.fs .mais,
+  .stage.fs .more,
   .stage.fs .pip {
     transition: opacity 0.25s;
   }
-  .stage.escondidos .arrow,
-  .stage.escondidos .leave,
-  .stage.escondidos .mais,
-  .stage.escondidos .pip {
+  .stage.hidden .arrow,
+  .stage.hidden .leave,
+  .stage.hidden .more,
+  .stage.hidden .pip {
     opacity: 0;
     pointer-events: none;
   }
-  .stage.escondidos {
+  .stage.hidden {
     cursor: none;
   }
 </style>

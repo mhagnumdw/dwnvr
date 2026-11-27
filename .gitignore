@@ -1,28 +1,29 @@
-# Configuração do teste rápido, quando o docker-compose.yml lê ao lado do
-# clone: a do dwnvr (senhas em hash, fotos, segredo da sessão) e a do go2rtc
-# (URLs RTSP com usuário e senha). A pasta inteira, e não arquivo por arquivo,
-# para pegar também o que o dwnvr passar a gravar ali. Com a barra, para não
-# pegar o internal/config.
+# Quick-test configuration, when docker-compose.yml reads it next to the clone:
+# dwnvr's (hashed passwords, photos, session secret) and go2rtc's (RTSP URLs
+# with user and password). The whole folder, not file by file, so it also
+# catches whatever dwnvr starts writing there. With the leading slash, so it
+# does not catch internal/config.
 /config/
 
-# Configuração de build da máquina de quem desenvolve (ver local.mk.example)
+# Build configuration of the developer machine (see local.mk.example)
 local.mk
 
-# Personalizações do docker-compose.yml versionado ficam fora do versionamento.
+# Customizations of the versioned docker-compose.yml stay out of version
+# control.
 docker-compose.override.yml
 
-# Gravações, quando o docker-compose.yml grava ao lado do clone
+# Recordings, when docker-compose.yml writes next to the clone
 /storage/
 
 .env
 
-# Binários
+# Binaries
 /dwnvr
 /dwnvr-*
-# ... menos o detector de objetos, que é código e casa com o padrão acima
+# ... except the object detector, which is code and matches the pattern above
 !/dwnvr-detect/
-# O fp32 que o dwnvr-detect/model/export.py gera no caminho: ~100 MB, e
-# qualquer um o refaz a partir dos pesos públicos.
+# The fp32 that dwnvr-detect/model/export.py generates along the way: ~100 MB,
+# and anyone can regenerate it from the public weights.
 /dwnvr-detect/model/*_fp32.onnx
 
 # Frontend
@@ -33,5 +34,5 @@ web/node_modules/
 .claude/settings.local.json
 .claude/RESUME.md
 
-# Bytecode do Python, do dwnvr-detect.
+# Python bytecode, from dwnvr-detect.
 __pycache__/

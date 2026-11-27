@@ -11,8 +11,8 @@ import type { HealthState } from './state.svelte.ts';
 export type NoticeLevel = 'bad' | 'warn';
 
 export interface Notice {
-  nivel: NoticeLevel;
-  texto: string;
+  level: NoticeLevel;
+  text: string;
 }
 
 // How often the header rereads health for the bell, outside the screens that
@@ -92,8 +92,8 @@ export function noticesOf(health: HealthState): Notice[] {
   if (disk?.belowMin) {
     const whenDisk = disk.belowMinSince ? ` ${since(disk.belowMinSince, now)}` : '';
     out.push({
-      nivel: 'bad',
-      texto: `Disco abaixo do mínimo livre (${mbToBytes(disk.minFreeMB)})${whenDisk}: restam ${bytes(disk.freeBytes)}. A retenção está apagando gravações antigas de todas as câmeras.`,
+      level: 'bad',
+      text: `Disco abaixo do mínimo livre (${mbToBytes(disk.minFreeMB)})${whenDisk}: restam ${bytes(disk.freeBytes)}. A retenção está apagando gravações antigas de todas as câmeras.`,
     });
   }
   // "Stalled" comes before "disconnected" because it is the question that
@@ -105,8 +105,8 @@ export function noticesOf(health: HealthState): Notice[] {
       ? since(c.lastSegmentAt, now)
       : 'e não gravou nada desde que o dwnvr subiu';
     out.push({
-      nivel: 'bad',
-      texto: `${c.name} NÃO ESTÁ GRAVANDO ${whenStopped}${c.lastError ? `: ${c.lastError}` : ''}`,
+      level: 'bad',
+      text: `${c.name} NÃO ESTÁ GRAVANDO ${whenStopped}${c.lastError ? `: ${c.lastError}` : ''}`,
     });
   }
   for (const c of health.cameras) {
@@ -114,8 +114,8 @@ export function noticesOf(health: HealthState): Notice[] {
     if (c.silent) continue; // already warned above, and with more information
     const whenDown = c.disconnectedAt ? ` ${since(c.disconnectedAt, now)}` : '';
     out.push({
-      nivel: 'bad',
-      texto: `${c.name} desconectada${whenDown}: ${c.lastError ?? 'motivo desconhecido'}`,
+      level: 'bad',
+      text: `${c.name} desconectada${whenDown}: ${c.lastError ?? 'motivo desconhecido'}`,
     });
   }
   // The two configuration notices also come from /api/health, and not from the
@@ -125,8 +125,8 @@ export function noticesOf(health: HealthState): Notice[] {
   for (const c of health.cameras) {
     if (c.transcoding) {
       out.push({
-        nivel: 'warn',
-        texto: `${c.name} usa uma fonte ffmpeg no go2rtc, ou seja, há transcodificação consumindo CPU.`,
+        level: 'warn',
+        text: `${c.name} usa uma fonte ffmpeg no go2rtc, ou seja, há transcodificação consumindo CPU.`,
       });
     }
   }
@@ -135,12 +135,12 @@ export function noticesOf(health: HealthState): Notice[] {
     // track to check.
     if (c.audio && c.audio !== 'none' && !c.hasAudio) {
       out.push({
-        nivel: 'warn',
-        texto: `${c.name} está configurada com áudio ${c.audio}, mas o stream não entrega trilha de áudio.`,
+        level: 'warn',
+        text: `${c.name} está configurada com áudio ${c.audio}, mas o stream não entrega trilha de áudio.`,
       });
     }
     if (c.reconnects > 10) {
-      out.push({ nivel: 'warn', texto: reconnections(c, health, now) });
+      out.push({ level: 'warn', text: reconnections(c, health, now) });
     }
   }
   // It comes from /api/health, reread every few seconds, and not from
@@ -148,8 +148,8 @@ export function noticesOf(health: HealthState): Notice[] {
   // going down with it open has to show up, and disappear when it comes back.
   if (health.go2rtc) {
     out.push({
-      nivel: 'bad',
-      texto: `go2rtc inacessível ${since(health.go2rtc.since, now)}: ${health.go2rtc.error}`,
+      level: 'bad',
+      text: `go2rtc inacessível ${since(health.go2rtc.since, now)}: ${health.go2rtc.error}`,
     });
   }
   // With the object detector down, recording and the motion marks continue
@@ -158,8 +158,8 @@ export function noticesOf(health: HealthState): Notice[] {
   if (health.detector?.outage) {
     const f = health.detector.outage;
     out.push({
-      nivel: 'bad',
-      texto: `Detector de objetos inacessível ${since(f.since, now)}: ${f.error}. As câmeras seguem gravando e marcando movimento, mas nenhuma marca de objeto é criada enquanto isso.`,
+      level: 'bad',
+      text: `Detector de objetos inacessível ${since(f.since, now)}: ${f.error}. As câmeras seguem gravando e marcando movimento, mas nenhuma marca de objeto é criada enquanto isso.`,
     });
   }
   // The smtp section rejected at boot turns email off until someone fixes
@@ -167,22 +167,22 @@ export function noticesOf(health: HealthState): Notice[] {
   // Yellow, because recording and detection continue normally.
   if (health.smtp) {
     out.push({
-      nivel: 'warn',
-      texto: `E-mail desligado: ${health.smtp.error}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
+      level: 'warn',
+      text: `E-mail desligado: ${health.smtp.error}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
     });
   }
   // The users.json edited by hand. Unreadable is red: only the owner gets
   // in. An entry that isn't valid is yellow, one line per problem.
   if (health.users?.error) {
     out.push({
-      nivel: 'bad',
-      texto: `Cadastro de usuários ilegível: ${health.users.error}. Só o dono do dwnvr.yaml entra até o arquivo ser corrigido e o dwnvr reiniciado.`,
+      level: 'bad',
+      text: `Cadastro de usuários ilegível: ${health.users.error}. Só o dono do dwnvr.yaml entra até o arquivo ser corrigido e o dwnvr reiniciado.`,
     });
   }
   for (const w of health.users?.warnings ?? []) {
     out.push({
-      nivel: 'warn',
-      texto: `Cadastro de usuários: ${w}. Corrija o users.json e reinicie o dwnvr.`,
+      level: 'warn',
+      text: `Cadastro de usuários: ${w}. Corrija o users.json e reinicie o dwnvr.`,
     });
   }
   // The alerts section of dwnvr.yaml: the address that was left out of the
@@ -190,8 +190,8 @@ export function noticesOf(health: HealthState): Notice[] {
   // the alert is still recorded in the detection.
   for (const w of health.alerts?.warnings ?? []) {
     out.push({
-      nivel: 'warn',
-      texto: `Alertas por e-mail: ${w}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
+      level: 'warn',
+      text: `Alertas por e-mail: ${w}. Corrija o dwnvr.yaml e reinicie o dwnvr.`,
     });
   }
   // The alert notifier failing: red, because nobody is being notified, and
@@ -199,8 +199,8 @@ export function noticesOf(health: HealthState): Notice[] {
   // delivery that works.
   for (const f of health.alerts?.failing ?? []) {
     out.push({
-      nivel: 'bad',
-      texto: `Alertas ${alertNotifier(f.name)} falhando ${since(f.since, now)}: ${f.error}. As detecções seguem gravadas, mas ninguém está sendo avisado.`,
+      level: 'bad',
+      text: `Alertas ${alertNotifier(f.name)} falhando ${since(f.since, now)}: ${f.error}. As detecções seguem gravadas, mas ninguém está sendo avisado.`,
     });
   }
   // The alerts that didn't go out through the notifiers, because of the ceiling
@@ -208,7 +208,7 @@ export function noticesOf(health: HealthState): Notice[] {
   // one hour after the last drop, and not on the next delivery: a drop is an
   // event, not a state.
   if (health.alerts?.dropped) {
-    out.push({ nivel: 'warn', texto: droppedAlerts(health.alerts.dropped, now) });
+    out.push({ level: 'warn', text: droppedAlerts(health.alerts.dropped, now) });
   }
   return out;
 }
@@ -238,9 +238,9 @@ function droppedAlerts(d: AlertsDropped, now: number) {
 // What the bell needs: how many, and the color of the worst. One red is enough
 // for the bell to turn red; with only yellows, it turns yellow and more
 // discreet.
-export function noticesSummary(notices: Notice[]): { total: number; nivel: NoticeLevel | null } {
+export function noticesSummary(notices: Notice[]): { total: number; level: NoticeLevel | null } {
   return {
     total: notices.length,
-    nivel: notices.some((a) => a.nivel === 'bad') ? 'bad' : notices.length ? 'warn' : null,
+    level: notices.some((a) => a.level === 'bad') ? 'bad' : notices.length ? 'warn' : null,
   };
 }

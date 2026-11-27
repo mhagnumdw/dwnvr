@@ -61,7 +61,7 @@ func TestSetMidFlightDoesNotRace(t *testing.T) {
 	m.queue = detect.NewQueue(detect.Detectors["none"](""), m.onInference, discardLogger())
 
 	on, off := true, false
-	cam := config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, SegmentSeconds: 30,
+	cam := config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, SegmentSeconds: 30,
 		StallSeconds: 5, QuotaMB: 1000, Detect: &on, DetectMethod: "periodic",
 		DetectSensitivity: 5}
 
@@ -125,7 +125,7 @@ func TestSetMidFlightDoesNotRace(t *testing.T) {
 // and the notice, and drawing an area or turning the alert on can't open a gap
 // in the recording.
 func TestAreaDoesNotRestartRecording(t *testing.T) {
-	cam := config.Camera{ID: "cam_teste", Audio: config.AudioNone, SegmentSeconds: 30, StallSeconds: 5}
+	cam := config.Camera{ID: "cam_test", Audio: config.AudioNone, SegmentSeconds: 30, StallSeconds: 5}
 	withArea := cam
 	withArea.Areas = []config.Area{{ID: "k3f9a2", Name: "Gate",
 		Points: []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}}
@@ -144,7 +144,7 @@ func withAlert(t *testing.T) *Manager {
 	m := NewManager(&config.Config{}, nil, st, discardLogger())
 	m.queue = detect.NewQueue(detect.Detectors["none"](""), m.onInference, discardLogger())
 	yes := true
-	cam := config.Camera{ID: "cam_teste", Name: "Front", Enabled: true, Detect: &yes,
+	cam := config.Camera{ID: "cam_test", Name: "Front", Enabled: true, Detect: &yes,
 		Areas: []config.Area{{ID: "esq", Name: "Gate",
 			Points: []area.Point{{0, 0}, {0.5, 0}, {0.5, 1}, {0, 1}}}},
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person},
@@ -165,7 +165,7 @@ func TestInferenceBecomesAlert(t *testing.T) {
 	m := withAlert(t)
 	now := time.Now().UnixMilli()
 	m.onInference(detect.Inference{
-		Clip: detect.Clip{Camera: "cam_teste", OnsetMs: now, FrameMs: now + 1400},
+		Clip: detect.Clip{Camera: "cam_test", OnsetMs: now, FrameMs: now + 1400},
 		Detections: []detect.Detection{
 			{Class: "person", Score: 0.87654, Box: [4]float64{0.25, 0.2, 0.35, 0.6}},
 			{Class: "person", Score: 0.55, Box: [4]float64{0.75, 0.2, 0.85, 0.6}},
@@ -177,7 +177,7 @@ func TestInferenceBecomesAlert(t *testing.T) {
 	if c == nil || c.Total() != 1 {
 		t.Fatalf("dispatcher %v, want one alert", c)
 	}
-	lines, err := m.store.Camera("cam_teste").DayObjects(time.UnixMilli(now).Format(store.DayLayout))
+	lines, err := m.store.Camera("cam_test").DayObjects(time.UnixMilli(now).Format(store.DayLayout))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestInferenceBecomesAlert(t *testing.T) {
 
 	// New place for tracking, but outside the area: marks, and doesn't alert.
 	m.onInference(detect.Inference{
-		Clip:       detect.Clip{Camera: "cam_teste", OnsetMs: now + 60000, FrameMs: now + 61000},
+		Clip:       detect.Clip{Camera: "cam_test", OnsetMs: now + 60000, FrameMs: now + 61000},
 		Detections: []detect.Detection{{Class: "person", Score: 0.9, Box: [4]float64{0.6, 0.6, 0.7, 0.95}}},
 	})
 	if c.Total() != 1 {
@@ -237,7 +237,7 @@ func TestTurningOffTheAlertKeepsTheHistory(t *testing.T) {
 	m := withAlert(t)
 	now := time.Now().UnixMilli()
 	m.onInference(detect.Inference{
-		Clip:       detect.Clip{Camera: "cam_teste", OnsetMs: now, FrameMs: now + 1400},
+		Clip:       detect.Clip{Camera: "cam_test", OnsetMs: now, FrameMs: now + 1400},
 		Detections: []detect.Detection{{Class: "person", Score: 0.87654, Box: [4]float64{0.25, 0.2, 0.35, 0.6}}},
 		Frame:      []byte("\xff\xd8test-jpeg\xff\xd9"),
 	})
@@ -249,8 +249,8 @@ func TestTurningOffTheAlertKeepsTheHistory(t *testing.T) {
 	cam := m.Cameras()[0]
 	cam.Alert = &config.CameraAlert{Families: cam.Alert.Families, Areas: cam.Alert.Areas}
 	m.Set(cam)
-	if m.rules["cam_teste"] != nil {
-		t.Errorf("rule %v: want no rule", m.rules["cam_teste"])
+	if m.rules["cam_test"] != nil {
+		t.Errorf("rule %v: want no rule", m.rules["cam_test"])
 	}
 	if after := m.Alerts(); after != before || before.Total() != 1 {
 		t.Errorf("dispatcher %p with %d, want the same %p with 1", after, before.Total(), before)

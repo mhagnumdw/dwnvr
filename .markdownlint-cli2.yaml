@@ -1,21 +1,21 @@
-# Regras do markdownlint-cli2, lidas pelo hook do prek (e por ele na CI) e
-# pela extensão markdownlint do VS Code.
+# markdownlint-cli2 rules, read by the prek hook (and by it in CI) and by the
+# VS Code markdownlint extension.
 
 config:
   default: true
-  # Nenhum espaço no fim da linha, nem para quebra forçada.
+  # No trailing spaces, not even for a forced line break.
   MD009:
     strict: true
-  # Tab proibido só fora de bloco de código: Go se indenta com tab.
+  # Tabs are forbidden only outside code blocks: Go is indented with tabs.
   MD010:
     code_blocks: false
-  # Sem limite de linha: tabela e link passam de qualquer limite.
+  # No line limit: tables and links go past any limit.
   MD013: false
-  # Título repetido só conflita entre irmãos.
+  # A repeated heading only conflicts between siblings.
   MD024:
     siblings_only: true
-  # HTML só o do bloco recolhível. O <b> é o negrito dentro do <summary>, onde
-  # o ** não funciona.
+  # HTML only for the collapsible block. The <b> is the bold inside <summary>,
+  # where ** does not work.
   MD033:
     allowed_elements:
       - details
@@ -27,5 +27,5 @@ globs:
 
 gitignore: true
 ignores:
-  # Escrito pela release (git-cliff), que deixa uma linha em branco no fim.
+  # Written by the release (git-cliff), which leaves a blank line at the end.
   - CHANGELOG.md

@@ -101,7 +101,7 @@
 
   {#if isOpen}
     <div class="popover" role="dialog" aria-label="intervalo de horário">
-      <div class="campos">
+      <div class="fields">
         <TimeField label="De" value={from} onchange={changeFrom} onenter={apply} focusNow />
         <TimeField label="Até" value={to} onchange={changeTo} onenter={apply} />
       </div>
@@ -140,7 +140,7 @@
     align-items: stretch;
     border: 1px solid var(--accent);
     border-radius: 8px;
-    background: var(--ativo-fundo);
+    background: var(--active-bg);
     overflow: hidden;
   }
   .interval-chip button {
@@ -184,7 +184,7 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
 
-  .campos {
+  .fields {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;

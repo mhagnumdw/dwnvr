@@ -92,7 +92,7 @@
   .camchip.on {
     color: var(--fg);
     border-color: var(--accent);
-    background: var(--ativo-fundo);
+    background: var(--active-bg);
   }
   .camchip.on::before {
     background: var(--ok);

@@ -1,13 +1,13 @@
-# Regras do yamllint, lidas pelo hook do prek (e por ele na CI).
+# yamllint rules, read by the prek hook (and by it in CI).
 
 extends: default
 
 rules:
-  # Sem o `---` no começo: nenhum YAML daqui tem mais de um documento.
+  # No `---` at the start: no YAML here has more than one document.
   document-start: disable
-  # Sem limite de linha: expressão do Actions, regex de sed e comando do
-  # ffmpeg não têm onde quebrar.
+  # No line limit: Actions expressions, sed regexes and ffmpeg commands have
+  # nowhere to break.
   line-length: disable
-  # O `on:` do GitHub Actions é chave, não booleano.
+  # The `on:` of GitHub Actions is a key, not a boolean.
   truthy:
     check-keys: false

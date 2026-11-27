@@ -10,7 +10,7 @@
   --dim: #8b949e;
   --accent: #2f81f7;
   /* The background of a toggled-on button: the Live segmented control and the camera chips. */
-  --ativo-fundo: #12233d;
+  --active-bg: #12233d;
   --ok: #3fb950;
   --warn: #d29922;
   --bad: #f85149;
@@ -170,7 +170,7 @@ a {
    (lib/fullscreen.svelte.ts). The !important mimics the browser's own
    `:fullscreen` rule: the component's scoped CSS is more specific and could not
    undo it. The z-index goes above the bottom navigation and the header. */
-[data-tela-cheia-simulada] {
+[data-simulated-fullscreen] {
   position: fixed !important;
   inset: 0 !important;
   z-index: 100;
@@ -179,7 +179,7 @@ a {
   margin: 0 !important;
 }
 /* And the page underneath doesn't scroll with a finger on top of it. */
-:root:has([data-tela-cheia-simulada]) {
+:root:has([data-simulated-fullscreen]) {
   overflow: hidden;
 }
 

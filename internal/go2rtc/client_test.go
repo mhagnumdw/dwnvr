@@ -34,13 +34,13 @@ const realResponse = `{
       "medias": ["video, recvonly, H265"]
     }]
   },
-  "cam_transcodificada": {
+  "cam_transcoded": {
     "producers": [{
       "url": "ffmpeg:cam_gama#audio=aac",
       "medias": ["video, recvonly, H265", "audio, recvonly, MPEG4-GENERIC/16000/1"]
     }]
   },
-  "cam_ociosa": {"producers": null, "consumers": null}
+  "cam_idle": {"producers": null, "consumers": null}
 }`
 
 func TestStreamsDecodesRealResponse(t *testing.T) {
@@ -81,13 +81,13 @@ func TestStreamsDecodesRealResponse(t *testing.T) {
 		t.Error("AudioCodecs should be empty without an audio track")
 	}
 
-	if !streams["cam_transcodificada"].Producers[0].Transcoding() {
+	if !streams["cam_transcoded"].Producers[0].Transcoding() {
 		t.Error("an ffmpeg: source should be flagged as transcoding")
 	}
 
 	// A camera without a connected producer must not break the listing: it's
 	// the normal state of a stream nobody has opened yet.
-	if len(streams["cam_ociosa"].Producers) != 0 {
+	if len(streams["cam_idle"].Producers) != 0 {
 		t.Error("an idle stream should have zero producers")
 	}
 }

@@ -74,7 +74,7 @@ jobs:
         run: pip install "prek==$(awk '$1 == "minimum_prek_version:" { gsub(/\047/, "", $2); print $2 }' .pre-commit-config.yaml)"
 
       # betterleaks only looks at what is staged, and here nothing is staged.
-      # interface-atualizada is the "is the UI up to date?" step of ci.yml,
+      # ui-up-to-date is the "is the UI up to date?" step of ci.yml,
       # which already runs it with the full `npm ci` and points to
       # docs/github.md on the Dependabot PR. With the token, zizmor turns on the
       # audits that query GitHub (action with a known vulnerability, impostor
@@ -83,11 +83,11 @@ jobs:
       - name: prek
         run: prek run --all-files --show-diff-on-failure --color=always
         env:
-          SKIP: betterleaks,interface-atualizada
+          SKIP: betterleaks,ui-up-to-date
           ZIZMOR_GITHUB_TOKEN: ${{ github.token }}
 
       # betterleaks on the whole history: a commit that did not go through the
       # hook does not get past here.
       - name: betterleaks on the history
         if: ${{ !cancelled() }}
-        run: prek run betterleaks-historico --stage manual --all-files --color=always
+        run: prek run betterleaks-history --stage manual --all-files --color=always

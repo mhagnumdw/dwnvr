@@ -20,11 +20,11 @@ export const DEFAULT_ROUTE = 'live';
 const FLOOR_MS = 1000;
 
 function parts(hash: string) {
-  const cru = hash.replace(/^#/, '');
-  const i = cru.indexOf('?');
+  const raw = hash.replace(/^#/, '');
+  const i = raw.indexOf('?');
   return i < 0
-    ? { id: cru || DEFAULT_ROUTE, query: '' }
-    : { id: cru.slice(0, i) || DEFAULT_ROUTE, query: cru.slice(i + 1) };
+    ? { id: raw || DEFAULT_ROUTE, query: '' }
+    : { id: raw.slice(0, i) || DEFAULT_ROUTE, query: raw.slice(i + 1) };
 }
 
 // Reading is done by URLSearchParams, which is what the platform already
@@ -54,7 +54,7 @@ export const routeState = $state({
 // scene says in words what the screen shows ("frente, 14/10 às 04:48:05"), for
 // the share text. Only the screens that show a scene fill it in; switching
 // screens clears it, so one screen's text does not come out in another's link.
-export const scene = $state({ texto: '' });
+export const scene = $state({ text: '' });
 
 // currentParams reads the query as of now. The screens call it once, on
 // initialization: the URL is the source of the FIRST read, and from then on the
@@ -157,7 +157,7 @@ addEventListener('hashchange', () => {
   clearTimeout(timer);
   timer = undefined;
   pending = null;
-  scene.texto = '';
+  scene.text = '';
 
   routeState.id = parts(location.hash).id;
   routeState.hash = location.hash;

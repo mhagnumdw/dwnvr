@@ -50,8 +50,8 @@ export function ddmm(ms: number) {
 // year only when it is not this year. Never "yesterday", which tomorrow is
 // already a lie.
 export function shortDay(ms: number, now = Date.now()) {
-  const ano = new Date(ms).getFullYear();
-  return ano === new Date(now).getFullYear() ? ddmm(ms) : `${ddmm(ms)}/${ano}`;
+  const year = new Date(ms).getFullYear();
+  return year === new Date(now).getFullYear() ? ddmm(ms) : `${ddmm(ms)}/${year}`;
 }
 
 // dateTime is the full instant, "10/10/2026 14:32", for what may have happened
@@ -174,9 +174,9 @@ export function recordedWithGap(retainedMs: number | undefined, recordedMs: numb
   return retainedMs - recordedMs > MIN_GAP_MS ? recordedMs : 0;
 }
 
-// dias turns the retention estimate into something understandable. "20 GB"
+// formatDays turns the retention estimate into something understandable. "20 GB"
 // tells nobody anything; "≈ 8 dias 5h" tells everything.
-export function dias(n: number | undefined) {
+export function formatDays(n: number | undefined) {
   // The estimate arrives from the server in fractional days, but it is read
   // right next to "retido", which comes out of duration() in days and hours.
   // Writing one as a fraction ("8,2 dias") and the other in hours ("8 dias 5h")

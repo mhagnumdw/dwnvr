@@ -35,7 +35,7 @@ matters because the target is a device where nobody wants to install a frontend
 toolchain.
 
 When you change something in `web/`, run `npm run build` **before** committing.
-Without it, prek's `interface-atualizada` hook refuses the commit.
+Without it, prek's `ui-up-to-date` hook refuses the commit.
 
 ## Structure
 

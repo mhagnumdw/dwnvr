@@ -411,7 +411,7 @@ func TestDropsTheLiveView(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	_, _ = io.WriteString(conn, handshake("/api/live/ws?src=cam_teste", cookieOf(t, s, "maria")))
+	_, _ = io.WriteString(conn, handshake("/api/live/ws?src=cam_test", cookieOf(t, s, "maria")))
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
 		t.Fatal(err)

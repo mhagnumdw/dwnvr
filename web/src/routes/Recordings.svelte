@@ -38,10 +38,10 @@
   type DayData = Pick<TimelineData, 'cam' | 'ranges' | 'segments' | 'gens'>;
 
   // What the export will request, or why it can't. The `never` lets the
-  // template read `?.erro` and `?.inicio` without knowing which of the two it
+  // template read `?.error` and `?.start` without knowing which of the two it
   // is.
   type ExportPlan =
-    { erro: string; start?: never; to?: never } | { start: number; to: number; erro?: never };
+    { error: string; start?: never; to?: never } | { start: number; to: number; error?: never };
 
   const player = new Player();
 
@@ -183,7 +183,7 @@
 
   function buttonNotice(text: string) {
     if (buttonLabel && getComputedStyle(buttonLabel).display !== 'none') return;
-    notify({ texto: text });
+    notify({ text: text });
   }
 
   function toggleThumbnails() {
@@ -325,7 +325,7 @@
   const touch = doubleTouch({
     jump: fastJump,
     middle: toggleFull,
-    simples: () => {
+    single: () => {
       if (inFullscreen && !pinnedControls) controls.singleTouch();
     },
   });
@@ -571,14 +571,14 @@
     // the segment before it, and for the 10 min one the server would reject
     // with 400 (maxExportSpan).
     const first = timeline.segments.find(([s, d]) => s + d > from);
-    if (!first || first[0] >= from + min * 60_000) return { erro: 'sem gravação nesse trecho' };
+    if (!first || first[0] >= from + min * 60_000) return { error: 'sem gravação nesse trecho' };
     const to = first[0] + min * 60_000;
 
     const sel = timeline.segments.filter(([s, d]) => s + d > first[0] && s < to);
     // An MP4 can only have one init, so the server rejects an interval that
     // changes generation (internal/api/recordings.go:327).
     if (sel.some(([, , gi]) => gi !== first[2]))
-      return { erro: 'o trecho atravessa uma troca de codec' };
+      return { error: 'o trecho atravessa uma troca de codec' };
 
     return { start: first[0], to };
   }
@@ -586,15 +586,15 @@
   // One plan per offered duration: the menu shows at once which ones can be
   // downloaded. Only with the menu open - closed, nobody looks, and the instant
   // changes several times per second.
-  const planos = $derived.by(() => {
+  const plans = $derived.by(() => {
     if (menu !== 'baixar') return [];
     const from = Math.round(player.currentMs || 0);
-    return DURATIONS.map((min) => ({ min, plano: planOf(min, from) }));
+    return DURATIONS.map((min) => ({ min, plan: planOf(min, from) }));
   });
   // Why the shortest duration is rejected and can't be done. The longer ones
   // reject for the same reason or for one only they have (the codec change
   // further ahead).
-  const fieldError = $derived(planos.find((p) => p.plano?.erro));
+  const fieldError = $derived(plans.find((p) => p.plan?.error));
 
   // In localStorage, not the URL: the export duration is a parameter of an
   // ACTION, not of what you're viewing - there's nothing to replay in a link.
@@ -637,7 +637,7 @@
     if (!mounted || !cam) return;
     const name = cameras.list.find((c) => c.id === cam)?.name ?? cam;
     const ms = player.currentMs;
-    scene.texto = ms
+    scene.text = ms
       ? `${name}, ${shortDay(ms)} às ${hhmmss(ms)}`
       : `${name}, ${shortDay(parseDay(day).getTime())}`;
   });
@@ -887,11 +887,11 @@
       }),
     ];
 
-    const ranges = current.ranges.map(([ini, end]): Span => [ini, end]);
-    for (const [ini, end] of tail.ranges) {
+    const ranges = current.ranges.map(([begin, end]): Span => [begin, end]);
+    for (const [begin, end] of tail.ranges) {
       const lastOne = ranges.at(-1);
-      if (lastOne && ini <= lastOne[1]) lastOne[1] = Math.max(lastOne[1], end);
-      else ranges.push([ini, end]);
+      if (lastOne && begin <= lastOne[1]) lastOne[1] = Math.max(lastOne[1], end);
+      else ranges.push([begin, end]);
     }
 
     return { ...current, ranges, segments, gens };
@@ -998,12 +998,12 @@
   // test is `>`, so it stays out; and the file name, which comes from the
   // requested `from` (internal/api/recordings.go:352), now matches the content.
   function exportClip(min: number) {
-    const plano = planOf(min, Math.round(player.currentMs || 0));
+    const plan = planOf(min, Math.round(player.currentMs || 0));
     menu = null;
-    if (!plano?.start) return;
+    if (!plan?.start) return;
     exportMin = min;
-    buttonNotice(`Baixando ${min} min de vídeo a partir de ${hhmmss(plano.start)}`);
-    location.href = mediaURL.export(cam, plano.start, plano.to);
+    buttonNotice(`Baixando ${min} min de vídeo a partir de ${hhmmss(plan.start)}`);
+    location.href = mediaURL.export(cam, plan.start, plan.to);
   }
 
   async function capture() {
@@ -1036,10 +1036,10 @@
   class="page"
   bind:this={page}
   style:height={pageHeight ? `${pageHeight}px` : null}
-  style:--alt-pagina="{pageHeight}px"
-  style:--larg-pagina={pageWidth ? `${pageWidth}px` : null}
-  style:--alt-linha="{rowHeight}px"
-  style:--alt-legenda="{captionHeight}px"
+  style:--page-height="{pageHeight}px"
+  style:--page-width={pageWidth ? `${pageWidth}px` : null}
+  style:--row-height="{rowHeight}px"
+  style:--caption-height="{captionHeight}px"
 >
   {#if !cameras.list.length && cameras.error}
     <!-- An empty list because the load failed is not "nenhuma câmera". -->
@@ -1057,7 +1057,7 @@
           disabled={cameras.list.length < 2}
           aria-label="câmera anterior"
         >
-          <Icon name="chevronEsq" size={18} />
+          <Icon name="chevronLeft" size={18} />
         </button>
         <!-- The blur gives the arrows back to the skips, as in the speed select. -->
         <select
@@ -1095,7 +1095,7 @@
       class="full"
       class:fs={inFullscreen}
       class:pinned={pinnedControls}
-      class:escondidos={hiddenControls}
+      class:hidden={hiddenControls}
       bind:this={full}
       {@attach (node: HTMLElement) => () => {
         // A de verdade o navegador desfaz sozinho quando o elemento sai da
@@ -1116,8 +1116,8 @@
         class:animating
         class:switching
         class:shift={animating || drag !== 0}
-        style:--troca="{SWITCH_MS}ms"
-        style:--arrasto="{drag}px"
+        style:--swap="{SWITCH_MS}ms"
+        style:--drag="{drag}px"
         bind:this={stage}
         onpointerdown={gestureStart}
         onpointermove={gestureMove}
@@ -1230,7 +1230,7 @@
                 disabled={cameras.list.length < 2}
                 aria-label="câmera anterior"
               >
-                <Icon name="chevronEsq" size={18} />
+                <Icon name="chevronLeft" size={18} />
               </button>
               <!-- The position stays outside the name: the "…" truncates only the name. -->
               <span class="cam-name">{cameras.list[camPosition]?.name}</span>
@@ -1304,7 +1304,7 @@
               </button>
               {#if menu === 'baixar'}
                 <div class="pop above" role="menu">
-                  <div class="tit">Baixar</div>
+                  <div class="title">Baixar</div>
                   <button
                     class="image"
                     role="menuitem"
@@ -1313,17 +1313,17 @@
                   >
                     <Icon name="image" size={18} /> Imagem deste instante
                   </button>
-                  <div class="tit">Vídeo a partir deste instante</div>
+                  <div class="title">Vídeo a partir deste instante</div>
                   <div class="durations">
-                    {#each planos as { min, plano } (min)}
+                    {#each plans as { min, plan } (min)}
                       <button
                         role="menuitem"
                         class:last={min === exportMin}
                         onclick={() => {
                           exportClip(min);
                         }}
-                        disabled={!plano?.start}
-                        title={plano?.erro}
+                        disabled={!plan?.start}
+                        title={plan?.error}
                       >
                         {min} min
                       </button>
@@ -1331,11 +1331,11 @@
                   </div>
                   <!-- The disabled button says it can't be done; alone, it
                        wouldn't say why. -->
-                  {#if fieldError?.plano?.erro}
+                  {#if fieldError?.plan?.error}
                     <p class="field-error small">
                       {fieldError.min === DURATIONS[0]
                         ? ''
-                        : `de ${fieldError.min} min em diante: `}{fieldError.plano.erro}
+                        : `de ${fieldError.min} min em diante: `}{fieldError.plan.error}
                     </p>
                   {/if}
                 </div>
@@ -1364,7 +1364,7 @@
           </div>
         {/if}
 
-        <div class="row" bind:offsetHeight={rowHeight}>
+        <div class="timeline-wrap" bind:offsetHeight={rowHeight}>
           <Timeline
             ranges={timeline.ranges}
             {events}
@@ -1396,8 +1396,8 @@
         <!-- All three, and not just the day's: the legend explains the color
            before it appears, and doesn't change size with every new mark. -->
         {#if objects.length}
-          {#each Object.values(FAMILIES) as f (f.nome)}
-            <span><i style:background={f.color}></i> {f.nome}</span>
+          {#each Object.values(FAMILIES) as f (f.name)}
+            <span><i style:background={f.color}></i> {f.name}</span>
           {/each}
         {/if}
         <button
@@ -1428,7 +1428,7 @@
     gap: 10px;
     padding: 10px;
     /* The video's width at the height that's left (measured in `measureWidth`). */
-    max-width: var(--larg-pagina, none);
+    max-width: var(--page-width, none);
     margin: 0 auto;
   }
 
@@ -1466,11 +1466,11 @@
      nothing. */
   .stage.shift > video,
   .stage.shift > :global(canvas) {
-    transform: translateX(var(--arrasto));
+    transform: translateX(var(--drag));
   }
   .stage.animating > video,
   .stage.animating > :global(canvas) {
-    transition: transform var(--troca) ease-out;
+    transition: transform var(--swap) ease-out;
   }
   .stage.switching > video,
   .stage.switching > :global(canvas) {
@@ -1566,7 +1566,7 @@
   .ib.on {
     color: var(--fg);
     border-color: var(--accent);
-    background: var(--ativo-fundo);
+    background: var(--active-bg);
   }
   .label {
     display: none;
@@ -1602,7 +1602,7 @@
     top: auto;
     bottom: calc(100% + 6px);
   }
-  .pop .tit {
+  .pop .title {
     padding: 6px 10px 2px;
     font-size: 12px;
     color: var(--dim);
@@ -1651,7 +1651,7 @@
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
       grid-template-rows: auto auto 1fr auto auto;
-      grid-template-areas: 'stage bar' 'stage ctl' 'stage mini' 'linha linha' 'legenda legenda';
+      grid-template-areas: 'stage bar' 'stage ctl' 'stage mini' 'timeline timeline' 'caption caption';
       gap: 8px 10px;
       /* Here the video goes to the side: the width computation doesn't apply. */
       max-width: none;
@@ -1663,7 +1663,9 @@
     .full:not(.fs) .stage {
       grid-area: stage;
       width: auto;
-      height: calc(var(--alt-pagina) - 20px - var(--alt-linha) - 8px - var(--alt-legenda) - 8px);
+      height: calc(
+        var(--page-height) - 20px - var(--row-height) - 8px - var(--caption-height) - 8px
+      );
       max-width: calc(100vw - 280px);
       min-height: 0;
     }
@@ -1679,13 +1681,13 @@
       grid-area: mini;
       align-self: start;
     }
-    .row {
-      grid-area: linha;
+    .timeline-wrap {
+      grid-area: timeline;
     }
     /* A single row, scrolling sideways: wrapped into three, it took more than
        half the height from the video. */
     .footer {
-      grid-area: legenda;
+      grid-area: caption;
     }
     .legend {
       flex-wrap: nowrap;
@@ -1751,12 +1753,12 @@
       opacity 0.25s,
       transform 0.25s;
   }
-  .full.escondidos .dock {
+  .full.hidden .dock {
     opacity: 0;
     transform: translateY(12px);
     pointer-events: none;
   }
-  .full.escondidos {
+  .full.hidden {
     cursor: none;
   }
 

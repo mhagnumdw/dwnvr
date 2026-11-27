@@ -44,7 +44,7 @@
   class:show-only={!onclick}
   role={onclick ? undefined : 'img'}
   aria-pressed={onclick ? on : undefined}
-  aria-label="{area.name}, regra {rule.nome}"
+  aria-label="{area.name}, regra {rule.name}"
   data-toque-longo
   {onclick}
 >
@@ -77,7 +77,7 @@
   .tile.on {
     color: var(--fg);
     border-color: var(--accent);
-    background: var(--ativo-fundo);
+    background: var(--active-bg);
   }
   /* The display-only one: the button's frame, without being one, and nothing dimmed. */
   .show-only {

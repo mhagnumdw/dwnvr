@@ -3,14 +3,14 @@
 //
 // Safari on the iPhone only puts the <video> in fullscreen, and with its native
 // player. There, and wherever the browser refuses, the fullscreen is SIMULATED:
-// the element gets the `data-tela-cheia-simulada` attribute and covers the
+// the element gets the `data-simulated-fullscreen` attribute and covers the
 // window through CSS (rule in app.css). The browser bar stays visible; the rest
 // of the page doesn't.
 //
 // One element at a time, as in the browser API: that's why the state belongs to
 // the module, and users compare `fullscreen.el` with their own element.
 
-const ATTRIBUTE = 'data-tela-cheia-simulada';
+const ATTRIBUTE = 'data-simulated-fullscreen';
 
 export const fullscreen = $state<{ el: HTMLElement | null; simulated: boolean }>({
   el: null,

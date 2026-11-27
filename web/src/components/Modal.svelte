@@ -27,7 +27,7 @@
   // `width` is the ceiling on desktop: the form reads well at 460px, and a
   // detection's sheet shows a camera frame, which asks for more. A number is in
   // px; a string goes in as is, for whoever needs a calculation - the detection
-  // sheet ties the width to the free height (`--altura-max`), because its frame
+  // sheet ties the width to the free height (`--max-height`), because its frame
   // is 16:9 and in a short window it is the width that has to give way.
   //
   // `scrollReserve` always keeps the scrollbar's space reserved, on both sides
@@ -89,7 +89,7 @@
     if (e.target === e.currentTarget) onclose?.();
   }}
 >
-  <div class="card sheet" class:scroll-reserve={scrollReserve} style:--largura={cssWidth}>
+  <div class="card sheet" class:scroll-reserve={scrollReserve} style:--width={cssWidth}>
     {@render children?.()}
   </div>
 </div>
@@ -99,7 +99,7 @@
     /* How far the sheet can grow. Lives here, not loose in `max-height`,
        because whoever computes its own width from the free height needs the
        same number - that is the case of the detection sheet. */
-    --altura-max: 92dvh;
+    --max-height: 92dvh;
 
     position: fixed;
     inset: 0;
@@ -114,7 +114,7 @@
     display: grid;
     gap: 14px;
     width: 100%;
-    max-height: var(--altura-max);
+    max-height: var(--max-height);
     /* Past the ceiling, the grid squeezes the rows to fit. A child that draws
        itself doesn't shrink along and ends up painting over what comes after -
        that is what happened with the detection's 16:9 stage, which has
@@ -127,7 +127,7 @@
   }
 
   .variable-height .sheet {
-    height: var(--altura-max);
+    height: var(--max-height);
   }
 
   .centered {
@@ -150,7 +150,7 @@
       padding: 20px;
     }
     .sheet {
-      max-width: var(--largura);
+      max-width: var(--width);
       border-radius: var(--radius);
     }
     .overlay.variable-height {

@@ -21,7 +21,7 @@
   import { currentParams, write } from '../lib/route.svelte.ts';
   import {
     hhmm,
-    dias,
+    formatDays,
     kbps,
     bytes,
     mbToBytes,
@@ -93,15 +93,15 @@
   // Turning marking off deletes nothing.
   const withDetection = $derived(!!editing?.detect && !!cameras.detector);
   const TABS = $derived([
-    { id: 'gravacao', label: 'Gravação' },
-    { id: 'deteccao', label: 'Detecção' },
+    { id: 'recording', label: 'Gravação' },
+    { id: 'detection', label: 'Detecção' },
     {
       id: 'areas',
       label: editing?.areas?.length ? `Áreas (${editing.areas.length})` : 'Áreas',
     },
-    { id: 'alerta', label: 'Alerta' },
+    { id: 'alert', label: 'Alerta' },
   ]);
-  let tab = $state('gravacao');
+  let tab = $state('recording');
   // When registering, the footer walks through the tabs one by one and "salvar"
   // only shows on the last: whoever registers goes through everything. When
   // editing you go straight to one thing, and the tabs are enough.
@@ -119,14 +119,14 @@
     const target =
       step > 0
         ? document
-            .getElementById(`cam-painel-${tab}`)
+            .getElementById(`cam-panel-${tab}`)
             ?.querySelector<HTMLElement>('input, select, textarea, button')
-        : document.getElementById(`cam-aba-${tab}`);
+        : document.getElementById(`cam-tab-${tab}`);
     target?.focus();
   }
 
   const newOnes = $derived(cameras.streams.filter((s) => !s.registered));
-  const bounds = $derived(cameras.faixas);
+  const bounds = $derived(cameras.ranges);
 
   // go2rtc restart: it only reads go2rtc.yaml at startup.
   let confirmingRestart = $state(false);
@@ -217,13 +217,13 @@
       // All three come from the server defaults, where detection starts OFF:
       // whoever only records pays nothing for it. The literal only covers a
       // response without "padrao".
-      detect: cameras.padrao?.detect ?? false,
-      detectMethod: cameras.padrao?.detectMethod ?? 'kleinberg-p',
-      detectSensitivity: cameras.padrao?.detectSensitivity ?? 5,
+      detect: cameras.defaults?.detect ?? false,
+      detectMethod: cameras.defaults?.detectMethod ?? 'kleinberg-p',
+      detectSensitivity: cameras.defaults?.detectSensitivity ?? 5,
       _new: true,
       ...audioKnown(s),
     };
-    tab = 'gravacao';
+    tab = 'recording';
     formError = '';
     openAlert();
     void probeAudio(streamName);
@@ -231,7 +231,7 @@
 
   // `initialTab`: the card's areas or alert block opens the form directly on
   // its tab.
-  function edit(cam: RegisteredCamera, initialTab = 'gravacao') {
+  function edit(cam: RegisteredCamera, initialTab = 'recording') {
     const s = cameras.streams.find((x) => x.name === cam.id);
     editing = { ...cam, _new: false, ...audioKnown(s) };
     tab = initialTab;
@@ -304,7 +304,7 @@
   async function invalidField(e: Event) {
     const field = e.target as HTMLInputElement;
     const panel = field.closest<HTMLElement>('[role="tabpanel"]');
-    const owner = panel?.dataset['aba'];
+    const owner = panel?.dataset['tab'];
     if (!owner || owner === tab) return;
     tab = owner;
     await tick();
@@ -396,7 +396,7 @@
 
   $effect(() => {
     const cam = editing?.id;
-    const withThumbnails = tab === 'areas' || (tab === 'alerta' && !!editing?.areas?.length);
+    const withThumbnails = tab === 'areas' || (tab === 'alert' && !!editing?.areas?.length);
     if (!withThumbnails || !withDetection || !cam) return;
     const newItem = !!editing?._new;
     // The frame is read and the fetch starts untracked: a fetch that failed
@@ -485,7 +485,7 @@
       editing.alert = {
         ...al,
         areas: remain,
-        enabled: al.enabled && (alertWhere === 'tudo' || remain.length > 0),
+        enabled: al.enabled && (alertWhere === 'all' || remain.length > 0),
       };
     }
   }
@@ -503,7 +503,7 @@
 
   // Where the alert applies, as the tab shows it (see AlertWhere): "só nas
   // áreas marcadas" with none marked, and saving rejects.
-  let alertWhere = $state<AlertWhere>('tudo');
+  let alertWhere = $state<AlertWhere>('all');
   let alertError = $state('');
   // The schedules as the tab edits them, in minutes. With the box unchecked,
   // saving deletes `schedules`: empty means any time.
@@ -511,7 +511,7 @@
   let alertSchedules = $state<Schedule[]>([]);
 
   function openAlert() {
-    alertWhere = editing?.alert?.areas?.length ? 'areas' : 'tudo';
+    alertWhere = editing?.alert?.areas?.length ? 'areas' : 'all';
     alertSchedules = fromServer(editing?.alert?.schedules);
     limitSchedules = alertSchedules.length > 0;
     alertError = '';
@@ -556,14 +556,14 @@
     const missing = missingInAlert();
     if (missing) {
       alertError = missing;
-      tab = 'alerta';
+      tab = 'alert';
       return;
     }
     saving = true;
     try {
       const { _new, _hasAudio, _audioCodecs, _probing, _probeError, ...cam } = editing;
       // On the whole image, the areas marked before no longer apply.
-      if (cam.alert && alertWhere === 'tudo') cam.alert = { ...cam.alert, areas: [] };
+      if (cam.alert && alertWhere === 'all') cam.alert = { ...cam.alert, areas: [] };
       if (cam.alert)
         cam.alert = {
           ...cam.alert,
@@ -750,7 +750,7 @@
             </span>
           {/if}
           {#if st?.retainDays}
-            <span class="chip retain" title={HELP_FIT}>cabem ≈ {dias(st.retainDays)}</span>
+            <span class="chip retain" title={HELP_FIT}>cabem ≈ {formatDays(st.retainDays)}</span>
           {/if}
         </div>
 
@@ -787,11 +787,11 @@
           {/if}
           {#if cam.alert}
             {@const al = cam.alert}
-            <button type="button" class="ghost block" onclick={() => edit(cam, 'alerta')}>
+            <button type="button" class="ghost block" onclick={() => edit(cam, 'alert')}>
               {@render blockTitle('bell', 'Alerta')}
               {#if al.enabled}
                 <span class="alert-rows">
-                  <span class="row">
+                  <span class="alert-row">
                     {#each byPriority(al.families ?? []) as f (f)}
                       {@const ic = familyIcon(f)}
                       <span class="family">
@@ -801,15 +801,15 @@
                             width="14"
                             height="14"
                           />{/if}
-                        {family(f).nome}
+                        {family(f).name}
                       </span>
                     {/each}
                   </span>
-                  <span class="row">
+                  <span class="alert-row">
                     <Icon name="area" size={16} />
                     {alertWhereOnCard(cam)}
                   </span>
-                  <span class="row">
+                  <span class="alert-row">
                     <Icon name="clock" size={16} />
                     {alertWhenOnCard(al.schedules)}
                   </span>
@@ -898,13 +898,13 @@
         {/each}
       </div>
     {:else if cameras.error}
-      <p class="muted small empty">Não dá para listar os streams sem resposta do dwnvr.</p>
+      <p class="muted small streams-empty">Não dá para listar os streams sem resposta do dwnvr.</p>
     {:else if cameras.go2rtcError}
-      <p class="muted small empty">
+      <p class="muted small streams-empty">
         Não dá para listar os streams enquanto o go2rtc não responder.
       </p>
     {:else}
-      <p class="muted small empty">
+      <p class="muted small streams-empty">
         Nenhum stream novo - o dwnvr já grava todos os que o go2rtc serve.
       </p>
     {/if}
@@ -1004,7 +1004,7 @@
         para
         {toUse}.
       </p>
-      <button type="button" class="ghost small" onclick={() => (tab = 'deteccao')}>
+      <button type="button" class="ghost small" onclick={() => (tab = 'detection')}>
         ir para a aba Detecção
       </button>
     {/if}
@@ -1044,10 +1044,10 @@
         <div
           class="fields"
           role="tabpanel"
-          id="cam-painel-gravacao"
-          aria-labelledby="cam-aba-gravacao"
-          data-aba="gravacao"
-          inert={tab !== 'gravacao'}
+          id="cam-panel-recording"
+          aria-labelledby="cam-tab-recording"
+          data-tab="recording"
+          inert={tab !== 'recording'}
         >
           <label>
             Nome
@@ -1108,7 +1108,7 @@
             <small class="muted">
               = {mbToBytes(editing.quotaMB)} ·
               {#if estimateDays(editing, editing.quotaMB)}
-                ≈ {dias(estimateDays(editing, editing.quotaMB))} no consumo médio medido
+                ≈ {formatDays(estimateDays(editing, editing.quotaMB))} no consumo médio medido
               {:else}
                 a estimativa aparece após a primeira medição de taxa
               {/if}
@@ -1131,10 +1131,10 @@
         <div
           class="fields"
           role="tabpanel"
-          id="cam-painel-deteccao"
-          aria-labelledby="cam-aba-deteccao"
-          data-aba="deteccao"
-          inert={tab !== 'deteccao'}
+          id="cam-panel-detection"
+          aria-labelledby="cam-tab-detection"
+          data-tab="detection"
+          inert={tab !== 'detection'}
         >
           <label class="check">
             <input type="checkbox" bind:checked={editing.detect} />
@@ -1175,9 +1175,9 @@
         <div
           class="fields"
           role="tabpanel"
-          id="cam-painel-areas"
-          aria-labelledby="cam-aba-areas"
-          data-aba="areas"
+          id="cam-panel-areas"
+          aria-labelledby="cam-tab-areas"
+          data-tab="areas"
           inert={tab !== 'areas'}
         >
           {#if !withDetection}
@@ -1202,7 +1202,7 @@
             {/if}
             {#if areas.length}
               <div class="areas">
-                {#each areas as a, i (a.id ?? `nova-${i}`)}
+                {#each areas as a, i (a.id ?? `new-${i}`)}
                   <div class="area-item">
                     <AreaLabel cam={editing.id} area={a} width={96} bold background={cameraFrame} />
                     <button
@@ -1225,7 +1225,7 @@
                 onclick={() => openArea(null)}
                 disabled={!frame?.url || areas.length >= MAX_AREAS}
               >
-                <Icon name="mais" size={16} stroke={2.4} />nova área
+                <Icon name="plus" size={16} stroke={2.4} />nova área
               </button>
               {#if areas.length >= MAX_AREAS}
                 <small class="muted">Até {MAX_AREAS} áreas por câmera.</small>
@@ -1237,10 +1237,10 @@
         <div
           class="fields"
           role="tabpanel"
-          id="cam-painel-alerta"
-          aria-labelledby="cam-aba-alerta"
-          data-aba="alerta"
-          inert={tab !== 'alerta'}
+          id="cam-panel-alert"
+          aria-labelledby="cam-tab-alert"
+          data-tab="alert"
+          inert={tab !== 'alert'}
         >
           {#if !withDetection}
             {@render noDetection(
@@ -1272,7 +1272,7 @@
         {#if editing._new}
           {#if tabIndex > 0}
             <button type="button" class="ghost step" onclick={() => void goTo(-1)}>
-              <Icon name="chevronEsq" size={16} stroke={2.4} />voltar
+              <Icon name="chevronLeft" size={16} stroke={2.4} />voltar
             </button>
           {/if}
         {:else}
@@ -1311,7 +1311,7 @@
       camera={editing.name}
       title={current ? 'Editar área' : 'Nova área'}
       applyLabel={current ? 'salvar' : 'criar área'}
-      background={frame?.url ? { tipo: 'imagem', url: frame.url } : null}
+      background={frame?.url ? { kind: 'image', url: frame.url } : null}
       error={frame?.error ?? ''}
       initial={current ? { points: current.points, rule: current.rule ?? DEFAULT_RULE } : null}
       name={current?.name ?? ''}
@@ -1513,13 +1513,13 @@
     gap: 4px;
     font-size: 14px;
   }
-  .alert-rows .row {
+  .alert-rows .alert-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
-  .alert-rows .row > :global(svg) {
+  .alert-rows .alert-row > :global(svg) {
     color: var(--dim);
   }
   .family {
@@ -1630,7 +1630,7 @@
     margin: 8px 0 0;
     color: var(--warn);
   }
-  .help .empty {
+  .help .streams-empty {
     margin: 0;
   }
   .help .explain {

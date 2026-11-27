@@ -1,7 +1,20 @@
-# Commits que só reformatam código, sem mudar o que ele faz. O blame do GitHub
-# lê este arquivo sozinho e pula esses commits, mostrando quem escreveu a linha
-# de verdade. No clone, uma vez:
+# Commits that only reformat or rename code, without changing what it does.
+# GitHub's blame reads this file on its own and skips these commits, pointing
+# at whoever really wrote the line. In a clone, once:
 # git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Only the conversion steps that renamed and translated without touching
+# behavior are here. The contract changes (step 6) and the rewritten docs
+# (steps 2 and 7) are real changes, and blame should point at them.
 
-# style(web): código da interface formatado pelo Prettier
+# style(web): UI code formatted by Prettier
 c277b3e1cac172fab2eb171ea30206d287fb2cae
+
+# refactor: Go code in en-US (conversion step 3) (#86)
+dfd248626d28002569b01d26abe99ed47c9079b6
+
+# refactor(web): interface in en-US (conversion step 4) (#88)
+404849bdd95d5a3e1cb0c493e8d073aaeb37794d
+
+# refactor(detect): dwnvr-detect in en-US (conversion step 5) (#89)
+28cd2bad45937d5de9306e94a8fa705bc93aca89

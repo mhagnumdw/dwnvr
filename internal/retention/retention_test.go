@@ -267,7 +267,7 @@ func TestTightDiskDoesNotDeleteOrphansButWarns(t *testing.T) {
 	m, st := newManager(t, 5, &cams)
 	var log bytes.Buffer
 	m.log = slog.New(slog.NewTextHandler(&log, nil))
-	record(t, st, "cam_velha", daysAgo(5), 3, mb)
+	record(t, st, "cam_old", daysAgo(5), 3, mb)
 	for _, d := range []int{1, 0} {
 		record(t, st, "cam_a", daysAgo(d), 1, mb)
 	}
@@ -277,7 +277,7 @@ func TestTightDiskDoesNotDeleteOrphansButWarns(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkDays(t, st, "cam_a")
-	checkDays(t, st, "cam_velha", dayOf(5))
+	checkDays(t, st, "cam_old", dayOf(5))
 
 	out := log.String()
 	if got := strings.Count(out, "orphans_mb=3"); got != 3 {

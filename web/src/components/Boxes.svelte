@@ -19,7 +19,7 @@
   type Mark = ObjectDetectorMark & { frameMs?: number };
 
   interface Props {
-    video: HTMLVideoElement; // o <video> do palco
+    video: HTMLVideoElement; // the <video> of the stage
     objects?: Mark[]; // the day's marks, as /api/rec/events delivers them
     currentMs?: number;
     playing?: boolean;

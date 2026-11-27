@@ -61,10 +61,10 @@ function machine(m: Server['machine']) {
       alert: (m.load[0] ?? 0) > m.cores,
     });
   }
-  const sensores = m.sensors ?? [];
-  for (const s of sensores) {
+  const sensors = m.sensors ?? [];
+  for (const s of sensors) {
     items.push({
-      label: sensores.length > 1 ? `temperatura (${s.name})` : 'temperatura',
+      label: sensors.length > 1 ? `temperatura (${s.name})` : 'temperatura',
       value: `${num(s.celsius, 1)} °C`,
       alert: s.celsius >= HIGH_TEMPERATURE,
     });
@@ -92,10 +92,10 @@ function processInfo(
     // restarted from zero.
     const a =
       previous?.cpuMs != null && p.aliveMs > previous.aliveMs && p.cpuMs >= previous.cpuMs
-        ? { cpuMs: previous.cpuMs, vivoMs: previous.aliveMs }
+        ? { cpuMs: previous.cpuMs, aliveMs: previous.aliveMs }
         : null;
-    const used = a ? (p.cpuMs - a.cpuMs) / (p.aliveMs - a.vivoMs) : p.cpuMs / p.aliveMs;
-    const when = a ? `últimos ${duration(p.aliveMs - a.vivoMs)}` : 'média desde que subiu';
+    const used = a ? (p.cpuMs - a.cpuMs) / (p.aliveMs - a.aliveMs) : p.cpuMs / p.aliveMs;
+    const when = a ? `últimos ${duration(p.aliveMs - a.aliveMs)}` : 'média desde que subiu';
     // As a fraction of the whole machine, and not of one core, to compare
     // directly with the load and the pressure beside it.
     items.push({
@@ -311,10 +311,10 @@ export function groups(info: Server, previous: Server | null): CardGroup[] {
 // timezone, and not in the middle of one.
 export function collectedAt(c: Server['collectedAt']) {
   if (!c) return '';
-  const lido = Date.parse(c.at);
-  if (isNaN(lido)) return '';
+  const readAt = Date.parse(c.at);
+  if (isNaN(readAt)) return '';
   const wholeNumber = (s: string) => s.replaceAll(' ', ' ');
-  return `${wholeNumber(`Coletado em ${timezoneClock(lido, c.offsetSeconds)}`)} ${wholeNumber(c.zone ?? c.abbreviation)}`;
+  return `${wholeNumber(`Coletado em ${timezoneClock(readAt, c.offsetSeconds)}`)} ${wholeNumber(c.zone ?? c.abbreviation)}`;
 }
 
 // logLine formats like docker logs would show, with the reader's local time.

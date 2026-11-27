@@ -32,7 +32,7 @@ COPY --from=web /src/internal/api/dist ./internal/api/dist
 # .git/ - in here no git command would work. Declared only now, after the
 # COPYs, so changing version does not invalidate the dependency layers.
 ARG VERSION=dev
-ARG COMMIT=desconhecido
+ARG COMMIT=unknown
 ARG DATE=
 ARG BUILDPKG=github.com/mhagnumdw/dwnvr/internal/buildinfo
 

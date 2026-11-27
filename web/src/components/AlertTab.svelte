@@ -37,7 +37,7 @@
 
   let {
     alert = $bindable(),
-    where = $bindable('tudo'),
+    where = $bindable('all'),
     limitSchedules = $bindable(false),
     schedules = $bindable([]),
     areas,
@@ -120,7 +120,7 @@
         onclick={() => toggleFamily(f)}
       >
         <img src={iconURL(f, 14, FAMILIES[f].color)} alt="" width="14" height="14" />
-        {FAMILIES[f].nome}
+        {FAMILIES[f].name}
       </button>
     {/each}
   </div>
@@ -130,8 +130,8 @@
       <input
         type="radio"
         name="onde-do-alerta"
-        checked={where === 'tudo'}
-        onchange={() => chooseWhere('tudo')}
+        checked={where === 'all'}
+        onchange={() => chooseWhere('all')}
       />
       em qualquer lugar da imagem
     </label>
@@ -149,7 +149,7 @@
       <small class="muted">Desenhe as áreas na aba Áreas para escolher onde o alerta vale.</small>
     {:else if where === 'areas'}
       <div class="tiles" role="group" aria-label="áreas do alerta">
-        {#each areas as a, i (a.id ?? `nova-${i}`)}
+        {#each areas as a, i (a.id ?? `new-${i}`)}
           {@const on = !!a.id && checkedList.includes(a.id)}
           <AreaTile
             {cam}

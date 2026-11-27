@@ -18,8 +18,8 @@
 const HOLD_MS = 500;
 const TOLERANCE_PX = 10;
 // How long the hint stays visible after the finger leaves.
-const FICA_MS = 1500;
-const VAO_PX = 10;
+const STAY_MS = 1500;
+const GAP_PX = 10;
 
 const TARGET = 'button, a[href]';
 const LISTENER = '[data-toque-longo]';
@@ -67,9 +67,9 @@ export function installTouchHint() {
     const r = el.getBoundingClientRect();
     const d = hint.getBoundingClientRect();
     const x = Math.min(innerWidth - d.width - 8, Math.max(8, r.left + r.width / 2 - d.width / 2));
-    const above = r.top - d.height - VAO_PX;
+    const above = r.top - d.height - GAP_PX;
     hint.style.left = `${x}px`;
-    hint.style.top = `${above >= 8 ? above : r.bottom + VAO_PX}px`;
+    hint.style.top = `${above >= 8 ? above : r.bottom + GAP_PX}px`;
   }
 
   function abort() {
@@ -114,7 +114,7 @@ export function installTouchHint() {
     if (!didOpen || !hint) return;
     someTimer = setTimeout(() => {
       if (hint) hint.hidden = true;
-    }, FICA_MS);
+    }, STAY_MS);
   };
   // In the capture phase, before the button: after the hint, releasing the
   // finger doesn't do what the button does.

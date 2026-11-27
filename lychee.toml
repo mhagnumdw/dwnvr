@@ -1,14 +1,14 @@
-# Regras do lychee (https://lychee.cli.rs/), lidas pelo hook do prek (e por
-# ele na CI). O lychee carrega este arquivo sozinho quando roda na raiz.
+# lychee rules (https://lychee.cli.rs/), read by the prek hook (and by it in
+# CI). lychee loads this file on its own when it runs at the root.
 
-# Só link local (arquivo, imagem e âncora), sem rede: link externo cai por
-# motivo alheio ao commit.
+# Local links only (file, image and anchor), no network: an external link
+# breaks for reasons unrelated to the commit.
 offline = true
 
-# Confere também a âncora (#secao), inclusive a que aponta para outro arquivo.
+# Also checks the anchor (#section), including one that points to another file.
 include_fragments = "anchor-only"
 
-# Rodado à mão num diretório (`lychee .`), olha só os Markdown.
+# Run by hand on a directory (`lychee .`), it looks at Markdown only.
 extensions = ["md"]
 
 no_progress = true

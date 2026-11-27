@@ -4,10 +4,9 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (22/11/2026):** a Etapa 2 (conversão para en-US) está no passo 7, na
-branch `en-us-docs`: os `docs/`, os exemplos, o build, os workflows, o
-`SECURITY.md` e o `README.md` já estão em en-US, com o `README.pt-BR.md` ao
-lado; falta o PR.
+**Agora (27/11/2026):** a Etapa 2 (conversão para en-US) está no fim do passo
+8, na branch `en-us-sweep`: a varredura e o `.git-blame-ignore-revs` estão
+feitos; falta o PR. Depois do merge, a release da etapa.
 O guia de atualização nasce junto, em
 [docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
@@ -60,7 +59,13 @@ próxima, em andamento ou concluída, com a data.
   - [x] Os `docs/TODO/` abertos revistos com o mantenedor, em 22/11/2026: quatro apagados (já feitos ou desistidos); os outros ficam em pt-BR, sem tradução na conversão. O mantenedor os traduz depois, sem pressa, e TODO novo já nasce em en-US
   - [x] A documentação, os exemplos, os workflows e o resto, na branch `en-us-docs`, em 22/11/2026: os `docs/` com nomes e texto em en-US, os exemplos, o build, os workflows (`images.yml`, `coverage.yml`) e as notas de release ("Action required on upgrade")
   - [x] O `README.md` em en-US e o `README.pt-BR.md`, em 22/11/2026, com o `SECURITY.md` em en-US
-  - [ ] A varredura final e o `.git-blame-ignore-revs`
+  - [x] O PR do passo 7 mergeado por squash: PR #98, em 22/11/2026
+  - [ ] A varredura final e o `.git-blame-ignore-revs`, na branch `en-us-sweep`
+    - [x] Os restos conhecidos: `session.pessoa` e a chave `nome` na interface, o log `dwnvr no ar` (agora `dwnvr is up`, nos dois READMEs) e o hook `interface-atualizada` (agora `ui-up-to-date`), em 27/11/2026
+    - [x] A varredura: o que o passo 4 deixou em português no `web/` (identificadores, chaves internas, variáveis e classes de CSS, ids), os comentários e nomes dos arquivos de build e de lint e os nomes de câmera dos testes Go, em 27/11/2026. Ficam em pt-BR o texto de tela e de e-mail, os rótulos de tela citados nos docs e os dados de exemplo (`cam_teste*`, `troque-me`, `usuario:senha`)
+    - [x] O `.git-blame-ignore-revs` com os passos 3, 4 e 5 (#86, #88, #89), que só renomeiam; o passo 6 muda contrato e os passos 2 e 7 reescrevem texto, e ficam no blame
+    - [ ] O PR mergeado por squash
+  - [ ] A release da etapa (0.x), com a CI da `main` verde depois do merge
 - [ ] **Etapa 3 - temas**: não começou ([temas.md](temas.md))
   - [ ] Toda cor da tela passa por um token
   - [ ] As quatro paletas e o "sistema", com o contraste conferido

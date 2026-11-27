@@ -51,9 +51,9 @@ jobs:
 
       - name: binary of the latest image
         run: |
-          imagem="ghcr.io/$GITHUB_REPOSITORY:latest"
-          docker pull -q "$imagem"
-          id=$(docker create "$imagem")
+          image="ghcr.io/$GITHUB_REPOSITORY:latest"
+          docker pull -q "$image"
+          id=$(docker create "$image")
           docker cp -q "$id:/dwnvr" ./dwnvr
           docker rm "$id" > /dev/null
           go version ./dwnvr

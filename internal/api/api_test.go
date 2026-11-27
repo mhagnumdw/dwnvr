@@ -42,7 +42,7 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 	// Manager without Start: it registers the camera without starting a real
 	// recording, which is what these tests need.
 	mgr := recorder.NewManager(cfg, nil, st, log)
-	mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true})
+	mgr.Set(config.Camera{ID: "cam_test", Name: "Teste", Enabled: true})
 
 	cad, _, err := users.Open(cfg.UsersPath(), cfg.Server.Username)
 	if err != nil {
@@ -62,7 +62,7 @@ func testServer(t *testing.T) (*Server, *store.Camera) {
 		sessionSecret: []byte("segredo-de-teste-com-32-bytes!!!"),
 		log:           log,
 	}
-	return s, st.Camera("cam_teste")
+	return s, st.Camera("cam_test")
 }
 
 func seed(t *testing.T, cam *store.Camera, base time.Time, offsets ...[2]int64) {
@@ -115,7 +115,7 @@ func TestEventsReturnsTheDayMarks(t *testing.T) {
 		}
 	}
 
-	got := getEvents(t, s, "cam=cam_teste&day="+base.Format(store.DayLayout))
+	got := getEvents(t, s, "cam=cam_test&day="+base.Format(store.DayLayout))
 	if len(got.Onsets) != 3 {
 		t.Fatalf("expected 3 marks, got %d: %v", len(got.Onsets), got.Onsets)
 	}
@@ -138,7 +138,7 @@ func TestEventsSeparatesObjectFromMotion(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	got := getEvents(t, s, "cam=cam_teste&day=2026-08-08")
+	got := getEvents(t, s, "cam=cam_test&day=2026-08-08")
 	if len(got.Onsets) != 2 {
 		t.Errorf("onsets %v: the object mark got into the heat strip", got.Onsets)
 	}
@@ -166,7 +166,7 @@ func TestEventsCarriesTheBoxOnlyForMarksThatHaveOne(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	s.handleEvents(rec, httptest.NewRequest(http.MethodGet, "/api/rec/events?cam=cam_teste&day=2026-08-08", nil))
+	s.handleEvents(rec, httptest.NewRequest(http.MethodGet, "/api/rec/events?cam=cam_test&day=2026-08-08", nil))
 	var raw struct {
 		Objects []map[string]json.RawMessage `json:"objects"`
 	}
@@ -179,7 +179,7 @@ func TestEventsCarriesTheBoxOnlyForMarksThatHaveOne(t *testing.T) {
 		}
 	}
 
-	got := getEvents(t, s, "cam=cam_teste&day=2026-08-08").Objects[1]
+	got := getEvents(t, s, "cam=cam_test&day=2026-08-08").Objects[1]
 	if got.FrameMs != base+62_000 {
 		t.Errorf("frameMs = %d, expected %d", got.FrameMs, base+62_000)
 	}
@@ -200,7 +200,7 @@ func TestEventsTailBringsOnlyWhatIsNew(t *testing.T) {
 	}
 
 	from := base.UnixMilli() + 60_001
-	got := getEvents(t, s, fmt.Sprintf("cam=cam_teste&from=%d&to=%d",
+	got := getEvents(t, s, fmt.Sprintf("cam=cam_test&from=%d&to=%d",
 		from, base.Add(24*time.Hour).UnixMilli()))
 	if len(got.Onsets) != 1 || got.Onsets[0] != base.UnixMilli()+120_000 {
 		t.Errorf("tail = %v, expected only the mark at 120s", got.Onsets)
@@ -215,7 +215,7 @@ func TestEventsWithoutMarksReturnsEmptyList(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	s.handleEvents(rec, httptest.NewRequest(http.MethodGet,
-		"/api/rec/events?cam=cam_teste&day="+base.Format(store.DayLayout), nil))
+		"/api/rec/events?cam=cam_test&day="+base.Format(store.DayLayout), nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
@@ -231,7 +231,7 @@ func TestTimelineMergesContiguousSegments(t *testing.T) {
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	seed(t, cam, base, [2]int64{0, 30000}, [2]int64{30000, 30000}, [2]int64{60000, 30000})
 
-	got := getTimeline(t, s, "cam=cam_teste&day="+base.Format(store.DayLayout))
+	got := getTimeline(t, s, "cam=cam_test&day="+base.Format(store.DayLayout))
 	if len(got.Ranges) != 1 {
 		t.Fatalf("expected 1 range, got %d: %v", len(got.Ranges), got.Ranges)
 	}
@@ -254,7 +254,7 @@ func TestTimelineSplitsTracksAtTheGap(t *testing.T) {
 	// 30s, 40s gap, then 30s.
 	seed(t, cam, base, [2]int64{0, 30000}, [2]int64{70000, 30000})
 
-	got := getTimeline(t, s, "cam=cam_teste&day="+base.Format(store.DayLayout))
+	got := getTimeline(t, s, "cam=cam_test&day="+base.Format(store.DayLayout))
 	if len(got.Ranges) != 2 {
 		t.Fatalf("expected 2 ranges, got %d: %v", len(got.Ranges), got.Ranges)
 	}
@@ -266,7 +266,7 @@ func TestTimelineIgnoresSmallSlack(t *testing.T) {
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	seed(t, cam, base, [2]int64{0, 30000}, [2]int64{30500, 30000})
 
-	got := getTimeline(t, s, "cam=cam_teste&day="+base.Format(store.DayLayout))
+	got := getTimeline(t, s, "cam=cam_test&day="+base.Format(store.DayLayout))
 	if len(got.Ranges) != 1 {
 		t.Errorf("500ms slack became a gap: %v", got.Ranges)
 	}
@@ -279,7 +279,7 @@ func TestTimelineDoesNotShrinkWithOverlap(t *testing.T) {
 	base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local)
 	seed(t, cam, base, [2]int64{0, 30000}, [2]int64{29000, 30000})
 
-	got := getTimeline(t, s, "cam=cam_teste&day="+base.Format(store.DayLayout))
+	got := getTimeline(t, s, "cam=cam_test&day="+base.Format(store.DayLayout))
 	if len(got.Ranges) != 1 {
 		t.Fatalf("expected 1 range, got %v", got.Ranges)
 	}
@@ -301,7 +301,7 @@ func TestPartialTimelineReturnsTheAnchorSegment(t *testing.T) {
 	// From the last segment the screen knew (the middle one) onward.
 	anchor := base.UnixMilli() + 30000
 	end := base.AddDate(0, 0, 1).UnixMilli()
-	got := getTimeline(t, s, fmt.Sprintf("cam=cam_teste&from=%d&to=%d", anchor+1, end))
+	got := getTimeline(t, s, fmt.Sprintf("cam=cam_test&from=%d&to=%d", anchor+1, end))
 
 	if len(got.Segments) != 2 {
 		t.Fatalf("expected the anchor plus the new segment, got %v", got.Segments)
@@ -318,7 +318,7 @@ func TestPartialTimelineReturnsTheAnchorSegment(t *testing.T) {
 
 func TestTimelineWithoutRecordingReturnsEmptyLists(t *testing.T) {
 	s, _ := testServer(t)
-	got := getTimeline(t, s, "cam=cam_teste&day=2026-08-08")
+	got := getTimeline(t, s, "cam=cam_test&day=2026-08-08")
 	// Empty lists, not null: the frontend should not have to handle both.
 	if got.Ranges == nil || got.Segments == nil || got.Gens == nil {
 		t.Errorf("expected empty lists, got ranges=%v segments=%v gens=%v",
@@ -380,7 +380,7 @@ func TestThumbAndSegmentCutTheIndexFile(t *testing.T) {
 	request := func(h http.HandlerFunc, route string, start int64) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
 		h(rec, httptest.NewRequest(http.MethodGet,
-			fmt.Sprintf("/api/rec/%s?cam=cam_teste&t=%d", route, start), nil))
+			fmt.Sprintf("/api/rec/%s?cam=cam_test&t=%d", route, start), nil))
 		return rec
 	}
 	if rec := request(s.handleThumb, "thumb", e.StartMs); rec.Code != http.StatusOK ||
@@ -400,7 +400,7 @@ func TestDeleteCameraKeepsRecordingsByDefault(t *testing.T) {
 	s, cam := testServer(t)
 	seed(t, cam, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
 
-	rec := deleteReq(t, s.handleDeleteCamera, "/api/cameras?id=cam_teste")
+	rec := deleteReq(t, s.handleDeleteCamera, "/api/cameras?id=cam_test")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
@@ -413,7 +413,7 @@ func TestDeleteCameraDeletesRecordingsWhenAsked(t *testing.T) {
 	s, cam := testServer(t)
 	seed(t, cam, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
 
-	rec := deleteReq(t, s.handleDeleteCamera, "/api/cameras?id=cam_teste&recordings=1")
+	rec := deleteReq(t, s.handleDeleteCamera, "/api/cameras?id=cam_test&recordings=1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
@@ -431,14 +431,14 @@ func TestDeleteRecordingsKeepsTheRegistration(t *testing.T) {
 	s, cam := testServer(t)
 	seed(t, cam, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
 
-	rec := deleteReq(t, s.handleDeleteRecordings, "/api/rec?cam=cam_teste")
+	rec := deleteReq(t, s.handleDeleteRecordings, "/api/rec?cam=cam_test")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
 	if _, err := os.Stat(cam.Dir()); !os.IsNotExist(err) {
 		t.Errorf("the camera directory is still there: err=%v", err)
 	}
-	if !s.knownCamera("cam_teste") {
+	if !s.knownCamera("cam_test") {
 		t.Error("the camera was unregistered, and only the recordings should have gone")
 	}
 	if got := freedBytes(t, rec); got != 1000 {
@@ -451,10 +451,10 @@ func TestDeleteRecordingsKeepsTheRegistration(t *testing.T) {
 // directories that actually exist.
 func TestDeleteRecordingsOfRemovedCamera(t *testing.T) {
 	s, _ := testServer(t)
-	orphan := s.store.Camera("cam_antiga")
+	orphan := s.store.Camera("cam_orphan")
 	seed(t, orphan, time.Date(2026, 8, 8, 12, 0, 0, 0, time.Local), [2]int64{0, 30000})
 
-	rec := deleteReq(t, s.handleDeleteRecordings, "/api/rec?cam=cam_antiga")
+	rec := deleteReq(t, s.handleDeleteRecordings, "/api/rec?cam=cam_orphan")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
@@ -471,7 +471,7 @@ func TestDeleteRecordingsOfRemovedCamera(t *testing.T) {
 
 func TestDeleteRecordingsRequiresExistingDirectory(t *testing.T) {
 	s, _ := testServer(t)
-	for _, cam := range []string{"", "outra", "../../etc", "cam_teste/../x"} {
+	for _, cam := range []string{"", "outra", "../../etc", "cam_test/../x"} {
 		rec := deleteReq(t, s.handleDeleteRecordings, "/api/rec?cam="+cam)
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("cam=%q returned HTTP %d, expected 404", cam, rec.Code)
@@ -482,7 +482,7 @@ func TestDeleteRecordingsRequiresExistingDirectory(t *testing.T) {
 // An unregistered camera is rejected before it becomes a path on disk.
 func TestUnknownCameraIsRejected(t *testing.T) {
 	s, _ := testServer(t)
-	for _, cam := range []string{"", "outra", "../../etc", "cam_teste/../x"} {
+	for _, cam := range []string{"", "outra", "../../etc", "cam_test/../x"} {
 		rec := httptest.NewRecorder()
 		s.handleDays(rec, httptest.NewRequest(http.MethodGet, "/api/rec/days?cam="+cam, nil))
 		if rec.Code != http.StatusBadRequest {
@@ -528,12 +528,12 @@ func TestValidateCameraQuota(t *testing.T) {
 
 	cfg := defaultConfig(t)
 	for _, q := range valid {
-		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", QuotaMB: q}); err != nil {
+		if err := validateCamera(cfg, config.Camera{ID: "cam_test", QuotaMB: q}); err != nil {
 			t.Errorf("quotaMB=%d rejected: %v", q, err)
 		}
 	}
 	for _, q := range invalid {
-		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", QuotaMB: q}); err == nil {
+		if err := validateCamera(cfg, config.Camera{ID: "cam_test", QuotaMB: q}); err == nil {
 			t.Errorf("quotaMB=%d accepted, should reject", q)
 		}
 	}
@@ -544,12 +544,12 @@ func TestValidateCameraQuota(t *testing.T) {
 func TestValidateCameraSegment(t *testing.T) {
 	cfg := defaultConfig(t)
 	for _, seg := range []int{0, 10, 30, 300} {
-		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", SegmentSeconds: seg}); err != nil {
+		if err := validateCamera(cfg, config.Camera{ID: "cam_test", SegmentSeconds: seg}); err != nil {
 			t.Errorf("segmentSeconds=%d rejected: %v", seg, err)
 		}
 	}
 	for _, seg := range []int{-1, 5, 301, 600, 3600} {
-		if err := validateCamera(cfg, config.Camera{ID: "cam_teste", SegmentSeconds: seg}); err == nil {
+		if err := validateCamera(cfg, config.Camera{ID: "cam_test", SegmentSeconds: seg}); err == nil {
 			t.Errorf("segmentSeconds=%d accepted, should reject", seg)
 		}
 	}
@@ -559,15 +559,15 @@ func TestValidateCameraDetect(t *testing.T) {
 	// Empty and zero mean "use the default"; filling in only one of the two is
 	// valid.
 	valid := []config.Camera{
-		{ID: "cam_teste"},
-		{ID: "cam_teste", DetectMethod: "periodic"},
-		{ID: "cam_teste", DetectSensitivity: 1},
-		{ID: "cam_teste", DetectMethod: "kleinberg-p", DetectSensitivity: 5},
+		{ID: "cam_test"},
+		{ID: "cam_test", DetectMethod: "periodic"},
+		{ID: "cam_test", DetectSensitivity: 1},
+		{ID: "cam_test", DetectMethod: "kleinberg-p", DetectSensitivity: 5},
 	}
 	invalid := []config.Camera{
-		{ID: "cam_teste", DetectMethod: "magico"},
-		{ID: "cam_teste", DetectSensitivity: 6},
-		{ID: "cam_teste", DetectMethod: "periodic", DetectSensitivity: 9},
+		{ID: "cam_test", DetectMethod: "magic"},
+		{ID: "cam_test", DetectSensitivity: 6},
+		{ID: "cam_test", DetectMethod: "periodic", DetectSensitivity: 9},
 	}
 	cfg := defaultConfig(t)
 	for _, c := range valid {
@@ -696,7 +696,7 @@ func TestHealthShowsOrphansSeparately(t *testing.T) {
 	s, cam := testServer(t)
 	base := time.Date(2026, 9, 3, 12, 0, 0, 0, time.Local)
 	seed(t, cam, base, [2]int64{0, 30_000})
-	seed(t, s.store.Camera("cam_velha"), base, [2]int64{0, 30_000}, [2]int64{30_000, 30_000})
+	seed(t, s.store.Camera("cam_old"), base, [2]int64{0, 30_000}, [2]int64{30_000, 30_000})
 
 	rec := httptest.NewRecorder()
 	s.handleHealth(rec, httptest.NewRequest(http.MethodGet, "/api/health", nil))
@@ -784,7 +784,7 @@ func TestExportRespectsTheCap(t *testing.T) {
 		{maxExportSpan + time.Millisecond, http.StatusBadRequest},
 	}
 	for _, c := range cases {
-		url := fmt.Sprintf("/api/rec/export?cam=cam_teste&from=%d&to=%d", from, from+c.span.Milliseconds())
+		url := fmt.Sprintf("/api/rec/export?cam=cam_test&from=%d&to=%d", from, from+c.span.Milliseconds())
 		rec := httptest.NewRecorder()
 		s.handleExport(rec, httptest.NewRequest(http.MethodGet, url, nil))
 		if rec.Code != c.code {

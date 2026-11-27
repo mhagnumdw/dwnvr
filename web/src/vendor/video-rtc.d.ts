@@ -1,33 +1,33 @@
-// Tipos do video-rtc.js, escritos à mão: o .js é do go2rtc, copiado como veio,
-// e precisa continuar se atualizando com um `curl`. Aqui só o que o dwnvr usa,
-// com os tipos dos comentários JSDoc do próprio arquivo.
+// Types for video-rtc.js, handwritten: the .js is go2rtc's, copied as it came,
+// and has to stay updatable with a `curl`. Only what dwnvr uses is here,
+// with the types taken from the file's own JSDoc comments.
 
 export declare class VideoRTC extends HTMLElement {
-  /** Carência, em ms, entre sair da tela e fechar a conexão. */
+  /** Grace period, in ms, between leaving the screen and closing the connection. */
   DISCONNECT_TIMEOUT: number;
-  /** Intervalo mínimo, em ms, entre uma tentativa de conexão e a seguinte. */
+  /** Minimum interval, in ms, between one connection attempt and the next. */
   RECONNECT_TIMEOUT: number;
-  /** Modos aceitos, em ordem de preferência: `webrtc`, `mse`, `hls`, `mjpeg`. */
+  /** Accepted modes, in order of preference: `webrtc`, `mse`, `hls`, `mjpeg`. */
   mode: string;
-  /** O que pedir ao go2rtc: `video`, `audio`, `microphone`. */
+  /** What to ask go2rtc for: `video`, `audio`, `microphone`. */
   media: string;
-  /** Segue tocando fora da tela. */
+  /** Keeps playing off screen. */
   background: boolean;
-  /** Fração visível do player para ele tocar; 0 desliga a regra. */
+  /** Visible fraction of the player needed to play; 0 turns the rule off. */
   visibilityThreshold: number;
-  /** Para de tocar com a aba oculta. */
+  /** Stops playing while the tab is hidden. */
   visibilityCheck: boolean;
-  /** Nasce no primeiro `connectedCallback`: nulo antes disso. */
+  /** Created on the first `connectedCallback`: null before that. */
   video: HTMLVideoElement | null;
-  /** O endereço do websocket do go2rtc. Aceita caminho começado por `/`. */
+  /** The address of go2rtc's websocket. Accepts a path starting with `/`. */
   set src(value: string | URL);
 
   connectedCallback(): void;
   disconnectedCallback(): void;
-  /** Abre a conexão; `true` se abriu, `false` se não havia o que abrir. */
+  /** Opens the connection; `true` if it opened, `false` if there was nothing to open. */
   onconnect(): boolean;
-  /** Fecha o websocket e o WebRTC, e solta o vídeo. */
+  /** Closes the websocket and WebRTC, and releases the video. */
   ondisconnect(): void;
-  /** O websocket fechou; `true` se agendou outra tentativa. */
+  /** The websocket closed; `true` if another attempt was scheduled. */
   onclose(): boolean;
 }

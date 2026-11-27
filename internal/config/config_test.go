@@ -107,9 +107,9 @@ func byField(warnings []Warning) map[string]Warning {
 // good camera isn't touched.
 func TestBadCameraValueStartsWithDefault(t *testing.T) {
 	cfg, cams, warnings, err := loadWithWarnings(t, "", `[
-		{"id":"cam_ruim","quotaMB":5,"segmentSeconds":600,"maxDays":-1,"stallSeconds":99999,
-		 "audio":"mp3","detectMethod":"magico","detectSensitivity":9},
-		{"id":"cam_boa","quotaMB":100,"segmentSeconds":300,"maxDays":7,"stallSeconds":30,
+		{"id":"cam_bad","quotaMB":5,"segmentSeconds":600,"maxDays":-1,"stallSeconds":99999,
+		 "audio":"mp3","detectMethod":"magic","detectSensitivity":9},
+		{"id":"cam_good","quotaMB":100,"segmentSeconds":300,"maxDays":7,"stallSeconds":30,
 		 "audio":"flac","detectMethod":"periodic","detectSensitivity":1}]`)
 	if err != nil {
 		t.Fatalf("boot failed: %v", err)
@@ -130,8 +130,8 @@ func TestBadCameraValueStartsWithDefault(t *testing.T) {
 		switch {
 		case !ok:
 			t.Errorf("%s without a warning", field)
-		case a.Camera != "cam_ruim" || a.Accepted == "" || a.InEffect != inEffect:
-			t.Errorf("%s: warning %+v, want cam_ruim using %v", field, a, inEffect)
+		case a.Camera != "cam_bad" || a.Accepted == "" || a.InEffect != inEffect:
+			t.Errorf("%s: warning %+v, want cam_bad using %v", field, a, inEffect)
 		}
 	}
 
@@ -139,12 +139,12 @@ func TestBadCameraValueStartsWithDefault(t *testing.T) {
 	if r.QuotaMB != p.QuotaMB || r.SegmentSeconds != p.SegmentSeconds || r.MaxDays != p.MaxDays ||
 		r.StallSeconds != p.StallSeconds || r.Audio != p.Audio ||
 		r.DetectMethod != p.DetectMethod || r.DetectSensitivity != p.DetectSensitivity {
-		t.Errorf("cam_ruim resolved %+v, want the defaults", r)
+		t.Errorf("cam_bad resolved %+v, want the defaults", r)
 	}
 	if b := cams[1]; b.QuotaMB != 100 || b.SegmentSeconds != 300 || b.MaxDays != 7 ||
 		b.StallSeconds != 30 || b.Audio != AudioFLAC ||
 		b.DetectMethod != "periodic" || b.DetectSensitivity != 1 {
-		t.Errorf("cam_boa was changed: %+v", b)
+		t.Errorf("cam_good was changed: %+v", b)
 	}
 }
 
@@ -188,7 +188,7 @@ defaults:
   maxDays: -3
   stallSeconds: 0
   audio: mp3
-  detectMethod: magico
+  detectMethod: magic
   detectSensitivity: 9
 `, "")
 	if err != nil {

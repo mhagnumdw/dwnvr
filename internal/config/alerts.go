@@ -13,7 +13,7 @@ import (
 )
 
 // CameraAlert says when a detection from this camera becomes an alert. The
-// alerta package evaluates and sends it; here is what the camera config
+// alert package evaluates and sends it; here is what the camera config
 // stores.
 type CameraAlert struct {
 	// Enabled off keeps the rest, to turn it back on without redoing it.

@@ -63,25 +63,25 @@ export class ApiError extends Error {
   readonly status: number;
   // The per-field rejections of a form, when the API sends them (create and
   // change email in the Users screen). Without them, an empty object.
-  readonly campos: FieldErrors;
+  readonly fields: FieldErrors;
 
-  constructor(message: string, status: number, campos: FieldErrors = {}) {
+  constructor(message: string, status: number, fields: FieldErrors = {}) {
     super(message);
     this.status = status;
-    this.campos = campos;
+    this.fields = fields;
   }
 }
 
 // TooManyAttempts is the login 429: the address went over the attempts limit,
-// and the next one only gets through in `segundos` (the Retry-After).
+// and the next one only gets through in `seconds` (the Retry-After).
 export class TooManyAttempts extends ApiError {
-  readonly segundos: number;
+  readonly seconds: number;
 
-  constructor(segundos: number) {
+  constructor(seconds: number) {
     super('muitas tentativas', 429);
     // Without the header, or with garbage in it, wait the minimum: the server
     // rejects again if it is still too early, and sends the right number.
-    this.segundos = Number.isFinite(segundos) && segundos > 0 ? Math.ceil(segundos) : 1;
+    this.seconds = Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 1;
   }
 }
 
@@ -135,7 +135,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ username: user, name, email }),
     }),
-  // Vazio apaga o e-mail.
+  // An empty value clears the e-mail.
   changeEmail: (user: string, email: string) =>
     request<{ user: User }>('users/email', {
       method: 'POST',
@@ -476,7 +476,7 @@ export interface AlertSchedule {
 // Where the alert applies, as the Alert tab shows it. It does not go to the
 // server, which only stores the areas: "only in the checked areas" with none
 // checked is a screen state, which the server would read as the whole image.
-export type AlertWhere = 'tudo' | 'areas';
+export type AlertWhere = 'all' | 'areas';
 
 // An area registered on the camera. A new area from the Areas tab already goes
 // with an `id`, so the alert can mark it; the one from the Detections "salvar

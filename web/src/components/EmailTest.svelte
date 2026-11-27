@@ -8,7 +8,7 @@
 
   let dest = $state('');
   let sending = $state(false);
-  let result = $state<{ ok: boolean; texto: string } | null>(null);
+  let result = $state<{ ok: boolean; text: string } | null>(null);
 
   async function send(e: SubmitEvent) {
     e.preventDefault();
@@ -20,10 +20,10 @@
       // see spam.
       result = {
         ok: true,
-        texto: `Enviado para ${r.sentTo}. Confira a caixa de entrada e o spam.`,
+        text: `Enviado para ${r.sentTo}. Confira a caixa de entrada e o spam.`,
       };
     } catch (err) {
-      result = { ok: false, texto: messageOf(err) };
+      result = { ok: false, text: messageOf(err) };
     } finally {
       sending = false;
     }
@@ -46,7 +46,7 @@
     <button type="submit" disabled={sending}>{sending ? 'enviando…' : 'enviar'}</button>
   </form>
   {#if result}
-    <p class="small" class:error={!result.ok}>{result.texto}</p>
+    <p class="small" class:error={!result.ok}>{result.text}</p>
   {/if}
 </section>
 
