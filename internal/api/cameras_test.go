@@ -34,7 +34,7 @@ func withGo2RTC(t *testing.T, s *Server) *atomic.Int32 {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/streams":
-			_, _ = w.Write([]byte(`{"cam_teste": {}, "cam_a": {}, "cam_b": {}}`))
+			_, _ = w.Write([]byte(`{"cam_test": {}, "cam_a": {}, "cam_b": {}}`))
 		case "/api/stream.mp4":
 			open.Add(1)
 			defer open.Add(-1)
@@ -50,7 +50,7 @@ func withGo2RTC(t *testing.T, s *Server) *atomic.Int32 {
 	s.client = go2rtc.New(config.Go2RTC{URL: srv.URL})
 	s.mgr = recorder.NewManager(s.cfg, s.client, s.store, s.log)
 	ctx, cancel := context.WithCancel(context.Background())
-	s.mgr.Start(ctx, []config.Camera{{ID: "cam_teste", Name: "Teste", Enabled: true}})
+	s.mgr.Start(ctx, []config.Camera{{ID: "cam_test", Name: "Teste", Enabled: true}})
 	// Runs before srv.Close: Stop waits for each recorder to let go of the
 	// connection.
 	t.Cleanup(func() { cancel(); s.mgr.Stop() })
@@ -107,7 +107,7 @@ func TestConcurrentSavesLeaveNoOrphanRecorder(t *testing.T) {
 		var wg sync.WaitGroup
 		for _, a := range []string{audios[(i+1)%3], audios[(i+2)%3]} {
 			wg.Go(func() {
-				saveCamera(t, s, config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Audio: a})
+				saveCamera(t, s, config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, Audio: a})
 			})
 		}
 		wg.Wait()
@@ -238,12 +238,12 @@ func TestSaveWithoutChangesDoesNotFreezeTheDefaults(t *testing.T) {
 	s := withRealDefaults(t)
 	cams, defaults := getResponse(t, s)
 
-	saveCamera(t, s, cams["cam_teste"])
+	saveCamera(t, s, cams["cam_test"])
 	defaults["id"], defaults["name"], defaults["enabled"] = "cam_a", "A", true
 	saveCamera(t, s, defaults)
 
 	file := inFile(t, s)
-	for _, id := range []string{"cam_teste", "cam_a"} {
+	for _, id := range []string{"cam_test", "cam_a"} {
 		if got, want := keys(file[id]), []string{"enabled", "id", "name"}; !slices.Equal(got, want) {
 			t.Errorf("%s in cameras.json with %v, want only %v", id, got, want)
 		}
@@ -255,22 +255,22 @@ func TestSaveWithoutChangesDoesNotFreezeTheDefaults(t *testing.T) {
 func TestSaveKeepsWhatTheCameraSets(t *testing.T) {
 	s := withRealDefaults(t)
 	d := s.cfg.Defaults
-	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+	s.mgr.Set(config.Camera{ID: "cam_test", Name: "Teste", Enabled: true,
 		QuotaMB: d.QuotaMB, Audio: config.AudioAAC})
 
 	cams, _ := getResponse(t, s)
-	cam := cams["cam_teste"]
+	cam := cams["cam_test"]
 	cam["segmentSeconds"], cam["detect"] = 60, !d.Detect
 	saveCamera(t, s, cam)
 
-	got := inFile(t, s)["cam_teste"]
+	got := inFile(t, s)["cam_test"]
 	want := map[string]any{
-		"id": "cam_teste", "name": "Teste", "enabled": true,
+		"id": "cam_test", "name": "Teste", "enabled": true,
 		"quotaMB": float64(d.QuotaMB), "audio": config.AudioAAC,
 		"segmentSeconds": float64(60), "detect": !d.Detect,
 	}
 	if !maps.Equal(got, want) {
-		t.Errorf("cam_teste no cameras.json\n %v\nesperava\n %v", got, want)
+		t.Errorf("cam_test no cameras.json\n %v\nesperava\n %v", got, want)
 	}
 }
 
@@ -282,7 +282,7 @@ func TestSaveCameraWithAreas(t *testing.T) {
 	withGo2RTC(t, s)
 
 	points := []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}
-	saveCamera(t, s, config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+	saveCamera(t, s, config.Camera{ID: "cam_test", Name: "Teste", Enabled: true,
 		Areas: []config.Area{{Name: "Portão", Points: points}}})
 	cams, _, err := s.cfg.LoadCameras()
 	if err != nil {
@@ -292,7 +292,7 @@ func TestSaveCameraWithAreas(t *testing.T) {
 		t.Fatalf("in the file: %+v", cams)
 	}
 
-	b, _ := json.Marshal(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+	b, _ := json.Marshal(config.Camera{ID: "cam_test", Name: "Teste", Enabled: true,
 		Areas: []config.Area{{Name: "Portão", Points: points[:2]}}})
 	rec := httptest.NewRecorder()
 	s.handleSaveCamera(rec, httptest.NewRequest(http.MethodPost, "/api/cameras", bytes.NewReader(b)))
@@ -312,7 +312,7 @@ func TestSaveCameraWithAlert(t *testing.T) {
 	gate := config.Area{ID: "k3f9a2", Name: "Portão", Points: []area.Point{{0.1, 0.1}, {0.5, 0.1}, {0.5, 0.5}}}
 	alert := &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}, Areas: []string{"k3f9a2"},
 		Schedules: []config.AlertSchedule{{Days: []time.Weekday{time.Saturday, time.Sunday}, From: "00:00", To: "23:59"}}}
-	saveCamera(t, s, config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+	saveCamera(t, s, config.Camera{ID: "cam_test", Name: "Teste", Enabled: true,
 		Areas: []config.Area{gate}, Alert: alert})
 	cams, _, err := s.cfg.LoadCameras()
 	if err != nil {
@@ -322,7 +322,7 @@ func TestSaveCameraWithAlert(t *testing.T) {
 		t.Fatalf("in the file: %+v", cams)
 	}
 
-	b, _ := json.Marshal(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Alert: alert})
+	b, _ := json.Marshal(config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, Alert: alert})
 	rec := httptest.NewRecorder()
 	s.handleSaveCamera(rec, httptest.NewRequest(http.MethodPost, "/api/cameras", bytes.NewReader(b)))
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "alert.areas[0]") {
@@ -331,7 +331,7 @@ func TestSaveCameraWithAlert(t *testing.T) {
 
 	night := &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person},
 		Schedules: []config.AlertSchedule{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "06:00"}}}
-	b, _ = json.Marshal(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Alert: night})
+	b, _ = json.Marshal(config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, Alert: night})
 	rec = httptest.NewRecorder()
 	s.handleSaveCamera(rec, httptest.NewRequest(http.MethodPost, "/api/cameras", bytes.NewReader(b)))
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "alert.schedules[0].to") {

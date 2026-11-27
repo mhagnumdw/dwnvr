@@ -18,8 +18,8 @@ import (
 // detectionsScenario sets up two cameras with detections on two days, and returns noon
 // of the second day.
 //
-//	day 1 (yesterday), 12:00 + N min: cam_teste 0, 2 · cam_b 1
-//	day 2 (today), 12:00 + N min: cam_teste 0 (person+vehicle), 3 · cam_b 1 (animal),
+//	day 1 (yesterday), 12:00 + N min: cam_test 0, 2 · cam_b 1
+//	day 2 (today), 12:00 + N min: cam_test 0 (person+vehicle), 3 · cam_b 1 (animal),
 //	3
 //
 // Minute 3 of today ties on both cameras, in the same millisecond.
@@ -87,8 +87,8 @@ func equal(a, b []string) bool { return fmt.Sprint(a) == fmt.Sprint(b) }
 func TestDetectionsPageMergesTheCameras(t *testing.T) {
 	s, today := detectionsScenario(t)
 	p := getPage(t, s, "")
-	want := []string{"cam_b@3", "cam_teste@3", "cam_b@1", "cam_teste@0",
-		"cam_teste@-1438", "cam_b@-1439", "cam_teste@-1440"}
+	want := []string{"cam_b@3", "cam_test@3", "cam_b@1", "cam_test@0",
+		"cam_test@-1438", "cam_b@-1439", "cam_test@-1440"}
 	if got := labels(p, today); !equal(got, want) || !p.End {
 		t.Fatalf("page %v end=%v, want %v end=true", got, p.End, want)
 	}
@@ -103,7 +103,7 @@ func TestDetectionsPageScrollsWithoutSkippingOrRepeating(t *testing.T) {
 	s, today := detectionsScenario(t)
 
 	p := getPage(t, s, "limit=1")
-	if got := labels(p, today); !equal(got, []string{"cam_b@3", "cam_teste@3"}) || p.End {
+	if got := labels(p, today); !equal(got, []string{"cam_b@3", "cam_test@3"}) || p.End {
 		t.Fatalf("first page %v end=%v: the tie needed to come whole", got, p.End)
 	}
 
@@ -117,8 +117,8 @@ func TestDetectionsPageScrollsWithoutSkippingOrRepeating(t *testing.T) {
 		}
 		query = fmt.Sprintf("limit=2&before=%d", p.Detections[len(p.Detections)-1].AtMs)
 	}
-	want := []string{"cam_b@3", "cam_teste@3", "cam_b@1", "cam_teste@0",
-		"cam_teste@-1438", "cam_b@-1439", "cam_teste@-1440"}
+	want := []string{"cam_b@3", "cam_test@3", "cam_b@1", "cam_test@0",
+		"cam_test@-1438", "cam_b@-1439", "cam_test@-1440"}
 	if !equal(all, want) {
 		t.Errorf("scrolling: %v, want %v", all, want)
 	}
@@ -131,11 +131,11 @@ func TestDetectionsPageGoesUpFromTheCursor(t *testing.T) {
 	cursor := today.AddDate(0, 0, -1).UnixMilli() + 60_000 // yesterday, cam_b@-1439
 
 	p := getPage(t, s, fmt.Sprintf("limit=2&after=%d", cursor))
-	if got := labels(p, today); !equal(got, []string{"cam_teste@0", "cam_teste@-1438"}) || p.End {
+	if got := labels(p, today); !equal(got, []string{"cam_test@0", "cam_test@-1438"}) || p.End {
 		t.Errorf("going up: %v end=%v", got, p.End)
 	}
 	p = getPage(t, s, fmt.Sprintf("after=%d", today.UnixMilli()+60_000))
-	if got := labels(p, today); !equal(got, []string{"cam_b@3", "cam_teste@3"}) || !p.End {
+	if got := labels(p, today); !equal(got, []string{"cam_b@3", "cam_test@3"}) || !p.End {
 		t.Errorf("reaching the top: %v end=%v", got, p.End)
 	}
 }
@@ -146,7 +146,7 @@ func TestDetectionsPageFilters(t *testing.T) {
 	s, today := detectionsScenario(t)
 
 	p := getPage(t, s, "families=vehicle,animal")
-	if got := labels(p, today); !equal(got, []string{"cam_b@1", "cam_teste@0", "cam_b@-1439"}) {
+	if got := labels(p, today); !equal(got, []string{"cam_b@1", "cam_test@0", "cam_b@-1439"}) {
 		t.Errorf("families: %v", got)
 	}
 	if o := p.Detections[1].Objects; len(o) != 1 || o[0].Family != "vehicle" {
@@ -161,12 +161,12 @@ func TestDetectionsPageFilters(t *testing.T) {
 
 // gateInThousandths is the area of the filter test: X from 0.4 to 0.6 and Y
 // from 0.5 to 0.7, as the query sends it.
-const gateInThousandths = "cam_teste:400,500,600,500,600,700,400,700"
+const gateInThousandths = "cam_test:400,500,600,500,600,700,400,700"
 
 // areaScenario adds to detectionsScenario marks with a box, from today:
 //
-//	cam_teste 5: person with a foot on the gate, and a vehicle far from it
-//	cam_teste 6: person in front, covering the gate, with the foot below
+//	cam_test 5: person with a foot on the gate, and a vehicle far from it
+//	cam_test 6: person in front, covering the gate, with the foot below
 //	cam_b     5: person in the same place, but on another camera
 //
 // The marks of detectionsScenario have no box.
@@ -181,9 +181,9 @@ func areaScenario(t *testing.T) (*Server, time.Time) {
 			t.Fatal(err)
 		}
 	}
-	mark("cam_teste", 5, "person", [4]float64{0.45, 0.3, 0.55, 0.65})
-	mark("cam_teste", 5, "vehicle", [4]float64{0.05, 0.05, 0.15, 0.2})
-	mark("cam_teste", 6, "person", [4]float64{0.35, 0.2, 0.65, 0.95})
+	mark("cam_test", 5, "person", [4]float64{0.45, 0.3, 0.55, 0.65})
+	mark("cam_test", 5, "vehicle", [4]float64{0.05, 0.05, 0.15, 0.2})
+	mark("cam_test", 6, "person", [4]float64{0.35, 0.2, 0.65, 0.95})
 	mark("cam_b", 5, "person", [4]float64{0.45, 0.3, 0.55, 0.65})
 	return s, today
 }
@@ -196,7 +196,7 @@ func TestDetectionsPageFiltersByArea(t *testing.T) {
 	camB := []string{"cam_b@3", "cam_b@1", "cam_b@-1439"}
 
 	p := getPage(t, s, "area="+gateInThousandths)
-	if got := labels(p, today); !equal(got, append([]string{"cam_b@5", "cam_teste@5"}, camB...)) {
+	if got := labels(p, today); !equal(got, append([]string{"cam_b@5", "cam_test@5"}, camB...)) {
 		t.Errorf("foot, the default: %v", got)
 	}
 	if o := p.Detections[1].Objects; len(o) != 1 || o[0].Family != "person" {
@@ -204,15 +204,15 @@ func TestDetectionsPageFiltersByArea(t *testing.T) {
 	}
 
 	p = getPage(t, s, "area="+gateInThousandths+"&rule=touch")
-	if got := labels(p, today); !equal(got, append([]string{"cam_teste@6", "cam_b@5", "cam_teste@5"}, camB...)) {
+	if got := labels(p, today); !equal(got, append([]string{"cam_test@6", "cam_b@5", "cam_test@5"}, camB...)) {
 		t.Errorf("touch: %v", got)
 	}
 
 	// The whole image gives the same as no area, except for the marks without a
 	// box.
 	for _, rule := range []string{"touch", "foot"} {
-		p = getPage(t, s, "area=cam_teste:0,0,1000,0,1000,1000,0,1000&rule="+rule)
-		if got := labels(p, today); !equal(got, append([]string{"cam_teste@6", "cam_b@5", "cam_teste@5"}, camB...)) {
+		p = getPage(t, s, "area=cam_test:0,0,1000,0,1000,1000,0,1000&rule="+rule)
+		if got := labels(p, today); !equal(got, append([]string{"cam_test@6", "cam_b@5", "cam_test@5"}, camB...)) {
 			t.Errorf("whole image, %s: %v", rule, got)
 		}
 		if o := p.Detections[2].Objects; len(o) != 2 {
@@ -232,8 +232,8 @@ func TestDetectionsPageFiltersByArea(t *testing.T) {
 		t.Errorf("the area's camera outside cams: %v", got)
 	}
 
-	p = getPage(t, s, "cams=cam_teste&area="+gateInThousandths)
-	if got := labels(p, today); !equal(got, []string{"cam_teste@5"}) {
+	p = getPage(t, s, "cams=cam_test&area="+gateInThousandths)
+	if got := labels(p, today); !equal(got, []string{"cam_test@5"}) {
 		t.Errorf("only the area's camera: %v", got)
 	}
 }
@@ -247,9 +247,9 @@ func TestDetectionDaysByArea(t *testing.T) {
 	for q, want := range map[string]map[string]int{
 		"area=" + gateInThousandths:                      {yesterday: 1, day: 4},
 		"area=" + gateInThousandths + "&rule=touch":      {yesterday: 1, day: 5},
-		"area=cam_teste:0,0,100,0,100,100,0,100":         {yesterday: 1, day: 3},
+		"area=cam_test:0,0,100,0,100,100,0,100":          {yesterday: 1, day: 3},
 		"area=" + gateInThousandths + "&families=animal": {day: 1},
-		"area=" + gateInThousandths + "&cams=cam_teste":  {day: 1},
+		"area=" + gateInThousandths + "&cams=cam_test":   {day: 1},
 	} {
 		rec := httptest.NewRecorder()
 		s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet, "/api/detections/days?"+q, nil))
@@ -267,13 +267,13 @@ func TestDetectionDaysByArea(t *testing.T) {
 
 // registerAreas gives the cameras of areaScenario the registry areas:
 //
-//	cam_teste/portao: the gate of gateInThousandths, with foot
-//	cam_teste/canto:  the top left corner, with touch, where the vehicle is
+//	cam_test/portao: the gate of gateInThousandths, with foot
+//	cam_test/canto:  the top left corner, with touch, where the vehicle is
 //	cam_b/portao:     the same gate, on the other camera
 func registerAreas(s *Server) {
 	gate := []area.Point{{0.4, 0.5}, {0.6, 0.5}, {0.6, 0.7}, {0.4, 0.7}}
 	corner := []area.Point{{0, 0}, {0.2, 0}, {0.2, 0.25}, {0, 0.25}}
-	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Areas: []config.Area{
+	s.mgr.Set(config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, Areas: []config.Area{
 		{ID: "portao", Name: "Portão", Rule: "foot", Points: gate},
 		{ID: "canto", Name: "Canto", Rule: "touch", Points: corner},
 	}})
@@ -289,31 +289,31 @@ func TestDetectionsPageFiltersByRegisteredArea(t *testing.T) {
 	registerAreas(s)
 	camB := []string{"cam_b@3", "cam_b@1", "cam_b@-1439"}
 
-	p := getPage(t, s, "areas=cam_teste/portao")
-	if got := labels(p, today); !equal(got, append([]string{"cam_b@5", "cam_teste@5"}, camB...)) {
+	p := getPage(t, s, "areas=cam_test/portao")
+	if got := labels(p, today); !equal(got, append([]string{"cam_b@5", "cam_test@5"}, camB...)) {
 		t.Errorf("the gate: %v", got)
 	}
 	if o := p.Detections[1].Objects; len(o) != 1 || o[0].Family != "person" {
 		t.Errorf("the vehicle outside the gate stayed in the detection: %+v", o)
 	}
 
-	p = getPage(t, s, "areas=cam_teste/portao,cam_teste/canto")
-	if got := labels(p, today); !equal(got, append([]string{"cam_b@5", "cam_teste@5"}, camB...)) {
+	p = getPage(t, s, "areas=cam_test/portao,cam_test/canto")
+	if got := labels(p, today); !equal(got, append([]string{"cam_b@5", "cam_test@5"}, camB...)) {
 		t.Errorf("gate and corner: %v", got)
 	}
 	if o := p.Detections[1].Objects; len(o) != 2 {
 		t.Errorf("gate and corner: the sum lost the corner vehicle: %+v", o)
 	}
 
-	p = getPage(t, s, "areas=cam_teste/canto&area="+gateInThousandths)
+	p = getPage(t, s, "areas=cam_test/canto&area="+gateInThousandths)
 	if o := p.Detections[1].Objects; len(o) != 2 {
 		t.Errorf("the drawn one and the registered one: the sum lost an object: %+v", o)
 	}
 
 	// Each camera with its own area: the person at cam_b@5 is at the gate, and
 	// the marks without a box on both go.
-	p = getPage(t, s, "areas=cam_teste/portao,cam_b/portao")
-	if got := labels(p, today); !equal(got, []string{"cam_b@5", "cam_teste@5"}) {
+	p = getPage(t, s, "areas=cam_test/portao,cam_b/portao")
+	if got := labels(p, today); !equal(got, []string{"cam_b@5", "cam_test@5"}) {
 		t.Errorf("one area on each camera: %v", got)
 	}
 }
@@ -323,7 +323,7 @@ func TestDetectionDaysByRegisteredArea(t *testing.T) {
 	registerAreas(s)
 	rec := httptest.NewRecorder()
 	s.handleDetectionDays(rec, httptest.NewRequest(http.MethodGet,
-		"/api/detections/days?areas=cam_teste/portao", nil))
+		"/api/detections/days?areas=cam_test/portao", nil))
 	var out struct {
 		DetectionsPerDay map[string]int `json:"detectionsPerDay"`
 	}
@@ -344,18 +344,18 @@ func TestAreaFilterRejectsBadParameter(t *testing.T) {
 		"area=" + gateInThousandths + "&rule=pisa", // the screen's name isn't the JSON one
 		"area=semCamera",
 		"area=:0,0,1000,0,0,1000",
-		"area=cam_teste:0,0,1000,0,1000",   // X without Y
-		"area=cam_teste:0,0,1000,0",        // two points
-		"area=cam_teste:0,0,1001,0,0,1000", // outside the frame
-		"area=cam_teste:0,0,x,0,0,1000",
+		"area=cam_test:0,0,1000,0,1000",   // X without Y
+		"area=cam_test:0,0,1000,0",        // two points
+		"area=cam_test:0,0,1001,0,0,1000", // outside the frame
+		"area=cam_test:0,0,x,0,0,1000",
 		"area=fantasma:0,0,1000,0,0,1000",
-		"areas=cam_teste/fantasma", // the deleted area
+		"areas=cam_test/fantasma", // the deleted area
 		"areas=fantasma/portao",
-		"areas=cam_teste",
-		"areas=cam_teste/",
+		"areas=cam_test",
+		"areas=cam_test/",
 		"areas=/portao",
-		"areas=cam_teste/portao,",               // empty item
-		"areas=cam_teste/portao,cam_b/fantasma", // one good and one deleted
+		"areas=cam_test/portao,",               // empty item
+		"areas=cam_test/portao,cam_b/fantasma", // one good and one deleted
 		"areas=",
 	} {
 		for name, h := range map[string]http.HandlerFunc{
@@ -372,7 +372,7 @@ func TestAreaFilterRejectsBadParameter(t *testing.T) {
 
 // alertScenario adds to detectionsScenario marks with the alert recorded:
 //
-//	today, cam_teste 7: person who alerted at the gate, and a vehicle that
+//	today, cam_test 7: person who alerted at the gate, and a vehicle that
 //	didn't
 //	today,     cam_b     8: person who didn't alert
 //	yesterday, cam_b     4: person who alerted on the whole image
@@ -388,8 +388,8 @@ func alertScenario(t *testing.T) (*Server, time.Time) {
 		}
 	}
 	yesterday := today.AddDate(0, 0, -1)
-	mark("cam_teste", today, 7, "person", true, "portao")
-	mark("cam_teste", today, 7, "vehicle", false)
+	mark("cam_test", today, 7, "person", true, "portao")
+	mark("cam_test", today, 7, "vehicle", false)
 	mark("cam_b", today, 8, "person", false)
 	mark("cam_b", yesterday, 4, "person", true)
 	return s, today
@@ -403,7 +403,7 @@ func TestDetectionsPageAlertsOnly(t *testing.T) {
 	s, today := alertScenario(t)
 
 	p := getPage(t, s, "alert=1")
-	if got := labels(p, today); !equal(got, []string{"cam_teste@7", "cam_b@-1436"}) {
+	if got := labels(p, today); !equal(got, []string{"cam_test@7", "cam_b@-1436"}) {
 		t.Fatalf("alerts only: %v", got)
 	}
 	o := p.Detections[0].Objects
@@ -423,8 +423,8 @@ func TestDetectionsPageAlertsOnly(t *testing.T) {
 	}
 
 	// Without the filter, the mark comes all the same.
-	p = getPage(t, s, "cams=cam_teste&families=person")
-	if o := p.Detections[0].Objects; labels(p, today)[0] != "cam_teste@7" || !o[0].Alert {
+	p = getPage(t, s, "cams=cam_test&families=person")
+	if o := p.Detections[0].Objects; labels(p, today)[0] != "cam_test@7" || !o[0].Alert {
 		t.Errorf("without the filter: %v %+v", labels(p, today), o)
 	}
 
@@ -461,7 +461,7 @@ func TestDetectionsPageRejectsBadParameter(t *testing.T) {
 func TestDetectionDays(t *testing.T) {
 	s, today := detectionsScenario(t)
 	dayBeforeYesterday := today.AddDate(0, 0, -2)
-	seed(t, s.store.Camera("cam_teste"), dayBeforeYesterday, [2]int64{0, 30_000}) // recorded, detected nothing
+	seed(t, s.store.Camera("cam_test"), dayBeforeYesterday, [2]int64{0, 30_000}) // recorded, detected nothing
 
 	yesterday := today.AddDate(0, 0, -1).Format(store.DayLayout)
 	day := today.Format(store.DayLayout)
@@ -511,7 +511,7 @@ func TestDetectionFrame(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	s.handleDetectionFrame(rec, httptest.NewRequest(http.MethodGet,
-		fmt.Sprintf("/api/detections/frame?cam=cam_teste&t=%d", t0), nil))
+		fmt.Sprintf("/api/detections/frame?cam=cam_test&t=%d", t0), nil))
 	if rec.Code != http.StatusOK || rec.Body.String() != string(jpeg) {
 		t.Fatalf("HTTP %d, %d bytes", rec.Code, rec.Body.Len())
 	}
@@ -521,7 +521,7 @@ func TestDetectionFrame(t *testing.T) {
 
 	rec = httptest.NewRecorder()
 	s.handleDetectionFrame(rec, httptest.NewRequest(http.MethodGet,
-		fmt.Sprintf("/api/detections/frame?cam=cam_teste&t=%d", t0+1), nil))
+		fmt.Sprintf("/api/detections/frame?cam=cam_test&t=%d", t0+1), nil))
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("no frame: HTTP %d, want 404", rec.Code)
 	}

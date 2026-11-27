@@ -174,7 +174,7 @@ func run(log *slog.Logger, cfgPath string) error {
 	}
 
 	go func() {
-		log.Info("dwnvr no ar", "http", cfg.Server.Listen,
+		log.Info("dwnvr is up", "http", cfg.Server.Listen,
 			"storage", cfg.Storage.Root, "go2rtc", cfg.Go2RTC.URL)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("HTTP server went down", "err", err)

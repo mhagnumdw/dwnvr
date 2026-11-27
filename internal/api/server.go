@@ -465,10 +465,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// would give the time the user already has on their own clock, which is not
 	// the question.
 	now := time.Now()
-	sigla, offset := now.Zone()
+	abbr, offset := now.Zone()
 	clock := map[string]any{
 		"now":           now.Format(time.RFC3339),
-		"abbr":          sigla,
+		"abbr":          abbr,
 		"offsetSeconds": offset,
 	}
 	if name := localZone(); name != "" {

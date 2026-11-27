@@ -40,7 +40,7 @@ func writeSegmentFile(t *testing.T, c *Camera, e Entry) {
 
 func newTestCamera(t *testing.T) *Camera {
 	t.Helper()
-	return New(t.TempDir()).Camera("cam_teste")
+	return New(t.TempDir()).Camera("cam_test")
 }
 
 func TestAppendAndRead(t *testing.T) {
@@ -84,7 +84,7 @@ func TestAppendAndRead(t *testing.T) {
 // rebuilt by reading the indexes from disk.
 func TestScanRebuildsSummaries(t *testing.T) {
 	root := t.TempDir()
-	c := New(root).Camera("cam_teste")
+	c := New(root).Camera("cam_test")
 	base := baseTime()
 
 	for i := range 5 {
@@ -94,7 +94,7 @@ func TestScanRebuildsSummaries(t *testing.T) {
 	}
 
 	// Simulates a restart: a new instance, the same directory.
-	c2 := New(root).Camera("cam_teste")
+	c2 := New(root).Camera("cam_test")
 	if err := c2.Scan(false, nil); err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -201,7 +201,7 @@ func sumByLoadDay(t *testing.T, c *Camera) int64 {
 // checks the accumulation against the disk after each of those paths.
 func TestDurMsMatchesTheIndex(t *testing.T) {
 	root := t.TempDir()
-	c := New(root).Camera("cam_teste")
+	c := New(root).Camera("cam_test")
 	base := baseTime()
 
 	check := func(c *Camera, when string) {
@@ -226,7 +226,7 @@ func TestDurMsMatchesTheIndex(t *testing.T) {
 	}
 	check(c, "após Append")
 
-	c2 := New(root).Camera("cam_teste")
+	c2 := New(root).Camera("cam_test")
 	if err := c2.Scan(false, nil); err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -404,7 +404,7 @@ func TestRangeExcludesOutsideTheInterval(t *testing.T) {
 // Reconciliation: it's what saves the index after a kill -9.
 func TestScanReconcilesOrphanFile(t *testing.T) {
 	root := t.TempDir()
-	c := New(root).Camera("cam_teste")
+	c := New(root).Camera("cam_test")
 	base := baseTime()
 
 	e1 := entryAt(base, 60_000, 1_000)
@@ -417,7 +417,7 @@ func TestScanReconcilesOrphanFile(t *testing.T) {
 	orphan := entryAt(base.Add(time.Minute), 60_000, 2_000)
 	writeSegmentFile(t, c, orphan)
 
-	c2 := New(root).Camera("cam_teste")
+	c2 := New(root).Camera("cam_test")
 	probe := func(path string) (Entry, error) {
 		fi, err := os.Stat(path)
 		if err != nil {
@@ -446,7 +446,7 @@ func TestScanReconcilesOrphanFile(t *testing.T) {
 
 func TestScanReconcilesEntryWithoutFile(t *testing.T) {
 	root := t.TempDir()
-	c := New(root).Camera("cam_teste")
+	c := New(root).Camera("cam_test")
 	base := baseTime()
 
 	e1 := entryAt(base, 60_000, 1_000)
@@ -459,7 +459,7 @@ func TestScanReconcilesEntryWithoutFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c2 := New(root).Camera("cam_teste")
+	c2 := New(root).Camera("cam_test")
 	if err := c2.Scan(true, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +475,7 @@ func TestScanReconcilesEntryWithoutFile(t *testing.T) {
 // may be left over: the timeline would draw a stretch that doesn't play.
 func TestScanDropsZeroByteSegment(t *testing.T) {
 	root := t.TempDir()
-	c := New(root).Camera("cam_teste")
+	c := New(root).Camera("cam_test")
 	base := baseTime()
 
 	good := entryAt(base, 36_000, 1_000)
@@ -501,7 +501,7 @@ func TestScanDropsZeroByteSegment(t *testing.T) {
 		}
 		return Entry{DurMs: info.DurationMs, Gen: info.Gen}, nil
 	}
-	c2 := New(root).Camera("cam_teste")
+	c2 := New(root).Camera("cam_test")
 	if err := c2.Scan(true, probe); err != nil {
 		t.Fatal(err)
 	}
@@ -525,7 +525,7 @@ func TestScanDropsZeroByteSegment(t *testing.T) {
 // forever.
 func TestScanFixesMismatchedSize(t *testing.T) {
 	root := t.TempDir()
-	c := New(root).Camera("cam_teste")
+	c := New(root).Camera("cam_test")
 	base := baseTime()
 
 	e := entryAt(base, 60_000, 5_000)
@@ -538,7 +538,7 @@ func TestScanFixesMismatchedSize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c2 := New(root).Camera("cam_teste")
+	c2 := New(root).Camera("cam_test")
 	if err := c2.Scan(true, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -885,7 +885,7 @@ func TestOrphansIgnoresRegisteredCameras(t *testing.T) {
 	s := New(t.TempDir())
 	base := baseTime()
 
-	for _, id := range []string{"cam_a", "cam_b", "cam_viva"} {
+	for _, id := range []string{"cam_a", "cam_b", "cam_alive"} {
 		c := s.Camera(id)
 		e := entryAt(base, 60_000, 1_000_000)
 		writeSegmentFile(t, c, e)
@@ -894,7 +894,7 @@ func TestOrphansIgnoresRegisteredCameras(t *testing.T) {
 		}
 	}
 
-	got, err := s.Orphans(map[string]bool{"cam_viva": true})
+	got, err := s.Orphans(map[string]bool{"cam_alive": true})
 	if err != nil {
 		t.Fatalf("Orphans: %v", err)
 	}
@@ -920,7 +920,7 @@ func TestOrphansAcceptsDirectoryWithoutIndex(t *testing.T) {
 	root := t.TempDir()
 	s := New(root)
 
-	if err := os.MkdirAll(filepath.Join(root, "cam_lixo"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "cam_junk"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	// A loose file at the root is no camera and must not become a line on the
@@ -934,10 +934,10 @@ func TestOrphansAcceptsDirectoryWithoutIndex(t *testing.T) {
 		t.Fatalf("Orphans: %v", err)
 	}
 	if len(got) != 1 {
-		t.Fatalf("want only cam_lixo, got %+v", got)
+		t.Fatalf("want only cam_junk, got %+v", got)
 	}
-	if got[0].ID != "cam_lixo" || got[0].Bytes != 0 || got[0].Days != 0 {
-		t.Errorf("cam_lixo = %+v", got[0])
+	if got[0].ID != "cam_junk" || got[0].Bytes != 0 || got[0].Days != 0 {
+		t.Errorf("cam_junk = %+v", got[0])
 	}
 }
 

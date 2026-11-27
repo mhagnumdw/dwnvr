@@ -15,7 +15,8 @@ import (
 
 func silent() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
-// alerts is an alert from the camera with a person at the Portão, at the given instant.
+// alertOf is an alert from the camera with a person in the "Portão" area, at the
+// given instant.
 func alertOf(atMs int64) Alert {
 	return Alert{Camera: "cam_a", CameraName: "Frente", AtMs: atMs, Frame: []byte("jpeg"),
 		Objects: []Object{{Family: "person", Class: "person", Score: 0.87, Areas: []string{"Portão"}}}}

@@ -37,7 +37,7 @@ import (
 // source does not exist - kernel without PSI, system without cgroup v2, outside
 // Linux.
 
-// fontes are the roots of /proc and /sys, swappable in tests.
+// sources are the roots of /proc and /sys, swappable in tests.
 type sources struct{ proc, sys string }
 
 var systemSources = sources{proc: "/proc", sys: "/sys"}
@@ -189,7 +189,7 @@ type logInfo struct {
 	Lines []logbuf.Line `json:"lines"`
 }
 
-// recentes is what the log handler in main.go offers. It goes through an
+// recent is what the log handler in main.go offers. It goes through an
 // interface, and not through one more parameter of New, because the logger
 // already arrives here: it is enough to ask it.
 type recent interface {
@@ -199,9 +199,9 @@ type recent interface {
 func (s *Server) handleServerDiagnostics(w http.ResponseWriter, r *http.Request) {
 	f := systemSources
 	now := time.Now()
-	sigla, offset := now.Zone()
+	abbr, offset := now.Zone()
 	resp := serverInfo{
-		CollectedAt: collection{At: now.Format(time.RFC3339), Abbreviation: sigla, OffsetSeconds: offset, Zone: localZone()},
+		CollectedAt: collection{At: now.Format(time.RFC3339), Abbreviation: abbr, OffsetSeconds: offset, Zone: localZone()},
 		Machine:     collectMachine(f),
 		Process:     collectProcess(f, s.startedAt),
 		Memory:      collectMemory(f),

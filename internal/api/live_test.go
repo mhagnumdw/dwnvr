@@ -25,12 +25,12 @@ func TestLiveProxyOnlyForwardsTheWebsocket(t *testing.T) {
 	h := s.Handler()
 
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/live/ws?src=cam_frente", nil))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/live/ws?src=cam_front", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET /api/live/ws: HTTP %d: %s", rec.Code, rec.Body.String())
 	}
-	if len(received) != 1 || received[0] != "GET /api/ws?src=cam_frente" {
-		t.Fatalf("go2rtc received %v, expected only GET /api/ws?src=cam_frente", received)
+	if len(received) != 1 || received[0] != "GET /api/ws?src=cam_front" {
+		t.Fatalf("go2rtc received %v, expected only GET /api/ws?src=cam_front", received)
 	}
 	if username != "admin" || password != "senha" {
 		t.Errorf("go2rtc received the credential %q/%q", username, password)
@@ -42,7 +42,7 @@ func TestLiveProxyOnlyForwardsTheWebsocket(t *testing.T) {
 		{http.MethodPatch, "/api/live/config"},
 		{http.MethodPost, "/api/live/restart"},
 		{http.MethodGet, "/api/live/streams"},
-		{http.MethodPost, "/api/live/ws?src=cam_frente"},
+		{http.MethodPost, "/api/live/ws?src=cam_front"},
 	} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(request.method, request.filePath, nil))

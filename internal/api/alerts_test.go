@@ -50,9 +50,9 @@ func TestAlertsInHealth(t *testing.T) {
 	s.cfg.Detector.URL = "http://127.0.0.1:1"
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
 	yes := true
-	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &yes,
+	s.mgr.Set(config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, Detect: &yes,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
-	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
+	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_test", AtMs: 1000,
 		Objects: []alert.Object{{Family: "person", Class: "person", Score: 0.87}}})
 
 	if got := string(request(t, s.handleHealth, "/api/health")["alerts"]); got != `{"total":1}` {
@@ -71,10 +71,10 @@ func TestDropInHealth(t *testing.T) {
 	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com"}
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
 	yes := true
-	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &yes,
+	s.mgr.Set(config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, Detect: &yes,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
 	for range alert.AlertBurst + 2 {
-		s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
+		s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_test", AtMs: 1000,
 			Objects: []alert.Object{{Family: "person", Class: "person", Score: 0.87}}})
 	}
 
@@ -104,7 +104,7 @@ func TestFailingNotifierInHealth(t *testing.T) {
 	s.cfg.Alerts.Email.To = []string{"fulano@exemplo.com"}
 	s.mgr = recorder.NewManager(s.cfg, nil, s.store, s.log)
 	yes := true
-	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true, Detect: &yes,
+	s.mgr.Set(config.Camera{ID: "cam_test", Name: "Teste", Enabled: true, Detect: &yes,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person}}})
 
 	// The notifier has not tried yet: nothing failing, and the numbers zeroed.
@@ -117,7 +117,7 @@ func TestFailingNotifierInHealth(t *testing.T) {
 
 	// Without the Manager's Start, the send goroutine is the test's.
 	go s.mgr.Alerts().Run(t.Context())
-	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_teste", AtMs: 1000,
+	s.mgr.Alerts().Receive(alert.Alert{Camera: "cam_test", AtMs: 1000,
 		Objects: []alert.Object{{Family: "person", Class: "person", Score: 0.87}}})
 
 	var alerts struct {

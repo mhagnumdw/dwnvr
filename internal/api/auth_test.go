@@ -234,9 +234,9 @@ func TestRolePerRoute(t *testing.T) {
 	}
 
 	soAdmin := []string{
-		"POST /api/cameras", "DELETE /api/cameras?id=cam_teste", "GET /api/streams/probe?src=x",
+		"POST /api/cameras", "DELETE /api/cameras?id=cam_test", "GET /api/streams/probe?src=x",
 		"POST /api/go2rtc/restart", "GET /api/health", "POST /api/reconnects/reset",
-		"GET /api/health/server", "DELETE /api/rec?cam=cam_teste",
+		"GET /api/health/server", "DELETE /api/rec?cam=cam_test",
 		"GET /api/users", "POST /api/users", "POST /api/users/link",
 		"DELETE /api/users?username=maria", "DELETE /api/users/avatar?username=maria",
 	}
@@ -246,14 +246,14 @@ func TestRolePerRoute(t *testing.T) {
 			t.Errorf("viewer on %s: status %d, expected 403", r, code)
 		}
 	}
-	if !s.knownCamera("cam_teste") {
+	if !s.knownCamera("cam_test") {
 		t.Error("the camera disappeared with the request rejected")
 	}
 
 	// What belongs to everyone passes: here, it just must not be 401 or 403.
 	ofAll := []string{
-		"GET /api/cameras", "GET /api/rec/days?cam=cam_teste", "GET /api/detections/days",
-		"GET /api/rec/timeline?cam=cam_teste&day=2026-10-09",
+		"GET /api/cameras", "GET /api/rec/days?cam=cam_test", "GET /api/detections/days",
+		"GET /api/rec/timeline?cam=cam_test&day=2026-10-09",
 	}
 	for _, r := range ofAll {
 		method, route, _ := strings.Cut(r, " ")
@@ -273,7 +273,7 @@ func TestRolePerRoute(t *testing.T) {
 func TestCamerasLeanForTheViewer(t *testing.T) {
 	s, _ := testServer(t)
 	withAuth(t, s, maria)
-	s.mgr.Set(config.Camera{ID: "cam_teste", Name: "Teste", Enabled: true,
+	s.mgr.Set(config.Camera{ID: "cam_test", Name: "Teste", Enabled: true,
 		Alert: &config.CameraAlert{Enabled: true, Families: []detect.Family{detect.Person},
 			Schedules: []config.AlertSchedule{{Days: []time.Weekday{time.Monday}, From: "22:00", To: "23:59"}}}})
 	s.mgr.Set(config.Camera{ID: "cam_b", Name: "B", Enabled: true,
@@ -300,7 +300,7 @@ func TestCamerasLeanForTheViewer(t *testing.T) {
 	}
 	for _, c := range cams {
 		alert, _ := json.Marshal(c["alert"])
-		want := map[any]string{"cam_teste": `{"enabled":true}`, "cam_b": "null"}[c["id"]]
+		want := map[any]string{"cam_test": `{"enabled":true}`, "cam_b": "null"}[c["id"]]
 		if c["dir"] != nil || string(alert) != want {
 			t.Errorf("viewer's camera: %v", c)
 		}
