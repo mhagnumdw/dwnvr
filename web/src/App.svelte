@@ -322,7 +322,7 @@
   <!-- The new-version strip slides down with the header. Whoever measures the
        header height to dock at the bottom (the Detections screen) measures this
        block. -->
-  <div class="top">
+  <div class="page-top">
     <header>
       <span class="brand">
         <!-- The same file as the favicon, served from public/: one brand, one
@@ -347,7 +347,7 @@
         {#if installed}
           <div class="share">
             <button
-              class="icon"
+              class="icon-btn"
               onclick={shareScreen}
               title="Compartilhar esta tela"
               aria-label="Compartilhar esta tela"
@@ -518,7 +518,7 @@
     border-bottom: 1px solid var(--line);
   }
 
-  .top {
+  .page-top {
     position: sticky;
     top: 0;
     z-index: 20;
@@ -659,7 +659,7 @@
     position: relative;
   }
 
-  .icon {
+  .icon-btn {
     display: grid;
     place-items: center;
     width: 34px;
@@ -673,7 +673,7 @@
   }
 
   @media (hover: hover) {
-    .icon:hover {
+    .icon-btn:hover {
       background: var(--panel-2);
       color: var(--fg);
     }

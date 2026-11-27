@@ -1085,7 +1085,7 @@
           {/if}
         </div>
 
-        <div class="table">
+        <div class="det-table">
           {@render chipsOrder(detColumns, detOrder, sortDet)}
           <div class="thead detgrid row small muted">
             {#each detColumns as col (col.id)}
@@ -1405,7 +1405,7 @@
     gap: 10px;
     padding: 12px;
   }
-  .table {
+  .det-table {
     border-top: 1px solid var(--line);
     overflow-x: auto;
   }

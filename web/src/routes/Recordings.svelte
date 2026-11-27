@@ -1364,7 +1364,7 @@
           </div>
         {/if}
 
-        <div class="row" bind:offsetHeight={rowHeight}>
+        <div class="timeline-wrap" bind:offsetHeight={rowHeight}>
           <Timeline
             ranges={timeline.ranges}
             {events}
@@ -1681,7 +1681,7 @@
       grid-area: mini;
       align-self: start;
     }
-    .row {
+    .timeline-wrap {
       grid-area: timeline;
     }
     /* A single row, scrolling sideways: wrapped into three, it took more than

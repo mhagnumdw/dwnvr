@@ -791,7 +791,7 @@
               {@render blockTitle('bell', 'Alerta')}
               {#if al.enabled}
                 <span class="alert-rows">
-                  <span class="row">
+                  <span class="alert-row">
                     {#each byPriority(al.families ?? []) as f (f)}
                       {@const ic = familyIcon(f)}
                       <span class="family">
@@ -805,11 +805,11 @@
                       </span>
                     {/each}
                   </span>
-                  <span class="row">
+                  <span class="alert-row">
                     <Icon name="area" size={16} />
                     {alertWhereOnCard(cam)}
                   </span>
-                  <span class="row">
+                  <span class="alert-row">
                     <Icon name="clock" size={16} />
                     {alertWhenOnCard(al.schedules)}
                   </span>
@@ -898,13 +898,13 @@
         {/each}
       </div>
     {:else if cameras.error}
-      <p class="muted small empty">Não dá para listar os streams sem resposta do dwnvr.</p>
+      <p class="muted small streams-empty">Não dá para listar os streams sem resposta do dwnvr.</p>
     {:else if cameras.go2rtcError}
-      <p class="muted small empty">
+      <p class="muted small streams-empty">
         Não dá para listar os streams enquanto o go2rtc não responder.
       </p>
     {:else}
-      <p class="muted small empty">
+      <p class="muted small streams-empty">
         Nenhum stream novo - o dwnvr já grava todos os que o go2rtc serve.
       </p>
     {/if}
@@ -1513,13 +1513,13 @@
     gap: 4px;
     font-size: 14px;
   }
-  .alert-rows .row {
+  .alert-rows .alert-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
-  .alert-rows .row > :global(svg) {
+  .alert-rows .alert-row > :global(svg) {
     color: var(--dim);
   }
   .family {
@@ -1630,7 +1630,7 @@
     margin: 8px 0 0;
     color: var(--warn);
   }
-  .help .empty {
+  .help .streams-empty {
     margin: 0;
   }
   .help .explain {

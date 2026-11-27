@@ -377,7 +377,7 @@
       <div class="grid" bind:this={gridEl}>
         {#each grid as item, i (i)}
           {#if item === null}
-            <span class="cell empty" aria-hidden="true"></span>
+            <span class="cell blank" aria-hidden="true"></span>
           {:else}
             <button
               type="button"
@@ -523,7 +523,7 @@
     background: transparent;
   }
 
-  .cell.empty {
+  .cell.blank {
     pointer-events: none;
   }
 
