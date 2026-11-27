@@ -2,6 +2,42 @@
 
 > Generated automatically on release by git-cliff (`.github/workflows/release.yml`); dates in UTC; do not edit by hand.
 
+## [v0.16.0](https://github.com/mhagnumdw/dwnvr/compare/v0.15.0...v0.16.0) (2026-11-27)
+
+### Action required on upgrade
+
+- Before starting the new version, follow section 5 of docs/upgrading.md: it renames the values pessoa, veiculo and periodico in dwnvr.yaml, cameras.json and the saved marks. Without it, a camera on periodico falls back to the default method, the alerts lose those families, and the marks from before the update lose their icon. ([028d1624](https://github.com/mhagnumdw/dwnvr/commit/028d1624f12c974b084d6427872dd87392b5adb1))
+
+- each camera's eventos/ and quadros/ folders are now events/ and frames/, and the keys of each mark changed. Without the conversion the new version sees nothing detected before the update: the timeline loses the motion strip of the old recordings and the Detections screen starts empty. Follow section 4 of docs/upgrading.md. ([e0a4cc88](https://github.com/mhagnumdw/dwnvr/commit/e0a4cc883026212b96bcd33a8b10c50a096d44d0))
+
+- usuarios.json, acessos.json and avatares/ are now users.json, access.json and avatars/. With the old names only the owner from dwnvr.yaml logs in, the photos are gone and the last access starts over. Follow section 3 of docs/upgrading.md. ([7175ce12](https://github.com/mhagnumdw/dwnvr/commit/7175ce120502ff919051e84b7eadad4a21e2e15f))
+
+- detectMecanismo and detectSensibilidade are now detectMethod and detectSensitivity in dwnvr.yaml, cameras.json and /api/cameras, and the dwnvr-detect environment variables DETECT_MODELO and DETECT_PORTA are now DETECT_MODEL and DETECT_PORT. With the old names a camera silently falls back to the default method and sensitivity; follow section 2 of docs/upgrading.md. ([0dd6d9f7](https://github.com/mhagnumdw/dwnvr/commit/0dd6d9f739497e452fe0f93ac6237d24392c34b8))
+
+- The API routes, parameters and JSON keys, the interface links (#usuarios, #conta, #convite) and three saved browser preferences changed names. A script that calls the API or reads its answers needs the new names, and an invite link that was sent but not used yet needs #convite replaced by #invite; follow section 1 of docs/upgrading.md. ([0bb312f4](https://github.com/mhagnumdw/dwnvr/commit/0bb312f41732f5efc13959e3f68455d9da1b79c1))
+
+### Changed
+
+- refactor: en-US sweep and blame (conversion step 8) ([#100](https://github.com/mhagnumdw/dwnvr/pull/100)) ([bc23c784](https://github.com/mhagnumdw/dwnvr/commit/bc23c784fc947ed0ad706a0d55e2a02fd2dae36b))
+- refactor!: en-US family and method values (conversion step 6, part 5) ([#96](https://github.com/mhagnumdw/dwnvr/pull/96)) ([028d1624](https://github.com/mhagnumdw/dwnvr/commit/028d1624f12c974b084d6427872dd87392b5adb1))
+- refactor(store)!: en-US names for the detection marks and frames (conversion step 6, part 4) ([#95](https://github.com/mhagnumdw/dwnvr/pull/95)) ([e0a4cc88](https://github.com/mhagnumdw/dwnvr/commit/e0a4cc883026212b96bcd33a8b10c50a096d44d0))
+- refactor(users)!: en-US names for the people files (conversion step 6, part 3) ([#92](https://github.com/mhagnumdw/dwnvr/pull/92)) ([7175ce12](https://github.com/mhagnumdw/dwnvr/commit/7175ce120502ff919051e84b7eadad4a21e2e15f))
+- refactor(config)!: en-US dwnvr.yaml keys, detect env and the dwnvr-detect contract (conversion step 6, part 2) ([#91](https://github.com/mhagnumdw/dwnvr/pull/91)) ([0dd6d9f7](https://github.com/mhagnumdw/dwnvr/commit/0dd6d9f739497e452fe0f93ac6237d24392c34b8))
+- refactor(api)!: en-US API routes, JSON keys and web links (conversion step 6, part 1) ([#90](https://github.com/mhagnumdw/dwnvr/pull/90)) ([0bb312f4](https://github.com/mhagnumdw/dwnvr/commit/0bb312f41732f5efc13959e3f68455d9da1b79c1))
+
+### Docs
+
+- docs(todo): step 8 merged ([9a04d588](https://github.com/mhagnumdw/dwnvr/commit/9a04d588b8eaf0882ed179c3f8e7717a77672dd9))
+- docs: en-US documentation, examples and workflows (conversion step 7) ([#98](https://github.com/mhagnumdw/dwnvr/pull/98)) ([b55ec75d](https://github.com/mhagnumdw/dwnvr/commit/b55ec75d2ddcec64b057e56ce7ec4c8d12dd13fc))
+- docs: en-US glossary and AGENTS.md (conversion steps 1 and 2) ([#82](https://github.com/mhagnumdw/dwnvr/pull/82)) ([95de63d5](https://github.com/mhagnumdw/dwnvr/commit/95de63d5bef8037a668b804a1342d129ec43e5c1))
+
+### CI/Build
+
+- build(deps-dev): bump the npm group in /web with 6 updates ([#97](https://github.com/mhagnumdw/dwnvr/pull/97)) ([12640a75](https://github.com/mhagnumdw/dwnvr/commit/12640a75c50f13f86dbb1f06f233513557936f27))
+- build(deps): bump minimatch, eslint and typescript-eslint in /web ([#87](https://github.com/mhagnumdw/dwnvr/pull/87)) ([f144206a](https://github.com/mhagnumdw/dwnvr/commit/f144206a8c4f42137d5692420e2e57058d921cde))
+- build(deps): bump the pre-commit group across 1 directory with 4 updates ([#93](https://github.com/mhagnumdw/dwnvr/pull/93)) ([2b9d7a79](https://github.com/mhagnumdw/dwnvr/commit/2b9d7a794f7e561b3297a2752e8e4f6eea2749b7))
+- build(deps): bump the github-actions group across 1 directory with 2 updates ([#94](https://github.com/mhagnumdw/dwnvr/pull/94)) ([418cf763](https://github.com/mhagnumdw/dwnvr/commit/418cf763c3b224ed5613b5b422006badcb7c376f))
+
 ## [v0.15.0](https://github.com/mhagnumdw/dwnvr/compare/v0.14.0...v0.15.0) (2026-11-11)
 
 ### Added
