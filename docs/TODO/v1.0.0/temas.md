@@ -1,7 +1,8 @@
 # Temas
 
 **Status (27/11/2026): em andamento.** Decisões e paletas fechadas em
-27/11/2026; o passo 1 (toda cor num token) está no PR da branch `themes`.
+27/11/2026; o passo 1 (toda cor num token) foi mergeado no PR #101, e o passo 2
+(as paletas e o script de contraste) está no PR da branch `themes-palettes`.
 
 ## O que é
 
@@ -54,7 +55,7 @@ pouco claro é desenhado, na metade do caminho entre o claro e o pouco escuro.
 | `--fg` | `#e6edf3` | `#c5d1de` | `#171b20` | `#1f2328` |
 | `--dim` | `#8b949e` | `#9aa6b3` | `#3c4550` | `#59636e` |
 | `--faint` | `#4a5058` | `#545d68` | `#7f8a96` | `#aab2bb` |
-| `--accent` | `#2f81f7` | `#6cb6ff` | `#0850a3` | `#0969da` |
+| `--accent` | `#4493f8` | `#6cb6ff` | `#0850a3` | `#0969da` |
 | `--accent-fill` | `#1f6feb` | `#316dca` | `#0850a3` | `#0969da` |
 | `--on-accent` | `#fff` | `#fff` | `#fff` | `#fff` |
 | `--active-bg` | `#12233d` | `#263a55` | `#adc6e6` | `#ddf4ff` |
@@ -62,7 +63,7 @@ pouco claro é desenhado, na metade do caminho entre o claro e o pouco escuro.
 | `--warn` | `#d29922` | `#daaa3f` | `#6b4700` | `#9a6700` |
 | `--on-warn` | `#1b1300` | `#1c1400` | `#fff` | `#fff` |
 | `--bad` | `#f85149` | `#ff7b72` | `#a01822` | `#d1242f` |
-| `--on-bad` | `#fff` (3,35:1, o de hoje; o script do passo 2 decide) | `#1c2128` | `#fff` | `#fff` |
+| `--on-bad` | `#0d1117` | `#1c2128` | `#fff` | `#fff` |
 | `--on-strong` | `#0d1117` | `#1c2128` | `#fff` | `#fff` |
 | `--track` | `#1b1f24` | `#2a3038` | `#b9c2cc` | `#eaeef2` |
 | `--track-strong` | `#3d444d` | `#545d68` | `#8b96a2` | `#b7bfc8` |
@@ -71,6 +72,27 @@ pouco claro é desenhado, na metade do caminho entre o claro e o pouco escuro.
 | `--animal` | `#db61a2` | `#c96198` | `#8c2869` | `#bf3989` |
 | `--shadow` | `rgba(0, 0, 0, 0.5)` | `rgba(0, 0, 0, 0.45)` | `rgba(31, 35, 40, 0.24)` | `rgba(31, 35, 40, 0.15)` |
 | `--backdrop` | `rgba(0, 0, 0, 0.6)` | `rgba(0, 0, 0, 0.55)` | `rgba(31, 35, 40, 0.5)` | `rgba(31, 35, 40, 0.4)` |
+
+No `web/src/app.css`, o escuro é o bloco `:root, .over-video`, e cada uma das
+outras é um bloco `:root[data-theme='…']` (`dark-dim`, `light-dim`, `light`),
+só no `:root`: o que fica sobre o vídeo segue sempre o escuro. O passo 3 põe o
+atributo no `<html>`; até lá, uma paleta se vê pelo DevTools, com
+`document.documentElement.dataset.theme = 'light'`.
+
+Duas mudanças no escuro, decididas em 27/11/2026 pelo script: o `--on-bad`, o
+número da bolinha vermelha do sino, era branco e dava 3,35:1, e virou texto
+escuro (5,65:1), com o vermelho igual ao do resto da tela; e o `--accent` sai do
+`#2f81f7`, que dava 4,31:1 sobre o `--panel-2` (a contagem do dia no hover do
+calendário, um texto de Câmeras), para o `#4493f8`, o azul de texto do escuro
+do GitHub de hoje (5,22:1).
+
+O `web/scripts/contrast.mjs` lê as paletas do `app.css` e confere cada par de
+texto e fundo que a tela usa (WCAG AA: 4,5:1 para texto, 3:1 para ícone); o
+hook `contrast` do prek roda o script quando o `app.css` muda, e a CI roda o
+mesmo arquivo. Um par novo na tela entra na lista do script. O número da fatia
+"descartada" do funil do Diagnóstico ficou de fora: dá ~3:1 em todas as
+paletas, o escuro de hoje inclusive, e está no
+[TODO](../TODO_funnel-dropped-contrast.md).
 
 `--bad-line` e `--warn-line`, as bordas do `danger` e do aviso, saem do
 `--bad` e do `--warn` por `color-mix()` com o `--bg`, e nenhuma paleta as
