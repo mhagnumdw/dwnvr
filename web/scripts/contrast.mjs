@@ -9,9 +9,13 @@
 // A pair is listed here because the screen really puts that text on that
 // background: a new pair on screen goes into PAIRS.
 //
-// Usage: node web/scripts/contrast.mjs [path to app.css]. It prints one
-// table per palette and exits with 1 if any pair fails. The prek hook runs it
-// whenever app.css changes.
+// It also checks that the system bar color of each theme, written by hand in
+// the script of web/index.html (it runs before the CSS exists), is the --bg of
+// that palette.
+//
+// Usage: node web/scripts/contrast.mjs [path to app.css] [path to index.html].
+// It prints one table per palette and exits with 1 if anything fails. The prek
+// hook runs it whenever app.css or index.html changes.
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -97,10 +101,33 @@ export function ratio(a, b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+// The `BAR` map of the index.html script: { dark: '#0d1117', ... }.
+export function bars(html) {
+  const body = /const BAR = \{([^}]*)\}/.exec(html)?.[1];
+  if (!body) throw new Error('no `const BAR = {...}` in index.html');
+  const out = {};
+  for (const [, name, value] of body.matchAll(/['"]?([\w-]+)['"]?\s*:\s*['"](#[0-9a-f]+)['"]/gi)) {
+    out[name] = value;
+  }
+  return out;
+}
+
 function main() {
   const file = process.argv[2] ?? fileURLToPath(new URL('../src/app.css', import.meta.url));
+  const html = process.argv[3] ?? fileURLToPath(new URL('../index.html', import.meta.url));
   const all = palettes(readFileSync(file, 'utf8'));
   let failed = 0;
+
+  const bar = bars(readFileSync(html, 'utf8'));
+  console.log('\nsystem bar (index.html) = --bg');
+  for (const name of new Set([...Object.keys(all), ...Object.keys(bar)])) {
+    const want = all[name]?.bg;
+    const ok = want !== undefined && hex(bar[name] ?? '')?.join() === hex(want)?.join();
+    if (!ok) failed++;
+    console.log(
+      `  ${ok ? 'ok  ' : 'FAIL'}  ${name.padEnd(10)} ${bar[name] ?? '-'} (--bg ${want ?? '-'})`,
+    );
+  }
   for (const [name, tokens] of Object.entries(all)) {
     console.log(`\n${name}`);
     for (const [fg, bg, min, where] of PAIRS) {
@@ -121,7 +148,7 @@ function main() {
     }
   }
   if (failed) {
-    console.error(`\n${failed} pair(s) below the minimum`);
+    console.error(`\n${failed} check(s) failed`);
     process.exit(1);
   }
 }

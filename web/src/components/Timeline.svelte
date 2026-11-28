@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { MarkedObject, Span } from '../lib/api.ts';
   import { context2d } from '../lib/canvas.ts';
-  import { tokenColor } from '../lib/theme.ts';
+  import { tokenColor } from '../lib/theme.svelte.ts';
   import { hhmm, hhmmss } from '../lib/format.ts';
   import { family, iconOf, drawIcon, CLASS_NAME } from '../lib/icons.ts';
   import type { IconName } from '../lib/icons.ts';
@@ -93,7 +93,7 @@
   const MOUSE_TARGET_PX = 8;
   const FINGER_TARGET_PX = 16;
 
-  // The colors come from the theme's tokens (lib/theme.ts), read once per token
+  // The colors come from the theme's tokens (lib/theme.svelte.ts), read once per token
   // in each drawing: a day has thousands of ticks, and the theme can change
   // with the screen open.
   // eslint-disable-next-line svelte/prefer-svelte-reactivity -- a cache of the drawing, which the screen does not read

@@ -6,7 +6,7 @@
 // is the silhouette, and here the silhouette is ours.
 
 import { context2d } from './canvas.ts';
-import { tokenColor } from './theme.ts';
+import { tokenColor } from './theme.svelte.ts';
 
 export interface Family {
   name: string;

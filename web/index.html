@@ -9,6 +9,45 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>dwnvr</title>
+    <script>
+      // The theme before the first paint: without this, whoever uses a light
+      // theme sees the dark one flash on every opening. It sets `data-theme`
+      // on <html> (the palettes in src/app.css; dark is no attribute), the
+      // color-scheme and the theme-color, which paints the system bar of the
+      // installed app. src/lib/theme.svelte.ts reuses `apply`.
+      (function () {
+        // The --bg of each palette in src/app.css (web/scripts/contrast.mjs checks it).
+        const BAR = {
+          dark: '#0d1117',
+          'dark-dim': '#22272e',
+          'light-dim': '#c4ccd5',
+          light: '#fff',
+        };
+        const key = 'dwnvr.theme';
+        function apply(choice) {
+          let t = choice;
+          if (!Object.hasOwn(BAR, t)) {
+            t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          }
+          const root = document.documentElement;
+          if (t === 'dark') root.removeAttribute('data-theme');
+          else root.setAttribute('data-theme', t);
+          document.querySelector('meta[name=theme-color]').content = BAR[t];
+          document.querySelector('meta[name=color-scheme]').content = t.startsWith('light')
+            ? 'light'
+            : 'dark';
+          return t;
+        }
+        let choice = null;
+        try {
+          choice = localStorage.getItem(key);
+        } catch {
+          // Blocked site data: the theme is the system's.
+        }
+        window.dwnvrTheme = { key, apply };
+        apply(choice);
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

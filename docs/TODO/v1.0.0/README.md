@@ -6,8 +6,8 @@ cada atividade, no arquivo dela.
 
 **Agora (27/11/2026):** a Etapa 2 (conversão para en-US) está concluída, com a
 [v0.16.0](https://github.com/mhagnumdw/dwnvr/releases/tag/v0.16.0), e a Etapa 3
-(temas) está em andamento: o passo 1 foi mergeado, e o passo 2 (as paletas e o
-script de contraste) está em PR. O guia de atualização da conversão está em
+(temas) está em andamento: os passos 1 e 2 foram mergeados, e o passo 3 (o
+seletor) está em PR. O guia de atualização da conversão está em
 [docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
 ## Andamento
@@ -68,7 +68,7 @@ próxima, em andamento ou concluída, com a data.
   - [x] A release da etapa: a [v0.16.0](https://github.com/mhagnumdw/dwnvr/releases/tag/v0.16.0), em 27/11/2026, com a CI da `main` verde
 - [ ] **Etapa 3 - temas**: em andamento desde 27/11/2026 ([temas.md](temas.md))
   - [x] Toda cor da tela passa por um token: PR #101, em 27/11/2026
-  - [ ] As quatro paletas e o "sistema", com o contraste conferido
+  - [x] As quatro paletas e o "sistema", com o contraste conferido: PR #102, em 27/11/2026 (o "sistema" entra com o seletor)
   - [ ] O seletor e onde a escolha fica
 - [ ] **Etapa 4 - paleta customizável**: não começou ([paleta.md](paleta.md))
   - [ ] Os tokens documentados como contrato
