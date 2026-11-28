@@ -26,7 +26,7 @@
   import type { Box, Detection, DetectionsFilter } from '../lib/api.ts';
   import { cameras, isAdmin, loadCameras } from '../lib/state.svelte.ts';
   import { currentParams, write, recordingsLink } from '../lib/route.svelte.ts';
-  import { FAMILIES, FAMILY_NAMES, family, iconURL, familyNames } from '../lib/icons.ts';
+  import { FAMILIES, FAMILY_NAMES, family, iconURL, familyNames, pageColor } from '../lib/icons.ts';
   import type { FamilyName } from '../lib/icons.ts';
   import { BOX_SLACK_PX } from '../lib/boxes.ts';
   import { hhmmss, ddmm, dayKey, parseDay, hourOfMinute } from '../lib/format.ts';
@@ -1443,7 +1443,7 @@
           title={on ? `ocultar ${FAMILIES[f].name}` : `mostrar ${FAMILIES[f].name}`}
           onclick={() => toggleFamily(f)}
         >
-          <img src={iconURL(f, 14, FAMILIES[f].color)} alt="" width="14" height="14" />
+          <img src={iconURL(f, 14, pageColor(FAMILIES[f]))} alt="" width="14" height="14" />
           <span class="label">{FAMILIES[f].name}</span>
         </button>
       {/each}
@@ -1575,7 +1575,7 @@
           style:height="{l.height}px"
         >
           {#each l.items as d (key(d))}
-            <div class="cell">
+            <div class="cell over-video">
               <button
                 class="tile"
                 onclick={() => (isOpen = key(d))}
@@ -2160,7 +2160,7 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 24px var(--shadow);
   }
 
   /* --- the grid --- */
@@ -2366,7 +2366,7 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 24px var(--shadow);
   }
 
   .menu button,

@@ -42,7 +42,7 @@
   import AreaTile from '../components/AreaTile.svelte';
   import type AreaEditorT from '../components/AreaEditor.svelte';
   import type AlertTabT from '../components/AlertTab.svelte';
-  import { family, familyIcon, iconURL, byPriority } from '../lib/icons.ts';
+  import { family, familyIcon, iconURL, byPriority, pageColor } from '../lib/icons.ts';
   import { DEFAULT_RULE, MAX_AREAS, registryPoints } from '../lib/area.ts';
   import {
     MAX_SCHEDULES,
@@ -796,7 +796,7 @@
                       {@const ic = familyIcon(f)}
                       <span class="family">
                         {#if ic}<img
-                            src={iconURL(ic, 14, family(f).color)}
+                            src={iconURL(ic, 14, pageColor(family(f)))}
                             alt=""
                             width="14"
                             height="14"
@@ -1462,7 +1462,7 @@
      like every estimate on the screen. */
   .chip.retained,
   .chip.retain {
-    border-color: #1f6feb66;
+    border-color: color-mix(in srgb, var(--accent-fill) 40%, transparent);
   }
   .chip.retain {
     color: var(--accent);
@@ -1538,11 +1538,11 @@
   }
 
   .warnbox {
-    border-color: #6b5a1f;
+    border-color: var(--warn-line);
     color: var(--warn);
   }
   .errbox {
-    border-color: #5c2b2b;
+    border-color: var(--bad-line);
     color: var(--bad);
   }
   .form-error {
@@ -1608,7 +1608,7 @@
   }
   button.warn {
     color: var(--warn);
-    border-color: #6b5a1f;
+    border-color: var(--warn-line);
     white-space: nowrap;
   }
   .restart {

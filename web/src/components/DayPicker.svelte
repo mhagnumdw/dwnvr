@@ -468,7 +468,7 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 24px var(--shadow);
   }
 
   .header {
@@ -556,16 +556,16 @@
   .cell.day.selected:hover {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     font-weight: 600;
   }
 
   .cell.day.selected .point {
-    background: #fff;
+    background: var(--on-accent);
   }
 
   .cell.day.selected .count {
-    color: #fff;
+    color: var(--on-accent);
   }
 
   /* Outline outside the cell: inside, it would vanish into the selected day's

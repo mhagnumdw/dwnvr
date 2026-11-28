@@ -20,7 +20,7 @@
   import { place, draw } from '../lib/boxes.ts';
   import { drawOutline, fillArea } from '../lib/area.ts';
   import type { Point } from '../lib/area.ts';
-  import { family, iconOf, iconURL, CLASS_NAME } from '../lib/icons.ts';
+  import { family, iconOf, iconURL, CLASS_NAME, pageColor } from '../lib/icons.ts';
   import { hhmmss, ddmm } from '../lib/format.ts';
   import { recordingsLink } from '../lib/route.svelte.ts';
   import { fullscreen, toggleFullscreen, leaveFullscreen } from '../lib/fullscreen.svelte.ts';
@@ -324,7 +324,7 @@
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
-    class="stage"
+    class="stage over-video"
     class:fs={inFullscreen}
     bind:this={stage}
     ondblclick={doubleClick}
@@ -385,7 +385,7 @@
         <span class="alert-row">
           <span class="object">
             {#if icon}<img
-                src={iconURL(icon, 14, family(o.family).color)}
+                src={iconURL(icon, 14, pageColor(family(o.family)))}
                 alt=""
                 width="14"
                 height="14"
@@ -421,7 +421,7 @@
       {@const icon = iconOf(o, true) ?? iconOf(o, false)}
       <span class="object">
         {#if icon}<img
-            src={iconURL(icon, 14, family(o.family).color)}
+            src={iconURL(icon, 14, pageColor(family(o.family)))}
             alt=""
             width="14"
             height="14"
@@ -610,7 +610,7 @@
 
   .badge.bad {
     color: var(--bad);
-    border-color: #5c2b2b;
+    border-color: var(--bad-line);
   }
 
   .objects {
@@ -630,14 +630,14 @@
     display: block;
   }
 
-  /* In the bell's color (--warn, #d29922), like "só alertas" in Detections. */
+  /* In the bell's color (--warn), like "só alertas" in Detections. */
   .alert-block {
     display: grid;
     gap: 4px;
     padding: 8px 10px;
-    border: 1px solid rgba(210, 153, 34, 0.4);
+    border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
     border-radius: 8px;
-    background: rgba(210, 153, 34, 0.06);
+    background: color-mix(in srgb, var(--warn) 6%, transparent);
   }
 
   .title {

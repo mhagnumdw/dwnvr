@@ -211,7 +211,7 @@
   {#each tiles as [t, dur] (t)}
     {@const active = currentMs >= t && currentMs < t + dur}
     <button
-      class="tile"
+      class="tile over-video"
       class:active
       data-t={t}
       onclick={() => {

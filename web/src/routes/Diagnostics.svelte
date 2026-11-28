@@ -486,11 +486,16 @@
     // The queue holds few marks per camera: one that arrives with the camera
     // already at the limit is discarded - it does not go to the detector now or
     // later - and stays only as motion on the timeline.
-    { id: 'dropped', color: '#3d444d', dark: false, label: 'descartada: fila da câmera cheia' },
+    {
+      id: 'dropped',
+      color: 'var(--track-strong)',
+      dark: false,
+      label: 'descartada: fila da câmera cheia',
+    },
     { id: 'inferred', color: 'var(--accent)', dark: true, label: 'olhou, nada novo' },
     { id: 'object', color: 'var(--ok)', dark: true, label: 'achou objeto' },
     // Light gray, and not another shade of the dark one: a dark gray ends up
-    // almost identical to the `#3d444d` of discarded, and the two pieces blur
+    // almost identical to the --track-strong of discarded, and the two pieces blur
     // together. A truly new color does not work either - purple and pink are
     // already vehicle and animal on the timeline, and repeating them here would
     // invent a kinship that does not exist.
@@ -1286,7 +1291,7 @@
     height: 12px;
     border-radius: 999px;
     overflow: hidden;
-    background: #1b1f24;
+    background: var(--track);
   }
   .seg.dwnvr {
     background: var(--accent);
@@ -1300,7 +1305,7 @@
     min-width: 4px;
   }
   .seg.others {
-    background: #3d444d;
+    background: var(--track-strong);
   }
 
   .legend {
@@ -1320,7 +1325,7 @@
     background: var(--warn);
   }
   .legend i.others {
-    background: #3d444d;
+    background: var(--track-strong);
   }
 
   .totals {
@@ -1377,7 +1382,7 @@
   }
   .chip.stopped {
     color: var(--bad);
-    border-color: #5c2b2b;
+    border-color: var(--bad-line);
   }
   .notices p.warn {
     color: var(--warn);
@@ -1417,7 +1422,7 @@
     height: 26px;
     border-radius: 6px;
     overflow: hidden;
-    background: #1b1f24;
+    background: var(--track);
   }
   .funnel .seg {
     display: flex;
@@ -1435,7 +1440,7 @@
   }
   /* Dark text only where the background is strong enough to carry it. */
   .funnel .seg.dark {
-    color: #0d1117;
+    color: var(--on-strong);
   }
 
   /* Spread across the whole row on desktop and stacked on the phone, which is
@@ -1508,7 +1513,7 @@
   /* Zero is an answer, but not news: dimmed so the row that has a number stands
      out from the ones that do not. */
   .zero {
-    color: #4a5058;
+    color: var(--faint);
   }
   /* The camera without detection: the name stays legible, because it is what
      says whom the notice is about, and the numbers recede. */
@@ -1544,7 +1549,7 @@
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    border: 1.5px solid #4a5058;
+    border: 1.5px solid var(--faint);
   }
   .slot.waiting {
     background: var(--dim);
@@ -1568,13 +1573,13 @@
     height: 9px;
     border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 0 3px #2f81f733;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
     margin-right: 9px;
   }
   .queue-caption {
     gap: 14px;
     padding: 8px 12px 10px;
-    border-top: 1px solid #21262d;
+    border-top: 1px solid var(--line-soft);
   }
   .queue-caption .slot,
   .queue-caption .processing {
@@ -1668,7 +1673,7 @@
   .order .chip.active {
     border-color: var(--accent);
     color: var(--fg);
-    background: #2f81f71f;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
   .order .arrow {
     display: flex;
@@ -1746,7 +1751,7 @@
     color: var(--accent);
   }
   .trow + .trow {
-    border-top: 1px solid #21262d;
+    border-top: 1px solid var(--line-soft);
   }
   .c-name {
     gap: 7px;

@@ -1043,6 +1043,7 @@
     class="stage"
     class:fit={mode === 'fit'}
     class:fs={inFullscreen}
+    class:over-video={inFullscreen}
     class:hidden={inFullscreen && !controls.visibleOnes}
     style:--swap="{SWITCH_MS}ms"
     bind:this={stage}
@@ -1079,7 +1080,7 @@
         {@const p = inFullscreen ? role(i) : null}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-          class="tile"
+          class="tile over-video"
           class:prev={p === 'prev'}
           class:next={p === 'next'}
           class:off={p === 'off'}
@@ -1508,7 +1509,7 @@
     bottom: 32px;
     max-width: calc(100% - 120px);
     background: rgba(0, 0, 0, 0.7);
-    border: 1px solid #5c2b2b;
+    border: 1px solid var(--bad-line);
     border-radius: 6px;
     padding: 3px 8px;
     font-size: 12px;
@@ -1583,7 +1584,7 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 24px var(--shadow);
   }
 
   .menu a,

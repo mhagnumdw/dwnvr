@@ -10,7 +10,7 @@
 <script lang="ts">
   import type { CameraAlert, EmailAlert, CameraArea, AlertWhere } from '../lib/api.ts';
   import { since } from '../lib/notices.ts';
-  import { FAMILIES, FAMILY_NAMES, iconURL } from '../lib/icons.ts';
+  import { FAMILIES, FAMILY_NAMES, iconURL, pageColor } from '../lib/icons.ts';
   import type { FamilyName } from '../lib/icons.ts';
   import type { Schedule } from '../lib/schedules.ts';
   import AlertSchedules from './AlertSchedules.svelte';
@@ -119,7 +119,7 @@
         aria-pressed={on}
         onclick={() => toggleFamily(f)}
       >
-        <img src={iconURL(f, 14, FAMILIES[f].color)} alt="" width="14" height="14" />
+        <img src={iconURL(f, 14, pageColor(FAMILIES[f]))} alt="" width="14" height="14" />
         {FAMILIES[f].name}
       </button>
     {/each}
