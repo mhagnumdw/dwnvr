@@ -1,9 +1,9 @@
 # Temas
 
-**Status (27/11/2026): em andamento.** Decisões e paletas fechadas em
-27/11/2026; o passo 1 (toda cor num token) foi mergeado no PR #101, o passo 2
-(as paletas e o script de contraste) no PR #102, e o passo 3 (o seletor) está
-no PR da branch `themes-picker`.
+**Status (28/11/2026): concluído**, na
+[v0.17.0](https://github.com/mhagnumdw/dwnvr/releases/tag/v0.17.0). O passo 1
+(toda cor num token) foi o PR #101, o passo 2 (as paletas e o script de
+contraste) o PR #102, e o passo 3 (o seletor) o PR #103.
 
 ## O que é
 

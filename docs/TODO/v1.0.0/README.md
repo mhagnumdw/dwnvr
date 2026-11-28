@@ -4,11 +4,10 @@ O índice do plano da 1.0.0: em que ponto está cada etapa. O porquê da ordem e
 as decisões que valem para todas estão no [plano.md](plano.md); o estudo de
 cada atividade, no arquivo dela.
 
-**Agora (27/11/2026):** a Etapa 2 (conversão para en-US) está concluída, com a
-[v0.16.0](https://github.com/mhagnumdw/dwnvr/releases/tag/v0.16.0), e a Etapa 3
-(temas) está em andamento: os passos 1 e 2 foram mergeados, e o passo 3 (o
-seletor) está em PR. O guia de atualização da conversão está em
-[docs/upgrading.md](../../upgrading.md), com uma seção por parte.
+**Agora (28/11/2026):** a Etapa 3 (temas) está concluída, com a
+[v0.17.0](https://github.com/mhagnumdw/dwnvr/releases/tag/v0.17.0); a próxima é
+a Etapa 4 (paleta customizável). O guia de atualização da conversão (Etapa 2)
+está em [docs/upgrading.md](../../upgrading.md), com uma seção por parte.
 
 ## Andamento
 
@@ -66,10 +65,11 @@ próxima, em andamento ou concluída, com a data.
     - [x] O `.git-blame-ignore-revs` com os passos 3, 4 e 5 (#86, #88, #89), que só renomeiam; o passo 6 muda contrato e os passos 2 e 7 reescrevem texto, e ficam no blame
     - [x] O PR mergeado por squash, com o conserto das classes de CSS que o passo 4 fundiu (a tabela do reconhecimento no Diagnóstico e mais cinco)
   - [x] A release da etapa: a [v0.16.0](https://github.com/mhagnumdw/dwnvr/releases/tag/v0.16.0), em 27/11/2026, com a CI da `main` verde
-- [ ] **Etapa 3 - temas**: em andamento desde 27/11/2026 ([temas.md](temas.md))
+- [x] **Etapa 3 - temas**: concluída em 28/11/2026 ([temas.md](temas.md))
   - [x] Toda cor da tela passa por um token: PR #101, em 27/11/2026
   - [x] As quatro paletas e o "sistema", com o contraste conferido: PR #102, em 27/11/2026 (o "sistema" entra com o seletor)
-  - [ ] O seletor e onde a escolha fica
+  - [x] O seletor e onde a escolha fica: PR #103, em 28/11/2026 (na Minha conta, no `localStorage` do navegador)
+  - [x] A release da etapa: a [v0.17.0](https://github.com/mhagnumdw/dwnvr/releases/tag/v0.17.0), em 28/11/2026, com a CI da `main` verde
 - [ ] **Etapa 4 - paleta customizável**: não começou ([paleta.md](paleta.md))
   - [ ] Os tokens documentados como contrato
   - [ ] O arquivo da paleta na pasta de configuração
