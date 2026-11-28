@@ -21,7 +21,7 @@ services:
     # commit on main. Without it, what comes after the `:-` applies, which each
     # release rewrites with its own version - release.yml looks for this line
     # and the dwnvr-detect one in this exact format.
-    image: ghcr.io/mhagnumdw/dwnvr:${DWNVR_VERSION:-v0.16.0}
+    image: ghcr.io/mhagnumdw/dwnvr:${DWNVR_VERSION:-v0.17.0}
     container_name: dwnvr
     restart: unless-stopped
     depends_on: [go2rtc]
@@ -127,7 +127,7 @@ services:
     profiles: [detect]
     # The same DWNVR_VERSION as dwnvr: both images ship together, with the
     # same tags.
-    image: ghcr.io/mhagnumdw/dwnvr-detect:${DWNVR_VERSION:-v0.16.0}
+    image: ghcr.io/mhagnumdw/dwnvr-detect:${DWNVR_VERSION:-v0.17.0}
     container_name: dwnvr-detect
     restart: unless-stopped
 

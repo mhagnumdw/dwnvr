@@ -2,6 +2,21 @@
 
 > Generated automatically on release by git-cliff (`.github/workflows/release.yml`); dates in UTC; do not edit by hand.
 
+## [v0.17.0](https://github.com/mhagnumdw/dwnvr/compare/v0.16.0...v0.17.0) (2026-11-28)
+
+### Added
+
+- feat(web): choose the theme in My account ([#103](https://github.com/mhagnumdw/dwnvr/pull/103)) ([9f7a155f](https://github.com/mhagnumdw/dwnvr/commit/9f7a155f89ba8e21745823eb126d9bdbc38eb287))
+- feat(web): light, light dim and dark dim theme palettes ([#102](https://github.com/mhagnumdw/dwnvr/pull/102)) ([d2918b12](https://github.com/mhagnumdw/dwnvr/commit/d2918b1218d742daed0aa590bbfd08e0fd607571))
+
+### Changed
+
+- refactor(web): route every screen color through a theme token ([#101](https://github.com/mhagnumdw/dwnvr/pull/101)) ([001c6871](https://github.com/mhagnumdw/dwnvr/commit/001c68712da27ccedd9f120b5bf8396bcece5ac2))
+
+### Docs
+
+- docs(todo): stage 2 released as v0.16.0 ([47a4f812](https://github.com/mhagnumdw/dwnvr/commit/47a4f812652cadf9f1f3d72de0826e8ebf45eed2))
+
 ## [v0.16.0](https://github.com/mhagnumdw/dwnvr/compare/v0.15.0...v0.16.0) (2026-11-27)
 
 ### Action required on upgrade
