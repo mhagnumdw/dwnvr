@@ -30,6 +30,7 @@ const PAIRS = [
   ['dim', 'panel-2', TEXT, 'secondary text in a field'],
   ['accent', 'bg', TEXT, 'link on the page'],
   ['accent', 'panel', TEXT, 'link on a card'],
+  ['accent', 'panel-2', TEXT, 'accent text in a field, hovered day count'],
   ['on-accent', 'accent-fill', TEXT, 'primary button, selected day'],
   ['ok', 'panel', TEXT, 'ok text on a card'],
   ['warn', 'panel', TEXT, 'warning text on a card'],

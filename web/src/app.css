@@ -21,7 +21,8 @@
   /* Text that is there but is not news, such as a zero in a table. Below the
      contrast of --dim on purpose. */
   --faint: #4a5058;
-  --accent: #2f81f7;
+  /* Lighter than GitHub's #2f81f7, which gives 4.31:1 on --panel-2. */
+  --accent: #4493f8;
   /* The accent as a background under white text (--on-accent): the primary
      button and the selected day. Darker than --accent, which has too little
      contrast with white. */

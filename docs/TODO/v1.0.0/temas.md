@@ -55,7 +55,7 @@ pouco claro é desenhado, na metade do caminho entre o claro e o pouco escuro.
 | `--fg` | `#e6edf3` | `#c5d1de` | `#171b20` | `#1f2328` |
 | `--dim` | `#8b949e` | `#9aa6b3` | `#3c4550` | `#59636e` |
 | `--faint` | `#4a5058` | `#545d68` | `#7f8a96` | `#aab2bb` |
-| `--accent` | `#2f81f7` | `#6cb6ff` | `#0850a3` | `#0969da` |
+| `--accent` | `#4493f8` | `#6cb6ff` | `#0850a3` | `#0969da` |
 | `--accent-fill` | `#1f6feb` | `#316dca` | `#0850a3` | `#0969da` |
 | `--on-accent` | `#fff` | `#fff` | `#fff` | `#fff` |
 | `--active-bg` | `#12233d` | `#263a55` | `#adc6e6` | `#ddf4ff` |
@@ -79,9 +79,12 @@ só no `:root`: o que fica sobre o vídeo segue sempre o escuro. O passo 3 põe 
 atributo no `<html>`; até lá, uma paleta se vê pelo DevTools, com
 `document.documentElement.dataset.theme = 'light'`.
 
-O `--on-bad` do escuro, o número da bolinha vermelha do sino, era branco e dava
-3,35:1; virou texto escuro (5,65:1), decidido em 27/11/2026, e o vermelho segue
-o mesmo do resto da tela.
+Duas mudanças no escuro, decididas em 27/11/2026 pelo script: o `--on-bad`, o
+número da bolinha vermelha do sino, era branco e dava 3,35:1, e virou texto
+escuro (5,65:1), com o vermelho igual ao do resto da tela; e o `--accent` sai do
+`#2f81f7`, que dava 4,31:1 sobre o `--panel-2` (a contagem do dia no hover do
+calendário, um texto de Câmeras), para o `#4493f8`, o azul de texto do escuro
+do GitHub de hoje (5,22:1).
 
 O `web/scripts/contrast.mjs` lê as paletas do `app.css` e confere cada par de
 texto e fundo que a tela usa (WCAG AA: 4,5:1 para texto, 3:1 para ícone); o
