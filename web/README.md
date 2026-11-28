@@ -97,6 +97,8 @@ src/components/  canvas timeline, thumbnail strip, clock that accepts a typed
                  the Alerta tab of the camera form (separate chunk)
 src/vendor/      go2rtc's live player (MIT), in JavaScript, with its types
                  written by hand - see vendor/README.md
+scripts/         the contrast check of every theme palette in src/app.css,
+                 which prek runs when the file changes
 ```
 
 ## Decisions

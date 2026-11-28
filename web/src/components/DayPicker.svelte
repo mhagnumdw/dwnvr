@@ -554,8 +554,8 @@
   /* Declared after :hover to win by order, without !important. */
   .cell.day.selected,
   .cell.day.selected:hover {
-    background: var(--accent);
-    border-color: var(--accent);
+    background: var(--accent-fill);
+    border-color: var(--accent-fill);
     color: var(--on-accent);
     font-weight: 600;
   }

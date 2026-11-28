@@ -33,7 +33,8 @@
   --warn: #d29922;
   --on-warn: #1b1300;
   --bad: #f85149;
-  --on-bad: #fff;
+  /* Dark, and not white: white on this red gives 3.35:1. */
+  --on-bad: #0d1117;
   /* Text on a strong color that is not the accent: the numbers in the
      Diagnostics funnel. */
   --on-strong: #0d1117;
@@ -60,6 +61,99 @@
 .over-video {
   color: var(--fg);
   color-scheme: dark;
+}
+
+/* The other palettes, chosen by the `data-theme` attribute of <html>. Only on
+   :root, never on `.over-video`: what sits on the video keeps the dark one.
+   Each palette defines every token above except the two derived ones, and
+   `web/scripts/contrast.mjs` checks every text and background pair of all of
+   them. */
+:root[data-theme='dark-dim'] {
+  --bg: #22272e;
+  --panel: #2d333b;
+  --panel-2: #323942;
+  --line: #444c56;
+  --line-soft: #373e47;
+  --fg: #c5d1de;
+  --dim: #9aa6b3;
+  --faint: #545d68;
+  --accent: #6cb6ff;
+  --accent-fill: #316dca;
+  --on-accent: #fff;
+  --active-bg: #263a55;
+  --ok: #6bc46d;
+  --warn: #daaa3f;
+  --on-warn: #1c1400;
+  --bad: #ff7b72;
+  --on-bad: #1c2128;
+  --on-strong: #1c2128;
+  --track: #2a3038;
+  --track-strong: #545d68;
+  --person: #57ab5a;
+  --vehicle: #986ee2;
+  --animal: #c96198;
+  --shadow: rgba(0, 0, 0, 0.45);
+  --backdrop: rgba(0, 0, 0, 0.55);
+}
+
+:root[data-theme='light-dim'] {
+  --bg: #c4ccd5;
+  --panel: #d5dbe2;
+  --panel-2: #cbd2da;
+  --line: #a2adb9;
+  --line-soft: #b7c0ca;
+  --fg: #171b20;
+  --dim: #3c4550;
+  --faint: #7f8a96;
+  --accent: #0850a3;
+  --accent-fill: #0850a3;
+  --on-accent: #fff;
+  --active-bg: #adc6e6;
+  --ok: #125f2b;
+  --warn: #6b4700;
+  --on-warn: #fff;
+  --bad: #a01822;
+  --on-bad: #fff;
+  --on-strong: #fff;
+  --track: #b9c2cc;
+  --track-strong: #8b96a2;
+  --person: #125f2b;
+  --vehicle: #5d36ad;
+  --animal: #8c2869;
+  --shadow: rgba(31, 35, 40, 0.24);
+  --backdrop: rgba(31, 35, 40, 0.5);
+
+  color-scheme: light;
+}
+
+:root[data-theme='light'] {
+  --bg: #fff;
+  --panel: #f6f8fa;
+  --panel-2: #eff2f5;
+  --line: #d1d9e0;
+  --line-soft: #e6eaef;
+  --fg: #1f2328;
+  --dim: #59636e;
+  --faint: #aab2bb;
+  --accent: #0969da;
+  --accent-fill: #0969da;
+  --on-accent: #fff;
+  --active-bg: #ddf4ff;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --on-warn: #fff;
+  --bad: #d1242f;
+  --on-bad: #fff;
+  --on-strong: #fff;
+  --track: #eaeef2;
+  --track-strong: #b7bfc8;
+  --person: #1a7f37;
+  --vehicle: #8250df;
+  --animal: #bf3989;
+  --shadow: rgba(31, 35, 40, 0.15);
+  --backdrop: rgba(31, 35, 40, 0.4);
+
+  color-scheme: light;
 }
 
 :root {

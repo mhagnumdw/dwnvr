@@ -261,6 +261,19 @@ repos:
         files: ^web/(src/|public/|index\.html$|package(-lock)?\.json$|vite\.config\.ts$)
         pass_filenames: false
 
+  # The contrast of every text and background pair in every theme palette
+  # (WCAG AA), read from web/src/app.css. Plain Node, with no dependency: a
+  # palette that fails does not get in. The pairs are listed in the script.
+  - repo: local
+    hooks:
+      - id: contrast
+        priority: check
+        name: theme contrast
+        language: system
+        entry: node web/scripts/contrast.mjs
+        files: ^web/(src/app\.css|scripts/contrast\.mjs)$
+        pass_filenames: false
+
   # TypeScript and Svelte: bugs and bad practice, with the rules that read the
   # types. The rules are in web/eslint.config.ts, and ESLint comes from web/'s
   # devDependencies: in a fresh clone, run `npm ci` in web/ first.
@@ -277,7 +290,7 @@ repos:
         args: [--fix, --no-warn-ignored, --max-warnings=0]
         files: ^web/(src/.*\.(ts|svelte)|[^/]+\.ts)$
 
-  # TypeScript, Svelte, CSS and web/'s index.html: formatting. The rules are in
+  # TypeScript, Svelte, CSS, web/'s index.html and web/scripts: formatting. The rules are in
   # web/prettier.config.ts. It comes after ESLint, because its --fix may leave
   # a line out of format, so Prettier has the last word. --ignore-path points
   # at web/'s .prettierignore, which Prettier only looks for in the folder it
@@ -291,7 +304,7 @@ repos:
         language: system
         entry: web/node_modules/.bin/prettier
         args: [--write, --ignore-path, web/.prettierignore]
-        files: ^web/(src/.*\.(ts|svelte|css)|index\.html|[^/]+\.ts)$
+        files: ^web/(src/.*\.(ts|svelte|css)|scripts/.*\.mjs|index\.html|[^/]+\.ts)$
 
   # dwnvr-detect Python: lint and formatting, flake8 and black in a single
   # tool. The rules are in dwnvr-detect/ruff.toml.
