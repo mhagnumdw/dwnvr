@@ -1,8 +1,9 @@
 # Temas
 
 **Status (27/11/2026): em andamento.** Decisões e paletas fechadas em
-27/11/2026; o passo 1 (toda cor num token) foi mergeado no PR #101, e o passo 2
-(as paletas e o script de contraste) está no PR da branch `themes-palettes`.
+27/11/2026; o passo 1 (toda cor num token) foi mergeado no PR #101, o passo 2
+(as paletas e o script de contraste) no PR #102, e o passo 3 (o seletor) está
+no PR da branch `themes-picker`.
 
 ## O que é
 

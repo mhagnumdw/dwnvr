@@ -5,7 +5,7 @@
 // The server decides whether an object is inside (internal/area): the screen
 // only draws the area and sends it in the query.
 
-import { tokenColor } from './theme.ts';
+import { tokenColor } from './theme.svelte.ts';
 
 export type Point = [x: number, y: number];
 
@@ -97,7 +97,7 @@ function path(g: CanvasRenderingContext2D, points: readonly Point[], w: number, 
 }
 
 // The theme's accent, read on the canvas being painted: over the video it is the
-// dark palette's (lib/theme.ts).
+// dark palette's (lib/theme.svelte.ts).
 const blue = (g: CanvasRenderingContext2D) => tokenColor(g.canvas, '--accent');
 
 // The area's outline on a canvas already translated to the image, with width

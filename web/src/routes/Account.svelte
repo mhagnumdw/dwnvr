@@ -1,8 +1,9 @@
 <!--
   My account: what each person changes about themselves, of any role. The photo
   and the name apply to everyone; the password only to whoever is not the owner,
-  whose password lives in dwnvr.yaml. You get here through the avatar in the
-  header: there is no tab.
+  whose password lives in dwnvr.yaml. The theme is this browser's, and the only
+  thing here that doesn't go to the server. You get here through the avatar in
+  the header: there is no tab.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -12,6 +13,7 @@
   import { shrinkPhoto } from '../lib/avatar.ts';
   import Avatar from '../components/Avatar.svelte';
   import PasswordField from '../components/PasswordField.svelte';
+  import { THEME_CHOICES, setTheme, theme } from '../lib/theme.svelte.ts';
 
   // Null until the API answers.
   let data = $state<Account | null>(null);
@@ -159,6 +161,25 @@
       {#if nameState.ok && !nameChanged}<span class="small ok">nome salvo</span>{/if}
     </form>
 
+    <div class="card form">
+      <strong id="theme-title">Tema</strong>
+      <span class="small muted"
+        >Vale para este aparelho. O que fica sobre o vídeo é sempre escuro.</span
+      >
+      <div class="row wrap themes" role="group" aria-labelledby="theme-title">
+        {#each THEME_CHOICES as c (c.value)}
+          <button
+            type="button"
+            class:on={theme.choice === c.value}
+            aria-pressed={theme.choice === c.value}
+            onclick={() => {
+              setTheme(c.value);
+            }}>{c.label}</button
+          >
+        {/each}
+      </div>
+    </div>
+
     {#if p.owner}
       <div class="card form">
         <strong>Trocar senha</strong>
@@ -264,6 +285,23 @@
     min-height: 36px;
     padding: 5px 12px;
     font-size: 13px;
+  }
+
+  .themes {
+    gap: 8px;
+  }
+
+  .themes button {
+    min-height: 36px;
+    padding: 5px 12px;
+    font-size: 13px;
+    color: var(--dim);
+  }
+
+  .themes button.on {
+    color: var(--fg);
+    border-color: var(--accent);
+    background: var(--active-bg);
   }
 
   .form {

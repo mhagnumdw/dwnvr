@@ -271,7 +271,7 @@ repos:
         name: theme contrast
         language: system
         entry: node web/scripts/contrast.mjs
-        files: ^web/(src/app\.css|scripts/contrast\.mjs)$
+        files: ^web/(src/app\.css|index\.html|scripts/contrast\.mjs)$
         pass_filenames: false
 
   # TypeScript and Svelte: bugs and bad practice, with the rules that read the

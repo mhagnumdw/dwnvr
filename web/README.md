@@ -55,9 +55,10 @@ src/lib/         the api and the types of its JSON, state (runes), route and
                  notice that the open screen fell behind an update, the
                  snackbar (the short notice at the bottom of the screen), the
                  hint that a long press opens on a button (and the long-press
-                 notice for whoever asks for it), the theme's colors read
-                 from the CSS tokens for whoever paints on a canvas, the
-                 height an element has
+                 notice for whoever asks for it), the theme (the choice of
+                 My account, which the index.html script applies before the
+                 first paint) and its colors read from the CSS tokens for
+                 whoever paints on a canvas, the height an element has
                  down to the end of the window, the numbers of the sideways
                  swipe that switches camera (shared by Ao vivo and
                  Gravações) and the
@@ -125,7 +126,7 @@ snippet arranged by hand on purpose, like the icon drawings, gets a
 
 **Every color is a token.** The colors live in the `:root` of `src/app.css`, and
 a component writes `var(--token)` or a `color-mix()` over one, never a hex.
-Whoever paints on a canvas reads the token with `tokenColor` (`src/lib/theme.ts`)
+Whoever paints on a canvas reads the token with `tokenColor` (`src/lib/theme.svelte.ts`)
 at drawing time. What sits on the video gets the `.over-video` class, which
 pins the dark palette there: the video is dark in every theme. The few colors
 still written out are on the video (the black stage, the shadows over the
